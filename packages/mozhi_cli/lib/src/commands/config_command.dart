@@ -67,8 +67,10 @@ class ConfigShowCommand extends MozhiCommand {
     String value(ConfigKey key, String fallback) =>
         config.valueOf(key) ?? darkGray.wrap(fallback)!;
     logger
-      ..info('${bold('Config file')}  ${configStore.path}'
-          '${configStore.exists ? '' : darkGray.wrap(' (not created yet)')}')
+      ..info(
+        '${bold('Config file')}  ${configStore.path}'
+        '${configStore.exists ? '' : darkGray.wrap(' (not created yet)')}',
+      )
       ..info('')
       ..info(
         renderTable(
@@ -129,12 +131,8 @@ class ConfigSetCommand extends MozhiCommand {
     final (value, label) = switch (key) {
       ConfigKey.instance => _same(MozhiCommand.normalizeInstanceUrl(input)),
       ConfigKey.engine => _engine(input),
-      ConfigKey.source => _language(
-        resolveLanguage(input, allowAuto: true),
-      ),
-      ConfigKey.target => _language(
-        resolveLanguage(input, allowCustom: true),
-      ),
+      ConfigKey.source => _language(resolveLanguage(input, allowAuto: true)),
+      ConfigKey.target => _language(resolveLanguage(input, allowCustom: true)),
     };
     saveConfig(config.withValue(key, value));
     logger.success('Set ${key.name} to $label.');

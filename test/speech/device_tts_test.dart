@@ -1,9 +1,6 @@
-import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/speech/device_tts.dart';
 
 /// Scriptable stand-in for the `flutter_tts` plugin; records calls.
@@ -126,12 +123,15 @@ void main() {
     });
 
     group('speechRate', () {
-      double rate(TargetPlatform platform, {bool isWeb = false, bool? slow}) =>
-          FlutterTtsDeviceTts.speechRate(
-            platform: platform,
-            isWeb: isWeb,
-            slow: slow ?? false,
-          );
+      double rate(
+        TargetPlatform platform, {
+        bool isWeb = false,
+        bool slow = false,
+      }) => FlutterTtsDeviceTts.speechRate(
+        platform: platform,
+        isWeb: isWeb,
+        slow: slow,
+      );
 
       test('uses 0.5 / 0.3 on Android and Windows', () {
         for (final platform in [
@@ -353,7 +353,9 @@ void main() {
       });
 
       test('passes unknown tags through and throws when rejected', () async {
-        tts..available = (_) => false..setLanguageResult = 0;
+        tts
+          ..available = ((_) => false)
+          ..setLanguageResult = 0;
         final device = deviceTts(platform: TargetPlatform.iOS);
 
         await expectLater(

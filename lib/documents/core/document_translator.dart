@@ -9,7 +9,7 @@ import 'package:translation_repository/translation_repository.dart';
 
 /// Thrown when an engine returns an empty translation for non-empty text.
 class EmptyTranslationException implements Exception {
-  const EmptyTranslationException();
+  const new();
 
   @override
   String toString() => 'EmptyTranslationException';
@@ -17,7 +17,7 @@ class EmptyTranslationException implements Exception {
 
 /// Snapshot of a document translation.
 class DocumentProgress extends Equatable {
-  const DocumentProgress({
+  const new({
     required this.total,
     this.results = const {},
     this.failures = const {},
@@ -64,15 +64,14 @@ typedef RetryPolicy = bool Function(Object error);
 /// * Cancelling the subscription of [translate] stops scheduling and
 ///   cancels in-flight requests.
 class DocumentTranslator {
-  DocumentTranslator({
-    required TranslationRepository repository,
+  new({
+    required this._repository,
     this.concurrency = 2,
     this.maxAttempts = 3,
     this.retryDelay = const Duration(seconds: 1),
     RetryPolicy? shouldRetry,
   }) : assert(concurrency >= 1, 'concurrency must be positive'),
        assert(maxAttempts >= 1, 'maxAttempts must be positive'),
-       _repository = repository,
        shouldRetry = shouldRetry ?? isRetryableError;
 
   final TranslationRepository _repository;
@@ -290,7 +289,7 @@ class DocumentTranslator {
 }
 
 class _Cancelled implements Exception {
-  const _Cancelled();
+  const new();
 }
 
 class _CancelToken {

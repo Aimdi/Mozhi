@@ -41,9 +41,8 @@ class _UsageBudgetDialogState extends State<UsageBudgetDialog> {
 
   void _save() {
     if (!_formKey.currentState!.validate()) return;
-    Navigator.of(
-      context,
-    ).pop<UsageBudgetChoice>((monthlyChars: int.parse(_controller.text)));
+    Navigator.of(context)
+        .pop<UsageBudgetChoice>((monthlyChars: int.parse(_controller.text)));
   }
 
   @override
@@ -85,9 +84,9 @@ class _UsageBudgetDialogState extends State<UsageBudgetDialog> {
       actions: [
         if (widget.current != null)
           TextButton(
-            onPressed: () => Navigator.of(
-              context,
-            ).pop<UsageBudgetChoice>((monthlyChars: null)),
+            onPressed: () =>
+                Navigator.of(context)
+                    .pop<UsageBudgetChoice>((monthlyChars: null)),
             child: Text(l10n.usageBudgetRemove),
           ),
         TextButton(

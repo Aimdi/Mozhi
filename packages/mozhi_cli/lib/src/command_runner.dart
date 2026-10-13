@@ -2,28 +2,38 @@ import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:cli_completion/cli_completion.dart';
 import 'package:mason_logger/mason_logger.dart';
+import 'package:mozhi_cli/src/cli_context.dart';
 import 'package:mozhi_cli/src/commands/commands.dart';
+import 'package:mozhi_cli/src/console.dart';
+import 'package:mozhi_cli/src/errors.dart';
 import 'package:mozhi_cli/src/version.dart';
-import 'package:pub_updater/pub_updater.dart';
 
 const executableName = 'mozhi';
 const packageName = 'mozhi_cli';
-const description = 'Command-line translator using Mozhi instances and AI providers.';
+const description =
+    'Translate text with self-hosted Mozhi instances (Google, DeepL, Yandex, '
+    'Reverso, LibreTranslate, MyMemory, DuckDuckGo) and AI providers '
+    '(OpenAI-compatible, Anthropic, Gemini, Ollama).';
 
 /// {@template mozhi_cli_command_runner}
-/// A [CommandRunner] for the CLI.
+/// The `mozhi` command-line translator.
 ///
 /// ```bash
-/// $ mozhi --version
+/// $ mozhi translate "Bonjour le monde" --to en
 /// ```
 /// {@endtemplate}
 class MozhiCliCommandRunner extends CompletionCommandRunner<int> {
   /// {@macro mozhi_cli_command_runner}
-  new({Logger? logger, PubUpdater? pubUpdater})
-    : _logger = logger ?? Logger(),
-      _pubUpdater = pubUpdater ?? PubUpdater(),
-      super(executableName, description) {
-    // Add root options and flags
+  ///
+  /// [console], [repositoryFactory] and [configStoreFactory] replace the
+  /// real terminal, network and configuration file in tests.
+  new({
+    Logger? logger,
+    Console? console,
+    RepositoryFactory? repositoryFactory,
+    ConfigStoreFactory? configStoreFactory,
+  }) : _logger = logger ?? Logger(),
+       super(executableName, description) {
     argParser
       ..addFlag(
         'version',
@@ -33,19 +43,59 @@ class MozhiCliCommandRunner extends CompletionCommandRunner<int> {
       )
       ..addFlag(
         'verbose',
-        help: 'Noisy logging, including all shell commands executed.',
+        negatable: false,
+        help: 'Print diagnostic details (and stack traces of internal errors).',
+      )
+      ..addOption(
+        'config',
+        valueHelp: 'file',
+        help:
+            'Configuration file to use instead of '
+            r'$XDG_CONFIG_HOME/mozhi/config.json (or $MOZHI_CONFIG).',
       );
 
-    // Add sub commands
-    addCommand(SampleCommand(logger: _logger));
-    addCommand(UpdateCommand(logger: _logger, pubUpdater: _pubUpdater));
+    final context = CliContext(
+      logger: _logger,
+      console: console,
+      repositoryFactory: repositoryFactory,
+      configStoreFactory: configStoreFactory,
+    );
+    addCommand(TranslateCommand(context));
+    addCommand(ProofreadCommand(context));
+    addCommand(DetectCommand(context));
+    addCommand(EnginesCommand(context));
+    addCommand(LanguagesCommand(context));
+    addCommand(InstancesCommand(context));
+    addCommand(ConfigCommand(context));
   }
+
+  final Logger _logger;
+
+  /// Completion files are only installed on request
+  /// (`mozhi install-completion-files`); shell profiles are never modified
+  /// behind the user's back.
+  @override
+  bool get enableAutoInstall => false;
+
+  @override
+  String get invocation => '$executableName <command> [arguments]';
+
+  @override
+  String get usageFooter => '''
+
+Examples:
+  mozhi translate "Bonjour le monde" --to en
+  echo "Guten Morgen" | mozhi translate --to ja --engine deepl
+  mozhi translate --compare --to es "How are you?"
+  mozhi config providers add --preset ollama --model gemma3 --default
+  mozhi translate --engine ai --formality more --to de "See you tomorrow"
+  mozhi instances ping
+
+Exit codes: 0 success, 64 usage error, 66 missing input file,
+69 instance or provider unavailable, 70 internal error, 78 bad config.''';
 
   @override
   void printUsage() => _logger.info(usage);
-
-  final Logger _logger;
-  final PubUpdater _pubUpdater;
 
   @override
   Future<int> run(Iterable<String> args) async {
@@ -55,23 +105,23 @@ class MozhiCliCommandRunner extends CompletionCommandRunner<int> {
         _logger.level = Level.verbose;
       }
       return await runCommand(topLevelResults) ?? ExitCode.success.code;
-    } on FormatException catch (e, stackTrace) {
-      // On format errors, show the commands error message, root usage and
-      // exit with an error code
-      _logger
-        ..err(e.message)
-        ..err('$stackTrace')
-        ..info('')
-        ..info(usage);
-      return ExitCode.usage.code;
     } on UsageException catch (e) {
-      // On usage errors, show the commands usage message and
-      // exit with an error code
+      // Show the usage of the command that was misused.
       _logger
         ..err(e.message)
         ..info('')
         ..info(e.usage);
       return ExitCode.usage.code;
+    } on Object catch (error, stackTrace) {
+      final failure = describeError(error);
+      _logger.err(failure.message);
+      if (failure.hint case final hint?) {
+        _logger.err(hint, style: (m) => m);
+      }
+      if (failure.exitCode == ExitCode.software) {
+        _logger.detail('$stackTrace');
+      }
+      return failure.exitCode.code;
     }
   }
 
@@ -83,7 +133,6 @@ class MozhiCliCommandRunner extends CompletionCommandRunner<int> {
       return ExitCode.success.code;
     }
 
-    // Verbose logs
     _logger
       ..detail('Argument information:')
       ..detail('  Top level options:');
@@ -92,51 +141,23 @@ class MozhiCliCommandRunner extends CompletionCommandRunner<int> {
         _logger.detail('  - $option: ${topLevelResults[option]}');
       }
     }
-    if (topLevelResults.command != null) {
-      final commandResult = topLevelResults.command!;
+    if (topLevelResults.command case final command?) {
       _logger
-        ..detail('  Command: ${commandResult.name}')
+        ..detail('  Command: ${command.name}')
         ..detail('    Command options:');
-      for (final option in commandResult.options) {
-        if (commandResult.wasParsed(option)) {
-          _logger.detail('    - $option: ${commandResult[option]}');
+      for (final option in command.options) {
+        if (command.wasParsed(option)) {
+          // Never echo secrets into logs.
+          final value = option == 'api-key' ? '********' : command[option];
+          _logger.detail('    - $option: $value');
         }
       }
     }
 
-    // Run the command or show version
-    final int? exitCode;
     if (topLevelResults['version'] == true) {
       _logger.info(packageVersion);
-      exitCode = ExitCode.success.code;
-    } else {
-      exitCode = await super.runCommand(topLevelResults);
+      return ExitCode.success.code;
     }
-
-    // Check for updates
-    if (topLevelResults.command?.name != UpdateCommand.commandName) {
-      await _checkForUpdates();
-    }
-
-    return exitCode;
-  }
-
-  /// Checks if the current version (set by the build runner on the
-  /// version.dart file) is the most recent one. If not, show a prompt to the
-  /// user.
-  Future<void> _checkForUpdates() async {
-    try {
-      final latestVersion = await _pubUpdater.getLatestVersion(packageName);
-      final isUpToDate = packageVersion == latestVersion;
-      if (!isUpToDate) {
-        _logger
-          ..info('')
-          ..info('''
-${lightYellow.wrap('Update available!')} ${lightCyan.wrap(packageVersion)} \u2192 ${lightCyan.wrap(latestVersion)}
-Run ${lightCyan.wrap('$executableName update')} to update''');
-      }
-    } on Exception catch (_) {
-      _logger.err('Failed to check for updates.');
-    }
+    return super.runCommand(topLevelResults);
   }
 }

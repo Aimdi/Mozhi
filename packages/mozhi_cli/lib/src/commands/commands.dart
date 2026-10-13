@@ -1,2 +1,9 @@
-export 'sample_command.dart';
-export 'update_command.dart';
+export 'config_command.dart';
+export 'detect_command.dart';
+export 'engines_command.dart';
+export 'instances_command.dart';
+export 'languages_command.dart';
+export 'mozhi_command.dart';
+export 'proofread_command.dart';
+export 'providers_command.dart';
+export 'translate_command.dart';

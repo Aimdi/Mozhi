@@ -189,9 +189,7 @@ class InstancesPingCommand extends MozhiCommand {
     Duration timeout,
   ) async {
     try {
-      final latency = await repository
-          .pingInstance(instance)
-          .timeout(timeout);
+      final latency = await repository.pingInstance(instance).timeout(timeout);
       return _Ping(order, instance, latency: latency);
     } on TimeoutException {
       return _Ping(order, instance, error: 'timed out');

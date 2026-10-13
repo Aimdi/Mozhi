@@ -37,7 +37,10 @@ const testSettings = AppSettings(instances: testInstances);
 /// A real [SettingsCubit] persisting into memory.
 SettingsCubit createSettings([AppSettings settings = testSettings]) =>
     SettingsCubit(
-      repository: SettingsRepository(prefs: MemoryStore(), secrets: MemoryStore()),
+      repository: SettingsRepository(
+        prefs: MemoryStore(),
+        secrets: MemoryStore(),
+      ),
       initial: settings,
     );
 

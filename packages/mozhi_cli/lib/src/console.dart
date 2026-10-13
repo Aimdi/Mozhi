@@ -8,10 +8,7 @@ import 'dart:io' as io;
 class Console {
   /// Uses the real [io.stdin], [io.stdout] and [io.Platform.environment]
   /// unless replacements are given.
-  new({io.Stdin? stdin, io.Stdout? stdout, Map<String, String>? environment})
-    : _stdin = stdin,
-      _stdout = stdout,
-      _environment = environment;
+  new({this._stdin, this._stdout, this._environment});
 
   final io.Stdin? _stdin;
   final io.Stdout? _stdout;

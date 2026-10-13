@@ -8,7 +8,7 @@ export 'batch_codec.dart' show ChunkEncoding;
 /// One piece of a segment that is translated as a whole: the segment
 /// itself, or a part of an oversized segment.
 class TranslationUnit extends Equatable {
-  const TranslationUnit({
+  const new({
     required this.segment,
     required this.part,
     required this.text,
@@ -24,7 +24,7 @@ class TranslationUnit extends Equatable {
 
 /// Units translated together in one request.
 class Chunk extends Equatable {
-  const Chunk({
+  const new({
     required this.index,
     required this.units,
     required this.encoding,
@@ -56,7 +56,7 @@ class Chunk extends Equatable {
 /// The chunks of a document and how to put their translations back
 /// together.
 class ChunkPlan extends Equatable {
-  const ChunkPlan({required this.chunks, required this.separators});
+  const new({required this.chunks, required this.separators});
 
   final List<Chunk> chunks;
 
@@ -113,7 +113,7 @@ class ChunkPlan extends Equatable {
 /// [maxCharacters] on its own — then it is cut at line breaks, sentence
 /// ends, spaces, or (last resort) anywhere outside a placeholder.
 class Chunker {
-  const Chunker({this.maxCharacters = 1500, this.maxUnits = 40})
+  const new({this.maxCharacters = 1500, this.maxUnits = 40})
     : assert(maxCharacters >= 50, 'maxCharacters too small'),
       assert(maxUnits >= 1, 'maxUnits must be positive');
 

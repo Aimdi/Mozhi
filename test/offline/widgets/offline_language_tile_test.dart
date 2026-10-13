@@ -89,7 +89,10 @@ void main() {
     });
 
     testWidgets('omits the subtitle without a native name', (tester) async {
-      await pump(tester, language: const OfflineLanguage(code: 'xx', name: 'xx'));
+      await pump(
+        tester,
+        language: const OfflineLanguage(code: 'xx', name: 'xx'),
+      );
       final tile = tester.widget<ListTile>(find.byType(ListTile));
       expect(tile.subtitle, isNull);
     });
@@ -101,8 +104,9 @@ void main() {
       await tester.pumpApp(
         Builder(
           builder: (context) => TextButton(
-            onPressed: () async =>
-                results.add(await confirmDeleteOfflineLanguage(context, german)),
+            onPressed: () async => results.add(
+              await confirmDeleteOfflineLanguage(context, german),
+            ),
             child: const Text('open'),
           ),
         ),

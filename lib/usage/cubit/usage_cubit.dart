@@ -9,8 +9,7 @@ export 'usage_state.dart';
 
 /// Exposes a [UsageTracker] to the UI and follows its changes.
 class UsageCubit extends Cubit<UsageState> {
-  new(this._tracker)
-    : super(UsageState(snapshot: _tracker.snapshot)) {
+  new(this._tracker) : super(UsageState(snapshot: _tracker.snapshot)) {
     _subscription = _tracker.changes.listen(
       (snapshot) =>
           emit(state.copyWith(status: UsageStatus.ready, snapshot: snapshot)),
@@ -35,20 +34,19 @@ class UsageCubit extends Cubit<UsageState> {
   }
 
   /// Sets the monthly character budget of [providerId]; null removes it.
-  Future<void> setBudget(String providerId, int? monthlyChars) =>
-      _guard(
-        () => _tracker.setBudget(
-          providerId,
-          monthlyChars == null || monthlyChars <= 0
-              ? null
-              : UsageBudget(
-                  monthlyChars: monthlyChars,
-                  warningThreshold:
-                      _tracker.snapshot.budgetFor(providerId)?.warningThreshold ??
-                      UsageBudget.defaultWarningThreshold,
-                ),
-        ),
-      );
+  Future<void> setBudget(String providerId, int? monthlyChars) => _guard(
+    () => _tracker.setBudget(
+      providerId,
+      monthlyChars == null || monthlyChars <= 0
+          ? null
+          : UsageBudget(
+              monthlyChars: monthlyChars,
+              warningThreshold:
+                  _tracker.snapshot.budgetFor(providerId)?.warningThreshold ??
+                  UsageBudget.defaultWarningThreshold,
+            ),
+    ),
+  );
 
   /// Deletes the usage counters of [providerId], or of all providers.
   Future<void> reset({String? providerId}) =>

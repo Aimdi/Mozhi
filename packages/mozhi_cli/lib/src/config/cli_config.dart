@@ -59,7 +59,7 @@ enum ConfigKey {
   source('Default source language (default: auto)'),
   target('Default target language (default: en)');
 
-  const new(this.description);
+  new(this.description);
 
   final String description;
 

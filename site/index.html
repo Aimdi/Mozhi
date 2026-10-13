@@ -86,7 +86,7 @@
       <div class="hero-copy">
         <img class="hero-icon" src="icon-192.png" srcset="icon-192.png 192w, icon.png 512w" sizes="96px" width="96" height="96" alt="" fetchpriority="high">
         <h1 id="hero-title">Mozhi</h1>
-        <p class="tagline">Private, beautiful translation — <span class="hl hl-mozhi">Mozhi engines</span> and <span class="hl hl-ai">the AI of your choice</span></p>
+        <p class="tagline"><span class="tl-1">Private, beautiful translation —</span> <span class="hl hl-mozhi">Mozhi engines</span> and <span class="hl hl-ai">the AI of your choice</span></p>
         <p class="lead">A free, open-source translator for Android, iOS, macOS, Windows and the web. Use Google, DeepL and friends through a Mozhi instance, or OpenAI, Anthropic, Gemini and models running on your own computer. No account. No tracking.</p>
         <div class="cta">
           <a class="btn btn-primary" href="https://github.com/Aimdi/Mozhi/releases/latest"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg>Download</a>
@@ -224,7 +224,7 @@
             <svg class="ic arrow"><use href="#i-arrow"/></svg>
             <span class="node"><svg class="ic"><use href="#i-server"/></svg>Mozhi</span>
             <svg class="ic arrow"><use href="#i-arrow"/></svg>
-            <span class="node">Google, DeepL…</span>
+            <span class="node">Engines</span>
           </div>
           <p><a href="https://codeberg.org/aryak/mozhi">Mozhi</a> is an open-source front-end that forwards your text to engines like Google, DeepL or Yandex, so they see the instance, not you. Use a built-in public instance or host your own.</p>
           <p class="sees"><strong>Who sees your text:</strong> the instance, and the engine it forwards to.</p>
@@ -263,8 +263,10 @@
             <span aria-hidden="true">Terminal</span>
             <button class="copy" type="button" data-copy="docker-cmd" hidden><svg class="ic" aria-hidden="true"><use href="#i-copy"/></svg><span class="copy-label">Copy</span><span class="sr-only"> command</span></button>
           </div>
-<pre><code id="docker-cmd">docker run -d --name mozhi --restart unless-stopped \
-  -p 3000:3000 codeberg.org/aryak/mozhi:latest</code></pre>
+<pre tabindex="0" role="region" aria-label="Docker command"><code id="docker-cmd">docker run -d --name mozhi \
+  --restart unless-stopped \
+  -p 3000:3000 \
+  codeberg.org/aryak/mozhi:latest</code></pre>
         </div>
       </div>
     </div>

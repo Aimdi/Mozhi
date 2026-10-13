@@ -19,7 +19,7 @@ enum DocumentFormat {
   /// `@` metadata and ICU placeholders/plurals are kept.
   json(['json', 'arb'], 'application/json', 'json');
 
-  const DocumentFormat(this.extensions, this.mimeType, this.defaultExtension);
+  new(this.extensions, this.mimeType, this.defaultExtension);
 
   /// File extensions (lower case, without dot).
   final List<String> extensions;
@@ -135,7 +135,7 @@ final _localeStem = RegExp(
 String _fileCode(String code) {
   final cleaned = code
       .trim()
-      .replaceAll(RegExp(r'[^A-Za-z0-9_-]+'), '-')
+      .replaceAll(RegExp('[^A-Za-z0-9_-]+'), '-')
       .replaceAll(RegExp('-{2,}'), '-')
       .replaceAll(RegExp(r'^-|-$'), '');
   if (cleaned.isEmpty) return 'translated';

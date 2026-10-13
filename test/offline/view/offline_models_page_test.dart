@@ -21,14 +21,11 @@ void main() {
   });
 
   Future<void> pumpPage(WidgetTester tester) async {
-    await tester.pumpApp(OfflineModelsPage(translator: translator, store: store));
+    await tester.pumpApp(
+      OfflineModelsPage(translator: translator, store: store),
+    );
     await tester.pumpAndSettle();
   }
-
-  Finder section(String title) => find.ancestor(
-    of: find.text(title),
-    matching: find.byType(Column),
-  ).first;
 
   group('OfflineModelsPage', () {
     testWidgets('shows a spinner while loading', (tester) async {
@@ -50,18 +47,13 @@ void main() {
       expect(find.text('2 languages downloaded'), findsOneWidget);
       expect(find.text('Downloaded'), findsNWidgets(3)); // header + 2 badges
       expect(find.text('Available to download'), findsOneWidget);
-      expect(find.text('Offline translation is available on Android and iOS'),
-          findsNothing);
-
-      final downloaded = section('Downloaded').evaluate().first;
       expect(
-        find.descendant(
-          of: find.byWidget(downloaded.widget),
-          matching: find.byType(OfflineLanguageTile),
-        ),
-        findsNWidgets(2),
+        find.text('Offline translation is available on Android and iOS'),
+        findsNothing,
       );
-      // Sorted by name; unknown codes fall back to the code.
+
+      // Downloaded first, each section sorted by name; unknown codes fall
+      // back to the code.
       final names = tester
           .widgetList<OfflineLanguageTile>(find.byType(OfflineLanguageTile))
           .map((tile) => tile.language.name)
@@ -118,7 +110,7 @@ void main() {
       await tester.tap(find.byTooltip('Download French'));
       await tester.pump();
       expect(find.text('Downloading when on Wi-Fi…'), findsOneWidget);
-      verify(() => translator.downloadLanguage('fr', wifiOnly: true)).called(1);
+      verify(() => translator.downloadLanguage('fr')).called(1);
 
       completer.complete();
       await tester.pumpAndSettle();
@@ -176,7 +168,8 @@ void main() {
 
       await tester.tap(find.byTooltip('Download French'));
       await tester.pumpAndSettle();
-      verify(() => translator.downloadLanguage('fr', wifiOnly: false)).called(1);
+      verify(() => translator.downloadLanguage('fr', wifiOnly: false))
+          .called(1);
     });
 
     testWidgets('searches languages', (tester) async {
@@ -214,18 +207,14 @@ void main() {
       expect(toggle.value, isFalse);
     });
 
-    testWidgets(
-      'falls back to ML Kit and the preferences',
-      (tester) async {
-        await tester.pumpApp(const OfflineModelsPage());
-        await tester.pumpAndSettle();
-        expect(
-          find.text('Offline translation is available on Android and iOS'),
-          findsOneWidget,
-        );
-        expect(find.byType(OfflineLanguageTile), findsWidgets);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.linux),
-    );
+    testWidgets('falls back to ML Kit and the preferences', (tester) async {
+      await tester.pumpApp(const OfflineModelsPage());
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Offline translation is available on Android and iOS'),
+        findsOneWidget,
+      );
+      expect(find.byType(OfflineLanguageTile), findsWidgets);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
   });
 }

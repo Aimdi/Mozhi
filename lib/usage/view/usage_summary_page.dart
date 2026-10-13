@@ -50,11 +50,7 @@ class UsageSummaryPage extends StatelessWidget {
 }
 
 class UsageSummaryView extends StatelessWidget {
-  const new({
-    this.providers = const [],
-    this.onOpenProvider,
-    super.key,
-  });
+  const new({this.providers = const [], this.onOpenProvider, super.key});
 
   final List<AiProviderConfig> providers;
   final ValueChanged<String>? onOpenProvider;

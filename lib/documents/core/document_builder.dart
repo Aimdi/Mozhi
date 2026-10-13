@@ -3,14 +3,14 @@ import 'package:mozhi/documents/core/parsed_document.dart';
 
 /// Part of a segment's content, as produced by the parsers.
 sealed class Piece {
-  const Piece();
+  const new();
 }
 
 /// Translatable text. [source] is the original document text, [text] what
 /// the translator sees (they differ for line breaks inside a Markdown
 /// quote, whose `> ` prefixes are not translated).
 final class TextPiece extends Piece {
-  const TextPiece(this.source, [String? text]) : text = text ?? source;
+  const new(this.source, [String? text]) : text = text ?? source;
 
   final String source;
   final String text;
@@ -18,9 +18,9 @@ final class TextPiece extends Piece {
 
 /// Content that must not be translated; becomes a numbered placeholder.
 final class TokenPiece extends Piece {
-  const TokenPiece(this.nodes);
+  const new(this.nodes);
 
-  TokenPiece.text(String text) : nodes = [TextNode(text)];
+  new text(String text) : nodes = [TextNode(text)];
 
   /// What the placeholder renders (may contain segments, e.g. ICU plural
   /// variants).

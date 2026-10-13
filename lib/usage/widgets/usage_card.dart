@@ -15,7 +15,7 @@ import 'package:mozhi/usage/widgets/usage_format.dart';
 ///
 /// Reads the [UsageTracker] provided above unless [tracker] is given.
 class UsageCard extends StatelessWidget {
-  const UsageCard({
+  const new({
     required this.providerId,
     this.tracker,
     this.onShowAll,
@@ -43,7 +43,7 @@ class UsageCard extends StatelessWidget {
 
 /// Builds [UsageCard] from the [UsageCubit] above.
 class UsageCardView extends StatelessWidget {
-  const UsageCardView({required this.providerId, this.onShowAll, super.key});
+  const new({required this.providerId, this.onShowAll, super.key});
 
   /// Number of months in the chart.
   static const historyMonths = 6;
@@ -63,7 +63,7 @@ class UsageCardView extends StatelessWidget {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final snapshot = context.select((UsageCubit c) => c.state.snapshot);
+    final snapshot = context.select((c) => c.state.snapshot);
     final stats = snapshot.statsFor(providerId);
     final last = snapshot.statsFor(providerId, month: snapshot.lastMonth);
     final budget = snapshot.budgetFor(providerId);
@@ -177,7 +177,7 @@ class UsageCardView extends StatelessWidget {
 
 /// Progress bar and "used of limit" text of a [UsageBudgetStatus].
 class UsageBudgetProgress extends StatelessWidget {
-  const UsageBudgetProgress({required this.status, super.key});
+  const new({required this.status, super.key});
 
   final UsageBudgetStatus status;
 
@@ -214,7 +214,7 @@ class UsageBudgetProgress extends StatelessWidget {
 
 /// "Near budget" / "Budget reached" badge; nothing for [UsageBudgetLevel.ok].
 class UsageLevelBadge extends StatelessWidget {
-  const UsageLevelBadge({required this.level, super.key});
+  const new({required this.level, super.key});
 
   final UsageBudgetLevel level;
 
@@ -234,9 +234,8 @@ class UsageLevelBadge extends StatelessWidget {
     };
     if (label == null) return const SizedBox.shrink();
     final color = context.usageLevelColor(level);
-    final style = Theme.of(
-      context,
-    ).textTheme.labelSmall?.copyWith(color: color, fontWeight: FontWeight.w600);
+    final style = Theme.of(context).textTheme.labelSmall
+        ?.copyWith(color: color, fontWeight: FontWeight.w600);
     return DecoratedBox(
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),

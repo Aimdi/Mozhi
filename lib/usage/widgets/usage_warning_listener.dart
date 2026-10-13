@@ -13,7 +13,7 @@ import 'package:mozhi/usage/widgets/usage_format.dart';
 /// Place it below a [ScaffoldMessenger] (e.g. inside `MaterialApp.builder`
 /// or around the app shell) or pass [messengerKey].
 class UsageWarningListener extends StatefulWidget {
-  const UsageWarningListener({
+  const new({
     required this.child,
     this.tracker,
     this.providerName,

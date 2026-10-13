@@ -47,14 +47,12 @@ class UsageSnapshot extends Equatable {
   ];
 
   /// Ids of providers with any recorded usage or a budget, sorted.
-  List<String> get providerIds =>
-      {
-        for (final perProvider in months.values)
-          for (final MapEntry(:key, :value) in perProvider.entries)
-            if (!value.isEmpty) key,
-        ...budgets.keys,
-      }.toList()
-        ..sort();
+  List<String> get providerIds => {
+    for (final perProvider in months.values)
+      for (final MapEntry(:key, :value) in perProvider.entries)
+        if (!value.isEmpty) key,
+    ...budgets.keys,
+  }.toList()..sort();
 
   bool get isEmpty =>
       budgets.isEmpty &&
