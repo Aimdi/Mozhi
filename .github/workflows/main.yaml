@@ -144,7 +144,7 @@ jobs:
             -t lib/main_production.dart
           cp "$out/app-production-release.apk" dist/mozhi-universal.apk
 
-          (cd dist && sha256sum *.apk > SHA256SUMS.txt)
+          (cd dist && sha256sum -- *.apk > SHA256SUMS.txt)
           ls -l dist
 
       - name: Size report
@@ -286,7 +286,8 @@ jobs:
             echo "### GitHub Pages"
             echo
             echo '```text'
-            du -sh _site _site/app
+            du -sh _site
+            du -sh _site/app
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 

@@ -1,3 +1,5 @@
+import 'dart:io' as io;
+
 import 'package:mason_logger/mason_logger.dart';
 import 'package:mozhi_api/mozhi_api.dart';
 import 'package:mozhi_cli/src/config/config_store.dart';
@@ -35,5 +37,5 @@ class CliContext {
   );
 
   static ConfigStore _defaultStore(String path) =>
-      ConfigStore(path: path, posix: !Console().isWindows);
+      ConfigStore(path: path, posix: !io.Platform.isWindows);
 }

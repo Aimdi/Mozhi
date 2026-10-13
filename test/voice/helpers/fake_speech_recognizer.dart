@@ -5,9 +5,9 @@ import 'package:mozhi/voice/voice.dart';
 /// Scriptable [SpeechRecognizerAdapter] for tests.
 class FakeSpeechRecognizer implements SpeechRecognizerAdapter {
   bool initResult = true;
-  Object? initError;
+  Exception? initError;
   bool permission = true;
-  Object? permissionError;
+  Exception? permissionError;
 
   /// Errors reported through `onError` while [initialize] runs.
   List<SpeechRecognizerError> initErrors = [];
@@ -21,10 +21,13 @@ class FakeSpeechRecognizer implements SpeechRecognizerAdapter {
     SpeechRecognizerLocale('fr_FR', 'French (France)'),
     SpeechRecognizerLocale('pt_BR', 'Portuguese (Brazil)'),
   ];
-  Object? localesError;
+  Exception? localesError;
   String? systemLocale = 'en_US';
-  Object? listenError;
-  Object? stopError;
+  Exception? listenError;
+
+  /// Holds [listen] until completed.
+  Completer<void>? listenGate;
+  Exception? stopError;
 
   int initCalls = 0;
   int localeCalls = 0;
@@ -32,22 +35,22 @@ class FakeSpeechRecognizer implements SpeechRecognizerAdapter {
   int cancelCalls = 0;
   final List<SpeechListenRequest> requests = [];
 
-  void Function(SpeechRecognizerError error)? _onError;
-  void Function(SpeechRecognizerStatus status)? _onStatus;
-  SpeechResultListener? _onResult;
-  void Function(double level)? _onSoundLevel;
+  late void Function(SpeechRecognizerError error) _onError;
+  late void Function(SpeechRecognizerStatus status) _onStatus;
+  late SpeechResultListener _onResult;
+  late void Function(double level) _onSoundLevel;
 
   SpeechListenRequest get lastRequest => requests.last;
 
   void emitResult(String text, {bool isFinal = false}) =>
-      _onResult!(text, isFinal: isFinal);
+      _onResult(text, isFinal: isFinal);
 
-  void emitLevel(double level) => _onSoundLevel!(level);
+  void emitLevel(double level) => _onSoundLevel(level);
 
-  void emitStatus(SpeechRecognizerStatus status) => _onStatus!(status);
+  void emitStatus(SpeechRecognizerStatus status) => _onStatus(status);
 
   void emitError(String message, {bool permanent = true}) =>
-      _onError!(SpeechRecognizerError(message, permanent: permanent));
+      _onError(SpeechRecognizerError(message, permanent: permanent));
 
   @override
   Future<bool> initialize({
@@ -86,6 +89,7 @@ class FakeSpeechRecognizer implements SpeechRecognizerAdapter {
     required void Function(double level) onSoundLevel,
   }) async {
     requests.add(request);
+    if (listenGate case final gate?) await gate.future;
     if (listenError case final error?) throw error;
     _onResult = onResult;
     _onSoundLevel = onSoundLevel;

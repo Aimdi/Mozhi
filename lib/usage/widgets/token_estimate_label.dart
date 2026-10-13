@@ -6,7 +6,7 @@ import 'package:mozhi/usage/widgets/usage_format.dart';
 /// characters (and nothing for shorter texts), e.g. under the input field
 /// when an AI provider is selected.
 class TokenEstimateLabel extends StatelessWidget {
-  const TokenEstimateLabel({
+  const new({
     required this.text,
     this.minCharacters = defaultMinCharacters,
     this.style,

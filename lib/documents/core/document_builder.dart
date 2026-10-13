@@ -236,7 +236,9 @@ class DocumentBuilder {
           '${previous.source}${piece.source}',
           '${previous.text}${piece.text}',
         );
-      } else if (piece is TextPiece && piece.source.isEmpty) {
+      } else if (piece is TextPiece &&
+          piece.source.isEmpty &&
+          piece.text.isEmpty) {
         continue;
       } else {
         merged.add(piece);

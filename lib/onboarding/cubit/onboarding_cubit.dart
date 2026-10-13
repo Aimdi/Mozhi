@@ -21,8 +21,8 @@ String onboardingErrorMessage(Object error) => switch (error) {
 /// instance, adding the user's own instance and setting up an optional AI
 /// provider. Every choice is applied to [SettingsCubit] right away.
 class OnboardingCubit extends Cubit<OnboardingState> {
-  /// [_pingTimeout] bounds each instance ping, [_testTimeout] the provider
-  /// test and model list. [clock] creates provider ids (tests).
+  /// `pingTimeout` bounds each instance ping, `testTimeout` the provider
+  /// test and the model list. `clock` stamps new provider ids (tests).
   new({
     required this._repository,
     required this._settings,

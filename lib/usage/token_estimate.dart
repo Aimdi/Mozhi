@@ -12,11 +12,11 @@ const charsPerToken = 4;
 
 /// Breakdown of a text for [estimateTokens].
 class TokenEstimate {
-  const TokenEstimate({this.characters = 0, this.cjkCharacters = 0})
+  const new({this.characters = 0, this.cjkCharacters = 0})
     : assert(cjkCharacters <= characters, 'more CJK than total characters');
 
   /// Measures [text] by Unicode code points.
-  factory TokenEstimate.of(String text) {
+  factory of(String text) {
     var characters = 0;
     var cjk = 0;
     for (final rune in text.runes) {

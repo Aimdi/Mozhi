@@ -8,7 +8,7 @@ import 'package:test/test.dart';
 
 import '../helpers.dart';
 
-class _MockHttpClient extends Mock implements http.Client {}
+class _MockHttpClient extends Mock implements http.Client;
 
 final Uri _base = Uri.parse('https://translate.example.org');
 

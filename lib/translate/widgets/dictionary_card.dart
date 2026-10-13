@@ -17,7 +17,6 @@ class DictionaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    final muted = theme.colorScheme.onSurfaceVariant;
     return BlocBuilder<TranslateCubit, TranslateState>(
       buildWhen: (previous, current) =>
           previous.dictionaryStatus != current.dictionaryStatus ||

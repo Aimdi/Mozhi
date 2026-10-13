@@ -10,7 +10,7 @@ import 'package:mozhi/usage/widgets/usage_format.dart';
 ///
 /// Non-zero fractions always show a sliver so tiny usage stays visible.
 class UsageBar extends StatelessWidget {
-  const UsageBar({
+  const new({
     required this.fraction,
     this.color,
     this.trackColor,
@@ -67,7 +67,7 @@ class UsageBar extends StatelessWidget {
 /// [CustomPaint], with short month names below. The last month is
 /// highlighted.
 class UsageHistoryChart extends StatelessWidget {
-  const UsageHistoryChart({
+  const new({
     required this.months,
     required this.values,
     this.height = 56,
@@ -135,7 +135,7 @@ class UsageHistoryChart extends StatelessWidget {
 /// Paints [values] as evenly spaced columns scaled to the largest value,
 /// the last one in [highlightColor], on a [baselineColor] baseline.
 class UsageHistoryPainter extends CustomPainter {
-  const UsageHistoryPainter({
+  const new({
     required this.values,
     required this.color,
     required this.highlightColor,

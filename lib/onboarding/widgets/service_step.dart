@@ -166,9 +166,9 @@ class _OwnInstanceFormState extends State<OwnInstanceForm> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() {
     FocusScope.of(context).unfocus();
-    context.read<OnboardingCubit>().addOwnInstance(_controller.text);
+    return context.read<OnboardingCubit>().addOwnInstance(_controller.text);
   }
 
   @override

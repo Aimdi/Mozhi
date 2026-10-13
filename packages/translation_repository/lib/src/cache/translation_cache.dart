@@ -17,14 +17,14 @@ import 'package:translation_repository/src/models/models.dart';
 /// exceeded the least recently used entry is evicted. Entries older than
 /// [ttl] are dropped when they are next looked up.
 ///
-/// Typical use wraps a translation stream with [cachedTranslate]:
+/// Typical use wraps an uncached translation stream with [cachedTranslate]:
 ///
 /// ```dart
 /// final cache = TranslationCache();
 /// final stream = cache.cachedTranslate(
 ///   engine,
 ///   request,
-///   () => repository.translateUncached(engine, request),
+///   () => fetchTranslation(engine, request),
 /// );
 /// ```
 class TranslationCache {

@@ -17,7 +17,7 @@ import 'package:translation_repository/translation_repository.dart';
 ///
 /// Reads the [UsageTracker] provided above unless [tracker] is given.
 class UsageSummaryPage extends StatelessWidget {
-  const UsageSummaryPage({
+  const new({
     this.providers = const [],
     this.tracker,
     this.onOpenProvider,
@@ -50,7 +50,7 @@ class UsageSummaryPage extends StatelessWidget {
 }
 
 class UsageSummaryView extends StatelessWidget {
-  const UsageSummaryView({
+  const new({
     this.providers = const [],
     this.onOpenProvider,
     super.key,
@@ -191,7 +191,7 @@ class UsageSummaryView extends StatelessWidget {
 }
 
 class _EmptyUsage extends StatelessWidget {
-  const _EmptyUsage();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -228,7 +228,7 @@ class _EmptyUsage extends StatelessWidget {
 
 /// Totals of all providers this month, compared with last month.
 class _MonthTotals extends StatelessWidget {
-  const _MonthTotals({required this.snapshot});
+  const new({required this.snapshot});
 
   final UsageSnapshot snapshot;
 
@@ -290,7 +290,7 @@ class _MonthTotals extends StatelessWidget {
 /// One provider's usage this and last month as two bars scaled to
 /// [maxChars], plus its budget progress.
 class ProviderUsageTile extends StatelessWidget {
-  const ProviderUsageTile({
+  const new({
     required this.name,
     required this.thisMonth,
     required this.lastMonth,
@@ -391,7 +391,7 @@ class ProviderUsageTile extends StatelessWidget {
 }
 
 class _BarRow extends StatelessWidget {
-  const _BarRow({
+  const new({
     required this.label,
     required this.value,
     required this.fraction,

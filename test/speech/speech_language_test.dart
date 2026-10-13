@@ -4,7 +4,14 @@ import 'package:mozhi/speech/speech_language.dart';
 void main() {
   group('isSpeakableLanguageCode', () {
     test('accepts engine language codes', () {
-      for (final code in ['en', 'fil', 'zh-CN', 'pt_BR', 'mni-Mtei', 'es-419']) {
+      for (final code in [
+        'en',
+        'fil',
+        'zh-CN',
+        'pt_BR',
+        'mni-Mtei',
+        'es-419',
+      ]) {
         expect(isSpeakableLanguageCode(code), isTrue, reason: code);
       }
     });

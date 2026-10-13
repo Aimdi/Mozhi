@@ -157,6 +157,35 @@ const _closesParagraph = {
 
 const _headings = {'h1', 'h2', 'h3', 'h4', 'h5', 'h6'};
 
+/// Block start tags that close an open heading (see [parseHtml]).
+const _closesHeading = {
+  'p',
+  'ul',
+  'ol',
+  'dl',
+  'table',
+  'blockquote',
+  'pre',
+  'hr',
+  'article',
+  'section',
+  'main',
+};
+
+/// Elements that may appear in <head> (anything else closes it).
+const _headContent = {
+  'head',
+  'html',
+  'title',
+  'meta',
+  'link',
+  'style',
+  'script',
+  'base',
+  'noscript',
+  'template',
+};
+
 /// Elements that stop the search for an element to close implicitly.
 const _scopeBoundaries = {
   'html',
@@ -221,8 +250,19 @@ HtmlElement parseHtml(String html) {
             continue;
           }
         }
+        // Body content closes an open <head> (missing </head>).
+        if (!_headContent.contains(name)) {
+          final head = stack.indexWhere((e) => e.name == 'head');
+          if (head > 0) popTo(head);
+        }
         if (_closesParagraph.contains(name)) {
           popTo(openIndex(const {'p'}));
+        }
+        // Deliberately unlike browsers: block content closes an unclosed
+        // heading, so that a missing </h2> does not turn the rest of the
+        // page into one heading.
+        if (_closesHeading.contains(name)) {
+          popTo(openIndex(_headings));
         }
         switch (name) {
           case 'li':

@@ -119,16 +119,14 @@ void main() {
         await output.setPlaybackRate(0.7);
         await output.setPlaybackRate(1);
 
-        final rates = verify(
-          () => player.setPlaybackRate(captureAny()),
-        ).captured;
+        final rates = verify(() => player.setPlaybackRate(captureAny()))
+            .captured;
         expect(rates, [0.7, 1]);
       });
 
       test('retries a rate the player rejected', () async {
-        when(
-          () => player.setPlaybackRate(any()),
-        ).thenThrow(Exception('unsupported'));
+        when(() => player.setPlaybackRate(any()))
+            .thenThrow(Exception('unsupported'));
 
         await expectLater(output.setPlaybackRate(0.7), throwsException);
         await expectLater(output.setPlaybackRate(0.7), throwsException);

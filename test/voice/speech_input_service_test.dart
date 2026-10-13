@@ -103,11 +103,11 @@ void main() {
   group('initialize', () {
     test('succeeds once and is cached', () async {
       expect(service.isAvailable, isNull);
-      final results = await Future.wait([
+      final outcomes = await Future.wait([
         service.initialize(),
         service.initialize(),
       ]);
-      expect(results, [true, true]);
+      expect(outcomes, [true, true]);
       expect(await service.initialize(), isTrue);
       expect(recognizer.initCalls, 1);
       expect(service.isAvailable, isTrue);
@@ -127,6 +127,7 @@ void main() {
           failure: SpeechInputFailure.permissionDenied,
         ),
       );
+      await flush();
       expect(states, [service.state]);
     });
 
@@ -144,7 +145,7 @@ void main() {
     test('treats a failing permission check as granted', () async {
       recognizer
         ..initResult = false
-        ..permissionError = StateError('no');
+        ..permissionError = Exception('no');
       await service.initialize();
       expect(
         service.state,
@@ -164,6 +165,7 @@ void main() {
           const SpeechRecognizerError('not supported', permanent: true),
         ];
       await service.initialize();
+      await flush();
       expect(states, [
         const SpeechInputUnavailable(
           failure: SpeechInputFailure.recognizerUnavailable,
@@ -355,7 +357,7 @@ void main() {
       expect(service.state, const SpeechInputIdle());
     });
 
-    test('re-enters listening when the recogniser reports it', () async {
+    test('ignores statuses once the session ended', () async {
       await service.listen('en');
       recognizer.emitStatus(SpeechRecognizerStatus.done);
       await flush();
@@ -405,11 +407,25 @@ void main() {
       expect(service.isListening, isFalse);
     });
 
-    test('a failed start that was superseded stays quiet', () async {
-      recognizer.listenError = Exception('busy');
+    test('a failed start that was cancelled stays quiet', () async {
+      recognizer
+        ..listenError = Exception('busy')
+        ..listenGate = Completer<void>();
+      final pending = service.listen('en');
+      await flush();
+      expect(service.isListening, isTrue);
+      await service.cancel();
+      recognizer.listenGate!.complete();
+      expect(await pending, isFalse);
+      expect(service.state, const SpeechInputIdle());
+    });
+
+    test('a session cancelled while starting reports false', () async {
+      recognizer.listenGate = Completer<void>();
       final pending = service.listen('en');
       await flush();
       await service.cancel();
+      recognizer.listenGate!.complete();
       expect(await pending, isFalse);
     });
   });
@@ -597,7 +613,10 @@ void main() {
   group('dispose', () {
     test('cancels the session and closes the streams', () async {
       await service.listen('en');
-      final statesDone = expectLater(service.states, emitsDone);
+      final statesDone = expectLater(
+        service.states,
+        emitsInOrder(<Object>[const SpeechInputIdle(), emitsDone]),
+      );
       final resultsDone = expectLater(service.results, emitsDone);
       await service.dispose();
       await statesDone;

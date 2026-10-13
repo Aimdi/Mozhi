@@ -155,7 +155,7 @@ jobs:
       - name: Checksums
         run: |
           cd dist
-          sha256sum *.apk *.zip > SHA256SUMS.txt
+          sha256sum -- *.apk *.zip > SHA256SUMS.txt
           cat SHA256SUMS.txt
           {
             echo "### Release files"

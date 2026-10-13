@@ -21,9 +21,9 @@ http.Response textResponse(
   Map<String, String> headers = const {},
 }) => http.Response.bytes(utf8.encode(body), status, headers: headers);
 
-/// A `MockClient` that records every request and answers with [handler].
+/// A `MockClient` that records every request and answers with `handler`.
 class RecordingClient extends http.BaseClient {
-  RecordingClient(FutureOr<http.Response> Function(http.Request) handler) {
+  new(FutureOr<http.Response> Function(http.Request) handler) {
     _inner = MockClient((request) async {
       requests.add(request);
       return await handler(request);

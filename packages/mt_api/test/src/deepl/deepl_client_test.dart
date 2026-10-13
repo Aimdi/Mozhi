@@ -9,7 +9,7 @@ import 'package:test/test.dart';
 
 import '../helpers.dart';
 
-class _MockHttpClient extends Mock implements http.Client {}
+class _MockHttpClient extends Mock implements http.Client;
 
 const _proKey = '279a2e9d-83b3-c416-7e2d-f721593e42a0';
 const _freeKey = '279a2e9d-83b3-c416-7e2d-f721593e42a0:fx';
@@ -547,7 +547,7 @@ void main() {
 
       test('combines message and detail of the error body', () {
         respond = (_) => jsonResponse(
-          '{"message":"Bad request",'
+          '{"message":"Bad request", '
           '"detail":"Value for \'target_lang\' not supported."}',
           status: 400,
         );
