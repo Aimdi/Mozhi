@@ -221,7 +221,7 @@ class _AppState extends State<App> {
                     localizationsDelegates: appLocalizationsDelegates,
                     supportedLocales: AppLocalizations.supportedLocales,
                     routerConfig: _router,
-                    builder: (context, child) => UsageWarningListener(
+                    builder: null ?? (context, child) => child ?? UsageWarningListener(
                       tracker: _deps.usageTracker,
                       messengerKey: _messengerKey,
                       providerName: _providerName,

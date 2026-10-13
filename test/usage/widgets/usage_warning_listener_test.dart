@@ -10,17 +10,19 @@ import '../../helpers/helpers.dart';
 void main() {
   late UsageTracker tracker;
 
-  setUp(() async {
+  // Created inside each test body so its futures live in the test's fake
+  // async zone.
+  Future<void> setUpTracker() async {
     tracker = UsageTracker(
       store: MemoryStore(),
       clock: () => DateTime(2026, 10, 15),
     );
+    addTearDown(tracker.dispose);
     await tracker.setBudget('p', const UsageBudget(monthlyChars: 100));
-  });
-
-  tearDown(() => tracker.dispose());
+  }
 
   testWidgets('shows near-limit and limit warnings', (tester) async {
+    await setUpTracker();
     final received = <UsageWarning>[];
     await tester.pumpApp(
       UsageWarningListener(
@@ -48,6 +50,7 @@ void main() {
   });
 
   testWidgets('falls back to a generic provider name', (tester) async {
+    await setUpTracker();
     await tester.pumpApp(
       RepositoryProvider.value(
         value: tracker,
@@ -63,6 +66,7 @@ void main() {
   });
 
   testWidgets('uses the given messenger', (tester) async {
+    await setUpTracker();
     final messengerKey = GlobalKey<ScaffoldMessengerState>();
     await tester.pumpWidget(
       MaterialApp(
@@ -83,6 +87,7 @@ void main() {
   });
 
   testWidgets('ignores warnings without a messenger', (tester) async {
+    await setUpTracker();
     final received = <UsageWarning>[];
     await tester.pumpWidget(
       Localizations(
@@ -101,6 +106,7 @@ void main() {
   });
 
   testWidgets('switches trackers and stops after dispose', (tester) async {
+    await setUpTracker();
     final other = UsageTracker(
       store: MemoryStore(),
       clock: () => DateTime(2026, 10, 15),

@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/instances_page.dart';
+import 'package:mozhi/settings/view/widgets/add_instance_dialog.dart';
 import 'package:mozhi/settings/view/widgets/link_launcher.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -421,6 +422,50 @@ void main() {
           find.text('This instance is already in your list'),
           findsOneWidget,
         );
+      });
+
+      testWidgets('submitting the label field adds the instance', (
+        tester,
+      ) async {
+        await openDialog(tester);
+        await tester.enterText(field('Instance URL'), 'mozhi.example.net');
+        await tester.enterText(field('Label (optional)'), 'Mine');
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await tester.pumpAndSettle();
+        final added =
+            verify(() => settings.addInstance(captureAny())).captured.single
+                as MozhiInstance;
+        expect(added.url, 'https://mozhi.example.net');
+      });
+
+      test('describeError', () {
+        expect(describeError(const MozhiApiException('down')), 'down');
+        expect(describeError(const LlmApiException('bad')), 'bad');
+        expect(
+          describeError(const LlmApiException('bad', statusCode: 500)),
+          '500: bad',
+        );
+        expect(describeError(const FormatException('oops')), 'oops');
+        expect(describeError(StateError('x')), 'Bad state: x');
+      });
+
+      test('urlSecretProblem', () {
+        expect(urlSecretProblem(''), isNull);
+        expect(urlSecretProblem('https://mozhi.example.com/api'), isNull);
+        expect(urlSecretProblem('mozhi.example.com:3000'), isNull);
+        expect(
+          urlSecretProblem('https://u:p@mozhi.example.com'),
+          UrlSecretProblem.credentials,
+        );
+        expect(
+          urlSecretProblem('token@mozhi.example.com'),
+          UrlSecretProblem.credentials,
+        );
+        expect(
+          urlSecretProblem('https://mozhi.example.com?key=1'),
+          UrlSecretProblem.query,
+        );
+        expect(urlSecretProblem('http://[::1'), isNull);
       });
 
       testWidgets('adds a normalised instance with a label', (tester) async {

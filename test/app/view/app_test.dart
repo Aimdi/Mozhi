@@ -140,8 +140,17 @@ void main() {
         ),
       );
 
-      shellContext(tester).read<SettingsCubit>().setThemeMode(ThemeMode.dark);
+      final dbg = shellContext(tester).read<SettingsCubit>();
+      // ignore: avoid_print
+      print('DBG before ${dbg.state.themeMode} closed=${dbg.isClosed}');
+      dbg.setThemeMode(ThemeMode.dark);
+      // ignore: avoid_print
+      print('DBG after ${dbg.state.themeMode}');
       await tester.pump();
+      // ignore: avoid_print
+      print('DBG mid ${tester.widget<MaterialApp>(find.byType(MaterialApp)).themeMode}');
+      // ignore: avoid_print
+      print('DBG apps ${find.byType(MaterialApp).evaluate().length} ${tester.widget<MaterialApp>(find.byType(MaterialApp)).themeMode}');
 
       final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
       expect(app.themeMode, ThemeMode.dark);

@@ -41,7 +41,10 @@ class UsageTracker {
 
   _UsageData _data = _UsageData();
   bool _loaded = false;
-  Future<void> _lock = Future.value();
+
+  /// Tail of the queue of running operations; null while idle, so an idle
+  /// tracker holds no future bound to the zone it was last used in.
+  Future<void>? _lock;
 
   /// The month "this month" currently refers to.
   UsageMonth get currentMonth => UsageMonth.of(_clock());
@@ -218,8 +221,13 @@ class UsageTracker {
   }
 
   Future<T> _synchronized<T>(Future<T> Function() action) {
-    final result = _lock.then((_) => action());
-    _lock = result.then<void>((_) {}, onError: (Object _) {});
+    final previous = _lock;
+    final result = previous == null ? action() : previous.then((_) => action());
+    late final Future<void> tail;
+    tail = result.then<void>((_) {}, onError: (Object _) {}).whenComplete(() {
+      if (identical(_lock, tail)) _lock = null;
+    });
+    _lock = tail;
     return result;
   }
 }

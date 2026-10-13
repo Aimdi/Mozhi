@@ -226,7 +226,7 @@ class TranslateHarness {
               ),
               themeMode: themeMode,
               locale: locale,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               builder: (context, child) {
                 final data = MediaQuery.of(context);

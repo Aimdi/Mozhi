@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:bloc_test/bloc_test.dart';
-import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/translate/translate.dart';
@@ -99,10 +98,7 @@ void main() {
 
       // Activating the node (TalkBack double tap, web click) opens the
       // picker.
-      tester.binding.rootPipelineOwner.semanticsOwner!.performAction(
-        target.id,
-        SemanticsAction.tap,
-      );
+      tester.semantics.tap(find.semantics.byLabel('Target language: French'));
       await tester.pumpAndSettle();
       expect(find.text('Translate to'), findsOneWidget);
       handle.dispose();
@@ -321,7 +317,8 @@ void main() {
         supportsAnnounce: true,
       );
       await tester.tap(find.text('Alternatives'));
-      await tester.pumpAndSettle();
+      // The progress bar never settles.
+      await tester.pump(const Duration(milliseconds: 500));
       final progress = tester.widget<LinearProgressIndicator>(
         find.byKey(const Key('translate_alternatives_progress')),
       );
@@ -380,7 +377,7 @@ void main() {
       final controller = await _listen(harness, initial);
       await harness.pump(
         tester,
-        child: const ExplainSheet(),
+        child: const SizedBox(height: 900, child: ExplainSheet()),
         supportsAnnounce: true,
         size: const Size(800, 1200),
       );
@@ -677,7 +674,10 @@ void main() {
       final text = tester.widget<SelectableText>(find.byType(SelectableText));
       expect(text.textDirection, TextDirection.rtl);
       expect(text.textSpan!.locale, const Locale('ar'));
-      expect(find.bySemanticsLabel('1.2 seconds'), findsOneWidget);
+      expect(
+        tester.widget<Text>(find.text('1.2 s')).semanticsLabel,
+        '1.2 seconds',
+      );
     });
 
     testWidgets('alternatives point to the start edge in RTL layouts', (

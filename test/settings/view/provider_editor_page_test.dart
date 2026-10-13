@@ -600,6 +600,25 @@ void main() {
         expect(textOf(tester, 'Model'), 'gpt-5-nano');
       });
 
+      testWidgets('says when no model matches the search', (tester) async {
+        when(() => repository.listModels(any()))
+            .thenAnswer((_) async => const [LlmModel(id: 'gpt-5')]);
+        await pump(tester, providerId: 'p1');
+        await tester.tap(find.text('Browse models'));
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Search models'),
+          'zzz',
+        );
+        await tester.pumpAndSettle();
+        final empty = find.descendant(
+          of: find.byType(BottomSheet),
+          matching: find.text('No models found'),
+        );
+        expect(empty, findsOneWidget);
+        expect(tester.getSemantics(empty), isSemantics(isLiveRegion: true));
+      });
+
       testWidgets('shows an error when listing fails', (tester) async {
         when(() => repository.listModels(any()))
             .thenThrow(const LlmApiException('Unauthorized', statusCode: 401));
@@ -641,6 +660,17 @@ void main() {
         expect(find.text('No models found'), findsOneWidget);
         expect(find.byType(BottomSheet), findsNothing);
       });
+    });
+
+    testWidgets('the temperature slider changes the saved value', (
+      tester,
+    ) async {
+      await pump(tester, providerId: 'p1');
+      await tester.drag(find.byType(Slider), const Offset(200, 0));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+      expect(savedConfig().temperature, greaterThan(0.7));
     });
 
     testWidgets('temperature value grows with large text', (tester) async {
