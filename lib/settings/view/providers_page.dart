@@ -3,10 +3,11 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/view/provider_editor_page.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-/// Lists the configured AI providers.
+/// Lists the configured AI providers and machine translation services.
 class ProvidersPage extends StatelessWidget {
   const new({super.key});
 
@@ -95,7 +96,8 @@ Future<void> showAddProviderSheet(BuildContext context) async {
   await context.push(providerEditorLocation(presetId: presetId));
 }
 
-/// Bottom sheet listing [AiProviderPreset.all]; pops the chosen preset id.
+/// Bottom sheet listing [AiProviderPreset.all] and, in their own section,
+/// [AiProviderPreset.mtServices]; pops the chosen preset id.
 class PresetPickerSheet extends StatelessWidget {
   const new({super.key});
 
@@ -103,7 +105,6 @@ class PresetPickerSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    final presets = AiProviderPreset.all;
     return DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.75,
@@ -122,37 +123,116 @@ class PresetPickerSheet extends StatelessWidget {
               ),
             ),
           ),
-          for (final preset in presets)
-            ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 24),
-              leading: Icon(
-                preset.isLocal ? Icons.computer_outlined : Icons.cloud_outlined,
-              ),
-              title: Row(
-                children: [
-                  Flexible(child: Text(preset.name)),
-                  if (preset.isLocal) ...[
-                    const SizedBox(width: 8),
-                    StatusBadge(
-                      label: l10n.settingsProvidersLocal,
-                      color: theme.colorScheme.success,
-                    ),
-                  ],
-                ],
-              ),
-              subtitle: preset.description.isEmpty
-                  ? null
-                  : Text(
-                      preset.description,
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-              onTap: () => Navigator.of(context).pop(preset.id),
-            ),
+          _PresetSection(title: l10n.settingsProvidersPresetsAi),
+          for (final preset in AiProviderPreset.all)
+            _PresetTile(preset: preset),
+          _PresetSection(
+            title: l10n.settingsProvidersPresetsMt,
+            body: l10n.settingsProvidersPresetsMtBody,
+          ),
+          for (final preset in AiProviderPreset.mtServices)
+            _PresetTile(preset: preset),
         ],
       ),
     );
   }
+}
+
+/// A section header in [PresetPickerSheet].
+class _PresetSection extends StatelessWidget {
+  const new({required this.title, this.body});
+
+  final String title;
+  final String? body;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Semantics(
+            header: true,
+            child: Text(
+              title,
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: colors.primary,
+              ),
+            ),
+          ),
+          if (body case final body?) ...[
+            const SizedBox(height: 4),
+            Text(
+              body,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// One preset in [PresetPickerSheet]; pops its id.
+class _PresetTile extends StatelessWidget {
+  const new({required this.preset});
+
+  final AiProviderPreset preset;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final isMt = preset.service != MtService.llm;
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 24),
+      leading: Icon(
+        isMt
+            ? Icons.translate
+            : preset.isLocal
+            ? Icons.computer_outlined
+            : Icons.cloud_outlined,
+      ),
+      title: Row(
+        children: [
+          Flexible(child: Text(preset.name)),
+          if (preset.isLocal) ...[
+            const SizedBox(width: 8),
+            StatusBadge(
+              label: l10n.settingsProvidersLocal,
+              color: theme.colorScheme.success,
+            ),
+          ],
+        ],
+      ),
+      subtitle: preset.description.isEmpty
+          ? null
+          : Text(
+              preset.description,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+      onTap: () => Navigator.of(context).pop(preset.id),
+    );
+  }
+}
+
+/// Subtitle of a machine translation service in the list: the service and
+/// its server host (none for the official DeepL API).
+String _mtSubtitle(AppLocalizations l10n, AiProviderConfig provider) {
+  final service = mtServiceName(l10n, provider.service) ?? provider.name;
+  final url = provider.baseUrl.trim();
+  final host = url.isEmpty
+      ? ''
+      : Uri.tryParse(url.contains('://') ? url : 'https://$url')?.host ?? '';
+  return host.isEmpty
+      ? service
+      : l10n.settingsProviderMtSubtitle(service, host);
 }
 
 class _ProviderTile extends StatelessWidget {
@@ -184,7 +264,11 @@ class _ProviderTile extends StatelessWidget {
                   backgroundColor: colors.secondaryContainer,
                   foregroundColor: colors.onSecondaryContainer,
                   child: Icon(
-                    isLocal ? Icons.computer_outlined : Icons.cloud_outlined,
+                    provider.isMtService
+                        ? Icons.translate
+                        : isLocal
+                        ? Icons.computer_outlined
+                        : Icons.cloud_outlined,
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -199,7 +283,9 @@ class _ProviderTile extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       Text(
-                        provider.model,
+                        provider.isMtService
+                            ? _mtSubtitle(l10n, provider)
+                            : provider.model,
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: colors.onSurfaceVariant,
                         ),

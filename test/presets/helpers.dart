@@ -11,6 +11,13 @@ import 'package:mozhi/presets/widgets/presets_share.dart';
 
 import '../helpers/helpers.dart';
 
+/// `pumpAndSettle` that fails after 10 s instead of hanging for minutes.
+Future<void> settle(WidgetTester tester) => tester.pumpAndSettle(
+  const Duration(milliseconds: 100),
+  EnginePhase.sendSemanticsUpdate,
+  const Duration(seconds: 10),
+);
+
 /// Real cubits backed by in-memory stores with predictable ids.
 class PresetsHarness {
   PresetsHarness({MemoryStore? store}) : store = store ?? MemoryStore() {

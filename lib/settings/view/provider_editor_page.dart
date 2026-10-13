@@ -4,15 +4,18 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/view/widgets/add_instance_dialog.dart';
 import 'package:mozhi/settings/view/widgets/link_launcher.dart';
 import 'package:mozhi/settings/view/widgets/model_picker_sheet.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
+import 'package:mozhi/usage/usage.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-/// Create or edit an AI provider.
+/// Create or edit an AI provider or a machine translation service (DeepL,
+/// LibreTranslate).
 class ProviderEditorPage extends StatelessWidget {
   const new({super.key, this.providerId, this.presetId});
 
@@ -35,6 +38,40 @@ String llmProviderName(AppLocalizations l10n, LlmProvider provider) =>
       LlmProvider.gemini => l10n.settingsProviderTypeGemini,
       LlmProvider.ollama => l10n.settingsProviderTypeOllama,
     };
+
+/// Readable name of a machine translation [service]; null for
+/// [MtService.llm].
+String? mtServiceName(AppLocalizations l10n, MtService service) =>
+    switch (service) {
+      MtService.llm => null,
+      MtService.deepl => l10n.settingsProviderServiceDeepl,
+      MtService.libreTranslate => l10n.settingsProviderServiceLibreTranslate,
+    };
+
+/// Readable name of a [PromptProfile]. [PromptProfile.auto] includes the
+/// profile it resolves to for [model], e.g. "Automatic (TranslateGemma)".
+String promptProfileName(
+  AppLocalizations l10n,
+  PromptProfile profile, {
+  String model = '',
+}) => switch (profile) {
+  PromptProfile.auto => l10n.settingsProviderPromptAuto(
+    promptProfileName(l10n, PromptProfile.detect(model)),
+  ),
+  PromptProfile.general => l10n.settingsProviderPromptGeneral,
+  PromptProfile.translateGemma => l10n.settingsProviderPromptTranslateGemma,
+  PromptProfile.hunyuanMt => l10n.settingsProviderPromptHunyuanMt,
+};
+
+/// The [UsageTracker] provided above [context], or null when the app runs
+/// without usage tracking (e.g. in some tests).
+UsageTracker? _usageTrackerOf(BuildContext context) {
+  try {
+    return context.read<UsageTracker>();
+  } on ProviderNotFoundException {
+    return null;
+  }
+}
 
 /// Default API base URL per provider type.
 String defaultBaseUrl(LlmProvider provider) => switch (provider) {
@@ -96,8 +133,14 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
 
   AiProviderConfig? _existing;
   AiProviderPreset? _preset;
+  UsageTracker? _usageTracker;
   bool _notFound = false;
   LlmProvider _provider = LlmProvider.openAiCompatible;
+
+  /// [MtService.llm] for AI providers; DeepL or LibreTranslate otherwise.
+  /// Fixed for the lifetime of the editor (from the provider or preset).
+  MtService _service = MtService.llm;
+  PromptProfile _promptProfile = PromptProfile.auto;
   String _effort = _defaultEffort;
   double? _temperature;
   double _lastTemperature = 0.3;
@@ -108,6 +151,16 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
   _TestResult? _test;
 
   bool get _isNew => _existing == null;
+
+  /// Whether this is a machine translation service (no model, prompts,
+  /// effort, temperature or vision).
+  bool get _isMt => _service != MtService.llm;
+
+  /// DeepL picks the official API from the key when the URL is empty.
+  bool get _urlOptional => _service == MtService.deepl;
+
+  /// DeepL needs only a key (the URL is optional), so the key comes first.
+  bool get _keyFirst => _service == MtService.deepl;
 
   @override
   void initState() {
@@ -125,9 +178,15 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
         return;
       }
       _existing = existing;
-      _preset = existing.presetId == null
+      _usageTracker = _usageTrackerOf(context);
+      final preset = existing.presetId == null
           ? null
           : AiProviderPreset.byId(existing.presetId!);
+      // A preset of another kind (e.g. an AI preset id on a DeepL
+      // provider) must not supply key rules, links or headers.
+      _preset = preset?.service == existing.service ? preset : null;
+      _service = existing.service;
+      _promptProfile = existing.promptProfile;
       _name.text = existing.name;
       _provider = existing.provider;
       _baseUrl.text = existing.baseUrl;
@@ -142,6 +201,7 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
       final preset = presetId == null ? null : AiProviderPreset.byId(presetId);
       _preset = preset;
       if (preset != null) {
+        _service = preset.service;
         _name.text = preset.name;
         _provider = preset.provider;
         _baseUrl.text = preset.baseUrl;
@@ -170,9 +230,14 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
 
   void _onFieldChanged() => setState(() {});
 
-  bool get _apiKeyRequired =>
+  bool get _apiKeyRequired => switch (_service) {
+    MtService.deepl => true,
+    MtService.libreTranslate => false,
+    MtService.llm =>
       _preset?.requiresApiKey ??
-      (_provider == LlmProvider.anthropic || _provider == LlmProvider.gemini);
+          (_provider == LlmProvider.anthropic ||
+              _provider == LlmProvider.gemini),
+  };
 
   bool get _showTemperature => _provider != LlmProvider.anthropic;
 
@@ -220,7 +285,10 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
   String? _validateUrl(String? value) {
     final l10n = context.l10n;
     final text = value?.trim() ?? '';
-    if (text.isEmpty) return l10n.settingsProviderRequired;
+    if (text.isEmpty) {
+      // DeepL without a URL uses the official API (chosen from the key).
+      return _urlOptional ? null : l10n.settingsProviderRequired;
+    }
     final uri = Uri.tryParse(text);
     if (uri == null ||
         (uri.scheme != 'http' && uri.scheme != 'https') ||
@@ -270,11 +338,16 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
       model: _model.text.trim(),
       apiKey: apiKey.isEmpty ? null : apiKey,
       presetId: existing?.presetId ?? _preset?.id,
-      effort: _effort == _defaultEffort ? null : _effort,
-      temperature: _showTemperature ? _temperature : null,
+      // Machine translation services have no model settings.
+      effort: _isMt || _effort == _defaultEffort ? null : _effort,
+      temperature: !_isMt && _showTemperature ? _temperature : null,
       headers: _headers,
       enabled: existing?.enabled ?? true,
-      supportsVision: _supportsVision,
+      supportsVision: !_isMt && _supportsVision,
+      // Kept from the provider or preset: dropping it would silently turn
+      // a DeepL or LibreTranslate service into an AI provider.
+      service: _service,
+      promptProfile: _promptProfile,
     );
   }
 
@@ -290,11 +363,17 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
   /// announces that the form needs fixing (WCAG 3.3.1, 4.1.3).
   bool _validate() {
     if (_formKey.currentState?.validate() ?? false) return true;
+    // In the order of the fields on screen.
     final fields = [
       (_nameFocus, _required(_name.text)),
-      (_baseUrlFocus, _validateUrl(_baseUrl.text)),
-      (_apiKeyFocus, _validateKey(_apiKey.text)),
-      (_modelFocus, _required(_model.text)),
+      if (_keyFirst) ...[
+        (_apiKeyFocus, _validateKey(_apiKey.text)),
+        (_baseUrlFocus, _validateUrl(_baseUrl.text)),
+      ] else ...[
+        (_baseUrlFocus, _validateUrl(_baseUrl.text)),
+        (_apiKeyFocus, _validateKey(_apiKey.text)),
+      ],
+      if (!_isMt) (_modelFocus, _required(_model.text)),
     ];
     for (final (focus, error) in fields) {
       if (error != null) {
@@ -392,6 +471,8 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
     );
     if (!(confirmed ?? false) || !mounted) return;
     context.read<SettingsCubit>().removeProvider(existing.id);
+    // Its usage counters and budget go with it (best effort).
+    _usageTracker?.removeProvider(existing.id).ignore();
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(l10n.settingsProviderDeleted)));
     _close();
@@ -468,13 +549,17 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
         ),
       );
     }
+    final title = switch ((_isMt, _isNew)) {
+      (true, true) => l10n.settingsProviderMtNewTitle,
+      (true, false) => l10n.settingsProviderMtEditTitle,
+      (false, true) => l10n.settingsProviderNewTitle,
+      (false, false) => l10n.settingsProviderEditTitle,
+    };
+    final urlField = _buildUrlField(context);
+    final keyField = _buildKeyField(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          _isNew
-              ? l10n.settingsProviderNewTitle
-              : l10n.settingsProviderEditTitle,
-        ),
+        title: Text(title),
         actions: [
           if (!_isNew)
             IconButton(
@@ -503,190 +588,38 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
                 validator: _required,
               ),
               const SizedBox(height: 16),
-              DropdownButtonFormField<LlmProvider>(
-                initialValue: _provider,
-                isExpanded: true,
-                decoration: InputDecoration(
-                  labelText: l10n.settingsProviderType,
-                  border: const OutlineInputBorder(),
-                ),
-                items: [
-                  for (final provider in LlmProvider.values)
-                    DropdownMenuItem(
-                      value: provider,
-                      child: Text(
-                        llmProviderName(l10n, provider),
-                        overflow: TextOverflow.ellipsis,
+              if (mtServiceName(l10n, _service) case final service?)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.translate),
+                  title: Text(service),
+                  subtitle: Text(l10n.settingsProvidersPresetsMt),
+                )
+              else
+                DropdownButtonFormField<LlmProvider>(
+                  initialValue: _provider,
+                  isExpanded: true,
+                  decoration: InputDecoration(
+                    labelText: l10n.settingsProviderType,
+                    border: const OutlineInputBorder(),
+                  ),
+                  items: [
+                    for (final provider in LlmProvider.values)
+                      DropdownMenuItem(
+                        value: provider,
+                        child: Text(
+                          llmProviderName(l10n, provider),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
-                ],
-                onChanged: _setProvider,
-              ),
-              const SizedBox(height: 16),
-              // One list child for the URL and its notes, so showing or
-              // hiding them doesn't shift (and rebuild) the fields below.
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  TextFormField(
-                    controller: _baseUrl,
-                    focusNode: _baseUrlFocus,
-                    keyboardType: TextInputType.url,
-                    autocorrect: false,
-                    textInputAction: TextInputAction.next,
-                    decoration: InputDecoration(
-                      labelText: l10n.settingsProviderBaseUrl,
-                      border: const OutlineInputBorder(),
-                      errorMaxLines: 4,
-                    ),
-                    validator: _validateUrl,
-                  ),
-                  if (_insecure)
-                    _InsecureWarning(
-                      title: l10n.settingsProviderInsecureTitle,
-                      text: l10n.settingsProviderInsecureWarning,
-                    ),
-                  if (_presetHeadersDropped case final dropped
-                      when dropped.isNotEmpty)
-                    _Note(
-                      icon: Icons.info_outline,
-                      text: l10n.settingsProviderPresetHeadersDropped(
-                        _preset!.name,
-                        dropped.keys.join(', '),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _apiKey,
-                focusNode: _apiKeyFocus,
-                obscureText: _obscureKey,
-                autocorrect: false,
-                enableSuggestions: false,
-                keyboardType: TextInputType.visiblePassword,
-                textInputAction: TextInputAction.next,
-                decoration: InputDecoration(
-                  labelText: _apiKeyRequired
-                      ? l10n.settingsProviderApiKey
-                      : l10n.settingsProviderApiKeyOptional,
-                  helperText: l10n.settingsProviderKeyStorage,
-                  border: const OutlineInputBorder(),
-                  suffixIcon: IconButton(
-                    tooltip: _obscureKey
-                        ? l10n.settingsProviderShowKey
-                        : l10n.settingsProviderHideKey,
-                    icon: Icon(
-                      _obscureKey
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined,
-                    ),
-                    onPressed: () => setState(() => _obscureKey = !_obscureKey),
-                  ),
-                ),
-                validator: _validateKey,
-              ),
-              if (_preset?.apiKeyUrl case final url?)
-                Align(
-                  alignment: AlignmentDirectional.centerStart,
-                  child: TextButton.icon(
-                    onPressed: () => LinkLauncher.open(context, Uri.parse(url)),
-                    icon: const Icon(Icons.open_in_new, size: 18),
-                    label: Text(l10n.settingsProviderGetKey),
-                  ),
+                  ],
+                  onChanged: _setProvider,
                 ),
               const SizedBox(height: 16),
-              TextFormField(
-                controller: _model,
-                focusNode: _modelFocus,
-                autocorrect: false,
-                textInputAction: TextInputAction.done,
-                decoration: InputDecoration(
-                  labelText: l10n.settingsProviderModel,
-                  border: const OutlineInputBorder(),
-                ),
-                validator: _required,
-              ),
-              const SizedBox(height: 8),
-              Align(
-                alignment: AlignmentDirectional.centerStart,
-                child: OutlinedButton.icon(
-                  onPressed: _loadingModels ? null : _browseModels,
-                  icon: _loadingModels
-                      ? SizedBox.square(
-                          dimension: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            semanticsLabel: l10n.settingsProviderModelsLoading,
-                          ),
-                        )
-                      : const Icon(Icons.list_alt_outlined),
-                  label: Text(l10n.settingsProviderBrowseModels),
-                ),
-              ),
-              if (_modelsError case final error?)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Semantics(
-                    container: true,
-                    liveRegion: true,
-                    child: Text(
-                      error,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
-                  ),
-                ),
-              if (_suggestedModels case final models when models.isNotEmpty)
-                _SuggestedModels(
-                  models: models,
-                  selected: _model.text.trim(),
-                  onSelected: (model) => setState(() => _model.text = model),
-                ),
+              if (_keyFirst) keyField else urlField,
               const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                initialValue: _efforts.contains(_effort)
-                    ? _effort
-                    : _defaultEffort,
-                isExpanded: true,
-                decoration: InputDecoration(
-                  labelText: l10n.settingsProviderEffort,
-                  border: const OutlineInputBorder(),
-                ),
-                items: [
-                  for (final effort in _efforts)
-                    DropdownMenuItem(
-                      value: effort,
-                      child: Text(
-                        _effortLabel(l10n, effort),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                ],
-                onChanged: (value) =>
-                    setState(() => _effort = value ?? _defaultEffort),
-              ),
-              if (_showTemperature) ...[
-                const SizedBox(height: 8),
-                _TemperatureField(
-                  value: _temperature,
-                  onUseDefault: ({required useDefault}) => setState(() {
-                    _temperature = useDefault ? null : _lastTemperature;
-                  }),
-                  onChanged: (value) => setState(() {
-                    _temperature = value;
-                    _lastTemperature = value;
-                  }),
-                ),
-              ],
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(l10n.settingsProviderVision),
-                subtitle: Text(l10n.settingsProviderVisionSubtitle),
-                value: _supportsVision,
-                onChanged: (value) => setState(() => _supportsVision = value),
-              ),
+              if (_keyFirst) urlField else keyField,
+              if (!_isMt) ..._buildModelFields(context),
               const SizedBox(height: 16),
               if (_test case final test?) ...[
                 _TestResultView(result: test),
@@ -709,11 +642,253 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
                   ),
                 ],
               ),
+              if ((_existing, _usageTracker) case (
+                final existing?,
+                final tracker?,
+              )) ...[
+                const SizedBox(height: 24),
+                UsageCard(
+                  providerId: existing.id,
+                  tracker: tracker,
+                  onShowAll: () => unawaited(context.push(AppRoutes.usage)),
+                ),
+              ],
             ],
           ),
         ),
       ),
     );
+  }
+
+  /// The base URL with its notes: one list child, so showing or hiding the
+  /// notes doesn't shift (and rebuild) the fields below.
+  Widget _buildUrlField(BuildContext context) {
+    final l10n = context.l10n;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextFormField(
+          controller: _baseUrl,
+          focusNode: _baseUrlFocus,
+          keyboardType: TextInputType.url,
+          autocorrect: false,
+          textInputAction: TextInputAction.next,
+          decoration: InputDecoration(
+            labelText: switch (_service) {
+              MtService.llm => l10n.settingsProviderBaseUrl,
+              MtService.deepl => l10n.settingsProviderServerUrlOptional,
+              MtService.libreTranslate => l10n.settingsProviderServerUrl,
+            },
+            helperText: switch (_service) {
+              MtService.llm => null,
+              MtService.deepl => l10n.settingsProviderDeeplUrlHelper,
+              MtService.libreTranslate => l10n.settingsProviderLibreUrlHelper,
+            },
+            helperMaxLines: 3,
+            border: const OutlineInputBorder(),
+            errorMaxLines: 4,
+          ),
+          validator: _validateUrl,
+        ),
+        if (_insecure)
+          _InsecureWarning(
+            title: l10n.settingsProviderInsecureTitle,
+            text: l10n.settingsProviderInsecureWarning,
+          ),
+        if (_presetHeadersDropped case final dropped when dropped.isNotEmpty)
+          _Note(
+            icon: Icons.info_outline,
+            text: l10n.settingsProviderPresetHeadersDropped(
+              _preset!.name,
+              dropped.keys.join(', '),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// The API key and the preset's "Get an API key" link.
+  Widget _buildKeyField(BuildContext context) {
+    final l10n = context.l10n;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextFormField(
+          controller: _apiKey,
+          focusNode: _apiKeyFocus,
+          obscureText: _obscureKey,
+          autocorrect: false,
+          enableSuggestions: false,
+          keyboardType: TextInputType.visiblePassword,
+          textInputAction: TextInputAction.next,
+          decoration: InputDecoration(
+            labelText: _apiKeyRequired
+                ? l10n.settingsProviderApiKey
+                : l10n.settingsProviderApiKeyOptional,
+            helperText: _service == MtService.libreTranslate
+                ? l10n.settingsProviderLibreKeyHelper
+                : l10n.settingsProviderKeyStorage,
+            helperMaxLines: 3,
+            border: const OutlineInputBorder(),
+            suffixIcon: IconButton(
+              tooltip: _obscureKey
+                  ? l10n.settingsProviderShowKey
+                  : l10n.settingsProviderHideKey,
+              icon: Icon(
+                _obscureKey
+                    ? Icons.visibility_outlined
+                    : Icons.visibility_off_outlined,
+              ),
+              onPressed: () => setState(() => _obscureKey = !_obscureKey),
+            ),
+          ),
+          validator: _validateKey,
+        ),
+        if (_preset?.apiKeyUrl case final url?)
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: TextButton.icon(
+              onPressed: () => LinkLauncher.open(context, Uri.parse(url)),
+              icon: const Icon(Icons.open_in_new, size: 18),
+              label: Text(l10n.settingsProviderGetKey),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// Model, effort, temperature, prompt style and vision (AI providers
+  /// only).
+  List<Widget> _buildModelFields(BuildContext context) {
+    final l10n = context.l10n;
+    final model = _model.text.trim();
+    return [
+      const SizedBox(height: 16),
+      TextFormField(
+        controller: _model,
+        focusNode: _modelFocus,
+        autocorrect: false,
+        textInputAction: TextInputAction.done,
+        decoration: InputDecoration(
+          labelText: l10n.settingsProviderModel,
+          border: const OutlineInputBorder(),
+        ),
+        validator: _required,
+      ),
+      const SizedBox(height: 8),
+      Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: OutlinedButton.icon(
+          onPressed: _loadingModels ? null : _browseModels,
+          icon: _loadingModels
+              ? SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    semanticsLabel: l10n.settingsProviderModelsLoading,
+                  ),
+                )
+              : const Icon(Icons.list_alt_outlined),
+          label: Text(l10n.settingsProviderBrowseModels),
+        ),
+      ),
+      if (_modelsError case final error?)
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Semantics(
+            container: true,
+            liveRegion: true,
+            child: Text(
+              error,
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
+        ),
+      if (_suggestedModels case final models when models.isNotEmpty)
+        _SuggestedModels(
+          models: models,
+          selected: model,
+          onSelected: (chosen) => setState(() => _model.text = chosen),
+        ),
+      const SizedBox(height: 16),
+      DropdownButtonFormField<String>(
+        initialValue: _efforts.contains(_effort) ? _effort : _defaultEffort,
+        isExpanded: true,
+        decoration: InputDecoration(
+          labelText: l10n.settingsProviderEffort,
+          border: const OutlineInputBorder(),
+        ),
+        items: [
+          for (final effort in _efforts)
+            DropdownMenuItem(
+              value: effort,
+              child: Text(
+                _effortLabel(l10n, effort),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+        ],
+        onChanged: (value) => setState(() => _effort = value ?? _defaultEffort),
+      ),
+      if (_showTemperature) ...[
+        const SizedBox(height: 8),
+        _TemperatureField(
+          value: _temperature,
+          onUseDefault: ({required useDefault}) => setState(() {
+            _temperature = useDefault ? null : _lastTemperature;
+          }),
+          onChanged: (value) => setState(() {
+            _temperature = value;
+            _lastTemperature = value;
+          }),
+        ),
+      ],
+      const SizedBox(height: 16),
+      // One list child for the selector and its note (see the URL field).
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          DropdownButtonFormField<PromptProfile>(
+            key: const Key('provider_prompt_profile'),
+            initialValue: _promptProfile,
+            isExpanded: true,
+            decoration: InputDecoration(
+              labelText: l10n.settingsProviderPromptStyle,
+              helperText: l10n.settingsProviderPromptStyleHelper,
+              helperMaxLines: 3,
+              border: const OutlineInputBorder(),
+            ),
+            items: [
+              for (final profile in PromptProfile.values)
+                DropdownMenuItem(
+                  value: profile,
+                  child: Text(
+                    promptProfileName(l10n, profile, model: model),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+            ],
+            onChanged: (value) => setState(() {
+              _promptProfile = value ?? PromptProfile.auto;
+              _test = null;
+            }),
+          ),
+          if (_promptProfile.resolve(model).isTranslationOnly)
+            _Note(
+              icon: Icons.info_outline,
+              text: l10n.settingsProviderPromptTranslationOnly,
+            ),
+        ],
+      ),
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: Text(l10n.settingsProviderVision),
+        subtitle: Text(l10n.settingsProviderVisionSubtitle),
+        value: _supportsVision,
+        onChanged: (value) => setState(() => _supportsVision = value),
+      ),
+    ];
   }
 
   List<String> get _suggestedModels {

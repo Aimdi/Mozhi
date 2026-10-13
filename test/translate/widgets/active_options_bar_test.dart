@@ -1,7 +1,11 @@
+import 'dart:async';
+
+import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/translate/translate.dart';
 import 'package:mozhi/translate/widgets/widgets.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -130,6 +134,27 @@ void main() {
       await tester.tap(find.byKey(const Key('translate_active_options_reset')));
       verify(() => harness.translate.setOptions(const TranslationOptions()))
           .called(1);
+    });
+
+    testWidgets('follows option and engine changes', (tester) async {
+      final initial = translatedState(engine: claude);
+      final harness = TranslateHarness(state: initial);
+      final controller = StreamController<TranslateState>();
+      addTearDown(controller.close);
+      whenListen(harness.translate, controller.stream, initialState: initial);
+      await harness.pump(tester, child: const ActiveOptionsBar());
+      expect(find.byType(InputChip), findsNothing);
+
+      final formal = initial.copyWith(
+        options: const TranslationOptions(formality: Formality.more),
+      );
+      controller.add(formal);
+      await tester.pump();
+      expect(find.text('More formal'), findsOneWidget);
+
+      controller.add(formal.copyWith(engine: () => deepl));
+      await tester.pump();
+      expect(find.byType(InputChip), findsNothing);
     });
 
     testWidgets('tapping a chip opens the options sheet', (tester) async {

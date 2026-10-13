@@ -104,6 +104,29 @@ void main() {
       handle.dispose();
     });
 
+    testWidgets('update when the detection changes', (tester) async {
+      final initial = readyState(input: 'Gift');
+      final harness = TranslateHarness(state: initial);
+      final controller = await _listen(harness, initial);
+      await harness.pump(tester, child: const LanguageBar());
+      expect(find.text('Detect language'), findsOneWidget);
+      await _emit(
+        tester,
+        controller,
+        initial.copyWith(
+          result: () => const TranslationResult(
+            engineId: 'mozhi:deepl',
+            engineName: 'DeepL',
+            text: 'Poison',
+            detectedSource: 'de',
+          ),
+          status: TranslateStatus.success,
+        ),
+      );
+      expect(find.text('German'), findsOneWidget);
+      expect(find.byIcon(Icons.help_outline), findsOneWidget);
+    });
+
     testWidgets('flag an uncertain detection of a single word', (tester) async {
       final harness = TranslateHarness(
         state: translatedState(
@@ -339,6 +362,28 @@ void main() {
       );
       expect(tester.takeAnnouncements(), [
         isAccessibilityAnnouncement('2 alternatives'),
+      ]);
+    });
+
+    testWidgets('empty alternatives are announced too', (tester) async {
+      final initial = _finished(_done)
+          .copyWith(alternativesStatus: ExtraStatus.loading);
+      final harness = TranslateHarness(state: initial);
+      final controller = await _listen(harness, initial);
+      await harness.pump(
+        tester,
+        child: const ExtrasSection(),
+        supportsAnnounce: true,
+      );
+      await tester.tap(find.text('Alternatives'));
+      await tester.pump(const Duration(milliseconds: 500));
+      await _emit(
+        tester,
+        controller,
+        initial.copyWith(alternativesStatus: ExtraStatus.ready),
+      );
+      expect(tester.takeAnnouncements(), [
+        isAccessibilityAnnouncement('No alternatives found.'),
       ]);
     });
 
@@ -705,6 +750,108 @@ void main() {
   });
 
   group('B11 language of parts', () {
+    testWidgets('insight sheets read phrases in their languages', (
+      tester,
+    ) async {
+      final harness = TranslateHarness();
+      await harness.pump(
+        tester,
+        child: InsightSheet(
+          insight: const WordInsight(
+            sourceText: 'world',
+            targetText: 'العالم',
+            variations: [Alternative(text: 'الدنيا')],
+          ),
+          targetLanguage: _arabic,
+          sourceLanguage: english,
+          onVariation: (_) {},
+        ),
+      );
+      final phrase = tester.widget<SelectableText>(find.byType(SelectableText));
+      expect(phrase.textDirection, TextDirection.rtl);
+      expect(phrase.textSpan!.locale, const Locale('ar'));
+      final source = tester.widget<Text>(find.text('world'));
+      expect(source.textDirection, TextDirection.ltr);
+      expect((source.textSpan! as TextSpan).locale, const Locale('en'));
+      final variation = tester.widget<Text>(find.text('الدنيا'));
+      expect(variation.textDirection, TextDirection.rtl);
+    });
+
+    testWidgets('insight sheets without languages follow the text', (
+      tester,
+    ) async {
+      final harness = TranslateHarness();
+      await harness.pump(
+        tester,
+        child: InsightSheet(
+          insight: const WordInsight(sourceText: 'שלום', targetText: 'hello'),
+          onVariation: (_) {},
+        ),
+      );
+      final phrase = tester.widget<SelectableText>(find.byType(SelectableText));
+      expect(phrase.textDirection, TextDirection.ltr);
+      expect(phrase.textSpan!.locale, isNull);
+      expect(
+        tester.widget<Text>(find.text('שלום')).textDirection,
+        TextDirection.rtl,
+      );
+    });
+
+    testWidgets('dictionary examples carry source and target locales', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(
+        state:
+            readyState(
+              engine: claude,
+              source: german,
+              input: 'Hallo',
+              result: _done,
+            ).copyWith(
+              dictionaryStatus: ExtraStatus.ready,
+              dictionary: () => const DictionaryEntry(
+                word: 'Hallo',
+                senses: [
+                  DictionarySense(
+                    definition: 'greeting',
+                    translations: ['salut'],
+                  ),
+                ],
+                examples: [
+                  DictionaryExample(
+                    source: 'Hallo du!',
+                    translation: 'Salut !',
+                  ),
+                ],
+              ),
+            ),
+      );
+      await harness.pump(tester, child: const DictionaryCard());
+      Locale? locale(String text) =>
+          (tester.widget<Text>(find.text(text)).textSpan! as TextSpan).locale;
+      expect(locale('Hallo'), const Locale('de'));
+      expect(locale('Hallo du!'), const Locale('de'));
+      expect(locale('Salut !'), const Locale('fr'));
+      expect(locale('salut'), const Locale('fr'));
+      expect(find.bySemanticsLabel('Examples'), findsOneWidget);
+    });
+
+    testWidgets('a detected source is used for dictionary words', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(
+        state: translatedState(engine: claude, input: 'hello').copyWith(
+          dictionaryStatus: ExtraStatus.ready,
+          dictionary: () => const DictionaryEntry(word: 'hello'),
+        ),
+      );
+      await harness.pump(tester, child: const DictionaryCard());
+      expect(
+        (tester.widget<Text>(find.text('hello')).textSpan! as TextSpan).locale,
+        const Locale('en'),
+      );
+    });
+
     testWidgets('native names in the picker carry their locale', (
       tester,
     ) async {

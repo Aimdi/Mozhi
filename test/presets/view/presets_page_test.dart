@@ -36,14 +36,14 @@ void main() {
         tester,
         PresetsPage(onOpenGlossaries: onOpenGlossaries),
       );
-      await tester.pumpAndSettle();
+      await settle(tester);
     }
 
     PresetsState state() => harness.presets.state;
 
     Future<void> openMenuFor(WidgetTester tester, String name) async {
       await tester.tap(find.byTooltip('Actions for $name'));
-      await tester.pumpAndSettle();
+      await settle(tester);
     }
 
     testWidgets('shows a spinner while loading', (tester) async {
@@ -70,13 +70,13 @@ void main() {
       await pumpLoaded(tester);
       await openMenuFor(tester, _chat);
       await tester.tap(find.text('Use as default'));
-      await tester.pumpAndSettle();
+      await settle(tester);
       expect(state().defaultId, 'builtin-chatCasual');
       expect(find.byKey(const Key('presets_default_badge')), findsOneWidget);
 
       await openMenuFor(tester, _chat);
       await tester.tap(find.text('Stop using as default'));
-      await tester.pumpAndSettle();
+      await settle(tester);
       expect(state().defaultId, isNull);
       expect(find.byKey(const Key('presets_default_badge')), findsNothing);
     });
@@ -86,19 +86,19 @@ void main() {
       await openMenuFor(tester, _email);
       expect(find.text('Move up'), findsNothing);
       await tester.tap(find.text('Duplicate'));
-      await tester.pumpAndSettle();
+      await settle(tester);
       expect(find.text('$_email (copy)'), findsOneWidget);
       expect(state().presets[1].name, '$_email (copy)');
 
       await openMenuFor(tester, _email);
       await tester.tap(find.text('Move down'));
-      await tester.pumpAndSettle();
+      await settle(tester);
       expect(state().presets.first.name, '$_email (copy)');
 
       await openMenuFor(tester, _simple);
       expect(find.text('Move down'), findsNothing);
       await tester.tap(find.text('Move up'));
-      await tester.pumpAndSettle();
+      await settle(tester);
       expect(state().presets[2].builtIn, BuiltInPreset.simpleA2);
     });
 
@@ -107,24 +107,24 @@ void main() {
     ) async {
       await pumpLoaded(tester);
       await harness.presets.setDefault('builtin-chatCasual');
-      await tester.pumpAndSettle();
+      await settle(tester);
 
       await openMenuFor(tester, _chat);
       await tester.tap(find.text('Delete'));
-      await tester.pumpAndSettle();
+      await settle(tester);
       expect(find.text(_chat), findsNothing);
       expect(state().presets, hasLength(2));
       expect(state().defaultId, isNull);
       expect(find.text('Deleted “$_chat”'), findsOneWidget);
 
       await tester.tap(find.text('Undo'));
-      await tester.pumpAndSettle();
+      await settle(tester);
       expect(find.text(_chat), findsOneWidget);
       expect(state().presets[1].builtIn, BuiltInPreset.chatCasual);
       expect(state().defaultId, 'builtin-chatCasual');
 
       await tester.drag(find.text(_simple), const Offset(-600, 0));
-      await tester.pumpAndSettle();
+      await settle(tester);
       expect(find.text(_simple), findsNothing);
       expect(state().presets, hasLength(2));
     });
@@ -133,9 +133,9 @@ void main() {
       await pumpLoaded(tester);
       await openMenuFor(tester, _simple);
       await tester.tap(find.text('Share'));
-      await tester.pumpAndSettle();
+      await settle(tester);
       await tester.tap(find.byKey(const Key('presets_export_share')));
-      await tester.pumpAndSettle();
+      await settle(tester);
       final json = jsonDecode(
         harness.shared['mozhi-preset.json']!,
       ) as Map<String, dynamic>;
@@ -145,7 +145,7 @@ void main() {
     testWidgets('edits a preset in the sheet', (tester) async {
       await pumpLoaded(tester);
       await tester.tap(find.text(_simple));
-      await tester.pumpAndSettle();
+      await settle(tester);
       expect(find.text('Edit preset'), findsOneWidget);
       // The localised example name is prefilled.
       expect(
@@ -157,9 +157,9 @@ void main() {
       );
 
       await tester.tap(find.byKey(const Key('preset_form_formality_more')));
-      await tester.pumpAndSettle();
+      await settle(tester);
       await tester.tap(find.byKey(const Key('preset_editor_save')));
-      await tester.pumpAndSettle();
+      await settle(tester);
 
       final preset = state().byId('builtin-simpleA2')!;
       expect(preset.name, isEmpty, reason: 'unchanged example name');
@@ -171,7 +171,7 @@ void main() {
     testWidgets('renames a preset and makes it the default', (tester) async {
       await pumpLoaded(tester);
       await tester.tap(find.text(_chat));
-      await tester.pumpAndSettle();
+      await settle(tester);
       await tester.enterText(
         find.byKey(const Key('preset_editor_name')),
         'Friends',
@@ -180,9 +180,9 @@ void main() {
         find.byKey(const Key('preset_editor_default')),
       );
       await tester.tap(find.byKey(const Key('preset_editor_default')));
-      await tester.pumpAndSettle();
+      await settle(tester);
       await tester.tap(find.byKey(const Key('preset_editor_save')));
-      await tester.pumpAndSettle();
+      await settle(tester);
       expect(state().presets[1].name, 'Friends');
       expect(state().defaultId, 'builtin-chatCasual');
       expect(find.text('Friends'), findsOneWidget);
@@ -191,11 +191,11 @@ void main() {
     testWidgets('creates a preset with the FAB', (tester) async {
       await pumpLoaded(tester);
       await tester.tap(find.byKey(const Key('presets_add')));
-      await tester.pumpAndSettle();
+      await settle(tester);
       expect(find.text('New preset'), findsWidgets);
 
       await tester.tap(find.byKey(const Key('preset_editor_save')));
-      await tester.pumpAndSettle();
+      await settle(tester);
       expect(find.text('Enter a name'), findsOneWidget);
 
       await tester.enterText(
@@ -207,7 +207,7 @@ void main() {
         'Text to my landlord',
       );
       await tester.tap(find.byKey(const Key('preset_editor_save')));
-      await tester.pumpAndSettle();
+      await settle(tester);
 
       final created = state().presets.last;
       expect(created.name, 'Landlord');
@@ -218,9 +218,9 @@ void main() {
     testWidgets('cancel closes the editor without saving', (tester) async {
       await pumpLoaded(tester);
       await tester.tap(find.byKey(const Key('presets_add')));
-      await tester.pumpAndSettle();
+      await settle(tester);
       await tester.tap(find.text('Cancel'));
-      await tester.pumpAndSettle();
+      await settle(tester);
       expect(state().presets, hasLength(3));
     });
 
@@ -231,7 +231,7 @@ void main() {
       await pumpLoaded(tester);
       expect(find.text('No presets yet'), findsOneWidget);
       await tester.tap(find.byKey(const Key('presets_restore_examples')));
-      await tester.pumpAndSettle();
+      await settle(tester);
       expect(find.text(_email), findsOneWidget);
       expect(find.text('Added 3 examples'), findsOneWidget);
     });
@@ -239,21 +239,21 @@ void main() {
     testWidgets('restore examples from the menu', (tester) async {
       await pumpLoaded(tester);
       await tester.tap(find.byKey(const Key('presets_menu')));
-      await tester.pumpAndSettle();
+      await settle(tester);
       await tester.tap(find.text('Restore examples'));
-      await tester.pumpAndSettle();
+      await settle(tester);
       expect(find.text('All examples are already there'), findsOneWidget);
     });
 
     testWidgets('imports presets from pasted JSON', (tester) async {
       await pumpLoaded(tester);
       await tester.tap(find.byKey(const Key('presets_menu')));
-      await tester.pumpAndSettle();
+      await settle(tester);
       await tester.tap(find.text('Import presets'));
-      await tester.pumpAndSettle();
+      await settle(tester);
 
       await tester.tap(find.byKey(const Key('presets_import_submit')));
-      await tester.pumpAndSettle();
+      await settle(tester);
       expect(
         find.text("This doesn't look like exported presets."),
         findsOneWidget,
@@ -264,7 +264,7 @@ void main() {
         'not json',
       );
       await tester.tap(find.byKey(const Key('presets_import_submit')));
-      await tester.pumpAndSettle();
+      await settle(tester);
       expect(
         find.text("This doesn't look like exported presets."),
         findsOneWidget,
@@ -274,9 +274,9 @@ void main() {
         const Preset(id: 'x', name: 'Imported').toJson(),
       ]);
       await tester.tap(find.text('Paste from clipboard'));
-      await tester.pumpAndSettle();
+      await settle(tester);
       await tester.tap(find.byKey(const Key('presets_import_submit')));
-      await tester.pumpAndSettle();
+      await settle(tester);
       expect(find.text('Imported 1 preset'), findsOneWidget);
       expect(find.text('Imported'), findsOneWidget);
     });
@@ -284,11 +284,11 @@ void main() {
     testWidgets('cancelling the import changes nothing', (tester) async {
       await pumpLoaded(tester);
       await tester.tap(find.byKey(const Key('presets_menu')));
-      await tester.pumpAndSettle();
+      await settle(tester);
       await tester.tap(find.text('Import presets'));
-      await tester.pumpAndSettle();
+      await settle(tester);
       await tester.tap(find.text('Cancel'));
-      await tester.pumpAndSettle();
+      await settle(tester);
       expect(find.byType(AlertDialog), findsNothing);
       expect(state().presets, hasLength(3));
     });
@@ -296,11 +296,11 @@ void main() {
     testWidgets('exports all presets to the clipboard', (tester) async {
       await pumpLoaded(tester);
       await tester.tap(find.byKey(const Key('presets_menu')));
-      await tester.pumpAndSettle();
+      await settle(tester);
       await tester.tap(find.text('Export presets'));
-      await tester.pumpAndSettle();
+      await settle(tester);
       await tester.tap(find.byKey(const Key('presets_export_copy')));
-      await tester.pumpAndSettle();
+      await settle(tester);
       expect(find.text('Copied to clipboard'), findsOneWidget);
       final json = jsonDecode(harness.clipboard!) as Map<String, dynamic>;
       expect(json['presets'], hasLength(3));
@@ -309,11 +309,11 @@ void main() {
     testWidgets('dismissing the export sheet does nothing', (tester) async {
       await pumpLoaded(tester);
       await tester.tap(find.byKey(const Key('presets_menu')));
-      await tester.pumpAndSettle();
+      await settle(tester);
       await tester.tap(find.text('Export presets'));
-      await tester.pumpAndSettle();
+      await settle(tester);
       await tester.tapAt(const Offset(10, 10));
-      await tester.pumpAndSettle();
+      await settle(tester);
       expect(harness.clipboard, isNull);
       expect(harness.shared, isEmpty);
     });
@@ -322,9 +322,9 @@ void main() {
       await pumpLoaded(tester);
       harness.shared.clear();
       await tester.tap(find.byKey(const Key('presets_menu')));
-      await tester.pumpAndSettle();
+      await settle(tester);
       await tester.tap(find.text('Export presets'));
-      await tester.pumpAndSettle();
+      await settle(tester);
       // Replace the stub installed by the harness with a failing one.
       PresetsShare.share = (
         text, {
@@ -332,7 +332,7 @@ void main() {
         required mimeType,
       }) async => throw StateError('unsupported');
       await tester.tap(find.byKey(const Key('presets_export_share')));
-      await tester.pumpAndSettle();
+      await settle(tester);
       expect(find.text("Couldn't export"), findsOneWidget);
     });
 
@@ -353,7 +353,7 @@ void main() {
       await gesture.moveBy(const Offset(0, 100));
       await tester.pump();
       await gesture.up();
-      await tester.pumpAndSettle();
+      await settle(tester);
       expect(state().presets.first.builtIn, isNot(BuiltInPreset.emailFormal));
     });
 
@@ -374,10 +374,10 @@ void main() {
           child: const PresetsPage(),
         ),
       );
-      await tester.pumpAndSettle();
+      await settle(tester);
       expect(find.text("Couldn't load your presets."), findsOneWidget);
       await tester.tap(find.text('Retry'));
-      await tester.pumpAndSettle();
+      await settle(tester);
       expect(find.text(_email), findsOneWidget);
     });
   });

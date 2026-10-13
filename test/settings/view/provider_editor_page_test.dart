@@ -1,11 +1,14 @@
 import 'dart:async';
 
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/provider_editor_page.dart';
 import 'package:mozhi/settings/view/widgets/link_launcher.dart';
+import 'package:mozhi/usage/usage.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 import 'helpers.dart';
@@ -25,6 +28,36 @@ const _existing = AiProviderConfig(
   supportsVision: true,
 );
 
+const _deepl = AiProviderConfig(
+  id: 'mt1',
+  name: 'Work DeepL',
+  provider: LlmProvider.openAiCompatible,
+  baseUrl: '',
+  model: '',
+  apiKey: 'dl-key:fx',
+  presetId: 'deepl',
+  service: MtService.deepl,
+);
+
+const _libre = AiProviderConfig(
+  id: 'mt2',
+  name: 'Home Libre',
+  provider: LlmProvider.openAiCompatible,
+  baseUrl: 'http://192.168.1.20:5000',
+  model: '',
+  service: MtService.libreTranslate,
+);
+
+const _gemma = AiProviderConfig(
+  id: 'g1',
+  name: 'Gemma',
+  provider: LlmProvider.ollama,
+  baseUrl: 'http://localhost:11434',
+  model: 'gemma3',
+  presetId: 'ollama',
+  promptProfile: PromptProfile.translateGemma,
+);
+
 void main() {
   setUpAll(registerFallbacks);
 
@@ -34,7 +67,9 @@ void main() {
     late MockGoRouter router;
 
     setUp(() {
-      settings = createSettingsCubit(const AppSettings(providers: [_existing]));
+      settings = createSettingsCubit(
+        const AppSettings(providers: [_existing, _deepl, _libre, _gemma]),
+      );
       repository = MockTranslationRepository();
       router = createRouter();
     });
@@ -45,10 +80,17 @@ void main() {
       String? presetId,
       Size size = const Size(800, 2000),
       double textScale = 1,
+      UsageTracker? usageTracker,
     }) async {
       tester.setScreenSize(size);
+      final page = ProviderEditorPage(providerId: providerId, presetId: presetId);
       await tester.pumpView(
-        ProviderEditorPage(providerId: providerId, presetId: presetId),
+        usageTracker == null
+            ? page
+            : RepositoryProvider<UsageTracker>.value(
+                value: usageTracker,
+                child: page,
+              ),
         settings: settings,
         repository: repository,
         router: router,
@@ -659,6 +701,392 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('No models found'), findsOneWidget);
         expect(find.byType(BottomSheet), findsNothing);
+      });
+    });
+
+    group('machine translation', () {
+      void expectNoModelFields() {
+        for (final label in [
+          'Provider type',
+          'Model',
+          'Browse models',
+          'Suggested models',
+          'Reasoning effort',
+          'Temperature',
+          'Supports images',
+          'Prompt style',
+        ]) {
+          expect(find.text(label), findsNothing, reason: label);
+        }
+        expect(find.byType(Slider), findsNothing);
+        expect(find.byKey(const Key('provider_prompt_profile')), findsNothing);
+      }
+
+      group('DeepL', () {
+        testWidgets('shows only name, key and optional URL', (tester) async {
+          await pump(tester, presetId: 'deepl');
+          expect(find.text('Add translation service'), findsOneWidget);
+          expect(textOf(tester, 'Name'), 'DeepL API');
+          expect(textOf(tester, 'API key'), '');
+          expect(textOf(tester, 'Server URL (optional)'), '');
+          expect(
+            find.text('Leave empty to use the official DeepL API'),
+            findsOneWidget,
+          );
+          expect(find.text('Machine translation'), findsOneWidget);
+          expect(find.text('Get an API key'), findsOneWidget);
+          expectNoModelFields();
+          // The key comes before the optional URL.
+          expect(
+            tester.getTopLeft(field('API key')).dy,
+            lessThan(tester.getTopLeft(field('Server URL (optional)')).dy),
+          );
+        });
+
+        testWidgets('requires the key but not the URL', (tester) async {
+          bool focused(String label) => tester
+              .widget<EditableText>(
+                find.descendant(
+                  of: field(label),
+                  matching: find.byType(EditableText),
+                ),
+              )
+              .focusNode
+              .hasFocus;
+          await pump(tester, presetId: 'deepl');
+          await tester.tap(find.text('Save'));
+          await tester.pumpAndSettle();
+          expect(find.text('Required'), findsOneWidget);
+          expect(focused('API key'), isTrue);
+          verifyNever(() => settings.saveProvider(any()));
+        });
+
+        testWidgets('saves a new service with an empty URL', (tester) async {
+          await pump(tester, presetId: 'deepl');
+          await tester.enterText(field('API key'), ' abc:fx ');
+          await tester.tap(find.text('Save'));
+          await tester.pumpAndSettle();
+          final config = savedConfig();
+          expect(config.service, MtService.deepl);
+          expect(config.isMtService, isTrue);
+          expect(config.name, 'DeepL API');
+          expect(config.baseUrl, '');
+          expect(config.apiKey, 'abc:fx');
+          expect(config.presetId, 'deepl');
+          expect(config.model, '');
+          expect(config.effort, isNull);
+          expect(config.temperature, isNull);
+          expect(config.supportsVision, isFalse);
+          expect(find.text('Provider saved'), findsOneWidget);
+        });
+
+        testWidgets('rejects secrets in a proxy URL', (tester) async {
+          await pump(tester, presetId: 'deepl');
+          await tester.enterText(field('API key'), 'abc');
+          await tester.enterText(
+            field('Server URL (optional)'),
+            'https://deepl.example.com/v2?auth_key=abc',
+          );
+          await tester.tap(find.text('Save'));
+          await tester.pumpAndSettle();
+          expect(find.textContaining('Remove the part after “?”'), findsOne);
+          await tester.enterText(field('Server URL (optional)'), 'nonsense');
+          await tester.tap(find.text('Save'));
+          await tester.pumpAndSettle();
+          expect(
+            find.text('Enter a valid http:// or https:// URL'),
+            findsOneWidget,
+          );
+          verifyNever(() => settings.saveProvider(any()));
+        });
+
+        testWidgets('edits an existing service and keeps its service', (
+          tester,
+        ) async {
+          await pump(tester, providerId: 'mt1');
+          expect(find.text('Edit translation service'), findsOneWidget);
+          expect(textOf(tester, 'Name'), 'Work DeepL');
+          expect(textOf(tester, 'API key'), 'dl-key:fx');
+          expectNoModelFields();
+          await tester.enterText(field('Name'), 'DeepL Pro');
+          await tester.enterText(
+            field('Server URL (optional)'),
+            'https://deepl-proxy.example.com/',
+          );
+          await tester.tap(find.text('Save'));
+          await tester.pumpAndSettle();
+          final config = savedConfig();
+          expect(config.id, 'mt1');
+          expect(config.name, 'DeepL Pro');
+          expect(config.service, MtService.deepl);
+          expect(config.baseUrl, 'https://deepl-proxy.example.com');
+          expect(config.apiKey, 'dl-key:fx');
+          expect(config.presetId, 'deepl');
+        });
+
+        testWidgets('tests the connection through the repository', (
+          tester,
+        ) async {
+          when(() => repository.testProvider(any()))
+              .thenAnswer((_) async => 'Bonjour le monde !');
+          await pump(tester, providerId: 'mt1');
+          await tester.tap(find.text('Test connection'));
+          await tester.pumpAndSettle();
+          expect(
+            find.text('Connected. “Hello” in French: Bonjour le monde !'),
+            findsOneWidget,
+          );
+          final config =
+              verify(
+                    () => repository.testProvider(captureAny()),
+                  ).captured.single
+                  as AiProviderConfig;
+          expect(config.service, MtService.deepl);
+          expect(config.apiKey, 'dl-key:fx');
+          expect(config.baseUrl, '');
+        });
+
+        testWidgets('asks before using a plain http proxy', (tester) async {
+          await pump(tester, providerId: 'mt1');
+          await tester.enterText(
+            field('Server URL (optional)'),
+            'http://deepl.example.com',
+          );
+          await tester.pump();
+          expect(
+            find.byKey(const Key('provider_insecure_warning')),
+            findsOneWidget,
+          );
+          await tester.tap(find.text('Save'));
+          await tester.pumpAndSettle();
+          expect(find.textContaining('your text and your API key'), findsOne);
+          await tester.tap(find.text('Send without encryption'));
+          await tester.pumpAndSettle();
+          expect(savedConfig().service, MtService.deepl);
+        });
+      });
+
+      group('LibreTranslate', () {
+        testWidgets('prefills the public server; key optional', (
+          tester,
+        ) async {
+          await pump(tester, presetId: 'libretranslate');
+          expect(find.text('Add translation service'), findsOneWidget);
+          expect(textOf(tester, 'Server URL'), 'https://libretranslate.com');
+          expect(find.text('API key (optional)'), findsOneWidget);
+          expect(
+            find.text(
+              'Only needed if the server requires one (libretranslate.com '
+              'does). Stored securely on this device.',
+            ),
+            findsOneWidget,
+          );
+          expectNoModelFields();
+        });
+
+        testWidgets('requires a valid server URL', (tester) async {
+          await pump(tester, presetId: 'libretranslate');
+          await tester.enterText(field('Server URL'), '');
+          await tester.tap(find.text('Save'));
+          await tester.pumpAndSettle();
+          expect(find.text('Required'), findsOneWidget);
+          await tester.enterText(field('Server URL'), 'ftp://example.com');
+          await tester.tap(find.text('Test connection'));
+          await tester.pumpAndSettle();
+          expect(
+            find.text('Enter a valid http:// or https:// URL'),
+            findsOneWidget,
+          );
+          verifyNever(() => settings.saveProvider(any()));
+          verifyNever(() => repository.testProvider(any()));
+        });
+
+        testWidgets('saves a new service without a key', (tester) async {
+          await pump(tester, presetId: 'libretranslate');
+          await tester.enterText(field('Server URL'), 'http://localhost:5000/');
+          await tester.tap(find.text('Save'));
+          await tester.pumpAndSettle();
+          final config = savedConfig();
+          expect(config.service, MtService.libreTranslate);
+          expect(config.baseUrl, 'http://localhost:5000');
+          expect(config.apiKey, isNull);
+          expect(config.presetId, 'libretranslate');
+        });
+
+        testWidgets('edits a service saved without a preset', (tester) async {
+          await pump(tester, providerId: 'mt2');
+          expect(find.text('Edit translation service'), findsOneWidget);
+          expect(textOf(tester, 'Server URL'), 'http://192.168.1.20:5000');
+          expect(find.text('API key (optional)'), findsOneWidget);
+          expect(find.text('Get an API key'), findsNothing);
+          expectNoModelFields();
+          await tester.tap(find.text('Save'));
+          await tester.pumpAndSettle();
+          final config = savedConfig();
+          expect(config.id, 'mt2');
+          expect(config.service, MtService.libreTranslate);
+          expect(config.presetId, isNull);
+        });
+      });
+
+      testWidgets('fits 320dp with large text', (tester) async {
+        await pump(
+          tester,
+          presetId: 'libretranslate',
+          size: const Size(320, 640),
+          textScale: 2,
+        );
+        expect(tester.takeException(), isNull);
+        await tester.dragUntilVisible(
+          find.text('Test connection'),
+          find.byType(ListView),
+          const Offset(0, -300),
+        );
+        expect(tester.takeException(), isNull);
+      });
+    });
+
+    group('prompt style', () {
+      Finder dropdown() => find.byKey(const Key('provider_prompt_profile'));
+
+      Finder selected(String label) =>
+          find.descendant(of: dropdown(), matching: find.text(label));
+
+      testWidgets('Automatic shows the style for the current model', (
+        tester,
+      ) async {
+        await pump(tester, presetId: 'ollama');
+        expect(find.text('Prompt style'), findsOneWidget);
+        expect(
+          find.text(
+            'Dedicated translation models need their own prompt format.',
+          ),
+          findsOneWidget,
+        );
+        expect(selected('Automatic (General chat model)'), findsOneWidget);
+        expect(find.textContaining('only translates'), findsNothing);
+
+        await tester.enterText(field('Model'), 'translategemma:4b');
+        await tester.pump();
+        expect(selected('Automatic (TranslateGemma)'), findsOneWidget);
+        expect(find.textContaining('only translates'), findsOneWidget);
+
+        await tester.enterText(field('Model'), 'hunyuan-mt-7b');
+        await tester.pump();
+        expect(selected('Automatic (Hunyuan-MT)'), findsOneWidget);
+      });
+
+      testWidgets('a new provider saves Automatic by default', (tester) async {
+        await pump(tester, presetId: 'ollama');
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
+        final config = savedConfig();
+        expect(config.promptProfile, PromptProfile.auto);
+        expect(config.service, MtService.llm);
+      });
+
+      testWidgets('the chosen style is saved', (tester) async {
+        await pump(tester, presetId: 'ollama');
+        await tester.tap(dropdown());
+        await tester.pumpAndSettle();
+        expect(find.text('General chat model').last, findsOneWidget);
+        expect(find.text('TranslateGemma').last, findsOneWidget);
+        await tester.tap(find.text('Hunyuan-MT').last);
+        await tester.pumpAndSettle();
+        expect(selected('Hunyuan-MT'), findsOneWidget);
+        expect(find.textContaining('only translates'), findsOneWidget);
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
+        expect(savedConfig().promptProfile, PromptProfile.hunyuanMt);
+      });
+
+      testWidgets('an existing provider keeps its style', (tester) async {
+        await pump(tester, providerId: 'g1');
+        expect(selected('TranslateGemma'), findsOneWidget);
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
+        final config = savedConfig();
+        expect(config.promptProfile, PromptProfile.translateGemma);
+        expect(config.service, MtService.llm);
+      });
+
+      testWidgets('switching back to Automatic is saved', (tester) async {
+        await pump(tester, providerId: 'g1');
+        await tester.tap(dropdown());
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Automatic (General chat model)').last);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
+        expect(savedConfig().promptProfile, PromptProfile.auto);
+      });
+
+      testWidgets('is sent with the connection test', (tester) async {
+        when(() => repository.testProvider(any()))
+            .thenAnswer((_) async => 'Bonjour');
+        await pump(tester, providerId: 'g1');
+        await tester.tap(find.text('Test connection'));
+        await tester.pumpAndSettle();
+        final config =
+            verify(() => repository.testProvider(captureAny())).captured.single
+                as AiProviderConfig;
+        expect(config.promptProfile, PromptProfile.translateGemma);
+      });
+    });
+
+    group('usage', () {
+      late UsageTracker tracker;
+
+      setUp(() => tracker = UsageTracker(store: MemoryStore()));
+      tearDown(() => tracker.dispose());
+
+      testWidgets('shows the usage of an existing provider', (tester) async {
+        await tracker.record('p1', 1000, 234);
+        await pump(tester, providerId: 'p1', usageTracker: tracker);
+        await tester.pumpAndSettle();
+        expect(find.byType(UsageCard), findsOneWidget);
+        expect(
+          tester.widget<UsageCard>(find.byType(UsageCard)).providerId,
+          'p1',
+        );
+        expect(find.text('1,000 sent · 234 received'), findsOneWidget);
+        await tester.tap(find.text('All providers'));
+        await tester.pumpAndSettle();
+        verify(
+          () => router.push<Object?>(
+            '/settings/usage',
+            extra: any(named: 'extra'),
+          ),
+        ).called(1);
+      });
+
+      testWidgets('is hidden for new providers', (tester) async {
+        await pump(tester, presetId: 'openai', usageTracker: tracker);
+        await tester.pumpAndSettle();
+        expect(find.byType(UsageCard), findsNothing);
+      });
+
+      testWidgets('is hidden without a usage tracker', (tester) async {
+        await pump(tester, providerId: 'p1');
+        await tester.pumpAndSettle();
+        expect(find.byType(UsageCard), findsNothing);
+      });
+
+      testWidgets('deleting the provider removes its usage', (tester) async {
+        await tracker.record('p1', 1000, 234);
+        await tracker.record('other', 10, 5);
+        await tracker.setBudget('p1', const UsageBudget(monthlyChars: 5000));
+        await pump(tester, providerId: 'p1', usageTracker: tracker);
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('Delete'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+        await tester.pumpAndSettle();
+        verify(() => settings.removeProvider('p1')).called(1);
+        final snapshot = tracker.snapshot;
+        expect(snapshot.statsFor('p1').requests, 0);
+        expect(snapshot.budgetFor('p1'), isNull);
+        expect(snapshot.statsFor('other').requests, 1);
       });
     });
 

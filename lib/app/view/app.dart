@@ -70,7 +70,9 @@ class _AppState extends State<App> {
     unawaited(_deps.usageTracker.load().then<void>((_) {}, onError: (_) {}));
 
     // `https://host/Mozhi/app/?text=…` (query before the `#/` fragment).
-    final webLink = kIsWeb ? TranslateLink.fromUri(Uri.base) : null;
+    final webLink = kIsWeb
+        ? TranslateLink.fromUri(Uri.base) // coverage:ignore-line
+        : null;
     _router = createAppRouter(
       navigatorKey: _navigatorKey,
       onTranslateLink: _openLink,
@@ -113,15 +115,17 @@ class _AppState extends State<App> {
   /// wide windows) above whatever is shown.
   Future<void> _showQuickTranslate(QuickTranslateRequest request) async {
     var context = _navigatorKey.currentContext;
+    // coverage:ignore-start
     if (context == null) {
-      // Launched with the selection: wait for the first frame.
+      // Called before the first frame: wait for the navigator.
       await WidgetsBinding.instance.endOfFrame;
       context = _navigatorKey.currentContext;
     }
     if (!mounted || context == null || !context.mounted) {
-      request.onOpenInApp(); // coverage:ignore-line
-      return; // coverage:ignore-line
+      request.onOpenInApp();
+      return;
     }
+    // coverage:ignore-end
     await showQuickTranslate(
       context,
       text: request.text,

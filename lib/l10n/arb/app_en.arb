@@ -4481,5 +4481,101 @@
   "appSecureStorageUnavailable": "API keys can't be stored securely on this device; they will be kept only for this session.",
   "@appSecureStorageUnavailable": {
     "description": "Shown once on start when the platform secure storage is unavailable and API keys are kept in memory only"
+  },
+  "settingsProvidersPresetsAi": "AI models",
+  "@settingsProvidersPresetsAi": {
+    "description": "settingsProvidersPresetsAi"
+  },
+  "settingsProvidersPresetsMt": "Machine translation",
+  "@settingsProvidersPresetsMt": {
+    "description": "settingsProvidersPresetsMt"
+  },
+  "settingsProvidersPresetsMtBody": "Classic translation services with your own API key or server. Fast and predictable, but without AI extras such as alternatives and explanations.",
+  "@settingsProvidersPresetsMtBody": {
+    "description": "settingsProvidersPresetsMtBody"
+  },
+  "settingsProviderServiceDeepl": "DeepL API",
+  "@settingsProviderServiceDeepl": {
+    "description": "settingsProviderServiceDeepl"
+  },
+  "settingsProviderServiceLibreTranslate": "LibreTranslate",
+  "@settingsProviderServiceLibreTranslate": {
+    "description": "settingsProviderServiceLibreTranslate"
+  },
+  "settingsProviderMtSubtitle": "{service} · {host}",
+  "@settingsProviderMtSubtitle": {
+    "description": "Subtitle of a machine translation service in the providers list: service name and server host.",
+    "placeholders": {
+      "service": {
+        "type": "String",
+        "example": "LibreTranslate"
+      },
+      "host": {
+        "type": "String",
+        "example": "translate.example.org"
+      }
+    }
+  },
+  "settingsProviderMtNewTitle": "Add translation service",
+  "@settingsProviderMtNewTitle": {
+    "description": "settingsProviderMtNewTitle"
+  },
+  "settingsProviderMtEditTitle": "Edit translation service",
+  "@settingsProviderMtEditTitle": {
+    "description": "settingsProviderMtEditTitle"
+  },
+  "settingsProviderServerUrl": "Server URL",
+  "@settingsProviderServerUrl": {
+    "description": "settingsProviderServerUrl"
+  },
+  "settingsProviderServerUrlOptional": "Server URL (optional)",
+  "@settingsProviderServerUrlOptional": {
+    "description": "settingsProviderServerUrlOptional"
+  },
+  "settingsProviderDeeplUrlHelper": "Leave empty to use the official DeepL API",
+  "@settingsProviderDeeplUrlHelper": {
+    "description": "settingsProviderDeeplUrlHelper"
+  },
+  "settingsProviderLibreUrlHelper": "Your own LibreTranslate server, or https://libretranslate.com",
+  "@settingsProviderLibreUrlHelper": {
+    "description": "settingsProviderLibreUrlHelper"
+  },
+  "settingsProviderLibreKeyHelper": "Only needed if the server requires one (libretranslate.com does). Stored securely on this device.",
+  "@settingsProviderLibreKeyHelper": {
+    "description": "settingsProviderLibreKeyHelper"
+  },
+  "settingsProviderPromptStyle": "Prompt style",
+  "@settingsProviderPromptStyle": {
+    "description": "settingsProviderPromptStyle"
+  },
+  "settingsProviderPromptStyleHelper": "Dedicated translation models need their own prompt format.",
+  "@settingsProviderPromptStyleHelper": {
+    "description": "settingsProviderPromptStyleHelper"
+  },
+  "settingsProviderPromptAuto": "Automatic ({style})",
+  "@settingsProviderPromptAuto": {
+    "description": "Automatic prompt style, with the style it resolves to for the current model.",
+    "placeholders": {
+      "style": {
+        "type": "String",
+        "example": "TranslateGemma"
+      }
+    }
+  },
+  "settingsProviderPromptGeneral": "General chat model",
+  "@settingsProviderPromptGeneral": {
+    "description": "settingsProviderPromptGeneral"
+  },
+  "settingsProviderPromptTranslateGemma": "TranslateGemma",
+  "@settingsProviderPromptTranslateGemma": {
+    "description": "settingsProviderPromptTranslateGemma"
+  },
+  "settingsProviderPromptHunyuanMt": "Hunyuan-MT",
+  "@settingsProviderPromptHunyuanMt": {
+    "description": "settingsProviderPromptHunyuanMt"
+  },
+  "settingsProviderPromptTranslationOnly": "This prompt style only translates: alternatives, tones, explanations and other AI extras are not available.",
+  "@settingsProviderPromptTranslationOnly": {
+    "description": "settingsProviderPromptTranslationOnly"
   }
 }

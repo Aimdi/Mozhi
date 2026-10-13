@@ -223,6 +223,14 @@ void main() {
       verifyExternal('already typed', source: _spanish, target: _french);
     });
 
+    test('selects only the target of a link without text', () async {
+      when(() => cubit.state).thenReturn(_ready());
+
+      await const TranslateLink(to: 'fr').applyTo(cubit);
+
+      verifyExternal('', target: _french);
+    });
+
     test('does nothing for a link without text or usable languages', () async {
       when(() => cubit.state).thenReturn(_ready());
 
