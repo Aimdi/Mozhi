@@ -45,7 +45,7 @@ void main() {
 
     test('bilingual export keeps the original above the translation', () {
       final document = parseSubtitles(srt, DocumentFormat.srt);
-      final output = document.render(['Hola.', null], true);
+      final output = document.renderBilingual(['Hola.', null]);
       expect(output, startsWith('1\n00:00:01,000 --> 00:00:02,500\n'));
       expect(output, contains('Hello there.\nHola.\n\n2\n'));
       expect(output, contains('<i>Two lines,</i>\n{\\an8}second line.\n\n'));
@@ -53,7 +53,7 @@ void main() {
 
     test('identity translations do not duplicate bilingual lines', () {
       final document = parseSubtitles(srt, DocumentFormat.srt);
-      expect(document.render(texts(document), true), srt);
+      expect(document.renderBilingual(texts(document)), srt);
     });
 
     test('handles CRLF, a BOM-less last cue without newline', () {

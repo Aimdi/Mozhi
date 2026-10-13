@@ -20,7 +20,16 @@ void main() {
     store = MemoryStore();
   });
 
+  /// Tall enough to show every language without scrolling.
+  void useTallView(WidgetTester tester) {
+    tester.view
+      ..physicalSize = const Size(800, 2400)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+  }
+
   Future<void> pumpPage(WidgetTester tester) async {
+    useTallView(tester);
     await tester.pumpApp(
       OfflineModelsPage(translator: translator, store: store),
     );

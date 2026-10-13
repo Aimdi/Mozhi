@@ -23,7 +23,6 @@ List<String> texts(ParsedDocument document) => [
 ];
 
 /// "Translates" every segment by upper-casing it (placeholders survive).
-String renderUpper(ParsedDocument document, {bool bilingual = false}) =>
-    document.render([
-      for (final segment in document.segments) segment.text.toUpperCase(),
-    ], bilingual);
+String renderUpper(ParsedDocument document) => document.render([
+  for (final segment in document.segments) segment.text.toUpperCase(),
+]);

@@ -72,14 +72,18 @@ class UsageHistoryChart extends StatelessWidget {
     required this.values,
     this.height = 56,
     super.key,
-  }) : assert(months.length == values.length, 'one value per month');
+  });
 
+  /// The months shown, oldest first.
   final List<UsageMonth> months;
+
+  /// Characters per month; same length as [months].
   final List<int> values;
   final double height;
 
   @override
   Widget build(BuildContext context) {
+    assert(months.length == values.length, 'one value per month');
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final label = context.l10n.usageHistoryLabel(

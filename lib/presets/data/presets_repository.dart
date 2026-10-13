@@ -13,7 +13,7 @@ import 'package:mozhi/presets/models/preset.dart';
 /// the examples and is only overwritten by the next [save]. Writes are
 /// serialised.
 class PresetsRepository {
-  PresetsRepository({KeyValueStore? store, IdGenerator? generateId})
+  new({KeyValueStore? store, IdGenerator? generateId})
     : store = store ?? PreferencesStore(),
       _generateId = generateId ?? generateLocalId;
 

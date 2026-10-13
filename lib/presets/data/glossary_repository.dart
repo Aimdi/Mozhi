@@ -13,7 +13,7 @@ import 'package:mozhi/presets/models/glossary.dart';
 /// next [save]); invalid glossaries and duplicate ids are skipped. The last
 /// loaded or saved list is cached for the synchronous [activeGlossary].
 class GlossaryRepository {
-  GlossaryRepository({KeyValueStore? store, IdGenerator? generateId})
+  new({KeyValueStore? store, IdGenerator? generateId})
     : store = store ?? PreferencesStore(),
       _generateId = generateId ?? generateLocalId;
 
@@ -199,7 +199,7 @@ enum GlossaryExportFormat {
   tsv('tsv', 'text/tab-separated-values'),
   json('json', 'application/json');
 
-  const GlossaryExportFormat(this.extension, this.mimeType);
+  new(this.extension, this.mimeType);
 
   final String extension;
   final String mimeType;

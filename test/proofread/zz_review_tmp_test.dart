@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/proofread/proofread.dart';
+import 'package:mozhi/proofread/widgets/widgets.dart';
+import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 import 'helpers/proofread_helpers.dart';
@@ -33,15 +35,19 @@ void main() {
     );
     final p = tester.renderObject<RenderParagraph>(find.text('Comprehensive'));
     // ignore: avoid_print
-    print('TMP comprehensive exceeded=${p.didExceedMaxLines} '
-        'width=${p.size.width}');
+    print(
+      'TMP comprehensive exceeded=${p.didExceedMaxLines} '
+      'width=${p.size.width}',
+    );
     final handle = tester.ensureSemantics();
     await tester.enterText(find.byKey(const Key('proofread_input')), 'abc');
     await tester.pump(const Duration(seconds: 1));
     final node = tester.getSemantics(find.byKey(const Key('proofread_input')));
     // ignore: avoid_print
-    print('TMP input semantics label="${node.label}" '
-        'value="${node.value}" hint="${node.hint}"');
+    print(
+      'TMP input semantics label="${node.label}" '
+      'value="${node.value}" hint="${node.hint}"',
+    );
     handle.dispose();
   });
 

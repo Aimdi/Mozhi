@@ -69,8 +69,8 @@ void main() {
         status: UsageStatus.ready,
         snapshot: UsageSnapshot(
           currentMonth: october,
-          months: const {
-            october: {
+          months: {
+            october: const {
               'a': UsageStats(requests: 1, inputChars: 8, inputTokens: 2),
             },
           },

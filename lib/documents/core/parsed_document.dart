@@ -60,9 +60,9 @@ final class SegmentNode extends DocNode {
 
   final int segment;
 
-  /// Original text around the protected spans:
-  /// `sourceParts[0] + token 1 + sourceParts[1] + ... + token n +
-  /// sourceParts[n]` is the original.
+  /// Original text around the protected spans: `sourceParts[0]`, token 1,
+  /// `sourceParts[1]`, …, token n, `sourceParts[n]` concatenated give the
+  /// original.
   final List<String> sourceParts;
 
   /// Content of each placeholder (index 0 is placeholder 1).
@@ -122,13 +122,16 @@ class ParsedDocument {
 
   /// Rebuilds the document with [translations] (indexed like [segments];
   /// null or missing entries keep the original text).
-  ///
-  /// With [bilingual], each translated segment is written after its
-  /// original (separated by a line break) — meant for subtitles.
   String render([
     List<String?> translations = const [],
-    bool bilingual = false,
-  ]) {
+  ]) => _renderAll(translations, bilingual: false);
+
+  /// Like [render], but each translated segment is written after its
+  /// original, separated by a line break (meant for subtitles).
+  String renderBilingual(List<String?> translations) =>
+      _renderAll(translations, bilingual: true);
+
+  String _renderAll(List<String?> translations, {required bool bilingual}) {
     final buffer = StringBuffer();
     _Renderer(
       translations,
@@ -141,7 +144,7 @@ class ParsedDocument {
   /// The original text of segment [index], with protected spans restored.
   String segmentSource(int index) {
     final buffer = StringBuffer();
-    const _Renderer([]).write(buffer, [_segmentNodes[index]]);
+    _Renderer._identity.write(buffer, [_segmentNodes[index]]);
     return buffer.toString();
   }
 

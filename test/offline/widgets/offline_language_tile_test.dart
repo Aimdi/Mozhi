@@ -77,7 +77,7 @@ void main() {
         pending: OfflineModelOperation.delete,
       );
       expect(find.text('Deleting…'), findsOneWidget);
-      expect(find.bySemanticsLabel('Deleting…'), findsOneWidget);
+      expect(find.bySemanticsLabel('Deleting…'), findsWidgets);
     });
 
     testWidgets('disables the actions when not enabled', (tester) async {

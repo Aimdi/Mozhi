@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/image_translate/cubit/image_translate_cubit.dart';
+import 'package:mozhi/image_translate/models/models.dart';
 import 'package:mozhi/image_translate/widgets/image_translate_labels.dart';
 import 'package:mozhi/l10n/l10n.dart';
 
@@ -15,9 +16,10 @@ class ImageMethodSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    final (methods, selected) = context.select(
-      (ImageTranslateCubit cubit) => (cubit.state.methods, cubit.state.method),
-    );
+    final (methods, selected) = context.select<
+      ImageTranslateCubit,
+      (List<ImageTranslateMethod>, ImageTranslateMethod?)
+    >((cubit) => (cubit.state.methods, cubit.state.method));
     if (methods.isEmpty) return const SizedBox.shrink();
     final cubit = context.read<ImageTranslateCubit>();
     return Column(

@@ -43,7 +43,7 @@ abstract final class LanguageScope {
 
 /// One glossary entry: [source] must be translated as [target].
 class GlossaryTerm extends Equatable {
-  const GlossaryTerm({
+  const new({
     required this.source,
     required this.target,
     this.note = '',
@@ -51,7 +51,7 @@ class GlossaryTerm extends Equatable {
   });
 
   /// Throws [FormatException] when [source] or [target] is missing.
-  factory GlossaryTerm.fromJson(Map<String, dynamic> json) {
+  factory fromJson(Map<String, dynamic> json) {
     final source = json['source'];
     final target = json['target'];
     if (source is! String || target is! String) {
@@ -150,7 +150,7 @@ TermMerge mergeTerms(
 /// A named list of terms for a language pair (either side may be
 /// [LanguageScope.any]). Disabled glossaries are kept but not applied.
 class Glossary extends Equatable {
-  const Glossary({
+  const new({
     required this.id,
     this.name = '',
     this.sourceCode = LanguageScope.any,
@@ -161,7 +161,7 @@ class Glossary extends Equatable {
 
   /// Tolerant parser: invalid terms are skipped, a missing scope means
   /// [LanguageScope.any]. Throws [FormatException] without an id.
-  factory Glossary.fromJson(Map<String, dynamic> json) {
+  factory fromJson(Map<String, dynamic> json) {
     final id = json['id'];
     if (id is! String || id.trim().isEmpty) {
       throw const FormatException('Glossary without an id');

@@ -15,7 +15,7 @@ export 'presets_state.dart';
 /// are reported via `addError` and never thrown (the in-memory state is
 /// kept). [importJson] throws [FormatException] for invalid input.
 class PresetsCubit extends Cubit<PresetsState> {
-  PresetsCubit({PresetsRepository? repository})
+  new({PresetsRepository? repository})
     : _repository = repository ?? PresetsRepository(),
       super(const PresetsState());
 

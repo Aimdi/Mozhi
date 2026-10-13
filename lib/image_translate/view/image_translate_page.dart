@@ -20,7 +20,7 @@ import 'package:translation_repository/translation_repository.dart';
 /// `SettingsCubit` above it. The platform services default to the plugin
 /// implementations and can be injected (tests, other platforms).
 class ImageTranslatePage extends StatelessWidget {
-  const ImageTranslatePage({
+  const new({
     this.initialSource,
     this.picker,
     this.encoder,
@@ -88,7 +88,7 @@ class ImageTranslatePage extends StatelessWidget {
 }
 
 class ImageTranslateView extends StatefulWidget {
-  const ImageTranslateView({this.initialSource, super.key});
+  const new({this.initialSource, super.key});
 
   /// Width from which image and results are shown side by side.
   static const wideBreakpoint = 840.0;
@@ -126,8 +126,9 @@ class _ImageTranslateViewState extends State<ImageTranslateView> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final (hasImage, canUseCamera, canPick) = context.select(
-      (ImageTranslateCubit cubit) => (
+    final (hasImage, canUseCamera, canPick) = context
+        .select<ImageTranslateCubit, (bool, bool, bool)>(
+      (cubit) => (
         cubit.state.hasImage,
         cubit.state.canUseCamera,
         cubit.state.methods.isNotEmpty,
@@ -208,7 +209,7 @@ class _ImageTranslateViewState extends State<ImageTranslateView> {
 
 /// Language bar and method selector.
 class _Controls extends StatelessWidget {
-  const _Controls();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -226,7 +227,7 @@ class _Controls extends StatelessWidget {
 
 /// "Translate" button, error, or results, depending on the status.
 class _Status extends StatelessWidget {
-  const _Status();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -267,7 +268,7 @@ class _Status extends StatelessWidget {
 }
 
 class _NarrowLayout extends StatelessWidget {
-  const _NarrowLayout({required this.hasImage});
+  const new({required this.hasImage});
 
   final bool hasImage;
 
@@ -299,7 +300,7 @@ class _NarrowLayout extends StatelessWidget {
 }
 
 class _WideLayout extends StatelessWidget {
-  const _WideLayout({required this.hasImage});
+  const new({required this.hasImage});
 
   final bool hasImage;
 
@@ -315,11 +316,11 @@ class _WideLayout extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             child: hasImage
                 ? const ImageTranslatePreview(expand: true)
-                : const Center(
+                : Center(
                     child: SingleChildScrollView(
                       child: ConstrainedBox(
-                        constraints: BoxConstraints(maxWidth: 560),
-                        child: ImageTranslateEmptyState(),
+                        constraints: const BoxConstraints(maxWidth: 560),
+                        child: const ImageTranslateEmptyState(),
                       ),
                     ),
                   ),

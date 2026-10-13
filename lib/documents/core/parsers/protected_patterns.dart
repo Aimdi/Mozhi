@@ -3,9 +3,7 @@ abstract final class ProtectedPatterns {
   /// `http(s)://…`, `ftp://…` and `www.…` URLs (trailing punctuation
   /// excluded).
   static const url =
-      r'(?:(?:https?|ftp)://|www\.)[^\s<>\[\]`"]*[^\s<>\[\]`".,;:!?)'
-      "'"
-      ']';
+      r'''(?:(?:https?|ftp)://|www\.)[^\s<>\[\]`"]*[^\s<>\[\]`".,;:!?)']''';
 
   static const email = r'[\w.+-]+@[\w-]+(?:\.[\w-]+)*\.[A-Za-z]{2,}';
 
@@ -48,9 +46,7 @@ abstract final class ProtectedPatterns {
     // Images are kept whole.
     r'!\[[^\]\n]*\]\([^()\s]*(?:\([^()]*\))?[^()\s]*(?:\s+"[^"]*")?\)',
     // Link destinations and reference labels right after `]`.
-    r'(?<=\])\((?:[^()\s]|\([^()]*\))*(?:\s+(?:"[^"]*"|'
-        "'[^']*'"
-        r'|\([^()]*\)))?\)',
+    r'''(?<=\])\((?:[^()\s]|\([^()]*\))*(?:\s+(?:"[^"]*"|'[^']*'|\([^()]*\)))?\)''',
     r'(?<=\])\[[^\]\n]*\]',
     // Footnote references.
     r'\[\^[^\]\n]+\]',

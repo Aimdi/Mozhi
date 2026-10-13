@@ -18,10 +18,10 @@ class ImageTranslateEmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    final (methods, canUseCamera) = context.select(
-      (ImageTranslateCubit cubit) =>
-          (cubit.state.methods, cubit.state.canUseCamera),
-    );
+    final (methods, canUseCamera) = context
+        .select<ImageTranslateCubit, (List<ImageTranslateMethod>, bool)>(
+          (cubit) => (cubit.state.methods, cubit.state.canUseCamera),
+        );
     final cubit = context.read<ImageTranslateCubit>();
     final canPick = methods.isNotEmpty;
     final aiNames = [

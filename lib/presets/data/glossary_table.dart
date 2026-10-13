@@ -5,7 +5,7 @@ enum GlossaryTableFormat {
   csv(',', 'csv', 'text/csv'),
   tsv('\t', 'tsv', 'text/tab-separated-values');
 
-  const GlossaryTableFormat(this.delimiter, this.extension, this.mimeType);
+  new(this.delimiter, this.extension, this.mimeType);
 
   final String delimiter;
   final String extension;
@@ -226,7 +226,7 @@ abstract final class GlossaryTable {
 }
 
 class _Columns {
-  const _Columns({
+  const new({
     required this.source,
     required this.target,
     required this.note,

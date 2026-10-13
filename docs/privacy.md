@@ -6,8 +6,9 @@ goes anywhere else.
 ## The short version
 
 - **No account, no telemetry, no analytics, no ads, no crash reporting.** The
-  app contains no tracking code and does not contact any server run by the
-  app's developers.
+  app contains no tracking code of its own and does not contact any server
+  run by the app's developers. (The one third-party library that reports
+  usage metrics, Google's ML Kit, is covered [below](#google-ml-kit).)
 - **Your history and settings stay on your device.**
 - **Your text is sent only to the back end you choose** for that translation:
   a Mozhi instance, an AI provider, or nowhere at all with local and offline
@@ -73,17 +74,28 @@ Some features send additional data to the same back ends:
 ## Every connection the app makes
 
 - The Mozhi instances in your list: translations, engine and language lists,
-  text-to-speech, image translation, and a lightweight `/api/version` request
-  when you test an instance or open the instance settings. Out of the box, the
-  list contains public instances, so a fresh install talks to the first one.
+  text-to-speech and image translation. Opening **Settings > Mozhi instances**
+  sends a lightweight `/api/version` request to every instance in the list to
+  show its response time, and **Test** does the same for one. Out of the box,
+  the list contains public instances, so a fresh install talks to the first
+  one.
 - The AI providers you added: translations, extras, proofreading, the model
   list (**Browse models**) and **Test connection**.
-- Google's servers, only to download offline language packs or on-device
-  recognition models.
+- Google's servers, through ML Kit, on Android and iOS only (see below).
 - Web pages you open from the app (source code, licences, provider key
   pages), in your browser.
 
 Nothing else: no update checks, no analytics, no remote configuration.
+
+### Google ML Kit
+
+Offline translation and on-device text recognition (Android and iOS) use
+Google's ML Kit libraries. Translation and recognition run on the device; the
+text and images are not sent anywhere. ML Kit does download language packs
+and models from Google, and according to Google's
+[ML Kit terms](https://developers.google.com/ml-kit/terms) it also sends
+metrics about the performance and use of its APIs to Google. The web and
+desktop apps don't include ML Kit.
 
 ## Keeping everything private
 

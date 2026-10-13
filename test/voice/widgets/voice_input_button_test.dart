@@ -187,7 +187,11 @@ void main() {
       expect(renderedScale(tester), 1.5);
 
       recognizer.emitLevel(5);
+      // ignore: avoid_print
+      print('DEBUG ${service.state}');
       await tester.pump();
+      // ignore: avoid_print
+      print('DEBUG2 ${service.state}');
       expect(ringScale(tester), 1.25);
 
       // The scale animates rather than jumping.

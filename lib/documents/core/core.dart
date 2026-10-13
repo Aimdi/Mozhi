@@ -1,6 +1,6 @@
 /// Pure-Dart document translation core: format detection, parsers that
 /// split documents into translatable segments, chunking and the
-/// [DocumentTranslator] that drives the translation repository.
+/// `DocumentTranslator` that drives the translation repository.
 library;
 
 export 'batch_codec.dart';

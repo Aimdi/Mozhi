@@ -85,7 +85,7 @@ Future<void> main(List<String> args) async {
 // ---------------------------------------------------------------------------
 
 final class _Options {
-  _Options({
+  new({
     required this.base,
     this.server,
     this.jsonPath,
@@ -93,7 +93,7 @@ final class _Options {
     this.help = false,
   });
 
-  factory _Options.parse(List<String> args) {
+  factory parse(List<String> args) {
     var base = Uri.parse('http://127.0.0.1:3123');
     String? server;
     String? jsonPath;
@@ -145,7 +145,7 @@ final class _Options {
 
 /// A Mozhi server started by this script (`<binary> <host> <port>`).
 final class _ServerProcess {
-  _ServerProcess._(this._process) {
+  new _(this._process) {
     _process.stdout.transform(utf8.decoder).listen(_log.write);
     _process.stderr.transform(utf8.decoder).listen(_log.write);
     unawaited(_process.exitCode.then((code) => exitCodeOrNull = code));
@@ -209,20 +209,20 @@ enum _Outcome { pass, gap, fail }
 
 /// What a check returns: [_Pass] or [_Gap]. Failures are thrown.
 sealed class _Verdict {
-  const _Verdict(this.detail);
+  const new(this.detail);
   final String detail;
 }
 
 final class _Pass extends _Verdict {
-  const _Pass(super.detail);
+  const new(super.detail);
 }
 
 final class _Gap extends _Verdict {
-  const _Gap(super.detail);
+  const new(super.detail);
 }
 
 final class _ContractFailure implements Exception {
-  _ContractFailure(this.message);
+  new(this.message);
   final String message;
 
   @override
@@ -230,7 +230,7 @@ final class _ContractFailure implements Exception {
 }
 
 final class _Result {
-  _Result(this.name, this.outcome, this.detail);
+  new(this.name, this.outcome, this.detail);
   final String name;
   final _Outcome outcome;
   final String detail;
@@ -243,7 +243,7 @@ final class _Result {
 }
 
 final class _LanguageRow {
-  _LanguageRow(this.engine);
+  new(this.engine);
   final String engine;
   int source = 0;
   int target = 0;
@@ -319,7 +319,7 @@ String _quote(String text, [int max = 90]) {
 // ---------------------------------------------------------------------------
 
 /// A 1x1 transparent PNG.
-final _png = base64Decode(
+final Uint8List _png = base64Decode(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA'
   '60e6kgAAAABJRU5ErkJggg==',
 );
@@ -329,8 +329,10 @@ final _jpeg = Uint8List.fromList([0xFF, 0xD8, 0xFF, 0xE0, 0, 16, 74, 70, 73]);
 
 const _pseudoEngines = {'all', 'some'};
 
+const _yesNo = {true: 'yes', false: 'no'};
+
 final class _Contract {
-  _Contract(this.base, {this.server})
+  new(this.base, {this.server})
     : client = MozhiApiClient(baseUrl: base),
       raw = http.Client();
 
@@ -394,7 +396,7 @@ final class _Contract {
     if (destructive) await _destructive();
   }
 
-  // -- Discovery ------------------------------------------------------------
+  // -- Discovery --------------------------------------------------------------
 
   Future<void> _discovery() async {
     await check('GET /api/version parses', () async {
@@ -528,7 +530,7 @@ final class _Contract {
     });
   }
 
-  // -- Language lists --------------------------------------------------------
+  // -- Language lists ---------------------------------------------------------
 
   Future<void> _languageLists() async {
     final repository = TranslationRepository()
@@ -538,7 +540,7 @@ final class _Contract {
       );
     final repoEngines = {
       for (final engine in await repository.getEngines())
-        if (engine.mozhiEngine case final id?) id: engine,
+        ?engine.mozhiEngine: engine,
     };
     final all = [...engines, if (!engines.contains('libre')) 'libre'];
     for (final engine in all) {
@@ -678,7 +680,7 @@ final class _Contract {
     }.toList();
   }
 
-  // -- /api/translate errors -------------------------------------------------
+  // -- /api/translate errors --------------------------------------------------
 
   Future<void> _translateErrors() async {
     const required = 'from, to, engine, text are required query strings.';
@@ -972,7 +974,7 @@ final class _Contract {
     });
   }
 
-  // -- /api/tts -----------------------------------------------------------------
+  // -- /api/tts ---------------------------------------------------------------
 
   Future<void> _tts() async {
     await check('tts: missing text -> 400', () async {
@@ -1070,7 +1072,7 @@ final class _Contract {
     });
   }
 
-  // -- /api/image ---------------------------------------------------------------
+  // -- /api/image -------------------------------------------------------------
 
   /// Posts a hand-built multipart body to `/api/image` (with an `image`
   /// part of [imageType] when given).
@@ -1203,7 +1205,7 @@ final class _Contract {
     });
   }
 
-  // -- TranslationRepository on top of the client -------------------------------
+  // -- TranslationRepository on top of the client -----------------------------
 
   Future<void> _repository() async {
     final counter = _CountingClient();
@@ -1250,10 +1252,10 @@ final class _Contract {
           providers: const [],
         );
         counter.paths.clear();
-        final request = TranslationRequest(
+        const request = TranslationRequest(
           text: 'Hello',
-          source: const Language(code: 'en', name: 'English'),
-          target: const Language(code: 'xx', name: 'Invalid'),
+          source: Language(code: 'en', name: 'English'),
+          target: Language(code: 'xx', name: 'Invalid'),
         );
         try {
           await repository.translate(google!, request).drain<void>();
@@ -1321,7 +1323,7 @@ final class _Contract {
     counter.close();
   }
 
-  // -- Destructive: multi-engine request with DuckDuckGo ------------------------
+  // -- Destructive: multi-engine request with DuckDuckGo ----------------------
 
   Future<void> _destructive() async {
     await check(
@@ -1361,7 +1363,7 @@ final class _Contract {
     );
   }
 
-  // -- Output --------------------------------------------------------------------
+  // -- Output -----------------------------------------------------------------
 
   void printSummary() {
     stdout
@@ -1375,11 +1377,12 @@ final class _Contract {
         'repo(src/tgt)',
       );
     for (final row in languages) {
+      final auto = '${_yesNo[row.sourceAuto]}/${_yesNo[row.targetAuto]}';
+      final dupes = '${row.sourceDuplicates}/${row.targetDuplicates}';
       stdout.writeln(
-        '  ${row.engine.padRight(12)} ${(row.advertised ? 'yes' : 'no').padRight(11)} '
+        '  ${row.engine.padRight(12)} ${_yesNo[row.advertised]!.padRight(11)} '
         '${'${row.source}'.padLeft(6)}  ${'${row.target}'.padLeft(6)}  '
-        '${'${row.sourceAuto ? 'yes' : 'no'}/${row.targetAuto ? 'yes' : 'no'}'.padRight(13)}  '
-        '${'${row.sourceDuplicates}/${row.targetDuplicates}'.padRight(5)}  '
+        '${auto.padRight(13)}  ${dupes.padRight(5)}  '
         '${row.repoSource}/${row.repoTarget}',
       );
     }

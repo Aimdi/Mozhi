@@ -50,7 +50,7 @@ running on your own computer.
    | API key | Required by cloud providers; optional for local servers. **Get an API key** opens the provider's key page. |
    | Model | The preset suggests one. **Browse models** lists what your key or server offers. |
    | Reasoning effort | For models that think before answering: **Low** is fastest and is the right choice for translation. |
-   | Temperature | Leave it on the model's default unless you know you want something else. |
+   | Temperature | Leave it on the model's default unless you know you want something else. Not shown for Anthropic, whose current models don't accept it. |
    | Supports images | Turn on for vision models to translate photos and screenshots with them. |
 
 3. **Test connection** sends "Hello, world!" for translation into French and
@@ -60,7 +60,9 @@ running on your own computer.
    compare them side by side.
 
 Providers on your own machine or network are marked **Local** in the engine
-list; the others are marked **Cloud**.
+list; the others are marked **Cloud**. If you enter a plain `http://` address
+that is not on your local network, the editor warns you that your text and
+API key would travel unencrypted.
 
 ## Cloud providers
 

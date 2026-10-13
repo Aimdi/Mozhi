@@ -7,13 +7,13 @@ void main() {
   const a = UsageStats(requests: 1, inputChars: 10, outputChars: 20);
   const b = UsageStats(requests: 2, inputChars: 5, outputChars: 5);
 
-  const snapshot = UsageSnapshot(
+  final snapshot = UsageSnapshot(
     currentMonth: october,
     months: {
       october: {'a': a, 'b': b},
       september: {'a': b, 'empty': UsageStats.zero},
     },
-    budgets: {'c': UsageBudget(monthlyChars: 100)},
+    budgets: const {'c': UsageBudget(monthlyChars: 100)},
   );
 
   test('statsFor defaults to the current month and zero', () {
@@ -49,10 +49,10 @@ void main() {
     expect(snapshot.isEmpty, isFalse);
     expect(const UsageSnapshot(currentMonth: october).isEmpty, isTrue);
     expect(
-      const UsageSnapshot(
+      UsageSnapshot(
         currentMonth: october,
         months: {
-          october: {'a': UsageStats.zero},
+          october: const {'a': UsageStats.zero},
         },
       ).isEmpty,
       isTrue,

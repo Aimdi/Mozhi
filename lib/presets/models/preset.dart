@@ -37,7 +37,7 @@ enum BuiltInPreset {
 /// preset: they are dropped when serialising and ignored by [appliesTo] and
 /// `applyPresetAndGlossary`.
 class Preset extends Equatable {
-  const Preset({
+  const new({
     required this.id,
     this.name = '',
     this.options = const TranslationOptions(),
@@ -45,7 +45,7 @@ class Preset extends Equatable {
   });
 
   /// A built-in example with a stable id (`builtin-<name>`).
-  factory Preset.example(BuiltInPreset builtIn) => Preset(
+  factory example(BuiltInPreset builtIn) => Preset(
     id: 'builtin-${builtIn.name}',
     options: builtIn.options,
     builtIn: builtIn,
@@ -53,7 +53,7 @@ class Preset extends Equatable {
 
   /// Tolerant parser: unknown fields are ignored and invalid option values
   /// fall back to their defaults. Throws [FormatException] without an id.
-  factory Preset.fromJson(Map<String, dynamic> json) {
+  factory fromJson(Map<String, dynamic> json) {
     final id = json['id'];
     if (id is! String || id.trim().isEmpty) {
       throw const FormatException('Preset without an id');
@@ -116,10 +116,10 @@ class Preset extends Equatable {
 
 /// All presets in display order plus the id of the default one.
 class PresetCollection extends Equatable {
-  const PresetCollection({this.presets = const [], this.defaultId});
+  const new({this.presets = const [], this.defaultId});
 
   /// The built-in examples ([BuiltInPreset]) used on first launch.
-  factory PresetCollection.examples() => PresetCollection(
+  factory examples() => PresetCollection(
     presets: [
       for (final builtIn in BuiltInPreset.values) Preset.example(builtIn),
     ],
