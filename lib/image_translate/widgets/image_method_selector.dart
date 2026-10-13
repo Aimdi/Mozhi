@@ -10,16 +10,17 @@ import 'package:mozhi/l10n/l10n.dart';
 /// Choice chips for the available methods, with a short description of the
 /// selected one. Hidden when no method is available.
 class ImageMethodSelector extends StatelessWidget {
-  const ImageMethodSelector({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    final (methods, selected) = context.select<
-      ImageTranslateCubit,
-      (List<ImageTranslateMethod>, ImageTranslateMethod?)
-    >((cubit) => (cubit.state.methods, cubit.state.method));
+    final (methods, selected) = context
+        .select<
+          ImageTranslateCubit,
+          (List<ImageTranslateMethod>, ImageTranslateMethod?)
+        >((cubit) => (cubit.state.methods, cubit.state.method));
     if (methods.isEmpty) return const SizedBox.shrink();
     final cubit = context.read<ImageTranslateCubit>();
     return Column(

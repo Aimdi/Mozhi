@@ -15,7 +15,7 @@ import 'package:share_plus/share_plus.dart';
 /// notes from vision models and the copy/share/"Open in translator"
 /// actions.
 class ImageTranslateResultSection extends StatelessWidget {
-  const ImageTranslateResultSection({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -68,7 +68,7 @@ class ImageTranslateResultSection extends StatelessWidget {
 }
 
 class _TextCard extends StatelessWidget {
-  const _TextCard({
+  const new({
     required this.label,
     required this.text,
     this.streaming = false,
@@ -117,11 +117,7 @@ class _TextCard extends StatelessWidget {
 }
 
 class _SourceTextCard extends StatefulWidget {
-  const _SourceTextCard({
-    required this.text,
-    required this.editable,
-    required this.busy,
-  });
+  const new({required this.text, required this.editable, required this.busy});
 
   final String text;
   final bool editable;
@@ -207,7 +203,7 @@ class _SourceTextCardState extends State<_SourceTextCard> {
 }
 
 class _ResultActions extends StatelessWidget {
-  const _ResultActions({required this.state, required this.result});
+  const new({required this.state, required this.result});
 
   final ImageTranslateState state;
   final ImageTranslation result;

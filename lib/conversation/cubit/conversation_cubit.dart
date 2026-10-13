@@ -13,7 +13,7 @@ export 'conversation_state.dart';
 
 /// Thrown into a turn when there is no translation engine to use.
 class ConversationNoEngineException implements Exception {
-  const ConversationNoEngineException();
+  const new();
 
   @override
   String toString() => 'ConversationNoEngineException';
@@ -33,23 +33,18 @@ class ConversationNoEngineException implements Exception {
 /// * With [ConversationState.autoSpeak] on, each completed translation is
 ///   read aloud with [SpeechService] in the target language.
 class ConversationCubit extends Cubit<ConversationState> {
-  ConversationCubit({
-    required TranslationRepository repository,
-    required SpeechService speech,
-    required TranslationEngine? Function() engine,
+  new({
+    required this._repository,
+    required this._speech,
+    required this._engine,
     required Language languageA,
     required Language languageB,
-    TranslationOptions Function()? options,
-    List<Language> Function()? availableLanguages,
+    this._options,
+    this._availableLanguages,
     bool autoSpeak = false,
     this.contextTurns = 4,
     DateTime Function()? clock,
-  }) : _repository = repository,
-       _speech = speech,
-       _engine = engine,
-       _options = options,
-       _availableLanguages = availableLanguages,
-       _clock = clock ?? DateTime.now,
+  }) : _clock = clock ?? DateTime.now,
        _session = ++_sessions,
        super(
          ConversationState(

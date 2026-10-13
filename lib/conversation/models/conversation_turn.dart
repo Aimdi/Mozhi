@@ -28,7 +28,7 @@ enum ConversationTurnStatus {
 /// One message of the conversation: what [side] said ([original], in
 /// [source]) and its [translation] into [target] for the other side.
 class ConversationTurn extends Equatable {
-  const ConversationTurn({
+  const new({
     required this.id,
     required this.side,
     required this.original,

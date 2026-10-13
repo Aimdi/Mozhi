@@ -6,7 +6,7 @@ void main() {
     test('of takes year and month of a date', () {
       expect(
         UsageMonth.of(DateTime(2026, 10, 31, 23, 59)),
-        UsageMonth(2026, 10),
+        const UsageMonth(2026, 10),
       );
     });
 

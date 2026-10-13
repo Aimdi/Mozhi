@@ -4,6 +4,7 @@ import 'package:llm_api/src/llm_exception.dart';
 import 'package:llm_api/src/models.dart';
 import 'package:llm_api/src/providers/error_parsing.dart';
 import 'package:llm_api/src/providers/http_llm_client.dart';
+import 'package:llm_api/src/providers/response_end.dart';
 import 'package:llm_api/src/streaming/sse_decoder.dart';
 
 /// Client for the Anthropic Messages API ([LlmProvider.anthropic]).
@@ -11,6 +12,17 @@ import 'package:llm_api/src/streaming/sse_decoder.dart';
 /// Streams `POST {base}/messages` (SSE) and lists models with
 /// `GET {base}/models`. Only `text_delta`s are emitted; thinking and other
 /// block types (including server-side `fallback` markers) are ignored.
+///
+/// The response is complete at `message_stop` or at any
+/// `message_delta.delta.stop_reason`; the [truncationStopReasons] raise
+/// [LlmTruncatedException] and a body that ends without either raises
+/// [LlmInterruptedException].
+///
+/// HTTP 400 answers are retried once per problem: with
+/// [fallbackMaxTokens] when they mention `max_tokens`, without `fallbacks`
+/// when they mention it or `anthropic-beta`, and without `output_config`
+/// when they mention `effort` or `output_config` (models such as Claude
+/// Haiku 4.5 and Sonnet 4.5 reject the effort parameter).
 class AnthropicClient extends HttpLlmClient {
   new(super.endpoint, {super.httpClient, super.timeout});
 
@@ -32,6 +44,12 @@ class AnthropicClient extends HttpLlmClient {
     'claude-opus-5-5',
     'claude-opus-5',
     'claude-sonnet-5-5',
+  };
+
+  /// `stop_reason`s that mean the output was cut off by a length limit.
+  static const truncationStopReasons = {
+    'max_tokens',
+    'model_context_window_exceeded',
   };
 
   /// `error.type` of streamed / HTTP errors -> HTTP status.
@@ -56,6 +74,7 @@ class AnthropicClient extends HttpLlmClient {
     var fallbacks =
         endpoint.baseUrl.host == 'api.anthropic.com' &&
         fallbackModels.contains(request.model);
+    var effort = request.effort;
     while (true) {
       try {
         final response = await send(
@@ -67,12 +86,23 @@ class AnthropicClient extends HttpLlmClient {
             'content-type': 'application/json',
             if (fallbacks) 'anthropic-beta': fallbackBeta,
           },
-          json: _body(request, maxTokens: maxTokens, fallbacks: fallbacks),
+          json: _body(
+            request,
+            maxTokens: maxTokens,
+            fallbacks: fallbacks,
+            effort: effort,
+          ),
         );
+        final end = ResponseEnd();
         return sseEvents(response)
             .map(_decode)
-            .takeWhile((event) => event.type != 'message_stop')
-            .expand(_deltas);
+            .takeWhile((event) {
+              if (event.type != 'message_stop') return true;
+              end.finish();
+              return false;
+            })
+            .expand((event) => _deltas(event, end))
+            .transform(end.check());
       } on LlmApiException catch (error) {
         if (error.statusCode != 400) rethrow;
         final message = error.message.toLowerCase();
@@ -82,6 +112,9 @@ class AnthropicClient extends HttpLlmClient {
             (message.contains('fallbacks') ||
                 message.contains('anthropic-beta'))) {
           fallbacks = false;
+        } else if (effort != null &&
+            (message.contains('effort') || message.contains('output_config'))) {
+          effort = null;
         } else {
           rethrow;
         }
@@ -126,6 +159,7 @@ class AnthropicClient extends HttpLlmClient {
     LlmRequest request, {
     required int maxTokens,
     required bool fallbacks,
+    required String? effort,
   }) {
     final system = joinSystemMessages(request.messages);
     return {
@@ -138,8 +172,7 @@ class AnthropicClient extends HttpLlmClient {
           if (message.role != LlmRole.system) _message(message),
       ],
       'temperature': ?request.temperature,
-      if (request.effort case final effort?)
-        'output_config': {'effort': effort},
+      if (effort != null) 'output_config': {'effort': effort},
       if (fallbacks) 'fallbacks': 'default',
     };
   }
@@ -177,7 +210,7 @@ class AnthropicClient extends HttpLlmClient {
     return (type: type, data: data, raw: raw);
   }
 
-  static Iterable<String> _deltas(_Event event) sync* {
+  static Iterable<String> _deltas(_Event event, ResponseEnd end) sync* {
     switch (event.type) {
       case 'content_block_delta':
         if (event.data
@@ -186,11 +219,17 @@ class AnthropicClient extends HttpLlmClient {
           yield text;
         }
       case 'message_delta':
-        if (event.data case {'delta': {'stop_reason': 'refusal'}}) {
-          throw LlmRefusalException(
-            'Claude declined to respond to this request.',
-            category: _refusalCategory(event.data),
-          );
+        switch (event.data) {
+          case {'delta': {'stop_reason': 'refusal'}}:
+            throw LlmRefusalException(
+              'Claude declined to respond to this request.',
+              category: _refusalCategory(event.data),
+            );
+          case {'delta': {'stop_reason': final String reason}}
+              when truncationStopReasons.contains(reason):
+            end.truncate(reason);
+          case {'delta': {'stop_reason': String()}}:
+            end.finish();
         }
       case 'error':
         final error = streamError(event.data, event.raw);

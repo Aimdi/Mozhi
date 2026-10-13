@@ -4,6 +4,7 @@ import 'package:llm_api/src/llm_exception.dart';
 import 'package:llm_api/src/models.dart';
 import 'package:llm_api/src/providers/error_parsing.dart';
 import 'package:llm_api/src/providers/http_llm_client.dart';
+import 'package:llm_api/src/providers/response_end.dart';
 import 'package:llm_api/src/streaming/ndjson_decoder.dart';
 import 'package:llm_api/src/think_filter.dart';
 
@@ -12,6 +13,10 @@ import 'package:llm_api/src/think_filter.dart';
 /// Streams `POST {base}/api/chat` (NDJSON) and lists models with
 /// `GET {base}/api/tags`. Only `message.content` is emitted (never
 /// `message.thinking`), piped through [ThinkTagFilter].
+///
+/// The response is complete at `done: true`; `done_reason: "length"` raises
+/// [LlmTruncatedException] and a body that ends without `done: true` raises
+/// [LlmInterruptedException].
 class OllamaClient extends HttpLlmClient {
   new(super.endpoint, {super.httpClient, super.timeout});
 
@@ -25,10 +30,12 @@ class OllamaClient extends HttpLlmClient {
           headers: {..._authorization, 'Content-Type': 'application/json'},
           json: _body(request),
         );
+        final end = ResponseEnd();
         return responseText(response)
             .transform(const NdjsonDecoder())
-            .expand(_deltas)
-            .transform(const ThinkTagFilter());
+            .expand((json) => _deltas(json, end))
+            .transform(const ThinkTagFilter())
+            .transform(end.check());
       });
 
   @override
@@ -73,13 +80,20 @@ class OllamaClient extends HttpLlmClient {
     };
   }
 
-  static Iterable<String> _deltas(Object? json) sync* {
+  static Iterable<String> _deltas(Object? json, ResponseEnd end) sync* {
     if (json case {'error': Object()}) {
       throw streamError(json, jsonEncode(json));
     }
     if (json case {'message': {'content': final String content}}
         when content.isNotEmpty) {
       yield content;
+    }
+    if (json case {'done': true}) {
+      if (json['done_reason'] == 'length') {
+        end.truncate('length');
+      } else {
+        end.finish();
+      }
     }
   }
 }

@@ -114,8 +114,13 @@ void main() {
           },
         ),
       );
-      Color colorOf(String text) => tester.widget<Text>(find.text(text)).style!.color!;
-      final colors = {colorOf('100 ms'), colorOf('1000 ms'), colorOf('3000 ms')};
+      Color colorOf(String text) =>
+          tester.widget<Text>(find.text(text)).style!.color!;
+      final colors = {
+        colorOf('100 ms'),
+        colorOf('1000 ms'),
+        colorOf('3000 ms'),
+      };
       expect(colors, hasLength(3));
     });
 
@@ -131,7 +136,11 @@ void main() {
     });
 
     testWidgets('explains an empty instance list', (tester) async {
-      await pump(tester, const OnboardingState(), const AppSettings(instances: []));
+      await pump(
+        tester,
+        const OnboardingState(),
+        const AppSettings(instances: []),
+      );
       expect(find.textContaining('No instances configured'), findsOneWidget);
       expect(find.byType(RadioListTile<String>), findsNothing);
     });

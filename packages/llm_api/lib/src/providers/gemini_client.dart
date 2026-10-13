@@ -4,12 +4,19 @@ import 'package:llm_api/src/llm_exception.dart';
 import 'package:llm_api/src/models.dart';
 import 'package:llm_api/src/providers/error_parsing.dart';
 import 'package:llm_api/src/providers/http_llm_client.dart';
+import 'package:llm_api/src/providers/response_end.dart';
 import 'package:llm_api/src/streaming/sse_decoder.dart';
 
 /// Client for the Google Gemini API ([LlmProvider.gemini]).
 ///
 /// Streams `POST {base}/models/{model}:streamGenerateContent?alt=sse` and
 /// lists models with `GET {base}/models`. Thought parts are ignored.
+///
+/// The response is complete at `finishReason: "STOP"`. `MAX_TOKENS` raises
+/// [LlmTruncatedException], the [refusalFinishReasons] raise
+/// [LlmRefusalException] and any other finish reason (`LANGUAGE`, `OTHER`,
+/// ...) raises [LlmApiException]. A body that ends without a finish reason
+/// raises [LlmInterruptedException].
 class GeminiClient extends HttpLlmClient {
   new(super.endpoint, {super.httpClient, super.timeout});
 
@@ -34,7 +41,10 @@ class GeminiClient extends HttpLlmClient {
           headers: {..._headers, 'Content-Type': 'application/json'},
           json: _body(request),
         );
-        return sseEvents(response).expand(_deltas);
+        final end = ResponseEnd();
+        return sseEvents(
+          response,
+        ).expand((event) => _deltas(event, end)).transform(end.check());
       });
 
   @override
@@ -116,7 +126,7 @@ class GeminiClient extends HttpLlmClient {
     ],
   };
 
-  static Iterable<String> _deltas(SseEvent event) sync* {
+  static Iterable<String> _deltas(SseEvent event, ResponseEnd end) sync* {
     final data = event.data.trim();
     if (data.isEmpty) return;
     final json = jsonDecode(data);
@@ -136,12 +146,26 @@ class GeminiClient extends HttpLlmClient {
           }
         }
       }
-      if (candidate['finishReason'] case final String reason
-          when refusalFinishReasons.contains(reason)) {
-        throw LlmRefusalException(
-          'Gemini blocked the response ($reason).',
-          category: reason,
-        );
+      switch (candidate['finishReason']) {
+        case null:
+          break;
+        case 'STOP':
+          end.finish();
+        case 'MAX_TOKENS':
+          end.truncate('MAX_TOKENS');
+        case final String reason when refusalFinishReasons.contains(reason):
+          throw LlmRefusalException(
+            'Gemini blocked the response ($reason).',
+            category: reason,
+          );
+        case 'LANGUAGE':
+          throw const LlmApiException(
+            'Gemini does not support this language.',
+          );
+        case final reason:
+          throw LlmApiException(
+            'Gemini stopped without completing the response ($reason).',
+          );
       }
     }
   }

@@ -1,12 +1,16 @@
 package io.github.aimdi.mozhi
 
 import android.app.Activity
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
+import java.util.Locale
 
 /**
  * Hosts the Flutter UI and hands text shared with the app to Dart
@@ -16,8 +20,21 @@ import io.flutter.plugin.common.MethodChannel
  * - `ACTION_PROCESS_TEXT` (text/plain) from the text selection toolbar
  *   ("Translate with Mozhi"). When the caller's text is editable, Dart may
  *   answer with `returnResult(text)` to replace the selection.
+ * - [ACTION_TRANSLATE_CLIPBOARD] from the Quick Settings tile
+ *   ([TranslateTileService]) and the "Translate clipboard" launcher shortcut.
  *
  * Payloads are maps `{text: String, readOnly: Boolean, processText: Boolean}`.
+ * Clipboard requests are always sent on the event channel, once the window
+ * has input focus (Android 10+ only lets the focused app read the
+ * clipboard), as `{action: "translateClipboard"}` plus, when the clipboard
+ * holds text, `text`/`readOnly: true`/`processText: false`. Readers that
+ * ignore `action` therefore treat clipboard text like shared text, and an
+ * empty clipboard (no `text`) is ignored.
+ *
+ * Deep links `mozhi://<screen>[/<path>][?<query>][#<fragment>]` are handed to
+ * the Flutter router as the plain route `/<screen>[/<path>][?<query>]...`
+ * (see [deepLinkRoute]), e.g. `mozhi://image` -> `/image` and
+ * `mozhi://translate?text=hola&from=es&to=en` -> `/translate?text=hola&from=es&to=en`.
  */
 class MainActivity : FlutterActivity() {
     /** Text the activity was started with, until Dart asks for it once. */
@@ -28,15 +45,35 @@ class MainActivity : FlutterActivity() {
 
     private var eventSink: EventChannel.EventSink? = null
 
+    /**
+     * Whether the launch intent should be acted upon: false for a recreated
+     * activity and for a launch from recents, which replay the original
+     * intent (its text, clipboard request or deep link) a second time.
+     */
+    private var freshStart = false
+
+    /** A clipboard request waiting for the window to gain input focus. */
+    private var clipboardRequested = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
-        // Only for a fresh start: neither a recreated activity nor a launch
-        // from recents should translate the original text again.
         val flags = intent?.flags ?: 0
         val launchedFromHistory = (flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0
-        if (savedInstanceState == null && !launchedFromHistory) {
+        freshStart = savedInstanceState == null && !launchedFromHistory
+        if (freshStart) {
             initialText = sharedTextOf(intent)
+            clipboardRequested = isTranslateClipboard(intent)
         }
         super.onCreate(savedInstanceState)
+    }
+
+    /**
+     * Initial route for a cold start from a `mozhi://` deep link. Returning
+     * null lets Flutter fall back to its defaults (`/` for normal launches).
+     */
+    override fun getInitialRoute(): String? {
+        super.getInitialRoute()?.let { return it }
+        val route = deepLinkRoute(intent?.data) ?: return null
+        return if (freshStart) route else DEFAULT_ROUTE
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -98,15 +135,68 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
+        // Flutter pushes the intent's data URI to the router; give it the
+        // rewritten route instead of the raw mozhi:// link.
+        super.onNewIntent(withDeepLinkRoute(intent))
         setIntent(intent)
+        if (isTranslateClipboard(intent)) {
+            requestClipboard()
+            return
+        }
         val text = sharedTextOf(intent) ?: return
+        send(text)
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus && clipboardRequested) {
+            clipboardRequested = false
+            send(clipboardPayload())
+        }
+    }
+
+    /** Sends [payload] on the event channel, or queues it until Dart listens. */
+    private fun send(payload: Map<String, Any>) {
         val sink = eventSink
         if (sink != null) {
-            sink.success(text)
+            sink.success(payload)
         } else {
-            pendingTexts.add(text)
+            pendingTexts.add(payload)
         }
+    }
+
+    private fun requestClipboard() {
+        if (hasWindowFocus()) {
+            clipboardRequested = false
+            send(clipboardPayload())
+        } else {
+            // Typically the tile's notification shade still has focus; the
+            // request is answered in onWindowFocusChanged.
+            clipboardRequested = true
+        }
+    }
+
+    private fun clipboardPayload(): Map<String, Any> {
+        val text = clipboardText()
+        val action = KEY_ACTION to ACTION_VALUE_TRANSLATE_CLIPBOARD
+        return if (text.isNullOrBlank()) {
+            mapOf(action)
+        } else {
+            payload(text, readOnly = true, processText = false) + action
+        }
+    }
+
+    private fun clipboardText(): String? = try {
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+        val clip = clipboard?.primaryClip
+        if (clip == null || clip.itemCount == 0) {
+            null
+        } else {
+            clip.getItemAt(0).coerceToText(this)?.toString()
+        }
+    } catch (e: SecurityException) {
+        // Not focused after all (Android 10+); Dart may retry on its own.
+        null
     }
 
     private fun sharedTextOf(intent: Intent?): Map<String, Any>? {
@@ -132,8 +222,60 @@ class MainActivity : FlutterActivity() {
     private fun payload(text: String, readOnly: Boolean, processText: Boolean): Map<String, Any> =
         mapOf("text" to text, "readOnly" to readOnly, "processText" to processText)
 
-    private companion object {
-        const val METHOD_CHANNEL = "io.github.aimdi.mozhi/shared_text"
-        const val EVENT_CHANNEL = "io.github.aimdi.mozhi/shared_text_events"
+    private fun isTranslateClipboard(intent: Intent?): Boolean =
+        intent?.action == ACTION_TRANSLATE_CLIPBOARD
+
+    /** [intent] with its `mozhi://` data replaced by the route, if it has one. */
+    private fun withDeepLinkRoute(intent: Intent): Intent {
+        val route = deepLinkRoute(intent.data) ?: return intent
+        return Intent(intent).setData(Uri.parse(route))
+    }
+
+    companion object {
+        /**
+         * Opens Mozhi and translates the clipboard. Used by the Quick Settings
+         * tile and the static launcher shortcut (res/xml/shortcuts.xml).
+         */
+        const val ACTION_TRANSLATE_CLIPBOARD = "io.github.aimdi.mozhi.action.TRANSLATE_CLIPBOARD"
+
+        /** Scheme of the deep links handled by [deepLinkRoute]. */
+        const val DEEP_LINK_SCHEME = "mozhi"
+
+        private const val METHOD_CHANNEL = "io.github.aimdi.mozhi/shared_text"
+        private const val EVENT_CHANNEL = "io.github.aimdi.mozhi/shared_text_events"
+        private const val KEY_ACTION = "action"
+        private const val ACTION_VALUE_TRANSLATE_CLIPBOARD = "translateClipboard"
+        private const val DEFAULT_ROUTE = "/"
+
+        /** Intent that brings Mozhi to the front to translate the clipboard. */
+        fun translateClipboardIntent(context: Context): Intent =
+            Intent(context, MainActivity::class.java)
+                .setAction(ACTION_TRANSLATE_CLIPBOARD)
+                .addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP,
+                )
+
+        /**
+         * Maps `mozhi://<host>[<path>][?<query>][#<fragment>]` to the router
+         * location `/<host>[<path>][?<query>][#<fragment>]`, keeping the
+         * percent-encoding of path, query and fragment. The host (the screen)
+         * is lower-cased. `mozhi:///<path>` (no host) maps to `/<path>`.
+         * Returns null for any other URI.
+         */
+        fun deepLinkRoute(uri: Uri?): String? {
+            if (uri == null || !DEEP_LINK_SCHEME.equals(uri.scheme, ignoreCase = true)) return null
+            val route = StringBuilder()
+            val host = uri.host?.lowercase(Locale.ROOT).orEmpty()
+            if (host.isNotEmpty()) route.append('/').append(host)
+            val path = uri.encodedPath.orEmpty()
+            if (path.isNotEmpty() && !path.startsWith("/")) route.append('/')
+            route.append(path)
+            if (route.isEmpty()) route.append(DEFAULT_ROUTE)
+            uri.encodedQuery?.takeIf { it.isNotEmpty() }?.let { route.append('?').append(it) }
+            uri.encodedFragment?.takeIf { it.isNotEmpty() }?.let { route.append('#').append(it) }
+            return route.toString()
+        }
     }
 }

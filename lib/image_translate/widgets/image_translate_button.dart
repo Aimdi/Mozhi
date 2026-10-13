@@ -11,7 +11,7 @@ import 'package:mozhi/l10n/l10n.dart';
 /// the picker for [source] right away); pass [onPressed] to navigate
 /// differently.
 class ImageTranslateButton extends StatelessWidget {
-  const ImageTranslateButton({this.onPressed, this.source, super.key});
+  const new({this.onPressed, this.source, super.key});
 
   final VoidCallback? onPressed;
   final ImagePickSource? source;

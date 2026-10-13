@@ -743,12 +743,45 @@ void main() {
           text: 'Hello',
           languageCode: 'en',
         );
+        await flush(); // The newer clip starts too.
         output.playGate!.complete();
         await Future.wait([first, second]);
 
         expect(output.stops, 1);
+        expect(output.played, [_clip(1), _clip(2)]);
         expect(service.current, 'source');
       });
+
+      test(
+        'silences an older clip that starts while the newer one loads',
+        () async {
+          output.playGate = Completer<void>();
+          final fetch = Completer<Uint8List>();
+          stubTts(text: 'Hello', answer: () => fetch.future);
+
+          final first = service.toggle(
+            id: 'target',
+            text: 'Bonjour',
+            languageCode: 'fr',
+          );
+          await flush();
+          final second = service.toggle(
+            id: 'source',
+            text: 'Hello',
+            languageCode: 'en',
+          );
+          output.playGate!.complete();
+          await first;
+
+          expect(output.stops, 2);
+          expect(service.current, 'source');
+
+          fetch.complete(_clip(2));
+          await second;
+          expect(output.played.last, _clip(2));
+          expect(service.current, 'source');
+        },
+      );
 
       test(
         'stops a late clip when the newer request uses the device',

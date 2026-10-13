@@ -122,6 +122,22 @@ flutter {
     source = "../.."
 }
 
+// On-device OCR for camera translate (lib/image_translate). The
+// google_mlkit_text_recognition plugin bundles only the Latin model and
+// declares the other scripts as compileOnly, so picking Chinese, Devanagari,
+// Japanese or Korean would crash with NoClassDefFoundError unless the app
+// ships them. These are ML Kit's bundled models (they work offline and need no
+// Google Play services); each adds a few MB per ABI to the APK, about 4 MB
+// per script according to ML Kit's documentation (check with
+// `flutter build apk --analyze-size`). Split-per-ABI APKs and app bundles
+// keep that to one ABI per device. Keep the version in sync with the plugin's
+// com.google.mlkit:text-recognition dependency (16.0.1 in plugin 0.17.1).
+val mlkitTextRecognitionVersion = "16.0.1"
+
 dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib:2.2.10")
+    implementation("com.google.mlkit:text-recognition-chinese:$mlkitTextRecognitionVersion")
+    implementation("com.google.mlkit:text-recognition-devanagari:$mlkitTextRecognitionVersion")
+    implementation("com.google.mlkit:text-recognition-japanese:$mlkitTextRecognitionVersion")
+    implementation("com.google.mlkit:text-recognition-korean:$mlkitTextRecognitionVersion")
 }

@@ -99,9 +99,14 @@ class TranslateView extends StatelessWidget {
                     EnginesStatus.failure => const NoEnginesView(),
                   };
                 }
-                return width >= TranslateLayout.wideBreakpoint
-                    ? const _WideLayout()
-                    : const _NarrowLayout();
+                // Measure the pane itself: the shell's navigation rail
+                // takes part of the window on large screens.
+                return LayoutBuilder(
+                  builder: (context, constraints) =>
+                      constraints.maxWidth >= TranslateLayout.wideBreakpoint
+                      ? const _WideLayout()
+                      : const _NarrowLayout(),
+                );
               },
             ),
           ),

@@ -5,6 +5,7 @@ import 'package:llm_api/src/llm_exception.dart';
 import 'package:llm_api/src/models.dart';
 import 'package:llm_api/src/providers/error_parsing.dart';
 import 'package:llm_api/src/providers/http_llm_client.dart';
+import 'package:llm_api/src/providers/response_end.dart';
 import 'package:llm_api/src/streaming/sse_decoder.dart';
 import 'package:llm_api/src/think_filter.dart';
 
@@ -14,6 +15,11 @@ import 'package:llm_api/src/think_filter.dart';
 /// Streams `POST {base}/chat/completions` (SSE) and lists models with
 /// `GET {base}/models`. Content is piped through [ThinkTagFilter]; separate
 /// reasoning fields (`reasoning_content`, `reasoning`) are ignored.
+///
+/// The response is complete at `[DONE]` or at any `finish_reason`
+/// (some servers send one but no `[DONE]`); `finish_reason: "length"` raises
+/// [LlmTruncatedException] and a body that ends without either raises
+/// [LlmInterruptedException].
 class OpenAiCompatibleClient extends HttpLlmClient {
   new(super.endpoint, {super.httpClient, super.timeout});
 
@@ -42,10 +48,16 @@ class OpenAiCompatibleClient extends HttpLlmClient {
           if (error.statusCode != 400 || !sentOptions) rethrow;
           response = await post(withOptions: false);
         }
+        final end = ResponseEnd();
         return sseEvents(response)
-            .takeWhile((event) => event.data.trim() != '[DONE]')
-            .expand(_deltas)
-            .transform(const ThinkTagFilter());
+            .takeWhile((event) {
+              if (event.data.trim() != '[DONE]') return true;
+              end.finish();
+              return false;
+            })
+            .expand((event) => _deltas(event, end))
+            .transform(const ThinkTagFilter())
+            .transform(end.check());
       });
 
   @override
@@ -97,7 +109,7 @@ class OpenAiCompatibleClient extends HttpLlmClient {
           ],
   };
 
-  static Iterable<String> _deltas(SseEvent event) sync* {
+  static Iterable<String> _deltas(SseEvent event, ResponseEnd end) sync* {
     final data = event.data.trim();
     if (data.isEmpty) return;
     final json = jsonDecode(data);
@@ -107,11 +119,16 @@ class OpenAiCompatibleClient extends HttpLlmClient {
           when content.isNotEmpty) {
         yield content;
       }
-      if (choice['finish_reason'] == 'content_filter') {
-        throw const LlmRefusalException(
-          "The response was blocked by the provider's content filter.",
-          category: 'content_filter',
-        );
+      switch (choice['finish_reason']) {
+        case 'content_filter':
+          throw const LlmRefusalException(
+            "The response was blocked by the provider's content filter.",
+            category: 'content_filter',
+          );
+        case 'length':
+          end.truncate('length');
+        case String():
+          end.finish();
       }
     }
   }

@@ -128,12 +128,12 @@ class _ImageTranslateViewState extends State<ImageTranslateView> {
     final l10n = context.l10n;
     final (hasImage, canUseCamera, canPick) = context
         .select<ImageTranslateCubit, (bool, bool, bool)>(
-      (cubit) => (
-        cubit.state.hasImage,
-        cubit.state.canUseCamera,
-        cubit.state.methods.isNotEmpty,
-      ),
-    );
+          (cubit) => (
+            cubit.state.hasImage,
+            cubit.state.canUseCamera,
+            cubit.state.methods.isNotEmpty,
+          ),
+        );
     final cubit = context.read<ImageTranslateCubit>();
 
     return MultiBlocListener(

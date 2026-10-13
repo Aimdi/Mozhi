@@ -167,10 +167,12 @@ class TranslateCommand extends MozhiCommand {
     var source = resolveLanguage(sourceInput, allowAuto: true);
     var target = resolveLanguage(targetInput, allowCustom: engine.isAi);
     if (engine.isMozhi) {
-      (source, target) = await (
+      final supported = await Future.wait([
         _supported(repository, engine, source, isSource: true),
         _supported(repository, engine, target, isSource: false),
-      ).wait;
+      ]);
+      source = supported.first;
+      target = supported.last;
     }
     final request = TranslationRequest(
       text: text,

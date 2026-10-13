@@ -12,7 +12,7 @@ import 'package:mozhi/l10n/l10n.dart';
 /// Shown before an image is picked: what the feature does, pick buttons and
 /// the available methods (or how to get one).
 class ImageTranslateEmptyState extends StatelessWidget {
-  const ImageTranslateEmptyState({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -116,7 +116,7 @@ class ImageTranslateEmptyState extends StatelessWidget {
 }
 
 class _NoMethods extends StatelessWidget {
-  const _NoMethods();
+  const new();
 
   @override
   Widget build(BuildContext context) {

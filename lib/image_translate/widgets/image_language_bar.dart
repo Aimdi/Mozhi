@@ -12,7 +12,7 @@ import 'package:translation_repository/translation_repository.dart';
 /// Source and target of the image translation. Starts from the translator's
 /// languages; changes only apply to image translation.
 class ImageLanguageBar extends StatelessWidget {
-  const ImageLanguageBar({super.key});
+  const new({super.key});
 
   Future<void> _pick(BuildContext context, {required bool source}) async {
     final l10n = context.l10n;
@@ -82,7 +82,7 @@ class ImageLanguageBar extends StatelessWidget {
 }
 
 class _LanguageButton extends StatelessWidget {
-  const _LanguageButton({
+  const new({
     required this.label,
     required this.semanticLabel,
     required this.onPressed,

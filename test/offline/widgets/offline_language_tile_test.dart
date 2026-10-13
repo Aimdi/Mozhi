@@ -77,7 +77,14 @@ void main() {
         pending: OfflineModelOperation.delete,
       );
       expect(find.text('Deleting…'), findsOneWidget);
-      expect(find.bySemanticsLabel('Deleting…'), findsWidgets);
+      expect(
+        tester
+            .widget<CircularProgressIndicator>(
+              find.byType(CircularProgressIndicator),
+            )
+            .semanticsLabel,
+        'Deleting…',
+      );
     });
 
     testWidgets('disables the actions when not enabled', (tester) async {

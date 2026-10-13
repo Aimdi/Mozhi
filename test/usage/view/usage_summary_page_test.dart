@@ -10,7 +10,7 @@ import 'package:translation_repository/translation_repository.dart';
 
 import '../../helpers/helpers.dart';
 
-class _MockStore extends Mock implements KeyValueStore {}
+class _MockStore extends Mock implements KeyValueStore;
 
 AiProviderConfig _provider(String id, String name) => AiProviderConfig(
   id: id,
@@ -117,7 +117,7 @@ void main() {
     final bars = tester.widgetList<UsageBar>(find.byType(UsageBar)).toList();
     expect(
       bars.map((b) => b.fraction),
-      containsAll(<double>[0.5, 1.0, 0.1, 0.05]),
+      containsAll(<double>[0.5, 1, 0.1, 0.05]),
     );
   });
 

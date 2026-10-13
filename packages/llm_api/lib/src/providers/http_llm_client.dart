@@ -250,16 +250,27 @@ abstract class HttpLlmClient implements LlmClient {
     }
     const redacted = '[redacted]';
     final message = exception.message.replaceAll(key, redacted);
-    return exception is LlmRefusalException
-        ? LlmRefusalException(
-            message,
-            category: category?.replaceAll(key, redacted),
-          )
-        : LlmApiException(
-            message,
-            statusCode: exception.statusCode,
-            body: exception.body?.replaceAll(key, redacted),
-          );
+    return switch (exception) {
+      LlmRefusalException() => LlmRefusalException(
+        message,
+        category: category?.replaceAll(key, redacted),
+      ),
+      LlmTruncatedException(:final partialText, :final reason) =>
+        LlmTruncatedException(
+          message: message,
+          partialText: partialText,
+          reason: reason,
+        ),
+      LlmInterruptedException(:final partialText) => LlmInterruptedException(
+        message: message,
+        partialText: partialText,
+      ),
+      _ => LlmApiException(
+        message,
+        statusCode: exception.statusCode,
+        body: exception.body?.replaceAll(key, redacted),
+      ),
+    };
   }
 
   static String _describe(Duration duration) =>

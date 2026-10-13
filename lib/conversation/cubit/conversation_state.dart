@@ -3,7 +3,7 @@ import 'package:mozhi/conversation/models/conversation_turn.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 class ConversationState extends Equatable {
-  const ConversationState({
+  const new({
     required this.languageA,
     required this.languageB,
     this.turns = const [],

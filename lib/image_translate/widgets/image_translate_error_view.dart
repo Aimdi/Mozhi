@@ -8,7 +8,7 @@ import 'package:mozhi/translate/widgets/translate_error.dart';
 /// Error message with a retry button and, when useful, a shortcut to the
 /// settings page that fixes it.
 class ImageTranslateErrorView extends StatelessWidget {
-  const ImageTranslateErrorView({required this.error, this.onRetry, super.key});
+  const new({required this.error, this.onRetry, super.key});
 
   final Object? error;
   final VoidCallback? onRetry;

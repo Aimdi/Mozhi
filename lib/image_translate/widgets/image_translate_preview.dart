@@ -11,11 +11,7 @@ import 'package:mozhi/l10n/l10n.dart';
 /// With [expand] the viewer fills the available height (wide layouts),
 /// otherwise it is [height] tall.
 class ImageTranslatePreview extends StatelessWidget {
-  const ImageTranslatePreview({
-    this.expand = false,
-    this.height = 360,
-    super.key,
-  });
+  const new({this.expand = false, this.height = 360, super.key});
 
   final bool expand;
   final double height;

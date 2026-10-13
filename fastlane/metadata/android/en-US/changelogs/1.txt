@@ -1,0 +1,7 @@
+First release.
+
+• Any engine of your Mozhi instances (public or self-hosted), with failover and compare mode
+• AI translation with cloud providers or local models (Ollama, LM Studio, llama.cpp)
+• Kagi-style options and extras: formality, reading level, context, glossary, custom styles, alternatives, insights, explanations, dictionary
+• Proofreading, image, voice and document translation, offline packs
+• "Translate with Mozhi" in the selection menu, share target, history and favourites

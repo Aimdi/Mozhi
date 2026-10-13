@@ -7,6 +7,14 @@ import 'package:http_parser/http_parser.dart';
 import 'package:mozhi_api/src/models/models.dart';
 import 'package:mozhi_api/src/mozhi_api_exception.dart';
 
+/// Builds one attempt of a request to [url] that is aborted when
+/// [abortTrigger] completes. Called again for every redirect hop, because a
+/// request (and its multipart files) can only be sent once.
+typedef _RequestBuilder = http.BaseRequest Function(
+  Uri url,
+  Future<void> abortTrigger,
+);
+
 /// Client for one Mozhi instance.
 ///
 /// Mozhi API facts (from the Go source, `serve/serve.go` + `pages/api.go`):
@@ -33,23 +41,49 @@ import 'package:mozhi_api/src/mozhi_api_exception.dart';
 ///
 /// Every method throws [MozhiApiException] on failure: HTTP errors carry the
 /// status code; transport failures, timeouts and malformed bodies do not.
+/// The exception's `uri` is the last URL that was requested, which differs
+/// from the endpoint after a redirect.
+///
+/// POST requests (`translate*`) are never redirected by the platform: a
+/// 301, 302, 307 or 308 answer (typically a reverse proxy upgrading `http`
+/// to `https`) is followed here by re-sending the same form to `Location`,
+/// at most [maxRedirects] times and never from `https` to `http`. On the web
+/// a redirected POST therefore fails as a transport error, because `fetch`
+/// can only follow it as a GET without the form.
 class MozhiApiClient {
   new({
     required this.baseUrl,
     http.Client? httpClient,
     this.timeout = const Duration(seconds: 30),
   }) : _httpClient = httpClient ?? http.Client(),
-       _ownsClient = httpClient == null;
+       _ownsClient = httpClient == null,
+       _authorization = _basicAuthorization(baseUrl.userInfo);
 
   /// Root of the instance, e.g. `https://mozhi.aryak.me` or
   /// `http://192.168.1.10:3000/mozhi` (sub-path deployments are allowed).
+  ///
+  /// Percent-encoded user info (`https://me:p%40ss@host`) is decoded and
+  /// sent as a basic `Authorization` header to this origin only, never as
+  /// part of a request URL. On the web this needs a reverse proxy that
+  /// answers the CORS preflight the header triggers; Mozhi itself does not.
   final Uri baseUrl;
 
   /// Upper bound for each request, from sending it until the whole response
-  /// body has arrived.
+  /// body has arrived, including any redirect hops. The request is aborted
+  /// when it runs out, so it does not keep uploading or downloading.
   final Duration timeout;
   final http.Client _httpClient;
   final bool _ownsClient;
+
+  /// `Basic ...` credentials from the user info of [baseUrl], if any.
+  final String? _authorization;
+
+  /// How many redirects a request follows before failing with the 3xx.
+  static const maxRedirects = 3;
+
+  /// Statuses after which the same request is sent again to `Location`.
+  /// 303 is not one of them: it asks for a GET, which would drop the form.
+  static const _redirectStatuses = {301, 302, 307, 308};
 
   /// Ids returned by `/api/engines` that are not real engines.
   static const _pseudoEngines = {'all', 'some'};
@@ -152,8 +186,8 @@ class MozhiApiClient {
   /// `GET /api/engines`. Returns engine id -> display name, *excluding* the
   /// `all` and `some` pseudo-engines, sorted by display name.
   Future<Map<String, String>> getEngines() async {
-    final uri = _endpoint('engines');
-    final json = _expectObject(await _getJson(uri), uri);
+    final (url, body) = await _getJson(_endpoint('engines'));
+    final json = _expectObject(body, url);
     final engines =
         [
           for (final MapEntry(key: id, :value) in json.entries)
@@ -225,9 +259,9 @@ class MozhiApiClient {
       'lang': language,
       'text': text,
     });
-    final response = await _send(uri, () => _httpClient.get(uri));
+    final (url, response) = await _send(uri, _get);
     if (response.bodyBytes.isEmpty) {
-      throw MozhiApiException('$engine returned no audio', uri: uri);
+      throw MozhiApiException('$engine returned no audio', uri: url);
     }
     return response.bodyBytes;
   }
@@ -240,29 +274,34 @@ class MozhiApiClient {
     required String to,
     String engine = 'google',
   }) async {
-    final uri = _endpoint('image');
-    final response = await _send(uri, () {
-      final request = http.MultipartRequest('POST', uri)
-        ..fields.addAll({'engine': engine, 'from': from, 'to': to})
-        ..files.add(
-          http.MultipartFile.fromBytes(
-            'image',
-            pngBytes,
-            filename: 'image.png',
-            contentType: MediaType('image', 'png'),
-          ),
-        );
-      return _httpClient.send(request).then(http.Response.fromStream);
-    });
+    final (url, response) = await _send(
+      _endpoint('image'),
+      (url, abortTrigger) =>
+          http.AbortableMultipartRequest(
+              'POST',
+              url,
+              abortTrigger: abortTrigger,
+            )
+            ..followRedirects = false
+            ..fields.addAll({'engine': engine, 'from': from, 'to': to})
+            ..files.add(
+              http.MultipartFile.fromBytes(
+                'image',
+                pngBytes,
+                filename: 'image.png',
+                contentType: MediaType('image', 'png'),
+              ),
+            ),
+    );
     return MozhiImageTranslation.fromJson(
-      _expectObject(_decodeJson(response, uri), uri),
+      _expectObject(_decodeJson(response, url), url),
     );
   }
 
   /// `GET /api/version`. Cheap; used as a health check.
   Future<MozhiVersion> getVersion() async {
-    final uri = _endpoint('version');
-    return MozhiVersion.fromJson(_expectObject(await _getJson(uri), uri));
+    final (url, json) = await _getJson(_endpoint('version'));
+    return MozhiVersion.fromJson(_expectObject(json, url));
   }
 
   /// Measures round-trip latency of [getVersion]. Throws on failure.
@@ -278,10 +317,9 @@ class MozhiApiClient {
   }
 
   /// `<baseUrl>/api/<name>?<query>`, keeping any sub-path of [baseUrl] and
-  /// dropping its query and fragment.
+  /// dropping its user info (sent as a header instead), query and fragment.
   Uri _endpoint(String name, [Map<String, String>? query]) => Uri(
     scheme: baseUrl.scheme,
-    userInfo: baseUrl.userInfo,
     host: baseUrl.host,
     port: baseUrl.hasPort ? baseUrl.port : null,
     pathSegments: [
@@ -297,9 +335,9 @@ class MozhiApiClient {
     String endpoint,
     String engine,
   ) async {
-    final uri = _endpoint(endpoint, {'engine': engine});
+    final (url, json) = await _getJson(_endpoint(endpoint, {'engine': engine}));
     return [
-      for (final item in _expectList(await _getJson(uri), uri))
+      for (final item in _expectList(json, url))
         if (item is Map<String, dynamic>) MozhiLanguage.fromJson(item),
     ];
   }
@@ -311,36 +349,80 @@ class MozhiApiClient {
     required String to,
     required String text,
   }) async {
-    final uri = _endpoint('translate');
-    final response = await _send(
-      uri,
-      () => _httpClient.post(
-        uri,
-        body: {'engine': engine, 'from': from, 'to': to, 'text': text},
-      ),
+    final (url, response) = await _send(
+      _endpoint('translate'),
+      (url, abortTrigger) =>
+          http.AbortableRequest('POST', url, abortTrigger: abortTrigger)
+            ..followRedirects = false
+            // Form-encodes as UTF-8, like `http.Client.post` with a map.
+            ..bodyFields = {
+              'engine': engine,
+              'from': from,
+              'to': to,
+              'text': text,
+            },
     );
-    final json = _decodeJson(response, uri);
+    final json = _decodeJson(response, url);
     final translations = json is Map<String, dynamic>
         ? [MozhiTranslation.fromJson(json)]
         : [
-            for (final item in _expectList(json, uri))
+            for (final item in _expectList(json, url))
               if (item is Map<String, dynamic>) MozhiTranslation.fromJson(item),
           ];
-    return (uri, translations);
+    return (url, translations);
   }
 
-  Future<Object?> _getJson(Uri uri) async =>
-      _decodeJson(await _send(uri, () => _httpClient.get(uri)), uri);
+  /// GETs [uri] and decodes the JSON body; returns the URL that answered.
+  Future<(Uri, Object?)> _getJson(Uri uri) async {
+    final (url, response) = await _send(uri, _get);
+    return (url, _decodeJson(response, url));
+  }
 
-  /// Runs [request] under [timeout], mapping every failure (including
-  /// non-2xx responses) to [MozhiApiException].
-  Future<http.Response> _send(
-    Uri uri,
-    Future<http.Response> Function() request,
-  ) async {
+  /// GET requests keep following redirects natively: `dart:io` and `fetch`
+  /// both do so correctly for GET.
+  static http.BaseRequest _get(Uri url, Future<void> abortTrigger) =>
+      http.AbortableRequest('GET', url, abortTrigger: abortTrigger);
+
+  /// Sends the request built by [build] for [uri], follows redirects that
+  /// the platform left to us, and returns the final URL with its response.
+  ///
+  /// Everything runs under [timeout]; when it runs out the request is
+  /// aborted (for clients that support [http.Abortable]) instead of being
+  /// left running. Every failure, including non-2xx responses, becomes a
+  /// [MozhiApiException] whose `uri` is the last URL requested.
+  Future<(Uri, http.Response)> _send(Uri uri, _RequestBuilder build) async {
+    final abort = Completer<void>();
+    var url = uri;
+    Future<http.Response> exchange() async {
+      for (var redirects = 0; ; redirects++) {
+        final request = build(url, abort.future);
+        if (_authorization case final authorization?
+            when _isSameOrigin(url, uri)) {
+          request.headers['authorization'] = authorization;
+        }
+        final response = await http.Response.fromStream(
+          await _httpClient.send(request),
+        );
+        final next = redirects < maxRedirects
+            ? _redirectTarget(url, response)
+            : null;
+        if (next == null) return response;
+        // A redirect that arrives after the deadline must not start a new
+        // upload nobody waits for.
+        if (abort.isCompleted) throw http.RequestAbortedException(next);
+        url = next;
+      }
+    }
+
     final http.Response response;
     try {
-      response = await request().timeout(timeout);
+      response = await exchange().timeout(
+        timeout,
+        onTimeout: () {
+          abort.complete();
+          throw TimeoutException(null, timeout);
+        },
+      );
     } on Exception catch (error, stackTrace) {
       // http.ClientException covers socket/TLS failures on every platform;
       // anything else a custom client throws is still a transport failure.
@@ -350,7 +432,7 @@ class MozhiApiClient {
         _ => error.toString(),
       };
       Error.throwWithStackTrace(
-        MozhiApiException(message, uri: uri),
+        MozhiApiException(message, uri: url),
         stackTrace,
       );
     }
@@ -359,10 +441,52 @@ class MozhiApiClient {
       throw MozhiApiException(
         _errorMessage(response),
         statusCode: status,
-        uri: uri,
+        uri: url,
       );
     }
-    return response;
+    return (url, response);
+  }
+
+  /// Where to re-send a request that got [response] from [url], or `null`
+  /// when [response] is not a redirect that is safe to follow: unknown
+  /// status, no usable `Location`, a scheme other than http(s), or a
+  /// downgrade from `https` to `http`. Credentials in `Location` are
+  /// dropped; only [baseUrl]'s are ever sent, as a header.
+  static Uri? _redirectTarget(Uri url, http.Response response) {
+    if (!_redirectStatuses.contains(response.statusCode)) return null;
+    final location = response.headers['location']?.trim() ?? '';
+    final reference = location.isEmpty ? null : Uri.tryParse(location);
+    if (reference == null) return null;
+    final target = url.resolveUri(reference).removeFragment();
+    final allowed =
+        target.isScheme('https') ||
+        (target.isScheme('http') && url.isScheme('http'));
+    if (!allowed) return null;
+    return target.userInfo.isEmpty ? target : target.replace(userInfo: '');
+  }
+
+  static bool _isSameOrigin(Uri a, Uri b) =>
+      a.scheme == b.scheme && a.host == b.host && a.port == b.port;
+
+  /// `Basic base64(user:password)` for percent-encoded [userInfo], which
+  /// `dart:io` would otherwise send without decoding (and `fetch` rejects).
+  static String? _basicAuthorization(String userInfo) {
+    if (userInfo.isEmpty) return null;
+    final colon = userInfo.indexOf(':');
+    final credentials = colon < 0
+        ? '${_decodeCredential(userInfo)}:'
+        : '${_decodeCredential(userInfo.substring(0, colon))}:'
+              '${_decodeCredential(userInfo.substring(colon + 1))}';
+    return 'Basic ${base64Encode(utf8.encode(credentials))}';
+  }
+
+  static String _decodeCredential(String encoded) {
+    try {
+      return Uri.decodeComponent(encoded);
+    } on FormatException {
+      // Escapes that do not form UTF-8 (`%FF`): send them as typed.
+      return encoded;
+    }
   }
 
   static String _decodeBody(http.Response response) =>
@@ -401,8 +525,8 @@ class MozhiApiClient {
   };
 
   /// The most useful description of a non-2xx [response]: the plain-text
-  /// body Fiber sends, the message of a JSON error body, a redirect target
-  /// (POST redirects are not followed), or else the reason phrase.
+  /// body Fiber sends, the message of a JSON error body, the target of a
+  /// redirect that was not followed, or else the reason phrase.
   static String _errorMessage(http.Response response) {
     final status = response.statusCode;
     final reason = response.reasonPhrase?.trim() ?? '';

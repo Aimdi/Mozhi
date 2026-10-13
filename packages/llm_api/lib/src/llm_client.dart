@@ -18,6 +18,11 @@ import 'package:llm_api/src/providers/openai_compatible_client.dart';
 ///   errors with `LlmApiException` / `LlmRefusalException` on failure,
 ///   including HTTP errors whose message is extracted from the provider's
 ///   JSON error body (`error.message`, `error`, `message`, `detail`).
+/// * A response the model ended at its output limit errors with
+///   `LlmTruncatedException` after the last delta (it carries the partial
+///   text). A body that ends without the provider's end-of-response signal,
+///   or a connection that drops while streaming, errors with
+///   `LlmInterruptedException`.
 /// * Requests honour [timeout] for connection + time-to-first-byte; once
 ///   streaming, an idle gap longer than [timeout] errors the stream.
 /// * Cancelling the subscription aborts the HTTP request (use
@@ -67,7 +72,9 @@ abstract class LlmClient {
   /// Streams text deltas for [request].
   Stream<String> streamChat(LlmRequest request);
 
-  /// Convenience: the concatenation of [streamChat].
+  /// Convenience: the concatenation of [streamChat]. Throws the stream's
+  /// error; an `LlmTruncatedException` / `LlmInterruptedException` carries
+  /// the text received so far in `partialText`.
   Future<String> chat(LlmRequest request);
 
   /// Lists available models, sorted by id. Providers without a listing

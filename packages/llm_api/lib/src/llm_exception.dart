@@ -28,3 +28,50 @@ class LlmRefusalException extends LlmApiException {
   /// Gemini block reason). May be null.
   final String? category;
 }
+
+/// The response was cut off because the model reached its output limit:
+/// OpenAI-compatible `finish_reason: "length"`, Anthropic `stop_reason`
+/// `"max_tokens"` / `"model_context_window_exceeded"`, Gemini
+/// `finishReason: "MAX_TOKENS"` or Ollama `done_reason: "length"`.
+///
+/// Raised after the last text delta. [partialText] is everything that was
+/// streamed (the concatenation of the deltas), so a caller can show it with
+/// a warning, parse what is there, or retry with a larger
+/// `LlmRequest.maxTokens`.
+class LlmTruncatedException extends LlmApiException {
+  const new({
+    String message = defaultMessage,
+    this.partialText = '',
+    this.reason,
+  }) : super(message);
+
+  /// The message used when none is given.
+  static const defaultMessage =
+      'The response was cut off because the model reached its output limit.';
+
+  /// The text streamed before the response was cut off.
+  final String partialText;
+
+  /// The provider's stop reason (e.g. `length`, `max_tokens`,
+  /// `MAX_TOKENS`). May be null.
+  final String? reason;
+}
+
+/// The response stream ended without the provider's end-of-response signal
+/// (OpenAI-compatible `[DONE]` / `finish_reason`, Anthropic `message_stop` /
+/// `stop_reason`, Gemini `finishReason`, Ollama `done: true`), or the
+/// connection dropped while the response was streaming.
+///
+/// [partialText] is everything that was streamed before the interruption;
+/// it is most likely incomplete.
+class LlmInterruptedException extends LlmApiException {
+  const new({String message = defaultMessage, this.partialText = ''})
+    : super(message);
+
+  /// The message used when none is given.
+  static const defaultMessage =
+      'The connection was interrupted before the response finished.';
+
+  /// The text streamed before the interruption.
+  final String partialText;
+}

@@ -20,7 +20,7 @@ import 'package:mozhi/settings/view/widgets/settings_section.dart';
 ///
 /// When the glossary does not exist (any more) a message is shown.
 class GlossaryEditorPage extends StatelessWidget {
-  const GlossaryEditorPage({required this.glossaryId, super.key});
+  const new({required this.glossaryId, super.key});
 
   final String glossaryId;
 
@@ -34,7 +34,7 @@ enum _ExportAction { copyCsv, shareCsv, shareTsv, shareJson }
 enum _MoreAction { details, delete }
 
 class GlossaryEditorView extends StatefulWidget {
-  const GlossaryEditorView({required this.glossaryId, super.key});
+  const new({required this.glossaryId, super.key});
 
   final String glossaryId;
 
@@ -408,7 +408,7 @@ class _GlossaryEditorViewState extends State<GlossaryEditorView> {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({
+  const new({
     required this.glossary,
     required this.onEnabled,
     required this.onEditDetails,
@@ -457,7 +457,7 @@ class _Header extends StatelessWidget {
 }
 
 class _TableHeader extends StatelessWidget {
-  const _TableHeader();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -492,7 +492,7 @@ class _TableHeader extends StatelessWidget {
 }
 
 class _TermRow extends StatelessWidget {
-  const _TermRow({
+  const new({
     required this.index,
     required this.term,
     required this.wide,

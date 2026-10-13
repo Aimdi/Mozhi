@@ -165,5 +165,5 @@ Widget quickView(
       child: child,
     );
   }
-  return SingleChildScrollView(child: child);
+  return Align(alignment: Alignment.topCenter, child: child);
 }

@@ -18,7 +18,7 @@ import 'package:mozhi/settings/view/widgets/settings_section.dart';
 ///
 /// [onOpenGlossaries] adds a "Glossaries" action to the app bar.
 class PresetsPage extends StatelessWidget {
-  const PresetsPage({this.onOpenGlossaries, super.key});
+  const new({this.onOpenGlossaries, super.key});
 
   final VoidCallback? onOpenGlossaries;
 
@@ -40,7 +40,7 @@ enum _PresetAction {
 enum _MenuAction { import, export, restoreExamples }
 
 class PresetsView extends StatefulWidget {
-  const PresetsView({this.onOpenGlossaries, super.key});
+  const new({this.onOpenGlossaries, super.key});
 
   final VoidCallback? onOpenGlossaries;
 
@@ -297,7 +297,7 @@ class _PresetsViewState extends State<PresetsView> {
 }
 
 class _Intro extends StatelessWidget {
-  const _Intro({required this.text});
+  const new({required this.text});
 
   final String text;
 
@@ -317,7 +317,7 @@ class _Intro extends StatelessWidget {
 }
 
 class _PresetTile extends StatelessWidget {
-  const _PresetTile({
+  const new({
     required this.preset,
     required this.index,
     required this.count,
@@ -455,7 +455,7 @@ class _PresetTile extends StatelessWidget {
 }
 
 class _DefaultBadge extends StatelessWidget {
-  const _DefaultBadge({required this.label});
+  const new({required this.label});
 
   final String label;
 

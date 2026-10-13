@@ -104,7 +104,6 @@ class _ConversationLanguagePickerState
               child: TextField(
                 key: const Key('conversation_language_search'),
                 controller: _search,
-                autofocus: false,
                 onChanged: (value) => setState(() => _query = value),
                 textInputAction: TextInputAction.search,
                 onSubmitted: (_) {

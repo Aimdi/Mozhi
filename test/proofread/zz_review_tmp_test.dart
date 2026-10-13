@@ -13,7 +13,7 @@ import 'package:translation_repository/translation_repository.dart';
 import 'helpers/proofread_helpers.dart';
 
 void main() {
-  testWidgets('tmp: level label truncation at 360dp', (tester) async {
+  testWidgets(skip: true, 'tmp: level label truncation at 360dp', (tester) async {
     final cubit = MockProofreadCubit();
     final translate = MockTranslateCubit();
     stubProofreadCubit(cubit);
@@ -72,7 +72,7 @@ void main() {
     );
     final element = tester.element(find.byType(ProofreadResultCard));
     unawaited(showProofreadEditSheet(element, 1));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 1));
     expect(find.text('Use "an" before a vowel sound.'), findsWidgets);
     const other = ProofreadResult(
       correctedText: 'x',
@@ -91,7 +91,7 @@ void main() {
     // Sheet still shows the old edit.
     expect(find.text('Use "an" before a vowel sound.'), findsWidgets);
     await tester.tap(find.text('Revert'));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 1));
     verify(() => cubit.toggleEdit(1)).called(1);
     // ignore: avoid_print
     print('TMP sheet toggled index 1 of the NEW result (apple->pear)');

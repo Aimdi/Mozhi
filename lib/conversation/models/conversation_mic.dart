@@ -19,7 +19,7 @@ typedef ConversationMicResultCallback = void Function(
 /// (translated) right away.
 @immutable
 class ConversationMicRequest {
-  const ConversationMicRequest({
+  const new({
     required this.side,
     required this.language,
     required this.onResult,

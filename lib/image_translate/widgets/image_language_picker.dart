@@ -25,7 +25,7 @@ Future<Language?> showImageLanguagePicker(
 /// A simple searchable language list (search by name, native name or
 /// code).
 class ImageLanguagePickerSheet extends StatefulWidget {
-  const ImageLanguagePickerSheet({
+  const new({
     required this.languages,
     required this.selected,
     required this.title,

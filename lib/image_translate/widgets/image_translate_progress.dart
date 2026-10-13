@@ -7,7 +7,7 @@ import 'package:mozhi/l10n/l10n.dart';
 /// Spinner, what is happening (plus a "still working" note for slow
 /// requests) and a cancel button.
 class ImageTranslateProgress extends StatelessWidget {
-  const ImageTranslateProgress({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) {

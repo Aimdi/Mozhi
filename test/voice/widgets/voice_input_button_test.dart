@@ -87,7 +87,7 @@ void main() {
       expect(find.byIcon(Icons.mic_none_outlined), findsOneWidget);
       expect(ring(), findsNothing);
       expect(recognizer.initCalls, 0);
-      expect(find.bySemanticsLabel(l10n.voiceInputStart), findsOneWidget);
+      expect(find.byTooltip(l10n.voiceInputStart), findsOneWidget);
       expect(tester.getSize(find.byType(VoiceInputButton)), const Size(48, 48));
     });
 
@@ -187,11 +187,10 @@ void main() {
       expect(renderedScale(tester), 1.5);
 
       recognizer.emitLevel(5);
-      // ignore: avoid_print
-      print('DEBUG ${service.state}');
+      // The first pump delivers the state (no frame was scheduled), the
+      // second builds it.
       await tester.pump();
-      // ignore: avoid_print
-      print('DEBUG2 ${service.state}');
+      await tester.pump();
       expect(ringScale(tester), 1.25);
 
       // The scale animates rather than jumping.

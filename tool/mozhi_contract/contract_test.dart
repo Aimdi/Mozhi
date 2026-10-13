@@ -945,32 +945,36 @@ final class _Contract {
       }
     });
 
-    await check('translate: body over 4 MiB -> 413', () async {
+    await check('translate: body over 4 MiB -> 413 or reset', () async {
       final text = 'a' * (4 * 1024 * 1024 + 1);
-      try {
-        await client.translate(
-          engine: 'google',
-          from: 'en',
-          to: 'fr',
-          text: text,
+      final seen = <String>[];
+      var resets = 0;
+      for (var i = 0; i < 3; i++) {
+        final error = await _expectApiError(
+          () => client.translate(
+            engine: 'google',
+            from: 'en',
+            to: 'fr',
+            text: text,
+          ),
         );
-      } on MozhiApiException catch (error) {
-        final response = await raw.post(
-          _api('translate'),
-          body: {'engine': 'google', 'from': 'en', 'to': 'fr', 'text': text},
-        );
-        final cors = response.headers['access-control-allow-origin'];
         _expect(
           error.statusCode == 413 || error.statusCode == null,
           'unexpected $error',
         );
-        return _Pass(
-          '${error.statusCode ?? 'network'} ${_quote(error.message)}; '
-          'raw ${response.statusCode} without CORS header '
-          '(${cors ?? 'none'}), so browsers see a network error',
-        );
+        if (error.statusCode == null) resets++;
+        seen.add('${error.statusCode ?? 'network'} ${_quote(error.message)}');
       }
-      throw _ContractFailure('5 MB text was accepted');
+      final detail =
+          'over the 4 MiB Fiber BodyLimit, 3 attempts gave: '
+          '${seen.toSet().join(' | ')}. The 413 carries no CORS header.';
+      return resets == 0
+          ? _Pass(detail)
+          : _Gap(
+              '$detail Fasthttp answers before reading the body and closes '
+              'the socket, so dart:io often sees a broken pipe/reset: a '
+              'retryable network error instead of a 413.',
+            );
     });
   }
 
@@ -1023,25 +1027,29 @@ final class _Contract {
     });
 
     await check('tts: long text hits the 4 KiB request-line limit', () async {
-      Future<int> status(String text) async {
+      Future<MozhiApiException?> attempt(String text) async {
         try {
           await client.textToSpeech(
             engine: 'google',
             language: 'en',
             text: text,
           );
-          return 200;
+          return null;
         } on MozhiApiException catch (error) {
-          return error.statusCode ?? -1;
+          return error;
         }
       }
+
+      /// 431, or a reset because fasthttp closes the socket right away.
+      bool tooLong(MozhiApiException? error) =>
+          error != null && (error.statusCode ?? 431) == 431;
 
       Future<int> maxLength(String unit) async {
         var low = 1;
         var high = 8000;
         while (low < high) {
           final mid = (low + high + 1) ~/ 2;
-          if (await status(unit * mid) == 431) {
+          if (tooLong(await attempt(unit * mid))) {
             high = mid - 1;
           } else {
             low = mid;
@@ -1050,24 +1058,22 @@ final class _Contract {
         return low;
       }
 
-      final over = await _expectApiError(
-        () => client.textToSpeech(
-          engine: 'google',
-          language: 'en',
-          text: 'a' * 5000,
-        ),
-        status: 431,
-        message: 'Request Header Fields Too Large',
-      );
+      final seen = <String>{};
+      for (var i = 0; i < 3; i++) {
+        final error = await attempt('a' * 5000);
+        _expect(tooLong(error), '5000 characters: $error');
+        seen.add('${error!.statusCode ?? 'network'} ${_quote(error.message)}');
+      }
       final ascii = await maxLength('a');
       final cjk = await maxLength('日');
       facts['ttsMaxAscii'] = ascii;
       facts['ttsMaxCjk'] = cjk;
       return _Gap(
-        'texts longer than ~$ascii ASCII / ~$cjk CJK characters get '
-        '${over.statusCode} ${_quote(over.message)} (no CORS header). '
-        'isRetryable=${over.isRetryable}; the Google->Reverso fallback '
-        'cannot help. Long texts need chunking client-side.',
+        'texts longer than ~$ascii ASCII / ~$cjk CJK characters are refused '
+        'before the handler runs; 5000 characters gave: ${seen.join(' | ')} '
+        '(no CORS header on the 431). A reset is a retryable network error, '
+        'so the pool tries every instance and the Google->Reverso fallback '
+        'repeats it. Long texts need chunking client-side.',
       );
     });
   }

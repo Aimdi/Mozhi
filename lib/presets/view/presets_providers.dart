@@ -15,7 +15,7 @@ import 'package:mozhi/presets/data/presets_repository.dart';
 /// Data is stored in [store] (defaults to [PreferencesStore]) under
 /// `presets.v1` and `glossaries.v1`. Pass repositories to override.
 class PresetsProviders extends StatelessWidget {
-  const PresetsProviders({
+  const new({
     required this.child,
     this.store,
     this.presetsRepository,
