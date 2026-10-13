@@ -174,9 +174,11 @@ You don't need a domain or HTTPS at home:
 3. Add `http://192.168.x.x:3000` in the app.
 
 The app allows unencrypted `http` connections on Android, iOS and macOS for
-exactly this purpose, and on Android it also trusts user-installed CA
-certificates, so a LAN instance with a certificate from your own CA (for
-example Caddy's `tls internal`) works too.
+exactly this purpose. Certificates from your own private CA (for example
+Caddy's `tls internal`) are **not** trusted by the app: release builds trust
+the system certificate store only. For HTTPS on the LAN use a publicly
+trusted certificate (e.g. Let's Encrypt via the ACME DNS challenge), or use
+plain `http` on a network you trust, or a VPN such as WireGuard/Tailscale.
 
 Notes:
 

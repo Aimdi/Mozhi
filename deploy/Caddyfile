@@ -47,9 +47,10 @@
 
 # Optional: HTTPS on your LAN without a public domain. Caddy creates its own
 # certificate authority; install its root certificate (inside the container:
-# /data/caddy/pki/authorities/local/root.crt) on your devices. On Android,
-# install it under Settings > Security > Encryption & credentials > Install a
-# certificate > CA certificate; the app trusts user-installed CAs.
+# /data/caddy/pki/authorities/local/root.crt) on your devices. Note: the Mozhi
+# app does NOT trust private CAs (release builds trust system CAs only), so
+# this only helps browsers and other clients. For the app, use plain http on
+# your LAN, a VPN, or a publicly trusted certificate (ACME DNS challenge).
 #
 # mozhi.lan {
 # 	tls internal
