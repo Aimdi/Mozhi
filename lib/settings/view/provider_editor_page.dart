@@ -2,7 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 /// Placeholder; replaced by the owning feature agent.
 class ProviderEditorPage extends StatelessWidget {
-  const ProviderEditorPage({super.key, this.providerId, this.presetId});
+  const new({super.key, this.providerId, this.presetId});
 
   /// Edit an existing provider (null = create new).
   final String? providerId;

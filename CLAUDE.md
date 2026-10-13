@@ -22,8 +22,8 @@ self-hostable **Mozhi** translation instances plus an **AI translator**
   material_ui; mixing them causes type mismatches).
 - Dart 3.13 syntax: `very_good_analysis` 11 wants the new constructor syntax
   (`const new(...)`, `factory fromJson(...)`, primary constructors). Write
-  normal code, then run `dart fix --apply <your paths>` and
-  `dart format <your paths>`.
+  normal code, then run `dart fix --apply <path>` (it accepts ONE file or
+  directory per invocation – loop over your paths) and `dart format <paths>`.
 - Analyze only what you own: `dart analyze <paths>`; zero errors/warnings,
   and fix infos too.
 - **Tests:** shell `flutter test` / `dart test` are blocked by a hook. Use the
