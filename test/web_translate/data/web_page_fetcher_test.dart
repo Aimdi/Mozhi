@@ -29,12 +29,7 @@ class RecordingClient extends http.BaseClient {
 /// A response that knows its final URL (like browser clients).
 class UrlResponse extends http.StreamedResponse
     implements http.BaseResponseWithUrl {
-  new(
-    super.stream,
-    super.statusCode, {
-    required this.url,
-    super.headers,
-  });
+  new(super.stream, super.statusCode, {required this.url, super.headers});
 
   @override
   final Uri url;

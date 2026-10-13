@@ -622,10 +622,12 @@ void main() {
     test('fails over and keeps using the instance that worked', () async {
       configure(instances: [instanceA, instanceB, instanceC]);
       whenTranslate(a()).thenThrow(serverError());
-      whenTranslate(b()).thenThrow(TimeoutException('slow'));
+      whenTranslate(b()).thenThrow(const MozhiApiException('refused'));
       whenTranslate(c()).thenAnswer((_) async => translation);
       await repository.translate(googleEngine, autoToGerman).drain<void>();
-      await repository.translate(googleEngine, autoToGerman).drain<void>();
+      await repository
+          .translate(googleEngine, autoToGerman, refresh: true)
+          .drain<void>();
       verify(
         () => a().translate(
           engine: any(named: 'engine'),
@@ -674,6 +676,243 @@ void main() {
         repository.translate(googleEngine, autoToGerman),
         emitsError(isA<MozhiApiException>()),
       );
+    });
+
+    test('does not re-send the text after a timeout', () async {
+      configure();
+      whenTranslate(a()).thenThrow(
+        const MozhiApiException('No response within 30000 ms'),
+      );
+      await expectLater(
+        repository.translate(googleEngine, autoToGerman),
+        emitsError(isA<MozhiApiException>()),
+      );
+      whenTranslate(a()).thenThrow(TimeoutException('slow'));
+      await expectLater(
+        repository.translate(googleEngine, autoToGerman),
+        emitsError(isA<TimeoutException>()),
+      );
+      verifyZeroInteractions(b());
+    });
+
+    test('treats an empty translation as a failure and fails over', () async {
+      configure();
+      whenTranslate(a()).thenAnswer(
+        (_) async => const MozhiTranslation(engine: 'deepl', translatedText: ' '),
+      );
+      whenTranslate(b()).thenAnswer(
+        (_) async =>
+            const MozhiTranslation(engine: 'deepl', translatedText: 'Hallo'),
+      );
+      final result = await repository
+          .translate(deeplEngine, englishToGerman)
+          .single;
+      expect(result.text, 'Hallo');
+      expect(repository.activeInstance, instanceB);
+    });
+
+    test('reports an empty translation from every instance', () async {
+      configure();
+      for (final client in [a(), b()]) {
+        whenTranslate(client).thenAnswer(
+          (_) async => const MozhiTranslation(engine: 'deepl', translatedText: ''),
+        );
+      }
+      await expectLater(
+        repository.translate(deeplEngine, englishToGerman),
+        emitsError(
+          isA<MozhiApiException>()
+              .having(
+                (e) => e.message,
+                'message',
+                'DeepL returned an empty translation.',
+              )
+              .having((e) => e.statusCode, 'statusCode', 502),
+        ),
+      );
+    });
+
+    test('does not fail over on input errors the server reports as 500', () async {
+      configure();
+      whenTranslate(a()).thenThrow(
+        const MozhiApiException('Target language code invalid', statusCode: 500),
+      );
+      await expectLater(
+        repository.translate(googleEngine, autoToGerman),
+        emitsError(isA<MozhiApiException>()),
+      );
+      verifyZeroInteractions(b());
+    });
+
+    test('removes upstream URLs with the user text from errors', () async {
+      configure();
+      for (final client in [a(), b()]) {
+        whenTranslate(client).thenThrow(
+          const MozhiApiException(
+            'Get "https://api.mymemory.translated.net/get?q=Hello+world": '
+            'Forbidden',
+            statusCode: 500,
+          ),
+        );
+      }
+      await expectLater(
+        repository.translate(googleEngine, autoToGerman),
+        emitsError(
+          isA<MozhiApiException>().having(
+            (e) => e.message,
+            'message',
+            'Get "https://api.mymemory.translated.net": Forbidden',
+          ),
+        ),
+      );
+    });
+
+    test('sends DeepL regional targets as the base code', () async {
+      configure();
+      whenTranslate(a()).thenAnswer(
+        (_) async =>
+            const MozhiTranslation(engine: 'deepl', translatedText: 'Hi'),
+      );
+      await repository
+          .translate(
+            deeplEngine,
+            englishToGerman.copyWith(
+              target: const Language(code: 'en-US', name: 'English (US)'),
+            ),
+          )
+          .drain<void>();
+      verify(
+        () => a().translate(
+          engine: 'deepl',
+          from: 'en',
+          to: 'en',
+          text: 'Hello world',
+        ),
+      ).called(1);
+    });
+  });
+
+  // cache
+
+  group('cache', () {
+    const translation = MozhiTranslation(
+      engine: 'google',
+      translatedText: 'Hallo Welt',
+    );
+
+    test('serves repeated translations from the cache', () async {
+      configure();
+      whenTranslate(a()).thenAnswer((_) async => translation);
+      final first = await repository.translate(googleEngine, autoToGerman).single;
+      final second = await repository
+          .translate(googleEngine, autoToGerman)
+          .single;
+      expect(second, first);
+      verify(
+        () => a().translate(
+          engine: any(named: 'engine'),
+          from: any(named: 'from'),
+          to: any(named: 'to'),
+          text: any(named: 'text'),
+        ),
+      ).called(1);
+    });
+
+    test('caches only the final AI result', () async {
+      configure();
+      stubStream(llmOf(claudeConfig), ['Hal', 'lo']);
+      final streamed = await repository
+          .translate(claude, englishToGerman)
+          .toList();
+      expect(streamed, hasLength(3));
+      final cached = await repository.translate(claude, englishToGerman).toList();
+      expect(cached.single, streamed.last);
+      verify(() => llmOf(claudeConfig).streamChat(any())).called(1);
+    });
+
+    test('refresh skips the lookup and stores the new result', () async {
+      configure();
+      stubStream(llmOf(claudeConfig), ['Hallo']);
+      await repository.translate(claude, englishToGerman).drain<void>();
+      stubStream(llmOf(claudeConfig), ['Servus']);
+      final refreshed = await repository
+          .translate(claude, englishToGerman, refresh: true)
+          .last;
+      expect(refreshed.text, 'Servus');
+      final cached = await repository.translate(claude, englishToGerman).single;
+      expect(cached.text, 'Servus');
+    });
+
+    test('clearCache forgets every result', () async {
+      configure();
+      whenTranslate(a()).thenAnswer((_) async => translation);
+      await repository.translate(googleEngine, autoToGerman).drain<void>();
+      repository.clearCache();
+      await repository.translate(googleEngine, autoToGerman).drain<void>();
+      verify(
+        () => a().translate(
+          engine: any(named: 'engine'),
+          from: any(named: 'from'),
+          to: any(named: 'to'),
+          text: any(named: 'text'),
+        ),
+      ).called(2);
+    });
+
+    test('a changed provider drops its cached results only', () async {
+      configure(providers: [claudeConfig, openAiConfig]);
+      stubStream(llmOf(claudeConfig), ['Hallo']);
+      stubStream(llmOf(openAiConfig), ['Hallo']);
+      await repository.translate(claude, englishToGerman).drain<void>();
+      await repository.translate(openAi, englishToGerman).drain<void>();
+      configure(
+        providers: [claudeConfig.copyWith(temperature: 0.9), openAiConfig],
+      );
+      await repository.translate(claude, englishToGerman).drain<void>();
+      await repository.translate(openAi, englishToGerman).drain<void>();
+      verify(() => llmOf(claudeConfig).streamChat(any())).called(2);
+      verify(() => llmOf(openAiConfig).streamChat(any())).called(1);
+    });
+
+    test('never caches failures', () async {
+      configure();
+      whenTranslate(a()).thenThrow(badRequest());
+      await expectLater(
+        repository.translate(googleEngine, autoToGerman),
+        emitsError(isA<MozhiApiException>()),
+      );
+      whenTranslate(a()).thenAnswer((_) async => translation);
+      final result = await repository
+          .translate(googleEngine, autoToGerman)
+          .single;
+      expect(result.text, 'Hallo Welt');
+    });
+
+    test('can be disabled', () async {
+      repository = newRepository(cache: TranslationCache(maxEntries: 0));
+      configure();
+      whenTranslate(a()).thenAnswer((_) async => translation);
+      await repository.translate(googleEngine, autoToGerman).drain<void>();
+      await repository.translate(googleEngine, autoToGerman).drain<void>();
+      verify(
+        () => a().translate(
+          engine: any(named: 'engine'),
+          from: any(named: 'from'),
+          to: any(named: 'to'),
+          text: any(named: 'text'),
+        ),
+      ).called(2);
+    });
+
+    test('dispose empties the cache', () async {
+      final cache = TranslationCache();
+      repository = newRepository(cache: cache);
+      configure();
+      whenTranslate(a()).thenAnswer((_) async => translation);
+      await repository.translate(googleEngine, autoToGerman).drain<void>();
+      expect(cache.length, 1);
+      repository.dispose();
+      expect(cache.isEmpty, isTrue);
     });
   });
 
