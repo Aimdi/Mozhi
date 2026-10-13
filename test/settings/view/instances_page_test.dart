@@ -213,7 +213,7 @@ void main() {
 
     testWidgets('reorders by dragging the handle', (tester) async {
       await pump(tester);
-      final handle = find.bySemanticsLabel('Drag to reorder').first;
+      final handle = find.byIcon(Icons.drag_indicator).first;
       final gesture = await tester.startGesture(tester.getCenter(handle));
       await tester.pump(const Duration(milliseconds: 100));
       for (var i = 0; i < 10; i++) {

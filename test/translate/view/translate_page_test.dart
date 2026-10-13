@@ -84,9 +84,20 @@ void main() {
         ),
         settings: const AppSettings(instantTranslateAi: false),
       );
+      final errors = <String>[];
+      final previous = FlutterError.onError;
+      FlutterError.onError = (details) => errors.add(details.toString());
+      addTearDown(() => FlutterError.onError = previous);
       await harness.pump(tester, size: const Size(320, 640), textScale: 2);
       await tester.pump();
-      expect(tester.takeException(), isNull);
+      // Scroll through the whole page so every section lays out.
+      await tester.drag(
+        find.byKey(const Key('translate_narrow_layout')),
+        const Offset(0, -2000),
+      );
+      await tester.pump();
+      FlutterError.onError = previous;
+      expect(errors, isEmpty);
       expect(find.byType(OutputCard), findsOneWidget);
     });
 

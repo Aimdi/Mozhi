@@ -177,6 +177,7 @@ void main() {
 
     blocTest<TranslateCubit, TranslateState>(
       'does nothing without input or eligible engines',
+      setUp: () => mocks.stubTranslate(),
       build: () => mocks.build(),
       seed: () => readyState(engines: [google], target: pirate),
       act: (cubit) async {
