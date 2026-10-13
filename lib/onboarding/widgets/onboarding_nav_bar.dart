@@ -51,30 +51,32 @@ class OnboardingNavBar extends StatelessWidget {
                         icon: const Icon(Icons.arrow_back),
                         label: Text(l10n.onboardingBack),
                       ),
-                    const Spacer(),
-                    Flexible(
-                      flex: 4,
-                      child: isLast
-                          ? FilledButton.icon(
-                              style: FilledButton.styleFrom(
-                                minimumSize: _buttonSize,
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Align(
+                        alignment: AlignmentDirectional.centerEnd,
+                        child: isLast
+                            ? FilledButton.icon(
+                                style: FilledButton.styleFrom(
+                                  minimumSize: _buttonSize,
+                                ),
+                                onPressed: onFinish,
+                                icon: const Icon(Icons.translate),
+                                label: Text(
+                                  l10n.onboardingStartTranslating,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              )
+                            : FilledButton.icon(
+                                style: FilledButton.styleFrom(
+                                  minimumSize: _buttonSize,
+                                ),
+                                onPressed: onNext,
+                                icon: const Icon(Icons.arrow_forward),
+                                iconAlignment: IconAlignment.end,
+                                label: Text(l10n.onboardingNext),
                               ),
-                              onPressed: onFinish,
-                              icon: const Icon(Icons.translate),
-                              label: Text(
-                                l10n.onboardingStartTranslating,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            )
-                          : FilledButton.icon(
-                              style: FilledButton.styleFrom(
-                                minimumSize: _buttonSize,
-                              ),
-                              onPressed: onNext,
-                              icon: const Icon(Icons.arrow_forward),
-                              iconAlignment: IconAlignment.end,
-                              label: Text(l10n.onboardingNext),
-                            ),
+                      ),
                     ),
                   ],
                 ),

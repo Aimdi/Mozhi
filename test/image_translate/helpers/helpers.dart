@@ -252,12 +252,10 @@ class ImageTranslateHarness {
     Size? size,
     ThemeMode themeMode = ThemeMode.light,
   }) async {
-    if (size != null) {
-      tester.view
-        ..devicePixelRatio = 1
-        ..physicalSize = size;
-      addTearDown(tester.view.reset);
-    }
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = size ?? const Size(600, 1800);
+    addTearDown(tester.view.reset);
     await tester.pumpWidget(
       InheritedGoRouter(
         goRouter: router,

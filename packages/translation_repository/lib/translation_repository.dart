@@ -13,6 +13,7 @@ export 'src/language_catalog.dart';
 export 'src/language_matcher.dart';
 export 'src/models/models.dart';
 export 'src/offline/offline_translator.dart';
+export 'src/prompts/mt_prompts.dart';
 export 'src/prompts/response_parsers.dart';
 export 'src/prompts/translation_prompts.dart';
 export 'src/translation_repository.dart';

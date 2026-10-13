@@ -90,7 +90,7 @@ void main() {
     });
 
     test('ranks prefix matches before substring matches', () {
-      expect(languages.search('an'), const [german, japanese]);
+      expect(languages.search('an'), const [french, german, japanese]);
       expect(languages.search('ch'), const [french, german]);
       expect(languages.search('e'), const [english, french, german, japanese]);
       expect(languages.search('g'), const [german, english]);

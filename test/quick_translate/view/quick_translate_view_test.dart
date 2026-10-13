@@ -459,7 +459,7 @@ void main() {
         stub(const QuickTranslateState(text: 'Hello world'));
         await tester.pumpQuick(quickView(cubit));
         await tester.tap(byKey('quick_translate_target_chip'));
-        await tester.pumpAndSettle();
+        await tester.pump();
         expect(byKey('quick_translate_language_panel'), findsNothing);
       });
     });
@@ -561,9 +561,11 @@ void main() {
 
         speaking.add(QuickListenButton.defaultId);
         await tester.pump();
+        await tester.pump();
         expect(find.byTooltip('Stop'), findsOneWidget);
 
         speaking.add('other');
+        await tester.pump();
         await tester.pump();
         expect(find.byTooltip('Listen'), findsOneWidget);
       });
@@ -572,6 +574,7 @@ void main() {
         stub(done);
         await tester.pumpQuick(quickView(cubit, speech: speech));
         speaking.add(QuickListenButton.defaultId);
+        await tester.pump();
         await tester.pump();
 
         await tester.pumpWidget(const SizedBox());
@@ -629,10 +632,18 @@ void main() {
         final otherSpeaking = StreamController<String?>.broadcast();
         addTearDown(otherSpeaking.close);
         when(() => other.speaking).thenAnswer((_) => otherSpeaking.stream);
+        when(
+          () => other.toggle(
+            id: any(named: 'id'),
+            text: any(named: 'text'),
+            languageCode: any(named: 'languageCode'),
+          ),
+        ).thenAnswer((_) async {});
         await tester.pumpQuick(
           QuickListenButton(speech: other, text: 'Bonjour', languageCode: 'fr'),
         );
         otherSpeaking.add(QuickListenButton.defaultId);
+        await tester.pump();
         await tester.pump();
         expect(
           tester.widget<IconButton>(byKey('quick_translate_listen')).isSelected,

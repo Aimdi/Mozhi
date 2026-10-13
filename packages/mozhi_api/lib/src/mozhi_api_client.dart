@@ -122,6 +122,10 @@ class MozhiApiClient {
   /// as are user info, the port and any sub-path; the host is lowercased
   /// and empty path segments are dropped.
   ///
+  /// Credentials for basic auth (`https://me:secret@host`) are kept
+  /// percent-encoded: a password containing `@`, `#`, `/`, `?`, `%` or a
+  /// space must be typed encoded (`p%40ss`); requests send it decoded.
+  ///
   /// Throws [FormatException] when the input cannot be a URL.
   static Uri normalizeBaseUrl(String input) {
     final trimmed = input.trim();
