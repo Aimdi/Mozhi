@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -10,7 +12,7 @@ import 'package:translation_repository/translation_repository.dart';
 
 /// Manage the ordered list of Mozhi instances (first = preferred).
 class InstancesPage extends StatelessWidget {
-  const InstancesPage({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) => const InstancesView();
@@ -19,26 +21,28 @@ class InstancesPage extends StatelessWidget {
 /// Result of pinging an instance.
 @immutable
 sealed class PingStatus {
-  const PingStatus();
+  const new();
 }
 
 class PingChecking extends PingStatus {
-  const PingChecking();
+  const new();
 }
 
 class PingOnline extends PingStatus {
-  const PingOnline(this.latency);
+  const new(this.latency);
   final Duration latency;
 }
 
 class PingOffline extends PingStatus {
-  const PingOffline();
+  const new();
 }
 
 class InstancesView extends StatefulWidget {
-  const InstancesView({super.key});
+  const new({super.key});
 
-  static final mozhiProjectUrl = Uri.parse('https://codeberg.org/aryak/mozhi');
+  static final Uri mozhiProjectUrl = Uri.parse(
+    'https://codeberg.org/aryak/mozhi',
+  );
 
   @override
   State<InstancesView> createState() => _InstancesViewState();
@@ -56,9 +60,7 @@ class _InstancesViewState extends State<InstancesView> {
     for (final instance in instances) {
       _pings[instance.url] = const PingChecking();
     }
-    for (final instance in instances) {
-      _ping(instance);
-    }
+    unawaited(Future.wait(instances.map(_ping)));
   }
 
   Future<void> _ping(MozhiInstance instance) async {
@@ -135,15 +137,23 @@ class _InstancesViewState extends State<InstancesView> {
     if (confirmed ?? false) cubit.resetInstances();
   }
 
+  /// Moves the instance at [from] so it ends up at [to].
+  /// `SettingsCubit.moveInstance` uses `ReorderableListView.onReorder`
+  /// semantics (insertion index before removal), hence the adjustment.
+  void _move(int from, int to) {
+    if (from == to) return;
+    context.read<SettingsCubit>().moveInstance(from, to > from ? to + 1 : to);
+  }
+
   void _onAction(_InstanceAction action, int index, MozhiInstance instance) {
     final cubit = context.read<SettingsCubit>();
     switch (action) {
       case _InstanceAction.prefer:
         cubit.preferInstance(instance.url);
       case _InstanceAction.moveUp:
-        cubit.moveInstance(index, index - 1);
+        _move(index, index - 1);
       case _InstanceAction.moveDown:
-        cubit.moveInstance(index, index + 1);
+        _move(index, index + 1);
       case _InstanceAction.remove:
         cubit.removeInstance(instance.url);
         final l10n = context.l10n;
@@ -200,9 +210,7 @@ class _InstancesViewState extends State<InstancesView> {
               padding: centeredPadding(constraints.maxWidth, bottom: 96),
               header: _Header(empty: instances.isEmpty, onReset: _reset),
               itemCount: instances.length,
-              onReorderItem: (oldIndex, newIndex) => context
-                  .read<SettingsCubit>()
-                  .moveInstance(oldIndex, newIndex),
+              onReorderItem: _move,
               itemBuilder: (context, index) {
                 final instance = instances[index];
                 return _InstanceTile(
@@ -223,7 +231,7 @@ class _InstancesViewState extends State<InstancesView> {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.empty, required this.onReset});
+  const new({required this.empty, required this.onReset});
 
   final bool empty;
   final VoidCallback onReset;
@@ -335,7 +343,7 @@ class _Header extends StatelessWidget {
 }
 
 class _InstanceTile extends StatelessWidget {
-  const _InstanceTile({
+  const new({
     required this.index,
     required this.count,
     required this.instance,
@@ -461,7 +469,7 @@ class _InstanceTile extends StatelessWidget {
 /// Latency badge: green < 500 ms, amber < 1500 ms, red otherwise or
 /// "Offline" when the ping failed.
 class LatencyBadge extends StatelessWidget {
-  const LatencyBadge({required this.status, super.key});
+  const new({required this.status, super.key});
 
   final PingStatus? status;
 

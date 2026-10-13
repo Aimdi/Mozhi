@@ -7,7 +7,7 @@ import 'package:mozhi/translate/widgets/translate_layout.dart';
 
 /// Source button, swap button and target button.
 class LanguageBar extends StatelessWidget {
-  const LanguageBar({super.key});
+  const new({super.key});
 
   Future<void> _pick(BuildContext context, {required bool source}) async {
     final cubit = context.read<TranslateCubit>();
@@ -81,7 +81,7 @@ class LanguageBar extends StatelessWidget {
 }
 
 class _LanguageButton extends StatelessWidget {
-  const _LanguageButton({
+  const new({
     required this.label,
     required this.semanticLabel,
     required this.onPressed,

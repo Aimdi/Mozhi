@@ -51,7 +51,8 @@ class TranslationRepository {
   final Duration _snapshotInterval;
   List<AiProviderConfig> _providers = const [];
 
-  Future<List<TranslationEngine>>? _mozhiEngines;
+  /// Keyed by active instance URL (+ engine and direction for languages).
+  final Map<String, Future<List<TranslationEngine>>> _engines = {};
   final Map<String, Future<List<Language>>> _languages = {};
 
   static const _jsonRetryInstruction =
@@ -75,8 +76,9 @@ class TranslationRepository {
   MozhiInstance? get activeInstance => _mozhi.active;
 
   /// Engines: Mozhi engines advertised by the active instance (via
-  /// `/api/engines`, `subtitle` = instance host) followed by enabled AI
-  /// providers (`name` = provider name, `subtitle` = model, `isLocal`).
+  /// `/api/engines`, `subtitle` = instance display name, i.e. its label or
+  /// host) followed by enabled AI providers (`name` = provider name,
+  /// `subtitle` = model, `isLocal`).
   /// If no instance is reachable, returns only AI engines (and does not
   /// throw) unless there are none, in which case the last error is thrown.
   Future<List<TranslationEngine>> getEngines({bool refresh = false}) async {
@@ -102,10 +104,10 @@ class TranslationRepository {
     }
   }
 
-  Future<List<TranslationEngine>> _loadMozhiEngines() {
-    final cached = _mozhiEngines;
-    if (cached != null) return cached;
-    final future = _mozhi.run((client, instance) async {
+  Future<List<TranslationEngine>> _loadMozhiEngines() => _cached(
+    _engines,
+    _mozhi.active?.url ?? '',
+    () => _mozhi.run((client, instance) async {
       final engines = await client.getEngines();
       return List<TranslationEngine>.unmodifiable([
         for (final MapEntry(key: id, value: name) in engines.entries)
@@ -117,22 +119,34 @@ class TranslationRepository {
             mozhiEngine: id,
           ),
       ]);
-    });
-    _mozhiEngines = future;
+    }),
+  );
+
+  void _clearMozhiCaches() {
+    _engines.clear();
+    _languages.clear();
+  }
+
+  /// Returns the cached future for [key] or stores the one [load] creates;
+  /// failed loads are evicted so the next call retries.
+  static Future<T> _cached<T>(
+    Map<String, Future<T>> cache,
+    String key,
+    Future<T> Function() load,
+  ) {
+    final cached = cache[key];
+    if (cached != null) return cached;
+    final future = load();
+    cache[key] = future;
     unawaited(
       future.then<void>(
         (_) {},
         onError: (Object _) {
-          if (identical(_mozhiEngines, future)) _mozhiEngines = null;
+          cache.removeWhere((_, value) => identical(value, future));
         },
       ),
     );
     return future;
-  }
-
-  void _clearMozhiCaches() {
-    _mozhiEngines = null;
-    _languages.clear();
   }
 
   /// Mozhi: `/api/source_languages` mapped to [Language] (id `auto` ->
@@ -159,24 +173,16 @@ class TranslationRepository {
       id,
       if (source) 'source' else 'target',
     ].join('|');
-    final cached = _languages[key];
-    if (cached != null) return cached;
-    final future = _mozhi.run((client, _) async {
-      final languages = source
-          ? await client.getSourceLanguages(id)
-          : await client.getTargetLanguages(id);
-      return List<Language>.unmodifiable(mapMozhiLanguages(languages));
-    });
-    _languages[key] = future;
-    unawaited(
-      future.then<void>(
-        (_) {},
-        onError: (Object _) {
-          _languages.removeWhere((_, value) => identical(value, future));
-        },
-      ),
+    return _cached(
+      _languages,
+      key,
+      () => _mozhi.run((client, _) async {
+        final languages = source
+            ? await client.getSourceLanguages(id)
+            : await client.getTargetLanguages(id);
+        return List<Language>.unmodifiable(mapMozhiLanguages(languages));
+      }),
     );
-    return future;
   }
 
   /// Mozhi: one complete result (with transliterations, word choices,
@@ -315,30 +321,18 @@ class TranslationRepository {
       }
     }
 
+    // Only the final result of an AI stream is complete; the stream always
+    // closes after an error.
     Future<void> runAi(TranslationEngine engine) {
       final completer = Completer<void>();
-      TranslationResult? last;
       subscriptions.add(
-        translate(engine, request).listen(
-          (result) => last = result,
-          onError: (Object error) {
-            emit(failure(engine, error));
-            completer.complete();
-          },
-          onDone: () {
-            final result = last;
-            emit(
-              result != null && result.isComplete
-                  ? CompareEntry.success(result)
-                  : failure(
-                      engine,
-                      const LlmApiException('The model returned no result.'),
-                    ),
-            );
-            if (!completer.isCompleted) completer.complete();
-          },
-          cancelOnError: true,
-        ),
+        translate(engine, request)
+            .where((result) => result.isComplete)
+            .listen(
+              (result) => emit(CompareEntry.success(result)),
+              onError: (Object error) => emit(failure(engine, error)),
+              onDone: completer.complete,
+            ),
       );
       return completer.future;
     }

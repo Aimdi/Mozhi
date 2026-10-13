@@ -5,7 +5,7 @@ import 'package:material_ui/material_ui.dart';
 /// `**bold**`, `*italic*` and `` `code` ``. Unclosed markers render as-is,
 /// so partially streamed text stays readable.
 class MarkdownLite extends StatelessWidget {
-  const MarkdownLite(this.data, {super.key});
+  const new(this.data, {super.key});
 
   final String data;
 

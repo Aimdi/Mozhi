@@ -187,6 +187,25 @@ void main() {
         expect(deltas.cancelled, isTrue);
       });
 
+      test('drops a pending throttled snapshot on error', () async {
+        final deltas = ControlledDeltas();
+        final events = <Object>[];
+        final done = Completer<void>();
+        build(
+          deltas.stream,
+          request: englishRequest,
+          interval: const Duration(hours: 1),
+        ).listen(events.add, onError: events.add, onDone: done.complete);
+        deltas.controller
+          ..add('a')
+          ..add('b')
+          ..addError(const LlmApiException('lost'));
+        await done.future;
+        expect(events, hasLength(2));
+        expect((events.first as TranslationResult).text, 'a');
+        expect(events.last, isA<LlmApiException>());
+      });
+
       test('reports errors thrown when opening the request', () async {
         final stream = aiTranslationStream(
           open: () => throw ArgumentError('no provider'),

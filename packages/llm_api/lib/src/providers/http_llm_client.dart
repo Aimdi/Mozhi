@@ -237,25 +237,29 @@ abstract class HttpLlmClient implements LlmClient {
     return byId.values.toList()..sort((a, b) => a.id.compareTo(b.id));
   }
 
+  /// [exception] with every occurrence of the API key replaced.
   LlmApiException _redact(LlmApiException exception) {
     final key = apiKey;
-    final body = exception.body;
-    if (key == null ||
-        !(exception.message.contains(key) || (body?.contains(key) ?? false))) {
+    final category = switch (exception) {
+      LlmRefusalException(:final category) => category,
+      _ => null,
+    };
+    final texts = [exception.message, exception.body, category];
+    if (key == null || !texts.any((text) => text?.contains(key) ?? false)) {
       return exception;
     }
-    String clean(String text) => text.replaceAll(key, '[redacted]');
-    return switch (exception) {
-      LlmRefusalException(:final category) => LlmRefusalException(
-        clean(exception.message),
-        category: category,
-      ),
-      _ => LlmApiException(
-        clean(exception.message),
-        statusCode: exception.statusCode,
-        body: body == null ? null : clean(body),
-      ),
-    };
+    const redacted = '[redacted]';
+    final message = exception.message.replaceAll(key, redacted);
+    return exception is LlmRefusalException
+        ? LlmRefusalException(
+            message,
+            category: category?.replaceAll(key, redacted),
+          )
+        : LlmApiException(
+            message,
+            statusCode: exception.statusCode,
+            body: exception.body?.replaceAll(key, redacted),
+          );
   }
 
   static String _describe(Duration duration) =>

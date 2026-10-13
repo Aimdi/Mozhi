@@ -140,6 +140,29 @@ void main() {
 
   // configuration
 
+  group('default client factories', () {
+    // Port 9 (discard) is closed on test machines: requests fail fast.
+    test('create real Mozhi clients', () async {
+      final repository = TranslationRepository();
+      addTearDown(repository.dispose);
+      await expectLater(
+        repository.pingInstance(const MozhiInstance(url: 'http://127.0.0.1:9')),
+        throwsA(isA<MozhiApiException>()),
+      );
+    });
+
+    test('create real LLM clients', () async {
+      final repository = TranslationRepository();
+      addTearDown(repository.dispose);
+      await expectLater(
+        repository.listModels(
+          openAiConfig.copyWith(baseUrl: 'http://127.0.0.1:9/v1'),
+        ),
+        throwsA(isA<LlmApiException>()),
+      );
+    });
+  });
+
   group('configuration', () {
     test('starts empty', () {
       expect(repository.instances, isEmpty);
@@ -254,6 +277,14 @@ void main() {
       expect(engines.last.isLocal, isTrue);
     });
 
+    test('falls back to the engine id for empty names', () async {
+      configure(providers: []);
+      stubEngines(a(), {'libre': ''});
+      final engines = await repository.getEngines();
+      expect(engines.single.name, 'libre');
+      expect(engines.single.mozhiEngine, 'libre');
+    });
+
     test('caches the Mozhi engine list', () async {
       configure();
       stubEngines(a(), {'google': 'Google'});
@@ -318,6 +349,28 @@ void main() {
       expect(engines.first.subtitle, instanceB.displayName);
       expect(engines.first.subtitle, 'b.example');
       expect(repository.activeInstance, instanceB);
+    });
+
+    test('refetches when another call moved the active instance', () async {
+      configure();
+      stubEngines(a(), {'google': 'Google'});
+      stubEngines(b(), {'deepl': 'DeepL'});
+      expect((await repository.getEngines()).first.id, 'mozhi:google');
+
+      whenTranslate(a()).thenThrow(serverError());
+      whenTranslate(b()).thenAnswer(
+        (_) async =>
+            const MozhiTranslation(engine: 'google', translatedText: 'Hallo'),
+      );
+      await repository.translate(googleEngine, englishToGerman).drain<void>();
+      expect(repository.activeInstance, instanceB);
+
+      final engines = await repository.getEngines();
+      expect(engines.first.id, 'mozhi:deepl');
+      expect(engines.first.subtitle, instanceB.displayName);
+      await repository.getEngines();
+      verify(b().getEngines).called(1);
+      verify(a().getEngines).called(1);
     });
 
     test('returns only AI engines when no instance is reachable', () async {
@@ -670,6 +723,35 @@ void main() {
       expect(results.single.text, 'Hal');
     });
 
+    test('pausing pauses the provider stream', () async {
+      configure();
+      final deltas = ControlledDeltas();
+      when(() => llmOf(claudeConfig).streamChat(any()))
+          .thenAnswer((_) => deltas.stream);
+      final subscription = repository
+          .translate(claude, englishToGerman)
+          .listen((_) {});
+      await pumpEventQueue();
+      subscription.pause();
+      expect(deltas.controller.isPaused, isTrue);
+      subscription.resume();
+      expect(deltas.controller.isPaused, isFalse);
+      await subscription.cancel();
+    });
+
+    test('applies refinement instructions through the prompt', () async {
+      configure();
+      stubStream(llmOf(claudeConfig), ['Guten Tag, Welt']);
+      final request = englishToGerman.copyWith(
+        options: const TranslationOptions(instructions: 'More formal.'),
+      );
+      await repository.translate(claude, request).drain<void>();
+      expect(
+        capturedStream(llmOf(claudeConfig)).messages,
+        TranslationPrompts.translate(request),
+      );
+    });
+
     test('emits nothing for empty input', () async {
       configure();
       await expectLater(
@@ -770,6 +852,36 @@ void main() {
           text: any(named: 'text'),
         ),
       );
+    });
+
+    test('batch results carry timing and the detected language', () async {
+      configure();
+      whenBatch(a()).thenAnswer(
+        (_) async => const [
+          MozhiTranslation(
+            engine: 'google',
+            translatedText: 'Hallo',
+            detectedLanguage: 'iw',
+          ),
+          MozhiTranslation(engine: 'deepl', translatedText: 'Hallo'),
+        ],
+      );
+      final entries = await repository.compare([
+        googleEngine,
+        deeplEngine,
+      ], autoToGerman).toList();
+      final byId = {for (final e in entries) e.id: e.result!};
+      expect(byId['mozhi:google']!.detectedSource, 'he');
+      expect(byId['mozhi:deepl']!.detectedSource, isNull);
+      expect(byId.values.map((r) => r.elapsed), everyElement(isNotNull));
+      verify(
+        () => a().translateWithEngines(
+          engines: ['google', 'deepl'],
+          from: 'auto',
+          to: 'de',
+          text: 'Hello world',
+        ),
+      ).called(1);
     });
 
     test('reports engines missing from the batch as failures', () async {
@@ -1387,6 +1499,15 @@ void main() {
       expect(request.jsonOutput, isFalse);
     });
 
+    test('rejects unknown providers', () async {
+      configure();
+      await expectLater(
+        repository.explain(openAi, englishToGerman, 'Hallo Welt'),
+        emitsError(isArgumentError),
+      );
+      expect(llmBuilt, isEmpty);
+    });
+
     test('requires an AI engine', () async {
       configure();
       await expectLater(
@@ -1537,6 +1658,34 @@ void main() {
         'image/jpeg',
       );
       expect(request.temperature, isNull);
+    });
+
+    test('AI engines receive the translation options', () async {
+      configure();
+      stubChat(llmOf(claudeConfig), ['Menu']);
+      const options = TranslationOptions(
+        formality: Formality.more,
+        context: 'restaurant menu',
+      );
+      final result = await repository.translateImage(
+        claude,
+        image,
+        mimeType: 'image/png',
+        source: german,
+        target: english,
+        options: options,
+      );
+      expect(result.translatedText, 'Menu');
+      expect(
+        capturedChats(llmOf(claudeConfig)).single.messages,
+        TranslationPrompts.translateImage(
+          image,
+          mimeType: 'image/png',
+          source: german,
+          target: english,
+          options: options,
+        ),
+      );
     });
 
     test('AI engines must be configured', () async {

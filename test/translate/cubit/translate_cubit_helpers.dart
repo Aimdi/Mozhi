@@ -9,11 +9,9 @@ import 'package:translation_repository/translation_repository.dart';
 
 class MockTranslationRepository extends Mock implements TranslationRepository;
 
-class MockSettingsCubit extends MockCubit<AppSettings>
-    implements SettingsCubit;
+class MockSettingsCubit extends MockCubit<AppSettings> implements SettingsCubit;
 
-class MockHistoryCubit extends MockCubit<HistoryState>
-    implements HistoryCubit;
+class MockHistoryCubit extends MockCubit<HistoryState> implements HistoryCubit;
 
 const google = TranslationEngine(
   id: 'mozhi:google',

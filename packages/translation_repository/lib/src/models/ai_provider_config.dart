@@ -48,10 +48,8 @@ class AiProviderConfig {
                 if (key is String && value is String) key: value,
             }
           : const {},
-      enabled: json['enabled'] is bool ? json['enabled'] as bool : true,
-      supportsVision: json['supportsVision'] is bool
-          ? json['supportsVision'] as bool
-          : false,
+      enabled: json['enabled'] != false,
+      supportsVision: json['supportsVision'] == true,
     );
   }
 

@@ -106,7 +106,7 @@ void main() {
         await pumpEventQueue();
         expect(output, ['Hello ']);
 
-        controller.add('g> no');
+        controller.add('king> hidden');
         await pumpEventQueue();
         expect(output, ['Hello ']);
 
@@ -159,7 +159,7 @@ void main() {
           controller
             ..add('ok')
             ..addError(StateError('boom'))
-            ..close();
+            ..closeSync();
         }).transform(const ThinkTagFilter());
         await expectLater(
           stream,

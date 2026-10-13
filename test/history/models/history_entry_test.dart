@@ -44,17 +44,6 @@ void main() {
     });
 
     group('toJson', () {
-      test('reads UTC timestamps as local time', () {
-        final createdAt = DateTime.utc(2026, 5, 6, 7, 8, 9);
-
-        final entry = HistoryEntry.fromJson(
-          _json({'createdAt': createdAt.toIso8601String()}),
-        );
-
-        expect(entry.createdAt.isUtc, isFalse);
-        expect(entry.createdAt.isAtSameMomentAs(createdAt), isTrue);
-      });
-
       test('writes createdAt as UTC ISO-8601', () {
         final json = _entry.toJson();
 
@@ -94,6 +83,17 @@ void main() {
         expect(restored, equals(entry));
         expect(restored.target.isCustom, isTrue);
         expect(restored.isFavorite, isTrue);
+      });
+
+      test('reads UTC timestamps as local time', () {
+        final createdAt = DateTime.utc(2026, 5, 6, 7, 8, 9);
+
+        final entry = HistoryEntry.fromJson(
+          _json({'createdAt': createdAt.toIso8601String()}),
+        );
+
+        expect(entry.createdAt.isUtc, isFalse);
+        expect(entry.createdAt.isAtSameMomentAs(createdAt), isTrue);
       });
 
       test('accepts createdAt in milliseconds since the epoch', () {

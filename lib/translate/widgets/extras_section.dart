@@ -13,7 +13,7 @@ import 'package:translation_repository/translation_repository.dart';
 /// AI extras under a finished translation: refinement chips (AI engines),
 /// alternatives, explain and (short inputs) a dictionary card.
 class ExtrasSection extends StatelessWidget {
-  const ExtrasSection({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -57,7 +57,7 @@ IconData _suggestionIcon(String name) => switch (name) {
 
 /// Horizontally scrolling refinement chips (Kagi translation suggestions).
 class RefinementChips extends StatelessWidget {
-  const RefinementChips({required this.state, super.key});
+  const new({required this.state, super.key});
 
   final TranslateState state;
 
@@ -109,7 +109,7 @@ class RefinementChips extends StatelessWidget {
 }
 
 class _ExtrasCard extends StatelessWidget {
-  const _ExtrasCard({required this.state});
+  const new({required this.state});
 
   final TranslateState state;
 
@@ -168,7 +168,7 @@ class _ExtrasCard extends StatelessWidget {
 
 /// Body of the "Alternatives" panel.
 class AlternativesList extends StatelessWidget {
-  const AlternativesList({required this.state, super.key});
+  const new({required this.state, super.key});
 
   final TranslateState state;
 

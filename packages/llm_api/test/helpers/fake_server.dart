@@ -7,7 +7,7 @@ import 'package:http/testing.dart';
 
 /// A request received by [FakeServer].
 class RecordedRequest {
-  RecordedRequest(this.request, this.body);
+  new(this.request, this.body);
 
   final http.BaseRequest request;
 
@@ -32,16 +32,11 @@ class RecordedRequest {
 
 /// A scripted response for [FakeServer].
 class FakeResponse {
-  FakeResponse(
-    this.body, {
-    this.statusCode = 200,
-    this.reasonPhrase,
-    this.gate,
-  });
+  new(this.body, {this.statusCode = 200, this.reasonPhrase, this.gate});
 
   /// [text] as UTF-8, split into [chunkSize]-byte chunks (so multi-byte
   /// characters and lines may be cut anywhere).
-  factory FakeResponse.text(
+  factory text(
     String text, {
     int statusCode = 200,
     int chunkSize = 1 << 20,
@@ -54,11 +49,11 @@ class FakeResponse {
     gate: gate,
   );
 
-  factory FakeResponse.json(Object? json, {int statusCode = 200}) =>
+  factory json(Object? json, {int statusCode = 200}) =>
       FakeResponse.text(jsonEncode(json), statusCode: statusCode);
 
   /// Body chunks pushed by the test through [controller].
-  factory FakeResponse.controlled(
+  factory controlled(
     StreamController<List<int>> controller, {
     int statusCode = 200,
   }) => FakeResponse(() => controller.stream, statusCode: statusCode);
@@ -73,7 +68,7 @@ class FakeResponse {
 
 /// An HTTP server scripted with [FakeResponse]s, served in order.
 class FakeServer {
-  FakeServer([Iterable<FakeResponse> responses = const []])
+  new([Iterable<FakeResponse> responses = const []])
     : _responses = [...responses];
 
   final List<FakeResponse> _responses;

@@ -4,7 +4,7 @@ import 'package:translation_repository/translation_repository.dart';
 
 /// Searchable list of [models]; pops the chosen model id.
 class ModelPickerSheet extends StatefulWidget {
-  const ModelPickerSheet({required this.models, this.selected, super.key});
+  const new({required this.models, this.selected, super.key});
 
   final List<LlmModel> models;
   final String? selected;
@@ -33,7 +33,6 @@ class _ModelPickerSheetState extends State<ModelPickerSheet> {
       expand: false,
       initialChildSize: 0.75,
       minChildSize: 0.4,
-      maxChildSize: 1,
       builder: (context, controller) => Column(
         children: [
           Padding(

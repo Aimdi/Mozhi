@@ -3,7 +3,7 @@ import 'package:mozhi/l10n/l10n.dart';
 
 /// A preset seed colour offered by [AccentColorPicker].
 class AccentColorOption {
-  const AccentColorOption(this.argb, this.label);
+  const new(this.argb, this.label);
 
   final int argb;
   final String Function(AppLocalizations l10n) label;
@@ -24,11 +24,7 @@ class AccentColorOption {
 
 /// Row of round colour swatches (48 dp targets) for the seed colour.
 class AccentColorPicker extends StatelessWidget {
-  const AccentColorPicker({
-    required this.selected,
-    required this.onSelected,
-    super.key,
-  });
+  const new({required this.selected, required this.onSelected, super.key});
 
   /// Currently selected ARGB value.
   final int selected;
@@ -54,7 +50,7 @@ class AccentColorPicker extends StatelessWidget {
 }
 
 class _Swatch extends StatelessWidget {
-  const _Swatch({
+  const new({
     required this.color,
     required this.label,
     required this.selected,

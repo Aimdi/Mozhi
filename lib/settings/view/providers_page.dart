@@ -8,7 +8,7 @@ import 'package:translation_repository/translation_repository.dart';
 
 /// Lists the configured AI providers.
 class ProvidersPage extends StatelessWidget {
-  const ProvidersPage({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) => const ProvidersView();
@@ -17,14 +17,11 @@ class ProvidersPage extends StatelessWidget {
 /// Location of the provider editor for [providerId] or [presetId].
 String providerEditorLocation({String? providerId, String? presetId}) => Uri(
   path: '/settings/providers/edit',
-  queryParameters: {
-    if (providerId != null) 'id': providerId,
-    if (presetId != null) 'preset': presetId,
-  },
+  queryParameters: {'id': ?providerId, 'preset': ?presetId},
 ).toString();
 
 class ProvidersView extends StatelessWidget {
-  const ProvidersView({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -100,7 +97,7 @@ Future<void> showAddProviderSheet(BuildContext context) async {
 
 /// Bottom sheet listing [AiProviderPreset.all]; pops the chosen preset id.
 class PresetPickerSheet extends StatelessWidget {
-  const PresetPickerSheet({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -111,7 +108,6 @@ class PresetPickerSheet extends StatelessWidget {
       expand: false,
       initialChildSize: 0.75,
       minChildSize: 0.4,
-      maxChildSize: 1,
       builder: (context, controller) => ListView(
         controller: controller,
         padding: const EdgeInsets.only(bottom: 24),
@@ -160,7 +156,7 @@ class PresetPickerSheet extends StatelessWidget {
 }
 
 class _ProviderTile extends StatelessWidget {
-  const _ProviderTile({required this.provider, super.key});
+  const new({required this.provider, super.key});
 
   final AiProviderConfig provider;
 
@@ -243,7 +239,7 @@ class _ProviderTile extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState();
+  const new();
 
   @override
   Widget build(BuildContext context) {

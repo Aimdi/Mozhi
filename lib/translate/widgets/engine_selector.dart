@@ -9,7 +9,7 @@ import 'package:translation_repository/translation_repository.dart';
 
 /// App bar button showing the current engine; opens [EngineSheet].
 class EngineSelectorButton extends StatelessWidget {
-  const EngineSelectorButton({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -92,7 +92,7 @@ Future<void> showEngineSheet(BuildContext context) {
 /// Engines grouped into "Mozhi engines (via host)" and "AI models", each
 /// with a privacy badge.
 class EngineSheet extends StatelessWidget {
-  const EngineSheet({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -119,7 +119,6 @@ class EngineSheet extends StatelessWidget {
       expand: false,
       initialChildSize: 0.7,
       minChildSize: 0.3,
-      maxChildSize: 1,
       builder: (context, controller) => ListView(
         controller: controller,
         padding: const EdgeInsets.only(bottom: 16),
@@ -183,7 +182,7 @@ class EngineSheet extends StatelessWidget {
 }
 
 class _SectionHeader extends StatelessWidget {
-  const _SectionHeader(this.title);
+  const new(this.title);
 
   final String title;
 
@@ -206,7 +205,7 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _EngineTile extends StatelessWidget {
-  const _EngineTile({
+  const new({
     required this.engine,
     required this.selected,
     required this.showSubtitle,
@@ -247,7 +246,7 @@ class _EngineTile extends StatelessWidget {
 
 /// Icon for an engine kind (local AI, cloud AI, Mozhi).
 class EngineIcon extends StatelessWidget {
-  const EngineIcon({required this.engine, this.size, super.key});
+  const new({required this.engine, this.size, super.key});
 
   final TranslationEngine engine;
   final double? size;
@@ -266,7 +265,7 @@ class EngineIcon extends StatelessWidget {
 /// Where the text goes: Local (on device/LAN), Self-hosted (Mozhi proxy) or
 /// Cloud (third-party AI provider).
 class PrivacyBadge extends StatelessWidget {
-  const PrivacyBadge({required this.engine, super.key});
+  const new({required this.engine, super.key});
 
   final TranslationEngine engine;
 

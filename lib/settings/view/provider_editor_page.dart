@@ -11,7 +11,7 @@ import 'package:translation_repository/translation_repository.dart';
 
 /// Create or edit an AI provider.
 class ProviderEditorPage extends StatelessWidget {
-  const ProviderEditorPage({super.key, this.providerId, this.presetId});
+  const new({super.key, this.providerId, this.presetId});
 
   /// Edit an existing provider (null = create new).
   final String? providerId;
@@ -22,31 +22,6 @@ class ProviderEditorPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) =>
       ProviderEditorView(providerId: providerId, presetId: presetId);
-}
-
-/// Whether [host] is on this machine or the local network.
-bool isLocalHost(String host) {
-  final h = host.toLowerCase();
-  if (h == 'localhost' ||
-      h == '::1' ||
-      h == '[::1]' ||
-      h == '0.0.0.0' ||
-      h.endsWith('.localhost') ||
-      h.endsWith('.local') ||
-      h.endsWith('.lan') ||
-      h.endsWith('.internal') ||
-      h.endsWith('.home.arpa')) {
-    return true;
-  }
-  if (h.startsWith('127.') || h.startsWith('10.') || h.startsWith('192.168.')) {
-    return true;
-  }
-  final match = RegExp(r'^172\.(\d{1,3})\.').firstMatch(h);
-  if (match != null) {
-    final second = int.parse(match.group(1)!);
-    return second >= 16 && second <= 31;
-  }
-  return false;
 }
 
 /// Readable name of an [LlmProvider].
@@ -67,7 +42,7 @@ String defaultBaseUrl(LlmProvider provider) => switch (provider) {
 };
 
 class ProviderEditorView extends StatefulWidget {
-  const ProviderEditorView({super.key, this.providerId, this.presetId});
+  const new({super.key, this.providerId, this.presetId});
 
   final String? providerId;
   final String? presetId;
@@ -77,26 +52,31 @@ class ProviderEditorView extends StatefulWidget {
 }
 
 sealed class _TestResult {
-  const _TestResult();
+  const new();
 }
 
 class _TestRunning extends _TestResult {
-  const _TestRunning();
+  const new();
 }
 
 class _TestSuccess extends _TestResult {
-  const _TestSuccess(this.output);
+  const new(this.output);
   final String output;
 }
 
 class _TestFailure extends _TestResult {
-  const _TestFailure(this.message);
+  const new(this.message);
   final String message;
 }
 
 class _ProviderEditorViewState extends State<ProviderEditorView> {
   static const _defaultEffort = '';
-  static const _efforts = [_defaultEffort, 'low', 'medium', 'high'];
+  static const List<String> _efforts = [
+    _defaultEffort,
+    'low',
+    'medium',
+    'high',
+  ];
 
   final _formKey = GlobalKey<FormState>();
   final _name = TextEditingController();
@@ -161,7 +141,8 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
         _baseUrl.text = defaultBaseUrl(_provider);
       }
     }
-    _baseUrl.addListener(_onBaseUrlChanged);
+    _baseUrl.addListener(_onFieldChanged);
+    _model.addListener(_onFieldChanged);
   }
 
   @override
@@ -173,7 +154,7 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
     super.dispose();
   }
 
-  void _onBaseUrlChanged() => setState(() {});
+  void _onFieldChanged() => setState(() {});
 
   bool get _apiKeyRequired =>
       _preset?.requiresApiKey ??
@@ -184,7 +165,7 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
   bool get _insecure {
     final uri = Uri.tryParse(_baseUrl.text.trim());
     if (uri == null || uri.scheme != 'http' || uri.host.isEmpty) return false;
-    return !isLocalHost(uri.host);
+    return !AiProviderConfig.isLocalHost(uri.host);
   }
 
   String? _required(String? value) => (value == null || value.trim().isEmpty)
@@ -256,9 +237,7 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
   void _save() {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     final config = _buildConfig(
-      id:
-          _existing?.id ??
-          'p${DateTime.now().microsecondsSinceEpoch.toString()}',
+      id: _existing?.id ?? 'p${DateTime.now().microsecondsSinceEpoch}',
     );
     context.read<SettingsCubit>().saveProvider(config);
     ScaffoldMessenger.of(
@@ -541,7 +520,7 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
                 const SizedBox(height: 8),
                 _TemperatureField(
                   value: _temperature,
-                  onUseDefault: ({required bool useDefault}) => setState(() {
+                  onUseDefault: ({required useDefault}) => setState(() {
                     _temperature = useDefault ? null : _lastTemperature;
                   }),
                   onChanged: (value) => setState(() {
@@ -605,7 +584,7 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
 }
 
 class _InsecureWarning extends StatelessWidget {
-  const _InsecureWarning({required this.text});
+  const new({required this.text});
 
   final String text;
 
@@ -633,7 +612,7 @@ class _InsecureWarning extends StatelessWidget {
 }
 
 class _SuggestedModels extends StatelessWidget {
-  const _SuggestedModels({
+  const new({
     required this.models,
     required this.selected,
     required this.onSelected,
@@ -674,7 +653,7 @@ class _SuggestedModels extends StatelessWidget {
 }
 
 class _TemperatureField extends StatelessWidget {
-  const _TemperatureField({
+  const new({
     required this.value,
     required this.onUseDefault,
     required this.onChanged,
@@ -708,8 +687,7 @@ class _TemperatureField extends StatelessWidget {
                   max: 2,
                   divisions: 20,
                   label: current.toStringAsFixed(1),
-                  semanticFormatterCallback: (v) =>
-                      '${l10n.settingsProviderTemperature} ${v.toStringAsFixed(1)}',
+                  semanticFormatterCallback: (v) => v.toStringAsFixed(1),
                   onChanged: onChanged,
                 ),
               ),
@@ -728,7 +706,7 @@ class _TemperatureField extends StatelessWidget {
 }
 
 class _TestResultView extends StatelessWidget {
-  const _TestResultView({required this.result});
+  const new({required this.result});
 
   final _TestResult result;
 

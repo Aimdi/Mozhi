@@ -10,7 +10,7 @@ import 'package:translation_repository/translation_repository.dart';
 
 /// AI dictionary entry for short (1-3 word) inputs, loaded on demand.
 class DictionaryCard extends StatelessWidget {
-  const DictionaryCard({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +25,7 @@ class DictionaryCard extends StatelessWidget {
       builder: (context, state) {
         final cubit = context.read<TranslateCubit>();
         final entry = state.dictionary;
-        final Widget body = switch (state.dictionaryStatus) {
+        final body = switch (state.dictionaryStatus) {
           ExtraStatus.idle => Align(
             alignment: AlignmentDirectional.centerStart,
             child: TextButton.icon(
@@ -72,9 +72,15 @@ class DictionaryCard extends StatelessWidget {
                         style: theme.textTheme.titleSmall,
                       ),
                     ),
-                    Text(
-                      l10n.translateAiGenerated,
-                      style: theme.textTheme.labelSmall?.copyWith(color: muted),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        l10n.translateAiGenerated,
+                        textAlign: TextAlign.end,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: muted,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -91,7 +97,7 @@ class DictionaryCard extends StatelessWidget {
 
 /// Word, IPA, senses, examples and synonyms of a [DictionaryEntry].
 class DictionaryEntryView extends StatelessWidget {
-  const DictionaryEntryView({required this.entry, super.key});
+  const new({required this.entry, super.key});
 
   final DictionaryEntry entry;
 
@@ -180,7 +186,7 @@ class DictionaryEntryView extends StatelessWidget {
 }
 
 class _Sense extends StatelessWidget {
-  const _Sense({required this.number, required this.sense});
+  const new({required this.number, required this.sense});
 
   final int number;
   final DictionarySense sense;

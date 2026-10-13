@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -15,14 +17,14 @@ import 'package:mozhi/translate/cubit/translate_cubit.dart';
 /// delete. Reads the app-wide [HistoryCubit], [SettingsCubit] and
 /// [TranslateCubit].
 class HistoryPage extends StatelessWidget {
-  const HistoryPage({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) => const HistoryView();
 }
 
 class HistoryView extends StatefulWidget {
-  const HistoryView({super.key});
+  const new({super.key});
 
   @override
   State<HistoryView> createState() => _HistoryViewState();
@@ -54,7 +56,7 @@ class _HistoryViewState extends State<HistoryView> {
     final l10n = context.l10n;
     final cubit = context.read<HistoryCubit>();
     setState(() => _dismissed.add(entry.id));
-    cubit.delete(entry.id);
+    unawaited(cubit.delete(entry.id));
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
@@ -63,7 +65,7 @@ class _HistoryViewState extends State<HistoryView> {
           action: SnackBarAction(
             label: l10n.commonUndo,
             onPressed: () {
-              cubit.add(entry);
+              unawaited(cubit.add(entry));
               if (mounted) setState(() => _dismissed.remove(entry.id));
             },
           ),
@@ -285,7 +287,7 @@ class _HistoryViewState extends State<HistoryView> {
 }
 
 class _HistoryDisabledBanner extends StatelessWidget {
-  const _HistoryDisabledBanner();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -342,12 +344,7 @@ class _HistoryDisabledBanner extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({
-    required this.icon,
-    required this.title,
-    this.body,
-    this.action,
-  });
+  const new({required this.icon, required this.title, this.body, this.action});
 
   final IconData icon;
   final String title;

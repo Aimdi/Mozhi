@@ -44,7 +44,7 @@ HistoryEntry? findHistoryEntry(
 /// detected language, engine/latency footer and actions (copy, share,
 /// listen, favourite, insights).
 class OutputCard extends StatefulWidget {
-  const OutputCard({super.key});
+  const new({super.key});
 
   @override
   State<OutputCard> createState() => _OutputCardState();
@@ -354,7 +354,7 @@ class _OutputCardState extends State<OutputCard> {
 }
 
 class _InfoChip extends StatelessWidget {
-  const _InfoChip({required this.icon, required this.label});
+  const new({required this.icon, required this.label});
 
   final IconData icon;
   final String label;

@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/app_dependencies.dart';
 import 'package:mozhi/app/router.dart';
+import 'package:mozhi/app/shared_text_handler.dart';
 import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/app/translate_link.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
@@ -37,9 +38,8 @@ class _AppState extends State<App> {
   late final HistoryCubit _historyCubit;
   late final TranslateCubit _translateCubit;
   late final GoRouter _router;
+  late final SharedTextHandler _sharedText;
   final _messengerKey = GlobalKey<ScaffoldMessengerState>();
-  StreamSubscription<SharedText>? _sharedTextSubscription;
-  StreamSubscription<TranslateState>? _replaceOfferSubscription;
 
   AppDependencies get _deps => widget.dependencies;
 
@@ -65,13 +65,19 @@ class _AppState extends State<App> {
       final link = TranslateLink.fromUri(Uri.base);
       if (link != null) _openLink(link);
     }
-    _listenForSharedText();
+
+    _sharedText = SharedTextHandler(
+      service: _deps.sharedTextService,
+      translateCubit: _translateCubit,
+      onShowTranslate: () => _router.go(AppRoutes.translate),
+      onReplaceAvailable: _offerReplace,
+    );
+    unawaited(_sharedText.start());
   }
 
   @override
   void dispose() {
-    unawaited(_sharedTextSubscription?.cancel());
-    unawaited(_replaceOfferSubscription?.cancel());
+    unawaited(_sharedText.dispose());
     _router.dispose();
     unawaited(_translateCubit.close());
     unawaited(_historyCubit.close());
@@ -83,61 +89,11 @@ class _AppState extends State<App> {
     unawaited(link.applyTo(_translateCubit));
   }
 
-  // ---------------------------------------------------------------------
-  // Text shared by other apps (Android ACTION_SEND / ACTION_PROCESS_TEXT).
-
-  void _listenForSharedText() {
-    final service = _deps.sharedTextService;
-    unawaited(_loadInitialSharedText(service));
-    _sharedTextSubscription = service.texts.listen(
-      _handleSharedText,
-      onError: (Object _) {},
-    );
-  }
-
-  Future<void> _loadInitialSharedText(SharedTextService service) async {
-    try {
-      final shared = await service.initialText();
-      if (shared != null && mounted) _handleSharedText(shared);
-    } on Exception {
-      // No platform support: nothing was shared.
-    }
-  }
-
-  void _handleSharedText(SharedText shared) {
-    if (shared.text.trim().isEmpty) return;
-    _router.go(AppRoutes.translate);
-    unawaited(_translateSharedText(shared));
-  }
-
-  Future<void> _translateSharedText(SharedText shared) async {
-    await TranslateLink(text: shared.text).applyTo(_translateCubit);
-    if (!mounted || !shared.isProcessText || shared.readOnly) return;
-
-    // The calling app accepts a replacement: offer it once translated.
-    await _replaceOfferSubscription?.cancel();
-    bool done(TranslateState s) =>
-        s.status == TranslateStatus.failure ||
-        (s.status == TranslateStatus.success && (s.result?.isComplete ?? true));
-
-    final current = _translateCubit.state;
-    if (done(current) && current.input.trim() == shared.text.trim()) {
-      _offerReplace(current);
-      return;
-    }
-    _replaceOfferSubscription = _translateCubit.stream
-        .where(done)
-        .take(1)
-        .listen(_offerReplace);
-  }
-
-  void _offerReplace(TranslateState state) {
+  /// Text selected in another (editable) app was translated: offer to put
+  /// the translation back in its place.
+  void _offerReplace() {
     final messenger = _messengerKey.currentState;
-    if (state.status != TranslateStatus.success ||
-        state.output.trim().isEmpty ||
-        messenger == null) {
-      return;
-    }
+    if (messenger == null) return;
     final l10n = messenger.context.l10n;
     messenger
       ..hideCurrentSnackBar()
@@ -147,11 +103,7 @@ class _AppState extends State<App> {
           showCloseIcon: true,
           action: SnackBarAction(
             label: l10n.appProcessTextReplace,
-            onPressed: () => unawaited(
-              _deps.sharedTextService.returnResult(
-                _translateCubit.state.output,
-              ),
-            ),
+            onPressed: () => unawaited(_sharedText.replaceSelection()),
           ),
         ),
       );

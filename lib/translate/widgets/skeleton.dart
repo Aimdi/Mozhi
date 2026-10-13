@@ -4,7 +4,7 @@ import 'package:mozhi/translate/widgets/translate_layout.dart';
 
 /// Gently pulsing placeholder box. Static when animations are disabled.
 class SkeletonBox extends StatefulWidget {
-  const SkeletonBox({this.height = 16, this.width, this.radius = 8, super.key});
+  const new({this.height = 16, this.width, this.radius = 8, super.key});
 
   final double height;
   final double? width;
@@ -56,7 +56,7 @@ class _SkeletonBoxState extends State<SkeletonBox>
 
 /// Placeholder for one compare result while it is still running.
 class SkeletonCard extends StatelessWidget {
-  const SkeletonCard({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -85,7 +85,7 @@ class SkeletonCard extends StatelessWidget {
 
 /// Shown while the engine list loads for the first time.
 class TranslateSkeleton extends StatelessWidget {
-  const TranslateSkeleton({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) {

@@ -1,3 +1,4 @@
+import 'package:flutter/semantics.dart';
 import 'package:intl/intl.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/history/models/history_entry.dart';
@@ -7,7 +8,7 @@ import 'package:translation_repository/translation_repository.dart';
 /// One history entry: languages, source text, translation, engine and time,
 /// with a favorite toggle. Swipe to delete.
 class HistoryEntryTile extends StatelessWidget {
-  const HistoryEntryTile({
+  const new({
     required this.entry,
     required this.onTap,
     required this.onToggleFavorite,
@@ -130,7 +131,7 @@ class HistoryEntryTile extends StatelessWidget {
 }
 
 class _DeleteBackground extends StatelessWidget {
-  const _DeleteBackground({required this.alignment});
+  const new({required this.alignment});
 
   final AlignmentDirectional alignment;
 

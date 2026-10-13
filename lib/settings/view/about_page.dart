@@ -6,17 +6,19 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 /// App name, version, links and the privacy statement.
 class AboutPage extends StatelessWidget {
-  const AboutPage({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) => const AboutView();
 }
 
 class AboutView extends StatefulWidget {
-  const AboutView({super.key});
+  const new({super.key});
 
-  static final sourceCodeUrl = Uri.parse('https://github.com/Aimdi/Mozhi');
-  static final mozhiProjectUrl = Uri.parse('https://codeberg.org/aryak/mozhi');
+  static final Uri sourceCodeUrl = Uri.parse('https://github.com/Aimdi/Mozhi');
+  static final Uri mozhiProjectUrl = Uri.parse(
+    'https://codeberg.org/aryak/mozhi',
+  );
 
   @override
   State<AboutView> createState() => _AboutViewState();
@@ -154,7 +156,7 @@ class _AboutViewState extends State<AboutView> {
 }
 
 class _PrivacyRow extends StatelessWidget {
-  const _PrivacyRow({required this.icon, required this.text});
+  const new({required this.icon, required this.text});
 
   final IconData icon;
   final String text;

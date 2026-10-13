@@ -25,11 +25,7 @@ Future<void> showInsightSheet(BuildContext context, WordInsight insight) {
 
 /// Type, phrase, explanation and variations of a [WordInsight].
 class InsightSheet extends StatelessWidget {
-  const InsightSheet({
-    required this.insight,
-    required this.onVariation,
-    super.key,
-  });
+  const new({required this.insight, required this.onVariation, super.key});
 
   final WordInsight insight;
   final ValueChanged<String> onVariation;
@@ -112,7 +108,7 @@ class InsightSheet extends StatelessWidget {
 
 /// Output text with each insight's `targetText` underlined and tappable.
 class InsightText extends StatefulWidget {
-  const InsightText({
+  const new({
     required this.text,
     required this.insights,
     required this.onTap,
@@ -184,8 +180,9 @@ class _InsightTextState extends State<InsightText> {
     final spans = <InlineSpan>[];
     var cursor = 0;
     for (final (start, end, insight) in ranges(text, widget.insights)) {
-      if (start > cursor)
+      if (start > cursor) {
         spans.add(TextSpan(text: text.substring(cursor, start)));
+      }
       final recognizer = TapGestureRecognizer()
         ..onTap = () => widget.onTap(insight);
       _recognizers.add(recognizer);

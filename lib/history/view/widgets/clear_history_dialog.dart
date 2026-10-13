@@ -21,7 +21,7 @@ Future<void> confirmClearHistory(BuildContext context) async {
 /// Pops with the "keep favorites" choice when confirmed, null when
 /// cancelled.
 class ClearHistoryDialog extends StatefulWidget {
-  const ClearHistoryDialog({super.key});
+  const new({super.key});
 
   @override
   State<ClearHistoryDialog> createState() => _ClearHistoryDialogState();

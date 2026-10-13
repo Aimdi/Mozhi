@@ -48,7 +48,8 @@ class ProofreadCubit extends Cubit<ProofreadState> {
     List<TranslationEngine> engines, {
     TranslationEngine? preferred,
   }) {
-    emit(_withEngines(state, engines, preferred));
+    final next = _withEngines(state, engines, preferred);
+    if (next != state) emit(next);
   }
 
   void setEngine(TranslationEngine engine) {

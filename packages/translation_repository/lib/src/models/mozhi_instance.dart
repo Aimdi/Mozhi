@@ -30,17 +30,61 @@ class MozhiInstance {
   /// Public instances from Mozhi's `instances.json` (clearnet, no
   /// Cloudflare), as of Oct 2026.
   static const publicInstances = <MozhiInstance>[
-    MozhiInstance(url: 'https://mozhi.aryak.me', label: 'mozhi.aryak.me (India)', isCustom: false),
-    MozhiInstance(url: 'https://translate.projectsegfau.lt', label: 'projectsegfau.lt (DE/US/IN)', isCustom: false),
-    MozhiInstance(url: 'https://translate.nerdvpn.de', label: 'nerdvpn.de (Ukraine)', isCustom: false),
-    MozhiInstance(url: 'https://mozhi.ducks.party', label: 'ducks.party (Germany)', isCustom: false),
-    MozhiInstance(url: 'https://mozhi.pussthecat.org', label: 'pussthecat.org (Germany)', isCustom: false),
-    MozhiInstance(url: 'https://mozhi.adminforge.de', label: 'adminforge.de (Germany)', isCustom: false),
-    MozhiInstance(url: 'https://translate.privacyredirect.com', label: 'privacyredirect.com (Finland)', isCustom: false),
-    MozhiInstance(url: 'https://mozhi.canine.tools', label: 'canine.tools (USA)', isCustom: false),
-    MozhiInstance(url: 'https://mzh.dc09.xyz', label: 'dc09.xyz (Russia)', isCustom: false),
-    MozhiInstance(url: 'https://mozhi.bloat.cat', label: 'bloat.cat (Germany)', isCustom: false),
-    MozhiInstance(url: 'https://mozhi.catsarch.com', label: 'catsarch.com (USA)', isCustom: false),
+    MozhiInstance(
+      url: 'https://mozhi.aryak.me',
+      label: 'mozhi.aryak.me (India)',
+      isCustom: false,
+    ),
+    MozhiInstance(
+      url: 'https://translate.projectsegfau.lt',
+      label: 'projectsegfau.lt (DE/US/IN)',
+      isCustom: false,
+    ),
+    MozhiInstance(
+      url: 'https://translate.nerdvpn.de',
+      label: 'nerdvpn.de (Ukraine)',
+      isCustom: false,
+    ),
+    MozhiInstance(
+      url: 'https://mozhi.ducks.party',
+      label: 'ducks.party (Germany)',
+      isCustom: false,
+    ),
+    MozhiInstance(
+      url: 'https://mozhi.pussthecat.org',
+      label: 'pussthecat.org (Germany)',
+      isCustom: false,
+    ),
+    MozhiInstance(
+      url: 'https://mozhi.adminforge.de',
+      label: 'adminforge.de (Germany)',
+      isCustom: false,
+    ),
+    MozhiInstance(
+      url: 'https://translate.privacyredirect.com',
+      label: 'privacyredirect.com (Finland)',
+      isCustom: false,
+    ),
+    MozhiInstance(
+      url: 'https://mozhi.canine.tools',
+      label: 'canine.tools (USA)',
+      isCustom: false,
+    ),
+    MozhiInstance(
+      url: 'https://mzh.dc09.xyz',
+      label: 'dc09.xyz (Russia)',
+      isCustom: false,
+    ),
+    MozhiInstance(
+      url: 'https://mozhi.bloat.cat',
+      label: 'bloat.cat (Germany)',
+      isCustom: false,
+    ),
+    MozhiInstance(
+      url: 'https://mozhi.catsarch.com',
+      label: 'catsarch.com (USA)',
+      isCustom: false,
+    ),
   ];
 
   @override

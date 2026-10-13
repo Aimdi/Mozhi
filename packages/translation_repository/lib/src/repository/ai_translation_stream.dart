@@ -93,33 +93,26 @@ Stream<TranslationResult> aiTranslationStream({
     unawaited(controller.close());
   }
 
+  // Parser failures must not escape as uncaught errors.
+  void guarded(void Function() body) {
+    try {
+      body();
+    } on Object catch (error, stackTrace) {
+      unawaited(subscription?.cancel());
+      fail(error, stackTrace);
+    }
+  }
+
   controller = StreamController<TranslationResult>(
-    onListen: () {
+    onListen: () => guarded(() {
       elapsed.start();
-      try {
-        subscription = open().listen(
-          (delta) {
-            try {
-              onDelta(delta);
-            } on Object catch (error, stackTrace) {
-              unawaited(subscription?.cancel());
-              fail(error, stackTrace);
-            }
-          },
-          onError: fail,
-          onDone: () {
-            try {
-              onDone();
-            } on Object catch (error, stackTrace) {
-              fail(error, stackTrace);
-            }
-          },
-          cancelOnError: true,
-        );
-      } on Object catch (error, stackTrace) {
-        fail(error, stackTrace);
-      }
-    },
+      subscription = open().listen(
+        (delta) => guarded(() => onDelta(delta)),
+        onError: fail,
+        onDone: () => guarded(onDone),
+        cancelOnError: true,
+      );
+    }),
     onPause: () => subscription?.pause(),
     onResume: () => subscription?.resume(),
     onCancel: () {

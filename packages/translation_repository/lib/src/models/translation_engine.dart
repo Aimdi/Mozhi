@@ -19,13 +19,12 @@ class TranslationEngine {
     this.isLocal = false,
   });
 
-  factory mozhi(String engine, String name) =>
-      TranslationEngine(
-        id: 'mozhi:$engine',
-        kind: EngineKind.mozhi,
-        name: name,
-        mozhiEngine: engine,
-      );
+  factory mozhi(String engine, String name) => TranslationEngine(
+    id: 'mozhi:$engine',
+    kind: EngineKind.mozhi,
+    name: name,
+    mozhiEngine: engine,
+  );
 
   final String id;
   final EngineKind kind;

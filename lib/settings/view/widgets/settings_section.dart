@@ -16,11 +16,7 @@ EdgeInsets centeredPadding(
 
 /// A titled group of settings rendered as a calm, rounded card.
 class SettingsSection extends StatelessWidget {
-  const SettingsSection({
-    required this.title,
-    required this.children,
-    super.key,
-  });
+  const new({required this.title, required this.children, super.key});
 
   final String title;
   final List<Widget> children;
@@ -62,12 +58,7 @@ class SettingsSection extends StatelessWidget {
 
 /// A small rounded label with an optional icon, tinted with [color].
 class StatusBadge extends StatelessWidget {
-  const StatusBadge({
-    required this.label,
-    required this.color,
-    this.icon,
-    super.key,
-  });
+  const new({required this.label, required this.color, this.icon, super.key});
 
   final String label;
   final Color color;

@@ -8,7 +8,7 @@ import 'package:mozhi/speech/speech_service.dart';
 /// Read-aloud toggle backed by [SpeechService]; shows a stop icon while the
 /// clip with [id] plays.
 class ListenButton extends StatefulWidget {
-  const ListenButton({
+  const new({
     required this.id,
     required this.text,
     required this.languageCode,

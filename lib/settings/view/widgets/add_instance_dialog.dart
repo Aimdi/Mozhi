@@ -18,7 +18,7 @@ String describeError(Object error) => switch (error) {
 /// [MozhiInstance], or null when cancelled. [existingUrls] are rejected as
 /// duplicates.
 class AddInstanceDialog extends StatefulWidget {
-  const AddInstanceDialog({required this.existingUrls, super.key});
+  const new({required this.existingUrls, super.key});
 
   final List<String> existingUrls;
 
@@ -27,20 +27,20 @@ class AddInstanceDialog extends StatefulWidget {
 }
 
 sealed class _TestState {
-  const _TestState();
+  const new();
 }
 
 class _Testing extends _TestState {
-  const _Testing();
+  const new();
 }
 
 class _TestOk extends _TestState {
-  const _TestOk(this.latency);
+  const new(this.latency);
   final Duration latency;
 }
 
 class _TestFailed extends _TestState {
-  const _TestFailed(this.message);
+  const new(this.message);
   final String message;
 }
 

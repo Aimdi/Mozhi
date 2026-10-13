@@ -8,7 +8,7 @@ import 'package:translation_repository/translation_repository.dart';
 /// Compact "Definitions" list for Mozhi results that carry word choices or
 /// synonyms (Google engine).
 class WordChoicesPanel extends StatelessWidget {
-  const WordChoicesPanel({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +33,7 @@ class WordChoicesPanel extends StatelessWidget {
 }
 
 class _Panel extends StatelessWidget {
-  const _Panel({required this.result});
+  const new({required this.result});
 
   final TranslationResult result;
 

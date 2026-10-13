@@ -22,7 +22,7 @@ bool needsTranslateButton(TranslateState state, AppSettings settings) {
 /// The source text field with paste/clear/listen actions, character count
 /// and (when instant translation is off) a "Translate" button.
 class InputCard extends StatefulWidget {
-  const InputCard({this.minLines = 4, super.key});
+  const new({this.minLines = 4, super.key});
 
   final int minLines;
 

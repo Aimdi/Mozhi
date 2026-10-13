@@ -34,7 +34,7 @@ Future<Language?> showLanguagePicker(
 /// Sections: Detect (source), Recent, Pinned, Styles (AI target) and All.
 /// Searching filters by English name, native name and code.
 class LanguagePickerSheet extends StatefulWidget {
-  const LanguagePickerSheet({required this.source, super.key});
+  const new({required this.source, super.key});
 
   final bool source;
 
@@ -84,7 +84,6 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
       expand: false,
       initialChildSize: 0.85,
       minChildSize: 0.4,
-      maxChildSize: 1,
       builder: (context, controller) => CustomScrollView(
         controller: controller,
         slivers: [
@@ -303,7 +302,7 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
 }
 
 class _Header extends StatelessWidget {
-  const _Header(this.title);
+  const new(this.title);
 
   final String title;
 
@@ -326,7 +325,7 @@ class _Header extends StatelessWidget {
 }
 
 class _DetectedChip extends StatelessWidget {
-  const _DetectedChip({required this.label});
+  const new({required this.label});
 
   final String label;
 
@@ -351,7 +350,7 @@ class _DetectedChip extends StatelessWidget {
 }
 
 class _LanguageTile extends StatelessWidget {
-  const _LanguageTile({
+  const new({
     required this.language,
     required this.selected,
     required this.pinned,

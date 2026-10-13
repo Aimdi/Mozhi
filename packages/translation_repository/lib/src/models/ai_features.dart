@@ -6,10 +6,7 @@ const _list = ListEquality<Object?>();
 /// Kagi `/api/alternative-translations` equivalent.
 @immutable
 class AlternativeTranslations {
-  const new({
-    required this.description,
-    required this.alternatives,
-  });
+  const new({required this.description, required this.alternatives});
 
   /// One sentence describing the main translation's choices.
   final String description;
@@ -81,7 +78,13 @@ class WordInsight {
           _list.equals(other.variations, variations);
 
   @override
-  int get hashCode => Object.hash(sourceText, targetText, type, explanation, _list.hash(variations));
+  int get hashCode => Object.hash(
+    sourceText,
+    targetText,
+    type,
+    explanation,
+    _list.hash(variations),
+  );
 }
 
 /// A refinement chip shown under the output (Kagi translation-suggestions).
@@ -107,12 +110,38 @@ class RefinementSuggestion {
 
   /// Built-in chips always available for AI engines.
   static const defaults = <RefinementSuggestion>[
-    RefinementSuggestion(label: 'More formal', instruction: 'Make the translation more formal.', icon: 'formal'),
-    RefinementSuggestion(label: 'More casual', instruction: 'Make the translation more casual and conversational.', icon: 'casual'),
-    RefinementSuggestion(label: 'Shorter', instruction: 'Make the translation more concise without losing meaning.', icon: 'shorter'),
-    RefinementSuggestion(label: 'Simpler', instruction: 'Use simpler words and sentence structure.', icon: 'simplify'),
-    RefinementSuggestion(label: 'More fluent', instruction: 'Make it sound completely natural to a native speaker, prioritising idiomatic phrasing.', icon: 'fluent'),
-    RefinementSuggestion(label: 'More literal', instruction: 'Stay closer to the source wording and structure.', icon: 'literal'),
+    RefinementSuggestion(
+      label: 'More formal',
+      instruction: 'Make the translation more formal.',
+      icon: 'formal',
+    ),
+    RefinementSuggestion(
+      label: 'More casual',
+      instruction: 'Make the translation more casual and conversational.',
+      icon: 'casual',
+    ),
+    RefinementSuggestion(
+      label: 'Shorter',
+      instruction: 'Make the translation more concise without losing meaning.',
+      icon: 'shorter',
+    ),
+    RefinementSuggestion(
+      label: 'Simpler',
+      instruction: 'Use simpler words and sentence structure.',
+      icon: 'simplify',
+    ),
+    RefinementSuggestion(
+      label: 'More fluent',
+      instruction:
+          'Make it sound completely natural to a native speaker, '
+          'prioritising idiomatic phrasing.',
+      icon: 'fluent',
+    ),
+    RefinementSuggestion(
+      label: 'More literal',
+      instruction: 'Stay closer to the source wording and structure.',
+      icon: 'literal',
+    ),
   ];
 
   @override
@@ -167,7 +196,16 @@ class DictionaryEntry {
           other.notes == notes;
 
   @override
-  int get hashCode => Object.hash(word, pronunciation, _list.hash(partsOfSpeech), _list.hash(senses), _list.hash(examples), _list.hash(synonyms), etymology, notes);
+  int get hashCode => Object.hash(
+    word,
+    pronunciation,
+    _list.hash(partsOfSpeech),
+    _list.hash(senses),
+    _list.hash(examples),
+    _list.hash(synonyms),
+    etymology,
+    notes,
+  );
 }
 
 @immutable
@@ -198,7 +236,8 @@ class DictionarySense {
           other.usage == usage;
 
   @override
-  int get hashCode => Object.hash(definition, partOfSpeech, _list.hash(translations), usage);
+  int get hashCode =>
+      Object.hash(definition, partOfSpeech, _list.hash(translations), usage);
 }
 
 @immutable
@@ -250,7 +289,8 @@ class ProofreadResult {
           other.summary == summary;
 
   @override
-  int get hashCode => Object.hash(correctedText, _list.hash(edits), detectedLanguage, summary);
+  int get hashCode =>
+      Object.hash(correctedText, _list.hash(edits), detectedLanguage, summary);
 }
 
 @immutable
@@ -309,7 +349,8 @@ class DetectedLanguage {
           _list.equals(other.alternatives, alternatives);
 
   @override
-  int get hashCode => Object.hash(code, isUncertain, isMixed, _list.hash(alternatives));
+  int get hashCode =>
+      Object.hash(code, isUncertain, isMixed, _list.hash(alternatives));
 }
 
 /// Result of translating an image.
@@ -340,5 +381,10 @@ class ImageTranslationResult {
           other.notes == notes;
 
   @override
-  int get hashCode => Object.hash(_list.hash(translatedImage), sourceText, translatedText, notes);
+  int get hashCode => Object.hash(
+    _list.hash(translatedImage),
+    sourceText,
+    translatedText,
+    notes,
+  );
 }

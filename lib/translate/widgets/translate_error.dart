@@ -10,7 +10,7 @@ enum TranslateErrorFix { none, instances, providers }
 
 /// A readable description of a translation error.
 class TranslateErrorInfo {
-  const TranslateErrorInfo(this.message, {this.fix = TranslateErrorFix.none});
+  const new(this.message, {this.fix = TranslateErrorFix.none});
 
   final String message;
   final TranslateErrorFix fix;
@@ -61,12 +61,7 @@ TranslateErrorInfo describeTranslateError(
 /// Error message with a retry button and, when useful, a shortcut to the
 /// relevant settings page.
 class TranslateErrorView extends StatelessWidget {
-  const TranslateErrorView({
-    required this.error,
-    this.onRetry,
-    this.dense = false,
-    super.key,
-  });
+  const new({required this.error, this.onRetry, this.dense = false, super.key});
 
   final Object? error;
   final VoidCallback? onRetry;

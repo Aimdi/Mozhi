@@ -13,14 +13,14 @@ import 'package:mozhi/settings/view/widgets/settings_section.dart';
 /// App settings. Reads [SettingsCubit] (and `HistoryCubit` for the data
 /// actions) from the app-wide providers.
 class SettingsPage extends StatelessWidget {
-  const SettingsPage({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) => const SettingsView();
 }
 
 class SettingsView extends StatelessWidget {
-  const SettingsView({super.key});
+  const new({super.key});
 
   /// Width from which the sections are laid out in two columns.
   static const twoPaneBreakpoint = 840.0;
@@ -66,7 +66,7 @@ class SettingsView extends StatelessWidget {
 }
 
 class _ServicesSection extends StatelessWidget {
-  const _ServicesSection({required this.settings});
+  const new({required this.settings});
 
   final AppSettings settings;
 
@@ -115,7 +115,7 @@ class _ServicesSection extends StatelessWidget {
 }
 
 class _TranslationSection extends StatelessWidget {
-  const _TranslationSection({required this.settings});
+  const new({required this.settings});
 
   final AppSettings settings;
 
@@ -161,7 +161,7 @@ class _TranslationSection extends StatelessWidget {
 }
 
 class _AssistEngineTile extends StatelessWidget {
-  const _AssistEngineTile({required this.settings});
+  const new({required this.settings});
 
   final AppSettings settings;
 
@@ -242,7 +242,7 @@ class _AssistEngineTile extends StatelessWidget {
 }
 
 class _AppearanceSection extends StatelessWidget {
-  const _AppearanceSection({required this.settings});
+  const new({required this.settings});
 
   final AppSettings settings;
 
@@ -333,7 +333,7 @@ class _AppearanceSection extends StatelessWidget {
 }
 
 class _SegmentLabel extends StatelessWidget {
-  const _SegmentLabel(this.text);
+  const new(this.text);
 
   final String text;
 
@@ -343,7 +343,7 @@ class _SegmentLabel extends StatelessWidget {
 }
 
 class _DataSection extends StatelessWidget {
-  const _DataSection();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -376,7 +376,7 @@ class _DataSection extends StatelessWidget {
 }
 
 class _AboutSection extends StatelessWidget {
-  const _AboutSection();
+  const new();
 
   @override
   Widget build(BuildContext context) {

@@ -22,7 +22,7 @@ Future<void> showExplainSheet(BuildContext context) {
 
 /// Shows `state.explanation` as it streams, with a follow-up question box.
 class ExplainSheet extends StatefulWidget {
-  const ExplainSheet({super.key});
+  const new({super.key});
 
   @override
   State<ExplainSheet> createState() => _ExplainSheetState();
@@ -57,7 +57,6 @@ class _ExplainSheetState extends State<ExplainSheet> {
         expand: false,
         initialChildSize: 0.7,
         minChildSize: 0.3,
-        maxChildSize: 1,
         builder: (context, controller) =>
             BlocBuilder<TranslateCubit, TranslateState>(
               buildWhen: (previous, current) =>
@@ -80,10 +79,14 @@ class _ExplainSheetState extends State<ExplainSheet> {
                                   style: theme.textTheme.titleLarge,
                                 ),
                               ),
-                              Text(
-                                l10n.translateAiGenerated,
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  color: muted,
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Text(
+                                  l10n.translateAiGenerated,
+                                  textAlign: TextAlign.end,
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: muted,
+                                  ),
                                 ),
                               ),
                             ],

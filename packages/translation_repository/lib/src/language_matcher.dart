@@ -11,7 +11,7 @@ import 'package:translation_repository/src/models/language.dart';
 /// same primary subtag (`en-GB` -> `en`, `en` -> first `en-*`);
 /// finally case-insensitive English name equality.
 /// Custom languages only match custom entries or are returned as-is when
-/// [allowCustom] is true.
+/// `allowCustom` is true.
 abstract final class LanguageMatcher {
   static Language? match(
     Language wanted,

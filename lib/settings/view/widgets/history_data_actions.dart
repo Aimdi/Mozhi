@@ -101,7 +101,7 @@ Future<void> showImportHistoryDialog(BuildContext context) async {
 /// Paste exported JSON and import it into [HistoryCubit]. Pops `true` on
 /// success.
 class ImportHistoryDialog extends StatefulWidget {
-  const ImportHistoryDialog({super.key});
+  const new({super.key});
 
   @override
   State<ImportHistoryDialog> createState() => _ImportHistoryDialogState();
