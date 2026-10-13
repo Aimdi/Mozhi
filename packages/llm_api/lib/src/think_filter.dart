@@ -202,11 +202,7 @@ class _ThinkTagParser {
   /// The index just after the first closing tag of [text] when no opening
   /// tag comes before it, otherwise 0.
   static int orphanReasoningEnd(String text) {
-    for (
-      var at = text.indexOf('<');
-      at >= 0;
-      at = text.indexOf('<', at + 1)
-    ) {
+    for (var at = text.indexOf('<'); at >= 0; at = text.indexOf('<', at + 1)) {
       if (_tagAt(text, at, _openingTags) != null) return 0;
       if (_tagAt(text, at, _closingTags) case final tag?) {
         return at + tag.length;

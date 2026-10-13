@@ -36,7 +36,9 @@ void main() {
   group(OllamaClient, () {
     group('streamChat request', () {
       test('posts the exact body and headers', () async {
-        final server = FakeServer([FakeResponse.text(_ndjson([_line('', done: true)]))]);
+        final server = FakeServer([
+          FakeResponse.text(_ndjson([_line('', done: true)])),
+        ]);
         await _client(server).streamChat(_request).drain<void>();
 
         final request = server.lastRequest;
@@ -56,7 +58,9 @@ void main() {
       });
 
       test('sends options, format, images and the key when set', () async {
-        final server = FakeServer([FakeResponse.text(_ndjson([_line('', done: true)]))]);
+        final server = FakeServer([
+          FakeResponse.text(_ndjson([_line('', done: true)])),
+        ]);
         await _client(server, apiKey: 'proxy-key')
             .streamChat(
               const LlmRequest(
@@ -133,7 +137,11 @@ void main() {
             emitsError(
               isA<LlmTruncatedException>()
                   .having((e) => e.reason, 'reason', 'length')
-                  .having((e) => e.partialText, 'partialText', 'Partial para 1'),
+                  .having(
+                    (e) => e.partialText,
+                    'partialText',
+                    'Partial para 1',
+                  ),
             ),
           ]),
         );

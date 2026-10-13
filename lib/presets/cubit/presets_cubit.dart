@@ -22,6 +22,7 @@ class PresetsCubit extends Cubit<PresetsState> {
   final PresetsRepository _repository;
 
   Future<void> load() async {
+    if (isClosed) return;
     emit(state.copyWith(status: PresetsStatus.loading));
     try {
       final collection = await _repository.load();

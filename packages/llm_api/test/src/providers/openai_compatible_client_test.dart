@@ -255,7 +255,11 @@ void main() {
                     'message',
                     LlmInterruptedException.defaultMessage,
                   )
-                  .having((e) => e.partialText, 'partialText', 'Bonjour, comment')
+                  .having(
+                    (e) => e.partialText,
+                    'partialText',
+                    'Bonjour, comment',
+                  )
                   .having((e) => e.statusCode, 'statusCode', isNull),
             ),
             emitsDone,

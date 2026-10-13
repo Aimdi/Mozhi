@@ -309,7 +309,7 @@ void main() {
       await cubit.close();
       await cubit.load();
       await cubit.setDefault(null);
-      expect(cubit.state.status, PresetsStatus.loading);
+      expect(cubit.state, const PresetsState());
     });
   });
 

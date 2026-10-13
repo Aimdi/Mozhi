@@ -276,7 +276,7 @@ void main() {
       const text = 'Use `a` and `b`.';
       final document = parseMarkdown(text);
       expect(texts(document), ['Use ⟨1⟩ and ⟨2⟩.']);
-      expect(document.render(['Nutze ⟨1⟩ ⟨1⟩.']), 'Nutze `a` .  `b`');
+      expect(document.render(['Nutze ⟨1⟩ ⟨1⟩.']), 'Nutze `a` . `b`');
     });
 
     test('lines with only markup or symbols stay verbatim', () {
@@ -307,7 +307,7 @@ void main() {
           '[rel]: https://github.com/x/releases\n';
       final document = parseMarkdown(text);
       expect(texts(document), [
-        'Mozhi',
+        '⟨1⟩Mozhi⟨2⟩',
         'A **fast**, _private_ translator.',
         'Install',
         'Download the [latest release]⟨1⟩.',

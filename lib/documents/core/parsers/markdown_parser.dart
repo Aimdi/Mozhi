@@ -48,6 +48,15 @@ final _tableDelimiter = RegExp(
   r'|^[ \t]*\|[ \t]*:?-+:?[ \t]*\|?[ \t]*$',
 );
 final _frontMatterOpen = RegExp(r'^---[ \t]*$');
+
+/// Block-level HTML tags, which may interrupt a paragraph.
+final _htmlBlockTag = RegExp(
+  r'^[ \t]{0,3}</?(?:address|article|aside|blockquote|body|center|details|'
+  r'dialog|dd|div|dl|dt|fieldset|figcaption|figure|footer|form|h[1-6]|head|'
+  r'header|hr|html|li|main|nav|ol|p|section|summary|table|tbody|td|tfoot|th|'
+  r'thead|tr|ul)(?:[\s/>]|$)',
+  caseSensitive: false,
+);
 final _frontMatterClose = RegExp(r'^(?:---|\.\.\.)[ \t]*$');
 
 class _MarkdownParser {
@@ -78,6 +87,9 @@ class _MarkdownParser {
     }
 
     final unquoted = content.replaceFirst(_quotePrefix, '');
+    // An empty quote line (`>`) separates paragraphs like a blank line.
+    if (unquoted.trim().isEmpty) return _literal(i, i + 1);
+
     final fence = _fenceOpen.firstMatch(unquoted);
     if (fence != null) {
       final marker = fence.group(1) ?? fence.group(2)!;
@@ -179,6 +191,7 @@ class _MarkdownParser {
           !_startsBlock(lines[end].content, quoteDepth)) {
         final next = lines[end].content;
         final prefix = _continuationPrefix.stringMatch(next) ?? '';
+        if (next.length == prefix.length) break;
         continuation ??= prefix;
         pieces
           ..add(TextPiece('${lines[end - 1].ending}$prefix', '\n'))
@@ -223,6 +236,7 @@ class _MarkdownParser {
         _setextUnderline.hasMatch(rest) ||
         _linkDefinition.hasMatch(rest) ||
         _rawHtmlOpen.hasMatch(rest) ||
+        _htmlBlockTag.hasMatch(rest) ||
         trimmed.startsWith('<!--') ||
         trimmed.startsWith('|');
   }

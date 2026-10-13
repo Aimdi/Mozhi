@@ -76,10 +76,7 @@ void main() {
         );
         expect(ThinkTagFilter.strip('\n</THINKING>\n\nAnswer'), 'Answer');
         expect(ThinkTagFilter.strip('x</reasoning>'), isEmpty);
-        expect(
-          ThinkTagFilter.strip('a</think>\n<think>b</think> c'),
-          'c',
-        );
+        expect(ThinkTagFilter.strip('a</think>\n<think>b</think> c'), 'c');
       });
 
       test('keeps a closing tag that follows an opening tag', () {
@@ -228,8 +225,7 @@ void main() {
           'Before <THINKING>x</thinking> after <reasoning>y',
           'a <b <think>c</think> d <thin',
           '日本語 <think>思考</think> テキスト 👋',
-          ' \n<thinking>x</thinking>\n<REASONING>y</reasoning>  Answer '
-              '<think>kept</think>',
+          ' \n<thinking>x</thinking>\n<REASONING>y</reasoning>  A <think>b',
           '\n</think>\n\nBonjour',
           '<b>bold</b> <think>',
           '  <thin',

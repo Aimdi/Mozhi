@@ -280,7 +280,10 @@ class TranslateCommand extends MozhiCommand {
         ? (detected == null ? 'Auto' : 'Detected $detected')
         : source.name;
     final via = engine.isMozhi
-        ? repository.activeInstance?.displayName
+        ? switch (repository.activeInstance?.url) {
+            final url? => Uri.parse(url).host,
+            null => null,
+          }
         : engine.subtitle;
     final elapsed = result.elapsed;
     return [

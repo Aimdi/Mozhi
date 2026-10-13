@@ -64,13 +64,12 @@ class QuickTranslateCubit extends Cubit<QuickTranslateState> {
   Future<void> start({bool refresh = false}) async {
     final request = ++_loadRequest;
     _cancelTranslation();
-    emit(
-      state.copyWith(
-        status: QuickTranslateStatus.loading,
-        result: () => null,
-        error: () => null,
-      ),
+    final loading = state.copyWith(
+      status: QuickTranslateStatus.loading,
+      result: () => null,
+      error: () => null,
     );
+    if (loading != state) emit(loading);
     try {
       final engines = await _repository.getEngines(refresh: refresh);
       if (!_isCurrentLoad(request)) return;

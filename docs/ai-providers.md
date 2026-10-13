@@ -49,7 +49,7 @@ running on your own computer.
    | Base URL | Set by the preset. For local servers replace `localhost` with the computer's LAN address. |
    | API key | Required by cloud providers; optional for local servers. **Get an API key** opens the provider's key page. |
    | Model | The preset suggests one. **Browse models** lists what your key or server offers. |
-   | Reasoning effort | For models that think before answering: **Low** is fastest and is the right choice for translation. |
+   | Reasoning effort | For models that think before answering: **Low** is fastest and is the right choice for translation. Sent to Anthropic and OpenAI-compatible APIs (servers that reject it get the request again without it); Gemini and Ollama ignore it. |
    | Temperature | Leave it on the model's default unless you know you want something else. Not shown for Anthropic, whose current models don't accept it. |
    | Supports images | Turn on for vision models to translate photos and screenshots with them. |
 
@@ -156,8 +156,8 @@ pricing. Use the full model id shown in Together's model list, e.g.
 
 **Custom (OpenAI-compatible)** works with any server that implements
 `/v1/chat/completions` with a Bearer key: Fireworks, Cerebras, LiteLLM,
-LocalAI, Jan, vLLM and so on. Enter the base URL up to and
-including `/v1` and, if needed, a key.
+LocalAI, Jan, vLLM and so on. Enter the base URL up to and including `/v1`
+and, if needed, a key.
 
 ## What it costs
 
@@ -179,7 +179,7 @@ Other providers' small and mid-sized models are in the same range as the
 cheaper rows. What adds up:
 
 - **Instant translate with AI** sends a request every time you pause typing.
-- **Compare mode** runs every selected engine at once.
+- **Compare mode** runs all your engines at once.
 - **Extras** (insights, alternatives, explain, dictionary, suggestions) are one
   request each; Insights, once switched on, reloads for every translation.
 - Higher **reasoning effort** means more thinking tokens.

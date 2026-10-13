@@ -590,7 +590,10 @@ void main() {
       test('does not repeat the effort retry', () async {
         final server = FakeServer([
           FakeResponse.json(error('effort: unsupported'), statusCode: 400),
-          FakeResponse.json(error('effort: still unsupported'), statusCode: 400),
+          FakeResponse.json(
+            error('effort: still unsupported'),
+            statusCode: 400,
+          ),
         ]);
         await expectLater(
           _client(server).streamChat(_request().copyWith(effort: 'high')),

@@ -24,6 +24,7 @@ class GlossaryCubit extends Cubit<GlossaryState> {
   final GlossaryRepository _repository;
 
   Future<void> load() async {
+    if (isClosed) return;
     emit(state.copyWith(status: GlossaryStatus.loading));
     try {
       final glossaries = await _repository.load();

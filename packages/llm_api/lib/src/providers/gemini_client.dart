@@ -42,9 +42,9 @@ class GeminiClient extends HttpLlmClient {
           json: _body(request),
         );
         final end = ResponseEnd();
-        return sseEvents(
-          response,
-        ).expand((event) => _deltas(event, end)).transform(end.check());
+        return sseEvents(response)
+            .expand((event) => _deltas(event, end))
+            .transform(end.check());
       });
 
   @override
@@ -159,9 +159,7 @@ class GeminiClient extends HttpLlmClient {
             category: reason,
           );
         case 'LANGUAGE':
-          throw const LlmApiException(
-            'Gemini does not support this language.',
-          );
+          throw const LlmApiException('Gemini does not support this language.');
         case final reason:
           throw LlmApiException(
             'Gemini stopped without completing the response ($reason).',

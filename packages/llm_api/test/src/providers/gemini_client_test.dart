@@ -39,7 +39,7 @@ Map<String, Object?> _chunk(
 };
 
 /// A response that only finishes.
-final _stop = sse([
+final String _stop = sse([
   {
     'candidates': [
       {'finishReason': 'STOP'},
@@ -292,7 +292,11 @@ void main() {
             emitsError(
               isA<LlmTruncatedException>()
                   .having((e) => e.reason, 'reason', 'MAX_TOKENS')
-                  .having((e) => e.partialText, 'partialText', 'Partial para 1'),
+                  .having(
+                    (e) => e.partialText,
+                    'partialText',
+                    'Partial para 1',
+                  ),
             ),
           ]),
         );

@@ -268,7 +268,7 @@ void main() {
       test('streams to terminals and redraws the cleaned text', () async {
         h.terminal();
         expect(await h.run(['translate', '-e', 'local', 'Hello']), 0);
-        expect(h.written.toString(), '"Hal\r\x1B[JHallo\n');
+        expect(h.written.toString(), '"Hallo"\r\x1B[JHallo\n');
         expect(h.out, isEmpty);
         expect(h.stderr, contains('Local (gemma3)'));
       });

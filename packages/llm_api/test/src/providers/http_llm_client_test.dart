@@ -460,7 +460,9 @@ void main() {
         final server = FakeServer([
           FakeResponse(() async* {
             yield _delta('Bonjour, ');
-            throw http.ClientException('Connection closed while receiving data');
+            throw http.ClientException(
+              'Connection closed while receiving data',
+            );
           }),
         ]);
         await expectLater(
@@ -507,7 +509,11 @@ void main() {
             emitsError(
               isA<LlmTruncatedException>()
                   .having((e) => e.message, 'message', contains('[redacted]'))
-                  .having((e) => e.message, 'message', isNot(contains('cut off')))
+                  .having(
+                    (e) => e.message,
+                    'message',
+                    isNot(contains('cut off')),
+                  )
                   .having((e) => e.partialText, 'partialText', 'Part')
                   .having((e) => e.reason, 'reason', 'length'),
             ),
