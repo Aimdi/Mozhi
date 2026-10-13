@@ -20,7 +20,7 @@ void main() {
   tearDown(() => tracker.dispose());
 
   test('UsageState.copyWith keeps unchanged fields', () {
-    final state = UsageState(snapshot: UsageSnapshot(currentMonth: october));
+    const state = UsageState(snapshot: UsageSnapshot(currentMonth: october));
     final changed = state.copyWith(
       snapshot: const UsageSnapshot(currentMonth: UsageMonth(2026, 11)),
     );

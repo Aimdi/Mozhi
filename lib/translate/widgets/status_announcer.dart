@@ -88,10 +88,12 @@ class _StatusAnnouncerState extends State<StatusAnnouncer> {
   @override
   Widget build(BuildContext context) {
     final live = _live;
+    // Passthrough: the child is laid out exactly as without the announcer.
     if (live == null) {
-      return Stack(children: [widget.child]);
+      return Stack(fit: StackFit.passthrough, children: [widget.child]);
     }
     return Stack(
+      fit: StackFit.passthrough,
       children: [
         widget.child,
         PositionedDirectional(

@@ -4,12 +4,17 @@ import 'package:bloc/bloc.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mlkit_translator/mlkit_translator.dart';
 import 'package:mozhi/app/app_dependencies.dart';
+import 'package:mozhi/app/fallback_key_value_store.dart';
 import 'package:mozhi/bootstrap.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
+import 'package:mozhi/usage/data/usage_tracker.dart';
 import 'package:translation_repository/translation_repository.dart';
+
+import 'mocks.dart';
 
 class _Counter extends Cubit<int> {
   new() : super(0);
@@ -34,6 +39,36 @@ void main() {
         MozhiInstance.publicInstances,
       );
       expect(dependencies.translationRepository.providers, isEmpty);
+      expect(dependencies.secretsInMemory, isFalse);
+    });
+
+    test('creates the app-wide services on the preferences', () async {
+      final prefs = MemoryStore();
+      final dependencies = await createDependencies(
+        prefs: prefs,
+        secrets: MemoryStore(),
+      );
+
+      expect(dependencies.preferences, same(prefs));
+      expect(dependencies.offlineTranslator, isA<MlKitOfflineTranslator>());
+      expect(dependencies.speechInputService, isNotNull);
+
+      await dependencies.usageTracker.record('p', 4, 8);
+      expect(prefs.values.keys, contains(UsageTracker.storageKey));
+      await dependencies.usageTracker.dispose();
+      await dependencies.speechInputService.dispose();
+    });
+
+    test('hands the offline translator to the repository', () async {
+      final offline = FakeOfflineTranslator();
+      final dependencies = await createDependencies(
+        prefs: MemoryStore(),
+        secrets: MemoryStore(),
+        offlineTranslator: offline,
+      );
+
+      expect(dependencies.offlineTranslator, same(offline));
+      expect(dependencies.translationRepository.hasOfflineEngine, isFalse);
     });
 
     test('configures the repository from the saved settings', () async {
@@ -71,6 +106,27 @@ void main() {
       final repository = dependencies.settingsRepository;
       await repository.secrets.write('apikey.x', 'secret');
       expect(await repository.secrets.read('apikey.x'), 'secret');
+      expect(dependencies.secrets, isA<FallbackKeyValueStore>());
+      expect(dependencies.secretsInMemory, isTrue);
+    });
+
+    test('keeps web secrets for the session only', () {
+      expect(appSecureStorage.webOptions.useSessionStorage, isTrue);
+      expect(
+        appSecureStorage.mOptions.toMap()['usesDataProtectionKeychain'],
+        'false',
+      );
+    });
+  });
+
+  group('AppDependencies.secretsInMemory', () {
+    test('is false while secure storage works', () async {
+      final dependencies = await createDependencies(
+        prefs: MemoryStore(),
+        secrets: FallbackKeyValueStore(MemoryStore()),
+      );
+
+      expect(dependencies.secretsInMemory, isFalse);
     });
   });
 

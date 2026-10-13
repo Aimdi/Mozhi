@@ -2,7 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/l10n/l10n.dart';
-import 'package:mozhi/translate/translate.dart';
 import 'package:mozhi/translate/widgets/widgets.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -30,7 +29,10 @@ void main() {
     });
 
     test('is empty for the defaults', () {
-      expect(activeTranslationOptions(l10n, const TranslationOptions()), []);
+      expect(
+        activeTranslationOptions(l10n, const TranslationOptions()),
+        isEmpty,
+      );
     });
 
     test('lists every non-default option and how to clear it', () {
@@ -41,7 +43,7 @@ void main() {
         'Reading level B1',
         'Speaker: Feminine',
         'Addressee: Masculine',
-        'Context: A text message to my la…',
+        'Context: A text message to my lan…',
         'Formatting not kept',
         'Glossary · 2 terms',
       ]);

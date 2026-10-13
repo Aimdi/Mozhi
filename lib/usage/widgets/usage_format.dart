@@ -3,6 +3,9 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/usage/models/models.dart';
 
+/// The only locale whose date symbols are always available.
+const _fallbackDateLocale = 'en_US';
+
 /// Locale-aware formatting of usage numbers for the current [BuildContext].
 extension UsageFormat on BuildContext {
   String get _numberLocale => Intl.verifiedLocale(
@@ -32,12 +35,22 @@ extension UsageFormat on BuildContext {
       l10n.usageTokenEstimate(count, usageNumber(count));
 
   /// Short month name, e.g. `Oct`.
+  ///
+  /// Falls back to English for locales without date symbols, including when
+  /// no date symbols are loaded at all (they are loaded by the Material
+  /// localizations delegate).
   String usageMonthShort(UsageMonth month) {
-    final locale = Intl.verifiedLocale(
-      Localizations.localeOf(this).toString(),
-      DateFormat.localeExists,
-      onFailure: (_) => 'en',
-    );
+    String? locale;
+    try {
+      locale = Intl.verifiedLocale(
+        Localizations.localeOf(this).toString(),
+        DateFormat.localeExists,
+        onFailure: (_) => _fallbackDateLocale,
+      );
+    } on Exception {
+      // LocaleDataException: date symbols are not initialised.
+      locale = _fallbackDateLocale;
+    }
     return DateFormat.MMM(locale).format(month.start);
   }
 

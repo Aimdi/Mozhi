@@ -5,7 +5,28 @@ import 'package:mozhi/usage/usage.dart';
 import '../../helpers/helpers.dart';
 
 void main() {
+  // Must run first: no date symbols are loaded until a MaterialApp with the
+  // global Material localizations was pumped.
+  testWidgets('falls back to English without date symbols', (tester) async {
+    late BuildContext captured;
+    await tester.pumpWidget(
+      Localizations(
+        locale: const Locale('zz'),
+        delegates: const [DefaultWidgetsLocalizations.delegate],
+        child: Builder(
+          builder: (context) {
+            captured = context;
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
+    expect(captured.usageMonthShort(const UsageMonth(2026, 3)), 'Mar');
+  });
+
   testWidgets('falls back to English for unknown locales', (tester) async {
+    // Loads the date symbols.
+    await tester.pumpApp(const SizedBox());
     late BuildContext captured;
     await tester.pumpWidget(
       Localizations(
