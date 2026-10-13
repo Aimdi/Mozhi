@@ -45,7 +45,12 @@ const german = Language(code: 'de', name: 'German', nativeName: 'Deutsch');
 const spanish = Language(code: 'es', name: 'Spanish', nativeName: 'Español');
 const french = Language(code: 'fr', name: 'French', nativeName: 'Français');
 
-const List<Language> sourceLanguages = [Language.auto, english, german, spanish];
+const List<Language> sourceLanguages = [
+  Language.auto,
+  english,
+  german,
+  spanish,
+];
 const List<Language> targetLanguages = [english, german, spanish];
 
 const readyTranslateState = TranslateState(

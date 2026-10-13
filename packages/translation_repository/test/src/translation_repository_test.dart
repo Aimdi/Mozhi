@@ -18,6 +18,9 @@ void main() {
   late Map<String, MockLlmClient> llm;
   late List<MockLlmClient> llmQueue;
   late List<LlmEndpoint> llmBuilt;
+  late MockDeeplClient deepl;
+  late MockLibreTranslateClient libre;
+  late List<AiProviderConfig> mtBuilt;
   late TranslationRepository repository;
 
   MockMozhiApiClient a() => mozhi[instanceA.url]!;
@@ -38,6 +41,33 @@ void main() {
     providers: providers,
   );
 
+  TranslationRepository newRepository({
+    OfflineTranslator? offline,
+    TranslationCache? cache,
+  }) => TranslationRepository(
+    mozhiClientFactory: (uri) {
+      mozhiBuilt.add(uri);
+      return mozhi[uri.toString()]!;
+    },
+    llmClientFactory: (endpoint) {
+      llmBuilt.add(endpoint);
+      return llmQueue.isNotEmpty
+          ? llmQueue.removeAt(0)
+          : llm[endpoint.baseUrl.host]!;
+    },
+    deeplClientFactory: (config) {
+      mtBuilt.add(config);
+      return deepl;
+    },
+    libreTranslateClientFactory: (config) {
+      mtBuilt.add(config);
+      return libre;
+    },
+    offline: offline,
+    cache: cache,
+    snapshotInterval: Duration.zero,
+  );
+
   setUp(() {
     mozhi = {
       for (final instance in [instanceA, instanceB, instanceC])
@@ -50,24 +80,17 @@ void main() {
         openAiConfig,
         ollamaConfig,
         disabledConfig,
+        gemmaConfig,
+        cloudGemmaConfig,
       ])
         Uri.parse(config.baseUrl).host: MockLlmClient(),
     };
     llmQueue = [];
     llmBuilt = [];
-    repository = TranslationRepository(
-      mozhiClientFactory: (uri) {
-        mozhiBuilt.add(uri);
-        return mozhi[uri.toString()]!;
-      },
-      llmClientFactory: (endpoint) {
-        llmBuilt.add(endpoint);
-        return llmQueue.isNotEmpty
-            ? llmQueue.removeAt(0)
-            : llm[endpoint.baseUrl.host]!;
-      },
-      snapshotInterval: Duration.zero,
-    );
+    deepl = MockDeeplClient();
+    libre = MockLibreTranslateClient();
+    mtBuilt = [];
+    repository = newRepository();
   });
 
   // stubs

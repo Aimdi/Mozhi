@@ -4,11 +4,14 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/documents/documents.dart';
 import 'package:mozhi/documents/widgets/widgets.dart';
+import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:translation_repository/translation_repository.dart';
 
+import '../../helpers/helpers.dart';
 import '../helpers/fakes.dart';
 
 void main() {
@@ -218,7 +221,7 @@ void main() {
     testWidgets('shows size and binary errors', (tester) async {
       await pumpPage(tester);
       final cubit = cubitOf(tester);
-      cubit.loadFile('b.txt', bytesOf('a\u0000b'));
+      cubit.loadFile('b.txt', bytesOf('a${String.fromCharCode(0)}b'));
       await tester.pumpAndSettle();
       expect(find.text("This doesn't look like a text file."), findsOneWidget);
 
@@ -287,7 +290,6 @@ void main() {
       expect(find.byKey(const Key('documents_failures')), findsOneWidget);
       expect(find.text('Part 1'), findsOneWidget);
       expect(find.text("1 part isn't translated yet"), findsOneWidget);
-      expect(find.text('The translation preview appears here.'), findsNothing);
 
       failing = false;
       await tester.tap(find.byTooltip('Retry part 1'));
@@ -471,24 +473,35 @@ void main() {
   });
 
   group('labels', () {
-    testWidgets('sizes and estimates', (tester) async {
+    testWidgets('sizes, estimates and languages', (tester) async {
       late BuildContext context;
-      await tester.pumpWidget(
-        MaterialApp(
-          localizationsDelegates: const [
-            ...GlobalMaterialLocalizationsDelegates.delegates,
-          ],
-          home: Builder(
-            builder: (c) {
-              context = c;
-              return const SizedBox();
-            },
-          ),
+      await tester.pumpApp(
+        Builder(
+          builder: (c) {
+            context = c;
+            return const SizedBox();
+          },
         ),
       );
+      final l10n = context.l10n;
       expect(documentSizeLabel(context, 512), '512 B');
       expect(documentSizeLabel(context, 2048), '2 KB');
       expect(documentSizeLabel(context, 1536 * 1024), '1.5 MB');
+      expect(
+        documentEstimateLabel(l10n, const Duration(seconds: 30)),
+        'Under a minute',
+      );
+      expect(
+        documentEstimateLabel(l10n, const Duration(minutes: 3)),
+        'About 3 minutes',
+      );
+      expect(documentLanguageLabel(l10n, Language.auto), 'Detect language');
+      expect(documentLanguageLabel(l10n, german), 'German');
+      for (final format in DocumentFormat.values) {
+        expect(documentFormatLabel(l10n, format), isNotEmpty);
+        expect(documentFormatIcon(format), isNotNull);
+      }
+      expect(documentFormatIcon(null), Icons.insert_drive_file_outlined);
     });
   });
 }

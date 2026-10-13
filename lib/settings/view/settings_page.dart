@@ -46,7 +46,11 @@ class SettingsView extends StatelessWidget {
     // Each column is its own focus traversal group and semantics container,
     // so keyboard and screen-reader order finish the left column before
     // moving to the right one instead of zig-zagging between them.
-    Widget column(List<Widget> children) => Column(children: children);
+    Widget column(List<Widget> children) => Semantics(
+      container: true,
+      explicitChildNodes: true,
+      child: FocusTraversalGroup(child: Column(children: children)),
+    );
     return Scaffold(
       appBar: AppBar(title: Text(context.l10n.settingsTitle)),
       body: LayoutBuilder(
