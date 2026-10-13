@@ -10,11 +10,17 @@ abstract interface class KeyValueStore {
 }
 
 /// Plain preferences (settings, history).
+///
+/// The underlying [SharedPreferencesAsync] is created lazily on first use, so
+/// constructing a [PreferencesStore] never touches platform plugins (handy in
+/// tests and before plugin registration). Failures surface from the
+/// individual operations instead.
 class PreferencesStore implements KeyValueStore {
-  new([SharedPreferencesAsync? prefs])
-    : _prefs = prefs ?? SharedPreferencesAsync();
+  new([SharedPreferencesAsync? prefs]) : _instance = prefs;
 
-  final SharedPreferencesAsync _prefs;
+  SharedPreferencesAsync? _instance;
+
+  SharedPreferencesAsync get _prefs => _instance ??= SharedPreferencesAsync();
 
   @override
   Future<String?> read(String key) => _prefs.getString(key);

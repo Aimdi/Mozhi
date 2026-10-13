@@ -1,4 +1,5 @@
 import 'package:meta/meta.dart';
+import 'package:mozhi_api/src/models/json_readers.dart';
 
 /// A language supported by a Mozhi engine.
 ///
@@ -9,8 +10,8 @@ class MozhiLanguage {
   const new({required this.id, required this.name});
 
   factory fromJson(Map<String, dynamic> json) => MozhiLanguage(
-    id: (json['Id'] ?? json['id'] ?? '') as String,
-    name: (json['Name'] ?? json['name'] ?? '') as String,
+    id: readString(json['Id'] ?? json['id']),
+    name: readString(json['Name'] ?? json['name']),
   );
 
   final String id;

@@ -67,5 +67,1644 @@
   "navSettings": "Settings",
   "@navSettings": {
     "description": "Bottom navigation: settings tab"
+  },
+  "appProcessTextReady": "Translation ready",
+  "@appProcessTextReady": {
+    "description": "Snackbar shown after translating text selected in another app"
+  },
+  "appProcessTextReplace": "Replace text",
+  "@appProcessTextReplace": {
+    "description": "Snackbar action: replace the selected text in the other app with the translation"
+  },
+  "translateTitle": "Translate",
+  "@translateTitle": {
+    "description": "translateTitle"
+  },
+  "translateEngineSelectorTooltip": "Choose translation engine",
+  "@translateEngineSelectorTooltip": {
+    "description": "translateEngineSelectorTooltip"
+  },
+  "translateEngineSheetTitle": "Translation engine",
+  "@translateEngineSheetTitle": {
+    "description": "translateEngineSheetTitle"
+  },
+  "translateMozhiEnginesHeader": "Mozhi engines (via {instance})",
+  "@translateMozhiEnginesHeader": {
+    "placeholders": {
+      "instance": {
+        "type": "String"
+      }
+    }
+  },
+  "translateMozhiEnginesHeaderNoInstance": "Mozhi engines",
+  "@translateMozhiEnginesHeaderNoInstance": {
+    "description": "translateMozhiEnginesHeaderNoInstance"
+  },
+  "translateAiModelsHeader": "AI models",
+  "@translateAiModelsHeader": {
+    "description": "translateAiModelsHeader"
+  },
+  "translateBadgeLocal": "Local",
+  "@translateBadgeLocal": {
+    "description": "translateBadgeLocal"
+  },
+  "translateBadgeSelfHosted": "Self-hosted",
+  "@translateBadgeSelfHosted": {
+    "description": "translateBadgeSelfHosted"
+  },
+  "translateBadgeCloud": "Cloud",
+  "@translateBadgeCloud": {
+    "description": "translateBadgeCloud"
+  },
+  "translateAddAiProvider": "Add AI provider",
+  "@translateAddAiProvider": {
+    "description": "translateAddAiProvider"
+  },
+  "translateManageInstances": "Manage instances",
+  "@translateManageInstances": {
+    "description": "translateManageInstances"
+  },
+  "translateCompareModeEnter": "Compare engines",
+  "@translateCompareModeEnter": {
+    "description": "translateCompareModeEnter"
+  },
+  "translateCompareModeExit": "Exit compare mode",
+  "@translateCompareModeExit": {
+    "description": "translateCompareModeExit"
+  },
+  "translateOptionsTooltip": "Translation options",
+  "@translateOptionsTooltip": {
+    "description": "translateOptionsTooltip"
+  },
+  "translateOptionsModifiedTooltip": "Translation options (modified)",
+  "@translateOptionsModifiedTooltip": {
+    "description": "translateOptionsModifiedTooltip"
+  },
+  "translateSourceLanguage": "Source language: {language}",
+  "@translateSourceLanguage": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "translateTargetLanguage": "Target language: {language}",
+  "@translateTargetLanguage": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "translateSwapLanguages": "Swap languages",
+  "@translateSwapLanguages": {
+    "description": "translateSwapLanguages"
+  },
+  "translateDetectLanguage": "Detect language",
+  "@translateDetectLanguage": {
+    "description": "translateDetectLanguage"
+  },
+  "translateDetectedLanguage": "Detected: {language}",
+  "@translateDetectedLanguage": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "translatePickerSourceTitle": "Translate from",
+  "@translatePickerSourceTitle": {
+    "description": "translatePickerSourceTitle"
+  },
+  "translatePickerTargetTitle": "Translate to",
+  "@translatePickerTargetTitle": {
+    "description": "translatePickerTargetTitle"
+  },
+  "translatePickerSearchHint": "Search languages",
+  "@translatePickerSearchHint": {
+    "description": "translatePickerSearchHint"
+  },
+  "translatePickerRecent": "Recent",
+  "@translatePickerRecent": {
+    "description": "translatePickerRecent"
+  },
+  "translatePickerPinned": "Pinned",
+  "@translatePickerPinned": {
+    "description": "translatePickerPinned"
+  },
+  "translatePickerAll": "All languages",
+  "@translatePickerAll": {
+    "description": "translatePickerAll"
+  },
+  "translatePickerStyles": "Styles",
+  "@translatePickerStyles": {
+    "description": "translatePickerStyles"
+  },
+  "translatePickerNoResults": "No languages match “{query}”",
+  "@translatePickerNoResults": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "translatePickerUseCustom": "Use “{query}” as custom language",
+  "@translatePickerUseCustom": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "translatePickerCustomHint": "AI models can translate into any dialect or style you describe.",
+  "@translatePickerCustomHint": {
+    "description": "translatePickerCustomHint"
+  },
+  "translatePickerCustomBadge": "Custom",
+  "@translatePickerCustomBadge": {
+    "description": "translatePickerCustomBadge"
+  },
+  "translatePin": "Pin {language}",
+  "@translatePin": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "translateUnpin": "Unpin {language}",
+  "@translateUnpin": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "translateInputHint": "Enter text",
+  "@translateInputHint": {
+    "description": "translateInputHint"
+  },
+  "translateInputLabel": "Text to translate",
+  "@translateInputLabel": {
+    "description": "translateInputLabel"
+  },
+  "translatePaste": "Paste",
+  "@translatePaste": {
+    "description": "translatePaste"
+  },
+  "translateCharacterCount": "{count, plural, =1{1 character} other{{count} characters}}",
+  "@translateCharacterCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "translateTranslateButton": "Translate",
+  "@translateTranslateButton": {
+    "description": "translateTranslateButton"
+  },
+  "translateOutputHint": "Translation",
+  "@translateOutputHint": {
+    "description": "translateOutputHint"
+  },
+  "translateOutputLabel": "Translation",
+  "@translateOutputLabel": {
+    "description": "translateOutputLabel"
+  },
+  "translateTranslating": "Translating…",
+  "@translateTranslating": {
+    "description": "translateTranslating"
+  },
+  "translateErrorUnreachableInstance": "Couldn't reach the Mozhi instance. Check your connection or try another instance.",
+  "@translateErrorUnreachableInstance": {
+    "description": "translateErrorUnreachableInstance"
+  },
+  "translateErrorInstance": "The Mozhi instance returned an error ({code}). Try again or switch instances.",
+  "@translateErrorInstance": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "translateErrorRateLimited": "Too many requests right now. Wait a moment and try again.",
+  "@translateErrorRateLimited": {
+    "description": "translateErrorRateLimited"
+  },
+  "translateErrorAuth": "The AI provider rejected the request. Check the API key in the provider settings.",
+  "@translateErrorAuth": {
+    "description": "translateErrorAuth"
+  },
+  "translateErrorModelNotFound": "Model or endpoint not found. Check the provider settings.",
+  "@translateErrorModelNotFound": {
+    "description": "translateErrorModelNotFound"
+  },
+  "translateErrorUnreachableProvider": "Couldn't reach the AI provider. Check your connection and the server URL.",
+  "@translateErrorUnreachableProvider": {
+    "description": "translateErrorUnreachableProvider"
+  },
+  "translateErrorProvider": "The AI provider returned an error ({code}).",
+  "@translateErrorProvider": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "translateErrorRefused": "The model declined to translate this text.",
+  "@translateErrorRefused": {
+    "description": "translateErrorRefused"
+  },
+  "translateErrorTimeout": "The request timed out. Try again.",
+  "@translateErrorTimeout": {
+    "description": "translateErrorTimeout"
+  },
+  "translateErrorGeneric": "Something went wrong. Try again.",
+  "@translateErrorGeneric": {
+    "description": "translateErrorGeneric"
+  },
+  "translateProvidersAction": "AI providers",
+  "@translateProvidersAction": {
+    "description": "translateProvidersAction"
+  },
+  "translateFavorite": "Add to favourites",
+  "@translateFavorite": {
+    "description": "translateFavorite"
+  },
+  "translateUnfavorite": "Remove from favourites",
+  "@translateUnfavorite": {
+    "description": "translateUnfavorite"
+  },
+  "translateInsights": "Insights",
+  "@translateInsights": {
+    "description": "translateInsights"
+  },
+  "translateInsightsHide": "Hide insights",
+  "@translateInsightsHide": {
+    "description": "translateInsightsHide"
+  },
+  "translateInsightsEmpty": "No insights for this translation.",
+  "@translateInsightsEmpty": {
+    "description": "translateInsightsEmpty"
+  },
+  "translateInsightsHint": "Tap an underlined phrase to see the nuance and other ways to say it.",
+  "@translateInsightsHint": {
+    "description": "translateInsightsHint"
+  },
+  "translateInsightVariations": "Other ways to say it",
+  "@translateInsightVariations": {
+    "description": "translateInsightVariations"
+  },
+  "translateEngineElapsed": "{engine} · {seconds} s",
+  "@translateEngineElapsed": {
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      },
+      "seconds": {
+        "type": "String"
+      }
+    }
+  },
+  "translateMoreSuggestions": "More suggestions",
+  "@translateMoreSuggestions": {
+    "description": "translateMoreSuggestions"
+  },
+  "translateRefine": "Refine",
+  "@translateRefine": {
+    "description": "translateRefine"
+  },
+  "translateAlternatives": "Alternatives",
+  "@translateAlternatives": {
+    "description": "translateAlternatives"
+  },
+  "translateAlternativesEmpty": "No alternatives found.",
+  "@translateAlternativesEmpty": {
+    "description": "translateAlternativesEmpty"
+  },
+  "translateExplain": "Explain",
+  "@translateExplain": {
+    "description": "translateExplain"
+  },
+  "translateExplainTitle": "Explanation",
+  "@translateExplainTitle": {
+    "description": "translateExplainTitle"
+  },
+  "translateExplainFollowUpHint": "Ask a follow-up question",
+  "@translateExplainFollowUpHint": {
+    "description": "translateExplainFollowUpHint"
+  },
+  "translateExplainSend": "Send",
+  "@translateExplainSend": {
+    "description": "translateExplainSend"
+  },
+  "translateExplainYouAsked": "You asked: {question}",
+  "@translateExplainYouAsked": {
+    "placeholders": {
+      "question": {
+        "type": "String"
+      }
+    }
+  },
+  "translateExtrasError": "Couldn't load this. Try again.",
+  "@translateExtrasError": {
+    "description": "translateExtrasError"
+  },
+  "translateDictionary": "Dictionary",
+  "@translateDictionary": {
+    "description": "translateDictionary"
+  },
+  "translateDictionaryLookUp": "Look up “{word}”",
+  "@translateDictionaryLookUp": {
+    "placeholders": {
+      "word": {
+        "type": "String"
+      }
+    }
+  },
+  "translateAiGenerated": "AI-generated",
+  "@translateAiGenerated": {
+    "description": "translateAiGenerated"
+  },
+  "translateDictionaryExamples": "Examples",
+  "@translateDictionaryExamples": {
+    "description": "translateDictionaryExamples"
+  },
+  "translateDictionarySynonyms": "Synonyms",
+  "@translateDictionarySynonyms": {
+    "description": "translateDictionarySynonyms"
+  },
+  "translateDictionaryEtymology": "Etymology",
+  "@translateDictionaryEtymology": {
+    "description": "translateDictionaryEtymology"
+  },
+  "translateDefinitions": "Definitions",
+  "@translateDefinitions": {
+    "description": "translateDefinitions"
+  },
+  "translateOptionsTitle": "Translation options",
+  "@translateOptionsTitle": {
+    "description": "translateOptionsTitle"
+  },
+  "translateOptionsStyle": "Style",
+  "@translateOptionsStyle": {
+    "description": "translateOptionsStyle"
+  },
+  "translateStyleNatural": "Natural",
+  "@translateStyleNatural": {
+    "description": "translateStyleNatural"
+  },
+  "translateStyleLiteral": "Literal",
+  "@translateStyleLiteral": {
+    "description": "translateStyleLiteral"
+  },
+  "translateOptionsFormality": "Formality",
+  "@translateOptionsFormality": {
+    "description": "translateOptionsFormality"
+  },
+  "translateFormalityDefault": "Default",
+  "@translateFormalityDefault": {
+    "description": "translateFormalityDefault"
+  },
+  "translateFormalityMore": "More formal",
+  "@translateFormalityMore": {
+    "description": "translateFormalityMore"
+  },
+  "translateFormalityLess": "Less formal",
+  "@translateFormalityLess": {
+    "description": "translateFormalityLess"
+  },
+  "translateFormalityPreferMore": "Prefer formal",
+  "@translateFormalityPreferMore": {
+    "description": "translateFormalityPreferMore"
+  },
+  "translateFormalityPreferLess": "Prefer informal",
+  "@translateFormalityPreferLess": {
+    "description": "translateFormalityPreferLess"
+  },
+  "translateOptionsReadingLevel": "Reading level",
+  "@translateOptionsReadingLevel": {
+    "description": "translateOptionsReadingLevel"
+  },
+  "translateReadingStandard": "Standard",
+  "@translateReadingStandard": {
+    "description": "translateReadingStandard"
+  },
+  "translateReadingStandardDescription": "No simplification",
+  "@translateReadingStandardDescription": {
+    "description": "translateReadingStandardDescription"
+  },
+  "translateReadingA1Description": "Beginner",
+  "@translateReadingA1Description": {
+    "description": "translateReadingA1Description"
+  },
+  "translateReadingA2Description": "Elementary",
+  "@translateReadingA2Description": {
+    "description": "translateReadingA2Description"
+  },
+  "translateReadingB1Description": "Intermediate",
+  "@translateReadingB1Description": {
+    "description": "translateReadingB1Description"
+  },
+  "translateReadingB2Description": "Upper intermediate",
+  "@translateReadingB2Description": {
+    "description": "translateReadingB2Description"
+  },
+  "translateReadingC1Description": "Advanced",
+  "@translateReadingC1Description": {
+    "description": "translateReadingC1Description"
+  },
+  "translateReadingC2Description": "Proficient",
+  "@translateReadingC2Description": {
+    "description": "translateReadingC2Description"
+  },
+  "translateOptionsSpeakerGender": "Speaker gender",
+  "@translateOptionsSpeakerGender": {
+    "description": "translateOptionsSpeakerGender"
+  },
+  "translateOptionsAddresseeGender": "Addressee gender",
+  "@translateOptionsAddresseeGender": {
+    "description": "translateOptionsAddresseeGender"
+  },
+  "translateGenderUnknown": "Not specified",
+  "@translateGenderUnknown": {
+    "description": "translateGenderUnknown"
+  },
+  "translateGenderMasculine": "Masculine",
+  "@translateGenderMasculine": {
+    "description": "translateGenderMasculine"
+  },
+  "translateGenderFeminine": "Feminine",
+  "@translateGenderFeminine": {
+    "description": "translateGenderFeminine"
+  },
+  "translateGenderNeutral": "Neutral",
+  "@translateGenderNeutral": {
+    "description": "translateGenderNeutral"
+  },
+  "translateOptionsContext": "Context",
+  "@translateOptionsContext": {
+    "description": "translateOptionsContext"
+  },
+  "translateOptionsContextHint": "e.g. a text message to my landlord",
+  "@translateOptionsContextHint": {
+    "description": "translateOptionsContextHint"
+  },
+  "translateOptionsPreserveFormatting": "Preserve formatting",
+  "@translateOptionsPreserveFormatting": {
+    "description": "translateOptionsPreserveFormatting"
+  },
+  "translateOptionsPreserveFormattingDescription": "Keep line breaks, Markdown, links and placeholders",
+  "@translateOptionsPreserveFormattingDescription": {
+    "description": "translateOptionsPreserveFormattingDescription"
+  },
+  "translateOptionsGlossary": "Glossary",
+  "@translateOptionsGlossary": {
+    "description": "translateOptionsGlossary"
+  },
+  "translateOptionsGlossaryDescription": "Always translate these terms the same way.",
+  "@translateOptionsGlossaryDescription": {
+    "description": "translateOptionsGlossaryDescription"
+  },
+  "translateGlossarySource": "Term",
+  "@translateGlossarySource": {
+    "description": "translateGlossarySource"
+  },
+  "translateGlossaryTarget": "Translation",
+  "@translateGlossaryTarget": {
+    "description": "translateGlossaryTarget"
+  },
+  "translateGlossaryAdd": "Add term",
+  "@translateGlossaryAdd": {
+    "description": "translateGlossaryAdd"
+  },
+  "translateGlossaryRemove": "Remove {term}",
+  "@translateGlossaryRemove": {
+    "placeholders": {
+      "term": {
+        "type": "String"
+      }
+    }
+  },
+  "translateOptionsReset": "Reset to defaults",
+  "@translateOptionsReset": {
+    "description": "translateOptionsReset"
+  },
+  "translateCompareTitle": "Compare engines",
+  "@translateCompareTitle": {
+    "description": "translateCompareTitle"
+  },
+  "translateCompareButton": "Compare",
+  "@translateCompareButton": {
+    "description": "translateCompareButton"
+  },
+  "translateCompareHint": "Translate with every engine side by side and pick the best result.",
+  "@translateCompareHint": {
+    "description": "translateCompareHint"
+  },
+  "translateUseThis": "Use this",
+  "@translateUseThis": {
+    "description": "translateUseThis"
+  },
+  "translateNoEnginesTitle": "No translation engines available",
+  "@translateNoEnginesTitle": {
+    "description": "translateNoEnginesTitle"
+  },
+  "translateNoEnginesBody": "None of your Mozhi instances could be reached and no AI provider is set up. Try another instance or add an AI provider to start translating.",
+  "@translateNoEnginesBody": {
+    "description": "translateNoEnginesBody"
+  },
+  "translateLoadingEngines": "Loading engines…",
+  "@translateLoadingEngines": {
+    "description": "translateLoadingEngines"
+  },
+  "translateSpeechError": "Couldn't play audio.",
+  "@translateSpeechError": {
+    "description": "translateSpeechError"
+  },
+  "translateShortcutTranslate": "Translate (Ctrl+Enter)",
+  "@translateShortcutTranslate": {
+    "description": "translateShortcutTranslate"
+  },
+  "proofreadTitle": "Proofread",
+  "@proofreadTitle": {
+    "description": "proofreadTitle"
+  },
+  "proofreadInputLabel": "Text to proofread",
+  "@proofreadInputLabel": {
+    "description": "proofreadInputLabel"
+  },
+  "proofreadInputHint": "Type or paste text to check grammar, spelling and style",
+  "@proofreadInputHint": {
+    "description": "proofreadInputHint"
+  },
+  "proofreadPaste": "Paste",
+  "@proofreadPaste": {
+    "description": "proofreadPaste"
+  },
+  "proofreadCharacterCount": "{count, plural, =1{1 character} other{{count} characters}}",
+  "@proofreadCharacterCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "proofreadAction": "Proofread",
+  "@proofreadAction": {
+    "description": "proofreadAction"
+  },
+  "proofreadActionBusy": "Checking…",
+  "@proofreadActionBusy": {
+    "description": "proofreadActionBusy"
+  },
+  "proofreadStyleLabel": "Style",
+  "@proofreadStyleLabel": {
+    "description": "proofreadStyleLabel"
+  },
+  "proofreadStyleGeneral": "General",
+  "@proofreadStyleGeneral": {
+    "description": "proofreadStyleGeneral"
+  },
+  "proofreadStyleAcademic": "Academic",
+  "@proofreadStyleAcademic": {
+    "description": "proofreadStyleAcademic"
+  },
+  "proofreadStyleBusiness": "Business",
+  "@proofreadStyleBusiness": {
+    "description": "proofreadStyleBusiness"
+  },
+  "proofreadStyleCasual": "Casual",
+  "@proofreadStyleCasual": {
+    "description": "proofreadStyleCasual"
+  },
+  "proofreadStyleCreative": "Creative",
+  "@proofreadStyleCreative": {
+    "description": "proofreadStyleCreative"
+  },
+  "proofreadStyleEmail": "Email",
+  "@proofreadStyleEmail": {
+    "description": "proofreadStyleEmail"
+  },
+  "proofreadLevelLabel": "Correction level",
+  "@proofreadLevelLabel": {
+    "description": "proofreadLevelLabel"
+  },
+  "proofreadLevelLight": "Light",
+  "@proofreadLevelLight": {
+    "description": "proofreadLevelLight"
+  },
+  "proofreadLevelStandard": "Standard",
+  "@proofreadLevelStandard": {
+    "description": "proofreadLevelStandard"
+  },
+  "proofreadLevelComprehensive": "Comprehensive",
+  "@proofreadLevelComprehensive": {
+    "description": "proofreadLevelComprehensive"
+  },
+  "proofreadLevelLightDescription": "Only clear mistakes: spelling, grammar and punctuation",
+  "@proofreadLevelLightDescription": {
+    "description": "proofreadLevelLightDescription"
+  },
+  "proofreadLevelStandardDescription": "Mistakes plus awkward or unclear phrasing",
+  "@proofreadLevelStandardDescription": {
+    "description": "proofreadLevelStandardDescription"
+  },
+  "proofreadLevelComprehensiveDescription": "A thorough polish of wording, flow and tone",
+  "@proofreadLevelComprehensiveDescription": {
+    "description": "proofreadLevelComprehensiveDescription"
+  },
+  "proofreadFormalityLabel": "Formality",
+  "@proofreadFormalityLabel": {
+    "description": "proofreadFormalityLabel"
+  },
+  "proofreadFormalityAutomatic": "Automatic",
+  "@proofreadFormalityAutomatic": {
+    "description": "proofreadFormalityAutomatic"
+  },
+  "proofreadFormalityMore": "More formal",
+  "@proofreadFormalityMore": {
+    "description": "proofreadFormalityMore"
+  },
+  "proofreadFormalityLess": "Less formal",
+  "@proofreadFormalityLess": {
+    "description": "proofreadFormalityLess"
+  },
+  "proofreadFormalityPreferMore": "Prefer formal",
+  "@proofreadFormalityPreferMore": {
+    "description": "proofreadFormalityPreferMore"
+  },
+  "proofreadFormalityPreferLess": "Prefer informal",
+  "@proofreadFormalityPreferLess": {
+    "description": "proofreadFormalityPreferLess"
+  },
+  "proofreadEngineLabel": "Model",
+  "@proofreadEngineLabel": {
+    "description": "proofreadEngineLabel"
+  },
+  "proofreadLocalEngine": "Runs locally",
+  "@proofreadLocalEngine": {
+    "description": "proofreadLocalEngine"
+  },
+  "proofreadContextAdd": "Add context",
+  "@proofreadContextAdd": {
+    "description": "proofreadContextAdd"
+  },
+  "proofreadContextLabel": "Context",
+  "@proofreadContextLabel": {
+    "description": "proofreadContextLabel"
+  },
+  "proofreadContextHint": "e.g. cover letter for a job application",
+  "@proofreadContextHint": {
+    "description": "proofreadContextHint"
+  },
+  "proofreadResultTitle": "Corrected text",
+  "@proofreadResultTitle": {
+    "description": "proofreadResultTitle"
+  },
+  "proofreadShowChanges": "Show changes",
+  "@proofreadShowChanges": {
+    "description": "proofreadShowChanges"
+  },
+  "proofreadHideChanges": "Hide changes",
+  "@proofreadHideChanges": {
+    "description": "proofreadHideChanges"
+  },
+  "proofreadUseAsInput": "Use as input",
+  "@proofreadUseAsInput": {
+    "description": "proofreadUseAsInput"
+  },
+  "proofreadLoading": "Checking your text…",
+  "@proofreadLoading": {
+    "description": "proofreadLoading"
+  },
+  "proofreadPlaceholder": "Your corrected text and suggested edits will appear here.",
+  "@proofreadPlaceholder": {
+    "description": "proofreadPlaceholder"
+  },
+  "proofreadNoIssuesTitle": "Looks good!",
+  "@proofreadNoIssuesTitle": {
+    "description": "proofreadNoIssuesTitle"
+  },
+  "proofreadNoIssuesBody": "No issues found in your text.",
+  "@proofreadNoIssuesBody": {
+    "description": "proofreadNoIssuesBody"
+  },
+  "proofreadEditsTitle": "Suggested edits",
+  "@proofreadEditsTitle": {
+    "description": "proofreadEditsTitle"
+  },
+  "proofreadEditsApplied": "{accepted} of {total} applied",
+  "@proofreadEditsApplied": {
+    "placeholders": {
+      "accepted": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "proofreadAcceptAll": "Accept all",
+  "@proofreadAcceptAll": {
+    "description": "proofreadAcceptAll"
+  },
+  "proofreadRejectAll": "Reject all",
+  "@proofreadRejectAll": {
+    "description": "proofreadRejectAll"
+  },
+  "proofreadEditApply": "Apply edit",
+  "@proofreadEditApply": {
+    "description": "proofreadEditApply"
+  },
+  "proofreadEditRevert": "Revert edit",
+  "@proofreadEditRevert": {
+    "description": "proofreadEditRevert"
+  },
+  "proofreadEditNotFound": "Couldn't match this edit to your text.",
+  "@proofreadEditNotFound": {
+    "description": "proofreadEditNotFound"
+  },
+  "proofreadChangedTo": "changed to",
+  "@proofreadChangedTo": {
+    "description": "proofreadChangedTo"
+  },
+  "proofreadRemovedSemantics": "removed: {text}",
+  "@proofreadRemovedSemantics": {
+    "placeholders": {
+      "text": {
+        "type": "String"
+      }
+    }
+  },
+  "proofreadInsertedSemantics": "added: {text}",
+  "@proofreadInsertedSemantics": {
+    "placeholders": {
+      "text": {
+        "type": "String"
+      }
+    }
+  },
+  "proofreadCategoryGrammar": "Grammar",
+  "@proofreadCategoryGrammar": {
+    "description": "proofreadCategoryGrammar"
+  },
+  "proofreadCategorySpelling": "Spelling",
+  "@proofreadCategorySpelling": {
+    "description": "proofreadCategorySpelling"
+  },
+  "proofreadCategoryPunctuation": "Punctuation",
+  "@proofreadCategoryPunctuation": {
+    "description": "proofreadCategoryPunctuation"
+  },
+  "proofreadCategoryStyle": "Style",
+  "@proofreadCategoryStyle": {
+    "description": "proofreadCategoryStyle"
+  },
+  "proofreadCategoryClarity": "Clarity",
+  "@proofreadCategoryClarity": {
+    "description": "proofreadCategoryClarity"
+  },
+  "proofreadCategoryWordChoice": "Word choice",
+  "@proofreadCategoryWordChoice": {
+    "description": "proofreadCategoryWordChoice"
+  },
+  "proofreadCategoryTone": "Tone",
+  "@proofreadCategoryTone": {
+    "description": "proofreadCategoryTone"
+  },
+  "proofreadCategoryRepetition": "Repetition",
+  "@proofreadCategoryRepetition": {
+    "description": "proofreadCategoryRepetition"
+  },
+  "proofreadEmptyTitle": "Proofreading needs an AI provider",
+  "@proofreadEmptyTitle": {
+    "description": "proofreadEmptyTitle"
+  },
+  "proofreadEmptyBody": "Add an OpenAI-compatible, Anthropic, Gemini or Ollama provider, including a local model, to check grammar, spelling and style.",
+  "@proofreadEmptyBody": {
+    "description": "proofreadEmptyBody"
+  },
+  "proofreadEmptyAction": "Add AI provider",
+  "@proofreadEmptyAction": {
+    "description": "proofreadEmptyAction"
+  },
+  "proofreadErrorTitle": "Couldn't proofread",
+  "@proofreadErrorTitle": {
+    "description": "proofreadErrorTitle"
+  },
+  "proofreadErrorGeneric": "Something went wrong. Please try again.",
+  "@proofreadErrorGeneric": {
+    "description": "proofreadErrorGeneric"
+  },
+  "proofreadErrorRefused": "The model declined to proofread this text.",
+  "@proofreadErrorRefused": {
+    "description": "proofreadErrorRefused"
+  },
+  "proofreadErrorAuth": "The AI provider rejected the API key. Check it in Settings.",
+  "@proofreadErrorAuth": {
+    "description": "proofreadErrorAuth"
+  },
+  "proofreadErrorRateLimited": "The AI provider is rate limiting requests. Try again in a moment.",
+  "@proofreadErrorRateLimited": {
+    "description": "proofreadErrorRateLimited"
+  },
+  "proofreadErrorProvider": "The AI provider returned an error: {message}",
+  "@proofreadErrorProvider": {
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "commonAdd": "Add",
+  "@commonAdd": {
+    "description": "commonAdd"
+  },
+  "commonUndo": "Undo",
+  "@commonUndo": {
+    "description": "commonUndo"
+  },
+  "commonMoreOptions": "More options",
+  "@commonMoreOptions": {
+    "description": "commonMoreOptions"
+  },
+  "settingsTitle": "Settings",
+  "@settingsTitle": {
+    "description": "settingsTitle"
+  },
+  "settingsSectionServices": "Translation services",
+  "@settingsSectionServices": {
+    "description": "settingsSectionServices"
+  },
+  "settingsInstancesTitle": "Mozhi instances",
+  "@settingsInstancesTitle": {
+    "description": "settingsInstancesTitle"
+  },
+  "settingsInstancesSummary": "{host} · {count, plural, =1{1 instance} other{{count} instances}}",
+  "@settingsInstancesSummary": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsInstancesNone": "No instances. Add one to use Mozhi engines.",
+  "@settingsInstancesNone": {
+    "description": "settingsInstancesNone"
+  },
+  "settingsProvidersTitle": "AI providers",
+  "@settingsProvidersTitle": {
+    "description": "settingsProvidersTitle"
+  },
+  "settingsProvidersSummary": "{enabled} of {total} enabled",
+  "@settingsProvidersSummary": {
+    "placeholders": {
+      "enabled": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsProvidersNone": "Use your own API key or a local model",
+  "@settingsProvidersNone": {
+    "description": "settingsProvidersNone"
+  },
+  "settingsSectionTranslation": "Translation",
+  "@settingsSectionTranslation": {
+    "description": "settingsSectionTranslation"
+  },
+  "settingsInstantTranslate": "Instant translate",
+  "@settingsInstantTranslate": {
+    "description": "settingsInstantTranslate"
+  },
+  "settingsInstantTranslateSubtitle": "Translate as you type with Mozhi engines",
+  "@settingsInstantTranslateSubtitle": {
+    "description": "settingsInstantTranslateSubtitle"
+  },
+  "settingsInstantTranslateAi": "Instant translate with AI",
+  "@settingsInstantTranslateAi": {
+    "description": "settingsInstantTranslateAi"
+  },
+  "settingsInstantTranslateAiSubtitle": "Translate as you type with AI providers. Uses more tokens and may cost money.",
+  "@settingsInstantTranslateAiSubtitle": {
+    "description": "settingsInstantTranslateAiSubtitle"
+  },
+  "settingsSaveHistory": "Save history",
+  "@settingsSaveHistory": {
+    "description": "settingsSaveHistory"
+  },
+  "settingsSaveHistorySubtitle": "Keep translations on this device",
+  "@settingsSaveHistorySubtitle": {
+    "description": "settingsSaveHistorySubtitle"
+  },
+  "settingsShowTransliteration": "Show transliteration",
+  "@settingsShowTransliteration": {
+    "description": "settingsShowTransliteration"
+  },
+  "settingsShowTransliterationSubtitle": "Romanized text under non-Latin scripts",
+  "@settingsShowTransliterationSubtitle": {
+    "description": "settingsShowTransliterationSubtitle"
+  },
+  "settingsAssistEngine": "AI assistant for insights",
+  "@settingsAssistEngine": {
+    "description": "settingsAssistEngine"
+  },
+  "settingsAssistEngineAutomatic": "Automatic",
+  "@settingsAssistEngineAutomatic": {
+    "description": "settingsAssistEngineAutomatic"
+  },
+  "settingsAssistEngineAutomaticSubtitle": "First enabled AI provider",
+  "@settingsAssistEngineAutomaticSubtitle": {
+    "description": "settingsAssistEngineAutomaticSubtitle"
+  },
+  "settingsAssistEngineNone": "Add an AI provider for alternatives, insights and explanations",
+  "@settingsAssistEngineNone": {
+    "description": "settingsAssistEngineNone"
+  },
+  "settingsAssistEngineDialogBody": "Used for alternatives, word insights and explanations while you translate with a Mozhi engine.",
+  "@settingsAssistEngineDialogBody": {
+    "description": "settingsAssistEngineDialogBody"
+  },
+  "settingsSectionAppearance": "Appearance",
+  "@settingsSectionAppearance": {
+    "description": "settingsSectionAppearance"
+  },
+  "settingsTheme": "Theme",
+  "@settingsTheme": {
+    "description": "settingsTheme"
+  },
+  "settingsThemeSystem": "System",
+  "@settingsThemeSystem": {
+    "description": "settingsThemeSystem"
+  },
+  "settingsThemeLight": "Light",
+  "@settingsThemeLight": {
+    "description": "settingsThemeLight"
+  },
+  "settingsThemeDark": "Dark",
+  "@settingsThemeDark": {
+    "description": "settingsThemeDark"
+  },
+  "settingsDynamicColor": "Dynamic color",
+  "@settingsDynamicColor": {
+    "description": "settingsDynamicColor"
+  },
+  "settingsDynamicColorSubtitle": "Use colors from your wallpaper (Material You, Android 12+)",
+  "@settingsDynamicColorSubtitle": {
+    "description": "settingsDynamicColorSubtitle"
+  },
+  "settingsPureBlack": "Pure black",
+  "@settingsPureBlack": {
+    "description": "settingsPureBlack"
+  },
+  "settingsPureBlackSubtitle": "True black backgrounds in dark mode, easier on OLED screens",
+  "@settingsPureBlackSubtitle": {
+    "description": "settingsPureBlackSubtitle"
+  },
+  "settingsAccentColor": "Accent color",
+  "@settingsAccentColor": {
+    "description": "settingsAccentColor"
+  },
+  "settingsColorIndigo": "Indigo",
+  "@settingsColorIndigo": {
+    "description": "settingsColorIndigo"
+  },
+  "settingsColorBlue": "Blue",
+  "@settingsColorBlue": {
+    "description": "settingsColorBlue"
+  },
+  "settingsColorTeal": "Teal",
+  "@settingsColorTeal": {
+    "description": "settingsColorTeal"
+  },
+  "settingsColorGreen": "Green",
+  "@settingsColorGreen": {
+    "description": "settingsColorGreen"
+  },
+  "settingsColorOlive": "Olive",
+  "@settingsColorOlive": {
+    "description": "settingsColorOlive"
+  },
+  "settingsColorAmber": "Amber",
+  "@settingsColorAmber": {
+    "description": "settingsColorAmber"
+  },
+  "settingsColorOrange": "Orange",
+  "@settingsColorOrange": {
+    "description": "settingsColorOrange"
+  },
+  "settingsColorRed": "Red",
+  "@settingsColorRed": {
+    "description": "settingsColorRed"
+  },
+  "settingsColorPink": "Pink",
+  "@settingsColorPink": {
+    "description": "settingsColorPink"
+  },
+  "settingsColorPurple": "Purple",
+  "@settingsColorPurple": {
+    "description": "settingsColorPurple"
+  },
+  "settingsSectionData": "Data",
+  "@settingsSectionData": {
+    "description": "settingsSectionData"
+  },
+  "settingsExportHistory": "Export history",
+  "@settingsExportHistory": {
+    "description": "settingsExportHistory"
+  },
+  "settingsExportHistorySubtitle": "Copy or share your history as JSON",
+  "@settingsExportHistorySubtitle": {
+    "description": "settingsExportHistorySubtitle"
+  },
+  "settingsExportCopy": "Copy JSON to clipboard",
+  "@settingsExportCopy": {
+    "description": "settingsExportCopy"
+  },
+  "settingsExportShare": "Share as file",
+  "@settingsExportShare": {
+    "description": "settingsExportShare"
+  },
+  "settingsExportCopied": "History copied as JSON",
+  "@settingsExportCopied": {
+    "description": "settingsExportCopied"
+  },
+  "settingsExportFailed": "Couldn't export history",
+  "@settingsExportFailed": {
+    "description": "settingsExportFailed"
+  },
+  "settingsImportHistory": "Import history",
+  "@settingsImportHistory": {
+    "description": "settingsImportHistory"
+  },
+  "settingsImportHistorySubtitle": "Paste JSON exported from Mozhi",
+  "@settingsImportHistorySubtitle": {
+    "description": "settingsImportHistorySubtitle"
+  },
+  "settingsImportHint": "Paste exported JSON here",
+  "@settingsImportHint": {
+    "description": "settingsImportHint"
+  },
+  "settingsImportPaste": "Paste from clipboard",
+  "@settingsImportPaste": {
+    "description": "settingsImportPaste"
+  },
+  "settingsImportAction": "Import",
+  "@settingsImportAction": {
+    "description": "settingsImportAction"
+  },
+  "settingsImportInvalid": "This isn't valid Mozhi history JSON.",
+  "@settingsImportInvalid": {
+    "description": "settingsImportInvalid"
+  },
+  "settingsImportDone": "History imported",
+  "@settingsImportDone": {
+    "description": "settingsImportDone"
+  },
+  "settingsClearHistorySubtitle": "Remove saved translations from this device",
+  "@settingsClearHistorySubtitle": {
+    "description": "settingsClearHistorySubtitle"
+  },
+  "settingsSectionAbout": "About",
+  "@settingsSectionAbout": {
+    "description": "settingsSectionAbout"
+  },
+  "settingsAbout": "About Mozhi",
+  "@settingsAbout": {
+    "description": "settingsAbout"
+  },
+  "settingsAboutSubtitle": "Version, source code, licenses and privacy",
+  "@settingsAboutSubtitle": {
+    "description": "settingsAboutSubtitle"
+  },
+  "settingsLinkOpenFailed": "Couldn't open the link",
+  "@settingsLinkOpenFailed": {
+    "description": "settingsLinkOpenFailed"
+  },
+  "settingsInstancesReset": "Reset to public list",
+  "@settingsInstancesReset": {
+    "description": "settingsInstancesReset"
+  },
+  "settingsInstancesResetTitle": "Reset instances?",
+  "@settingsInstancesResetTitle": {
+    "description": "settingsInstancesResetTitle"
+  },
+  "settingsInstancesResetBody": "Your custom instances will be removed and the public instance list restored.",
+  "@settingsInstancesResetBody": {
+    "description": "settingsInstancesResetBody"
+  },
+  "settingsInstancesResetAction": "Reset",
+  "@settingsInstancesResetAction": {
+    "description": "settingsInstancesResetAction"
+  },
+  "settingsInstancesAdd": "Add instance",
+  "@settingsInstancesAdd": {
+    "description": "settingsInstancesAdd"
+  },
+  "settingsInstancesPreferred": "Preferred",
+  "@settingsInstancesPreferred": {
+    "description": "settingsInstancesPreferred"
+  },
+  "settingsInstancesMakePreferred": "Make preferred",
+  "@settingsInstancesMakePreferred": {
+    "description": "settingsInstancesMakePreferred"
+  },
+  "settingsInstancesRemove": "Remove",
+  "@settingsInstancesRemove": {
+    "description": "settingsInstancesRemove"
+  },
+  "settingsInstancesDragHandle": "Drag to reorder",
+  "@settingsInstancesDragHandle": {
+    "description": "settingsInstancesDragHandle"
+  },
+  "settingsInstancesLatency": "{ms} ms",
+  "@settingsInstancesLatency": {
+    "placeholders": {
+      "ms": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsInstancesOffline": "Offline",
+  "@settingsInstancesOffline": {
+    "description": "settingsInstancesOffline"
+  },
+  "settingsInstancesChecking": "Checking…",
+  "@settingsInstancesChecking": {
+    "description": "settingsInstancesChecking"
+  },
+  "settingsInstancesInfoTitle": "What is Mozhi?",
+  "@settingsInstancesInfoTitle": {
+    "description": "settingsInstancesInfoTitle"
+  },
+  "settingsInstancesInfoBody": "Mozhi is an open-source, self-hostable frontend for Google, DeepL, Yandex, Reverso, LibreTranslate and other engines. Instances are tried from top to bottom; drag to change the order.",
+  "@settingsInstancesInfoBody": {
+    "description": "settingsInstancesInfoBody"
+  },
+  "settingsInstancesPrivacy": "Public instances relay your text to the third-party engines they proxy. Self-hosting your own instance is the most private option.",
+  "@settingsInstancesPrivacy": {
+    "description": "settingsInstancesPrivacy"
+  },
+  "settingsInstancesLearnMore": "Mozhi on Codeberg",
+  "@settingsInstancesLearnMore": {
+    "description": "settingsInstancesLearnMore"
+  },
+  "settingsInstancesEmptyTitle": "No instances yet",
+  "@settingsInstancesEmptyTitle": {
+    "description": "settingsInstancesEmptyTitle"
+  },
+  "settingsInstancesEmptyBody": "Add your own instance or restore the public list.",
+  "@settingsInstancesEmptyBody": {
+    "description": "settingsInstancesEmptyBody"
+  },
+  "settingsInstanceUrl": "Instance URL",
+  "@settingsInstanceUrl": {
+    "description": "settingsInstanceUrl"
+  },
+  "settingsInstanceUrlHint": "https://mozhi.example.com",
+  "@settingsInstanceUrlHint": {
+    "description": "settingsInstanceUrlHint"
+  },
+  "settingsInstanceUrlInvalid": "Enter a valid URL, such as https://mozhi.example.com",
+  "@settingsInstanceUrlInvalid": {
+    "description": "settingsInstanceUrlInvalid"
+  },
+  "settingsInstanceUrlDuplicate": "This instance is already in your list",
+  "@settingsInstanceUrlDuplicate": {
+    "description": "settingsInstanceUrlDuplicate"
+  },
+  "settingsInstanceLabel": "Label (optional)",
+  "@settingsInstanceLabel": {
+    "description": "settingsInstanceLabel"
+  },
+  "settingsInstanceTest": "Test",
+  "@settingsInstanceTest": {
+    "description": "settingsInstanceTest"
+  },
+  "settingsInstanceTestOk": "Reachable in {ms} ms",
+  "@settingsInstanceTestOk": {
+    "placeholders": {
+      "ms": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsInstanceTestFailed": "Couldn't reach this instance: {error}",
+  "@settingsInstanceTestFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsInstanceAdded": "Instance added",
+  "@settingsInstanceAdded": {
+    "description": "settingsInstanceAdded"
+  },
+  "settingsInstanceRemoved": "Instance removed",
+  "@settingsInstanceRemoved": {
+    "description": "settingsInstanceRemoved"
+  },
+  "settingsProvidersAdd": "Add provider",
+  "@settingsProvidersAdd": {
+    "description": "settingsProvidersAdd"
+  },
+  "settingsProvidersLocal": "Local",
+  "@settingsProvidersLocal": {
+    "description": "settingsProvidersLocal"
+  },
+  "settingsProvidersCloud": "Cloud",
+  "@settingsProvidersCloud": {
+    "description": "settingsProvidersCloud"
+  },
+  "settingsProvidersEnable": "Enable {name}",
+  "@settingsProvidersEnable": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsProvidersEmptyTitle": "Bring your own AI",
+  "@settingsProvidersEmptyTitle": {
+    "description": "settingsProvidersEmptyTitle"
+  },
+  "settingsProvidersEmptyBody": "Connect an API key from OpenAI, Anthropic, Google, OpenRouter and others, or run a model on your own computer with Ollama or LM Studio for fully private translation.",
+  "@settingsProvidersEmptyBody": {
+    "description": "settingsProvidersEmptyBody"
+  },
+  "settingsProvidersEmptyBenefits": "AI providers unlock Kagi-style alternative translations, word insights, explanations, custom tones and proofreading.",
+  "@settingsProvidersEmptyBenefits": {
+    "description": "settingsProvidersEmptyBenefits"
+  },
+  "settingsProvidersPresetsTitle": "Choose a provider",
+  "@settingsProvidersPresetsTitle": {
+    "description": "settingsProvidersPresetsTitle"
+  },
+  "settingsProvidersFooter": "API keys are kept in secure storage on this device and are only sent to the provider you configure.",
+  "@settingsProvidersFooter": {
+    "description": "settingsProvidersFooter"
+  },
+  "settingsProviderNewTitle": "Add AI provider",
+  "@settingsProviderNewTitle": {
+    "description": "settingsProviderNewTitle"
+  },
+  "settingsProviderEditTitle": "Edit AI provider",
+  "@settingsProviderEditTitle": {
+    "description": "settingsProviderEditTitle"
+  },
+  "settingsProviderNotFound": "This provider no longer exists.",
+  "@settingsProviderNotFound": {
+    "description": "settingsProviderNotFound"
+  },
+  "settingsProviderName": "Name",
+  "@settingsProviderName": {
+    "description": "settingsProviderName"
+  },
+  "settingsProviderType": "Provider type",
+  "@settingsProviderType": {
+    "description": "settingsProviderType"
+  },
+  "settingsProviderTypeOpenAi": "OpenAI-compatible",
+  "@settingsProviderTypeOpenAi": {
+    "description": "settingsProviderTypeOpenAi"
+  },
+  "settingsProviderTypeAnthropic": "Anthropic",
+  "@settingsProviderTypeAnthropic": {
+    "description": "settingsProviderTypeAnthropic"
+  },
+  "settingsProviderTypeGemini": "Google Gemini",
+  "@settingsProviderTypeGemini": {
+    "description": "settingsProviderTypeGemini"
+  },
+  "settingsProviderTypeOllama": "Ollama (native API)",
+  "@settingsProviderTypeOllama": {
+    "description": "settingsProviderTypeOllama"
+  },
+  "settingsProviderBaseUrl": "Base URL",
+  "@settingsProviderBaseUrl": {
+    "description": "settingsProviderBaseUrl"
+  },
+  "settingsProviderApiKey": "API key",
+  "@settingsProviderApiKey": {
+    "description": "settingsProviderApiKey"
+  },
+  "settingsProviderApiKeyOptional": "API key (optional)",
+  "@settingsProviderApiKeyOptional": {
+    "description": "settingsProviderApiKeyOptional"
+  },
+  "settingsProviderShowKey": "Show API key",
+  "@settingsProviderShowKey": {
+    "description": "settingsProviderShowKey"
+  },
+  "settingsProviderHideKey": "Hide API key",
+  "@settingsProviderHideKey": {
+    "description": "settingsProviderHideKey"
+  },
+  "settingsProviderGetKey": "Get an API key",
+  "@settingsProviderGetKey": {
+    "description": "settingsProviderGetKey"
+  },
+  "settingsProviderKeyStorage": "Stored securely on this device",
+  "@settingsProviderKeyStorage": {
+    "description": "settingsProviderKeyStorage"
+  },
+  "settingsProviderModel": "Model",
+  "@settingsProviderModel": {
+    "description": "settingsProviderModel"
+  },
+  "settingsProviderBrowseModels": "Browse models",
+  "@settingsProviderBrowseModels": {
+    "description": "settingsProviderBrowseModels"
+  },
+  "settingsProviderModelsEmpty": "No models found",
+  "@settingsProviderModelsEmpty": {
+    "description": "settingsProviderModelsEmpty"
+  },
+  "settingsProviderModelsFailed": "Couldn't load models: {error}",
+  "@settingsProviderModelsFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsProviderModelSearch": "Search models",
+  "@settingsProviderModelSearch": {
+    "description": "settingsProviderModelSearch"
+  },
+  "settingsProviderSuggestedModels": "Suggested models",
+  "@settingsProviderSuggestedModels": {
+    "description": "settingsProviderSuggestedModels"
+  },
+  "settingsProviderEffort": "Reasoning effort",
+  "@settingsProviderEffort": {
+    "description": "settingsProviderEffort"
+  },
+  "settingsProviderEffortDefault": "Default",
+  "@settingsProviderEffortDefault": {
+    "description": "settingsProviderEffortDefault"
+  },
+  "settingsProviderEffortLow": "Low (fastest)",
+  "@settingsProviderEffortLow": {
+    "description": "settingsProviderEffortLow"
+  },
+  "settingsProviderEffortMedium": "Medium",
+  "@settingsProviderEffortMedium": {
+    "description": "settingsProviderEffortMedium"
+  },
+  "settingsProviderEffortHigh": "High (slowest)",
+  "@settingsProviderEffortHigh": {
+    "description": "settingsProviderEffortHigh"
+  },
+  "settingsProviderTemperature": "Temperature",
+  "@settingsProviderTemperature": {
+    "description": "settingsProviderTemperature"
+  },
+  "settingsProviderTemperatureDefault": "Use the model's default temperature",
+  "@settingsProviderTemperatureDefault": {
+    "description": "settingsProviderTemperatureDefault"
+  },
+  "settingsProviderVision": "Supports images",
+  "@settingsProviderVision": {
+    "description": "settingsProviderVision"
+  },
+  "settingsProviderVisionSubtitle": "Translate photos and screenshots with this model",
+  "@settingsProviderVisionSubtitle": {
+    "description": "settingsProviderVisionSubtitle"
+  },
+  "settingsProviderTest": "Test connection",
+  "@settingsProviderTest": {
+    "description": "settingsProviderTest"
+  },
+  "settingsProviderTestOk": "Connected. “Hello” in French: {output}",
+  "@settingsProviderTestOk": {
+    "placeholders": {
+      "output": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsProviderTestFailed": "Connection failed: {error}",
+  "@settingsProviderTestFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsProviderSaved": "Provider saved",
+  "@settingsProviderSaved": {
+    "description": "settingsProviderSaved"
+  },
+  "settingsProviderDeleteTitle": "Delete {name}?",
+  "@settingsProviderDeleteTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsProviderDeleteBody": "Its settings and API key will be removed from this device.",
+  "@settingsProviderDeleteBody": {
+    "description": "settingsProviderDeleteBody"
+  },
+  "settingsProviderDeleted": "Provider deleted",
+  "@settingsProviderDeleted": {
+    "description": "settingsProviderDeleted"
+  },
+  "settingsProviderRequired": "Required",
+  "@settingsProviderRequired": {
+    "description": "settingsProviderRequired"
+  },
+  "settingsProviderUrlInvalid": "Enter a valid http:// or https:// URL",
+  "@settingsProviderUrlInvalid": {
+    "description": "settingsProviderUrlInvalid"
+  },
+  "settingsProviderInsecureWarning": "Not encrypted: your text and API key would travel over plain HTTP. Use https:// for remote servers.",
+  "@settingsProviderInsecureWarning": {
+    "description": "settingsProviderInsecureWarning"
+  },
+  "settingsAboutTitle": "About",
+  "@settingsAboutTitle": {
+    "description": "settingsAboutTitle"
+  },
+  "settingsAboutVersion": "Version {version}",
+  "@settingsAboutVersion": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsAboutDescription": "A fast, private translator for self-hosted Mozhi instances and the AI models you choose.",
+  "@settingsAboutDescription": {
+    "description": "settingsAboutDescription"
+  },
+  "settingsAboutSource": "Source code",
+  "@settingsAboutSource": {
+    "description": "settingsAboutSource"
+  },
+  "settingsAboutMozhiProject": "Mozhi project",
+  "@settingsAboutMozhiProject": {
+    "description": "settingsAboutMozhiProject"
+  },
+  "settingsAboutMozhiProjectSubtitle": "The open-source translation frontend this app connects to",
+  "@settingsAboutMozhiProjectSubtitle": {
+    "description": "settingsAboutMozhiProjectSubtitle"
+  },
+  "settingsAboutLicenses": "Open-source licenses",
+  "@settingsAboutLicenses": {
+    "description": "settingsAboutLicenses"
+  },
+  "settingsAboutPrivacyTitle": "Privacy",
+  "@settingsAboutPrivacyTitle": {
+    "description": "settingsAboutPrivacyTitle"
+  },
+  "settingsAboutPrivacyTelemetry": "No telemetry, analytics or ads.",
+  "@settingsAboutPrivacyTelemetry": {
+    "description": "settingsAboutPrivacyTelemetry"
+  },
+  "settingsAboutPrivacyHistory": "Your history stays on this device.",
+  "@settingsAboutPrivacyHistory": {
+    "description": "settingsAboutPrivacyHistory"
+  },
+  "settingsAboutPrivacyServices": "Text is sent only to the Mozhi instances and AI providers you choose.",
+  "@settingsAboutPrivacyServices": {
+    "description": "settingsAboutPrivacyServices"
+  },
+  "historyTitle": "History",
+  "@historyTitle": {
+    "description": "historyTitle"
+  },
+  "historySearchHint": "Search history",
+  "@historySearchHint": {
+    "description": "historySearchHint"
+  },
+  "historyClearSearch": "Clear search",
+  "@historyClearSearch": {
+    "description": "historyClearSearch"
+  },
+  "historyFilterAll": "All",
+  "@historyFilterAll": {
+    "description": "historyFilterAll"
+  },
+  "historyFilterFavorites": "Favorites",
+  "@historyFilterFavorites": {
+    "description": "historyFilterFavorites"
+  },
+  "historyToday": "Today",
+  "@historyToday": {
+    "description": "historyToday"
+  },
+  "historyYesterday": "Yesterday",
+  "@historyYesterday": {
+    "description": "historyYesterday"
+  },
+  "historyFavorite": "Add to favorites",
+  "@historyFavorite": {
+    "description": "historyFavorite"
+  },
+  "historyUnfavorite": "Remove from favorites",
+  "@historyUnfavorite": {
+    "description": "historyUnfavorite"
+  },
+  "historyDeleted": "Translation deleted",
+  "@historyDeleted": {
+    "description": "historyDeleted"
+  },
+  "historyEmptyTitle": "No history yet",
+  "@historyEmptyTitle": {
+    "description": "historyEmptyTitle"
+  },
+  "historyEmptyBody": "Your translations will appear here. They're stored only on this device.",
+  "@historyEmptyBody": {
+    "description": "historyEmptyBody"
+  },
+  "historyNoMatchesTitle": "No matches",
+  "@historyNoMatchesTitle": {
+    "description": "historyNoMatchesTitle"
+  },
+  "historyNoMatchesBody": "Nothing matches “{query}”.",
+  "@historyNoMatchesBody": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "historyNoFavoritesTitle": "No favorites yet",
+  "@historyNoFavoritesTitle": {
+    "description": "historyNoFavoritesTitle"
+  },
+  "historyNoFavoritesBody": "Tap the star on a translation to keep it here.",
+  "@historyNoFavoritesBody": {
+    "description": "historyNoFavoritesBody"
+  },
+  "historyDisabledBanner": "History is off. New translations aren't saved.",
+  "@historyDisabledBanner": {
+    "description": "historyDisabledBanner"
+  },
+  "historyTurnOn": "Turn on",
+  "@historyTurnOn": {
+    "description": "historyTurnOn"
+  },
+  "historyLanguagePair": "{source} → {target}",
+  "@historyLanguagePair": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      },
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "historyDetected": "{language} (detected)",
+  "@historyDetected": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "historyOpenHint": "Open in translator",
+  "@historyOpenHint": {
+    "description": "historyOpenHint"
+  },
+  "historyLoadFailed": "Couldn't load history",
+  "@historyLoadFailed": {
+    "description": "historyLoadFailed"
+  },
+  "historyClearMenu": "Clear history",
+  "@historyClearMenu": {
+    "description": "historyClearMenu"
+  },
+  "historyClearTitle": "Clear history?",
+  "@historyClearTitle": {
+    "description": "historyClearTitle"
+  },
+  "historyClearBody": "This removes saved translations from this device. It can't be undone.",
+  "@historyClearBody": {
+    "description": "historyClearBody"
+  },
+  "historyClearKeepFavorites": "Keep favorites",
+  "@historyClearKeepFavorites": {
+    "description": "historyClearKeepFavorites"
+  },
+  "historyClearAction": "Clear",
+  "@historyClearAction": {
+    "description": "historyClearAction"
+  },
+  "historyCleared": "History cleared",
+  "@historyCleared": {
+    "description": "historyCleared"
   }
 }

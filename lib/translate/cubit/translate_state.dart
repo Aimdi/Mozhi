@@ -133,7 +133,38 @@ class TranslateState extends Equatable {
     DictionaryEntry? Function()? dictionary,
     Object? Function()? extraError,
   }) {
-    throw UnimplementedError('TODO(app-translate)');
+    return TranslateState(
+      enginesStatus: enginesStatus ?? this.enginesStatus,
+      engines: engines ?? this.engines,
+      engine: engine != null ? engine() : this.engine,
+      assistEngine: assistEngine != null ? assistEngine() : this.assistEngine,
+      sourceLanguages: sourceLanguages ?? this.sourceLanguages,
+      targetLanguages: targetLanguages ?? this.targetLanguages,
+      source: source ?? this.source,
+      target: target ?? this.target,
+      input: input ?? this.input,
+      options: options ?? this.options,
+      status: status ?? this.status,
+      result: result != null ? result() : this.result,
+      error: error != null ? error() : this.error,
+      compareMode: compareMode ?? this.compareMode,
+      compareEntries: compareEntries ?? this.compareEntries,
+      comparing: comparing ?? this.comparing,
+      alternativesStatus: alternativesStatus ?? this.alternativesStatus,
+      alternatives: alternatives != null ? alternatives() : this.alternatives,
+      alternativesSpan: alternativesSpan != null
+          ? alternativesSpan()
+          : this.alternativesSpan,
+      insightsStatus: insightsStatus ?? this.insightsStatus,
+      insights: insights ?? this.insights,
+      suggestionsStatus: suggestionsStatus ?? this.suggestionsStatus,
+      suggestions: suggestions ?? this.suggestions,
+      explainStatus: explainStatus ?? this.explainStatus,
+      explanation: explanation ?? this.explanation,
+      dictionaryStatus: dictionaryStatus ?? this.dictionaryStatus,
+      dictionary: dictionary != null ? dictionary() : this.dictionary,
+      extraError: extraError != null ? extraError() : this.extraError,
+    );
   }
 
   @override

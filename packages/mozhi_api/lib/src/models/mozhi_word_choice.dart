@@ -1,4 +1,5 @@
 import 'package:meta/meta.dart';
+import 'package:mozhi_api/src/models/json_readers.dart';
 
 /// Dictionary-style data for a single word, returned by some engines
 /// (mostly Google and Reverso) inside `word_choices`.
@@ -12,14 +13,13 @@ class MozhiWordChoice {
     this.examplesTarget = const [],
   });
 
-  factory fromJson(Map<String, dynamic> json) =>
-      MozhiWordChoice(
-        word: (json['word'] ?? '') as String,
-        definition: (json['definition'] ?? '') as String,
-        example: (json['example'] ?? '') as String,
-        examplesSource: _stringList(json['examples_source']),
-        examplesTarget: _stringList(json['examples_target']),
-      );
+  factory fromJson(Map<String, dynamic> json) => MozhiWordChoice(
+    word: readString(json['word']),
+    definition: readString(json['definition']),
+    example: readString(json['example']),
+    examplesSource: readStringList(json['examples_source']),
+    examplesTarget: readStringList(json['examples_target']),
+  );
 
   final String word;
   final String definition;
@@ -36,10 +36,6 @@ class MozhiWordChoice {
     'examples_source': examplesSource,
     'examples_target': examplesTarget,
   };
-
-  static List<String> _stringList(Object? value) => value is List
-      ? value.whereType<String>().toList(growable: false)
-      : const [];
 
   @override
   bool operator ==(Object other) =>

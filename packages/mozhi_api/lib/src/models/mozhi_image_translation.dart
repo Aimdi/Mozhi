@@ -1,4 +1,5 @@
 import 'package:meta/meta.dart';
+import 'package:mozhi_api/src/models/json_readers.dart';
 
 /// Result of `POST /api/image` (Go `libmozhi.ImgOut`, no JSON tags):
 /// `{"SourceB64": "...", "TranslatedImgB64": "...", "SourceLang": "auto",
@@ -15,9 +16,15 @@ class MozhiImageTranslation {
     this.translatedText = '',
   });
 
-  factory fromJson() {
-    throw UnimplementedError('TODO(mozhi_api): parse ImgOut JSON');
-  }
+  /// Missing or `null` fields become empty strings.
+  factory fromJson(Map<String, dynamic> json) => MozhiImageTranslation(
+    translatedImageBase64: readString(json['TranslatedImgB64']),
+    sourceImageBase64: readString(json['SourceB64']),
+    sourceLanguage: readString(json['SourceLang']),
+    targetLanguage: readString(json['TargetLang']),
+    sourceText: readString(json['SourceTextParsed']),
+    translatedText: readString(json['TranslatedTextParsed']),
+  );
 
   final String translatedImageBase64;
   final String sourceImageBase64;

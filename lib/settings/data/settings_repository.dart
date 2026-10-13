@@ -1,14 +1,103 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
+import 'package:translation_repository/translation_repository.dart';
 
 /// Loads/saves [AppSettings]: JSON under key `settings.v1` in [prefs];
 /// each provider's API key under `apikey.<providerId>` in [secrets].
 /// Corrupt JSON falls back to defaults (never throws from [load]).
 /// [save] deletes keys of providers that no longer exist.
+///
+/// [prefs] defaults to [PreferencesStore] and [secrets] to [SecureStore].
+/// Saves are serialised, so the last [save] call always wins.
 class SettingsRepository {
-  new();
+  new({KeyValueStore? prefs, KeyValueStore? secrets})
+    : prefs = prefs ?? PreferencesStore(),
+      secrets = secrets ?? SecureStore();
 
-  Future<AppSettings> load() => throw UnimplementedError('TODO(app-data)');
+  /// Key of the settings JSON in [prefs].
+  static const settingsKey = 'settings.v1';
 
-  Future<void> save(AppSettings settings) =>
-      throw UnimplementedError('TODO(app-data)');
+  /// Key of the API key of provider [providerId] in [secrets].
+  static String apiKeyKey(String providerId) => 'apikey.$providerId';
+
+  final KeyValueStore prefs;
+  final KeyValueStore secrets;
+
+  /// Provider ids known to have (had) a stored key, from the last
+  /// load/save. Used together with the stored JSON to find orphan keys.
+  final Set<String> _knownProviderIds = {};
+
+  Future<void> _pendingSave = Future.value();
+
+  Future<AppSettings> load() async {
+    final settings = await _readSettings() ?? const AppSettings();
+    _knownProviderIds.addAll(settings.providers.map((p) => p.id));
+    if (settings.providers.isEmpty) return settings;
+    final providers = <AiProviderConfig>[];
+    for (final provider in settings.providers) {
+      final apiKey = await _readApiKey(provider.id);
+      providers.add(
+        apiKey == null ? provider : provider.copyWith(apiKey: apiKey),
+      );
+    }
+    return settings.copyWith(providers: List.unmodifiable(providers));
+  }
+
+  Future<void> save(AppSettings settings) {
+    final result = _pendingSave.then((_) => _save(settings));
+    _pendingSave = result.then<void>((_) {}, onError: (Object _) {});
+    return result;
+  }
+
+  Future<void> _save(AppSettings settings) async {
+    final previous = await _readSettings();
+    final staleIds = {
+      ..._knownProviderIds,
+      ...?previous?.providers.map((p) => p.id),
+    };
+
+    await prefs.write(settingsKey, jsonEncode(settings.toJson()));
+
+    for (final provider in settings.providers) {
+      staleIds.remove(provider.id);
+      final apiKey = provider.apiKey;
+      if (apiKey == null || apiKey.isEmpty) {
+        await secrets.delete(apiKeyKey(provider.id));
+      } else {
+        await secrets.write(apiKeyKey(provider.id), apiKey);
+      }
+    }
+    for (final id in staleIds) {
+      await secrets.delete(apiKeyKey(id));
+    }
+    _knownProviderIds
+      ..clear()
+      ..addAll(settings.providers.map((p) => p.id));
+  }
+
+  /// The stored settings without API keys, or null when nothing (valid) is
+  /// stored or storage is unavailable.
+  Future<AppSettings?> _readSettings() async {
+    try {
+      final raw = await prefs.read(settingsKey);
+      if (raw == null) return null;
+      final json = jsonDecode(raw);
+      if (json is! Map<String, dynamic>) return null;
+      return AppSettings.fromJson(json);
+    } on Object {
+      return null;
+    }
+  }
+
+  Future<String?> _readApiKey(String providerId) async {
+    try {
+      final key = await secrets.read(apiKeyKey(providerId));
+      return (key?.isEmpty ?? true) ? null : key;
+    } on Object {
+      return null;
+    }
+  }
 }
