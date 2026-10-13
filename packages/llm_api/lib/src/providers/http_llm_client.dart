@@ -267,3 +267,11 @@ abstract class HttpLlmClient implements LlmClient {
       ? '${duration.inSeconds} s'
       : '${duration.inMilliseconds} ms';
 }
+
+/// The non-blank system messages of [messages] joined with blank lines, for
+/// APIs that take the system prompt separately from the conversation.
+String joinSystemMessages(Iterable<LlmMessage> messages) => [
+  for (final message in messages)
+    if (message.role == LlmRole.system && message.content.trim().isNotEmpty)
+      message.content,
+].join('\n\n');

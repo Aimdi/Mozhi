@@ -22,6 +22,7 @@ LlmRequest _request([String model = 'claude-haiku-5-5']) => LlmRequest(
     LlmMessage.system('You translate.'),
     LlmMessage.user('Hallo'),
     LlmMessage.assistant('Hello'),
+    LlmMessage.system(''),
     LlmMessage.system('Be brief.'),
     LlmMessage.user('Tschüss'),
   ],

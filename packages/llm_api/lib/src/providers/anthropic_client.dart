@@ -127,15 +127,12 @@ class AnthropicClient extends HttpLlmClient {
     required int maxTokens,
     required bool fallbacks,
   }) {
-    final system = [
-      for (final message in request.messages)
-        if (message.role == LlmRole.system) message.content,
-    ].join('\n\n');
+    final system = joinSystemMessages(request.messages);
     return {
       'model': request.model,
       'max_tokens': maxTokens,
       'stream': true,
-      if (system.trim().isNotEmpty) 'system': system,
+      if (system.isNotEmpty) 'system': system,
       'messages': [
         for (final message in request.messages)
           if (message.role != LlmRole.system) _message(message),

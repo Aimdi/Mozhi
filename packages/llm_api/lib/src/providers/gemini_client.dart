@@ -79,10 +79,7 @@ class GeminiClient extends HttpLlmClient {
       };
 
   static Map<String, Object?> _body(LlmRequest request) {
-    final system = [
-      for (final message in request.messages)
-        if (message.role == LlmRole.system) message.content,
-    ].join('\n\n');
+    final system = joinSystemMessages(request.messages);
     final generationConfig = {
       'temperature': ?request.temperature,
       'maxOutputTokens': ?request.maxTokens,
@@ -93,7 +90,7 @@ class GeminiClient extends HttpLlmClient {
         for (final message in request.messages)
           if (message.role != LlmRole.system) _content(message),
       ],
-      if (system.trim().isNotEmpty)
+      if (system.isNotEmpty)
         'systemInstruction': {
           'parts': [
             {'text': system},
