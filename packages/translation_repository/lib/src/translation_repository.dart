@@ -28,7 +28,7 @@ typedef LlmClientFactory = LlmClient Function(LlmEndpoint endpoint);
 /// `refresh: true`).
 class TranslationRepository {
   /// [mozhiClientFactory] / [llmClientFactory] create the HTTP clients
-  /// (defaults: `MozhiApiClient(baseUrl: ...)` / `LlmClient(endpoint: ...)`).
+  /// (defaults: `MozhiApiClient(baseUrl: ...)` / `LlmClient(endpoint)`).
   /// Clients are cached per Mozhi instance URL and per AI provider
   /// connection settings.
   ///
@@ -43,11 +43,8 @@ class TranslationRepository {
   static MozhiApiClient _defaultMozhiClient(Uri baseUrl) =>
       MozhiApiClient(baseUrl: baseUrl);
 
-  // TEMP: invoked reflectively until llm_api's `LlmClient.new({endpoint})`
-  // lands; replace with `LlmClient(endpoint: endpoint)`.
   static LlmClient _defaultLlmClient(LlmEndpoint endpoint) =>
-      Function.apply(LlmClient.new, const [], {#endpoint: endpoint})
-          as LlmClient;
+      LlmClient(endpoint);
 
   final MozhiPool _mozhi;
   final LlmPool _llm;

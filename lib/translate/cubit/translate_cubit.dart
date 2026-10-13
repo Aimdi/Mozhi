@@ -227,11 +227,12 @@ class TranslateCubit extends Cubit<TranslateState> {
   Future<({List<Language> sources, List<Language> targets})> _loadLanguages(
     TranslationEngine engine,
   ) async {
-    final (sources, targets) = await (
+    // Future.wait (unlike record `.wait`) rethrows the original error.
+    final lists = await Future.wait([
       _repository.getSourceLanguages(engine),
       _repository.getTargetLanguages(engine),
-    ).wait;
-    return (sources: sources, targets: targets);
+    ]);
+    return (sources: lists[0], targets: lists[1]);
   }
 
   /// Applies the language lists of [engine] to [base], re-mapping the

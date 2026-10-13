@@ -7,7 +7,7 @@ import 'package:translation_repository/translation_repository.dart';
 
 /// Correction level, writing style, formality, engine and context controls.
 class ProofreadControls extends StatefulWidget {
-  const ProofreadControls({super.key});
+  const new({super.key});
 
   @override
   State<ProofreadControls> createState() => _ProofreadControlsState();
@@ -138,7 +138,7 @@ class _ProofreadControlsState extends State<ProofreadControls> {
 
 /// A compact "Label: value" button that opens a menu of [values].
 class ProofreadMenuButton<T> extends StatelessWidget {
-  const ProofreadMenuButton({
+  const new({
     required this.icon,
     required this.label,
     required this.value,
@@ -211,7 +211,7 @@ class ProofreadMenuButton<T> extends StatelessWidget {
 }
 
 class _MenuLabel extends StatelessWidget {
-  const _MenuLabel({required this.title, this.subtitle});
+  const new({required this.title, this.subtitle});
 
   final String title;
   final String? subtitle;

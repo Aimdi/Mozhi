@@ -16,7 +16,7 @@ import 'package:translation_repository/translation_repository.dart';
 /// Result area: loading/error states, the corrected text with an inline
 /// diff, the summary and the list of edits.
 class ProofreadResultSection extends StatelessWidget {
-  const ProofreadResultSection({this.showPlaceholder = false, super.key});
+  const new({this.showPlaceholder = false, super.key});
 
   /// Show a hint card before the first result (wide layouts).
   final bool showPlaceholder;
@@ -64,7 +64,7 @@ class ProofreadResultSection extends StatelessWidget {
 /// The corrected text (with or without highlighted changes), summary and
 /// copy/share/"use as input" actions.
 class ProofreadResultCard extends StatefulWidget {
-  const ProofreadResultCard({required this.state, super.key});
+  const new({required this.state, super.key});
 
   final ProofreadState state;
 
@@ -292,7 +292,7 @@ Future<void> showProofreadEditSheet(BuildContext context, int index) {
 
 /// Header with accept/reject all, followed by one tile per edit.
 class ProofreadEditsList extends StatelessWidget {
-  const ProofreadEditsList({required this.state, super.key});
+  const new({required this.state, super.key});
 
   final ProofreadState state;
 
@@ -352,7 +352,7 @@ class ProofreadEditsList extends StatelessWidget {
 }
 
 class _ErrorCard extends StatelessWidget {
-  const _ErrorCard({required this.error, required this.canRetry});
+  const new({required this.error, required this.canRetry});
 
   final Object? error;
   final bool canRetry;
@@ -417,7 +417,7 @@ class _ErrorCard extends StatelessWidget {
 }
 
 class _LoadingCard extends StatelessWidget {
-  const _LoadingCard();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -447,7 +447,7 @@ class _LoadingCard extends StatelessWidget {
 }
 
 class _PlaceholderCard extends StatelessWidget {
-  const _PlaceholderCard();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -479,7 +479,7 @@ class _PlaceholderCard extends StatelessWidget {
 }
 
 class _NoIssuesCard extends StatelessWidget {
-  const _NoIssuesCard({required this.summary});
+  const new({required this.summary});
 
   final String summary;
 

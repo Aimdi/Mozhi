@@ -10,10 +10,10 @@ class ProofreadButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final (canProofread, isLoading) = context.select(
-      (cubit) =>
-          (cubit.state.canProofread, cubit.state.isLoading),
-    );
+    final (canProofread, isLoading) = context
+        .select<ProofreadCubit, (bool, bool)>(
+          (cubit) => (cubit.state.canProofread, cubit.state.isLoading),
+        );
     return FilledButton.icon(
       key: const Key('proofread_button'),
       style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),

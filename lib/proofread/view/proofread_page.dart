@@ -43,12 +43,11 @@ class ProofreadView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasEngines = context.select(
+    final hasEngines = context.select<ProofreadCubit, bool>(
       (cubit) => cubit.state.availableEngines.isNotEmpty,
     );
-    final enginesLoading = context.select(
-      (cubit) =>
-          cubit.state.enginesStatus == EnginesStatus.loading,
+    final enginesLoading = context.select<TranslateCubit, bool>(
+      (cubit) => cubit.state.enginesStatus == EnginesStatus.loading,
     );
 
     final Widget body;

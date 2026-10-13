@@ -53,8 +53,9 @@ enum LlmRole { system, user, assistant }
 ///
 /// Wire formats: OpenAI-compatible content part
 /// `{"type": "image_url", "image_url": {"url": "data:<mime>;base64,<b64>"}}`;
-/// Anthropic block `{"type": "image", "source": {"type": "base64",
-/// "media_type": <mime>, "data": <b64>}}` placed before the text block;
+/// Anthropic block `{"type": "image", "source": <source>}` with source
+/// `{"type": "base64", "media_type": <mime>, "data": <b64>}`, placed before
+/// the text block;
 /// Gemini part `{"inlineData": {"mimeType": <mime>, "data": <b64>}}`;
 /// Ollama message field `"images": [<b64>]`.
 @immutable
@@ -68,11 +69,8 @@ class LlmImage {
 @immutable
 class LlmMessage {
   const new(this.role, this.content, {this.images = const []});
-  const new system(this.content)
-    : role = LlmRole.system,
-      images = const [];
-  const new user(this.content, {this.images = const []})
-    : role = LlmRole.user;
+  const new system(this.content) : role = LlmRole.system, images = const [];
+  const new user(this.content, {this.images = const []}) : role = LlmRole.user;
   const new assistant(this.content)
     : role = LlmRole.assistant,
       images = const [];

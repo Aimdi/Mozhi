@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
@@ -38,14 +40,16 @@ class _ProofreadInputCardState extends State<ProofreadInputCard> {
 
   void _proofread() {
     final cubit = context.read<ProofreadCubit>();
-    if (cubit.state.canProofread) cubit.proofread();
+    if (cubit.state.canProofread) unawaited(cubit.proofread());
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    final input = context.select((c) => c.state.input);
+    final input = context.select<ProofreadCubit, String>(
+      (cubit) => cubit.state.input,
+    );
 
     return BlocListener<ProofreadCubit, ProofreadState>(
       listenWhen: (previous, current) => previous.input != current.input,

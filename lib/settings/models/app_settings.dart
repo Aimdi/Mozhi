@@ -211,7 +211,8 @@ class AppSettings extends Equatable {
     dynamicColor,
     pureBlack,
     seedColor,
-    instances,
+    // MozhiInstance equality only looks at the url; labels matter here.
+    [for (final i in instances) (i.url, i.label, i.isCustom)],
     providers,
     engineId,
     assistEngineId,

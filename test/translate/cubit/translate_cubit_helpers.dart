@@ -7,13 +7,13 @@ import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-class MockTranslationRepository extends Mock implements TranslationRepository {}
+class MockTranslationRepository extends Mock implements TranslationRepository;
 
 class MockSettingsCubit extends MockCubit<AppSettings>
-    implements SettingsCubit {}
+    implements SettingsCubit;
 
 class MockHistoryCubit extends MockCubit<HistoryState>
-    implements HistoryCubit {}
+    implements HistoryCubit;
 
 const google = TranslationEngine(
   id: 'mozhi:google',
@@ -48,9 +48,9 @@ const es = Language(code: 'es', name: 'Spanish');
 const ja = Language(code: 'ja', name: 'Japanese');
 const pirate = Language.custom('Pirate speak');
 
-const sources = [Language.auto, en, de, fr, es];
-const targets = [en, de, fr, es];
-const allEngines = [google, deepl, claude];
+const List<Language> sources = [Language.auto, en, de, fr, es];
+const List<Language> targets = [en, de, fr, es];
+const List<TranslationEngine> allEngines = [google, deepl, claude];
 
 const fastDebounce = Duration(milliseconds: 20);
 const fastAiDebounce = Duration(milliseconds: 40);
@@ -122,7 +122,7 @@ void registerTranslateFallbacks() {
 
 /// Mocks with sensible defaults; tweak per test.
 class TranslateMocks {
-  TranslateMocks() {
+  new() {
     when(() => settings.state).thenReturn(const AppSettings());
     when(() => history.add(any())).thenAnswer((_) async {});
     when(() => repository.getEngines(refresh: any(named: 'refresh')))

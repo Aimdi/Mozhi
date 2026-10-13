@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Label of the text selection action (ACTION_PROCESS_TEXT). -->
+    <string name="translate_with_mozhi">Translate with Mozhi</string>
+</resources>

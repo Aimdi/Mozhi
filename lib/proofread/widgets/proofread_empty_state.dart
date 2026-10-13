@@ -4,7 +4,7 @@ import 'package:mozhi/l10n/l10n.dart';
 
 /// Shown when no AI provider is configured: proofreading needs an LLM.
 class ProofreadEmptyState extends StatelessWidget {
-  const ProofreadEmptyState({super.key});
+  const new({super.key});
 
   /// Route of the AI provider settings.
   static const providersRoute = '/settings/providers';

@@ -29,7 +29,7 @@ abstract class LlmClient {
   ///
   /// When [httpClient] is given it is used for all requests and is *not*
   /// closed by [close]; otherwise the client creates (and owns) one.
-  factory LlmClient(
+  factory(
     LlmEndpoint endpoint, {
     http.Client? httpClient,
     Duration timeout = defaultTimeout,

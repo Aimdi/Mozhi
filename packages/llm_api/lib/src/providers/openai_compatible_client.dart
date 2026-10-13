@@ -15,7 +15,7 @@ import 'package:llm_api/src/think_filter.dart';
 /// `GET {base}/models`. Content is piped through [ThinkTagFilter]; separate
 /// reasoning fields (`reasoning_content`, `reasoning`) are ignored.
 class OpenAiCompatibleClient extends HttpLlmClient {
-  OpenAiCompatibleClient(super.endpoint, {super.httpClient, super.timeout});
+  new(super.endpoint, {super.httpClient, super.timeout});
 
   @override
   Stream<String> streamChat(LlmRequest request) =>

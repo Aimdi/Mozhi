@@ -75,6 +75,19 @@ void main() {
       expect(_custom, isNot(equals(const AppSettings())));
     });
 
+    test('compares instance labels, not just urls', () {
+      const labelled = AppSettings(
+        instances: [
+          MozhiInstance(url: 'https://mozhi.example.org', label: 'A'),
+        ],
+      );
+
+      expect(
+        labelled,
+        isNot(equals(const AppSettings(instances: [_instance]))),
+      );
+    });
+
     group('copyWith', () {
       test('returns an equal object when nothing is passed', () {
         expect(_custom.copyWith(), equals(_custom));

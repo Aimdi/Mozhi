@@ -6,7 +6,7 @@ import 'package:meta/meta.dart';
 /// One server-sent event.
 @immutable
 class SseEvent {
-  const SseEvent(this.data, {this.event});
+  const new(this.data, {this.event});
 
   /// The `data:` lines of the event joined with `\n`.
   final String data;
@@ -37,7 +37,7 @@ class SseEvent {
 /// dispatched, because some servers close the connection without the final
 /// blank line.
 class SseDecoder extends StreamTransformerBase<String, SseEvent> {
-  const SseDecoder();
+  const new();
 
   @override
   Stream<SseEvent> bind(Stream<String> stream) =>
@@ -48,7 +48,7 @@ class SseDecoder extends StreamTransformerBase<String, SseEvent> {
 }
 
 class _SseSink implements EventSink<String> {
-  _SseSink(this._output);
+  new(this._output);
 
   final EventSink<SseEvent> _output;
   final StringBuffer _data = StringBuffer();

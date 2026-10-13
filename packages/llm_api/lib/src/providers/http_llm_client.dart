@@ -17,7 +17,7 @@ import 'package:meta/meta.dart';
 abstract class HttpLlmClient implements LlmClient {
   /// Uses [httpClient] when given (it is then not closed by [close]),
   /// otherwise creates and owns a new `http.Client`.
-  HttpLlmClient(
+  new(
     this.endpoint, {
     http.Client? httpClient,
     this.timeout = LlmClient.defaultTimeout,

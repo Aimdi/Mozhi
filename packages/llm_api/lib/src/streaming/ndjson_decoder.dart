@@ -8,7 +8,7 @@ import 'dart:convert';
 /// skipped; a line that is not valid JSON is reported as a
 /// [FormatException] error event.
 class NdjsonDecoder extends StreamTransformerBase<String, Object?> {
-  const NdjsonDecoder();
+  const new();
 
   @override
   Stream<Object?> bind(Stream<String> stream) => stream

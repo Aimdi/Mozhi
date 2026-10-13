@@ -13,7 +13,7 @@ import 'dart:async';
 /// Tags match case-insensitively and blocks do not nest: a block ends at the
 /// first closing tag of the same name.
 class ThinkTagFilter extends StreamTransformerBase<String, String> {
-  const ThinkTagFilter();
+  const new();
 
   /// Convenience for complete strings.
   static String strip(String text) {
@@ -27,7 +27,7 @@ class ThinkTagFilter extends StreamTransformerBase<String, String> {
 }
 
 class _ThinkTagSink implements EventSink<String> {
-  _ThinkTagSink(this._output);
+  new(this._output);
 
   final EventSink<String> _output;
   final _ThinkTagParser _parser = _ThinkTagParser();

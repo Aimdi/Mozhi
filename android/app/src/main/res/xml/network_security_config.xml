@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Mozhi is a client for self-hosted servers: Mozhi instances and local AI
+     runtimes (Ollama, LM Studio, llama.cpp) are commonly reached over plain
+     http on the LAN, sometimes behind a private CA. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <!-- User-installed CAs, for self-hosted instances with private certificates. -->
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

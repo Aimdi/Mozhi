@@ -7,7 +7,7 @@ import 'package:translation_repository/translation_repository.dart';
 /// One suggested edit: category, original -> replacement, explanation and an
 /// accept/reject checkbox.
 class ProofreadEditTile extends StatelessWidget {
-  const ProofreadEditTile({
+  const new({
     required this.edit,
     required this.accepted,
     required this.onToggle,
@@ -76,7 +76,7 @@ class ProofreadEditTile extends StatelessWidget {
 
 /// `original → replacement` with diff colors.
 class ProofreadEditChange extends StatelessWidget {
-  const ProofreadEditChange({required this.edit, this.style, super.key});
+  const new({required this.edit, this.style, super.key});
 
   final ProofreadEdit edit;
   final TextStyle? style;
@@ -113,7 +113,7 @@ class ProofreadEditChange extends StatelessWidget {
 
 /// Small tonal label for an edit category.
 class ProofreadCategoryChip extends StatelessWidget {
-  const ProofreadCategoryChip({required this.category, super.key});
+  const new({required this.category, super.key});
 
   final String category;
 
