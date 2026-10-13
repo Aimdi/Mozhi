@@ -100,7 +100,7 @@ class SpeechInputService {
   String? _systemLocaleId;
   bool _disposed = false;
 
-  /// Bumped on every [listen], [stop] and [cancel]; callbacks from older
+  /// Bumped on every [listen] and [cancel]; callbacks from older
   /// sessions are ignored.
   int _session = 0;
   int? _activeSession;

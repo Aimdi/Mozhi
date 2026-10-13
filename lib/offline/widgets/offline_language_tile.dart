@@ -6,7 +6,7 @@ import 'package:mozhi/settings/view/widgets/settings_section.dart';
 /// One offline language: name, native name, download state and the
 /// download/delete action (or a progress indicator while one runs).
 class OfflineLanguageTile extends StatelessWidget {
-  const OfflineLanguageTile({
+  const new({
     required this.language,
     required this.downloaded,
     required this.onDownload,
@@ -97,7 +97,7 @@ Future<bool> confirmDeleteOfflineLanguage(
 }
 
 class DeleteOfflineLanguageDialog extends StatelessWidget {
-  const DeleteOfflineLanguageDialog({required this.language, super.key});
+  const new({required this.language, super.key});
 
   final OfflineLanguage language;
 

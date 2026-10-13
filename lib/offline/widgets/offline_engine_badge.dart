@@ -6,7 +6,7 @@ import 'package:mozhi/settings/view/widgets/settings_section.dart';
 ///
 /// Shows a small "Offline" label, or only an icon when [compact].
 class OfflineEngineBadge extends StatelessWidget {
-  const OfflineEngineBadge({super.key, this.compact = false});
+  const new({super.key, this.compact = false});
 
   final bool compact;
 

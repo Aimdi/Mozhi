@@ -4,6 +4,7 @@ import 'package:bloc/bloc.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/quick_translate/cubit/quick_translate_state.dart';
+import 'package:mozhi/quick_translate/models/quick_languages.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -33,10 +34,9 @@ class QuickTranslateCubit extends Cubit<QuickTranslateState> {
     required this._repository,
     required SettingsCubit settings,
     required String text,
-    HistoryCubit? history,
+    this._history,
     Language? target,
   }) : _settings = settings,
-       _history = history,
        super(
          QuickTranslateState(
            text: text,

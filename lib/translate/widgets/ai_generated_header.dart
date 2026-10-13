@@ -4,7 +4,7 @@ import 'package:mozhi/l10n/l10n.dart';
 /// A section title with a muted "AI-generated" label on the far end; wraps
 /// below the title when space is tight (narrow screens, large text).
 class AiGeneratedHeader extends StatelessWidget {
-  const AiGeneratedHeader({required this.title, this.icon, this.style, super.key});
+  const new({required this.title, this.icon, this.style, super.key});
 
   final String title;
   final IconData? icon;
@@ -32,7 +32,10 @@ class AiGeneratedHeader extends StatelessWidget {
               Flexible(
                 child: Semantics(
                   header: true,
-                  child: Text(title, style: style ?? theme.textTheme.titleSmall),
+                  child: Text(
+                    title,
+                    style: style ?? theme.textTheme.titleSmall,
+                  ),
                 ),
               ),
             ],

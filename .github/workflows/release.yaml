@@ -10,14 +10,17 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   FLUTTER_VERSION: "3.47.7"
+  # The release's web zip is built for the root of a web server. To serve it
+  # from a sub-path, change <base href> in its index.html (e.g. "/mozhi/").
+  WEB_BASE_HREF: /
 
 jobs:
-  release:
-    name: Build and publish release
+  android:
+    name: Build Android APKs
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -29,11 +32,21 @@ jobs:
           java-version: "17"
           cache: gradle
 
+      # cache: true caches the Flutter SDK and the pub cache.
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+
+      - name: Check version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version=$(sed -n 's/^version:[[:space:]]*//p' pubspec.yaml | tr -d '"'\''\r')
+          if [ "v${version%%+*}" != "$TAG" ]; then
+            echo "::warning::Tag $TAG does not match pubspec.yaml version $version."
+          fi
 
       - name: Install dependencies
         run: |
@@ -63,18 +76,94 @@ jobs:
           out=build/app/outputs/flutter-apk
           mkdir -p dist
 
+          # One APK per ABI (smaller downloads).
           flutter build apk --release --flavor production \
             -t lib/main_production.dart --split-per-abi
           for abi in arm64-v8a armeabi-v7a x86_64; do
             cp "$out/app-$abi-production-release.apk" "dist/mozhi-$TAG-$abi.apk"
           done
 
+          # Universal APK (all ABIs).
           flutter build apk --release --flavor production \
             -t lib/main_production.dart
           cp "$out/app-production-release.apk" "dist/mozhi-$TAG-universal.apk"
 
-          (cd dist && sha256sum *.apk > SHA256SUMS.txt)
-          ls -l dist
+          ls -lh dist
+
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-android
+          path: dist/*.apk
+          if-no-files-found: error
+          retention-days: 7
+
+  web:
+    name: Build web
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: |
+          flutter pub get
+          flutter gen-l10n
+
+      - name: Build
+        run: |
+          flutter build web --release -t lib/main_production.dart \
+            --base-href "$WEB_BASE_HREF"
+
+      - name: Zip
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          mkdir -p dist
+          (cd build/web && zip -q -r -9 "$GITHUB_WORKSPACE/dist/mozhi-$TAG-web.zip" .)
+          ls -lh dist
+
+      - name: Upload web zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-web
+          path: dist/*.zip
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish GitHub release
+    needs: [android, web]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download build outputs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        run: |
+          cd dist
+          sha256sum *.apk *.zip > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          {
+            echo "### Release files"
+            echo
+            echo '```text'
+            ls -lh
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
@@ -82,7 +171,12 @@ jobs:
           name: Mozhi ${{ github.ref_name }}
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, '-') }}
+          body: |
+            - **Android**: `arm64-v8a` fits almost every modern phone, `armeabi-v7a` old 32-bit devices, `x86_64` emulators and Chromebooks; `universal` works everywhere but is larger.
+            - **Web**: `mozhi-${{ github.ref_name }}-web.zip` is a static build for the root of any web server (edit `<base href>` in `index.html` to serve it from a sub-path).
+            - Verify downloads against `SHA256SUMS.txt`.
           files: |
             dist/*.apk
+            dist/*.zip
             dist/SHA256SUMS.txt
           fail_on_unmatched_files: true

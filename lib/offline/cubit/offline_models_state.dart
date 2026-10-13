@@ -8,11 +8,7 @@ enum OfflineModelOperation { download, delete }
 /// A language the offline engine has a model for.
 @immutable
 class OfflineLanguage extends Equatable {
-  const OfflineLanguage({
-    required this.code,
-    required this.name,
-    this.nativeName,
-  });
+  const new({required this.code, required this.name, this.nativeName});
 
   /// Offline engine code (e.g. `de`, `zh`).
   final String code;
@@ -34,7 +30,7 @@ class OfflineLanguage extends Equatable {
 /// Result of a finished download or deletion, shown once by the view.
 @immutable
 class OfflineModelOutcome extends Equatable {
-  const OfflineModelOutcome({
+  const new({
     required this.language,
     required this.operation,
     required this.succeeded,
@@ -49,7 +45,7 @@ class OfflineModelOutcome extends Equatable {
 }
 
 class OfflineModelsState extends Equatable {
-  const OfflineModelsState({
+  const new({
     this.status = OfflineModelsStatus.initial,
     this.isAvailable = true,
     this.languages = const [],

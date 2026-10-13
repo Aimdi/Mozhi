@@ -78,7 +78,7 @@ class _UsageWarningListenerState extends State<UsageWarningListener> {
       UsageBudgetLevel.limitReached => l10n.usageWarningLimitReached(name),
       _ => l10n.usageWarningNearLimit(
         name,
-        context.usagePercent(warning.budget.warningThreshold),
+        context.usagePercent((warning.fraction * 100).floor() / 100),
       ),
     };
     messenger

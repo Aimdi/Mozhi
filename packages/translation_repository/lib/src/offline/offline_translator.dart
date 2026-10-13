@@ -40,8 +40,7 @@ final class OfflineModelMissingException implements Exception {
   final List<String> languages;
 
   @override
-  String toString() =>
-      'OfflineModelMissingException(${languages.join(', ')})';
+  String toString() => 'OfflineModelMissingException(${languages.join(', ')})';
 }
 
 /// The language is not supported by the offline backend.

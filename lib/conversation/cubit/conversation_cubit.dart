@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:bloc/bloc.dart';
-import 'package:meta/meta.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:mozhi/conversation/cubit/conversation_state.dart';
 import 'package:mozhi/conversation/models/conversation_turn.dart';
 import 'package:mozhi/speech/speech_service.dart';
@@ -65,9 +65,6 @@ class ConversationCubit extends Cubit<ConversationState> {
     }
   }
 
-  static const _english = Language(code: 'en', name: 'English');
-  static const _spanish = Language(code: 'es', name: 'Spanish');
-
   /// Distinguishes the speech ids of different conversations.
   static int _sessions = 0;
 
@@ -100,31 +97,27 @@ class ConversationCubit extends Cubit<ConversationState> {
         language == null || language.isAuto || language.isCustom
         ? null
         : language;
-    Language? byCode(String? code) {
-      if (code == null || code.trim().isEmpty) return null;
+    Language resolve(String code) {
       final wanted =
           LanguageCatalog.byCode(code) ??
           Language(code: code, name: LanguageCatalog.nameOf(code));
-      return concrete(LanguageMatcher.match(wanted, available) ?? wanted);
+      return concrete(LanguageMatcher.match(wanted, available)) ?? wanted;
     }
 
-    final b =
-        concrete(translate.target) ??
-        byCode(_english.code) ??
-        _english; // coverage:ignore-line
+    Language? byCode(String? code) {
+      if (code == null || code.trim().isEmpty) return null;
+      return concrete(resolve(code.trim()));
+    }
+
+    final b = concrete(translate.target) ?? resolve('en');
     final bKey = LanguageMatcher.normalize(b.code);
-    final candidates = [
-      concrete(translate.source),
-      byCode(translate.effectiveSourceCode),
-      byCode(deviceLanguageCode),
-      byCode(_english.code),
-      byCode(_spanish.code),
-    ];
-    final a = candidates.firstWhere(
-      (language) =>
-          language != null && LanguageMatcher.normalize(language.code) != bKey,
-      orElse: () => _spanish, // coverage:ignore-line
-    )!;
+    final a = [
+      ?concrete(translate.source),
+      ?byCode(translate.effectiveSourceCode),
+      ?byCode(deviceLanguageCode),
+      resolve('en'),
+      resolve('es'),
+    ].firstWhere((language) => LanguageMatcher.normalize(language.code) != bKey);
     return (a: a, b: b);
   }
 
@@ -256,11 +249,13 @@ class ConversationCubit extends Cubit<ConversationState> {
         if (other.id < turn.id && other.isComplete) other,
     ];
     final recent = previous.skip(math.max(0, previous.length - contextTurns));
+    final setting =
+        'This is a live spoken conversation between a '
+        '${state.languageA.name} speaker and a ${state.languageB.name} '
+        'speaker. Translate it as natural speech.';
     final lines = [
       if (base.context.trim().isNotEmpty) base.context.trim(),
-      'This is a live spoken conversation between a ${state.languageA.name} '
-          'speaker and a ${state.languageB.name} speaker. Translate it as '
-          'natural speech.',
+      setting,
       if (recent.isNotEmpty) 'Previous messages:',
       for (final other in recent)
         '${other.source.name} speaker: ${other.original}',
@@ -368,7 +363,7 @@ class ConversationCubit extends Cubit<ConversationState> {
     await _speaking.cancel();
     await Future.wait([for (final job in jobs) job.cancel()]);
     if (speaking) await _stopSpeech();
-    return super.close();
+    await super.close();
   }
 }
 

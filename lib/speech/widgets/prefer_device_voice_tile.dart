@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -20,7 +22,7 @@ class _PreferDeviceVoiceTileState extends State<PreferDeviceVoiceTile> {
   @override
   void initState() {
     super.initState();
-    _load();
+    unawaited(_load());
   }
 
   Future<void> _load() async {
@@ -46,7 +48,7 @@ class _PreferDeviceVoiceTileState extends State<PreferDeviceVoiceTile> {
       title: Text(l10n.speechPreferDeviceVoice),
       subtitle: Text(l10n.speechPreferDeviceVoiceDescription),
       value: _enabled,
-      onChanged: (enabled) => _set(enabled: enabled),
+      onChanged: (enabled) => unawaited(_set(enabled: enabled)),
     );
   }
 }

@@ -51,11 +51,11 @@ jobs:
 
       - name: Check formatting
         run: |
-          dirs=()
+          roots=()
           for dir in lib test packages tool; do
-            if [ -d "$dir" ]; then dirs+=("$dir"); fi
+            if [ -d "$dir" ]; then roots+=("$dir"); fi
           done
-          find "${dirs[@]}" -name '*.dart' \
+          find "${roots[@]}" -name '*.dart' \
             -not -path 'lib/l10n/gen/*' \
             -not -path '*/.dart_tool/*' \
             -not -path '*/build/*' \
@@ -321,8 +321,9 @@ jobs:
       # GitHub's Windows runners; fetch it only if it is missing.
       - name: Ensure NuGet
         run: |
-          if (Get-Command nuget -ErrorAction SilentlyContinue) {
-            nuget help | Select-Object -First 1
+          $nuget = Get-Command nuget -ErrorAction SilentlyContinue
+          if ($nuget) {
+            Write-Host "NuGet found at $($nuget.Source)"
           } else {
             $dir = Join-Path $env:RUNNER_TEMP 'nuget'
             New-Item -ItemType Directory -Force -Path $dir | Out-Null

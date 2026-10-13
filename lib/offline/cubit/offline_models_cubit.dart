@@ -15,14 +15,11 @@ typedef OfflineLanguageDescriber = OfflineLanguage Function(String code);
 /// [OfflineModelsStatus.failure], downloads and deletions report an
 /// [OfflineModelOutcome]; all errors also go to `addError`.
 class OfflineModelsCubit extends Cubit<OfflineModelsState> {
-  OfflineModelsCubit({
-    required OfflineTranslator translator,
-    required KeyValueStore store,
-    OfflineLanguageDescriber describe = describeOfflineLanguage,
-  }) : _translator = translator,
-       _store = store,
-       _describe = describe,
-       super(const OfflineModelsState());
+  new({
+    required this._translator,
+    required this._store,
+    this._describe = describeOfflineLanguage,
+  }) : super(const OfflineModelsState());
 
   static const wifiOnlyKey = 'offline.wifiOnly';
 

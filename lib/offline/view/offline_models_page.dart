@@ -16,7 +16,7 @@ import 'package:translation_repository/translation_repository.dart';
 /// [OfflineTranslator] and [KeyValueStore] provided above (falling back to
 /// a new [MlKitOfflineTranslator] and the platform preferences).
 class OfflineModelsPage extends StatelessWidget {
-  const OfflineModelsPage({super.key, this.translator, this.store});
+  const new({super.key, this.translator, this.store});
 
   final OfflineTranslator? translator;
   final KeyValueStore? store;
@@ -30,7 +30,8 @@ class OfflineModelsPage extends StatelessWidget {
               translator ??
               _maybeRead<OfflineTranslator>(context) ??
               MlKitOfflineTranslator(),
-          store: store ?? _maybeRead<KeyValueStore>(context) ?? PreferencesStore(),
+          store:
+              store ?? _maybeRead<KeyValueStore>(context) ?? PreferencesStore(),
         );
         unawaited(cubit.load());
         return cubit;
@@ -49,15 +50,16 @@ class OfflineModelsPage extends StatelessWidget {
 }
 
 class OfflineModelsView extends StatelessWidget {
-  const OfflineModelsView({super.key});
+  const new({super.key});
 
   void _showOutcome(BuildContext context, OfflineModelOutcome outcome) {
     final l10n = context.l10n;
     final name = outcome.language.name;
     final message = switch ((outcome.operation, outcome.succeeded)) {
       (OfflineModelOperation.download, true) => l10n.offlineDownloadDone(name),
-      (OfflineModelOperation.download, false) =>
-        l10n.offlineDownloadFailed(name),
+      (OfflineModelOperation.download, false) => l10n.offlineDownloadFailed(
+        name,
+      ),
       (OfflineModelOperation.delete, true) => l10n.offlineDeleteDone(name),
       (OfflineModelOperation.delete, false) => l10n.offlineDeleteFailed(name),
     };
@@ -78,10 +80,8 @@ class OfflineModelsView extends StatelessWidget {
         body: BlocBuilder<OfflineModelsCubit, OfflineModelsState>(
           buildWhen: (previous, current) => previous.status != current.status,
           builder: (context, state) => switch (state.status) {
-            OfflineModelsStatus.initial ||
-            OfflineModelsStatus.loading => const Center(
-              child: CircularProgressIndicator(),
-            ),
+            OfflineModelsStatus.initial || OfflineModelsStatus.loading =>
+              const Center(child: CircularProgressIndicator()),
             OfflineModelsStatus.failure => const _LoadFailure(),
             OfflineModelsStatus.ready => const _ModelsList(),
           },
@@ -92,7 +92,7 @@ class OfflineModelsView extends StatelessWidget {
 }
 
 class _LoadFailure extends StatelessWidget {
-  const _LoadFailure();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -130,7 +130,7 @@ class _LoadFailure extends StatelessWidget {
 }
 
 class _ModelsList extends StatelessWidget {
-  const _ModelsList();
+  const new();
 
   Future<void> _delete(BuildContext context, OfflineLanguage language) async {
     final cubit = context.read<OfflineModelsCubit>();
@@ -193,7 +193,7 @@ class _ModelsList extends StatelessWidget {
 }
 
 class _UnavailableBanner extends StatelessWidget {
-  const _UnavailableBanner();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -204,10 +204,7 @@ class _UnavailableBanner extends StatelessWidget {
         margin: EdgeInsets.zero,
         color: colors.secondaryContainer,
         child: ListTile(
-          leading: Icon(
-            Icons.info_outline,
-            color: colors.onSecondaryContainer,
-          ),
+          leading: Icon(Icons.info_outline, color: colors.onSecondaryContainer),
           title: Text(
             context.l10n.offlineUnavailable,
             style: TextStyle(color: colors.onSecondaryContainer),
@@ -219,7 +216,7 @@ class _UnavailableBanner extends StatelessWidget {
 }
 
 class _Overview extends StatelessWidget {
-  const _Overview({required this.state});
+  const new({required this.state});
 
   final OfflineModelsState state;
 
@@ -268,7 +265,7 @@ class _Overview extends StatelessWidget {
 }
 
 class _SearchField extends StatefulWidget {
-  const _SearchField();
+  const new();
 
   @override
   State<_SearchField> createState() => _SearchFieldState();
