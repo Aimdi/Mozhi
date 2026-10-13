@@ -52,6 +52,8 @@ class HistoryCubit extends Cubit<HistoryState> {
       emit(state.copyWith(favoritesOnly: enabled));
 
   /// Pretty JSON of all entries (see [HistoryRepository.exportJson]).
+  // Returns the export for the caller to save or share; it is not state.
+  // ignore: prefer_void_public_cubit_methods
   Future<String> exportJson() => _repository.exportJson();
 
   /// Merges [json] into the history. Throws [FormatException] on invalid

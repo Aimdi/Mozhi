@@ -58,6 +58,8 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
   final DocumentTranslator _translator;
 
   /// Largest accepted file in bytes.
+  // Immutable configuration passed to the constructor, not state.
+  // ignore: avoid_public_fields
   final int maxBytes;
 
   /// Whether engine/languages still mirror the translate screen.
@@ -529,6 +531,8 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
   // ---------------------------------------------------------------------
 
   /// The translated document encoded like the original file.
+  // Read-only query derived from state; it changes nothing.
+  // ignore: prefer_void_public_cubit_methods
   Uint8List get outputBytes => encodeText(
     state.output,
     state.mode == DocumentInputMode.file ? state.encoding : TextEncoding.utf8,
@@ -574,6 +578,8 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
   }
 
   /// Whether the platform can share files.
+  // Read-only query derived from state; it changes nothing.
+  // ignore: prefer_void_public_cubit_methods
   bool get canShareFiles => _files.canShareFiles;
 
   // ---------------------------------------------------------------------

@@ -1,4 +1,6 @@
 import 'package:bloc/bloc.dart';
+// compute() runs long diffs off the UI isolate.
+// ignore: avoid_flutter_imports
 import 'package:flutter/foundation.dart';
 import 'package:mozhi/proofread/cubit/proofread_state.dart';
 import 'package:mozhi/proofread/models/proofread_diff.dart';
@@ -31,6 +33,8 @@ class ProofreadCubit extends Cubit<ProofreadState> {
   static const backgroundDiffLength = 8000;
 
   /// Text with the accepted edits applied (see [ProofreadState.outputText]).
+  // Read-only query derived from state; it changes nothing.
+  // ignore: prefer_void_public_cubit_methods
   String get outputText => state.outputText;
 
   static ProofreadState _withEngines(

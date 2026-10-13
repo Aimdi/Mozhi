@@ -189,6 +189,8 @@ class QuickTranslateCubit extends Cubit<QuickTranslateState> {
   /// Languages for the compact target picker: pinned + recent languages
   /// from settings, then [preferredCodes] (e.g. device languages) and
   /// common languages, all mapped onto the engine's targets.
+  // Read-only query derived from state; it changes nothing.
+  // ignore: prefer_void_public_cubit_methods
   QuickLanguages pickerLanguages({List<String> preferredCodes = const []}) {
     final settings = _settings.state;
     return QuickLanguages.build(

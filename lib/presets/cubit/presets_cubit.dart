@@ -41,6 +41,8 @@ class PresetsCubit extends Cubit<PresetsState> {
   }
 
   /// Appends a new preset (and makes it the default when [makeDefault]).
+  // Returns the created item so the caller can open or select it.
+  // ignore: prefer_void_public_cubit_methods
   Future<Preset> add({
     required String name,
     required TranslationOptions options,
@@ -118,6 +120,8 @@ class PresetsCubit extends Cubit<PresetsState> {
 
   /// Inserts a copy of [id] right after it, named [name] (defaults to the
   /// original name). The copy is never the default.
+  // Returns the created item so the caller can open or select it.
+  // ignore: prefer_void_public_cubit_methods
   Future<Preset?> duplicate(String id, {String? name}) async {
     final index = _indexOf(id);
     if (index < 0) return null;
@@ -132,6 +136,8 @@ class PresetsCubit extends Cubit<PresetsState> {
   }
 
   /// Adds the built-in examples that are missing (by kind).
+  // Returns how many examples were restored for the caller to report.
+  // ignore: prefer_void_public_cubit_methods
   Future<int> restoreExamples() async {
     final present = {for (final preset in state.presets) preset.builtIn};
     final missing = [
@@ -148,12 +154,16 @@ class PresetsCubit extends Cubit<PresetsState> {
   }
 
   /// Pretty JSON of all presets, or only of [ids].
+  // Returns the export for the caller to save or share; it is not state.
+  // ignore: prefer_void_public_cubit_methods
   String exportJson({Set<String>? ids}) =>
       _repository.exportJson(state.collection, ids: ids);
 
   /// Appends the presets in [json] (with new ids) and returns how many were
   /// imported. Throws [FormatException] for invalid input; the state is
   /// unchanged then.
+  // Returns how many items were imported for the caller to report.
+  // ignore: prefer_void_public_cubit_methods
   Future<int> importJson(String json) async {
     final imported = _repository.parseImport(json);
     if (imported.isEmpty) return 0;

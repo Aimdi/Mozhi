@@ -72,6 +72,8 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
   );
 
   /// After this long the UI tells the user the request is still running.
+  // Immutable configuration passed to the constructor, not state.
+  // ignore: avoid_public_fields
   final Duration slowThreshold;
 
   final TranslationRepository _repository;

@@ -38,12 +38,16 @@ class GlossaryCubit extends Cubit<GlossaryState> {
 
   /// Terms of the enabled glossaries matching the pair, ready for
   /// `TranslationOptions.glossary` (see [mergeActiveGlossaries]).
+  // Read-only query derived from state; it changes nothing.
+  // ignore: prefer_void_public_cubit_methods
   Map<String, String> activeGlossary({
     required String sourceCode,
     required String targetCode,
   }) => state.activeGlossary(sourceCode: sourceCode, targetCode: targetCode);
 
   /// Appends a new, enabled glossary.
+  // Returns the created item so the caller can open or select it.
+  // ignore: prefer_void_public_cubit_methods
   Future<Glossary> create({
     required String name,
     String sourceCode = LanguageScope.any,
@@ -163,6 +167,8 @@ class GlossaryCubit extends Cubit<GlossaryState> {
   /// ([GlossaryRepository.parseTerms]) to glossary [id].
   ///
   /// Throws [FormatException] when no term is found or [id] is unknown.
+  // Returns the import summary for the caller to report.
+  // ignore: prefer_void_public_cubit_methods
   Future<TermImport> importTerms(String id, String text) async {
     final glossary = state.byId(id);
     if (glossary == null) throw FormatException('Unknown glossary $id');
@@ -177,6 +183,8 @@ class GlossaryCubit extends Cubit<GlossaryState> {
   }
 
   /// Glossary [id] as CSV, TSV or JSON; `null` when it is unknown.
+  // Returns the export for the caller to save or share; it is not state.
+  // ignore: prefer_void_public_cubit_methods
   String? exportTerms(String id, GlossaryExportFormat format) {
     final glossary = state.byId(id);
     return glossary == null
@@ -185,6 +193,8 @@ class GlossaryCubit extends Cubit<GlossaryState> {
   }
 
   /// Pretty JSON of all glossaries, or only of [ids].
+  // Returns the export for the caller to save or share; it is not state.
+  // ignore: prefer_void_public_cubit_methods
   String exportJson({Set<String>? ids}) => GlossaryRepository.exportJson([
     for (final glossary in state.glossaries)
       if (ids == null || ids.contains(glossary.id)) glossary,
@@ -192,6 +202,8 @@ class GlossaryCubit extends Cubit<GlossaryState> {
 
   /// Appends the glossaries in [json] (with new ids); returns their count.
   /// Throws [FormatException] for invalid input.
+  // Returns how many items were imported for the caller to report.
+  // ignore: prefer_void_public_cubit_methods
   Future<int> importJson(String json) async {
     final imported = _repository.parseImport(json);
     if (imported.isEmpty) return 0;

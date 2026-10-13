@@ -57,8 +57,7 @@ class PresetPicker extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<PresetsCubit, PresetsState>(
       buildWhen: (previous, current) =>
-          previous.presets != current.presets ||
-          previous.defaultId != current.defaultId,
+          previous.collection != current.collection,
       builder: (context, state) {
         final isStandard = _standard.appliesTo(value);
         final selected = isStandard ? null : state.presetFor(value);

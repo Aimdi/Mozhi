@@ -111,9 +111,13 @@ class TranslateCubit extends Cubit<TranslateState> {
   final UsageTracker? _usageTracker;
 
   /// Instant-translate delay for Mozhi engines.
+  // Immutable configuration passed to the constructor, not state.
+  // ignore: avoid_public_fields
   final Duration debounce;
 
   /// Instant-translate delay for AI engines.
+  // Immutable configuration passed to the constructor, not state.
+  // ignore: avoid_public_fields
   final Duration aiDebounce;
 
   Timer? _debounceTimer;

@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:bloc/bloc.dart';
+// Only visibleForTesting is used; no widgets.
+// ignore: avoid_flutter_imports
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:mozhi/conversation/cubit/conversation_state.dart';
 import 'package:mozhi/conversation/models/conversation_turn.dart';
@@ -70,6 +72,8 @@ class ConversationCubit extends Cubit<ConversationState> {
   final int _session;
 
   /// Number of previous turns given to AI engines as context (0 = none).
+  // Immutable configuration passed to the constructor, not state.
+  // ignore: avoid_public_fields
   final int contextTurns;
 
   final Map<int, _TranslationJob> _jobs = {};
@@ -119,6 +123,8 @@ class ConversationCubit extends Cubit<ConversationState> {
 
   /// Id passed to [SpeechService.toggle] for [turnId]'s translation.
   @visibleForTesting
+  // Read-only query derived from state; it changes nothing.
+  // ignore: prefer_void_public_cubit_methods
   String speechIdOf(int turnId) => 'conversation:$_session:$turnId';
 
   int? _turnIdOf(String? speechId) {
