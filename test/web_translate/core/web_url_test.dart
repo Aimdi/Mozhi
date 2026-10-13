@@ -59,6 +59,8 @@ void main() {
         'https://-example.com',
         'https://exa_mple.com',
         'http://exa mple.com',
+        'https://a%C3.com',
+        'https://a%zz.com',
       ]) {
         expect(normalizeWebUrl(input), isNull, reason: input);
       }

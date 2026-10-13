@@ -55,11 +55,9 @@ bool isLikelyWebUrl(String text) {
 String _decodeHost(String host) {
   try {
     return Uri.decodeComponent(host);
-    // coverage:ignore-start
-  } on ArgumentError {
-    return host;
+  } on FormatException {
+    return host; // Invalid UTF-8 escapes: rejected by the character check.
   }
-  // coverage:ignore-end
 }
 
 final _whitespace = RegExp(r'\s');

@@ -798,6 +798,8 @@ void main() {
   });
 
   group('W3: external text', () {
+    var now = DateTime(2026, 1, 1, 12);
+
     blocTest<TranslateCubit, TranslateState>(
       'is not auto-translated by AI engines when instantTranslateAi is off',
       setUp: () => mocks.stubTranslate(),
@@ -906,25 +908,22 @@ void main() {
       'the same text again within 2 s is ignored',
       setUp: () => mocks.stubTranslate(),
       build: () {
-        var now = DateTime(2026, 1, 1, 12);
-        final steps = [Duration.zero, const Duration(seconds: 1)];
-        var step = 0;
-        mocks.clock = () => now = now.add(
-          step < steps.length ? steps[step++] : const Duration(seconds: 3),
-        );
+        mocks.clock = () => now;
         return mocks.build();
       },
       seed: readyState,
       act: (cubit) async {
         cubit.setExternalInput('spam');
         await Future<void>.delayed(Duration.zero);
+        now = now.add(const Duration(milliseconds: 1999));
         cubit.setExternalInput('spam');
         await Future<void>.delayed(Duration.zero);
+        now = now.add(const Duration(seconds: 2));
         cubit.setExternalInput('spam');
         await Future<void>.delayed(Duration.zero);
       },
       verify: (_) {
-        // First and third (3 s later) are translated, the second is dropped.
+        // The first and the last (2 s later) are translated.
         verify(() => mocks.repository.translate(any(), any())).called(2);
       },
     );

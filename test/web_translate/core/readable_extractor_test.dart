@@ -1,3 +1,6 @@
+// HTML fragments are deliberately split into adjacent string literals.
+// ignore_for_file: missing_whitespace_between_adjacent_strings, no_adjacent_strings_in_list
+
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -258,7 +261,8 @@ void main() {
       expect(page.title, 'Новости');
       expect(
         texts(page).first,
-        'Сегодня в городе открылся новый парк. Жители довольны — «наконец-то!» №1.',
+        'Сегодня в городе открылся новый парк. '
+        'Жители довольны — «наконец-то!» №1.',
       );
       expect(texts(page)[1], startsWith('Ёлки и ели'));
     });

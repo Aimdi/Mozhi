@@ -44,7 +44,7 @@ WebTranslateCubit buildCubit({
 
 List<String?> upperTranslations() => [
   for (var i = 0; i < sampleTexts.length; i++)
-    i == codeIndex ? null : sampleTexts[i].toUpperCase(),
+    if (i == codeIndex) null else sampleTexts[i].toUpperCase(),
 ];
 
 void main() {

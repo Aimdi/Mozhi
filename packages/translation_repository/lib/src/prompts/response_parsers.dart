@@ -477,9 +477,16 @@ abstract final class ResponseParsers {
   /// characters, after other text, starts a tail that a completion turns
   /// into a whole trailing marker.
   static bool _isTrailingMarkerPending(String s) {
-    final from = s.length > _maxMarkerLength ? s.length - _maxMarkerLength : 1;
-    for (var i = s.lastIndexOf('['); i >= from; i = s.lastIndexOf('[', i - 1)) {
-      final tail = s.substring(i);
+    // Only the end of the text matters (and the marker must follow text).
+    final window = s.substring(
+      s.length > _maxMarkerLength ? s.length - _maxMarkerLength : 1,
+    );
+    for (
+      var i = window.lastIndexOf('[');
+      i >= 0;
+      i = i == 0 ? -1 : window.lastIndexOf('[', i - 1)
+    ) {
+      final tail = window.substring(i);
       if (_wholeTrailingMarker.hasMatch(tail)) return false;
       for (final opener in const ['', '[']) {
         for (final keyword in _keywordTails) {

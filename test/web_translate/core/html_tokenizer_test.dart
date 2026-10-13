@@ -1,3 +1,6 @@
+// HTML fragments are deliberately split into adjacent string literals.
+// ignore_for_file: missing_whitespace_between_adjacent_strings, no_adjacent_strings_in_list
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mozhi/web_translate/core/html_tokenizer.dart';
 
@@ -5,13 +8,15 @@ String describe(Iterable<HtmlToken> tokens) => tokens
     .map(
       (token) => switch (token) {
         HtmlStartTag(:final name, :final attributes, :final selfClosing) =>
-          '<$name${attributes.entries.map((e) => ' ${e.key}=${e.value}').join()}'
-              '${selfClosing ? '/' : ''}>',
+          '<$name${_attributes(attributes)}${selfClosing ? '/' : ''}>',
         HtmlEndTag(:final name) => '</$name>',
         HtmlCharacters(:final text) => text,
       },
     )
     .join('|');
+
+String _attributes(Map<String, String> attributes) =>
+    attributes.entries.map((e) => ' ${e.key}=${e.value}').join();
 
 void main() {
   group('tokenizeHtml', () {

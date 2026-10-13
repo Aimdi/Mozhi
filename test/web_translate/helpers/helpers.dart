@@ -197,7 +197,7 @@ class FakeClipboard {
 Future<WebTranslateState> waitFor(
   WebTranslateCubit cubit,
   bool Function(WebTranslateState state) test,
-) async {
-  if (test(cubit.state)) return cubit.state;
+) {
+  if (test(cubit.state)) return Future.value(cubit.state);
   return cubit.stream.firstWhere(test).timeout(const Duration(seconds: 5));
 }
