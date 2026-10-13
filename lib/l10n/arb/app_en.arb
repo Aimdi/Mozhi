@@ -3482,5 +3482,163 @@
         "type": "String"
       }
     }
+  },
+  "webTranslateTitle": "Translate a web page",
+  "@webTranslateTitle": {
+    "description": "webTranslateTitle"
+  },
+  "webTranslateUrlLabel": "Web page address",
+  "@webTranslateUrlLabel": {
+    "description": "webTranslateUrlLabel"
+  },
+  "webTranslateUrlHint": "example.com/article",
+  "@webTranslateUrlHint": {
+    "description": "webTranslateUrlHint"
+  },
+  "webTranslatePaste": "Paste",
+  "@webTranslatePaste": {
+    "description": "webTranslatePaste"
+  },
+  "webTranslateGo": "Translate page",
+  "@webTranslateGo": {
+    "description": "webTranslateGo"
+  },
+  "webTranslateInvalidUrl": "Enter a valid web address (http or https)",
+  "@webTranslateInvalidUrl": {
+    "description": "webTranslateInvalidUrl"
+  },
+  "webTranslateEmptyTitle": "Read any web page in your language",
+  "@webTranslateEmptyTitle": {
+    "description": "webTranslateEmptyTitle"
+  },
+  "webTranslateEmptyBody": "Paste a link to an article or blog post. Mozhi downloads the page, keeps only the readable text and translates it with the engine and languages selected below.",
+  "@webTranslateEmptyBody": {
+    "description": "webTranslateEmptyBody"
+  },
+  "webTranslateWebNotice": "In the browser version, Mozhi can only open pages from sites that allow cross-origin requests (CORS), and most sites do not. Use the Android, iOS or desktop app to translate any page.",
+  "@webTranslateWebNotice": {
+    "description": "webTranslateWebNotice"
+  },
+  "webTranslateLoading": "Loading page…",
+  "@webTranslateLoading": {
+    "description": "webTranslateLoading"
+  },
+  "webTranslateProgress": "Translating… {done} of {total}",
+  "@webTranslateProgress": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "webTranslateStoppedMessage": "Translation stopped: {done} of {total} parts translated.",
+  "@webTranslateStoppedMessage": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "webTranslateResume": "Continue translating",
+  "@webTranslateResume": {
+    "description": "webTranslateResume"
+  },
+  "webTranslateModeTranslated": "Translation",
+  "@webTranslateModeTranslated": {
+    "description": "webTranslateModeTranslated"
+  },
+  "webTranslateModeOriginal": "Original",
+  "@webTranslateModeOriginal": {
+    "description": "webTranslateModeOriginal"
+  },
+  "webTranslateModeSideBySide": "Side by side",
+  "@webTranslateModeSideBySide": {
+    "description": "webTranslateModeSideBySide"
+  },
+  "webTranslateOpenOriginal": "Open original page",
+  "@webTranslateOpenOriginal": {
+    "description": "webTranslateOpenOriginal"
+  },
+  "webTranslateCopyAll": "Copy all",
+  "@webTranslateCopyAll": {
+    "description": "webTranslateCopyAll"
+  },
+  "webTranslateTruncated": "This page is very large, so only its first part was loaded.",
+  "@webTranslateTruncated": {
+    "description": "webTranslateTruncated"
+  },
+  "webTranslateUnsupportedCharset": "This page uses a text encoding that is not supported ({charset}); some characters may look wrong.",
+  "@webTranslateUnsupportedCharset": {
+    "placeholders": {
+      "charset": {
+        "type": "String"
+      }
+    }
+  },
+  "webTranslateImage": "Image: {description}",
+  "@webTranslateImage": {
+    "placeholders": {
+      "description": {
+        "type": "String"
+      }
+    }
+  },
+  "webTranslateTranslatedWith": "Translated with {engine}",
+  "@webTranslateTranslatedWith": {
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "webTranslateNoEngine": "Add a Mozhi instance or an AI provider in Settings to translate pages. You can still read the original.",
+  "@webTranslateNoEngine": {
+    "description": "webTranslateNoEngine"
+  },
+  "webTranslateErrorNetwork": "Couldn’t reach the website. Check the address and your connection.",
+  "@webTranslateErrorNetwork": {
+    "description": "webTranslateErrorNetwork"
+  },
+  "webTranslateErrorStatus": "The website answered with an error ({status}).",
+  "@webTranslateErrorStatus": {
+    "placeholders": {
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "webTranslateErrorUnsupported": "This link is not a web page ({type}).",
+  "@webTranslateErrorUnsupported": {
+    "placeholders": {
+      "type": {
+        "type": "String"
+      }
+    }
+  },
+  "webTranslateErrorTimeout": "The website took too long to respond.",
+  "@webTranslateErrorTimeout": {
+    "description": "webTranslateErrorTimeout"
+  },
+  "webTranslateErrorBlocked": "Your browser blocked the download: this site does not allow other websites to read its pages (CORS). Use the Mozhi app on your phone or computer to translate it.",
+  "@webTranslateErrorBlocked": {
+    "description": "webTranslateErrorBlocked"
+  },
+  "webTranslateErrorRedirects": "The website redirected too many times.",
+  "@webTranslateErrorRedirects": {
+    "description": "webTranslateErrorRedirects"
+  },
+  "webTranslateErrorNoContent": "No readable text was found on this page. It may need JavaScript or a login to show its content.",
+  "@webTranslateErrorNoContent": {
+    "description": "webTranslateErrorNoContent"
+  },
+  "webTranslateErrorInvalidUrl": "This address can’t be opened.",
+  "@webTranslateErrorInvalidUrl": {
+    "description": "webTranslateErrorInvalidUrl"
   }
 }

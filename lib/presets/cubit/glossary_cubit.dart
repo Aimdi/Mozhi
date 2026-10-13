@@ -17,7 +17,7 @@ typedef TermImport = ({int added, int updated, int skipped});
 /// are reported via `addError` and never thrown. The import methods throw
 /// [FormatException] for invalid input (the state is unchanged then).
 class GlossaryCubit extends Cubit<GlossaryState> {
-  GlossaryCubit({GlossaryRepository? repository})
+  new({GlossaryRepository? repository})
     : _repository = repository ?? GlossaryRepository(),
       super(const GlossaryState());
 

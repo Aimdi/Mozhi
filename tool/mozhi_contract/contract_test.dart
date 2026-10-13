@@ -479,10 +479,7 @@ final class _Contract {
         'source_languages': raw.get(_api('source_languages', {'engine': 'x'})),
         'translate 400': raw.post(_api('translate')),
         'tts 400': raw.get(_api('tts')),
-        'image 400': _multipart(
-          fields: {},
-          imageType: MediaType('image', 'png'),
-        ),
+        'image 400': _multipart(fields: {}, imageType: 'image/png'),
         'unknown route 404': raw.get(_api('nope')),
       };
       final missing = <String>[];
@@ -1114,10 +1111,7 @@ final class _Contract {
     const invalid = 'Invalid image, only png images are accepted';
 
     await check('image: non-PNG part content type -> 400', () async {
-      for (final type in [
-        MediaType('image', 'jpeg'),
-        MediaType('text', 'plain'),
-      ]) {
+      for (final type in ['image/jpeg', 'text/plain']) {
         final response = await _multipart(
           fields: fields,
           imageType: type,

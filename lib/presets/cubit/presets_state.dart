@@ -5,7 +5,7 @@ import 'package:translation_repository/translation_repository.dart';
 enum PresetsStatus { initial, loading, ready, failure }
 
 class PresetsState extends Equatable {
-  const PresetsState({
+  const new({
     this.status = PresetsStatus.initial,
     this.presets = const [],
     this.defaultId,
