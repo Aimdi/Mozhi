@@ -332,6 +332,30 @@ Notes:
 - The 4-bit quantisations (`Q4_K_M`, Ollama's default) are the usual sweet
   spot. Use `Q8_0` if you have memory to spare.
 
+### Prompt style
+
+Translation-specialised models expect their own prompt format. The provider
+editor's **Prompt style** picks it: **Automatic** (the default) recognises
+TranslateGemma and Hy-MT/Hunyuan-MT from the model name and otherwise uses
+the general chat prompt. Choose a style yourself if your server uses a
+custom model name. With a translation-only style the AI extras are hidden.
+
+## DeepL and LibreTranslate
+
+Besides AI models, **Settings → AI providers → Add → Machine translation**
+lists two classic translation services that you use with your own account
+or server:
+
+- **DeepL API**: paste your DeepL API key (Free or Pro; keys ending in
+  `:fx` use the free API). Leave the server URL empty to use DeepL directly,
+  or enter the address of a proxy.
+- **LibreTranslate**: enter your server's address (for example
+  `http://192.168.1.20:5000`, or `https://libretranslate.com`, which needs a
+  key). The API key is only needed if the server asks for one.
+
+They appear in the engine picker next to Mozhi and the AI providers and work
+in compare mode. The Kagi-style options and extras need an AI model.
+
 ## Privacy: local vs cloud
 
 | | Local model | Cloud provider |

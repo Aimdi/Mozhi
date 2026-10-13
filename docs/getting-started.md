@@ -185,13 +185,13 @@ enabled provider).
 
 **Selected text.** Select text in any app (a browser, a chat, an e-mail) and
 choose **Translate with Mozhi** in the selection menu. Depending on the app,
-it may be hidden behind the menu's ⋮ overflow button. Mozhi opens with the
-text already translated into your current target language.
+it may be hidden behind the menu's ⋮ overflow button. A quick-translate
+sheet opens over the app with the translation into your current target
+language. **Open in app** continues in the full translator.
 
 If you selected the text in an editable field, such as a message you are
-writing, Mozhi shows **Translation ready** with a **Replace text** button when
-it is done. Tap it and the translation replaces your selection in the other
-app.
+writing, the sheet also offers **Replace**. Tap it and the translation
+replaces your selection in the other app.
 
 **Share sheet.** Use **Share** in any app and pick **Mozhi** to translate the
 shared text.

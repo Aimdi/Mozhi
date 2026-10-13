@@ -199,10 +199,11 @@ On Android, `MainActivity` registers for `ACTION_SEND` (share sheet) and
 `ACTION_PROCESS_TEXT` (the "Translate with Mozhi" selection action). Text
 arrives through `SharedTextService` (method channel
 `io.github.aimdi.mozhi/shared_text` and event channel
-`io.github.aimdi.mozhi/shared_text_events`). `SharedTextHandler` switches to
-the translate tab and applies it as a `TranslateLink`; for an editable
-`PROCESS_TEXT` request it offers **Replace text**, which returns the
-translation to the calling app. Kagi-style URLs (`/translate?text=…&from=…
+`io.github.aimdi.mozhi/shared_text_events`). `SharedTextHandler` shows the
+quick-translate sheet for `PROCESS_TEXT` (its **Replace** returns the
+translation to the calling app when the selection is editable) and sends
+shared text to the translate tab through `TranslateCubit.setExternalInput`,
+which caps it at 5,000 characters and never starts a paid AI request. Kagi-style URLs (`/translate?text=…&from=…
 &to=…`) go through the same `TranslateLink` path via the router's redirect.
 
 ## How to add an AI provider

@@ -230,9 +230,11 @@ a reachable instance; see also [device voices](#voice). Tap again to stop.
 ## Android integration
 
 - **Translate with Mozhi** appears in the text-selection menu of other apps.
-  Mozhi opens with the selection translated. If the text was selected in an
-  editable field, **Replace text** puts the translation back into the other
-  app.
+  A quick-translate sheet opens over the other app. If the text was selected
+  in an editable field, **Replace** puts the translation back into that app;
+  **Open in app** continues in the full translator.
+- **Quick Settings tile** and the **Translate clipboard** app shortcut open
+  the translator with the clipboard text.
 - **Share** text from any app to Mozhi to translate it.
 - **Material You**: with **Dynamic color** on (Android 12 and later), the app
   takes its colours from your wallpaper.
@@ -250,9 +252,13 @@ https://<host>/Mozhi/?text=hola&from=es&to=en
 | --- | --- | --- |
 | `text` | `q` | Text to translate (optional: leave it out to only set languages) |
 | `from` | `sl`, `source` | Source language: a code (`es`, `pt-BR`), an English or native name, or `auto` |
-| `to` | `tl`, `target` | Target language; with an AI engine also a custom style such as `Pirate%20speak` |
+| `to` | `tl`, `target` | Target language: a code or a name the selected engine supports |
 
-The app waits for the engines to load, selects the languages, and translates.
+The app waits for the engines to load and selects the languages. Text from
+links, shares and other apps is limited to 5,000 characters. It is translated
+straight away only with engines that cost nothing (Mozhi, offline, local
+models); with a paid AI provider, press Translate yourself. Custom styles
+such as *Pirate speak* can't be set from a link; pick them in the app.
 
 ## Keyboard shortcuts
 
@@ -260,6 +266,10 @@ The app waits for the engines to load, selects the languages, and translates.
 | --- | --- |
 | Ctrl+Enter (⌘+Enter on Apple devices) | Translate now (runs the comparison in compare mode); also runs Proofread |
 | Ctrl+Shift+S (⌘+Shift+S) | Swap languages |
+| Ctrl+Shift+C (⌘+Shift+C) | Copy the translation |
+| Ctrl+L / Ctrl+Shift+L (⌘+L / ⌘+Shift+L) | Choose the target / source language |
+| Esc | Clear the input |
+| ? or Ctrl+/ (⌘+/) | Show all shortcuts |
 
 ## Appearance and layout
 
