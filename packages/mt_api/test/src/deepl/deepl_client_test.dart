@@ -59,6 +59,10 @@ void main() {
         expect(DeeplClient.defaultBaseUrl(_freeKey).host, 'api-free.deepl.com');
       });
 
+      test('exposes the key page', () {
+        expect(DeeplClient.apiKeyUrl, startsWith('https://www.deepl.com/'));
+      });
+
       test('trims the key', () async {
         final trimmed = DeeplClient(
           authKey: '  $_freeKey \n',

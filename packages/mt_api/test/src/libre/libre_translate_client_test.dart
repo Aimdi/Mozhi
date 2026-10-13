@@ -39,6 +39,14 @@ void main() {
       );
     });
 
+    test('exposes the official instance and key portal', () {
+      expect(
+        LibreTranslateClient.officialBaseUrl.toString(),
+        'https://libretranslate.com',
+      );
+      expect(LibreTranslateClient.apiKeyUrl, startsWith('https://'));
+    });
+
     test('trims the key and treats a blank key as none', () {
       expect(client.apiKey, 'secret');
       expect(LibreTranslateClient(baseUrl: _base, apiKey: '  ').apiKey, isNull);

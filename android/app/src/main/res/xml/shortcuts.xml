@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Static launcher shortcuts (long-press the app icon), referenced from
+     MainActivity's android.app.shortcuts meta-data. MainActivity turns
+     mozhi://<screen> into the route /<screen> and forwards the
+     TRANSLATE_CLIPBOARD action to Dart as {action: "translateClipboard"}.
+     Keep all three copies (main, staging, development) in sync.
+     This copy is used by the production flavour (no applicationIdSuffix).
+     staging and development override it in src/<flavor>/res/xml/ because
+     android:targetPackage must be the literal applicationId. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="translate_clipboard"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_clipboard"
+        android:shortcutShortLabel="@string/shortcut_clipboard_short"
+        android:shortcutLongLabel="@string/shortcut_clipboard_long">
+        <intent
+            android:action="io.github.aimdi.mozhi.action.TRANSLATE_CLIPBOARD"
+            android:targetPackage="io.github.aimdi.mozhi"
+            android:targetClass="io.github.aimdi.mozhi.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="camera_translate"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_camera"
+        android:shortcutShortLabel="@string/shortcut_camera_short"
+        android:shortcutLongLabel="@string/shortcut_camera_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="mozhi://image"
+            android:targetPackage="io.github.aimdi.mozhi"
+            android:targetClass="io.github.aimdi.mozhi.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="conversation"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_conversation"
+        android:shortcutShortLabel="@string/shortcut_conversation_short"
+        android:shortcutLongLabel="@string/shortcut_conversation_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="mozhi://conversation"
+            android:targetPackage="io.github.aimdi.mozhi"
+            android:targetClass="io.github.aimdi.mozhi.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="proofread"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_proofread"
+        android:shortcutShortLabel="@string/shortcut_proofread_short"
+        android:shortcutLongLabel="@string/shortcut_proofread_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="mozhi://proofread"
+            android:targetPackage="io.github.aimdi.mozhi"
+            android:targetClass="io.github.aimdi.mozhi.MainActivity" />
+    </shortcut>
+</shortcuts>

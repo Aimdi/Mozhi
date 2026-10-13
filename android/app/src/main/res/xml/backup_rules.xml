@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Auto Backup rules for Android 11 and lower (android:fullBackupContent);
+     Android 12+ uses data_extraction_rules.xml. Same policy: back up settings
+     and history, never flutter_secure_storage's files (API keys encrypted
+     with device-bound AndroidKeyStore keys). -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="FlutterSecureStorage.xml" />
+    <exclude domain="sharedpref" path="FlutterSecureKeyStorage.xml" />
+</full-backup-content>
