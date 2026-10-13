@@ -18,7 +18,7 @@ Future<UsageBudgetChoice?> showUsageBudgetDialog(
 );
 
 class UsageBudgetDialog extends StatefulWidget {
-  const UsageBudgetDialog({this.current, super.key});
+  const new({this.current, super.key});
 
   /// The budget being edited; null when none is set.
   final UsageBudget? current;
