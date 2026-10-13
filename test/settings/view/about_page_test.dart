@@ -98,5 +98,21 @@ void main() {
       await pump(tester, size: const Size(320, 640), textScale: 2);
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets('the version line grows instead of clipping at 200%', (
+      tester,
+    ) async {
+      await pump(tester, size: const Size(320, 1600), textScale: 2);
+      final text = find.text('Version 1.2.3 (45)');
+      final box = find.ancestor(
+        of: text,
+        matching: find.byType(ConstrainedBox),
+      );
+      expect(tester.getSize(text).height, greaterThan(24));
+      expect(
+        tester.getSize(box.first).height,
+        greaterThanOrEqualTo(tester.getSize(text).height),
+      );
+    });
   });
 }

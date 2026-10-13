@@ -103,7 +103,10 @@ void main() {
     testWidgets('opens initial text in text mode', (tester) async {
       await pumpPage(tester, initialText: 'Some long text');
       expect(cubitOf(tester).state.mode, DocumentInputMode.text);
-      expect(find.text('Some long text'), findsOneWidget);
+      final field = tester.widget<TextField>(
+        find.byKey(const Key('documents_text_field')),
+      );
+      expect(field.controller!.text, 'Some long text');
     });
 
     testWidgets('shows a hint when no engine is available', (tester) async {

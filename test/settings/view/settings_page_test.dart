@@ -467,6 +467,14 @@ void main() {
         await pump(tester);
         await tester.tap(find.text('Import history'));
         await tester.pumpAndSettle();
+        // Labelled, not only hinted, so it stays named once filled.
+        expect(
+          tester
+              .widget<TextField>(find.byType(TextField))
+              .decoration
+              ?.labelText,
+          'History JSON',
+        );
         await tester.enterText(find.byType(TextField), '[]');
         await tester.tap(find.text('Import'));
         await tester.pumpAndSettle();

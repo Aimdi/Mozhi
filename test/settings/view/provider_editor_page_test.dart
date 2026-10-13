@@ -582,6 +582,13 @@ void main() {
           matching: find.text(text),
         );
         expect(inSheet('gpt-5'), findsOneWidget);
+        final search = tester.widget<TextField>(
+          find.descendant(
+            of: find.byType(BottomSheet),
+            matching: find.byType(TextField),
+          ),
+        );
+        expect(search.decoration?.labelText, 'Search models');
         await tester.enterText(
           find.widgetWithText(TextField, 'Search models'),
           'nano',

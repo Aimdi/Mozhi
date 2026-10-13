@@ -5,6 +5,7 @@ import 'package:mozhi_api/mozhi_api.dart';
 import 'package:translation_repository/src/language_catalog.dart';
 import 'package:translation_repository/src/language_matcher.dart';
 import 'package:translation_repository/src/models/models.dart';
+import 'package:translation_repository/src/prompts/response_parsers.dart';
 
 /// The Mozhi engine id of [engine] (`google` for `mozhi:google`).
 String mozhiEngineId(TranslationEngine engine) =>
@@ -13,13 +14,12 @@ String mozhiEngineId(TranslationEngine engine) =>
         ? engine.id.substring('mozhi:'.length)
         : engine.id);
 
-/// Normalises a detected language code to a catalogue code; empty, `auto`
-/// and unknown (`und`) codes become null.
+/// Normalises a detected language code to a catalogue code; empty, `auto`,
+/// unknown (`und`) and placeholder codes (a literally echoed `xx`, see
+/// `ResponseParsers.isPlaceholderLanguageCode`) become null.
 String? normalizeDetected(String? code) {
   final trimmed = code?.trim() ?? '';
-  if (trimmed.isEmpty) return null;
-  final lower = trimmed.toLowerCase();
-  if (lower == 'auto' || lower == 'und') return null;
+  if (ResponseParsers.isPlaceholderLanguageCode(trimmed)) return null;
   return LanguageMatcher.normalize(trimmed);
 }
 

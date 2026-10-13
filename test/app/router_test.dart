@@ -31,6 +31,9 @@ import 'package:translation_repository/translation_repository.dart';
 
 import 'mocks.dart';
 
+/// Longer than any page transition (Android's is 800 ms).
+const _transition = Duration(seconds: 1);
+
 void main() {
   setUpAll(registerAppFallbacks);
 
@@ -190,7 +193,7 @@ void main() {
     Future<void> go(WidgetTester tester, String location) async {
       router.go(location);
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(_transition);
     }
 
     String location() =>
@@ -253,7 +256,7 @@ void main() {
 
       unawaited(router.push<void>(AppRoutes.documents));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(_transition);
 
       expect(find.byType(DocumentTranslatePage), findsOneWidget);
       expect(find.byType(AppShell, skipOffstage: false), findsOneWidget);
@@ -261,7 +264,7 @@ void main() {
 
       router.pop();
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(_transition);
 
       expect(find.byType(DocumentTranslatePage), findsNothing);
       expect(find.byType(NavigationBar).hitTestable(), findsOneWidget);
@@ -297,10 +300,10 @@ void main() {
       final page = tester.widget<PresetsPage>(find.byType(PresetsPage));
       page.onOpenGlossaries!();
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(_transition);
 
-      expect(location(), AppRoutes.glossaries);
       expect(find.byType(GlossariesPage), findsOneWidget);
+      expect(find.byType(AppShell), findsOneWidget);
     });
 
     testWidgets('usage lists the providers and opens their editor', (
@@ -325,7 +328,7 @@ void main() {
       expect(page.providers, const [provider]);
       page.onOpenProvider!('p1');
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(_transition);
 
       final editor = tester.widget<ProviderEditorPage>(
         find.byType(ProviderEditorPage),
@@ -339,7 +342,7 @@ void main() {
       ) async {
         onboardingRouter();
         await pumpRouter(tester);
-        await tester.pump(const Duration(milliseconds: 400));
+        await tester.pump(_transition);
 
         expect(location(), AppRoutes.onboarding);
         expect(find.byType(OnboardingPage), findsOneWidget);
@@ -415,7 +418,7 @@ void main() {
         ),
       );
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(_transition);
 
       expect(location(), '/history');
       expect(find.byType(HistoryPage), findsOneWidget);
@@ -442,7 +445,7 @@ void main() {
           ),
         );
         await tester.pump();
-        await tester.pump(const Duration(milliseconds: 400));
+        await tester.pump(_transition);
       }
 
       await tapSettings();

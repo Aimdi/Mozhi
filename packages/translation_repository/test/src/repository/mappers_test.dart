@@ -39,6 +39,12 @@ void main() {
       expect(normalizeDetected('und'), isNull);
     });
 
+    test('returns null for echoed placeholders', () {
+      expect(normalizeDetected('xx'), isNull);
+      expect(normalizeDetected('XX-xx'), isNull);
+      expect(normalizeDetected('language'), isNull);
+    });
+
     test('normalises through LanguageMatcher', () {
       expect(normalizeDetected('de'), LanguageMatcher.normalize('de'));
       expect(normalizeDetected(' iw '), LanguageMatcher.normalize('iw'));

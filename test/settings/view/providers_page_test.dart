@@ -137,6 +137,10 @@ void main() {
       ) async {
         await pump(tester, state: const AppSettings());
         expect(find.text('Bring your own AI'), findsOneWidget);
+        expect(
+          tester.getSemantics(find.text('Bring your own AI')),
+          isSemantics(isHeader: true),
+        );
         expect(find.textContaining('Ollama or LM Studio'), findsOneWidget);
         expect(find.textContaining('alternative translations'), findsOne);
         expect(find.byType(FloatingActionButton), findsNothing);
