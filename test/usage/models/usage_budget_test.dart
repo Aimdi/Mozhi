@@ -33,6 +33,17 @@ void main() {
       );
     });
 
+    test('status compares by value', () {
+      expect(
+        const UsageBudgetStatus(budget: budget, usedChars: 5),
+        const UsageBudgetStatus(budget: budget, usedChars: 5),
+      );
+      expect(
+        const UsageBudgetStatus(budget: budget, usedChars: 5),
+        isNot(const UsageBudgetStatus(budget: budget, usedChars: 6)),
+      );
+    });
+
     test('round-trips through JSON', () {
       const custom = UsageBudget(monthlyChars: 50, warningThreshold: 0.5);
       expect(UsageBudget.tryFromJson(custom.toJson()), custom);

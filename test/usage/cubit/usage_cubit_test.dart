@@ -19,6 +19,16 @@ void main() {
 
   tearDown(() => tracker.dispose());
 
+  test('UsageState.copyWith keeps unchanged fields', () {
+    final state = UsageState(snapshot: UsageSnapshot(currentMonth: october));
+    final changed = state.copyWith(
+      snapshot: const UsageSnapshot(currentMonth: UsageMonth(2026, 11)),
+    );
+    expect(changed.status, UsageStatus.initial);
+    expect(changed.snapshot.currentMonth, const UsageMonth(2026, 11));
+    expect(changed.copyWith(), changed);
+  });
+
   test('starts with the tracker snapshot', () {
     final cubit = UsageCubit(tracker);
     expect(cubit.state.status, UsageStatus.initial);

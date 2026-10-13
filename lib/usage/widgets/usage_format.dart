@@ -15,10 +15,6 @@ extension UsageFormat on BuildContext {
   String usageNumber(int value) =>
       NumberFormat.decimalPattern(_numberLocale).format(value);
 
-  /// [value] in compact form, e.g. `12K`.
-  String usageCompact(int value) =>
-      NumberFormat.compact(locale: _numberLocale).format(value);
-
   /// [fraction] as a whole percentage, e.g. `80%`.
   String usagePercent(double fraction) =>
       NumberFormat.percentPattern(_numberLocale).format(fraction);

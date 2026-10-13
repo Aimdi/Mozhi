@@ -67,7 +67,6 @@ class _AppState extends State<App> {
       history: _historyCubit,
     );
     unawaited(_translateCubit.loadEngines());
-    unawaited(_deps.usageTracker.load().then<void>((_) {}, onError: (_) {}));
 
     // `https://host/Mozhi/app/?text=…` (query before the `#/` fragment).
     final webLink = kIsWeb ? TranslateLink.fromUri(Uri.base) : null;
@@ -221,7 +220,7 @@ class _AppState extends State<App> {
                     localizationsDelegates: appLocalizationsDelegates,
                     supportedLocales: AppLocalizations.supportedLocales,
                     routerConfig: _router,
-                    builder: null ?? (context, child) => child ?? UsageWarningListener(
+                    builder: (context, child) => UsageWarningListener(
                       tracker: _deps.usageTracker,
                       messengerKey: _messengerKey,
                       providerName: _providerName,
