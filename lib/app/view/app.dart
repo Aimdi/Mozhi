@@ -164,8 +164,7 @@ class _AppState extends State<App> {
                   theme: themes.light,
                   darkTheme: themes.dark,
                   themeMode: settings.themeMode,
-                  localizationsDelegates:
-                      AppLocalizations.localizationsDelegates,
+                  localizationsDelegates: appLocalizationsDelegates,
                   supportedLocales: AppLocalizations.supportedLocales,
                   routerConfig: _router,
                 );

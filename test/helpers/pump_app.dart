@@ -9,7 +9,7 @@ extension PumpApp on WidgetTester {
     return pumpWidget(
       MaterialApp(
         theme: theme ?? ThemeData(useMaterial3: true),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: widget,
       ),

@@ -44,6 +44,11 @@ self-hostable **Mozhi** translation instances plus an **AI translator**
 - Do not use `git` to commit, stash, checkout, or reset.
 
 ## Localisation
+- Any `MaterialApp` (app or tests) must use `localizationsDelegates:
+  appLocalizationsDelegates` from `package:mozhi/l10n/l10n.dart` — NOT the
+  generated `AppLocalizations.localizationsDelegates` (those provide
+  flutter/material types; material_ui widgets then crash in non-English
+  locales).
 - All user-facing app strings go through `context.l10n.<key>`
   (`package:mozhi/l10n/l10n.dart`).
 - Add keys with the lock-safe helper (it also regenerates the code):
