@@ -6,10 +6,14 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/offline/offline.dart' show OfflineEngineBadge;
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/insight_sheet.dart';
+import 'package:mozhi/translate/widgets/language_bar.dart';
+import 'package:mozhi/translate/widgets/language_text.dart';
 import 'package:mozhi/translate/widgets/listen_button.dart';
+import 'package:mozhi/translate/widgets/status_announcer.dart';
 import 'package:mozhi/translate/widgets/translate_error.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
 import 'package:share_plus/share_plus.dart';
@@ -40,9 +44,22 @@ HistoryEntry? findHistoryEntry(
   return null;
 }
 
+/// Outputs longer than this are announced as "Translation ready" instead
+/// of being read out in full.
+const maxAnnouncedOutputLength = 400;
+
+/// Direction of the translated text: the target language's, or (custom
+/// targets) the direction of its characters.
+TextDirection? outputTextDirection(TranslateState state) =>
+    textDirectionForLanguage(state.target) ??
+    textDirectionForText(state.output);
+
 /// The translation: streaming text, progress, errors, transliteration,
 /// detected language, engine/latency footer and actions (copy, share,
 /// listen, favourite, insights).
+///
+/// A finished translation is announced to screen readers once (never per
+/// streamed token); errors are announced by [TranslateErrorView].
 class OutputCard extends StatefulWidget {
   const new({super.key});
 
@@ -116,36 +133,65 @@ class _OutputCardState extends State<OutputCard> {
           unawaited(context.read<TranslateCubit>().loadInsights()),
       builder: (context, state) {
         final translating = state.status == TranslateStatus.translating;
-        return Card(
-          key: const Key('translate_output_card'),
-          margin: EdgeInsets.zero,
-          elevation: 0,
-          clipBehavior: Clip.antiAlias,
-          color: theme.colorScheme.surfaceContainer,
-          shape: const RoundedRectangleBorder(
-            borderRadius: TranslateLayout.cardBorderRadius,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(
-                height: 3,
-                child: translating
-                    ? const LinearProgressIndicator(
-                        key: Key('translate_output_progress'),
-                        minHeight: 3,
-                      )
-                    : null,
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 13, 8, 8),
-                child: _content(context, state),
-              ),
-            ],
+        final (announcement, announcementDirection) = _announcement(
+          context,
+          state,
+        );
+        return StatusAnnouncer(
+          message: announcement,
+          textDirection: announcementDirection,
+          child: Card(
+            key: const Key('translate_output_card'),
+            margin: EdgeInsets.zero,
+            elevation: 0,
+            clipBehavior: Clip.antiAlias,
+            color: theme.colorScheme.surfaceContainer,
+            shape: const RoundedRectangleBorder(
+              borderRadius: TranslateLayout.cardBorderRadius,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  height: 3,
+                  child: translating
+                      ? LinearProgressIndicator(
+                          key: const Key('translate_output_progress'),
+                          minHeight: 3,
+                          semanticsLabel: context.l10n.translateTranslating,
+                        )
+                      : null,
+                ),
+                Padding(
+                  padding: const EdgeInsetsDirectional.fromSTEB(20, 13, 8, 8),
+                  child: _content(context, state),
+                ),
+              ],
+            ),
           ),
         );
       },
     );
+  }
+
+  /// What to tell screen-reader users once a translation has finished: the
+  /// translation itself (in the target's direction), or "Translation ready"
+  /// for long texts. Null while idle, streaming or failed.
+  (String?, TextDirection?) _announcement(
+    BuildContext context,
+    TranslateState state,
+  ) {
+    final output = state.output;
+    final complete = state.result?.isComplete ?? false;
+    if (state.status != TranslateStatus.success ||
+        !complete ||
+        output.trim().isEmpty) {
+      return (null, null);
+    }
+    if (output.length > maxAnnouncedOutputLength) {
+      return (context.l10n.translateAnnounceReady, null);
+    }
+    return (output, outputTextDirection(state));
   }
 
   Widget _content(BuildContext context, TranslateState state) {
@@ -157,7 +203,7 @@ class _OutputCardState extends State<OutputCard> {
 
     if (state.status == TranslateStatus.failure && output.isEmpty) {
       return Padding(
-        padding: const EdgeInsets.only(right: 12, bottom: 8),
+        padding: const EdgeInsetsDirectional.only(end: 12, bottom: 8),
         child: TranslateErrorView(
           error: state.error,
           onRetry: () => unawaited(context.read<TranslateCubit>().translate()),
@@ -169,7 +215,7 @@ class _OutputCardState extends State<OutputCard> {
       return ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 96),
         child: Padding(
-          padding: const EdgeInsets.only(top: 8, right: 12),
+          padding: const EdgeInsetsDirectional.only(top: 8, end: 12),
           child: Text(
             state.status == TranslateStatus.translating
                 ? l10n.translateTranslating
@@ -194,33 +240,51 @@ class _OutputCardState extends State<OutputCard> {
     final transliteration = result?.targetTransliteration.trim() ?? '';
     final detected = result?.detectedSource;
     final elapsed = result?.elapsed;
+    final direction = outputTextDirection(state);
+    final locale = localeForLanguage(state.target);
+    final uncertain = detectionIsUncertain(state);
+    final offline = result != null && isOfflineEngineId(result.engineId);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(top: 8, right: 12),
+          padding: const EdgeInsetsDirectional.only(top: 8, end: 12),
+          // A named container; completion is announced separately (a live
+          // region here would fire on every streamed token or not at all).
           child: Semantics(
+            container: true,
             label: l10n.translateOutputLabel,
-            liveRegion: complete,
-            child: insightsReady
-                ? InsightText(
-                    text: output,
-                    insights: state.insights,
-                    style: style,
-                    onTap: (insight) =>
-                        unawaited(showInsightSheet(context, insight)),
-                  )
-                : SelectableText(
-                    output,
-                    key: const Key('translate_output_text'),
-                    style: style,
-                  ),
+            child: SizedBox(
+              width: double.infinity,
+              child: insightsReady
+                  ? InsightText(
+                      text: output,
+                      insights: state.insights,
+                      style: style,
+                      textDirection: direction,
+                      locale: locale,
+                      onTap: (insight) =>
+                          unawaited(showInsightSheet(context, insight)),
+                    )
+                  : SelectableText.rich(
+                      TextSpan(text: output, locale: locale),
+                      key: const Key('translate_output_text'),
+                      style: style,
+                      textDirection: direction,
+                    ),
+            ),
           ),
         ),
+        if (insightsReady)
+          InsightChips(
+            insights: state.insights,
+            locale: locale,
+            textDirection: direction,
+          ),
         if (settings.showTransliteration && transliteration.isNotEmpty)
           Padding(
-            padding: const EdgeInsets.only(top: 8, right: 12),
+            padding: const EdgeInsetsDirectional.only(top: 8, end: 12),
             child: Text(
               transliteration,
               key: const Key('translate_output_transliteration'),
@@ -230,19 +294,18 @@ class _OutputCardState extends State<OutputCard> {
         if (_showInsights && state.hasExtras) _insightsStatus(context, state),
         if (complete && result != null)
           Padding(
-            padding: const EdgeInsets.only(top: 12, right: 12),
+            padding: const EdgeInsetsDirectional.only(top: 12, end: 12),
             child: Wrap(
               spacing: 12,
               runSpacing: 8,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 if (detected != null && state.source.isAuto)
-                  _InfoChip(
-                    icon: Icons.auto_awesome_outlined,
-                    label: l10n.translateDetectedLanguage(
-                      languageNameFor(detected, state.sourceLanguages),
-                    ),
+                  _DetectedChip(
+                    uncertain: uncertain,
+                    language: languageNameFor(detected, state.sourceLanguages),
                   ),
+                if (offline) const OfflineEngineBadge(),
                 Text(
                   elapsed == null
                       ? result.engineName
@@ -269,23 +332,28 @@ class _OutputCardState extends State<OutputCard> {
       color: theme.colorScheme.onSurfaceVariant,
     );
     final child = switch (state.insightsStatus) {
-      ExtraStatus.loading => const LinearProgressIndicator(
-        key: Key('translate_insights_progress'),
+      ExtraStatus.loading => LinearProgressIndicator(
+        key: const Key('translate_insights_progress'),
+        semanticsLabel: l10n.translateLoading,
       ),
       ExtraStatus.failure => TranslateErrorView(
         error: state.extraError,
         dense: true,
         onRetry: () => unawaited(context.read<TranslateCubit>().loadInsights()),
       ),
-      ExtraStatus.ready when state.insights.isEmpty => Text(
-        l10n.translateInsightsEmpty,
-        style: muted,
+      // Live regions: announced once when the insights arrive.
+      ExtraStatus.ready when state.insights.isEmpty => Semantics(
+        liveRegion: true,
+        child: Text(l10n.translateInsightsEmpty, style: muted),
       ),
-      ExtraStatus.ready => Text(l10n.translateInsightsHint, style: muted),
+      ExtraStatus.ready => Semantics(
+        liveRegion: true,
+        child: Text(l10n.translateInsightsHint, style: muted),
+      ),
       ExtraStatus.idle => const SizedBox.shrink(),
     };
     return Padding(
-      padding: const EdgeInsets.only(top: 12, right: 12),
+      padding: const EdgeInsetsDirectional.only(top: 12, end: 12),
       child: child,
     );
   }
@@ -353,38 +421,38 @@ class _OutputCardState extends State<OutputCard> {
   }
 }
 
-class _InfoChip extends StatelessWidget {
-  const new({required this.icon, required this.label});
+/// "Detected: X" under the translation; tapping it opens the source
+/// language picker to correct a wrong detection. Marked with a question
+/// mark when the detection is uncertain (very short input).
+class _DetectedChip extends StatelessWidget {
+  const new({required this.language, required this.uncertain});
 
-  final IconData icon;
-  final String label;
+  final String language;
+  final bool uncertain;
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final scheme = Theme.of(context).colorScheme;
-    return DecoratedBox(
+    final label = uncertain
+        ? l10n.translateDetectedLanguageUncertain(language)
+        : l10n.translateDetectedLanguage(language);
+    return ActionChip(
       key: const Key('translate_detected_chip'),
-      decoration: BoxDecoration(
-        color: scheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(8),
+      avatar: Icon(
+        uncertain ? Icons.help_outline : Icons.auto_awesome_outlined,
+        color: scheme.onSecondaryContainer,
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: scheme.onSecondaryContainer),
-            const SizedBox(width: 4),
-            Flexible(
-              child: Text(
-                label,
-                style: Theme.of(context).textTheme.labelMedium
-                    ?.copyWith(color: scheme.onSecondaryContainer),
-              ),
-            ),
-          ],
-        ),
-      ),
+      label: Text(label),
+      tooltip: uncertain
+          ? l10n.translateDetectionUncertainHint
+          : l10n.translateChangeSourceLanguage,
+      backgroundColor: scheme.secondaryContainer,
+      labelStyle: Theme.of(context).textTheme.labelMedium
+          ?.copyWith(color: scheme.onSecondaryContainer),
+      side: BorderSide.none,
+      visualDensity: VisualDensity.compact,
+      onPressed: () => unawaited(pickTranslateLanguage(context, source: true)),
     );
   }
 }

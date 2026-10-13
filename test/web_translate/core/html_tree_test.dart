@@ -1,5 +1,5 @@
 // HTML fragments are deliberately split into adjacent string literals.
-// ignore_for_file: missing_whitespace_between_adjacent_strings, no_adjacent_strings_in_list
+// ignore_for_file: missing_whitespace_between_adjacent_strings
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mozhi/web_translate/core/html_tree.dart';

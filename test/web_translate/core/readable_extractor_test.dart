@@ -1,5 +1,6 @@
 // HTML fragments are deliberately split into adjacent string literals.
-// ignore_for_file: missing_whitespace_between_adjacent_strings, no_adjacent_strings_in_list
+// ignore_for_file: missing_whitespace_between_adjacent_strings
+// ignore_for_file: no_adjacent_strings_in_list
 
 import 'dart:convert';
 

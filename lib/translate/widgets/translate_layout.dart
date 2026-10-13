@@ -59,3 +59,7 @@ bool optionsAreDefault(TranslationOptions options) =>
 /// Formats a latency as seconds with one decimal ("0.8").
 String formatSeconds(Duration duration) =>
     (duration.inMilliseconds / 1000).toStringAsFixed(1);
+
+/// Whether [engineId] is an on-device engine (ids `offline:<backend>`).
+bool isOfflineEngineId(String? engineId) =>
+    engineId?.startsWith('offline:') ?? false;

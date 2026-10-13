@@ -14,10 +14,10 @@ import 'package:translation_repository/translation_repository.dart';
 
 import '../../helpers/helpers.dart';
 
-class MockTranslationRepository extends Mock implements TranslationRepository {}
+class MockTranslationRepository extends Mock implements TranslationRepository;
 
 class MockTranslateCubit extends MockCubit<TranslateState>
-    implements TranslateCubit {}
+    implements TranslateCubit;
 
 const googleEngine = TranslationEngine(
   id: 'mozhi:google',
