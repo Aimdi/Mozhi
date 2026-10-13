@@ -7,14 +7,12 @@ export 'proofread_state.dart';
 /// Drives the proofreading screen (Kagi-style): sends the input to an AI
 /// engine and lets the user accept or reject each suggested edit.
 class ProofreadCubit extends Cubit<ProofreadState> {
-  ProofreadCubit({
-    required TranslationRepository repository,
+  new({
+    required this._repository,
     List<TranslationEngine> engines = const [],
     TranslationEngine? engine,
-    String uiLanguage = 'English',
-  }) : _repository = repository,
-       _uiLanguage = uiLanguage,
-       super(_withEngines(const ProofreadState(), engines, engine));
+    this._uiLanguage = 'English',
+  }) : super(_withEngines(const ProofreadState(), engines, engine));
 
   final TranslationRepository _repository;
   final String _uiLanguage;

@@ -9,15 +9,15 @@ enum DiffType { unchanged, removed, inserted }
 /// A run of text in an inline diff between the proofread input and the
 /// corrected output.
 class DiffSegment extends Equatable {
-  const DiffSegment(this.type, this.text, {this.editIndex});
+  const new(this.type, this.text, {this.editIndex});
 
-  const DiffSegment.unchanged(String text, {int? editIndex})
+  const new unchanged(String text, {int? editIndex})
     : this(DiffType.unchanged, text, editIndex: editIndex);
 
-  const DiffSegment.removed(String text, {int? editIndex})
+  const new removed(String text, {int? editIndex})
     : this(DiffType.removed, text, editIndex: editIndex);
 
-  const DiffSegment.inserted(String text, {int? editIndex})
+  const new inserted(String text, {int? editIndex})
     : this(DiffType.inserted, text, editIndex: editIndex);
 
   final DiffType type;
@@ -35,7 +35,7 @@ class DiffSegment extends Equatable {
 
 /// Where a [ProofreadEdit] was found in the proofread text.
 class EditLocation extends Equatable {
-  const EditLocation(this.start, this.end);
+  const new(this.start, this.end);
 
   final int start;
   final int end;

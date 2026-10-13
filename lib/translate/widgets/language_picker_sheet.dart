@@ -75,60 +75,71 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
       allowCustom: allowCustom,
     );
 
+    final background =
+        theme.bottomSheetTheme.modalBackgroundColor ??
+        theme.bottomSheetTheme.backgroundColor ??
+        theme.colorScheme.surfaceContainerLow;
+
     return DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.85,
       minChildSize: 0.4,
       maxChildSize: 1,
-      builder: (context, controller) => Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-            child: Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: Text(
-                source
-                    ? l10n.translatePickerSourceTitle
-                    : l10n.translatePickerTargetTitle,
-                style: theme.textTheme.titleLarge,
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: TextField(
-              key: const Key('translate_language_search'),
-              controller: _search,
-              onChanged: (value) => setState(() => _query = value),
-              textInputAction: TextInputAction.search,
-              onSubmitted: (_) => _submitSearch(languages, allowCustom),
-              decoration: InputDecoration(
-                hintText: l10n.translatePickerSearchHint,
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _query.isEmpty
-                    ? null
-                    : IconButton(
-                        tooltip: l10n.commonClear,
-                        icon: const Icon(Icons.close),
-                        onPressed: () {
-                          _search.clear();
-                          setState(() => _query = '');
-                        },
+      builder: (context, controller) => CustomScrollView(
+        controller: controller,
+        slivers: [
+          PinnedHeaderSliver(
+            child: ColoredBox(
+              color: background,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+                      child: Text(
+                        source
+                            ? l10n.translatePickerSourceTitle
+                            : l10n.translatePickerTargetTitle,
+                        style: theme.textTheme.titleLarge,
                       ),
-                filled: true,
-                border: const OutlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(28)),
-                  borderSide: BorderSide.none,
+                    ),
+                    TextField(
+                      key: const Key('translate_language_search'),
+                      controller: _search,
+                      onChanged: (value) => setState(() => _query = value),
+                      textInputAction: TextInputAction.search,
+                      onSubmitted: (_) => _submitSearch(languages, allowCustom),
+                      decoration: InputDecoration(
+                        hintText: l10n.translatePickerSearchHint,
+                        prefixIcon: const Icon(Icons.search),
+                        suffixIcon: _query.isEmpty
+                            ? null
+                            : IconButton(
+                                tooltip: l10n.commonClear,
+                                icon: const Icon(Icons.close),
+                                onPressed: () {
+                                  _search.clear();
+                                  setState(() => _query = '');
+                                },
+                              ),
+                        filled: true,
+                        border: const OutlineInputBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(28)),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: ListView(
-              controller: controller,
-              padding: const EdgeInsets.only(bottom: 24),
-              children: items,
+          SliverList.list(children: items),
+          SliverPadding(
+            padding: EdgeInsets.only(
+              bottom: 24 + MediaQuery.viewInsetsOf(context).bottom,
             ),
           ),
         ],

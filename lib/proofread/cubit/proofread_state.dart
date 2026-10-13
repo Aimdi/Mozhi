@@ -5,7 +5,7 @@ import 'package:translation_repository/translation_repository.dart';
 enum ProofreadStatus { idle, loading, success, failure }
 
 class ProofreadState extends Equatable {
-  const ProofreadState({
+  const new({
     this.input = '',
     this.engine,
     this.availableEngines = const [],

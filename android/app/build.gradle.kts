@@ -1,17 +1,31 @@
 import java.util.Properties
-import java.io.FileInputStream
 
 plugins {
     id("com.android.application")
     id("kotlin-android")
+    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Release signing, in order of preference:
+//  1. Environment (CI): ANDROID_KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD,
+//     ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD.
+//  2. android/key.properties: storeFile, storePassword, keyAlias, keyPassword.
+//  3. Otherwise release builds are signed with the debug key so that
+//     `flutter build apk --release` works out of the box (local builds, forks,
+//     pull requests). Such APKs cannot update a properly signed install.
 val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("key.properties")
 if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+    keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
 }
+
+fun env(name: String): String? = System.getenv(name)?.takeIf { it.isNotBlank() }
+
+val envKeystorePath: String? = env("ANDROID_KEYSTORE_PATH")
+val propertiesKeystorePath: String? =
+    keystoreProperties.getProperty("storeFile")?.takeIf { it.isNotBlank() }
+val hasReleaseKeystore = envKeystorePath != null || propertiesKeystorePath != null
 
 android {
     namespace = "io.github.aimdi.mozhi"
@@ -19,38 +33,36 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
-    }
-
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_11.toString()
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "io.github.aimdi.mozhi"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
+        // Uses the version from pubspec.yaml. Split-per-ABI builds add
+        // 1000 * ABI_VERSION to the version code automatically.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
     signingConfigs {
-        create("release") {
-            if (System.getenv("ANDROID_KEYSTORE_PATH") != null) {
-                storeFile = file(System.getenv("ANDROID_KEYSTORE_PATH"))
-                keyAlias = System.getenv("ANDROID_KEYSTORE_ALIAS")
-                keyPassword = System.getenv("ANDROID_KEYSTORE_PRIVATE_KEY_PASSWORD")
-                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
-                
-            } else {
-                keyAlias = keystoreProperties["keyAlias"] as String?
-                keyPassword = keystoreProperties["keyPassword"] as String?
-                storeFile = keystoreProperties["storeFile"]?.let { file(it) }
-                storePassword = keystoreProperties["storePassword"] as String?
+        if (hasReleaseKeystore) {
+            create("release") {
+                if (envKeystorePath != null) {
+                    storeFile = file(envKeystorePath)
+                    storePassword = env("ANDROID_KEYSTORE_PASSWORD")
+                    keyAlias = env("ANDROID_KEY_ALIAS") ?: env("ANDROID_KEYSTORE_ALIAS")
+                    keyPassword = env("ANDROID_KEY_PASSWORD")
+                        ?: env("ANDROID_KEYSTORE_PRIVATE_KEY_PASSWORD")
+                        ?: env("ANDROID_KEYSTORE_PASSWORD")
+                } else {
+                    storeFile = file(propertiesKeystorePath!!)
+                    storePassword = keystoreProperties.getProperty("storePassword")
+                    keyAlias = keystoreProperties.getProperty("keyAlias")
+                    keyPassword = keystoreProperties.getProperty("keyPassword")
+                }
             }
         }
     }
@@ -76,16 +88,26 @@ android {
 
     buildTypes {
         getByName("release") {
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = if (hasReleaseKeystore) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             isMinifyEnabled = true
             proguardFiles(
-                getDefaultProguardFile("proguard-android.txt"),
+                getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
         }
         getByName("debug") {
             signingConfig = signingConfigs.getByName("debug")
         }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
     }
 }
 

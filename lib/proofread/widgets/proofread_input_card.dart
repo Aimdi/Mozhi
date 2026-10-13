@@ -6,7 +6,7 @@ import 'package:mozhi/proofread/cubit/proofread_cubit.dart';
 
 /// Multiline input with paste/clear actions. Ctrl/Cmd+Enter proofreads.
 class ProofreadInputCard extends StatefulWidget {
-  const ProofreadInputCard({super.key});
+  const new({super.key});
 
   @override
   State<ProofreadInputCard> createState() => _ProofreadInputCardState();
@@ -45,7 +45,7 @@ class _ProofreadInputCardState extends State<ProofreadInputCard> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    final input = context.select((ProofreadCubit c) => c.state.input);
+    final input = context.select((c) => c.state.input);
 
     return BlocListener<ProofreadCubit, ProofreadState>(
       listenWhen: (previous, current) => previous.input != current.input,
