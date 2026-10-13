@@ -57,7 +57,7 @@ void main() {
         find.byKey(const Key('translate_more_suggestions')),
       );
       await tester.tap(find.byKey(const Key('translate_more_suggestions')));
-      verify(() => harness.translate.loadSuggestions()).called(1);
+      verify(harness.translate.loadSuggestions).called(1);
     });
 
     testWidgets('"More suggestions" disappears once loaded', (tester) async {
@@ -92,7 +92,7 @@ void main() {
       await harness.pump(tester, child: const ExtrasSection());
       await tester.tap(find.text('Alternatives'));
       await tester.pumpAndSettle();
-      verify(() => harness.translate.loadAlternatives()).called(1);
+      verify(harness.translate.loadAlternatives).called(1);
     });
 
     testWidgets('alternatives can be used', (tester) async {
@@ -110,7 +110,7 @@ void main() {
       await harness.pump(tester, child: const ExtrasSection());
       await tester.tap(find.text('Alternatives'));
       await tester.pumpAndSettle();
-      verifyNever(() => harness.translate.loadAlternatives());
+      verifyNever(harness.translate.loadAlternatives);
       expect(find.text('A neutral, everyday greeting.'), findsOneWidget);
       expect(find.text('casual'), findsOneWidget);
       await tester.tap(find.text('Salut le monde'));
@@ -128,10 +128,10 @@ void main() {
       await harness.pump(tester, child: const ExtrasSection());
       await tester.tap(find.text('Alternatives'));
       await tester.pumpAndSettle();
-      verify(() => harness.translate.loadAlternatives()).called(1);
+      verify(harness.translate.loadAlternatives).called(1);
       expect(find.textContaining('Too many requests'), findsOneWidget);
       await tester.tap(find.text('Retry'));
-      verify(() => harness.translate.loadAlternatives()).called(1);
+      verify(harness.translate.loadAlternatives).called(1);
     });
 
     testWidgets('explain opens a streaming sheet', (tester) async {
@@ -147,7 +147,7 @@ void main() {
       await harness.pump(tester, child: const ExtrasSection());
       await tester.tap(find.byKey(const Key('translate_explain_button')));
       await tester.pumpAndSettle();
-      verifyNever(() => harness.translate.explain());
+      verifyNever(harness.translate.explain);
       expect(find.text('Explanation'), findsOneWidget);
       expect(
         find.textContaining('is the standard greeting', findRichText: true),
@@ -164,7 +164,7 @@ void main() {
       await tester.tap(find.byKey(const Key('translate_explain_button')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
-      verifyNever(() => harness.translate.explain());
+      verifyNever(harness.translate.explain);
       expect(
         find.byKey(const Key('translate_explain_progress')),
         findsOneWidget,
@@ -178,7 +178,7 @@ void main() {
       await harness.pump(tester, child: const ExtrasSection());
       await tester.tap(find.byKey(const Key('translate_explain_button')));
       await tester.pumpAndSettle();
-      verify(() => harness.translate.explain()).called(1);
+      verify(harness.translate.explain).called(1);
 
       await tester.enterText(
         find.byKey(const Key('translate_explain_question')),
@@ -198,7 +198,7 @@ void main() {
         expect(find.text('Dictionary'), findsOneWidget);
         expect(find.text('AI-generated'), findsOneWidget);
         await tester.tap(find.text('Look up “hello”'));
-        verify(() => harness.translate.lookUp()).called(1);
+        verify(harness.translate.lookUp).called(1);
       });
 
       testWidgets('is not offered for long inputs', (tester) async {
@@ -259,7 +259,7 @@ void main() {
           findsOneWidget,
         );
         await tester.tap(find.text('Retry'));
-        verify(() => harness.translate.lookUp()).called(1);
+        verify(harness.translate.lookUp).called(1);
       });
     });
   });

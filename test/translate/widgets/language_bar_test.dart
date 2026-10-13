@@ -40,7 +40,7 @@ void main() {
       final harness = TranslateHarness(state: translatedState());
       await harness.pump(tester, child: const LanguageBar());
       await tester.tap(find.byTooltip('Swap languages'));
-      verify(() => harness.translate.swap()).called(1);
+      verify(harness.translate.swap).called(1);
     });
 
     testWidgets('swap is disabled for a custom target', (tester) async {

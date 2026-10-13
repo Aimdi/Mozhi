@@ -50,7 +50,7 @@ void main() {
       final harness = TranslateHarness(state: _compareState());
       await harness.pump(tester, child: const ComparePanel());
       await tester.tap(find.byKey(const Key('translate_compare_button')));
-      verify(() => harness.translate.runCompare()).called(1);
+      verify(harness.translate.runCompare).called(1);
     });
 
     testWidgets('Compare is disabled without input', (tester) async {

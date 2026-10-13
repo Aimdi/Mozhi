@@ -17,7 +17,6 @@ import '../helpers/helpers.dart';
 const _insight = WordInsight(
   sourceText: 'world',
   targetText: 'le monde',
-  type: 'nuance',
   explanation: '"Monde" also means "people" in casual French.',
   variations: [Alternative(text: 'la terre', explanation: 'more poetic')],
 );
@@ -143,7 +142,7 @@ void main() {
         findsOneWidget,
       );
       await tester.tap(find.text('Retry'));
-      verify(() => harness.translate.translate()).called(1);
+      verify(harness.translate.translate).called(1);
       await tester.tap(find.text('Manage instances'));
       verify(() => harness.router.go('/settings/instances')).called(1);
     });
@@ -268,7 +267,7 @@ void main() {
         await harness.pump(tester, child: const OutputCard());
         await tester.tap(find.byTooltip('Insights'));
         await tester.pump();
-        verify(() => harness.translate.loadInsights()).called(1);
+        verify(harness.translate.loadInsights).called(1);
         expect(find.byTooltip('Hide insights'), findsOneWidget);
       });
 
@@ -284,7 +283,7 @@ void main() {
           find.byKey(const Key('translate_insights_progress')),
           findsOneWidget,
         );
-        verifyNever(() => harness.translate.loadInsights());
+        verifyNever(harness.translate.loadInsights);
       });
 
       testWidgets('show a message when there are none', (tester) async {
@@ -347,10 +346,10 @@ void main() {
           ),
         );
         await tester.pump();
-        verifyNever(() => harness.translate.loadInsights());
+        verifyNever(harness.translate.loadInsights);
         controller.add(initial.copyWith(insightsStatus: ExtraStatus.idle));
         await tester.pump();
-        verify(() => harness.translate.loadInsights()).called(1);
+        verify(harness.translate.loadInsights).called(1);
       });
     });
   });

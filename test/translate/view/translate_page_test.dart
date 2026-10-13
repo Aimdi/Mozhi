@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/translate.dart';
 import 'package:mozhi/translate/widgets/widgets.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -82,7 +81,6 @@ void main() {
         state: translatedState(engine: claude).copyWith(
           options: const TranslationOptions(style: TranslationStyle.literal),
         ),
-        settings: const AppSettings(instantTranslateAi: false),
       );
       final errors = <String>[];
       final previous = FlutterError.onError;
@@ -167,7 +165,7 @@ void main() {
         await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
         await tester.sendKeyEvent(LogicalKeyboardKey.enter);
         await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
-        verify(() => harness.translate.translate()).called(1);
+        verify(harness.translate.translate).called(1);
       });
 
       testWidgets('Cmd+Enter runs compare in compare mode', (tester) async {
@@ -179,8 +177,8 @@ void main() {
         await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
         await tester.sendKeyEvent(LogicalKeyboardKey.enter);
         await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
-        verify(() => harness.translate.runCompare()).called(1);
-        verifyNever(() => harness.translate.translate());
+        verify(harness.translate.runCompare).called(1);
+        verifyNever(harness.translate.translate);
       });
 
       testWidgets('Ctrl+Enter does nothing without input', (tester) async {
@@ -190,7 +188,7 @@ void main() {
         await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
         await tester.sendKeyEvent(LogicalKeyboardKey.enter);
         await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
-        verifyNever(() => harness.translate.translate());
+        verifyNever(harness.translate.translate);
       });
 
       testWidgets('Ctrl+Shift+S swaps languages', (tester) async {
@@ -202,7 +200,7 @@ void main() {
         await tester.sendKeyEvent(LogicalKeyboardKey.keyS);
         await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
         await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
-        verify(() => harness.translate.swap()).called(1);
+        verify(harness.translate.swap).called(1);
       });
 
       testWidgets('Ctrl+Shift+S does not swap into a custom source', (
@@ -222,7 +220,7 @@ void main() {
         await tester.sendKeyEvent(LogicalKeyboardKey.keyS);
         await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
         await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
-        verifyNever(() => harness.translate.swap());
+        verifyNever(harness.translate.swap);
       });
     });
 

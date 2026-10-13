@@ -57,7 +57,7 @@ void main() {
       await harness.pump(tester, child: const InputCard());
       expect(find.text('11 characters'), findsOneWidget);
       await tester.tap(find.byTooltip('Clear'));
-      verify(() => harness.translate.clear()).called(1);
+      verify(harness.translate.clear).called(1);
       final field = tester.widget<TextField>(
         find.byKey(const Key('translate_input_field')),
       );
@@ -116,7 +116,7 @@ void main() {
       );
       await harness.pump(tester, child: const InputCard());
       await tester.tap(find.byKey(const Key('translate_translate_button')));
-      verify(() => harness.translate.translate()).called(1);
+      verify(harness.translate.translate).called(1);
     });
 
     testWidgets('translate button is disabled without input', (tester) async {
