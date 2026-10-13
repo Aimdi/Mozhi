@@ -33,6 +33,7 @@ class PresetsProviders extends StatelessWidget {
     return MultiBlocProvider(
       providers: [
         BlocProvider(
+          lazy: false,
           create: (_) {
             final cubit = PresetsCubit(
               repository: presetsRepository ?? PresetsRepository(store: store),
@@ -42,6 +43,7 @@ class PresetsProviders extends StatelessWidget {
           },
         ),
         BlocProvider(
+          lazy: false,
           create: (_) {
             final cubit = GlossaryCubit(
               repository:

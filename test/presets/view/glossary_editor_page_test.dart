@@ -153,13 +153,13 @@ void main() {
         find.byKey(const Key('glossary_term_target')),
         'Vogel',
       );
+      await tester.tap(find.byKey(const Key('glossary_term_case')));
+      await settle(tester);
       await tester.enterText(
         find.byKey(const Key('glossary_term_note')),
         'animal',
       );
-      await tester.tap(find.byKey(const Key('glossary_term_case')));
-      await settle(tester);
-      await tester.tap(find.byKey(const Key('glossary_term_submit')));
+      await tester.testTextInput.receiveAction(TextInputAction.done);
       await settle(tester);
       expect(
         glossary()!.terms.last,
@@ -258,6 +258,11 @@ void main() {
       await pumpEditor(tester, initial: _pets.copyWith(terms: const []));
       expect(find.text('No terms yet'), findsOneWidget);
       expect(find.byKey(const Key('glossary_editor_search')), findsNothing);
+      await tester.tap(find.widgetWithText(FilledButton, 'Add term'));
+      await settle(tester);
+      expect(find.text('New term'), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await settle(tester);
       await tester.tap(find.byKey(const Key('glossary_editor_empty_import')));
       await settle(tester);
       harness.clipboard = 'a\tb';

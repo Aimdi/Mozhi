@@ -16,7 +16,7 @@ import 'package:mozhi/presets/view/glossary_editor_page.dart';
 
 import '../helpers.dart';
 
-class _MockStore extends Mock implements KeyValueStore {}
+class _MockStore extends Mock implements KeyValueStore;
 
 const _pets = Glossary(
   id: 'pets',
@@ -160,6 +160,22 @@ void main() {
       expect(glossaries().single.sourceCode, 'de');
       expect(glossaries().single.targetCode, 'ja');
       expect(opened, [glossaries().single.id]);
+    });
+
+    testWidgets('submits the dialog from the keyboard', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
+      await pumpLoaded(tester, initial: const [], onOpenGlossary: (_, _) {});
+      await tester.tap(find.byKey(const Key('glossaries_add')));
+      await settle(tester);
+      await tester.enterText(
+        find.byKey(const Key('glossary_details_name')),
+        'Quick',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await settle(tester);
+      expect(glossaries().single.name, 'Quick');
+      expect(glossaries().single.sourceCode, LanguageScope.any);
     });
 
     testWidgets('cancelling the dialog creates nothing', (tester) async {

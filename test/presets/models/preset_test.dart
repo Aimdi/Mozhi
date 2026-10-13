@@ -57,7 +57,7 @@ void main() {
     });
 
     test('fromJson is tolerant', () {
-      final parsed = Preset.fromJson({
+      final parsed = Preset.fromJson(const {
         'id': 'p2',
         'name': 42,
         'builtIn': 'unknown',
@@ -75,15 +75,15 @@ void main() {
       expect(parsed.options.readingLevel, ReadingLevel.standard);
       expect(parsed.options.glossary, isEmpty);
       expect(
-        Preset.fromJson({'id': 'p3', 'options': 'nope'}).options,
+        Preset.fromJson(const {'id': 'p3', 'options': 'nope'}).options,
         const TranslationOptions(),
       );
     });
 
     test('fromJson throws without an id', () {
-      expect(() => Preset.fromJson({}), throwsFormatException);
-      expect(() => Preset.fromJson({'id': ' '}), throwsFormatException);
-      expect(() => Preset.fromJson({'id': 3}), throwsFormatException);
+      expect(() => Preset.fromJson(const {}), throwsFormatException);
+      expect(() => Preset.fromJson(const {'id': ' '}), throwsFormatException);
+      expect(() => Preset.fromJson(const {'id': 3}), throwsFormatException);
     });
 
     test('settingsOf strips glossary and instructions only', () {

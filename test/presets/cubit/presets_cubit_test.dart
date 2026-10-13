@@ -9,7 +9,7 @@ import 'package:mozhi/presets/data/presets_repository.dart';
 import 'package:mozhi/presets/models/preset.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-class _MockStore extends Mock implements KeyValueStore {}
+class _MockStore extends Mock implements KeyValueStore;
 
 const _a = Preset(id: 'a', name: 'A');
 const _b = Preset(

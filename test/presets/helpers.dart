@@ -20,7 +20,7 @@ Future<void> settle(WidgetTester tester) => tester.pumpAndSettle(
 
 /// Real cubits backed by in-memory stores with predictable ids.
 class PresetsHarness {
-  PresetsHarness({MemoryStore? store}) : store = store ?? MemoryStore() {
+  new({MemoryStore? store}) : store = store ?? MemoryStore() {
     presets = PresetsCubit(
       repository: PresetsRepository(
         store: this.store,

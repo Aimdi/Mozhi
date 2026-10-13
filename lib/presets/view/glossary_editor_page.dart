@@ -120,13 +120,10 @@ class _GlossaryEditorViewState extends State<GlossaryEditorView> {
       _ExportAction.shareTsv => GlossaryExportFormat.tsv,
       _ExportAction.shareJson => GlossaryExportFormat.json,
     };
-    final cubit = _cubit;
     return exportText(
       ScaffoldMessenger.maybeOf(context),
       context.l10n,
-      build: () =>
-          cubit.exportTerms(_id, format) ??
-          GlossaryRepository.exportTerms(glossary, format),
+      build: () => GlossaryRepository.exportTerms(glossary, format),
       copy: action == _ExportAction.copyCsv,
       fileName: '${_fileStem(glossary.name)}.${format.extension}',
       mimeType: format.mimeType,

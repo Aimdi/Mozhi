@@ -8,7 +8,7 @@ import 'package:mozhi/presets/cubit/glossary_cubit.dart';
 import 'package:mozhi/presets/data/glossary_repository.dart';
 import 'package:mozhi/presets/models/glossary.dart';
 
-class _MockStore extends Mock implements KeyValueStore {}
+class _MockStore extends Mock implements KeyValueStore;
 
 const _cat = GlossaryTerm(source: 'cat', target: 'Katze');
 const _dog = GlossaryTerm(source: 'dog', target: 'Hund');

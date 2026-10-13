@@ -136,6 +136,20 @@ void main() {
         expect(find.byKey(const Key('preset_picker_manage')), findsNothing);
       });
 
+      testWidgets('moves the star with the default preset', (tester) async {
+        harness = PresetsHarness();
+        addTearDown(harness.close);
+        await pump(tester, const TranslationOptions());
+        await harness.presets.setDefault('builtin-emailFormal');
+        await settle(tester);
+        final avatar = tester
+            .widget<ChoiceChip>(
+              find.byKey(const Key('preset_picker_builtin-emailFormal')),
+            )
+            .avatar;
+        expect(avatar, isNotNull);
+      });
+
       testWidgets('updates when presets change', (tester) async {
         harness = PresetsHarness();
         addTearDown(harness.close);

@@ -50,7 +50,7 @@ void main() {
 
     test('fromJson is tolerant but needs source and target', () {
       expect(
-        GlossaryTerm.fromJson({
+        GlossaryTerm.fromJson(const {
           'source': 'a',
           'target': 'b',
           'note': 3,
@@ -59,7 +59,7 @@ void main() {
         const GlossaryTerm(source: 'a', target: 'b', caseSensitive: true),
       );
       expect(
-        () => GlossaryTerm.fromJson({'source': 'a'}),
+        () => GlossaryTerm.fromJson(const {'source': 'a'}),
         throwsFormatException,
       );
     });
@@ -144,7 +144,7 @@ void main() {
     });
 
     test('fromJson is tolerant', () {
-      final parsed = Glossary.fromJson({
+      final parsed = Glossary.fromJson(const {
         'id': 'g2',
         'name': null,
         'sourceCode': 'fr',
@@ -161,11 +161,17 @@ void main() {
       expect(parsed.targetCode, LanguageScope.any);
       expect(parsed.enabled, isTrue);
       expect(parsed.terms, const [GlossaryTerm(source: 'a', target: 'b')]);
-      expect(Glossary.fromJson({'id': 'g3', 'terms': 'x'}).terms, isEmpty);
+      expect(
+        Glossary.fromJson(const {'id': 'g3', 'terms': 'x'}).terms,
+        isEmpty,
+      );
     });
 
     test('fromJson throws without an id', () {
-      expect(() => Glossary.fromJson({'name': 'x'}), throwsFormatException);
+      expect(
+        () => Glossary.fromJson(const {'name': 'x'}),
+        throwsFormatException,
+      );
     });
 
     test('matches and specificity', () {
@@ -199,10 +205,10 @@ void main() {
   group('mergeActiveGlossaries', () {
     Glossary g(
       String id, {
+      required List<GlossaryTerm> terms,
       String source = 'any',
       String target = 'any',
       bool enabled = true,
-      required List<GlossaryTerm> terms,
     }) => Glossary(
       id: id,
       sourceCode: source,

@@ -18,7 +18,7 @@ import 'package:translation_repository/translation_repository.dart';
 
 import '../helpers.dart';
 
-class _MockStore extends Mock implements KeyValueStore {}
+class _MockStore extends Mock implements KeyValueStore;
 
 const _email = 'Email to colleague (formal)';
 const _chat = 'Chat with friends (casual)';
