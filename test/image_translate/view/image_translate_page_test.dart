@@ -376,8 +376,13 @@ void main() {
         themeMode: ThemeMode.dark,
       );
       expect(find.byKey(const Key('image_translate_narrow')), findsOneWidget);
-      await tester.tap(find.byKey(const Key('image_translate_gallery_button')));
+      final gallery = find.byKey(const Key('image_translate_gallery_button'));
+      await tester.ensureVisible(gallery);
       await tester.pumpAndSettle();
+      await tester.tap(gallery);
+      await tester.pumpAndSettle();
+      expect(harness.picker.picks, [ImagePickSource.gallery]);
+      expect(find.byKey(const Key('image_translate_toggle')), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 

@@ -19,7 +19,9 @@ import java.util.Locale
  * - `ACTION_SEND` (text/plain) from the share sheet.
  * - `ACTION_PROCESS_TEXT` (text/plain) from the text selection toolbar
  *   ("Translate with Mozhi"). When the caller's text is editable, Dart may
- *   answer with `returnResult(text)` to replace the selection.
+ *   answer with `returnResult(text)` to replace the selection. The call is
+ *   refused unless the current intent is that writable request and the
+ *   activity was started for a result.
  * - [ACTION_TRANSLATE_CLIPBOARD] from the Quick Settings tile
  *   ([TranslateTileService]) and the "Translate clipboard" launcher shortcut.
  *
@@ -55,10 +57,20 @@ class MainActivity : FlutterActivity() {
     /** A clipboard request waiting for the window to gain input focus. */
     private var clipboardRequested = false
 
+    /**
+     * Whether the current intent is a writable `ACTION_PROCESS_TEXT` request
+     * (`EXTRA_PROCESS_TEXT_READONLY` false) that `returnResult` may answer.
+     * Updated for every intent in [onCreate] and [onNewIntent], so a share,
+     * deep link or clipboard request arriving later clears it and a stale
+     * `callingActivity` can never receive text. Cleared once answered.
+     */
+    private var writableProcessTextPending = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         val flags = intent?.flags ?: 0
         val launchedFromHistory = (flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0
         freshStart = savedInstanceState == null && !launchedFromHistory
+        writableProcessTextPending = isWritableProcessText(intent)
         if (freshStart) {
             initialText = sharedTextOf(intent)
             clipboardRequested = isTranslateClipboard(intent)
@@ -95,12 +107,17 @@ class MainActivity : FlutterActivity() {
                             "returnResult expects the replacement text",
                             null,
                         )
-                        callingActivity == null -> result.error(
+                        // Only a writable PROCESS_TEXT request started for a
+                        // result may be answered; anything else is refused
+                        // (Dart ignores the error) without touching the
+                        // activity result.
+                        !writableProcessTextPending || callingActivity == null -> result.error(
                             "no_request",
-                            "The activity was not started for a result",
+                            "No writable PROCESS_TEXT request to answer",
                             null,
                         )
                         else -> {
+                            writableProcessTextPending = false
                             setResult(
                                 Activity.RESULT_OK,
                                 Intent().putExtra(Intent.EXTRA_PROCESS_TEXT, text),
@@ -139,6 +156,7 @@ class MainActivity : FlutterActivity() {
         // rewritten route instead of the raw mozhi:// link.
         super.onNewIntent(withDeepLinkRoute(intent))
         setIntent(intent)
+        writableProcessTextPending = isWritableProcessText(intent)
         if (isTranslateClipboard(intent)) {
             requestClipboard()
             return
@@ -204,7 +222,7 @@ class MainActivity : FlutterActivity() {
         return when (intent.action) {
             Intent.ACTION_PROCESS_TEXT -> {
                 val text = intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString()
-                val readOnly = intent.getBooleanExtra(Intent.EXTRA_PROCESS_TEXT_READONLY, false)
+                val readOnly = isProcessTextReadOnly(intent)
                 if (text.isNullOrBlank()) null else payload(text, readOnly, processText = true)
             }
             Intent.ACTION_SEND -> {
@@ -224,6 +242,19 @@ class MainActivity : FlutterActivity() {
 
     private fun isTranslateClipboard(intent: Intent?): Boolean =
         intent?.action == ACTION_TRANSLATE_CLIPBOARD
+
+    /**
+     * The `readOnly` flag sent to Dart for a PROCESS_TEXT [intent]. A missing
+     * extra means editable, as in the platform's own text views.
+     */
+    private fun isProcessTextReadOnly(intent: Intent): Boolean =
+        intent.getBooleanExtra(Intent.EXTRA_PROCESS_TEXT_READONLY, false)
+
+    /** Whether [intent] is a PROCESS_TEXT request whose text may be replaced. */
+    private fun isWritableProcessText(intent: Intent?): Boolean =
+        intent != null &&
+            intent.action == Intent.ACTION_PROCESS_TEXT &&
+            !isProcessTextReadOnly(intent)
 
     /** [intent] with its `mozhi://` data replaced by the route, if it has one. */
     private fun withDeepLinkRoute(intent: Intent): Intent {

@@ -58,8 +58,6 @@
 	<dict>
 		<!-- Self-hosted Mozhi instances and local AI servers are often reached
 		     over plain http on the LAN. -->
-		<key>NSAllowsArbitraryLoads</key>
-		<true/>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>

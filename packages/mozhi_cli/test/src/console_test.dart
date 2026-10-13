@@ -28,9 +28,8 @@ void main() {
     final repository = CliContext.defaultRepository();
     expect(repository, isA<TranslationRepository>());
     repository.dispose();
-    final store = CliContext(
-      logger: Logger(),
-    ).configStoreFactory('/tmp/x.json');
+    final store = CliContext(logger: Logger())
+        .configStoreFactory('/tmp/x.json');
     expect(store.path, '/tmp/x.json');
     expect(store.posix, !Platform.isWindows);
   });

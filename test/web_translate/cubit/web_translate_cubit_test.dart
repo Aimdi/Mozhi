@@ -95,6 +95,7 @@ void main() {
       final states = <WebTranslateState>[];
       final sub = cubit.stream.listen(states.add);
       await cubit.load();
+      await pumpEventQueue();
       await sub.cancel();
 
       expect(states.map((s) => s.status), [
@@ -122,6 +123,7 @@ void main() {
       final statuses = <WebTranslateStatus>[];
       final sub = cubit.stream.listen((s) => statuses.add(s.status));
       await cubit.load(selection: googleToSpanish);
+      await pumpEventQueue();
       await sub.cancel();
 
       expect(statuses.first, WebTranslateStatus.loading);
@@ -225,6 +227,7 @@ void main() {
       final progress = <int>[];
       final sub = cubit.stream.listen((s) => progress.add(s.doneItems));
       await cubit.load(selection: googleToSpanish);
+      await pumpEventQueue();
       await sub.cancel();
 
       expect(maxInFlight, 2);

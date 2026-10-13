@@ -228,46 +228,31 @@ class _OwnInstanceFormState extends State<OwnInstanceForm> {
             onSubmitted: testing ? null : (_) => _submit(),
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: status == OwnInstanceStatus.success && latency != null
-                    ? Row(
-                        children: [
-                          Icon(
-                            Icons.check_circle,
-                            size: 20,
-                            color: theme.colorScheme.onboardingSuccess,
-                          ),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(
-                              l10n.onboardingServiceOwnAdded(
-                                latency.inMilliseconds,
-                              ),
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.onboardingSuccess,
-                              ),
-                            ),
-                          ),
-                        ],
-                      )
-                    : const SizedBox.shrink(),
-              ),
-              const SizedBox(width: 12),
-              FilledButton.tonalIcon(
-                style: FilledButton.styleFrom(minimumSize: const Size(64, 48)),
-                onPressed: testing ? null : _submit,
-                icon: testing
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.add_link),
-                label: Text(l10n.onboardingServiceOwnAdd),
-              ),
-            ],
+          Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: FilledButton.tonalIcon(
+              style: FilledButton.styleFrom(minimumSize: const Size(64, 48)),
+              onPressed: testing ? null : _submit,
+              icon: testing
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.add_link),
+              label: Text(l10n.onboardingServiceOwnAdd),
+            ),
           ),
+          if (status == OwnInstanceStatus.success && latency != null) ...[
+            const SizedBox(height: 12),
+            OnboardingNote(
+              icon: Icons.check_circle_outline,
+              text: l10n.onboardingServiceOwnAdded(latency.inMilliseconds),
+              background: theme.colorScheme.onboardingSuccess.withValues(
+                alpha: 0.12,
+              ),
+              foreground: theme.colorScheme.onboardingSuccess,
+            ),
+          ],
         ],
       ),
     );

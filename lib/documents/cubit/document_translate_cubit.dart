@@ -23,11 +23,11 @@ export 'document_translate_state.dart';
 ///   is done); [retryFailed]/[retryChunk] translate what is missing.
 /// * Changing the document, engine or languages discards translations.
 class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
-  DocumentTranslateCubit({
+  new({
     required TranslationRepository repository,
-    required DocumentFileService files,
+    required this._files,
     DocumentTranslator? translator,
-    Chunker chunker = const Chunker(),
+    this._chunker = const Chunker(),
     this.maxBytes = DocumentTranslateCubitDefaults.maxBytes,
     List<TranslationEngine> engines = const [],
     TranslationEngine? engine,
@@ -37,8 +37,6 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
     Language target = _english,
     TranslationOptions options = const TranslationOptions(),
   }) : _repository = repository,
-       _files = files,
-       _chunker = chunker,
        _translator =
            translator ??
            DocumentTranslator(repository: repository),
@@ -640,7 +638,7 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
 }
 
 class _FileInput {
-  const _FileInput({
+  const new({
     required this.name,
     required this.text,
     required this.format,

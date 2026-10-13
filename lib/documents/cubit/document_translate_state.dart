@@ -56,7 +56,7 @@ enum DocumentNotice {
 }
 
 class DocumentTranslateState extends Equatable {
-  const DocumentTranslateState({
+  const new({
     this.mode = DocumentInputMode.file,
     this.status = DocumentStatus.empty,
     this.fileName,
@@ -262,5 +262,5 @@ abstract final class DocumentTranslateCubitDefaults {
   static const concurrency = 2;
 
   /// Largest accepted file.
-  static const maxBytes = 2 * 1024 * 1024;
+  static const int maxBytes = 2 * 1024 * 1024;
 }

@@ -3640,5 +3640,506 @@
   "webTranslateErrorInvalidUrl": "This address can’t be opened.",
   "@webTranslateErrorInvalidUrl": {
     "description": "webTranslateErrorInvalidUrl"
+  },
+  "documentsTitle": "Translate documents",
+  "@documentsTitle": {
+    "description": "documentsTitle"
+  },
+  "documentsModeFile": "File",
+  "@documentsModeFile": {
+    "description": "documentsModeFile"
+  },
+  "documentsModeText": "Text",
+  "@documentsModeText": {
+    "description": "documentsModeText"
+  },
+  "documentsPickTitle": "Choose a document",
+  "@documentsPickTitle": {
+    "description": "documentsPickTitle"
+  },
+  "documentsPickHint": "Text, Markdown, SRT and VTT subtitles, JSON and ARB files up to {size}. Code, links and timings stay untouched.",
+  "@documentsPickHint": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "documentsPickButton": "Choose file",
+  "@documentsPickButton": {
+    "description": "documentsPickButton"
+  },
+  "documentsReplaceFile": "Replace",
+  "@documentsReplaceFile": {
+    "description": "documentsReplaceFile"
+  },
+  "documentsRemove": "Remove document",
+  "@documentsRemove": {
+    "description": "documentsRemove"
+  },
+  "documentsTextLabel": "Text to translate",
+  "@documentsTextLabel": {
+    "description": "documentsTextLabel"
+  },
+  "documentsTextHint": "Paste or type text, Markdown, subtitles or JSON",
+  "@documentsTextHint": {
+    "description": "documentsTextHint"
+  },
+  "documentsPaste": "Paste",
+  "@documentsPaste": {
+    "description": "documentsPaste"
+  },
+  "documentsFormatLabel": "Format",
+  "@documentsFormatLabel": {
+    "description": "documentsFormatLabel"
+  },
+  "documentsFormatPlainText": "Plain text",
+  "@documentsFormatPlainText": {
+    "description": "documentsFormatPlainText"
+  },
+  "documentsFormatMarkdown": "Markdown",
+  "@documentsFormatMarkdown": {
+    "description": "documentsFormatMarkdown"
+  },
+  "documentsFormatSrt": "SubRip subtitles (SRT)",
+  "@documentsFormatSrt": {
+    "description": "documentsFormatSrt"
+  },
+  "documentsFormatVtt": "WebVTT subtitles (VTT)",
+  "@documentsFormatVtt": {
+    "description": "documentsFormatVtt"
+  },
+  "documentsFormatJson": "JSON / ARB strings",
+  "@documentsFormatJson": {
+    "description": "documentsFormatJson"
+  },
+  "documentsErrorUnsupported": "This file type isn't supported. Choose a .txt, .md, .srt, .vtt, .json or .arb file.",
+  "@documentsErrorUnsupported": {
+    "description": "documentsErrorUnsupported"
+  },
+  "documentsErrorTooLarge": "This file is too large. The limit is {size}.",
+  "@documentsErrorTooLarge": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "documentsErrorNotText": "This doesn't look like a text file.",
+  "@documentsErrorNotText": {
+    "description": "documentsErrorNotText"
+  },
+  "documentsErrorRead": "The file couldn't be read.",
+  "@documentsErrorRead": {
+    "description": "documentsErrorRead"
+  },
+  "documentsErrorInvalidJson": "This isn't valid JSON. Check the file or choose another format.",
+  "@documentsErrorInvalidJson": {
+    "description": "documentsErrorInvalidJson"
+  },
+  "documentsErrorNothing": "There's nothing to translate in this document.",
+  "@documentsErrorNothing": {
+    "description": "documentsErrorNothing"
+  },
+  "documentsSizeBytes": "{size} B",
+  "@documentsSizeBytes": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "documentsSizeKilobytes": "{size} KB",
+  "@documentsSizeKilobytes": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "documentsSizeMegabytes": "{size} MB",
+  "@documentsSizeMegabytes": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "documentsSegmentCount": "{count, plural, =1{1 segment} other{{count} segments}}",
+  "@documentsSegmentCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "documentsChunkCount": "{count, plural, =1{1 request} other{{count} requests}}",
+  "@documentsChunkCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "documentsEstimateUnderMinute": "Under a minute",
+  "@documentsEstimateUnderMinute": {
+    "description": "documentsEstimateUnderMinute"
+  },
+  "documentsEstimateMinutes": "{count, plural, =1{About 1 minute} other{About {count} minutes}}",
+  "@documentsEstimateMinutes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "documentsEngineLabel": "Engine",
+  "@documentsEngineLabel": {
+    "description": "documentsEngineLabel"
+  },
+  "documentsEngineSheetTitle": "Choose an engine",
+  "@documentsEngineSheetTitle": {
+    "description": "documentsEngineSheetTitle"
+  },
+  "documentsNoEngines": "No translation engines are available. Add a Mozhi instance or an AI provider in Settings.",
+  "@documentsNoEngines": {
+    "description": "documentsNoEngines"
+  },
+  "documentsSourceLanguage": "Translate from {language}",
+  "@documentsSourceLanguage": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "documentsTargetLanguage": "Translate into {language}",
+  "@documentsTargetLanguage": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "documentsPickSource": "Translate from",
+  "@documentsPickSource": {
+    "description": "documentsPickSource"
+  },
+  "documentsPickTarget": "Translate into",
+  "@documentsPickTarget": {
+    "description": "documentsPickTarget"
+  },
+  "documentsSearchLanguages": "Search languages",
+  "@documentsSearchLanguages": {
+    "description": "documentsSearchLanguages"
+  },
+  "documentsUseCustom": "Use “{name}”",
+  "@documentsUseCustom": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "documentsDetectLanguage": "Detect language",
+  "@documentsDetectLanguage": {
+    "description": "documentsDetectLanguage"
+  },
+  "documentsNoLanguages": "No matching languages",
+  "@documentsNoLanguages": {
+    "description": "documentsNoLanguages"
+  },
+  "documentsSwap": "Swap languages",
+  "@documentsSwap": {
+    "description": "documentsSwap"
+  },
+  "documentsTranslate": "Translate",
+  "@documentsTranslate": {
+    "description": "documentsTranslate"
+  },
+  "documentsTranslateAgain": "Translate again",
+  "@documentsTranslateAgain": {
+    "description": "documentsTranslateAgain"
+  },
+  "documentsProgress": "Translating… {done} of {total} parts",
+  "@documentsProgress": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "documentsDone": "Translation complete",
+  "@documentsDone": {
+    "description": "documentsDone"
+  },
+  "documentsPending": "{count, plural, =1{1 part isn't translated yet} other{{count} parts aren't translated yet}}",
+  "@documentsPending": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "documentsRetryAll": "Translate missing parts",
+  "@documentsRetryAll": {
+    "description": "documentsRetryAll"
+  },
+  "documentsFailedTitle": "Failed parts",
+  "@documentsFailedTitle": {
+    "description": "documentsFailedTitle"
+  },
+  "documentsPartLabel": "Part {number}",
+  "@documentsPartLabel": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "documentsRetryPart": "Retry part {number}",
+  "@documentsRetryPart": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "documentsPreviewTitle": "Preview",
+  "@documentsPreviewTitle": {
+    "description": "documentsPreviewTitle"
+  },
+  "documentsTabOriginal": "Original",
+  "@documentsTabOriginal": {
+    "description": "documentsTabOriginal"
+  },
+  "documentsTabTranslation": "Translation",
+  "@documentsTabTranslation": {
+    "description": "documentsTabTranslation"
+  },
+  "documentsPreviewEmpty": "The translation appears here.",
+  "@documentsPreviewEmpty": {
+    "description": "documentsPreviewEmpty"
+  },
+  "documentsPreviewTruncated": "Preview shows the first {count} characters.",
+  "@documentsPreviewTruncated": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "documentsSave": "Save file",
+  "@documentsSave": {
+    "description": "documentsSave"
+  },
+  "documentsShareFile": "Share file",
+  "@documentsShareFile": {
+    "description": "documentsShareFile"
+  },
+  "documentsCopyText": "Copy text",
+  "@documentsCopyText": {
+    "description": "documentsCopyText"
+  },
+  "documentsBilingual": "Bilingual subtitles",
+  "@documentsBilingual": {
+    "description": "documentsBilingual"
+  },
+  "documentsBilingualHint": "Each cue shows the original line above the translation.",
+  "@documentsBilingualHint": {
+    "description": "documentsBilingualHint"
+  },
+  "documentsOutputName": "File name: {name}",
+  "@documentsOutputName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "documentsPartialWarning": "Untranslated parts keep the original text.",
+  "@documentsPartialWarning": {
+    "description": "documentsPartialWarning"
+  },
+  "documentsSaved": "File saved",
+  "@documentsSaved": {
+    "description": "documentsSaved"
+  },
+  "documentsSaveFailed": "Couldn't save the file.",
+  "@documentsSaveFailed": {
+    "description": "documentsSaveFailed"
+  },
+  "documentsShareFailed": "Couldn't share the file.",
+  "@documentsShareFailed": {
+    "description": "documentsShareFailed"
+  },
+  "documentsShareUnsupported": "Sharing files isn't supported on this device. Use Save instead.",
+  "@documentsShareUnsupported": {
+    "description": "documentsShareUnsupported"
+  },
+  "documentsClipboardEmpty": "The clipboard has no text.",
+  "@documentsClipboardEmpty": {
+    "description": "documentsClipboardEmpty"
+  },
+  "documentsLanguagesFailed": "Couldn't load the languages of this engine.",
+  "@documentsLanguagesFailed": {
+    "description": "documentsLanguagesFailed"
+  },
+  "settingsOfflineSubtitle": "Translate without internet using on-device models",
+  "@settingsOfflineSubtitle": {
+    "description": "settingsOfflineSubtitle"
+  },
+  "settingsPresetsSubtitle": "Saved combinations of tone, formality and context",
+  "@settingsPresetsSubtitle": {
+    "description": "settingsPresetsSubtitle"
+  },
+  "settingsGlossariesSubtitle": "Terms that AI translators always translate your way",
+  "@settingsGlossariesSubtitle": {
+    "description": "settingsGlossariesSubtitle"
+  },
+  "settingsUsageTitle": "Usage & costs",
+  "@settingsUsageTitle": {
+    "description": "settingsUsageTitle"
+  },
+  "settingsUsageSubtitle": "Characters and estimated tokens sent to AI providers",
+  "@settingsUsageSubtitle": {
+    "description": "settingsUsageSubtitle"
+  },
+  "settingsRunSetup": "Run setup again",
+  "@settingsRunSetup": {
+    "description": "settingsRunSetup"
+  },
+  "settingsRunSetupSubtitle": "Choose instances and AI providers step by step",
+  "@settingsRunSetupSubtitle": {
+    "description": "settingsRunSetupSubtitle"
+  },
+  "settingsInstancesRefresh": "Check latency again",
+  "@settingsInstancesRefresh": {
+    "description": "settingsInstancesRefresh"
+  },
+  "settingsInstancesPingSummary": "{online} of {total, plural, =1{1 instance} other{{total} instances}} reachable",
+  "@settingsInstancesPingSummary": {
+    "placeholders": {
+      "online": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsInstancesLatencyFast": "{ms} ms, fast",
+  "@settingsInstancesLatencyFast": {
+    "placeholders": {
+      "ms": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsInstancesLatencyModerate": "{ms} ms, moderate",
+  "@settingsInstancesLatencyModerate": {
+    "placeholders": {
+      "ms": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsInstancesLatencySlow": "{ms} ms, slow",
+  "@settingsInstancesLatencySlow": {
+    "placeholders": {
+      "ms": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsInstanceUrlCredentials": "Remove the user name and password from the URL. They would be stored and shown as plain text.",
+  "@settingsInstanceUrlCredentials": {
+    "description": "settingsInstanceUrlCredentials"
+  },
+  "settingsInstanceUrlQuery": "Remove the part after “?” from the URL. Instance URLs can't contain query parameters.",
+  "@settingsInstanceUrlQuery": {
+    "description": "settingsInstanceUrlQuery"
+  },
+  "settingsInstanceTesting": "Testing instance…",
+  "@settingsInstanceTesting": {
+    "description": "settingsInstanceTesting"
+  },
+  "settingsProviderUrlCredentials": "Remove the user name and password from the URL. Enter keys in the API key field, where they are stored securely.",
+  "@settingsProviderUrlCredentials": {
+    "description": "settingsProviderUrlCredentials"
+  },
+  "settingsProviderUrlQuery": "Remove the part after “?” from the URL. Enter keys in the API key field, not in the URL.",
+  "@settingsProviderUrlQuery": {
+    "description": "settingsProviderUrlQuery"
+  },
+  "settingsProviderInsecureTitle": "Connection not encrypted",
+  "@settingsProviderInsecureTitle": {
+    "description": "settingsProviderInsecureTitle"
+  },
+  "settingsProviderInsecureConfirmTitle": "Send without encryption?",
+  "@settingsProviderInsecureConfirmTitle": {
+    "description": "settingsProviderInsecureConfirmTitle"
+  },
+  "settingsProviderInsecureConfirmBody": "{host} uses plain HTTP. Anyone on the network between you and this server can read your text.",
+  "@settingsProviderInsecureConfirmBody": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsProviderInsecureConfirmBodyKey": "{host} uses plain HTTP. Anyone on the network between you and this server can read your text and your API key.",
+  "@settingsProviderInsecureConfirmBodyKey": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsProviderInsecureConfirmAction": "Send without encryption",
+  "@settingsProviderInsecureConfirmAction": {
+    "description": "settingsProviderInsecureConfirmAction"
+  },
+  "settingsProviderPresetHeadersDropped": "This server isn't {preset}, so the headers added for {preset} ({headers}) won't be sent.",
+  "@settingsProviderPresetHeadersDropped": {
+    "placeholders": {
+      "preset": {
+        "type": "String"
+      },
+      "headers": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsProviderFixErrors": "Fix the highlighted fields",
+  "@settingsProviderFixErrors": {
+    "description": "settingsProviderFixErrors"
+  },
+  "settingsProviderTesting": "Testing connection…",
+  "@settingsProviderTesting": {
+    "description": "settingsProviderTesting"
+  },
+  "settingsProviderModelsLoading": "Loading models…",
+  "@settingsProviderModelsLoading": {
+    "description": "settingsProviderModelsLoading"
+  },
+  "settingsImportLabel": "History JSON",
+  "@settingsImportLabel": {
+    "description": "settingsImportLabel"
+  },
+  "historyLoading": "Loading history…",
+  "@historyLoading": {
+    "description": "historyLoading"
+  },
+  "historyEntryActions": "More actions",
+  "@historyEntryActions": {
+    "description": "historyEntryActions"
+  },
+  "historySearchLabel": "Search history",
+  "@historySearchLabel": {
+    "description": "historySearchLabel"
   }
 }

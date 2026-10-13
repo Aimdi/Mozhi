@@ -244,9 +244,13 @@ class _Controls extends StatelessWidget {
         const SizedBox(height: 8),
         Row(
           children: [
-            const Flexible(child: EngineSelectorButton()),
+            const Expanded(
+              child: Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: EngineSelectorButton(),
+              ),
+            ),
             const SizedBox(width: 8),
-            const Spacer(),
             FilledButton.icon(
               key: const Key('web_translate_go_button'),
               style: FilledButton.styleFrom(minimumSize: const Size(48, 48)),

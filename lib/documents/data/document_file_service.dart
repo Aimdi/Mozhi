@@ -5,7 +5,7 @@ import 'package:share_plus/share_plus.dart';
 
 /// A file chosen by the user.
 class PickedFile {
-  const PickedFile({required this.name, required this.bytes});
+  const new({required this.name, required this.bytes});
 
   final String name;
   final Uint8List bytes;
@@ -14,7 +14,7 @@ class PickedFile {
 /// Thrown by [DocumentFileService.shareFile] when the platform cannot share
 /// files (e.g. Linux).
 class ShareUnsupportedException implements Exception {
-  const ShareUnsupportedException();
+  const new();
 
   @override
   String toString() => 'ShareUnsupportedException';
@@ -58,7 +58,7 @@ abstract interface class DocumentFileService {
 /// Flutter clipboard.
 // coverage:ignore-start
 class PlatformDocumentFileService implements DocumentFileService {
-  const PlatformDocumentFileService();
+  const new();
 
   /// Android/iOS pickers reject extensions without a known MIME type
   /// (`.srt`, `.vtt`, `.arb`, `.md`), so any file is offered there and the

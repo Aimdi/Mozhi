@@ -30,11 +30,7 @@ void main() {
       ],
       styleHeader: (h) => '<$h>',
     );
-    expect(table.split('\n'), [
-      '<A>       <B>   <C>',
-      '日本    x',
-      'abcdef  yy',
-    ]);
+    expect(table.split('\n'), ['<A>       <B>   <C>', '日本    x', 'abcdef  yy']);
   });
 
   test('formatDuration', () {
