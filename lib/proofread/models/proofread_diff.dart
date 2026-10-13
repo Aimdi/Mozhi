@@ -236,7 +236,7 @@ abstract final class ProofreadDiff {
     text.length,
   ];
 
-  /// Largest boundary below [offset] (0 when there is none).
+  /// Largest boundary below [offset] (which must be positive).
   static int _boundaryBefore(List<int> boundaries, int offset) {
     var low = 0;
     var high = boundaries.length;
@@ -248,10 +248,10 @@ abstract final class ProofreadDiff {
         high = mid;
       }
     }
-    return low == 0 ? 0 : boundaries[low - 1];
+    return boundaries[low - 1];
   }
 
-  /// Smallest boundary above [offset] (the last boundary when there is none).
+  /// Smallest boundary above [offset] (which must be below the last one).
   static int _boundaryAfter(List<int> boundaries, int offset) {
     var low = 0;
     var high = boundaries.length;
@@ -263,7 +263,7 @@ abstract final class ProofreadDiff {
         high = mid;
       }
     }
-    return low == boundaries.length ? boundaries.last : boundaries[low];
+    return boundaries[low];
   }
 
   /// Located edits as `(index, location)`, sorted by position.

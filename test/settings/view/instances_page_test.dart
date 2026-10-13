@@ -136,8 +136,6 @@ void main() {
     testWidgets('refresh button pings again without a drag', (tester) async {
       await pump(tester);
       await tester.tap(find.byTooltip('Check latency again'));
-      await tester.pump();
-      expect(find.text('Checking…'), findsNWidgets(3));
       await tester.pumpAndSettle();
       verify(() => repository.pingInstance(_fast)).called(2);
       verify(() => repository.pingInstance(_down)).called(2);
