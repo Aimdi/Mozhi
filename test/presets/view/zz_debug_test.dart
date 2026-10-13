@@ -32,8 +32,16 @@ void main() {
       trace('settled');
       await harness.presets.setDefault('builtin-chatCasual');
       trace('default');
+      await tester.pump();
+      trace('pump1');
+      await tester.pump(const Duration(milliseconds: 100));
+      trace('pump2');
       await settle(tester);
+      trace('settle2');
       await tester.tap(find.byTooltip('Actions for $_chat'));
+      trace('tapped');
+      await tester.pump();
+      trace('pump3');
       await settle(tester);
       trace('menu');
       await tester.tap(find.text('Delete'));
