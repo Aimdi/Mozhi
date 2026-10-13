@@ -69,11 +69,14 @@ class _Swatch extends StatelessWidget {
         ThemeData.estimateBrightnessForColor(color) == Brightness.dark
         ? Colors.white
         : Colors.black;
+    // `excludeSemantics` drops the InkResponse's tap action, so the outer
+    // node has to provide it for TalkBack, switch access and web.
     return Semantics(
       button: true,
       selected: selected,
       inMutuallyExclusiveGroup: true,
       label: label,
+      onTap: onTap,
       excludeSemantics: true,
       child: Tooltip(
         message: label,
@@ -85,7 +88,9 @@ class _Swatch extends StatelessWidget {
             dimension: 48,
             child: Center(
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
+                duration: MediaQuery.disableAnimationsOf(context)
+                    ? Duration.zero
+                    : const Duration(milliseconds: 150),
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(

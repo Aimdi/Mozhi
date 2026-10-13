@@ -7,6 +7,14 @@ library;
 export 'package:llm_api/llm_api.dart'
     show LlmApiException, LlmModel, LlmProvider, LlmRefusalException;
 export 'package:mozhi_api/mozhi_api.dart' show MozhiApiException;
+export 'package:mt_api/mt_api.dart'
+    show
+        DeeplApiException,
+        DeeplClient,
+        LibreTranslateClient,
+        LibreTranslateException,
+        MtApiException,
+        MtErrorKind;
 
 export 'src/cache/translation_cache.dart';
 export 'src/language_catalog.dart';
@@ -16,4 +24,5 @@ export 'src/offline/offline_translator.dart';
 export 'src/prompts/mt_prompts.dart';
 export 'src/prompts/response_parsers.dart';
 export 'src/prompts/translation_prompts.dart';
+export 'src/repository/repository_exceptions.dart';
 export 'src/translation_repository.dart';

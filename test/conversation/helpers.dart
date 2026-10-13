@@ -13,18 +13,14 @@ import 'package:mozhi/speech/speech_service.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-class MockTranslationRepository extends Mock implements TranslationRepository {}
+class MockTranslationRepository extends Mock implements TranslationRepository;
 
-class MockSpeechService extends Mock implements SpeechService {}
+class MockSpeechService extends Mock implements SpeechService;
 
 class MockTranslateCubit extends MockCubit<TranslateState>
-    implements TranslateCubit {}
+    implements TranslateCubit;
 
-class MockSettingsCubit extends MockCubit<AppSettings>
-    implements SettingsCubit {}
-
-class MockConversationCubit extends MockCubit<ConversationState>
-    implements ConversationCubit {}
+class MockSettingsCubit extends MockCubit<AppSettings> implements SettingsCubit;
 
 const deepl = TranslationEngine(
   id: 'mozhi:deepl',
@@ -148,7 +144,7 @@ extension PumpConversation on WidgetTester {
       ..physicalSize = size
       ..devicePixelRatio = 1;
     addTearDown(view.reset);
-    Widget content = child;
+    var content = child;
     if (conversation != null) {
       content = BlocProvider<ConversationCubit>.value(
         value: conversation,

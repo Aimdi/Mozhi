@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/core/key_value_store.dart';
+import 'package:mozhi/speech/speech_chunker.dart';
 import 'package:mozhi/speech/speech_service.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -930,6 +931,376 @@ void main() {
           expect(service.current, 'source');
           expect(output.played, [_clip(2)]);
         });
+      });
+    });
+
+    group('long text', () {
+      // Three sentences of 124-164 characters: one Mozhi chunk each.
+      final sentences = [
+        for (final word in ['alpha', 'bravo', 'charlie'])
+          '${'$word ' * 20}end.',
+      ];
+      final text = sentences.join(' ');
+
+      Future<void> speak({bool slow = false}) => service.toggle(
+        id: 'target',
+        text: text,
+        languageCode: 'en',
+        slow: slow,
+      );
+
+      int fetches(int chunk) => verify(
+        () => repository.textToSpeech(
+          text: sentences[chunk],
+          languageCode: any(named: 'languageCode'),
+        ),
+      ).callCount;
+
+      setUp(() {
+        for (var i = 0; i < sentences.length; i++) {
+          stubTts(text: sentences[i], answer: _clip(i + 1));
+        }
+      });
+
+      test('is split into one chunk per sentence', () {
+        expect(splitTextForSpeech(text), sentences);
+      });
+
+      test('plays the chunks in order, fetching one ahead', () async {
+        await speak();
+        await flush();
+
+        expect(output.played, [_clip(1)]);
+        expect(fetches(0), 1);
+        expect(fetches(1), 1);
+        verifyNever(
+          () => repository.textToSpeech(
+            text: sentences[2],
+            languageCode: any(named: 'languageCode'),
+          ),
+        );
+
+        output.complete();
+        await flush();
+
+        expect(output.played, [_clip(1), _clip(2)]);
+        expect(fetches(2), 1);
+        expect(service.current, 'target');
+
+        output.complete();
+        await flush();
+
+        expect(output.played, [_clip(1), _clip(2), _clip(3)]);
+        expect(service.current, 'target');
+
+        output.complete();
+        await flush();
+
+        expect(service.current, isNull);
+        expect(emitted, ['target', null]);
+        expect(output.rates, [1]);
+        expect(output.stops, 0);
+        expect(device.calls, isEmpty);
+      });
+
+      test('sets the slow rate once for all chunks', () async {
+        await speak(slow: true);
+        output.complete();
+        await flush();
+
+        expect(output.rates, [SpeechService.slowPlaybackRate]);
+        expect(output.played, hasLength(2));
+      });
+
+      test('waits for a chunk that is still loading', () async {
+        final fetch = Completer<Uint8List>();
+        stubTts(text: sentences[1], answer: () => fetch.future);
+        await speak();
+        await flush();
+
+        output
+          ..complete()
+          ..complete(); // A stray completion between chunks is ignored.
+        await flush();
+
+        expect(output.played, [_clip(1)]);
+        expect(service.current, 'target');
+
+        fetch.complete(_clip(2));
+        await flush();
+
+        expect(output.played, [_clip(1), _clip(2)]);
+        expect(fetches(2), 1);
+      });
+
+      test('caches every chunk', () async {
+        for (var round = 0; round < 2; round++) {
+          await speak();
+          for (var i = 0; i < sentences.length; i++) {
+            output.complete();
+            await flush();
+          }
+          expect(service.current, isNull);
+        }
+
+        expect(
+          [for (var i = 0; i < sentences.length; i++) fetches(i)],
+          [1, 1, 1],
+        );
+        expect(output.played, hasLength(6));
+      });
+
+      group('stopping', () {
+        test('stop ends the sequence', () async {
+          await speak();
+          await flush();
+
+          await service.stop();
+          output.complete();
+          await flush();
+
+          expect(output.played, [_clip(1)]);
+          expect(output.stops, 1);
+          expect(service.current, isNull);
+          expect(emitted, ['target', null]);
+        });
+
+        test('toggling the id mid-sequence stops it', () async {
+          await speak();
+          output.complete();
+          await flush();
+
+          await speak();
+          output.complete();
+          await flush();
+
+          expect(output.played, [_clip(1), _clip(2)]);
+          expect(service.current, isNull);
+          expect(emitted, ['target', null]);
+        });
+
+        test('does not play a chunk that loads after stop', () async {
+          final fetch = Completer<Uint8List>();
+          stubTts(text: sentences[1], answer: () => fetch.future);
+          await speak();
+          output.complete();
+          await flush();
+
+          await service.stop();
+          fetch.complete(_clip(2));
+          await flush();
+
+          expect(output.played, [_clip(1)]);
+          expect(service.current, isNull);
+        });
+
+        test('stops a chunk whose playback started after stop', () async {
+          await speak();
+          output
+            ..playGate = Completer<void>()
+            ..complete();
+          await flush();
+
+          await service.stop();
+          output.playGate!.complete();
+          await flush();
+
+          expect(output.stops, 2);
+          expect(service.current, isNull);
+          expect(emitted, ['target', null]);
+        });
+
+        test('switching to another id drops the rest', () async {
+          stubTts(text: 'Hello', answer: _clip(9));
+          await speak();
+          await flush();
+
+          await service.toggle(id: 'source', text: 'Hello', languageCode: 'en');
+          output.complete();
+          await flush();
+
+          expect(output.played, [_clip(1), _clip(9)]);
+          expect(service.current, isNull);
+          expect(emitted, ['target', 'source', null]);
+        });
+
+        test('dispose drops the rest', () async {
+          final fetch = Completer<Uint8List>();
+          stubTts(text: sentences[1], answer: () => fetch.future);
+          await speak();
+          await flush();
+
+          await service.dispose();
+          fetch.completeError(StateError('offline'));
+          await flush();
+
+          expect(output.played, [_clip(1)]);
+          expect(device.calls, isEmpty);
+        });
+      });
+
+      group('device fallback', () {
+        test('reads the whole text when the first chunk fails', () async {
+          stubTts(text: sentences[0], answer: StateError('offline'));
+
+          await speak();
+
+          expect(device.calls.last, 'speak $text');
+          expect(output.played, isEmpty);
+          expect(service.current, 'target');
+        });
+
+        test('reads the whole text when a later chunk fails', () async {
+          stubTts(text: sentences[1], answer: StateError('offline'));
+
+          await speak();
+          await flush();
+
+          expect(output.played, [_clip(1)]);
+          expect(output.stops, 1); // The first chunk is cut short.
+          expect(device.calls, [
+            'available en',
+            'language en',
+            'rate normal',
+            'speak $text',
+          ]);
+          expect(service.current, 'target');
+
+          output.complete();
+          await flush();
+          expect(service.current, 'target');
+
+          device.complete();
+          await flush();
+          expect(service.current, isNull);
+          expect(emitted, ['target', null]);
+        });
+
+        test('uses the slow device rate for slow text', () async {
+          stubTts(text: sentences[1], answer: StateError('offline'));
+
+          await speak(slow: true);
+          await flush();
+
+          expect(device.calls, contains('rate slow'));
+        });
+
+        test(
+          'reads the whole text when a chunk fails between chunks',
+          () async {
+            final fetch = Completer<Uint8List>();
+            stubTts(text: sentences[1], answer: () => fetch.future);
+            await speak();
+            output.complete();
+            await flush();
+
+            fetch.completeError(StateError('offline'));
+            await flush();
+
+            expect(output.stops, 0);
+            expect(device.calls.where((c) => c.startsWith('speak')), [
+              'speak $text',
+            ]);
+            expect(service.current, 'target');
+          },
+        );
+
+        test('reads the whole text when a later chunk cannot play', () async {
+          await speak();
+          output
+            ..playError = StateError('codec')
+            ..complete();
+          await flush();
+
+          expect(output.played, [_clip(1)]);
+          expect(device.calls.last, 'speak $text');
+          expect(service.current, 'target');
+        });
+
+        test(
+          'finishes the current chunk without a device voice, then stops',
+          () async {
+            device.languages = {};
+            stubTts(text: sentences[1], answer: StateError('offline'));
+
+            await speak();
+            await flush();
+
+            expect(output.stops, 0);
+            expect(service.current, 'target');
+
+            output.complete();
+            await flush();
+
+            expect(output.played, [_clip(1)]);
+            expect(device.calls, everyElement('available en'));
+            expect(service.current, isNull);
+            expect(emitted, ['target', null]);
+          },
+        );
+
+        test('becomes idle when the device fails to take over', () async {
+          device.speakError = StateError('engine');
+          stubTts(text: sentences[1], answer: StateError('offline'));
+
+          await speak();
+          await flush();
+
+          expect(device.calls.last, 'speak $text');
+          expect(service.current, isNull);
+          expect(emitted, ['target', null]);
+        });
+
+        test('ignores a later chunk failing after stop', () async {
+          final fetch = Completer<Uint8List>();
+          stubTts(text: sentences[1], answer: () => fetch.future);
+          await speak();
+          await service.stop();
+
+          fetch.completeError(StateError('offline'));
+          await flush();
+
+          expect(device.calls, isEmpty);
+          expect(service.current, isNull);
+        });
+
+        test(
+          'does not take over when stopped during the voice check',
+          () async {
+            final available = device.gates['available'] = Completer<void>();
+            stubTts(text: sentences[1], answer: StateError('offline'));
+            await speak();
+            await flush();
+
+            await service.stop();
+            available.complete();
+            await flush();
+
+            expect(device.calls, ['available en']);
+            expect(service.current, isNull);
+          },
+        );
+
+        test(
+          'takes over once when the chunk ends during the voice check',
+          () async {
+            final available = device.gates['available'] = Completer<void>();
+            stubTts(text: sentences[1], answer: StateError('offline'));
+            await speak();
+            await flush();
+
+            output.complete(); // Ends before the device answers.
+            await flush();
+            available.complete();
+            await flush();
+
+            expect(output.stops, 0);
+            expect(device.calls.where((c) => c.startsWith('speak')), [
+              'speak $text',
+            ]);
+            expect(service.current, 'target');
+          },
+        );
       });
     });
 

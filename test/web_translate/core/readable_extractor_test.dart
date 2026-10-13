@@ -503,6 +503,41 @@ void main() {
       expect(page.title, '');
     });
 
+    test('keeps related siblings of the densest container', () {
+      String sentences(int n, int times) =>
+          'Sentence $n of the story, with a few commas, and more words. ' *
+          times;
+      final page = extractor.extract('''
+        <div id="wrap">
+          <div class="nav-links"><a href="/">Home</a> <a href="/b">Blog</a></div>
+          <div class="chunk">
+            <p>${sentences(1, 3)}</p><p>${sentences(2, 2)}</p>
+            <p>${sentences(3, 2)}</p>
+          </div>
+          <div class="chunk"><p>${sentences(4, 2)}</p></div>
+          <div class="other"><p>${sentences(5, 2)}</p><p>${sentences(6, 1)}</p></div>
+          <p>A short closing remark.</p>
+        </div>
+      ''');
+      expect(page.blocks, hasLength(7));
+      expect(texts(page).last, 'A short closing remark.');
+      expect(allText(page), isNot(contains('Home')));
+    });
+
+    test('treats list items outside lists as items', () {
+      final page = extractor.extract('<div><li>Orphan item</li></div>');
+      expect(page.blocks.single.kind, ReadableBlockKind.listItem);
+      expect(page.blocks.single.text, 'Orphan item');
+    });
+
+    test('keeps line breaks and markup text inside code', () {
+      final page = extractor.extract(
+        '<pre><code>a <b>b</b><br>c</code></pre><p>after</p>',
+      );
+      expect(page.blocks.first.text, 'a b\nc');
+      expect(page.blocks.first.kind, ReadableBlockKind.code);
+    });
+
     test('handles empty input', () {
       expect(extractor.extract('').isEmpty, isTrue);
     });

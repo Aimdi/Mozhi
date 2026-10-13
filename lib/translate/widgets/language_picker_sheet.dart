@@ -4,15 +4,19 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/translate/widgets/language_text.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Opens the searchable language picker; resolves to the chosen language
 /// (null when dismissed). [source] picks the source list (with "Detect
 /// language"), otherwise the target list (with custom styles for AI).
+/// [autofocusSearch] focuses the search field (keyboard users can type to
+/// filter right away).
 Future<Language?> showLanguagePicker(
   BuildContext context, {
   required bool source,
+  bool autofocusSearch = false,
 }) {
   final translate = context.read<TranslateCubit>();
   final settings = context.read<SettingsCubit>();
@@ -26,7 +30,10 @@ Future<Language?> showLanguagePicker(
         BlocProvider.value(value: translate),
         BlocProvider.value(value: settings),
       ],
-      child: LanguagePickerSheet(source: source),
+      child: LanguagePickerSheet(
+        source: source,
+        autofocusSearch: autofocusSearch,
+      ),
     ),
   );
 }
@@ -34,9 +41,12 @@ Future<Language?> showLanguagePicker(
 /// Sections: Detect (source), Recent, Pinned, Styles (AI target) and All.
 /// Searching filters by English name, native name and code.
 class LanguagePickerSheet extends StatefulWidget {
-  const new({required this.source, super.key});
+  const new({required this.source, this.autofocusSearch = false, super.key});
 
   final bool source;
+
+  /// Focus the search field when the sheet opens.
+  final bool autofocusSearch;
 
   @override
   State<LanguagePickerSheet> createState() => _LanguagePickerSheetState();
@@ -80,65 +90,81 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
         theme.bottomSheetTheme.backgroundColor ??
         theme.colorScheme.surfaceContainerLow;
 
+    final header = ColoredBox(
+      color: background,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+              child: Semantics(
+                header: true,
+                child: Text(
+                  source
+                      ? l10n.translatePickerSourceTitle
+                      : l10n.translatePickerTargetTitle,
+                  style: theme.textTheme.titleLarge,
+                ),
+              ),
+            ),
+            Semantics(
+              label: l10n.commonSearch,
+              child: TextField(
+                key: const Key('translate_language_search'),
+                controller: _search,
+                autofocus: widget.autofocusSearch,
+                onChanged: (value) => setState(() => _query = value),
+                textInputAction: TextInputAction.search,
+                onSubmitted: (_) => _submitSearch(languages, allowCustom),
+                decoration: InputDecoration(
+                  hintText: l10n.translatePickerSearchHint,
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _query.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: l10n.commonClear,
+                          icon: const Icon(Icons.close),
+                          onPressed: () {
+                            _search.clear();
+                            setState(() => _query = '');
+                          },
+                        ),
+                  filled: true,
+                  border: const OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(28)),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    // The header sits outside the scroll view so it can never cover the
+    // focused row while keyboard focus moves through the list.
     return DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.85,
       minChildSize: 0.4,
-      builder: (context, controller) => CustomScrollView(
-        controller: controller,
-        slivers: [
-          PinnedHeaderSliver(
-            child: ColoredBox(
-              color: background,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
-                      child: Text(
-                        source
-                            ? l10n.translatePickerSourceTitle
-                            : l10n.translatePickerTargetTitle,
-                        style: theme.textTheme.titleLarge,
-                      ),
-                    ),
-                    TextField(
-                      key: const Key('translate_language_search'),
-                      controller: _search,
-                      onChanged: (value) => setState(() => _query = value),
-                      textInputAction: TextInputAction.search,
-                      onSubmitted: (_) => _submitSearch(languages, allowCustom),
-                      decoration: InputDecoration(
-                        hintText: l10n.translatePickerSearchHint,
-                        prefixIcon: const Icon(Icons.search),
-                        suffixIcon: _query.isEmpty
-                            ? null
-                            : IconButton(
-                                tooltip: l10n.commonClear,
-                                icon: const Icon(Icons.close),
-                                onPressed: () {
-                                  _search.clear();
-                                  setState(() => _query = '');
-                                },
-                              ),
-                        filled: true,
-                        border: const OutlineInputBorder(
-                          borderRadius: BorderRadius.all(Radius.circular(28)),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                    ),
-                  ],
+      builder: (context, controller) => Column(
+        children: [
+          header,
+          Expanded(
+            child: CustomScrollView(
+              key: const Key('translate_language_list'),
+              controller: controller,
+              slivers: [
+                SliverList.list(children: items),
+                SliverPadding(
+                  padding: EdgeInsets.only(
+                    bottom: 24 + MediaQuery.viewInsetsOf(context).bottom,
+                  ),
                 ),
-              ),
-            ),
-          ),
-          SliverList.list(children: items),
-          SliverPadding(
-            padding: EdgeInsets.only(
-              bottom: 24 + MediaQuery.viewInsetsOf(context).bottom,
+              ],
             ),
           ),
         ],
@@ -222,9 +248,13 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
         if (matches.isEmpty && !allowCustom)
           Padding(
             padding: const EdgeInsets.all(24),
-            child: Text(
-              l10n.translatePickerNoResults(query),
-              textAlign: TextAlign.center,
+            child: Semantics(
+              liveRegion: true,
+              child: Text(
+                l10n.translatePickerNoResults(query),
+                key: const Key('translate_language_no_results'),
+                textAlign: TextAlign.center,
+              ),
             ),
           ),
         ...matches.map(tile),
@@ -349,7 +379,7 @@ class _StyleChips extends StatelessWidget {
               avatar: const Icon(Icons.auto_awesome),
               label: Text(style.name),
               selected: style == selected,
-              showCheckmark: false,
+              showCheckmark: true,
               onSelected: (_) => onPick(style),
             ),
         ],
@@ -410,7 +440,11 @@ class _LanguageTile extends StatelessWidget {
       subtitle: language.isCustom
           ? Text(l10n.translatePickerCustomBadge)
           : (native != null && native.isNotEmpty && native != language.name)
-          ? Text(native)
+          // The locale makes screen readers use a matching voice and picks
+          // the right glyphs (e.g. Japanese vs Chinese Han characters).
+          ? Text.rich(
+              TextSpan(text: native, locale: localeForLanguage(language)),
+            )
           : null,
       onTap: onTap,
       onLongPress: togglePin,

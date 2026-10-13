@@ -130,6 +130,7 @@ void main() {
         find.byKey(const Key('conversation_language_search')),
         'span',
       );
+      await tester.pump();
       await tester.testTextInput.receiveAction(TextInputAction.search);
       await tester.pumpAndSettle();
       expect(picked, spanish);

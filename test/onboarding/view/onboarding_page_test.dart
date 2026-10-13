@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/onboarding/onboarding.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:translation_repository/translation_repository.dart';
 
 import '../helpers.dart';
 
@@ -27,6 +28,8 @@ void main() {
     WidgetTester tester, {
     Widget? page,
     Size size = const Size(420, 900),
+    double textScale = 1,
+    ThemeData? theme,
   }) async {
     tester.setScreenSize(size);
     await tester.pumpOnboarding(
@@ -35,8 +38,14 @@ void main() {
       repository: repository,
       router: router,
       scaffold: false,
+      textScale: textScale,
+      theme: theme,
     );
   }
+
+  Finder scrollableOf(Type step) => find
+      .descendant(of: find.byType(step), matching: find.byType(Scrollable))
+      .first;
 
   Future<void> tapVisible(WidgetTester tester, Finder finder) async {
     await tester.ensureVisible(finder);
@@ -144,6 +153,48 @@ void main() {
       await tester.pump();
       expect(find.byType(ServiceStep), findsOneWidget);
       expect(find.byType(WelcomeStep), findsNothing);
+    });
+
+    testWidgets('fits small phones with large text in dark mode', (
+      tester,
+    ) async {
+      when(() => repository.pingInstance(instanceB))
+          .thenAnswer((_) async => throw const MozhiApiException('down'));
+      await pumpPage(
+        tester,
+        size: const Size(320, 640),
+        textScale: 2,
+        theme: ThemeData(useMaterial3: true, brightness: Brightness.dark),
+      );
+
+      Future<void> reveal(Finder finder, Type step) async {
+        await tester.scrollUntilVisible(
+          finder,
+          200,
+          scrollable: scrollableOf(step),
+        );
+        await tester.ensureVisible(finder);
+        await tester.pumpAndSettle();
+      }
+
+      await tapNext(tester);
+      final findFastest = find.text('Find the fastest public instance');
+      await reveal(findFastest, ServiceStep);
+      await tester.tap(findFastest);
+      await tester.pumpAndSettle();
+      await reveal(find.text('Unreachable'), ServiceStep);
+      expect(find.text('Unreachable'), findsOneWidget);
+      await reveal(find.text('Test & add'), ServiceStep);
+
+      await tapNext(tester);
+      await reveal(find.text('Ollama'), AiStep);
+      await tester.tap(find.text('Ollama'));
+      await tester.pumpAndSettle();
+      await reveal(find.text('Save'), AiStep);
+
+      await tapNext(tester);
+      expect(find.byType(DoneStep), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('saves an AI provider from the AI step', (tester) async {

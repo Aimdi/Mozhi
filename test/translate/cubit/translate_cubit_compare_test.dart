@@ -280,6 +280,7 @@ void main() {
     blocTest<TranslateCubit, TranslateState>(
       'uses the entry and switches to its engine without translating',
       setUp: () {
+        mocks.stubSettings(const AppSettings(target: de));
         when(() => mocks.repository.getTargetLanguages(deepl))
             .thenAnswer((_) async => [en, de, ja]);
       },

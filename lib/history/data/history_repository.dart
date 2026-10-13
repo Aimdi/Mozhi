@@ -5,25 +5,69 @@ import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 
 /// Local-only history (JSON list under key `history.v1`), newest first.
-/// Keeps at most [maxEntries] non-favourite entries (favourites are never
-/// evicted). Adding an entry whose text+target+engine equals the newest
-/// entry replaces it instead of duplicating (typing refinements).
+///
+/// Size limits (favourites are never evicted):
+/// * at most [maxEntries] non-favourite entries;
+/// * the stored JSON stays within [maxStoredLength] UTF-16 code units by
+///   evicting the oldest non-favourites (preferences share one quota with
+///   the settings, e.g. browser `localStorage` on the web);
+/// * `text` and `translation` longer than [maxTextLength] are truncated
+///   (ending with `…`) when added.
+///
+/// When the store reports a full quota on a write, older non-favourites
+/// are evicted and the write is retried.
+///
+/// [add] merges with the newest entry instead of duplicating it when both
+/// have the same source, target and engine and either
+/// * the trimmed texts are equal, unless the newest entry is a favourite
+///   with a different translation (a starred translation is never
+///   overwritten), or
+/// * the newest entry is not a favourite, was created within
+///   [refinementWindow] and one trimmed text is a prefix of the other
+///   (typing refinements of instant translate).
+///
+/// [toggleFavorite], [delete], [clear] and [restore] apply no caps, so an
+/// un-starred or restored entry survives until the next [add] / [load].
 ///
 /// [store] defaults to [PreferencesStore]. Operations are serialised and
 /// every mutation is written through; the returned lists are unmodifiable.
 /// Invalid stored entries are skipped, unreadable JSON loads as empty.
 class HistoryRepository {
-  new({KeyValueStore? store, this.maxEntries = 1000})
-    : store = store ?? PreferencesStore();
+  new({
+    KeyValueStore? store,
+    this.maxEntries = 1000,
+    this.maxStoredLength = 1000000,
+    this.maxTextLength = 20000,
+    this.refinementWindow = const Duration(seconds: 30),
+  }) : assert(maxTextLength > 0, 'maxTextLength must be positive'),
+       store = store ?? PreferencesStore();
 
   /// Key of the history JSON in [store].
   static const storageKey = 'history.v1';
 
+  /// How often a write that failed for a full quota is retried (each time
+  /// with the older half of the non-favourites evicted).
+  static const _quotaRetries = 4;
+
   final KeyValueStore store;
   final int maxEntries;
 
+  /// Maximum length (UTF-16 code units) of the stored JSON; only
+  /// favourites may exceed it.
+  final int maxStoredLength;
+
+  /// Maximum stored length of an entry's `text` and `translation` each.
+  final int maxTextLength;
+
+  /// How far apart in time an entry may be from the newest one to be
+  /// treated as a typing refinement of it (see [add]).
+  final Duration refinementWindow;
+
   List<HistoryEntry>? _entries;
   Future<void> _lock = Future.value();
+
+  /// Encoded JSON per entry (entries are immutable).
+  final Expando<String> _encoded = Expando();
 
   /// Reads the history from [store] (refreshing the in-memory copy).
   Future<List<HistoryEntry>> load() => _synchronized(() async {
@@ -33,16 +77,37 @@ class HistoryRepository {
     return _entries!;
   });
 
-  Future<List<HistoryEntry>> add(HistoryEntry entry) => _mutate((entries) {
-    final newest = entries.firstOrNull;
-    if (newest != null && _sameRequest(newest, entry)) {
-      return [
-        entry.copyWith(isFavorite: newest.isFavorite || entry.isFavorite),
-        ...entries.skip(1).where((e) => e.id != entry.id),
-      ];
-    }
-    return [entry, ...entries.where((e) => e.id != entry.id)];
-  });
+  /// Inserts [entry] as the newest entry (see the class docs for merging
+  /// with the newest entry, truncation and caps). An existing entry with
+  /// the same id is removed.
+  Future<List<HistoryEntry>> add(HistoryEntry entry) {
+    final added = _limited(entry);
+    return _mutate((entries) {
+      final newest = entries.firstOrNull;
+      if (newest != null && _replaces(newest, added)) {
+        return [
+          added.copyWith(isFavorite: newest.isFavorite || added.isFavorite),
+          ...entries.skip(1).where((e) => e.id != added.id),
+        ];
+      }
+      return [added, ...entries.where((e) => e.id != added.id)];
+    });
+  }
+
+  /// Puts [entry] back, e.g. to undo [delete]: it is inserted at the
+  /// position of its [HistoryEntry.createdAt] (before the first older
+  /// entry) and replaces only an entry with the same id. Unlike [add] it
+  /// never merges with the newest entry and applies no caps.
+  Future<List<HistoryEntry>> restore(HistoryEntry entry) {
+    final restored = _limited(entry);
+    return _mutate((entries) {
+      final others = entries.where((e) => e.id != restored.id).toList();
+      final index = others.indexWhere(
+        (e) => e.createdAt.isBefore(restored.createdAt),
+      );
+      return others..insert(index == -1 ? others.length : index, restored);
+    }, cap: false);
+  }
 
   Future<List<HistoryEntry>> toggleFavorite(String id) => _mutate(
     (entries) => [
@@ -52,15 +117,17 @@ class HistoryRepository {
         else
           entry,
     ],
+    cap: false,
   );
 
   Future<List<HistoryEntry>> delete(String id) =>
-      _mutate((entries) => entries..removeWhere((e) => e.id == id));
+      _mutate((entries) => entries..removeWhere((e) => e.id == id), cap: false);
 
   /// Removes everything, or only non-favourites when [keepFavorites].
   Future<List<HistoryEntry>> clear({bool keepFavorites = false}) => _mutate(
     (entries) =>
         keepFavorites ? entries.where((e) => e.isFavorite).toList() : [],
+    cap: false,
   );
 
   /// Pretty JSON array of all entries.
@@ -74,11 +141,11 @@ class HistoryRepository {
   /// Throws [FormatException] on invalid input.
   ///
   /// Existing entries win over imported ones with the same id; the merged
-  /// list is sorted newest first and capped like [add]. Invalid elements are
-  /// skipped as long as the input is a JSON array with at least one valid
-  /// entry (or is empty).
+  /// list is sorted newest first, truncated and capped like [add]. Invalid
+  /// elements are skipped as long as the input is a JSON array with at
+  /// least one valid entry (or is empty).
   Future<List<HistoryEntry>> importJson(String json) async {
-    final imported = _decodeStrict(json);
+    final imported = _decodeStrict(json).map(_limited).toList();
     return await _mutate((entries) {
       final ids = {for (final entry in entries) entry.id};
       return [...entries, ...imported.where((e) => ids.add(e.id))]
@@ -86,18 +153,91 @@ class HistoryRepository {
     });
   }
 
-  bool _sameRequest(HistoryEntry a, HistoryEntry b) =>
-      a.text.trim() == b.text.trim() &&
-      a.target == b.target &&
-      a.engineId == b.engineId;
-
-  /// Keeps every favourite and the newest [maxEntries] other entries.
-  List<HistoryEntry> _capped(List<HistoryEntry> entries) {
-    var others = 0;
-    return List.unmodifiable(
-      entries.where((e) => e.isFavorite || others++ < maxEntries),
-    );
+  /// Whether [entry] should replace [newest] instead of being inserted.
+  bool _replaces(HistoryEntry newest, HistoryEntry entry) {
+    if (newest.engineId != entry.engineId ||
+        newest.source != entry.source ||
+        newest.target != entry.target) {
+      return false;
+    }
+    final previous = newest.text.trim();
+    final text = entry.text.trim();
+    if (previous == text) {
+      return !newest.isFavorite ||
+          newest.translation.trim() == entry.translation.trim();
+    }
+    return !newest.isFavorite &&
+        previous.isNotEmpty &&
+        text.isNotEmpty &&
+        (text.startsWith(previous) || previous.startsWith(text)) &&
+        entry.createdAt.difference(newest.createdAt).abs() <= refinementWindow;
   }
+
+  /// [entry] with `text` and `translation` truncated to [maxTextLength].
+  HistoryEntry _limited(HistoryEntry entry) {
+    final text = _truncated(entry.text);
+    final translation = _truncated(entry.translation);
+    if (identical(text, entry.text) &&
+        identical(translation, entry.translation)) {
+      return entry;
+    }
+    return entry.copyWith(text: text, translation: translation);
+  }
+
+  String _truncated(String value) {
+    if (value.length <= maxTextLength) return value;
+    var end = maxTextLength - 1;
+    // Do not split a surrogate pair.
+    if (end > 0 && _isHighSurrogate(value.codeUnitAt(end - 1))) end--;
+    return '${value.substring(0, end)}…';
+  }
+
+  static bool _isHighSurrogate(int codeUnit) =>
+      codeUnit >= 0xD800 && codeUnit <= 0xDBFF;
+
+  /// Keeps every favourite and the newest non-favourites within
+  /// [maxEntries] and [maxStoredLength].
+  List<HistoryEntry> _capped(List<HistoryEntry> entries) {
+    // The JSON array: brackets plus (at most) one separator per entry.
+    var left = maxStoredLength - 2;
+    for (final entry in entries) {
+      if (entry.isFavorite) left -= _json(entry).length + 1;
+    }
+    var others = 0;
+    var full = false;
+    final kept = <HistoryEntry>[];
+    for (final entry in entries) {
+      if (entry.isFavorite) {
+        kept.add(entry);
+        continue;
+      }
+      if (full || others >= maxEntries) continue;
+      final length = _json(entry).length + 1;
+      if (length > left) {
+        // Evict this entry and every older non-favourite.
+        full = true;
+        continue;
+      }
+      left -= length;
+      others++;
+      kept.add(entry);
+    }
+    return List.unmodifiable(kept);
+  }
+
+  /// [entries] without the older half of the non-favourites (rounded up,
+  /// so a single one is evicted too).
+  static List<HistoryEntry> _withoutOlderHalf(List<HistoryEntry> entries) {
+    var keep = entries.where((e) => !e.isFavorite).length ~/ 2;
+    return List.unmodifiable(entries.where((e) => e.isFavorite || keep-- > 0));
+  }
+
+  String _json(HistoryEntry entry) =>
+      _encoded[entry] ??= jsonEncode(entry.toJson());
+
+  /// Same output as `jsonEncode` of the entries' JSON list.
+  String _encode(List<HistoryEntry> entries) =>
+      '[${entries.map(_json).join(',')}]';
 
   Future<List<HistoryEntry>> _current() async =>
       _entries ??= _capped(await _readLenient());
@@ -108,16 +248,38 @@ class HistoryRepository {
   }
 
   Future<List<HistoryEntry>> _mutate(
-    List<HistoryEntry> Function(List<HistoryEntry> entries) change,
-  ) => _synchronized(() async {
-    final next = _capped(change([...await _current()]));
-    await store.write(
-      storageKey,
-      jsonEncode([for (final entry in next) entry.toJson()]),
-    );
+    List<HistoryEntry> Function(List<HistoryEntry> entries) change, {
+    bool cap = true,
+  }) => _synchronized(() async {
+    final changed = change([...await _current()]);
+    var next = cap
+        ? _capped(changed)
+        : List<HistoryEntry>.unmodifiable(changed);
+    for (var attempt = 0; ; attempt++) {
+      final encoded = _encode(next);
+      try {
+        await store.write(storageKey, encoded);
+        break;
+      } on Object catch (error) {
+        if (attempt >= _quotaRetries || !_isQuotaError(error)) rethrow;
+        final smaller = _withoutOlderHalf(next);
+        if (smaller.length == next.length) rethrow;
+        next = smaller;
+      }
+    }
     _entries = next;
     return next;
   });
+
+  /// Whether [error] reports a full storage quota (e.g. the browser's
+  /// `QuotaExceededError` from `localStorage`).
+  static bool _isQuotaError(Object error) {
+    try {
+      return error.toString().toLowerCase().contains('quota');
+    } on Object {
+      return false;
+    }
+  }
 
   Future<T> _synchronized<T>(Future<T> Function() action) {
     final result = _lock.then((_) => action());

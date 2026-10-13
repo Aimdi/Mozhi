@@ -15,8 +15,8 @@ void main() {
   late MockSpeechService speech;
   late StreamController<String?> speaking;
   TranslationEngine? engine;
-  TranslationOptions options = const TranslationOptions();
-  List<Language> available = const [];
+  var options = const TranslationOptions();
+  var available = const <Language>[];
 
   setUp(() {
     repository = MockTranslationRepository();
@@ -141,14 +141,17 @@ void main() {
       ],
       verify: (_) {
         expect(
-          capturedRequest(),
-          const TranslationRequest(
-            text: 'Hello',
-            source: english,
-            target: spanish,
-          ),
+          verify(() => repository.translate(captureAny(), captureAny()))
+              .captured,
+          [
+            deepl,
+            const TranslationRequest(
+              text: 'Hello',
+              source: english,
+              target: spanish,
+            ),
+          ],
         );
-        verify(() => repository.translate(deepl, any())).called(1);
         verifyNever(
           () => speech.toggle(
             id: any(named: 'id'),
@@ -777,7 +780,6 @@ void main() {
       final languages = ConversationCubit.defaultLanguages(
         translateState(
           source: Language.auto,
-          target: spanish,
           result: const TranslationResult(
             engineId: 'mozhi:deepl',
             engineName: 'DeepL',

@@ -71,8 +71,10 @@ class _AboutViewState extends State<AboutView> {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 4),
-                SizedBox(
-                  height: 24,
+                // A minimum (not fixed) height reserves the line while the
+                // version loads without clipping it at large text sizes.
+                ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 24),
                   child: version == null
                       ? null
                       : Text(

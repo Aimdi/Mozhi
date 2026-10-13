@@ -3,12 +3,11 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:mozhi/app/router.dart';
 import 'package:mozhi/image_translate/cubit/image_translate_cubit.dart';
 import 'package:mozhi/image_translate/models/models.dart';
+import 'package:mozhi/image_translate/widgets/image_translate_links.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
-import 'package:mozhi/translate/widgets/output_card.dart' show copyToClipboard;
 import 'package:share_plus/share_plus.dart';
 
 /// Recognised text (editable for on-device recognition), the translation,
@@ -241,7 +240,7 @@ class _ResultActions extends StatelessWidget {
       translate.setTarget(state.target);
     }
     translate.setInputAndTranslate(result.sourceText);
-    context.go(AppRoutes.translate);
+    context.go(ImageTranslateLinks.translator);
   }
 
   @override
@@ -258,7 +257,7 @@ class _ResultActions extends StatelessWidget {
             key: const Key('image_translate_copy_button'),
             tooltip: l10n.commonCopy,
             icon: const Icon(Icons.copy_outlined),
-            onPressed: () => unawaited(copyToClipboard(context, text)),
+            onPressed: () => unawaited(copyImageTranslation(context, text)),
           ),
         if (text.isNotEmpty || result.hasImage)
           Builder(

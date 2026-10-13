@@ -43,6 +43,16 @@ void main() {
       expect(copy.detectedSource, _entry.detectedSource);
     });
 
+    test('copyWith replaces the text', () {
+      final copy = _entry.copyWith(text: 'Hi');
+
+      expect(copy.text, 'Hi');
+      expect(copy, equals(_entry.copyWith(text: 'Hi')));
+      expect(copy.translation, _entry.translation);
+      expect(copy.id, _entry.id);
+      expect(copy.createdAt, _entry.createdAt);
+    });
+
     group('toJson', () {
       test('writes createdAt as UTC ISO-8601', () {
         final json = _entry.toJson();

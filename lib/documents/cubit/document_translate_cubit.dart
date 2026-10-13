@@ -37,9 +37,7 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
     Language target = _english,
     TranslationOptions options = const TranslationOptions(),
   }) : _repository = repository,
-       _translator =
-           translator ??
-           DocumentTranslator(repository: repository),
+       _translator = translator ?? DocumentTranslator(repository: repository),
        super(
          DocumentTranslateState(
            engines: engines,

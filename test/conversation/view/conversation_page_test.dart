@@ -221,6 +221,36 @@ void main() {
       expect(find.byKey(const Key('conversation_menu')), findsNothing);
     });
 
+    testWidgets('shows the no-engines view when loading engines failed', (
+      tester,
+    ) async {
+      when(() => translate.state).thenReturn(
+        translateState(
+          engine: null,
+          engines: const [],
+          enginesStatus: EnginesStatus.failure,
+        ),
+      );
+      await pumpPage(tester);
+      expect(find.byType(NoEnginesView), findsOneWidget);
+    });
+
+    testWidgets('keeps the conversation while engines load', (tester) async {
+      when(() => translate.state).thenReturn(
+        translateState(
+          engine: null,
+          engines: const [],
+          enginesStatus: EnginesStatus.loading,
+        ),
+      );
+      await pumpPage(tester);
+      expect(find.byType(NoEnginesView), findsNothing);
+      expect(
+        find.byKey(const Key('conversation_standard_layout')),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('renders in dark mode', (tester) async {
       await pumpPage(
         tester,
@@ -656,6 +686,32 @@ void main() {
       expect(shared, contains('English: Hello\n→ Spanish: Hola'));
       expect(sharedSubject, 'Conversation');
       expect(sharedOrigin, isNotNull);
+    });
+
+    testWidgets('shares with the platform share sheet by default', (
+      tester,
+    ) async {
+      final calls = <MethodCall>[];
+      const channel = MethodChannel('dev.fluttercommunity.plus/share');
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+        call,
+      ) async {
+        calls.add(call);
+        return 'dev.fluttercommunity.plus/share/success';
+      });
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        ),
+      );
+      await pumpPage(tester);
+      await send(tester, ConversationSide.a, 'Hello');
+      await openMenuItem(tester, 'conversation_menu_share');
+      expect(calls, hasLength(1));
+      final arguments = calls.single.arguments as Map<Object?, Object?>;
+      expect(arguments['text'], contains('English: Hello\n→ Spanish: Hola'));
+      expect(arguments['subject'], 'Conversation');
     });
 
     testWidgets('clear asks first, then empties the conversation', (

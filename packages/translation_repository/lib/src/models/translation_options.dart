@@ -25,6 +25,7 @@ class TranslationOptions {
     this.preserveFormatting = true,
     this.glossary = const {},
     this.instructions = '',
+    this.formalityContext = '',
   });
 
   /// Tolerant counterpart of [toJson]: unknown or missing values fall back to
@@ -65,6 +66,9 @@ class TranslationOptions {
     ),
     glossary: _parseGlossary(json['glossary']),
     instructions: _parseString(json['instructions']),
+    formalityContext: _parseString(
+      json['formalityContext'] ?? json['formality_context'],
+    ),
   );
 
   final TranslationStyle style;
@@ -84,7 +88,15 @@ class TranslationOptions {
 
   /// One-off refinement instruction (from suggestion chips), e.g.
   /// "Make it shorter". Not persisted by the app.
+  ///
+  /// Prompts render it as a labelled refinement preference, not as a
+  /// trusted user instruction: chip instructions are model-generated.
   final String instructions;
+
+  /// Extra tone notes for the chosen [formality] (Kagi's
+  /// `formality_context`), e.g. "my boss, but we are on first-name terms".
+  /// Only used when [formality] is not [Formality.automatic].
+  final String formalityContext;
 
   bool get isDefault => this == const TranslationOptions();
 
@@ -98,6 +110,7 @@ class TranslationOptions {
     bool? preserveFormatting,
     Map<String, String>? glossary,
     String? instructions,
+    String? formalityContext,
   }) => TranslationOptions(
     style: style ?? this.style,
     formality: formality ?? this.formality,
@@ -108,12 +121,15 @@ class TranslationOptions {
     preserveFormatting: preserveFormatting ?? this.preserveFormatting,
     glossary: glossary ?? this.glossary,
     instructions: instructions ?? this.instructions,
+    formalityContext: formalityContext ?? this.formalityContext,
   );
 
   /// Enum values serialise by `.name`; unknown values fall back to defaults.
   ///
   /// [instructions] is only written when non-empty (it is a one-off value the
-  /// app normally strips before persisting).
+  /// app normally strips before persisting); so is [formalityContext] (as
+  /// `formalityContext`; [TranslationOptions.fromJson] also reads Kagi's
+  /// `formality_context`).
   Map<String, dynamic> toJson() => {
     'style': style.name,
     'formality': formality.name,
@@ -124,6 +140,7 @@ class TranslationOptions {
     'preserveFormatting': preserveFormatting,
     'glossary': Map<String, String>.of(glossary),
     if (instructions.isNotEmpty) 'instructions': instructions,
+    if (formalityContext.isNotEmpty) 'formalityContext': formalityContext,
   };
 
   static const _glossaryEquality = MapEquality<String, String>();
@@ -140,6 +157,7 @@ class TranslationOptions {
           other.context == context &&
           other.preserveFormatting == preserveFormatting &&
           other.instructions == instructions &&
+          other.formalityContext == formalityContext &&
           _glossaryEquality.equals(other.glossary, glossary);
 
   @override
@@ -152,6 +170,7 @@ class TranslationOptions {
     context,
     preserveFormatting,
     instructions,
+    formalityContext,
     _glossaryEquality.hash(glossary),
   );
 
@@ -162,7 +181,7 @@ class TranslationOptions {
       'speakerGender: ${speakerGender.name}, '
       'addresseeGender: ${addresseeGender.name}, context: $context, '
       'preserveFormatting: $preserveFormatting, glossary: $glossary, '
-      'instructions: $instructions)';
+      'instructions: $instructions, formalityContext: $formalityContext)';
 }
 
 /// Matches [value] against enum names ignoring case, `_` and `-`, so both

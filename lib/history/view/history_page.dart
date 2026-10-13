@@ -123,30 +123,39 @@ class _HistoryViewState extends State<HistoryView> {
                   sliver: SliverList.list(
                     children: [
                       if (!saveHistory) const _HistoryDisabledBanner(),
-                      SearchBar(
-                        controller: _search,
-                        hintText: l10n.historySearchHint,
-                        elevation: const WidgetStatePropertyAll(0),
-                        leading: const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 8),
-                          child: Icon(Icons.search),
+                      // The hint disappears once text is typed; the label
+                      // keeps the field named (WCAG 3.3.2, 4.1.2).
+                      Semantics(
+                        label: l10n.historySearchLabel,
+                        child: SearchBar(
+                          controller: _search,
+                          hintText: l10n.historySearchHint,
+                          elevation: const WidgetStatePropertyAll(0),
+                          leading: const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 8),
+                            child: Icon(Icons.search),
+                          ),
+                          trailing: [
+                            if (_search.text.isNotEmpty)
+                              IconButton(
+                                tooltip: l10n.historyClearSearch,
+                                icon: const Icon(Icons.close),
+                                onPressed: _clearSearch,
+                              ),
+                          ],
+                          onChanged: _onSearch,
                         ),
-                        trailing: [
-                          if (_search.text.isNotEmpty)
-                            IconButton(
-                              tooltip: l10n.historyClearSearch,
-                              icon: const Icon(Icons.close),
-                              onPressed: _clearSearch,
-                            ),
-                        ],
-                        onChanged: _onSearch,
                       ),
                       const SizedBox(height: 12),
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
                         children: [
+                          // Checkmarks show the selection; the app theme
+                          // hides them and the fill alone is too faint
+                          // (WCAG 1.4.1, 1.4.11).
                           ChoiceChip(
+                            showCheckmark: true,
                             label: Text(l10n.historyFilterAll),
                             selected: !state.favoritesOnly,
                             onSelected: (_) => context
@@ -154,6 +163,7 @@ class _HistoryViewState extends State<HistoryView> {
                                 .setFavoritesOnly(enabled: false),
                           ),
                           ChoiceChip(
+                            showCheckmark: true,
                             avatar: state.favoritesOnly
                                 ? null
                                 : const Icon(Icons.star_outline_rounded),
@@ -195,10 +205,14 @@ class _HistoryViewState extends State<HistoryView> {
     if (!hasEntries &&
         (state.status == HistoryStatus.initial ||
             state.status == HistoryStatus.loading)) {
-      return const [
+      return [
         SliverFillRemaining(
           hasScrollBody: false,
-          child: Center(child: CircularProgressIndicator()),
+          child: Center(
+            child: CircularProgressIndicator(
+              semanticsLabel: l10n.historyLoading,
+            ),
+          ),
         ),
       ];
     }
@@ -237,7 +251,14 @@ class _HistoryViewState extends State<HistoryView> {
       return [
         SliverFillRemaining(
           hasScrollBody: false,
-          child: _EmptyState(icon: icon, title: title, body: body),
+          child: _EmptyState(
+            icon: icon,
+            title: title,
+            body: body,
+            // Search results change as the user types: say when there are
+            // none (WCAG 4.1.3).
+            announce: hasEntries && query.isNotEmpty,
+          ),
         ),
       ];
     }
@@ -313,7 +334,7 @@ class _HistoryDisabledBanner extends StatelessWidget {
         color: colors.tertiaryContainer,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
+          padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 8, 4),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -356,12 +377,21 @@ class _HistoryDisabledBanner extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const new({required this.icon, required this.title, this.body, this.action});
+  const new({
+    required this.icon,
+    required this.title,
+    this.body,
+    this.action,
+    this.announce = false,
+  });
 
   final IconData icon;
   final String title;
   final String? body;
   final Widget? action;
+
+  /// Whether the title and body form a live region.
+  final bool announce;
 
   @override
   Widget build(BuildContext context) {
@@ -377,21 +407,33 @@ class _EmptyState extends StatelessWidget {
             children: [
               Icon(icon, size: 48, color: colors.outline),
               const SizedBox(height: 16),
-              Text(
-                title,
-                style: theme.textTheme.titleMedium,
-                textAlign: TextAlign.center,
-              ),
-              if (body case final body?) ...[
-                const SizedBox(height: 8),
-                Text(
-                  body,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: colors.onSurfaceVariant,
-                  ),
-                  textAlign: TextAlign.center,
+              Semantics(
+                container: announce,
+                liveRegion: announce,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Semantics(
+                      header: true,
+                      child: Text(
+                        title,
+                        style: theme.textTheme.titleMedium,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    if (body case final body?) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        body,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: colors.onSurfaceVariant,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ],
                 ),
-              ],
+              ),
               if (action case final action?) ...[
                 const SizedBox(height: 16),
                 action,

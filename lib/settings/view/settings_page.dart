@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -25,6 +25,12 @@ class SettingsView extends StatelessWidget {
   /// Width from which the sections are laid out in two columns.
   static const twoPaneBreakpoint = 840.0;
 
+  /// Whether on-device (ML Kit) offline translation exists on this platform.
+  static bool get offlineSupported =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
+
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsCubit>().state;
@@ -37,6 +43,10 @@ class SettingsView extends StatelessWidget {
       const _DataSection(),
       const _AboutSection(),
     ];
+    // Each column is its own focus traversal group and semantics container,
+    // so keyboard and screen-reader order finish the left column before
+    // moving to the right one instead of zig-zagging between them.
+    Widget column(List<Widget> children) => Column(children: children);
     return Scaffold(
       appBar: AppBar(title: Text(context.l10n.settingsTitle)),
       body: LayoutBuilder(
@@ -48,9 +58,9 @@ class SettingsView extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(child: Column(children: primary)),
+                  Expanded(child: column(primary)),
                   const SizedBox(width: 24),
-                  Expanded(child: Column(children: secondary)),
+                  Expanded(child: column(secondary)),
                 ],
               ),
             );
@@ -104,6 +114,21 @@ class _ServicesSection extends StatelessWidget {
           trailing: const Icon(Icons.chevron_right),
           onTap: () => context.push('/settings/providers'),
         ),
+        if (SettingsView.offlineSupported)
+          ListTile(
+            leading: const Icon(Icons.download_for_offline_outlined),
+            title: Text(l10n.offlineTitle),
+            subtitle: Text(l10n.settingsOfflineSubtitle),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/offline'),
+          ),
+        ListTile(
+          leading: const Icon(Icons.insights_outlined),
+          title: Text(l10n.settingsUsageTitle),
+          subtitle: Text(l10n.settingsUsageSubtitle),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => context.push('/settings/usage'),
+        ),
       ],
     );
   }
@@ -155,6 +180,20 @@ class _TranslationSection extends StatelessWidget {
           onChanged: (value) => cubit.setShowTransliteration(enabled: value),
         ),
         _AssistEngineTile(settings: settings),
+        ListTile(
+          leading: const Icon(Icons.tune),
+          title: Text(l10n.presetsTitle),
+          subtitle: Text(l10n.settingsPresetsSubtitle),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => context.push('/settings/presets'),
+        ),
+        ListTile(
+          leading: const Icon(Icons.menu_book_outlined),
+          title: Text(l10n.glossariesTitle),
+          subtitle: Text(l10n.settingsGlossariesSubtitle),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => context.push('/settings/glossaries'),
+        ),
       ],
     );
   }
@@ -256,41 +295,9 @@ class _AppearanceSection extends StatelessWidget {
     return SettingsSection(
       title: l10n.settingsSectionAppearance,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                l10n.settingsTheme,
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
-              const SizedBox(height: 12),
-              SegmentedButton<ThemeMode>(
-                showSelectedIcon: false,
-                segments: [
-                  ButtonSegment(
-                    value: ThemeMode.system,
-                    icon: const Icon(Icons.brightness_auto_outlined),
-                    label: _SegmentLabel(l10n.settingsThemeSystem),
-                  ),
-                  ButtonSegment(
-                    value: ThemeMode.light,
-                    icon: const Icon(Icons.light_mode_outlined),
-                    label: _SegmentLabel(l10n.settingsThemeLight),
-                  ),
-                  ButtonSegment(
-                    value: ThemeMode.dark,
-                    icon: const Icon(Icons.dark_mode_outlined),
-                    label: _SegmentLabel(l10n.settingsThemeDark),
-                  ),
-                ],
-                selected: {settings.themeMode},
-                onSelectionChanged: (selection) =>
-                    cubit.setThemeMode(selection.first),
-              ),
-            ],
-          ),
+        _ThemeModePicker(
+          value: settings.themeMode,
+          onChanged: cubit.setThemeMode,
         ),
         if (dynamicColorAvailable)
           SwitchListTile(
@@ -315,14 +322,21 @@ class _AppearanceSection extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  l10n.settingsAccentColor,
-                  style: Theme.of(context).textTheme.bodyLarge,
+                ExcludeSemantics(
+                  child: Text(
+                    l10n.settingsAccentColor,
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
                 ),
                 const SizedBox(height: 8),
-                AccentColorPicker(
-                  selected: settings.seedColor,
-                  onSelected: cubit.setSeedColor,
+                Semantics(
+                  container: true,
+                  explicitChildNodes: true,
+                  label: l10n.settingsAccentColor,
+                  child: AccentColorPicker(
+                    selected: settings.seedColor,
+                    onSelected: cubit.setSeedColor,
+                  ),
                 ),
               ],
             ),
@@ -332,14 +346,106 @@ class _AppearanceSection extends StatelessWidget {
   }
 }
 
-class _SegmentLabel extends StatelessWidget {
-  const new(this.text);
+/// Theme mode choice: a segmented button, or radio rows when large text
+/// would truncate the segment labels (WCAG 1.4.4).
+class _ThemeModePicker extends StatelessWidget {
+  const new({required this.value, required this.onChanged});
 
-  final String text;
+  /// Text scale above which the three segments no longer fit.
+  static const largeTextScale = 1.3;
+
+  final ThemeMode value;
+  final ValueChanged<ThemeMode> onChanged;
 
   @override
-  Widget build(BuildContext context) =>
-      Text(text, maxLines: 1, overflow: TextOverflow.ellipsis);
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final options = [
+      (
+        ThemeMode.system,
+        Icons.brightness_auto_outlined,
+        l10n.settingsThemeSystem,
+      ),
+      (ThemeMode.light, Icons.light_mode_outlined, l10n.settingsThemeLight),
+      (ThemeMode.dark, Icons.dark_mode_outlined, l10n.settingsThemeDark),
+    ];
+    // The visible title names the group below (WCAG 1.3.1, 4.1.2), so it
+    // is read once, as the group's label.
+    final title = ExcludeSemantics(
+      child: Text(
+        l10n.settingsTheme,
+        style: Theme.of(context).textTheme.bodyLarge,
+      ),
+    );
+    final largeText =
+        MediaQuery.textScalerOf(context).scale(1) > largeTextScale;
+    if (largeText) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: title,
+            ),
+            Semantics(
+              container: true,
+              explicitChildNodes: true,
+              label: l10n.settingsTheme,
+              child: RadioGroup<ThemeMode>(
+                groupValue: value,
+                onChanged: (mode) {
+                  if (mode != null) onChanged(mode);
+                },
+                child: Column(
+                  children: [
+                    for (final (mode, icon, label) in options)
+                      RadioListTile<ThemeMode>(
+                        value: mode,
+                        title: Text(label),
+                        secondary: Icon(icon),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          title,
+          const SizedBox(height: 12),
+          Semantics(
+            container: true,
+            explicitChildNodes: true,
+            label: l10n.settingsTheme,
+            child: SegmentedButton<ThemeMode>(
+              segments: [
+                for (final (mode, icon, label) in options)
+                  ButtonSegment(
+                    value: mode,
+                    icon: Icon(icon),
+                    label: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
+              selected: {value},
+              onSelectionChanged: (selection) => onChanged(selection.first),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _DataSection extends StatelessWidget {
@@ -390,6 +496,13 @@ class _AboutSection extends StatelessWidget {
           subtitle: Text(l10n.settingsAboutSubtitle),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => context.push('/settings/about'),
+        ),
+        ListTile(
+          leading: const Icon(Icons.restart_alt),
+          title: Text(l10n.settingsRunSetup),
+          subtitle: Text(l10n.settingsRunSetupSubtitle),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => context.push('/onboarding'),
         ),
       ],
     );

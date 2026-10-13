@@ -124,6 +124,37 @@ void main() {
       expect(colors, hasLength(3));
     });
 
+    testWidgets('puts badges below the title on narrow screens', (
+      tester,
+    ) async {
+      final cubit = createOnboardingCubit(
+        OnboardingState(
+          serviceStatus: ServiceStatus.pinging,
+          pings: {
+            instanceA.url: const InstancePing.pending(),
+            instanceB.url: const InstancePing.success(
+              Duration(milliseconds: 40),
+            ),
+          },
+        ),
+      );
+      tester.setScreenSize(const Size(360, 2000));
+      await tester.pumpOnboarding(
+        const ServiceStep(),
+        onboarding: cubit,
+        settings: createSettings(),
+      );
+
+      final tiles = tester.widgetList<RadioListTile<String>>(
+        find.byType(RadioListTile<String>),
+      );
+      expect(tiles.every((tile) => tile.secondary == null), isTrue);
+      final title = tester.getRect(find.text('b.example'));
+      final badge = tester.getRect(find.text('40 ms'));
+      expect(badge.top, greaterThan(title.bottom));
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    });
+
     testWidgets('warns when no instance answered', (tester) async {
       await pump(
         tester,

@@ -335,6 +335,21 @@ void main() {
       await cubit.close();
     });
 
+    for (final status in [
+      WebTranslateStatus.loaded,
+      WebTranslateStatus.translated,
+      WebTranslateStatus.stopped,
+      WebTranslateStatus.failure,
+    ]) {
+      blocTest<WebTranslateCubit, WebTranslateState>(
+        'cancel does nothing when ${status.name}',
+        build: buildCubit,
+        seed: () => WebTranslateState(status: status),
+        act: (cubit) => cubit.cancel(),
+        expect: () => const <WebTranslateState>[],
+      );
+    }
+
     test('a newer load wins over an older one', () async {
       final first = Completer<http.Response>();
       final cubit = buildCubit(

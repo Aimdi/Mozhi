@@ -70,19 +70,22 @@ class HistoryEntry extends Equatable {
   final String? detectedSource;
   final bool isFavorite;
 
-  HistoryEntry copyWith({bool? isFavorite, String? translation}) =>
-      HistoryEntry(
-        id: id,
-        text: text,
-        translation: translation ?? this.translation,
-        source: source,
-        target: target,
-        engineId: engineId,
-        engineName: engineName,
-        createdAt: createdAt,
-        detectedSource: detectedSource,
-        isFavorite: isFavorite ?? this.isFavorite,
-      );
+  HistoryEntry copyWith({
+    bool? isFavorite,
+    String? translation,
+    String? text,
+  }) => HistoryEntry(
+    id: id,
+    text: text ?? this.text,
+    translation: translation ?? this.translation,
+    source: source,
+    target: target,
+    engineId: engineId,
+    engineName: engineName,
+    createdAt: createdAt,
+    detectedSource: detectedSource,
+    isFavorite: isFavorite ?? this.isFavorite,
+  );
 
   /// [createdAt] is written as a UTC ISO-8601 string.
   Map<String, dynamic> toJson() => {

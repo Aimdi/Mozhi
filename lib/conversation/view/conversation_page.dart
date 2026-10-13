@@ -31,13 +31,16 @@ class ConversationPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The device language is a fallback for side A (read here: providers
+    // must not depend on inherited widgets in `create`).
+    final deviceLanguageCode = Localizations.maybeLocaleOf(context)
+        ?.languageCode;
     return BlocProvider(
       create: (context) {
         final translate = context.read<TranslateCubit>();
         final languages = ConversationCubit.defaultLanguages(
           translate.state,
-          deviceLanguageCode: Localizations.maybeLocaleOf(context)
-              ?.languageCode,
+          deviceLanguageCode: deviceLanguageCode,
         );
         return ConversationCubit(
           repository: context.read<TranslationRepository>(),

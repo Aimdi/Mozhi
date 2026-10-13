@@ -31,6 +31,32 @@ class _ProofreadControlsState extends State<ProofreadControls> {
     super.dispose();
   }
 
+  /// Whether every correction level label fits in its segment of a
+  /// [SegmentedButton] that is [width] wide, at the current text scale.
+  bool _levelLabelsFit(BuildContext context, double width) {
+    final l10n = context.l10n;
+    final textScaler = MediaQuery.textScalerOf(context);
+    final style = Theme.of(context).textTheme.labelLarge;
+    final textDirection = Directionality.of(context);
+    var widest = 0.0;
+    for (final level in CorrectionLevel.values) {
+      final painter = TextPainter(
+        text: TextSpan(
+          text: l10n.proofreadCorrectionLevel(level),
+          style: style,
+        ),
+        textDirection: textDirection,
+        textScaler: textScaler,
+        maxLines: 1,
+      )..layout();
+      if (painter.width > widest) widest = painter.width;
+      painter.dispose();
+    }
+    // Segment padding (12 per side at most) plus the dividing border.
+    const segmentChrome = 26.0;
+    return (widest + segmentChrome) * CorrectionLevel.values.length <= width;
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
@@ -41,104 +67,139 @@ class _ProofreadControlsState extends State<ProofreadControls> {
           previous.correctionLevel != current.correctionLevel ||
           previous.writingStyle != current.writingStyle ||
           previous.formality != current.formality ||
-          previous.engine != current.engine ||
-          previous.availableEngines != current.availableEngines,
-      builder: (context, state) => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: 12,
-        children: [
-          Semantics(
-            label: l10n.proofreadLevelLabel,
-            container: true,
-            child: SegmentedButton<CorrectionLevel>(
-              showSelectedIcon: false,
-              segments: [
-                for (final level in CorrectionLevel.values)
-                  ButtonSegment(
-                    value: level,
-                    tooltip: l10n.proofreadLevelDescription(level),
-                    label: Text(
-                      l10n.proofreadCorrectionLevel(level),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-              ],
-              selected: {state.correctionLevel},
-              onSelectionChanged: (selection) =>
-                  cubit.setLevel(selection.first),
-            ),
-          ),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
+          // Engine equality ignores the model and locality badge.
+          !identical(previous.engine, current.engine) ||
+          !identical(previous.availableEngines, current.availableEngines),
+      builder: (context, state) => LayoutBuilder(
+        builder: (context, constraints) {
+          // Narrow screens or large text: a menu instead of truncated
+          // segment labels.
+          final segmented = _levelLabelsFit(context, constraints.maxWidth);
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: 12,
             children: [
-              ProofreadMenuButton<WritingStyle>(
-                key: const Key('proofread_style_menu'),
-                icon: Icons.history_edu_outlined,
-                label: l10n.proofreadStyleLabel,
-                value: state.writingStyle,
-                values: WritingStyle.values,
-                labelOf: l10n.proofreadWritingStyle,
-                onSelected: cubit.setStyle,
-              ),
-              ProofreadMenuButton<Formality>(
-                key: const Key('proofread_formality_menu'),
-                icon: Icons.business_center_outlined,
-                label: l10n.proofreadFormalityLabel,
-                value: state.formality,
-                values: Formality.values,
-                labelOf: l10n.proofreadFormality,
-                onSelected: cubit.setFormality,
-              ),
-              if (state.availableEngines.length > 1 && state.engine != null)
-                ProofreadMenuButton<TranslationEngine>(
-                  key: const Key('proofread_engine_menu'),
-                  icon: Icons.auto_awesome_outlined,
-                  label: l10n.proofreadEngineLabel,
-                  value: state.engine!,
-                  values: state.availableEngines,
-                  labelOf: (engine) => engine.name,
-                  subtitleOf: (engine) => engine.subtitle,
-                  trailingOf: (engine) => engine.isLocal
-                      ? Tooltip(
-                          message: l10n.proofreadLocalEngine,
-                          child: const Icon(Icons.lan_outlined, size: 18),
-                        )
-                      : null,
-                  onSelected: cubit.setEngine,
+              if (segmented)
+                Semantics(
+                  label: l10n.proofreadLevelLabel,
+                  container: true,
+                  child: SegmentedButton<CorrectionLevel>(
+                    showSelectedIcon: false,
+                    segments: [
+                      for (final level in CorrectionLevel.values)
+                        ButtonSegment(
+                          value: level,
+                          tooltip: l10n.proofreadLevelDescription(level),
+                          label: Text(
+                            l10n.proofreadCorrectionLevel(level),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    selected: {state.correctionLevel},
+                    onSelectionChanged: (selection) =>
+                        cubit.setLevel(selection.first),
+                  ),
                 ),
-              if (!_showContext)
-                ActionChip(
-                  avatar: const Icon(Icons.add_comment_outlined),
-                  label: Text(l10n.proofreadContextAdd),
-                  onPressed: () => setState(() => _showContext = true),
-                ),
+              _buildMenus(context, state, showLevel: !segmented),
+              if (_showContext) _buildContextField(context),
             ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildMenus(
+    BuildContext context,
+    ProofreadState state, {
+    required bool showLevel,
+  }) {
+    final l10n = context.l10n;
+    final cubit = context.read<ProofreadCubit>();
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        if (showLevel)
+          ProofreadMenuButton<CorrectionLevel>(
+            key: const Key('proofread_level_menu'),
+            icon: Icons.tune,
+            label: l10n.proofreadLevelLabel,
+            value: state.correctionLevel,
+            values: CorrectionLevel.values,
+            labelOf: l10n.proofreadCorrectionLevel,
+            subtitleOf: l10n.proofreadLevelDescription,
+            onSelected: cubit.setLevel,
           ),
-          if (_showContext)
-            TextField(
-              key: const Key('proofread_context'),
-              controller: _contextController,
-              onChanged: cubit.setContext,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: InputDecoration(
-                labelText: l10n.proofreadContextLabel,
-                hintText: l10n.proofreadContextHint,
-                prefixIcon: const Icon(Icons.comment_outlined),
-                border: const OutlineInputBorder(),
-                suffixIcon: IconButton(
-                  tooltip: l10n.commonClear,
-                  icon: const Icon(Icons.clear),
-                  onPressed: () {
-                    _contextController.clear();
-                    cubit.setContext('');
-                    setState(() => _showContext = false);
-                  },
-                ),
-              ),
-            ),
-        ],
+        ProofreadMenuButton<WritingStyle>(
+          key: const Key('proofread_style_menu'),
+          icon: Icons.history_edu_outlined,
+          label: l10n.proofreadStyleLabel,
+          value: state.writingStyle,
+          values: WritingStyle.values,
+          labelOf: l10n.proofreadWritingStyle,
+          onSelected: cubit.setStyle,
+        ),
+        ProofreadMenuButton<Formality>(
+          key: const Key('proofread_formality_menu'),
+          icon: Icons.business_center_outlined,
+          label: l10n.proofreadFormalityLabel,
+          value: state.formality,
+          values: Formality.values,
+          labelOf: l10n.proofreadFormality,
+          onSelected: cubit.setFormality,
+        ),
+        if (state.availableEngines.length > 1 && state.engine != null)
+          ProofreadMenuButton<TranslationEngine>(
+            key: const Key('proofread_engine_menu'),
+            icon: Icons.auto_awesome_outlined,
+            label: l10n.proofreadEngineLabel,
+            value: state.engine!,
+            values: state.availableEngines,
+            labelOf: (engine) => engine.name,
+            subtitleOf: (engine) => engine.subtitle,
+            trailingOf: (engine) => engine.isLocal
+                ? Tooltip(
+                    message: l10n.proofreadLocalEngine,
+                    child: const Icon(Icons.lan_outlined, size: 18),
+                  )
+                : null,
+            onSelected: cubit.setEngine,
+          ),
+        if (!_showContext)
+          ActionChip(
+            avatar: const Icon(Icons.add_comment_outlined),
+            label: Text(l10n.proofreadContextAdd),
+            onPressed: () => setState(() => _showContext = true),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildContextField(BuildContext context) {
+    final l10n = context.l10n;
+    final cubit = context.read<ProofreadCubit>();
+    return TextField(
+      key: const Key('proofread_context'),
+      controller: _contextController,
+      onChanged: cubit.setContext,
+      textCapitalization: TextCapitalization.sentences,
+      decoration: InputDecoration(
+        labelText: l10n.proofreadContextLabel,
+        hintText: l10n.proofreadContextHint,
+        prefixIcon: const Icon(Icons.comment_outlined),
+        border: const OutlineInputBorder(),
+        suffixIcon: IconButton(
+          tooltip: l10n.commonClear,
+          icon: const Icon(Icons.clear),
+          onPressed: () {
+            _contextController.clear();
+            cubit.setContext('');
+            setState(() => _showContext = false);
+          },
+        ),
       ),
     );
   }
@@ -180,9 +241,14 @@ class ProofreadMenuButton<T> extends StatelessWidget {
             ),
             trailingIcon: trailingOf?.call(option),
             onPressed: () => onSelected(option),
-            child: _MenuLabel(
-              title: labelOf(option),
-              subtitle: subtitleOf?.call(option),
+            // The check mark is decorative: expose the choice as state.
+            child: Semantics(
+              selected: option == value,
+              inMutuallyExclusiveGroup: true,
+              child: _MenuLabel(
+                title: labelOf(option),
+                subtitle: subtitleOf?.call(option),
+              ),
             ),
           ),
       ],

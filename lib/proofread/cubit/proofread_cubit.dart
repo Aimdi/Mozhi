@@ -1,5 +1,7 @@
 import 'package:bloc/bloc.dart';
+import 'package:flutter/foundation.dart';
 import 'package:mozhi/proofread/cubit/proofread_state.dart';
+import 'package:mozhi/proofread/models/proofread_diff.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 export 'proofread_state.dart';
@@ -20,14 +22,23 @@ class ProofreadCubit extends Cubit<ProofreadState> {
   /// Incremented per request so stale responses are ignored.
   int _request = 0;
 
+  /// Whether the user picked the engine. Until then the engine follows the
+  /// preferred (assist) engine passed to [setEngines].
+  bool _engineChosen = false;
+
+  /// Combined length of input and corrected text from which reconciling a
+  /// result runs in a background isolate (where available).
+  static const backgroundDiffLength = 8000;
+
   /// Text with the accepted edits applied (see [ProofreadState.outputText]).
   String get outputText => state.outputText;
 
   static ProofreadState _withEngines(
     ProofreadState state,
     List<TranslationEngine> engines,
-    TranslationEngine? preferred,
-  ) {
+    TranslationEngine? preferred, {
+    bool keepCurrent = false,
+  }) {
     final ai = engines.where((e) => e.isAi).toList(growable: false);
     TranslationEngine? find(TranslationEngine? engine) {
       if (engine == null) return null;
@@ -37,23 +48,38 @@ class ProofreadCubit extends Cubit<ProofreadState> {
       return null;
     }
 
-    final selected =
-        find(state.engine) ?? find(preferred) ?? (ai.isEmpty ? null : ai.first);
-    return state.copyWith(availableEngines: ai, engine: () => selected);
+    final selected = keepCurrent
+        ? find(state.engine) ?? find(preferred)
+        : find(preferred) ?? find(state.engine);
+    return state.copyWith(
+      availableEngines: ai,
+      engine: () => selected ?? (ai.isEmpty ? null : ai.first),
+    );
   }
 
-  /// Updates the AI engines (non-AI engines are ignored). Keeps the current
-  /// engine when still available, else [preferred], else the first one.
+  /// Updates the AI engines (non-AI engines are ignored), refreshing their
+  /// details (e.g. an edited model). An engine the user picked is kept while
+  /// it is still available; otherwise [preferred] is used, else the current
+  /// engine, else the first one.
   void setEngines(
     List<TranslationEngine> engines, {
     TranslationEngine? preferred,
   }) {
-    final next = _withEngines(state, engines, preferred);
+    final keepCurrent =
+        _engineChosen && engines.any((e) => e.isAi && e.id == state.engine?.id);
+    _engineChosen = keepCurrent;
+    final next = _withEngines(
+      state,
+      engines,
+      preferred,
+      keepCurrent: keepCurrent,
+    );
     if (next != state) emit(next);
   }
 
   void setEngine(TranslationEngine engine) {
     if (!engine.isAi) return;
+    _engineChosen = true;
     emit(state.copyWith(engine: () => engine));
   }
 
@@ -100,12 +126,14 @@ class ProofreadCubit extends Cubit<ProofreadState> {
         uiLanguage: _uiLanguage,
       );
       if (isClosed || request != _request) return;
+      final reconciled = await _reconcile(text, result);
+      if (isClosed || request != _request) return;
       emit(
         state.copyWith(
           status: ProofreadStatus.success,
-          result: () => result,
+          result: () => reconciled,
           proofreadInput: text,
-          acceptedEdits: {for (var i = 0; i < result.edits.length; i++) i},
+          acceptedEdits: {for (var i = 0; i < reconciled.edits.length; i++) i},
         ),
       );
     } on Object catch (error, stackTrace) {
@@ -114,6 +142,30 @@ class ProofreadCubit extends Cubit<ProofreadState> {
       emit(state.copyWith(status: ProofreadStatus.failure, error: () => error));
     }
   }
+
+  /// Adds the changes that [result]'s corrected text makes without listing
+  /// them as edits (see [ProofreadDiff.reconcile]).
+  static Future<ProofreadResult> _reconcile(
+    String text,
+    ProofreadResult result,
+  ) async {
+    final request = (text, result.edits, result.correctedText);
+    final edits =
+        text.length + result.correctedText.length >= backgroundDiffLength
+        ? await compute(_reconcileEdits, request)
+        : _reconcileEdits(request);
+    if (edits.length == result.edits.length) return result;
+    return ProofreadResult(
+      correctedText: result.correctedText,
+      edits: edits,
+      detectedLanguage: result.detectedLanguage,
+      summary: result.summary,
+    );
+  }
+
+  static List<ProofreadEdit> _reconcileEdits(
+    (String, List<ProofreadEdit>, String) request,
+  ) => ProofreadDiff.reconcile(request.$1, request.$2, request.$3);
 
   /// Accepts or rejects the edit at [index].
   void toggleEdit(int index) {

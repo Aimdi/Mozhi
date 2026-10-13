@@ -95,6 +95,7 @@ extension PumpOnboarding on WidgetTester {
     GoRouter? router,
     bool scaffold = true,
     ThemeData? theme,
+    double textScale = 1,
   }) {
     final child = scaffold ? Scaffold(body: widget) : widget;
     return pumpWidget(
@@ -114,6 +115,11 @@ extension PumpOnboarding on WidgetTester {
               theme: theme ?? ThemeData(useMaterial3: true),
               localizationsDelegates: AppLocalizations.localizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
+              builder: (context, child) => MediaQuery(
+                data: MediaQuery.of(context)
+                    .copyWith(textScaler: TextScaler.linear(textScale)),
+                child: child!,
+              ),
               home: child,
             ),
           ),

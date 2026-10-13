@@ -62,16 +62,25 @@ class ProofreadState extends Equatable {
       Iterable<int>.generate(edits.length).where(acceptedEdits.contains).length;
 
   /// Text produced by applying the accepted edits to [proofreadInput] (see
-  /// [ProofreadDiff.locate]). When every edit is accepted and the result has
-  /// a non-empty `correctedText`, that is preferred.
+  /// [ProofreadDiff.locate]).
+  ///
+  /// The edits are the only source of the output, so toggling one edit
+  /// changes exactly that edit. Changes that `correctedText` makes without
+  /// listing them are turned into edits by [ProofreadDiff.reconcile] when
+  /// the result arrives. Only a result without edits uses its non-blank
+  /// `correctedText` directly.
   String get outputText {
     final result = this.result;
     if (result == null) return '';
-    if (allEditsAccepted && result.correctedText.isNotEmpty) {
+    if (result.edits.isEmpty && result.correctedText.trim().isNotEmpty) {
       return result.correctedText;
     }
     return ProofreadDiff.apply(proofreadInput, edits, acceptedEdits);
   }
+
+  /// Whether the input changed after [result] was computed, so the result
+  /// no longer matches the text in the input field.
+  bool get isStale => result != null && input != proofreadInput;
 
   /// Whether the result found nothing to change.
   bool get isClean {
@@ -112,11 +121,25 @@ class ProofreadState extends Equatable {
     );
   }
 
+  /// Every engine field shown in the UI: [TranslationEngine] equality only
+  /// compares id and name, which would hide an edited model or locality.
+  static Object? _engineKey(TranslationEngine? engine) => engine == null
+      ? null
+      : (
+          engine.id,
+          engine.kind,
+          engine.name,
+          engine.subtitle,
+          engine.providerId,
+          engine.mozhiEngine,
+          engine.isLocal,
+        );
+
   @override
   List<Object?> get props => [
     input,
-    engine,
-    availableEngines,
+    _engineKey(engine),
+    [for (final engine in availableEngines) _engineKey(engine)],
     writingStyle,
     correctionLevel,
     formality,

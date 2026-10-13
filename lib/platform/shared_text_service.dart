@@ -6,8 +6,18 @@ import 'package:flutter/services.dart';
 /// Text handed to the app by the OS.
 @immutable
 class SharedText {
-  const new(this.text, {this.readOnly = true, this.isProcessText = false});
+  const new(
+    this.text, {
+    this.readOnly = true,
+    this.isProcessText = false,
+    this.action,
+  });
 
+  /// [action] of the Android quick-settings tile / app shortcut that asks
+  /// to translate the clipboard.
+  static const translateClipboardAction = 'translateClipboard';
+
+  /// The shared text. Empty when the payload only carried an [action].
   final String text;
 
   /// For Android PROCESS_TEXT: false means the caller accepts a replacement
@@ -15,20 +25,29 @@ class SharedText {
   final bool readOnly;
   final bool isProcessText;
 
+  /// What the OS asked the app to do (e.g. [translateClipboardAction]),
+  /// or null for a plain share / selection.
+  final String? action;
+
+  /// Whether this asks to translate the clipboard ([text] may be empty).
+  bool get isTranslateClipboard => action == translateClipboardAction;
+
   @override
   bool operator ==(Object other) =>
       other is SharedText &&
       other.text == text &&
       other.readOnly == readOnly &&
-      other.isProcessText == isProcessText;
+      other.isProcessText == isProcessText &&
+      other.action == action;
 
   @override
-  int get hashCode => Object.hash(text, readOnly, isProcessText);
+  int get hashCode => Object.hash(text, readOnly, isProcessText, action);
 
   @override
   String toString() =>
       'SharedText($text, readOnly: $readOnly, '
-      'isProcessText: $isProcessText)';
+      'isProcessText: $isProcessText'
+      '${action == null ? '' : ', action: $action'})';
 }
 
 /// Bridges Android `ACTION_SEND` (text/plain) and `ACTION_PROCESS_TEXT`
@@ -36,16 +55,19 @@ class SharedText {
 ///
 /// Platform side (`MainActivity.kt`) exposes:
 /// * MethodChannel `io.github.aimdi.mozhi/shared_text`:
-///   `getInitialText` -> `{text, readOnly, processText}` | null,
+///   `getInitialText` -> `{text, readOnly, processText, action}` | null
+///   (`action` is optional, e.g. `translateClipboard` from the
+///   quick-settings tile / app shortcut, which may omit `text`),
 ///   `returnResult(text)` -> finishes a PROCESS_TEXT activity with
 ///   `EXTRA_PROCESS_TEXT` = text (the argument is the plain string).
 /// * EventChannel `io.github.aimdi.mozhi/shared_text_events` streaming the
 ///   same maps for intents received while running (`onNewIntent`).
 /// On platforms without the channel everything is a silent no-op.
 ///
-/// Payloads are parsed defensively: a missing/blank `text` is ignored,
-/// `readOnly` defaults to true and `processText` to false. A plain string
-/// payload is accepted as the text.
+/// Payloads are parsed defensively: a payload without a non-blank `text`
+/// or `action` is ignored (a blank `text` next to an `action` becomes ''),
+/// `readOnly` defaults to true, `processText` to false and `action` to
+/// null. A plain string payload is accepted as the text.
 class SharedTextService {
   new({BinaryMessenger? messenger})
     : _messenger = messenger,
@@ -88,20 +110,35 @@ class SharedTextService {
     }
   }
 
-  /// Parses a platform payload; null when it carries no usable text.
+  /// Parses a platform payload; null when it carries neither usable text
+  /// nor an action.
   static SharedText? parse(Object? payload) {
     return switch (payload) {
       final String text when text.trim().isNotEmpty => SharedText(text),
-      {'text': final String text} when text.trim().isNotEmpty => SharedText(
-        text,
-        readOnly: switch (payload['readOnly']) {
-          final bool readOnly => readOnly,
-          _ => true,
-        },
-        isProcessText: payload['processText'] == true,
-      ),
+      final Map<dynamic, dynamic> map => _parseMap(map),
       _ => null,
     };
+  }
+
+  static SharedText? _parseMap(Map<dynamic, dynamic> payload) {
+    final text = switch (payload['text']) {
+      final String text when text.trim().isNotEmpty => text,
+      _ => null,
+    };
+    final action = switch (payload['action']) {
+      final String action when action.trim().isNotEmpty => action,
+      _ => null,
+    };
+    if (text == null && action == null) return null;
+    return SharedText(
+      text ?? '',
+      readOnly: switch (payload['readOnly']) {
+        final bool readOnly => readOnly,
+        _ => true,
+      },
+      isProcessText: payload['processText'] == true,
+      action: action,
+    );
   }
 
   /// Same protocol as [EventChannel.receiveBroadcastStream], but a missing

@@ -104,7 +104,6 @@ void main() {
       const state = WebTranslateState(
         url: 'a',
         page: page,
-        pageUri: null,
         error: 'e',
         selection: googleToSpanish,
         translatedTitle: 't',

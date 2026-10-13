@@ -225,29 +225,16 @@ void main() {
   });
 
   testWidgets('QuickTranslateSheet pops its route by default', (tester) async {
-    await tester.pumpQuick(
-      host(
-        (context) => unawaited(
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => MultiRepositoryProvider(
-                providers: [
-                  RepositoryProvider<TranslationRepository>.value(
-                    value: repository,
-                  ),
-                ],
-                child: BlocProvider<SettingsCubit>.value(
-                  value: settings,
-                  child: const Scaffold(
-                    body: QuickTranslateSheet(text: 'Hello world'),
-                  ),
-                ),
-              ),
-            ),
-          ),
+    final page = MaterialPageRoute<void>(
+      builder: (_) => RepositoryProvider<TranslationRepository>.value(
+        value: repository,
+        child: BlocProvider<SettingsCubit>.value(
+          value: settings,
+          child: const Scaffold(body: QuickTranslateSheet(text: 'Hello world')),
         ),
       ),
     );
+    await tester.pumpQuick(host((context) => Navigator.of(context).push(page)));
     await open(tester);
     expect(find.text('Bonjour le monde'), findsOneWidget);
 

@@ -3,10 +3,10 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:mozhi/app/router.dart';
 import 'package:mozhi/image_translate/cubit/image_translate_cubit.dart';
 import 'package:mozhi/image_translate/models/models.dart';
 import 'package:mozhi/image_translate/widgets/image_translate_labels.dart';
+import 'package:mozhi/image_translate/widgets/image_translate_links.dart';
 import 'package:mozhi/l10n/l10n.dart';
 
 /// Shown before an image is picked: what the feature does, pick buttons and
@@ -148,13 +148,13 @@ class _NoMethods extends StatelessWidget {
               children: [
                 FilledButton.tonal(
                   key: const Key('image_translate_providers_button'),
-                  onPressed: () => context.go(AppRoutes.providers),
+                  onPressed: () => context.go(ImageTranslateLinks.providers),
                   style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
                   child: Text(l10n.translateProvidersAction),
                 ),
                 TextButton(
                   key: const Key('image_translate_instances_button'),
-                  onPressed: () => context.go(AppRoutes.instances),
+                  onPressed: () => context.go(ImageTranslateLinks.instances),
                   style: TextButton.styleFrom(minimumSize: const Size(0, 48)),
                   child: Text(l10n.translateManageInstances),
                 ),

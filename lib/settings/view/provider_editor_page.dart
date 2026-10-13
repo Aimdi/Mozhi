@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/semantics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -83,6 +86,13 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
   final _baseUrl = TextEditingController();
   final _apiKey = TextEditingController();
   final _model = TextEditingController();
+  final _nameFocus = FocusNode();
+  final _baseUrlFocus = FocusNode();
+  final _apiKeyFocus = FocusNode();
+  final _modelFocus = FocusNode();
+
+  /// The plain-http base URL the user agreed to use without encryption.
+  String? _insecureConfirmedFor;
 
   AiProviderConfig? _existing;
   AiProviderPreset? _preset;
@@ -151,6 +161,10 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
     _baseUrl.dispose();
     _apiKey.dispose();
     _model.dispose();
+    _nameFocus.dispose();
+    _baseUrlFocus.dispose();
+    _apiKeyFocus.dispose();
+    _modelFocus.dispose();
     super.dispose();
   }
 
@@ -168,20 +182,58 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
     return !AiProviderConfig.isLocalHost(uri.host);
   }
 
+  static String _hostOf(String url) =>
+      (Uri.tryParse(url.trim())?.host ?? '').toLowerCase();
+
+  /// Headers the preset adds for its own service (e.g. OpenRouter's
+  /// `HTTP-Referer` and `X-Title`) that must not follow the provider to
+  /// another host (they identify the app to whoever runs that server).
+  Map<String, String> get _presetHeadersDropped {
+    final preset = _preset;
+    if (preset == null || preset.headers.isEmpty) return const {};
+    final host = _hostOf(_baseUrl.text);
+    if (host.isEmpty || host == _hostOf(preset.baseUrl)) return const {};
+    return preset.headers;
+  }
+
+  Map<String, String> get _headers {
+    final preset = _preset;
+    final headers = _existing?.headers ?? preset?.headers ?? const {};
+    final dropped = _presetHeadersDropped;
+    if (dropped.isNotEmpty) {
+      return {
+        for (final MapEntry(:key, :value) in headers.entries)
+          if (!dropped.containsKey(key)) key: value,
+      };
+    }
+    // Back on the preset's own host: its headers apply again.
+    if (preset != null && preset.headers.isNotEmpty) {
+      return {...preset.headers, ...headers};
+    }
+    return headers;
+  }
+
   String? _required(String? value) => (value == null || value.trim().isEmpty)
       ? context.l10n.settingsProviderRequired
       : null;
 
   String? _validateUrl(String? value) {
+    final l10n = context.l10n;
     final text = value?.trim() ?? '';
-    if (text.isEmpty) return context.l10n.settingsProviderRequired;
+    if (text.isEmpty) return l10n.settingsProviderRequired;
     final uri = Uri.tryParse(text);
     if (uri == null ||
         (uri.scheme != 'http' && uri.scheme != 'https') ||
         uri.host.isEmpty) {
-      return context.l10n.settingsProviderUrlInvalid;
+      return l10n.settingsProviderUrlInvalid;
     }
-    return null;
+    // Secrets in the URL would be stored in plain preferences and shown in
+    // errors; keys belong in the API key field (secure storage).
+    return switch (urlSecretProblem(text)) {
+      UrlSecretProblem.credentials => l10n.settingsProviderUrlCredentials,
+      UrlSecretProblem.query => l10n.settingsProviderUrlQuery,
+      null => null,
+    };
   }
 
   String? _validateKey(String? value) =>
@@ -220,7 +272,7 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
       presetId: existing?.presetId ?? _preset?.id,
       effort: _effort == _defaultEffort ? null : _effort,
       temperature: _showTemperature ? _temperature : null,
-      headers: existing?.headers ?? _preset?.headers ?? const {},
+      headers: _headers,
       enabled: existing?.enabled ?? true,
       supportsVision: _supportsVision,
     );
@@ -234,8 +286,75 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
     }
   }
 
-  void _save() {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+  /// Validates the form. On failure, focuses the first invalid field and
+  /// announces that the form needs fixing (WCAG 3.3.1, 4.1.3).
+  bool _validate() {
+    if (_formKey.currentState?.validate() ?? false) return true;
+    final fields = [
+      (_nameFocus, _required(_name.text)),
+      (_baseUrlFocus, _validateUrl(_baseUrl.text)),
+      (_apiKeyFocus, _validateKey(_apiKey.text)),
+      (_modelFocus, _required(_model.text)),
+    ];
+    for (final (focus, error) in fields) {
+      if (error != null) {
+        focus.requestFocus();
+        break;
+      }
+    }
+    unawaited(
+      SemanticsService.sendAnnouncement(
+        View.of(context),
+        context.l10n.settingsProviderFixErrors,
+        Directionality.of(context),
+      ),
+    );
+    return false;
+  }
+
+  /// Plain http to a non-local host sends the text (and API key) readable
+  /// by anyone on the way, so it needs an explicit confirmation once per
+  /// URL before anything is saved or sent.
+  Future<bool> _confirmInsecure() async {
+    if (!_insecure) return true;
+    final url = _normalizedBaseUrl();
+    if (_insecureConfirmedFor == url) return true;
+    final l10n = context.l10n;
+    final host = Uri.tryParse(url)?.host ?? url;
+    final hasKey = _apiKey.text.trim().isNotEmpty;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        icon: const Icon(Icons.no_encryption_outlined),
+        title: Text(l10n.settingsProviderInsecureConfirmTitle),
+        content: Text(
+          hasKey
+              ? l10n.settingsProviderInsecureConfirmBodyKey(host)
+              : l10n.settingsProviderInsecureConfirmBody(host),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l10n.commonCancel),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(l10n.settingsProviderInsecureConfirmAction),
+          ),
+        ],
+      ),
+    );
+    if (!(confirmed ?? false) || !mounted) return false;
+    _insecureConfirmedFor = url;
+    return true;
+  }
+
+  Future<void> _save() async {
+    if (!_validate()) return;
+    if (!await _confirmInsecure() || !mounted) return;
     final config = _buildConfig(
       id: _existing?.id ?? 'p${DateTime.now().microsecondsSinceEpoch}',
     );
@@ -279,7 +398,8 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
   }
 
   Future<void> _testConnection() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (!_validate()) return;
+    if (!await _confirmInsecure() || !mounted) return;
     final repository = context.read<TranslationRepository>();
     setState(() => _test = const _TestRunning());
     _TestResult result;
@@ -373,6 +493,7 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
               const SizedBox(height: 8),
               TextFormField(
                 controller: _name,
+                focusNode: _nameFocus,
                 textInputAction: TextInputAction.next,
                 textCapitalization: TextCapitalization.words,
                 decoration: InputDecoration(
@@ -404,21 +525,35 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _baseUrl,
+                focusNode: _baseUrlFocus,
                 keyboardType: TextInputType.url,
                 autocorrect: false,
                 textInputAction: TextInputAction.next,
                 decoration: InputDecoration(
                   labelText: l10n.settingsProviderBaseUrl,
                   border: const OutlineInputBorder(),
-                  errorMaxLines: 3,
+                  errorMaxLines: 4,
                 ),
                 validator: _validateUrl,
               ),
               if (_insecure)
-                _InsecureWarning(text: l10n.settingsProviderInsecureWarning),
+                _InsecureWarning(
+                  title: l10n.settingsProviderInsecureTitle,
+                  text: l10n.settingsProviderInsecureWarning,
+                ),
+              if (_presetHeadersDropped case final dropped
+                  when dropped.isNotEmpty)
+                _Note(
+                  icon: Icons.info_outline,
+                  text: l10n.settingsProviderPresetHeadersDropped(
+                    _preset!.name,
+                    dropped.keys.join(', '),
+                  ),
+                ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _apiKey,
+                focusNode: _apiKeyFocus,
                 obscureText: _obscureKey,
                 autocorrect: false,
                 enableSuggestions: false,
@@ -456,6 +591,7 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _model,
+                focusNode: _modelFocus,
                 autocorrect: false,
                 textInputAction: TextInputAction.done,
                 decoration: InputDecoration(
@@ -470,9 +606,12 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
                 child: OutlinedButton.icon(
                   onPressed: _loadingModels ? null : _browseModels,
                   icon: _loadingModels
-                      ? const SizedBox.square(
+                      ? SizedBox.square(
                           dimension: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            semanticsLabel: l10n.settingsProviderModelsLoading,
+                          ),
                         )
                       : const Icon(Icons.list_alt_outlined),
                   label: Text(l10n.settingsProviderBrowseModels),
@@ -481,10 +620,15 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
               if (_modelsError case final error?)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
-                  child: Text(
-                    error,
-                    style: Theme.of(context).textTheme.bodySmall
-                        ?.copyWith(color: Theme.of(context).colorScheme.error),
+                  child: Semantics(
+                    container: true,
+                    liveRegion: true,
+                    child: Text(
+                      error,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
                   ),
                 ),
               if (_suggestedModels case final models when models.isNotEmpty)
@@ -583,26 +727,93 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
       };
 }
 
+/// Prominent banner for plain http to a non-local host (security N5).
 class _InsecureWarning extends StatelessWidget {
-  const new({required this.text});
+  const new({required this.title, required this.text});
 
+  final String title;
   final String text;
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Card.filled(
+        key: const Key('provider_insecure_warning'),
+        margin: EdgeInsets.zero,
+        color: colors.errorContainer,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.no_encryption_outlined,
+                color: colors.onErrorContainer,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Semantics(
+                  container: true,
+                  liveRegion: true,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          color: colors.onErrorContainer,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        text,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: colors.onErrorContainer,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A small informational line under a field.
+class _Note extends StatelessWidget {
+  const new({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.onSurfaceVariant;
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.warning_amber_rounded, size: 20, color: colors.warning),
+          Icon(icon, size: 20, color: color),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              text,
-              style: Theme.of(context).textTheme.bodySmall
-                  ?.copyWith(color: colors.warning),
+            child: Semantics(
+              container: true,
+              liveRegion: true,
+              child: Text(
+                text,
+                style: theme.textTheme.bodySmall?.copyWith(color: color),
+              ),
             ),
           ),
         ],
@@ -640,6 +851,9 @@ class _SuggestedModels extends StatelessWidget {
             children: [
               for (final model in models)
                 ChoiceChip(
+                  // The app theme hides checkmarks; the fill alone is too
+                  // faint to show the selection (WCAG 1.4.1, 1.4.11).
+                  showCheckmark: true,
                   label: Text(model),
                   selected: model == selected,
                   onSelected: (_) => onSelected(model),
@@ -694,8 +908,8 @@ class _TemperatureField extends StatelessWidget {
                   ),
                 ),
               ),
-              SizedBox(
-                width: 40,
+              ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 40),
                 child: Text(
                   current.toStringAsFixed(1),
                   textAlign: TextAlign.end,
@@ -730,8 +944,13 @@ class _TestResultView extends StatelessWidget {
         l10n.settingsProviderTestFailed(message),
       ),
     };
-    if (icon == null) return const LinearProgressIndicator();
+    if (icon == null) {
+      return LinearProgressIndicator(
+        semanticsLabel: l10n.settingsProviderTesting,
+      );
+    }
     return Semantics(
+      container: true,
       liveRegion: true,
       child: DecoratedBox(
         decoration: BoxDecoration(

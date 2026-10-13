@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:translation_repository/src/language_catalog.dart';
 import 'package:translation_repository/src/language_matcher.dart';
 import 'package:translation_repository/src/models/models.dart';
+import 'package:translation_repository/src/prompts/prompt_sanitizer.dart';
 
 /// Lenient parsers for LLM output.
 abstract final class ResponseParsers {
@@ -26,54 +27,83 @@ abstract final class ResponseParsers {
   ///
   /// The returned code is normalised with [LanguageMatcher.normalize]
   /// (`FR` -> `fr`, `iw` -> `he`). A `[[lang:xx]]` marker that a model put on
-  /// the last line instead is accepted too.
+  /// the last line instead (or repeated there) is accepted and removed too.
+  ///
+  /// A marker holding a placeholder instead of a real code (a literally
+  /// echoed `[[lang:xx]]`, `und`, `auto`; see [isPlaceholderLanguageCode])
+  /// is still removed from the text, but its language is null.
   static ({String? language, String text}) splitLanguageMarker(String text) {
     final leading = _leadingMarker.firstMatch(text);
     if (leading != null) {
       final code = leading.group(1) ?? leading.group(2) ?? leading.group(3);
-      final rest = text
+      var rest = text
           .substring(leading.end)
           .replaceFirst(_leadingBlankLines, '');
-      return (language: LanguageMatcher.normalize(code!), text: rest);
+      var language = _markerLanguage(code!);
+      // A model that also repeated the marker on the last line.
+      final trailing = _trailingMarker.firstMatch(rest);
+      if (trailing != null) {
+        language ??= _markerLanguage(trailing.group(1)!);
+        rest = rest.substring(0, trailing.start).trimRight();
+      }
+      return (language: language, text: rest);
     }
     final trailing = _trailingMarker.firstMatch(text);
     if (trailing != null && trailing.start > 0) {
       return (
-        language: LanguageMatcher.normalize(trailing.group(1)!),
+        language: _markerLanguage(trailing.group(1)!),
         text: text.substring(0, trailing.start).trimRight(),
       );
     }
     return (language: null, text: text);
   }
 
+  /// Whether a streaming snapshot of [accumulated] text should be held
+  /// back because it could still turn into a language marker:
+  ///
+  /// * the text so far could still become a leading marker (`[[lan`), or
+  /// * it ends with an unfinished trailing `[[lang:xx]]` marker
+  ///   (`Hallo\n[[lang:`), which [splitLanguageMarker] would remove once
+  ///   complete.
+  ///
+  /// A complete marker is not pending: [splitLanguageMarker] removes it.
   static bool isMarkerPending(String accumulated) {
     final s = accumulated.trimLeft();
     if (s.isEmpty) return true;
-    if (s.length > 40 || s.contains('\n')) return false;
-    if (_leadingMarker.hasMatch(s)) return false;
-    // `s` is pending when some completion turns it into a whole marker.
-    for (final keyword in _keywordTails) {
-      for (final middle in const ['', 'x', 'fr', ':fr']) {
-        for (final closer in const [']]', ']', '⟧']) {
-          if (_wholeMarker.hasMatch('$s$keyword$middle$closer')) return true;
-        }
-      }
-    }
-    return false;
+    return _isLeadingMarkerPending(s) || _isTrailingMarkerPending(s);
+  }
+
+  /// Whether [code] is a placeholder rather than a real language: `xx`,
+  /// `xx-XX`, `xxx`, `und` (and its subtags), `auto`, or a schema word
+  /// echoed from a prompt (`code`, `iso`, `lang`, `language`). Empty codes
+  /// count as placeholders. Case-insensitive; `_` equals `-`.
+  static bool isPlaceholderLanguageCode(String code) {
+    final key = code.trim().toLowerCase().replaceAll('_', '-');
+    if (key.isEmpty) return true;
+    final primary = key.split('-').first;
+    return const {'xx', 'xxx', 'und'}.contains(primary) ||
+        const {'auto', 'code', 'iso', 'lang', 'language'}.contains(key);
   }
 
   /// Removes wrapping quotes / `<translation>` / `<source>` tags /
   /// "Translation:" prefixes that models sometimes add, only when the
   /// source text itself did not have them.
   ///
-  /// Also unwraps a code fence around the whole output, and drops a
-  /// trailing "Note: ..." paragraph when the source has no notes.
+  /// Also unwraps a code fence around the whole output, drops a trailing
+  /// "Note: ..." paragraph when the source has no notes, and removes the
+  /// zero-width space the prompts insert into data tags (`<\u200Bsource>` ->
+  /// `<source>`) when the model copied it.
   static String cleanTranslation(String output, {required String source}) {
     final src = source.trim();
     final srcLower = src.toLowerCase();
     final keepIndent = RegExp(r'^[ \t]')
         .hasMatch(source.replaceFirst(RegExp(r'^(?:[ \t]*\r?\n)+'), ''));
-    var text = output.trimRight();
+    // Tags such as an HTML `<source>` element were defused in the prompt;
+    // undo it where the model copied the zero-width space.
+    var text = PromptSanitizer.restoreTags(
+      output,
+      original: source,
+    ).trimRight();
     text = keepIndent
         ? text.replaceFirst(_leadingBlankLines, '')
         : text.trimLeft();
@@ -143,7 +173,10 @@ abstract final class ResponseParsers {
         'translation',
         'text',
       ]);
-      final target = _locate(rawTarget, translation);
+      final target = _locate(
+        PromptSanitizer.restoreTags(rawTarget, original: translation),
+        translation,
+      );
       if (target == null || !seen.add(target)) continue;
       final variations = <Alternative>[
         for (final variation in _list(item, const [
@@ -178,6 +211,13 @@ abstract final class ResponseParsers {
     return insights;
   }
 
+  /// Longest [RefinementSuggestion.instruction] kept by [parseSuggestions].
+  static const maxSuggestionInstructionLength = 200;
+
+  /// Model-generated refinement chips. The model read the (possibly
+  /// hostile) source text, so every `instruction` is sanitised: a single
+  /// line without control characters or `<`/`>`, at most
+  /// [maxSuggestionInstructionLength] characters.
   static List<RefinementSuggestion> parseSuggestions(String output) {
     final value = _extractJson(output);
     final items = value is List
@@ -198,20 +238,23 @@ abstract final class ResponseParsers {
         'tooltip',
         'details',
       ]);
-      final instruction = _string(item, const [
-        'instruction',
-        'instructions',
-        'prompt',
-        'action',
-      ]);
+      final instruction = _instruction(
+        _string(item, const [
+          'instruction',
+          'instructions',
+          'prompt',
+          'action',
+        ]),
+      );
+      final fallback = _instruction(description);
       suggestions.add(
         RefinementSuggestion(
           label: label,
           instruction: instruction.isNotEmpty
               ? instruction
-              : description.isNotEmpty
-              ? description
-              : label,
+              : fallback.isNotEmpty
+              ? fallback
+              : _instruction(label),
           description: description,
           icon: _icon(_string(item, const ['icon', 'category', 'type'])),
         ),
@@ -381,7 +424,9 @@ abstract final class ResponseParsers {
   // Language marker.
   // ---------------------------------------------------------------------
 
-  static const _codePattern = '([A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{1,8})*)';
+  /// A language code, or the placeholder `auto` (so an echoed
+  /// `[[lang:auto]]` is still removed).
+  static const _codePattern = '([A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{1,8})*|auto)';
   static const _keyword = r'lang(?:uage)?\s*[:=]\s*';
   static const _markerBody =
       '\\[\\[\\s*(?:$_keyword)?$_codePattern\\s*\\]\\]'
@@ -400,6 +445,59 @@ abstract final class ResponseParsers {
     '\\s*\\[\\[\\s*$_keyword$_codePattern\\s*\\]\\]\\s*\$',
     caseSensitive: false,
   );
+
+  /// A whole trailing marker (anchored at both ends).
+  static final _wholeTrailingMarker = RegExp(
+    '^\\[\\[\\s*$_keyword$_codePattern\\s*\\]\\]\\s*\$',
+    caseSensitive: false,
+  );
+
+  /// Longest text a (partial) marker is looked for in.
+  static const _maxMarkerLength = 40;
+
+  static String? _markerLanguage(String code) =>
+      isPlaceholderLanguageCode(code) ? null : LanguageMatcher.normalize(code);
+
+  static bool _isLeadingMarkerPending(String s) {
+    if (s.length > _maxMarkerLength || s.contains('\n')) return false;
+    if (_leadingMarker.hasMatch(s)) return false;
+    // `s` is pending when some completion turns it into a whole marker.
+    for (final keyword in _keywordTails) {
+      for (final middle in const ['', 'x', 'fr', ':fr']) {
+        for (final closer in const [']]', ']', '⟧']) {
+          if (_wholeMarker.hasMatch('$s$keyword$middle$closer')) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /// Whether [s] (trimmed at the start) ends with an unfinished trailing
+  /// `[[lang:xx]]` marker: some `[` in the last [_maxMarkerLength]
+  /// characters, after other text, starts a tail that a completion turns
+  /// into a whole trailing marker.
+  static bool _isTrailingMarkerPending(String s) {
+    final from = s.length > _maxMarkerLength ? s.length - _maxMarkerLength : 1;
+    for (var i = s.lastIndexOf('['); i >= from; i = s.lastIndexOf('[', i - 1)) {
+      final tail = s.substring(i);
+      if (_wholeTrailingMarker.hasMatch(tail)) return false;
+      for (final opener in const ['', '[']) {
+        for (final keyword in _keywordTails) {
+          for (final middle in const ['', 'x', 'fr', ':fr']) {
+            for (final closer in const [']]', ']']) {
+              if (_wholeTrailingMarker.hasMatch(
+                '$tail$opener$keyword$middle$closer',
+              )) {
+                return true;
+              }
+            }
+          }
+        }
+      }
+    }
+    return false;
+  }
+
   static final _leadingBlankLines = RegExp(r'^(?:[ \t]*\r?\n)+');
 
   /// Every suffix of `lang` and `language`, for prefix completion.
@@ -880,7 +978,10 @@ abstract final class ResponseParsers {
     };
     return text.isEmpty
         ? null
-        : Alternative(text: text, explanation: explanation);
+        : Alternative(
+            text: PromptSanitizer.restoreTags(text),
+            explanation: explanation,
+          );
   }
 
   static DictionarySense? _sense(Object? item) {
@@ -999,14 +1100,23 @@ abstract final class ResponseParsers {
     '^["\'“”„«»‘’「」『』*]+|["\'“”„«»‘’「」『』*]+\$',
   );
 
-  /// A catalogue code for a code or English language name.
+  /// A sanitised [RefinementSuggestion.instruction] (see [parseSuggestions]).
+  static String _instruction(String raw) => PromptSanitizer.singleLine(
+    raw,
+    maxLength: maxSuggestionInstructionLength,
+    stripAngleBrackets: true,
+    atWordBoundary: true,
+  );
+
+  /// A catalogue code for a code or English language name; empty for
+  /// placeholders (see [isPlaceholderLanguageCode]).
   static String _languageCode(String raw) {
     var s = raw.trim();
     if (s.isEmpty) return '';
     final marker = splitLanguageMarker(s).language;
     if (marker != null) return marker;
     s = s.replaceAll(RegExp('^["\'`*]+|["\'`*.]+\$'), '').trim();
-    if (s.isEmpty) return '';
+    if (s.isEmpty || isPlaceholderLanguageCode(s)) return '';
     final isCode = RegExp(r'^[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{1,8})*$')
         .hasMatch(s);
     if (isCode) {

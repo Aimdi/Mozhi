@@ -13,6 +13,7 @@ void main() {
       preserveFormatting: false,
       glossary: {'server': 'serveur', 'cloud': 'nuage'},
       instructions: 'Make it shorter.',
+      formalityContext: 'My boss, but we are on first-name terms',
     );
 
     test('defaults', () {
@@ -26,6 +27,7 @@ void main() {
       expect(options.preserveFormatting, isTrue);
       expect(options.glossary, isEmpty);
       expect(options.instructions, isEmpty);
+      expect(options.formalityContext, isEmpty);
       expect(options.isDefault, isTrue);
     });
 
@@ -33,6 +35,10 @@ void main() {
       expect(custom.isDefault, isFalse);
       expect(const TranslationOptions(glossary: {'a': 'b'}).isDefault, isFalse);
       expect(const TranslationOptions(context: 'x').isDefault, isFalse);
+      expect(
+        const TranslationOptions(formalityContext: 'x').isDefault,
+        isFalse,
+      );
     });
 
     group('equality', () {
@@ -58,11 +64,17 @@ void main() {
           custom.copyWith(preserveFormatting: true),
           custom.copyWith(glossary: const {}),
           custom.copyWith(instructions: ''),
+          custom.copyWith(formalityContext: ''),
         ];
         for (final variant in variants) {
           expect(variant, isNot(equals(custom)));
         }
         expect(custom.copyWith(), equals(custom));
+        expect(custom.copyWith().hashCode, custom.hashCode);
+        expect(
+          custom.copyWith(formalityContext: 'other').hashCode,
+          isNot(custom.hashCode),
+        );
         expect(custom, isNot(equals('not options')));
       });
 
@@ -108,6 +120,35 @@ void main() {
           isFalse,
         );
         expect(custom.toJson()['instructions'], 'Make it shorter.');
+      });
+
+      test('writes formalityContext only when non-empty', () {
+        expect(
+          const TranslationOptions().toJson().containsKey('formalityContext'),
+          isFalse,
+        );
+        expect(
+          custom.toJson()['formalityContext'],
+          'My boss, but we are on first-name terms',
+        );
+      });
+
+      test('reads formalityContext and Kagi formality_context', () {
+        expect(
+          TranslationOptions.fromJson(const {'formalityContext': 'tone'})
+              .formalityContext,
+          'tone',
+        );
+        expect(
+          TranslationOptions.fromJson(const {'formality_context': 'kagi tone'})
+              .formalityContext,
+          'kagi tone',
+        );
+        expect(
+          TranslationOptions.fromJson(const {'formalityContext': 3})
+              .formalityContext,
+          isEmpty,
+        );
       });
 
       test('falls back to defaults for unknown or missing values', () {
@@ -197,6 +238,10 @@ void main() {
 
     test('toString mentions the settings', () {
       expect(custom.toString(), contains('formality: preferMore'));
+      expect(
+        custom.toString(),
+        contains('formalityContext: My boss, but we are on first-name terms'),
+      );
     });
   });
 }

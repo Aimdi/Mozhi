@@ -7,6 +7,38 @@ import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
 import 'package:translation_repository/translation_repository.dart';
 
+/// Display name of a formality option.
+String formalityLabel(AppLocalizations l10n, Formality value) =>
+    switch (value) {
+      Formality.automatic => l10n.translateFormalityDefault,
+      Formality.more => l10n.translateFormalityMore,
+      Formality.less => l10n.translateFormalityLess,
+      Formality.preferMore => l10n.translateFormalityPreferMore,
+      Formality.preferLess => l10n.translateFormalityPreferLess,
+    };
+
+/// Display name of a gender option.
+String genderLabel(AppLocalizations l10n, Gender value) => switch (value) {
+  Gender.unknown => l10n.translateGenderUnknown,
+  Gender.masculine => l10n.translateGenderMasculine,
+  Gender.feminine => l10n.translateGenderFeminine,
+  Gender.neutral => l10n.translateGenderNeutral,
+};
+
+/// Display name of a reading level ("B1 · Intermediate").
+String readingLevelLabel(AppLocalizations l10n, ReadingLevel level) =>
+    switch (level) {
+      ReadingLevel.standard =>
+        '${l10n.translateReadingStandard} · '
+            '${l10n.translateReadingStandardDescription}',
+      ReadingLevel.a1 => 'A1 · ${l10n.translateReadingA1Description}',
+      ReadingLevel.a2 => 'A2 · ${l10n.translateReadingA2Description}',
+      ReadingLevel.b1 => 'B1 · ${l10n.translateReadingB1Description}',
+      ReadingLevel.b2 => 'B2 · ${l10n.translateReadingB2Description}',
+      ReadingLevel.c1 => 'C1 · ${l10n.translateReadingC1Description}',
+      ReadingLevel.c2 => 'C2 · ${l10n.translateReadingC2Description}',
+    };
+
 /// Tune icon (AI engines only) with a dot badge when options differ from
 /// the defaults. Opens [TranslationOptionsSheet].
 class OptionsButton extends StatelessWidget {
@@ -144,9 +176,12 @@ class _TranslationOptionsSheetState extends State<TranslationOptionsSheet> {
                     Row(
                       children: [
                         Expanded(
-                          child: Text(
-                            l10n.translateOptionsTitle,
-                            style: theme.textTheme.titleLarge,
+                          child: Semantics(
+                            header: true,
+                            child: Text(
+                              l10n.translateOptionsTitle,
+                              style: theme.textTheme.titleLarge,
+                            ),
                           ),
                         ),
                         TextButton(
@@ -157,9 +192,10 @@ class _TranslationOptionsSheetState extends State<TranslationOptionsSheet> {
                       ],
                     ),
                     _Label(l10n.translateOptionsStyle),
+                    // The default check icon marks the selected segment
+                    // without relying on colour alone.
                     SegmentedButton<TranslationStyle>(
                       key: const Key('translate_options_style'),
-                      showSelectedIcon: false,
                       segments: [
                         ButtonSegment(
                           value: TranslationStyle.natural,
@@ -176,68 +212,81 @@ class _TranslationOptionsSheetState extends State<TranslationOptionsSheet> {
                     ),
                     _Label(l10n.translateOptionsFormality),
                     _Choices<Formality>(
+                      groupLabel: l10n.translateOptionsFormality,
                       values: Formality.values,
                       selected: options.formality,
-                      label: (value) => _formalityLabel(l10n, value),
+                      label: (value) => formalityLabel(l10n, value),
                       onSelected: (value) =>
                           _set(options.copyWith(formality: value)),
                     ),
                     _Label(l10n.translateOptionsReadingLevel),
-                    InputDecorator(
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<ReadingLevel>(
-                          key: const Key('translate_options_reading_level'),
-                          isExpanded: true,
-                          value: options.readingLevel,
-                          items: [
-                            for (final level in ReadingLevel.values)
-                              DropdownMenuItem(
-                                value: level,
-                                child: Text(
-                                  _readingLevelLabel(l10n, level),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                          ],
-                          onChanged: (value) {
-                            if (value == null) return;
-                            _set(options.copyWith(readingLevel: value));
-                          },
+                    MergeSemantics(
+                      child: Semantics(
+                        label: l10n.translateOptionsReadingLevel,
+                        child: InputDecorator(
+                          decoration: const InputDecoration(
+                            border: OutlineInputBorder(),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                            ),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<ReadingLevel>(
+                              key: const Key('translate_options_reading_level'),
+                              isExpanded: true,
+                              value: options.readingLevel,
+                              items: [
+                                for (final level in ReadingLevel.values)
+                                  DropdownMenuItem(
+                                    value: level,
+                                    child: Text(
+                                      readingLevelLabel(l10n, level),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                              ],
+                              onChanged: (value) {
+                                if (value == null) return;
+                                _set(options.copyWith(readingLevel: value));
+                              },
+                            ),
+                          ),
                         ),
                       ),
                     ),
                     _Label(l10n.translateOptionsSpeakerGender),
                     _Choices<Gender>(
+                      groupLabel: l10n.translateOptionsSpeakerGender,
                       values: Gender.values,
                       selected: options.speakerGender,
-                      label: (value) => _genderLabel(l10n, value),
+                      label: (value) => genderLabel(l10n, value),
                       onSelected: (value) =>
                           _set(options.copyWith(speakerGender: value)),
                     ),
                     _Label(l10n.translateOptionsAddresseeGender),
                     _Choices<Gender>(
+                      groupLabel: l10n.translateOptionsAddresseeGender,
                       values: Gender.values,
                       selected: options.addresseeGender,
-                      label: (value) => _genderLabel(l10n, value),
+                      label: (value) => genderLabel(l10n, value),
                       onSelected: (value) =>
                           _set(options.copyWith(addresseeGender: value)),
                     ),
                     _Label(l10n.translateOptionsContext),
-                    TextField(
-                      key: const Key('translate_options_context'),
-                      controller: _context,
-                      minLines: 1,
-                      maxLines: 4,
-                      onChanged: _onContextChanged,
-                      onSubmitted: (_) => _flushContext(),
-                      onTapOutside: (_) => _flushContext(),
-                      decoration: InputDecoration(
-                        hintText: l10n.translateOptionsContextHint,
-                        border: const OutlineInputBorder(),
+                    Semantics(
+                      label: l10n.translateOptionsContext,
+                      child: TextField(
+                        key: const Key('translate_options_context'),
+                        controller: _context,
+                        minLines: 1,
+                        maxLines: 4,
+                        onChanged: _onContextChanged,
+                        onSubmitted: (_) => _flushContext(),
+                        onTapOutside: (_) => _flushContext(),
+                        decoration: InputDecoration(
+                          hintText: l10n.translateOptionsContextHint,
+                          border: const OutlineInputBorder(),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -263,7 +312,13 @@ class _TranslationOptionsSheetState extends State<TranslationOptionsSheet> {
                         in options.glossary.entries)
                       ListTile(
                         contentPadding: EdgeInsets.zero,
-                        title: Text('$key → $value'),
+                        title: Text(
+                          l10n.translateGlossaryEntry(key, value),
+                          semanticsLabel: l10n.translateGlossaryEntrySemantics(
+                            key,
+                            value,
+                          ),
+                        ),
                         trailing: IconButton(
                           tooltip: l10n.translateGlossaryRemove(key),
                           icon: const Icon(Icons.delete_outline),
@@ -314,36 +369,6 @@ class _TranslationOptionsSheetState extends State<TranslationOptionsSheet> {
       ),
     );
   }
-
-  static String _formalityLabel(AppLocalizations l10n, Formality value) =>
-      switch (value) {
-        Formality.automatic => l10n.translateFormalityDefault,
-        Formality.more => l10n.translateFormalityMore,
-        Formality.less => l10n.translateFormalityLess,
-        Formality.preferMore => l10n.translateFormalityPreferMore,
-        Formality.preferLess => l10n.translateFormalityPreferLess,
-      };
-
-  static String _genderLabel(AppLocalizations l10n, Gender value) =>
-      switch (value) {
-        Gender.unknown => l10n.translateGenderUnknown,
-        Gender.masculine => l10n.translateGenderMasculine,
-        Gender.feminine => l10n.translateGenderFeminine,
-        Gender.neutral => l10n.translateGenderNeutral,
-      };
-
-  static String _readingLevelLabel(AppLocalizations l10n, ReadingLevel level) =>
-      switch (level) {
-        ReadingLevel.standard =>
-          '${l10n.translateReadingStandard} · '
-              '${l10n.translateReadingStandardDescription}',
-        ReadingLevel.a1 => 'A1 · ${l10n.translateReadingA1Description}',
-        ReadingLevel.a2 => 'A2 · ${l10n.translateReadingA2Description}',
-        ReadingLevel.b1 => 'B1 · ${l10n.translateReadingB1Description}',
-        ReadingLevel.b2 => 'B2 · ${l10n.translateReadingB2Description}',
-        ReadingLevel.c1 => 'C1 · ${l10n.translateReadingC1Description}',
-        ReadingLevel.c2 => 'C2 · ${l10n.translateReadingC2Description}',
-      };
 }
 
 class _Label extends StatelessWidget {
@@ -371,12 +396,16 @@ class _Label extends StatelessWidget {
 
 class _Choices<T> extends StatelessWidget {
   const new({
+    required this.groupLabel,
     required this.values,
     required this.selected,
     required this.label,
     required this.onSelected,
   });
 
+  /// Names the group for screen readers (the visible label above it is
+  /// not associated with the chips).
+  final String groupLabel;
   final List<T> values;
   final T selected;
   final String Function(T value) label;
@@ -384,17 +413,24 @@ class _Choices<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 4,
-      children: [
-        for (final value in values)
-          ChoiceChip(
-            label: Text(label(value)),
-            selected: value == selected,
-            onSelected: (_) => onSelected(value),
-          ),
-      ],
+    return Semantics(
+      container: true,
+      explicitChildNodes: true,
+      label: groupLabel,
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 4,
+        children: [
+          for (final value in values)
+            // The check mark shows the selection without relying on colour.
+            ChoiceChip(
+              label: Text(label(value)),
+              selected: value == selected,
+              showCheckmark: true,
+              onSelected: (_) => onSelected(value),
+            ),
+        ],
+      ),
     );
   }
 }

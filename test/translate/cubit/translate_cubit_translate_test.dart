@@ -369,14 +369,17 @@ void main() {
           base.copyWith(
             status: TranslateStatus.translating,
             result: () => partial1,
+            resultInput: () => 'Hello world',
           ),
           base.copyWith(
             status: TranslateStatus.translating,
             result: () => partial2,
+            resultInput: () => 'Hello world',
           ),
           base.copyWith(
             status: TranslateStatus.success,
             result: () => complete,
+            resultInput: () => 'Hello world',
           ),
         ];
       },
@@ -606,12 +609,12 @@ void main() {
     );
 
     blocTest<TranslateCubit, TranslateState>(
-      'falls back to the first other target for English text',
+      'falls back to a widely used language for English text',
       setUp: () => stubDetect('en'),
       build: () => mocks.build(),
       seed: () => readyState(input: 'hello'),
       act: (cubit) => cubit.translate(),
-      verify: (cubit) => expect(cubit.state.target, de),
+      verify: (cubit) => expect(cubit.state.target, es),
     );
 
     blocTest<TranslateCubit, TranslateState>(
@@ -708,14 +711,14 @@ void main() {
       seed: () => readyState(input: 'hello'),
       act: (cubit) async {
         await cubit.translate();
-        expect(cubit.state.target, de);
+        expect(cubit.state.target, es);
         cubit.setTarget(en);
         await Future<void>.delayed(Duration.zero);
       },
       verify: (cubit) {
         expect(cubit.state.target, en);
         expect(cubit.state.output, 'hello->en');
-        expect(mocks.translateRequests().map((r) => r.target), [en, de, en]);
+        expect(mocks.translateRequests().map((r) => r.target), [en, es, en]);
       },
     );
 
@@ -1022,7 +1025,10 @@ void main() {
         ).captured;
         expect(captured.first, claude);
         final request = captured.last as TranslationRequest;
-        expect(request.options.instructions, 'Be brief.');
+        expect(
+          request.options.instructions,
+          '${TranslateCubit.refinementPrefix} Be brief.',
+        );
         expect(cubit.state.options, const TranslationOptions());
       },
     );

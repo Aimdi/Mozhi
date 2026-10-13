@@ -30,8 +30,10 @@ WebTranslateSelection? webTranslateSelectionOf(TranslateState state) {
   );
 }
 
+// coverage:ignore-start
 Future<ReadablePage> _extractInBackground(FetchedWebPage page) =>
     compute(extractFetchedPage, page);
+// coverage:ignore-end
 
 /// Kagi-style web page translation: enter a URL, read the page's main text
 /// translated with the engine and languages of the text translator

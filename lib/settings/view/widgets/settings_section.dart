@@ -56,41 +56,106 @@ class SettingsSection extends StatelessWidget {
   }
 }
 
+/// WCAG contrast ratio between two opaque colours (1 to 21).
+double contrastRatio(Color a, Color b) {
+  final la = a.computeLuminance();
+  final lb = b.computeLuminance();
+  return la > lb ? (la + 0.05) / (lb + 0.05) : (lb + 0.05) / (la + 0.05);
+}
+
 /// A small rounded label with an optional icon, tinted with [color].
+///
+/// The background is an opaque tint of [color] and the label is [color]
+/// darkened (light theme) or lightened (dark theme) towards `onSurface`
+/// until it reaches at least [minContrast] against that background, so the
+/// badge stays readable on any card it sits on (WCAG 1.4.3).
 class StatusBadge extends StatelessWidget {
-  const new({required this.label, required this.color, this.icon, super.key});
+  const new({
+    required this.label,
+    required this.color,
+    this.icon,
+    this.semanticsLabel,
+    super.key,
+  });
 
   final String label;
+
+  /// Accent the badge is tinted with.
   final Color color;
   final IconData? icon;
 
+  /// Read by screen readers instead of [label], e.g. to spell out what a
+  /// colour means.
+  final String? semanticsLabel;
+
+  /// Minimum text contrast; a little above the 4.5:1 AA threshold so that
+  /// 8-bit rounding never drops below it.
+  static const minContrast = 4.6;
+
+  static final Map<(int, int, int), ({Color background, Color foreground})>
+  _cache = {};
+
+  /// The opaque background and the text/icon colour of a badge tinted with
+  /// [color] in [scheme].
+  static ({Color background, Color foreground}) colorsFor(
+    Color color,
+    ColorScheme scheme,
+  ) {
+    final key = (
+      color.toARGB32(),
+      scheme.surfaceContainerLow.toARGB32(),
+      scheme.onSurface.toARGB32(),
+    );
+    return _cache[key] ??= () {
+      final opaque = color.withValues(alpha: 1);
+      final background = Color.alphaBlend(
+        opaque.withValues(alpha: 0.14),
+        scheme.surfaceContainerLow,
+      );
+      var foreground = opaque;
+      for (var step = 1; step <= 10; step++) {
+        if (contrastRatio(foreground, background) >= minContrast) break;
+        foreground = Color.lerp(opaque, scheme.onSurface, step / 10)!;
+      }
+      return (background: background, foreground: foreground);
+    }();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final style = Theme.of(context).textTheme.labelSmall
-        ?.copyWith(color: color, fontWeight: FontWeight.w600);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 14, color: color),
-              const SizedBox(width: 4),
-            ],
-            Flexible(
-              child: Text(
-                label,
-                style: style,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+    final theme = Theme.of(context);
+    final (:background, :foreground) = colorsFor(color, theme.colorScheme);
+    final style = theme.textTheme.labelSmall?.copyWith(
+      color: foreground,
+      fontWeight: FontWeight.w600,
+    );
+    return Semantics(
+      label: semanticsLabel,
+      excludeSemantics: semanticsLabel != null,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 14, color: foreground),
+                const SizedBox(width: 4),
+              ],
+              Flexible(
+                child: Text(
+                  label,
+                  style: style,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -99,9 +164,10 @@ class StatusBadge extends StatelessWidget {
 
 /// Semantic status colours that read well in light and dark themes.
 extension StatusColors on ColorScheme {
+  /// At least 5:1 against every light surface role.
   Color get success => brightness == Brightness.dark
       ? const Color(0xFF8FD19E)
-      : const Color(0xFF1B7A35);
+      : const Color(0xFF146C2E);
 
   Color get warning => brightness == Brightness.dark
       ? const Color(0xFFFFC870)

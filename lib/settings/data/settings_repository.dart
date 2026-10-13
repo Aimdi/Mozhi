@@ -7,8 +7,14 @@ import 'package:translation_repository/translation_repository.dart';
 
 /// Loads/saves [AppSettings]: JSON under key `settings.v1` in [prefs];
 /// each provider's API key under `apikey.<providerId>` in [secrets].
-/// Corrupt JSON falls back to defaults (never throws from [load]).
-/// [save] deletes keys of providers that no longer exist.
+/// Missing or corrupt JSON falls back to defaults (never throws from
+/// [load]). [save] deletes keys of providers that no longer exist.
+///
+/// A storage error while reading is not treated as "nothing stored": [load]
+/// then returns defaults but sets [loadFailed], and [save] never overwrites
+/// settings it could not read (it rethrows read errors, and throws
+/// [SettingsUnavailableException] when stored settings exist that the
+/// failed [load] did not see). A later successful [load] lifts this.
 ///
 /// [prefs] defaults to [PreferencesStore] and [secrets] to [SecureStore].
 /// Saves are serialised, so the last [save] call always wins.
@@ -32,8 +38,22 @@ class SettingsRepository {
 
   Future<void> _pendingSave = Future.value();
 
+  bool _loadFailed = false;
+
+  /// Whether the last [load] could not read the stored settings because
+  /// the storage failed (as opposed to nothing or invalid JSON being
+  /// stored). [load] returned defaults in that case.
+  bool get loadFailed => _loadFailed;
+
   Future<AppSettings> load() async {
-    final settings = await _readSettings() ?? const AppSettings();
+    AppSettings? stored;
+    try {
+      stored = _decode(await prefs.read(settingsKey));
+      _loadFailed = false;
+    } on Object {
+      _loadFailed = true;
+    }
+    final settings = stored ?? const AppSettings();
     _knownProviderIds.addAll(settings.providers.map((p) => p.id));
     if (settings.providers.isEmpty) return settings;
     final providers = <AiProviderConfig>[];
@@ -53,7 +73,14 @@ class SettingsRepository {
   }
 
   Future<void> _save(AppSettings settings) async {
-    final previous = await _readSettings();
+    // Storage errors propagate: never overwrite what could not be read.
+    final previous = _decode(await prefs.read(settingsKey));
+    if (_loadFailed) {
+      // [settings] derive from the defaults of a failed load; writing them
+      // would replace the real settings and delete their API keys.
+      if (previous != null) throw const SettingsUnavailableException();
+      _loadFailed = false;
+    }
     final staleIds = {
       ..._knownProviderIds,
       ...?previous?.providers.map((p) => p.id),
@@ -78,12 +105,11 @@ class SettingsRepository {
       ..addAll(settings.providers.map((p) => p.id));
   }
 
-  /// The stored settings without API keys, or null when nothing (valid) is
-  /// stored or storage is unavailable.
-  Future<AppSettings?> _readSettings() async {
+  /// The settings (without API keys) stored as [raw], or null when nothing
+  /// (valid) is stored.
+  static AppSettings? _decode(String? raw) {
+    if (raw == null) return null;
     try {
-      final raw = await prefs.read(settingsKey);
-      if (raw == null) return null;
       final json = jsonDecode(raw);
       if (json is! Map<String, dynamic>) return null;
       return AppSettings.fromJson(json);
@@ -100,4 +126,16 @@ class SettingsRepository {
       return null;
     }
   }
+}
+
+/// Thrown by [SettingsRepository.save] after a [SettingsRepository.load]
+/// that failed to read the storage, when settings are stored after all:
+/// saving would overwrite them with settings derived from the defaults.
+class SettingsUnavailableException implements Exception {
+  const new();
+
+  @override
+  String toString() =>
+      'SettingsUnavailableException: the stored settings could not be '
+      'loaded, so they are not overwritten';
 }

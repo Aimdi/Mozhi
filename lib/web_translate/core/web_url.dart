@@ -51,12 +51,15 @@ bool isLikelyWebUrl(String text) {
   return _bareDomain.hasMatch(trimmed) && normalizeWebUrl(trimmed) != null;
 }
 
+/// Hosts are percent-encoded by [Uri] (e.g. IDN); decode for validation.
 String _decodeHost(String host) {
   try {
     return Uri.decodeComponent(host);
+    // coverage:ignore-start
   } on ArgumentError {
     return host;
   }
+  // coverage:ignore-end
 }
 
 final _whitespace = RegExp(r'\s');

@@ -30,6 +30,16 @@ void main() {
 
       expect(text.readOnly, isTrue);
       expect(text.isProcessText, isFalse);
+      expect(text.action, isNull);
+      expect(text.isTranslateClipboard, isFalse);
+    });
+
+    test('recognises the translate-clipboard action', () {
+      const text = SharedText('', action: 'translateClipboard');
+
+      expect(SharedText.translateClipboardAction, 'translateClipboard');
+      expect(text.isTranslateClipboard, isTrue);
+      expect(const SharedText('', action: 'other').isTranslateClipboard, false);
     });
 
     test('supports value equality', () {
@@ -44,12 +54,29 @@ void main() {
         isNot(equals(const SharedText('a', isProcessText: true))),
       );
       expect(const SharedText('a'), isNot(equals(const SharedText('b'))));
+      expect(
+        const SharedText('a', action: 'x'),
+        equals(const SharedText('a', action: 'x')),
+      );
+      expect(
+        const SharedText('a', action: 'x').hashCode,
+        const SharedText('a', action: 'x').hashCode,
+      );
+      expect(
+        const SharedText('a'),
+        isNot(equals(const SharedText('a', action: 'x'))),
+      );
     });
 
     test('has a readable toString', () {
       expect(
         const SharedText('a', isProcessText: true).toString(),
         'SharedText(a, readOnly: true, isProcessText: true)',
+      );
+      expect(
+        const SharedText('', action: 'translateClipboard').toString(),
+        'SharedText(, readOnly: true, isProcessText: false, '
+        'action: translateClipboard)',
       );
     });
   });
@@ -81,6 +108,50 @@ void main() {
         );
       });
 
+      test('reads a translate-clipboard action without text', () {
+        final text = SharedTextService.parse(<Object?, Object?>{
+          'action': 'translateClipboard',
+        });
+
+        expect(text, const SharedText('', action: 'translateClipboard'));
+        expect(text!.isTranslateClipboard, isTrue);
+      });
+
+      test('reads an action with text and flags', () {
+        expect(
+          SharedTextService.parse({
+            'action': 'translateClipboard',
+            'text': 'Hola',
+            'readOnly': false,
+          }),
+          const SharedText(
+            'Hola',
+            readOnly: false,
+            action: 'translateClipboard',
+          ),
+        );
+      });
+
+      test('drops blank text next to an action', () {
+        expect(
+          SharedTextService.parse({
+            'action': 'translateClipboard',
+            'text': '  ',
+          }),
+          const SharedText('', action: 'translateClipboard'),
+        );
+      });
+
+      test('ignores invalid actions', () {
+        expect(
+          SharedTextService.parse({'text': 'Hola', 'action': 42}),
+          const SharedText('Hola'),
+        );
+        expect(SharedTextService.parse({'action': ' '}), isNull);
+        expect(SharedTextService.parse({'action': 42}), isNull);
+        expect(SharedTextService.parse({'action': null}), isNull);
+      });
+
       test('accepts a plain string', () {
         expect(SharedTextService.parse('Hola'), const SharedText('Hola'));
       });
@@ -110,6 +181,18 @@ void main() {
           const SharedText('Bonjour', readOnly: false, isProcessText: true),
         );
         expect(calls.single.method, 'getInitialText');
+      });
+
+      test('returns a launch action', () async {
+        messenger.setMockMethodCallHandler(
+          methods,
+          (call) async => {'action': 'translateClipboard'},
+        );
+
+        expect(
+          await service.initialText(),
+          const SharedText('', action: 'translateClipboard'),
+        );
       });
 
       test('returns null when nothing was shared', () async {
@@ -176,6 +259,8 @@ void main() {
                   'readOnly': false,
                   'processText': true,
                 })
+                ..success({'action': 'translateClipboard'})
+                ..success({'action': ''})
                 ..endOfStream();
             },
           ),
@@ -190,6 +275,7 @@ void main() {
           SharedText('one'),
           SharedText('two'),
           SharedText('three', readOnly: false, isProcessText: true),
+          SharedText('', action: 'translateClipboard'),
         ]);
       });
 

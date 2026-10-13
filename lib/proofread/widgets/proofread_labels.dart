@@ -45,6 +45,7 @@ extension ProofreadLabels on AppLocalizations {
       'word_choice' || 'wordchoice' => proofreadCategoryWordChoice,
       'tone' => proofreadCategoryTone,
       'repetition' => proofreadCategoryRepetition,
+      'other' => proofreadCategoryOther,
       _ => _humanize(category),
     };
   }

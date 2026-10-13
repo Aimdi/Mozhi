@@ -818,6 +818,13 @@ packages:
       relative: true
     source: path
     version: "0.1.0+1"
+  mt_api:
+    dependency: transitive
+    description:
+      path: "packages/mt_api"
+      relative: true
+    source: path
+    version: "0.1.0+1"
   mustache_template:
     dependency: transitive
     description:

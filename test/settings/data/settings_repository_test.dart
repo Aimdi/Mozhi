@@ -30,6 +30,30 @@ class _FailingStore implements KeyValueStore {
   Future<void> delete(String key) => Future.error(StateError('delete'));
 }
 
+/// A [MemoryStore] whose next [failingReads] reads fail, and that counts
+/// its writes.
+class _FlakyStore extends MemoryStore {
+  new([super.initial]);
+
+  int failingReads = 0;
+  int writes = 0;
+
+  @override
+  Future<String?> read(String key) {
+    if (failingReads > 0) {
+      failingReads--;
+      return Future.error(StateError('read'));
+    }
+    return super.read(key);
+  }
+
+  @override
+  Future<void> write(String key, String value) {
+    writes++;
+    return super.write(key, value);
+  }
+}
+
 /// A [MemoryStore] whose writes wait for [gate], can fail once and record
 /// the order in which they complete.
 class _GatedStore extends MemoryStore {
@@ -96,6 +120,17 @@ void main() {
         );
 
         expect(await repository.load(), equals(const AppSettings()));
+        expect(repository.loadFailed, isTrue);
+      });
+
+      test('does not report a failure for missing or corrupt JSON', () async {
+        expect(repository.loadFailed, isFalse);
+        await repository.load();
+        expect(repository.loadFailed, isFalse);
+
+        prefs.values[SettingsRepository.settingsKey] = '{not json';
+        await repository.load();
+        expect(repository.loadFailed, isFalse);
       });
 
       test('reads the stored settings', () async {
@@ -238,6 +273,106 @@ void main() {
         expect(secrets.values, isEmpty);
       });
 
+      group('after a failed load (regression)', () {
+        late _FlakyStore prefs;
+        late SettingsRepository repository;
+        final stored = AppSettings(
+          onboardingComplete: true,
+          providers: [_provider('a')],
+        );
+
+        setUp(() {
+          prefs = _FlakyStore({
+            SettingsRepository.settingsKey: jsonEncode(stored.toJson()),
+          })..failingReads = 1;
+          secrets.values['apikey.a'] = 'key-a';
+          repository = SettingsRepository(prefs: prefs, secrets: secrets);
+        });
+
+        test('does not overwrite settings it could not read, nor delete '
+            'their API keys', () async {
+          final loaded = await repository.load();
+          expect(loaded, equals(const AppSettings()));
+          expect(repository.loadFailed, isTrue);
+
+          await expectLater(
+            repository.save(const AppSettings(seedColor: 1)),
+            throwsA(isA<SettingsUnavailableException>()),
+          );
+
+          expect(prefs.writes, 0);
+          expect(
+            prefs.values[SettingsRepository.settingsKey],
+            jsonEncode(stored.toJson()),
+          );
+          expect(secrets.values, {'apikey.a': 'key-a'});
+        });
+
+        test('rethrows when the storage is still unreadable', () async {
+          prefs.failingReads = 2;
+          await repository.load();
+
+          await expectLater(
+            repository.save(const AppSettings(seedColor: 1)),
+            throwsStateError,
+          );
+
+          expect(prefs.writes, 0);
+          expect(secrets.values, {'apikey.a': 'key-a'});
+        });
+
+        test('keeps refusing until a load succeeds', () async {
+          await repository.load();
+          await expectLater(
+            repository.save(const AppSettings(seedColor: 1)),
+            throwsA(isA<SettingsUnavailableException>()),
+          );
+
+          final loaded = await repository.load();
+          expect(repository.loadFailed, isFalse);
+          expect(loaded.providers, [_provider('a', apiKey: 'key-a')]);
+          await repository.save(loaded.copyWith(seedColor: 2));
+
+          expect((await repository.load()).seedColor, 2);
+          expect(secrets.values, {'apikey.a': 'key-a'});
+        });
+
+        test('saves when nothing turns out to be stored', () async {
+          prefs.values.clear();
+          await repository.load();
+          expect(repository.loadFailed, isTrue);
+
+          await repository.save(const AppSettings(seedColor: 1));
+
+          expect(repository.loadFailed, isFalse);
+          expect(prefs.writes, 1);
+          expect(
+            await SettingsRepository(prefs: prefs, secrets: secrets).load(),
+            equals(const AppSettings(seedColor: 1)),
+          );
+        });
+      });
+
+      test('does not write when reading the previous settings fails '
+          '(regression)', () async {
+        final prefs = _FlakyStore({
+          SettingsRepository.settingsKey: jsonEncode(
+            AppSettings(providers: [_provider('a')]).toJson(),
+          ),
+        });
+        secrets.values['apikey.a'] = 'key-a';
+        final repository = SettingsRepository(prefs: prefs, secrets: secrets);
+        prefs.failingReads = 1;
+
+        await expectLater(
+          repository.save(const AppSettings()),
+          throwsStateError,
+        );
+
+        expect(prefs.writes, 0);
+        expect(secrets.values, {'apikey.a': 'key-a'});
+      });
+
       test('propagates storage errors', () async {
         final repository = SettingsRepository(
           prefs: _FailingStore(),
@@ -279,6 +414,15 @@ void main() {
         await succeeded;
         expect(await repository.load(), equals(next));
       });
+    });
+  });
+
+  group(SettingsUnavailableException, () {
+    test('has a readable toString', () {
+      expect(
+        const SettingsUnavailableException().toString(),
+        startsWith('SettingsUnavailableException'),
+      );
     });
   });
 }

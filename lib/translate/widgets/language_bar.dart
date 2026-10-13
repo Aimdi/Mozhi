@@ -5,20 +5,54 @@ import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/language_picker_sheet.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
 
+/// Opens the language picker for the source ([source]) or target language
+/// and applies the choice. [autofocusSearch] focuses the search field
+/// (keyboard shortcut: type to filter, Enter picks the first match).
+Future<void> pickLanguage(
+  BuildContext context, {
+  required bool source,
+  bool autofocusSearch = false,
+}) async {
+  final cubit = context.read<TranslateCubit>();
+  final picked = await showLanguagePicker(
+    context,
+    source: source,
+    autofocusSearch: autofocusSearch,
+  );
+  if (picked == null) return;
+  if (source) {
+    cubit.setSource(picked);
+  } else {
+    cubit.setTarget(picked);
+  }
+}
+
+/// Scripts used by essentially one language, so even a single word in them
+/// is detected reliably (Hangul, kana, Thai, Greek, Georgian, Armenian,
+/// Indic scripts other than Devanagari and Bengali, Sinhala, Myanmar, Khmer,
+/// Lao, Tibetan, Ethiopic).
+final _distinctiveScript = RegExp(
+  '[Ͱ-Ͽ԰-֏਀-෿฀-໿ༀ-࿿'
+  'က-႟Ⴀ-ჿᄀ-ᇿሀ-፿ក-៿'
+  '぀-ヿ가-힯]',
+);
+
+/// Whether the detected source language may well be wrong: the source is
+/// "Detect language" and the input is only one or two words in a script
+/// that several languages share (detectors often misjudge "Hallo" or
+/// "Gift").
+bool detectionIsUncertain(TranslateState state) {
+  if (!state.source.isAuto) return false;
+  final detected = state.result?.detectedSource;
+  if (detected == null || detected.isEmpty) return false;
+  final text = state.input.trim();
+  if (text.isEmpty || _distinctiveScript.hasMatch(text)) return false;
+  return text.split(RegExp(r'\s+')).length < 3;
+}
+
 /// Source button, swap button and target button.
 class LanguageBar extends StatelessWidget {
   const new({super.key});
-
-  Future<void> _pick(BuildContext context, {required bool source}) async {
-    final cubit = context.read<TranslateCubit>();
-    final picked = await showLanguagePicker(context, source: source);
-    if (picked == null) return;
-    if (source) {
-      cubit.setSource(picked);
-    } else {
-      cubit.setTarget(picked);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,18 +62,27 @@ class LanguageBar extends StatelessWidget {
           previous.source != current.source ||
           previous.target != current.target ||
           previous.result?.detectedSource != current.result?.detectedSource ||
+          detectionIsUncertain(previous) != detectionIsUncertain(current) ||
           previous.sourceLanguages != current.sourceLanguages ||
           previous.canSwap != current.canSwap,
       builder: (context, state) {
         final detected = state.result?.detectedSource;
+        final uncertain = detectionIsUncertain(state);
         final String sourceLabel;
         final String sourceDescription;
+        var sourceTooltip = '';
         if (!state.source.isAuto) {
           sourceLabel = sourceDescription = state.source.name;
         } else if (detected != null) {
           // The sparkle icon marks it as detected; keep the label short.
           sourceLabel = languageNameFor(detected, state.sourceLanguages);
-          sourceDescription = l10n.translateDetectedLanguage(sourceLabel);
+          sourceDescription = uncertain
+              ? l10n.translateDetectedLanguageUncertain(sourceLabel)
+              : l10n.translateDetectedLanguage(sourceLabel);
+          if (uncertain) {
+            sourceTooltip =
+                '$sourceDescription\n${l10n.translateDetectionUncertainHint}';
+          }
         } else {
           sourceLabel = sourceDescription = l10n.translateDetectLanguage;
         }
@@ -50,11 +93,15 @@ class LanguageBar extends StatelessWidget {
                 key: const Key('translate_source_button'),
                 label: sourceLabel,
                 semanticLabel: l10n.translateSourceLanguage(sourceDescription),
-                tooltip: sourceDescription,
-                icon: state.source.isAuto && detected != null
-                    ? Icons.auto_awesome_outlined
-                    : null,
-                onPressed: () => _pick(context, source: true),
+                tooltip: sourceTooltip.isEmpty
+                    ? sourceDescription
+                    : sourceTooltip,
+                icon: !state.source.isAuto || detected == null
+                    ? null
+                    : uncertain
+                    ? Icons.help_outline
+                    : Icons.auto_awesome_outlined,
+                onPressed: () => pickLanguage(context, source: true),
               ),
             ),
             SizedBox(
@@ -75,7 +122,7 @@ class LanguageBar extends StatelessWidget {
                 semanticLabel: l10n.translateTargetLanguage(state.target.name),
                 tooltip: state.target.name,
                 icon: state.target.isCustom ? Icons.auto_awesome : null,
-                onPressed: () => _pick(context, source: false),
+                onPressed: () => pickLanguage(context, source: false),
               ),
             ),
           ],
@@ -85,6 +132,9 @@ class LanguageBar extends StatelessWidget {
   }
 }
 
+/// A tonal language button. The button keeps its own semantics (tap action,
+/// enabled state, focus); only its visible content is replaced by
+/// [semanticLabel] for screen readers.
 class _LanguageButton extends StatelessWidget {
   const new({
     required this.label,
@@ -107,18 +157,18 @@ class _LanguageButton extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       excludeFromSemantics: true,
-      child: Semantics(
-        button: true,
-        label: semanticLabel,
-        excludeSemantics: true,
-        child: FilledButton.tonal(
-          style: FilledButton.styleFrom(
-            minimumSize: const Size(48, 48),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            backgroundColor: theme.colorScheme.surfaceContainerHigh,
-            foregroundColor: theme.colorScheme.onSurface,
-          ),
-          onPressed: onPressed,
+      child: FilledButton.tonal(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          backgroundColor: theme.colorScheme.surfaceContainerHigh,
+          foregroundColor: theme.colorScheme.onSurface,
+        ),
+        onPressed: onPressed,
+        child: Semantics(
+          label: semanticLabel,
+          // Hides only the visible Row text, not the button's actions.
+          excludeSemantics: true,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [

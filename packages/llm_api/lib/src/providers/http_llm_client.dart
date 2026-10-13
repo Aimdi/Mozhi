@@ -71,6 +71,13 @@ abstract class HttpLlmClient implements LlmClient {
   /// after [headers]. Completing [abortTrigger] aborts the request. Throws
   /// [LlmApiException] when no response headers arrive within [timeout] or
   /// the status is not 2xx (with the message extracted from the body).
+  ///
+  /// Redirects are never followed: dart:io copies every header except
+  /// `Authorization` / `Cookie` to the new host, which would leak
+  /// `x-api-key`, `x-goog-api-key` and custom auth headers. A 3xx answer
+  /// throws [LlmApiException] (`Redirected to <host> — update the base URL`,
+  /// [LlmApiException.isRedirect]); on the web the browser reports a
+  /// redirect as a network error instead.
   @protected
   Future<http.StreamedResponse> send(
     String method,
@@ -79,11 +86,10 @@ abstract class HttpLlmClient implements LlmClient {
     Map<String, String> headers = const {},
     Object? json,
   }) async {
-    final request = http.AbortableRequest(
-      method,
-      url,
-      abortTrigger: abortTrigger,
-    );
+    final request =
+        http.AbortableRequest(method, url, abortTrigger: abortTrigger)
+          ..followRedirects = false
+          ..maxRedirects = 0;
     request.headers
       ..addAll(headers)
       ..addAll(endpoint.headers);
@@ -99,6 +105,11 @@ abstract class HttpLlmClient implements LlmClient {
     }
     final status = response.statusCode;
     if (status >= 200 && status < 300) return response;
+    if (status >= 300 && status < 400) {
+      // Release the connection; the body of a redirect is of no use.
+      unawaited(response.stream.listen(null).cancel());
+      throw redirectError(url, status, _header(response.headers, 'location'));
+    }
 
     String body;
     try {
@@ -271,6 +282,15 @@ abstract class HttpLlmClient implements LlmClient {
         body: exception.body?.replaceAll(key, redacted),
       ),
     };
+  }
+
+  /// The value of the header [name] (lower case) in [headers], whose names
+  /// may use any case.
+  static String? _header(Map<String, String> headers, String name) {
+    for (final MapEntry(:key, :value) in headers.entries) {
+      if (key.toLowerCase() == name) return value;
+    }
+    return null;
   }
 
   static String _describe(Duration duration) =>

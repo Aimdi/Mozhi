@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
@@ -21,8 +22,40 @@ class ProofreadResultSection extends StatelessWidget {
   /// Show a hint card before the first result (wide layouts).
   final bool showPlaceholder;
 
+  /// Announces the outcome of a request to assistive technology, since the
+  /// result may appear off screen (WCAG 4.1.3).
+  void _announce(BuildContext context, ProofreadState state) {
+    final l10n = context.l10n;
+    final String message;
+    if (state.status == ProofreadStatus.failure) {
+      message = l10n.proofreadAnnounceFailed(l10n.proofreadError(state.error));
+    } else if (state.isClean) {
+      message = l10n.proofreadNoIssuesBody;
+    } else {
+      message = l10n.proofreadAnnounceDone(state.edits.length);
+    }
+    unawaited(
+      SemanticsService.sendAnnouncement(
+        View.of(context),
+        message,
+        Directionality.of(context),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    return BlocListener<ProofreadCubit, ProofreadState>(
+      listenWhen: (previous, current) =>
+          previous.isLoading &&
+          (current.status == ProofreadStatus.success ||
+              current.status == ProofreadStatus.failure),
+      listener: _announce,
+      child: _buildContent(),
+    );
+  }
+
+  Widget _buildContent() {
     return BlocBuilder<ProofreadCubit, ProofreadState>(
       buildWhen: (previous, current) =>
           previous.status != current.status ||
@@ -47,6 +80,8 @@ class ProofreadResultSection extends StatelessWidget {
               const _PlaceholderCard(),
             if (result != null) ...[
               if (state.isLoading) const LinearProgressIndicator(),
+              if (state.isStale && !state.isLoading)
+                _StaleNotice(canProofread: state.canProofread),
               if (state.isClean)
                 _NoIssuesCard(summary: result.summary)
               else ...[
@@ -219,7 +254,9 @@ class _ProofreadResultCardState extends State<ProofreadResultCard> {
                 ),
                 const Spacer(),
                 TextButton.icon(
-                  onPressed: output.isEmpty
+                  // Replacing newer input with an older result would silently
+                  // discard what the user typed since.
+                  onPressed: output.isEmpty || state.isStale
                       ? null
                       : context.read<ProofreadCubit>().useOutputAsInput,
                   icon: const Icon(Icons.input),
@@ -235,10 +272,16 @@ class _ProofreadResultCardState extends State<ProofreadResultCard> {
 }
 
 /// Shows the details of edit [index] with an apply/revert action.
+///
+/// The sheet belongs to the result it was opened for: it closes when a new
+/// result replaces it, and its action never toggles an edit of another one.
 Future<void> showProofreadEditSheet(BuildContext context, int index) {
   final cubit = context.read<ProofreadCubit>();
+  final result = cubit.state.result;
   final edits = cubit.state.edits;
-  if (index < 0 || index >= edits.length) return Future.value();
+  if (result == null || index < 0 || index >= edits.length) {
+    return Future.value();
+  }
   final edit = edits[index];
   return showModalBottomSheet<void>(
     context: context,
@@ -246,45 +289,63 @@ Future<void> showProofreadEditSheet(BuildContext context, int index) {
     builder: (sheetContext) {
       final l10n = sheetContext.l10n;
       final theme = Theme.of(sheetContext);
-      final accepted = cubit.state.acceptedEdits.contains(index);
-      return SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            spacing: 12,
-            children: [
-              ProofreadCategoryChip(category: edit.category),
-              ProofreadEditChange(
-                edit: edit,
-                style: theme.textTheme.titleMedium,
-              ),
-              if (edit.explanation.trim().isNotEmpty)
-                Text(
-                  edit.explanation.trim(),
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+      final navigator = Navigator.of(sheetContext);
+      final route = ModalRoute.of(sheetContext);
+      void close() {
+        if (route?.isCurrent ?? false) navigator.pop();
+      }
+
+      return BlocConsumer<ProofreadCubit, ProofreadState>(
+        bloc: cubit,
+        listenWhen: (previous, current) => !identical(current.result, result),
+        listener: (_, _) => close(),
+        buildWhen: (previous, current) =>
+            identical(current.result, result) &&
+            previous.acceptedEdits != current.acceptedEdits,
+        builder: (context, state) {
+          final accepted = state.acceptedEdits.contains(index);
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 12,
+                children: [
+                  ProofreadCategoryChip(category: edit.category),
+                  ProofreadEditChange(
+                    edit: edit,
+                    style: theme.textTheme.titleMedium,
                   ),
-                ),
-              Align(
-                alignment: AlignmentDirectional.centerEnd,
-                child: FilledButton.tonalIcon(
-                  onPressed: () {
-                    cubit.toggleEdit(index);
-                    Navigator.of(sheetContext).pop();
-                  },
-                  icon: Icon(accepted ? Icons.undo : Icons.check),
-                  label: Text(
-                    accepted
-                        ? l10n.proofreadEditRevert
-                        : l10n.proofreadEditApply,
+                  if (edit.explanation.trim().isNotEmpty)
+                    Text(
+                      edit.explanation.trim(),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: FilledButton.tonalIcon(
+                      onPressed: () {
+                        if (identical(cubit.state.result, result)) {
+                          cubit.toggleEdit(index);
+                        }
+                        close();
+                      },
+                      icon: Icon(accepted ? Icons.undo : Icons.check),
+                      label: Text(
+                        accepted
+                            ? l10n.proofreadEditRevert
+                            : l10n.proofreadEditApply,
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       );
     },
   );
@@ -408,6 +469,47 @@ class _ErrorCard extends StatelessWidget {
                     : null,
                 child: Text(l10n.commonRetry),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Shown when the input changed after the result was computed.
+class _StaleNotice extends StatelessWidget {
+  const new({required this.canProofread});
+
+  final bool canProofread;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Card.outlined(
+      key: const Key('proofread_stale'),
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsetsDirectional.fromSTEB(16, 8, 8, 8),
+        child: Row(
+          spacing: 12,
+          children: [
+            Icon(Icons.edit_note, color: scheme.onSurfaceVariant),
+            Expanded(
+              child: Text(
+                l10n.proofreadStaleNotice,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: canProofread
+                  ? context.read<ProofreadCubit>().proofread
+                  : null,
+              child: Text(l10n.proofreadStaleAction),
             ),
           ],
         ),

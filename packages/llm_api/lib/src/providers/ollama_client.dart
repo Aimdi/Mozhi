@@ -17,8 +17,46 @@ import 'package:llm_api/src/think_filter.dart';
 /// The response is complete at `done: true`; `done_reason: "length"` raises
 /// [LlmTruncatedException] and a body that ends without `done: true` raises
 /// [LlmInterruptedException].
+///
+/// Every chat request sets `options.num_ctx` (see [contextWindowFor]):
+/// Ollama's default context of a few thousand tokens silently drops the
+/// start of longer prompts, instructions included.
 class OllamaClient extends HttpLlmClient {
   new(super.endpoint, {super.httpClient, super.timeout});
+
+  /// The `options.num_ctx` sent when [LlmRequest.contextWindow] is not set
+  /// and the prompt is not long.
+  static const defaultContextWindow = 8192;
+
+  /// The largest `options.num_ctx` chosen automatically for long prompts.
+  static const maxAutoContextWindow = 32768;
+
+  /// The `options.num_ctx` sent for [request].
+  ///
+  /// [LlmRequest.contextWindow] when it is positive. Otherwise
+  /// [defaultContextWindow], doubled (up to [maxAutoContextWindow]) while a
+  /// rough estimate of the prompt plus its reply does not fit. The estimate
+  /// errs on the large side: 2 characters per token (so that non-Latin
+  /// scripts fit too), 1024 tokens per image, a reply of
+  /// [LlmRequest.maxTokens] or else as long as the text, and 1024 tokens of
+  /// headroom. The size only grows in powers of two because Ollama reloads
+  /// the model whenever `num_ctx` changes.
+  static int contextWindowFor(LlmRequest request) {
+    if (request.contextWindow case final size? when size > 0) return size;
+    var characters = 0;
+    var images = 0;
+    for (final message in request.messages) {
+      characters += message.content.length;
+      images += message.images.length;
+    }
+    final text = (characters / 2).ceil();
+    final needed = text + images * 1024 + (request.maxTokens ?? text) + 1024;
+    var size = defaultContextWindow;
+    while (size < needed && size < maxAutoContextWindow) {
+      size *= 2;
+    }
+    return size;
+  }
 
   @override
   Stream<String> streamChat(LlmRequest request) =>
@@ -60,6 +98,7 @@ class OllamaClient extends HttpLlmClient {
     final options = {
       'temperature': ?request.temperature,
       'num_predict': ?request.maxTokens,
+      'num_ctx': contextWindowFor(request),
     };
     return {
       'model': request.model,
@@ -75,7 +114,7 @@ class OllamaClient extends HttpLlmClient {
           },
       ],
       'stream': true,
-      if (options.isNotEmpty) 'options': options,
+      'options': options,
       if (request.jsonOutput) 'format': 'json',
     };
   }

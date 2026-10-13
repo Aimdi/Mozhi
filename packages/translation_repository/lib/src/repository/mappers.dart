@@ -98,3 +98,42 @@ Uint8List? decodeBase64Image(String data) {
     return null;
   }
 }
+
+/// DeepL target ids that Mozhi lists but rejects (`libmozhi` validates `to`
+/// against DeepL's *source* list, mozhi-contract G3), mapped to the base
+/// code it accepts.
+const _deeplTargetAliases = {
+  'en-us': 'en',
+  'en-gb': 'en',
+  'pt-br': 'pt',
+  'pt-pt': 'pt',
+  'zh-hans': 'zh',
+};
+
+/// DeepL target ids that would silently become a different language (base
+/// `zh` is Simplified Chinese), so they are dropped instead.
+const _deeplDroppedTargets = {'zh-hant'};
+
+/// Fixes a Mozhi DeepL target list: `en-us`/`en-gb` -> `en`,
+/// `pt-br`/`pt-pt` -> `pt`, `zh-hans` -> `zh` (named after the base
+/// language), and drops `zh-hant`. Duplicates are removed later by
+/// [mapMozhiLanguages].
+List<MozhiLanguage> fixMozhiDeeplTargets(List<MozhiLanguage> languages) => [
+  for (final language in languages)
+    if (!_deeplDroppedTargets.contains(language.id.trim().toLowerCase()))
+      switch (_deeplTargetAliases[language.id.trim().toLowerCase()]) {
+        final base? => MozhiLanguage(
+          id: base,
+          name: LanguageCatalog.byCode(base)?.name ?? base,
+        ),
+        null => language,
+      },
+];
+
+/// The `to` code to send to Mozhi [engine] for [code]: DeepL regional
+/// targets are sent as the base code DeepL accepts (see
+/// [fixMozhiDeeplTargets]); everything else is unchanged.
+String mozhiTargetCode(String engine, String code) =>
+    engine.toLowerCase() == 'deepl'
+    ? _deeplTargetAliases[code.trim().toLowerCase()] ?? code
+    : code;

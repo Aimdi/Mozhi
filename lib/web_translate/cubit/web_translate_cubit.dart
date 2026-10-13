@@ -353,11 +353,14 @@ class _TranslationJob {
     StreamSubscription<Object?> subscription,
     Completer<Object?> completer,
   ) {
+    // coverage:ignore-start
     if (cancelled) {
+      // Defensive: requests are only started while the job is running.
       unawaited(subscription.cancel());
       if (!completer.isCompleted) completer.completeError(const _Cancelled());
       return;
     }
+    // coverage:ignore-end
     if (!completer.isCompleted) _active[subscription] = completer;
   }
 

@@ -13,6 +13,8 @@ dependencies:
   meta: ^1.16.0
   mozhi_api:
     path: ../mozhi_api
+  mt_api:
+    path: ../mt_api
 
 dev_dependencies:
   mocktail: ^1.0.5

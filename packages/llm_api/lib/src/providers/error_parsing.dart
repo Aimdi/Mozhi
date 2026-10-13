@@ -50,6 +50,35 @@ LlmApiException httpError(int statusCode, String body, String? reasonPhrase) {
   );
 }
 
+/// Builds the exception for a redirect (3xx) answer to a request for [url].
+///
+/// Redirects are never followed because most HTTP stacks copy custom auth
+/// headers (`x-api-key`, `x-goog-api-key`, `LlmEndpoint.headers`) to the
+/// new host. The message names where the server pointed, taken from the
+/// [location] header (resolved against [url]): its host when that differs
+/// from [url]'s, otherwise the new URL without query (e.g. an `http` to
+/// `https` upgrade or a path with a trailing slash), so that the user can
+/// fix the base URL.
+LlmApiException redirectError(Uri url, int statusCode, String? location) {
+  final reference = location?.trim() ?? '';
+  final parsed = reference.isEmpty ? null : Uri.tryParse(reference);
+  final target = parsed == null ? null : url.resolveUri(parsed);
+  final destination = switch (target) {
+    null || Uri(host: '') => 'another address',
+    Uri(:final host) when host != url.host => host,
+    final Uri target => Uri(
+      scheme: target.scheme,
+      host: target.host,
+      port: target.hasPort ? target.port : null,
+      path: target.path,
+    ).toString(),
+  };
+  return LlmApiException(
+    'Redirected to $destination — update the base URL',
+    statusCode: statusCode,
+  );
+}
+
 /// Builds the exception for an error object received inside a successful
 /// response stream (e.g. `{"error": {"code": 502, "message": "..."}}`).
 ///

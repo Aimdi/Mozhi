@@ -31,11 +31,27 @@ class _ProofreadInputCardState extends State<ProofreadInputCard> {
     super.dispose();
   }
 
+  /// Inserts the clipboard text at the cursor, replacing the selection (or
+  /// appends it when the field has no cursor), so typed text is kept.
   Future<void> _paste() async {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
     final text = data?.text;
     if (!mounted || text == null || text.isEmpty) return;
-    context.read<ProofreadCubit>().setInput(text);
+    final value = _controller.value;
+    final current = value.text;
+    final selection = value.selection;
+    final start = selection.isValid
+        ? selection.start.clamp(0, current.length)
+        : current.length;
+    final end = selection.isValid
+        ? selection.end.clamp(start, current.length)
+        : current.length;
+    final combined = current.replaceRange(start, end, text);
+    _controller.value = TextEditingValue(
+      text: combined,
+      selection: TextSelection.collapsed(offset: start + text.length),
+    );
+    context.read<ProofreadCubit>().setInput(combined);
   }
 
   void _proofread() {

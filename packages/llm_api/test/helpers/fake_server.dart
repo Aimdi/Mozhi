@@ -32,7 +32,13 @@ class RecordedRequest {
 
 /// A scripted response for [FakeServer].
 class FakeResponse {
-  new(this.body, {this.statusCode = 200, this.reasonPhrase, this.gate});
+  new(
+    this.body, {
+    this.statusCode = 200,
+    this.reasonPhrase,
+    this.gate,
+    this.headers = const {},
+  });
 
   /// [text] as UTF-8, split into [chunkSize]-byte chunks (so multi-byte
   /// characters and lines may be cut anywhere).
@@ -42,11 +48,13 @@ class FakeResponse {
     int chunkSize = 1 << 20,
     String? reasonPhrase,
     Future<void>? gate,
+    Map<String, String> headers = const {},
   }) => FakeResponse(
     () => Stream.fromIterable(splitBytes(utf8.encode(text), chunkSize)),
     statusCode: statusCode,
     reasonPhrase: reasonPhrase,
     gate: gate,
+    headers: headers,
   );
 
   factory json(Object? json, {int statusCode = 200}) =>
@@ -64,6 +72,9 @@ class FakeResponse {
 
   /// When set, the response headers are only returned once it completes.
   final Future<void>? gate;
+
+  /// The response headers.
+  final Map<String, String> headers;
 }
 
 /// An HTTP server scripted with [FakeResponse]s, served in order.
@@ -96,6 +107,7 @@ class FakeServer {
       response.body(),
       response.statusCode,
       reasonPhrase: response.reasonPhrase,
+      headers: response.headers,
       request: request,
     );
   }

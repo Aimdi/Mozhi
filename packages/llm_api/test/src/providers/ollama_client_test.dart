@@ -54,6 +54,7 @@ void main() {
             {'role': 'assistant', 'content': 'Hello'},
           ],
           'stream': true,
+          'options': {'num_ctx': 8192},
         });
       });
 
@@ -77,6 +78,7 @@ void main() {
                 maxTokens: 256,
                 jsonOutput: true,
                 effort: 'low',
+                contextWindow: 4096,
               ),
             )
             .drain<void>();
@@ -91,9 +93,90 @@ void main() {
             },
           ],
           'stream': true,
-          'options': {'temperature': 0.1, 'num_predict': 256},
+          'options': {'temperature': 0.1, 'num_predict': 256, 'num_ctx': 4096},
           'format': 'json',
         });
+      });
+    });
+
+    group('contextWindowFor', () {
+      LlmRequest request(
+        int characters, {
+        int images = 0,
+        int? maxTokens,
+        int? contextWindow,
+      }) => LlmRequest(
+        model: 'qwen3:8b',
+        messages: [
+          const LlmMessage.system('ab'),
+          LlmMessage.user(
+            'x' * (characters - 2),
+            images: [
+              for (var i = 0; i < images; i++) const LlmImage(bytes: [1]),
+            ],
+          ),
+        ],
+        maxTokens: maxTokens,
+        contextWindow: contextWindow,
+      );
+
+      test('defaults to 8192 tokens', () {
+        expect(OllamaClient.defaultContextWindow, 8192);
+        expect(OllamaClient.contextWindowFor(request(2)), 8192);
+        // Estimate: 3584 + 3584 (reply) + 1024 = 8192.
+        expect(OllamaClient.contextWindowFor(request(7168)), 8192);
+      });
+
+      test('doubles for long prompts up to 32768 tokens', () {
+        expect(OllamaClient.contextWindowFor(request(7170)), 16384);
+        expect(OllamaClient.contextWindowFor(request(15360)), 16384);
+        expect(OllamaClient.contextWindowFor(request(15362)), 32768);
+        expect(OllamaClient.maxAutoContextWindow, 32768);
+        expect(OllamaClient.contextWindowFor(request(500000)), 32768);
+      });
+
+      test('counts maxTokens and images', () {
+        // Estimate: 1 + 7167 (reply) + 1024 = 8192.
+        expect(
+          OllamaClient.contextWindowFor(request(2, maxTokens: 7167)),
+          8192,
+        );
+        expect(
+          OllamaClient.contextWindowFor(request(2, maxTokens: 7168)),
+          16384,
+        );
+        expect(OllamaClient.contextWindowFor(request(2, images: 6)), 8192);
+        expect(OllamaClient.contextWindowFor(request(2, images: 7)), 16384);
+      });
+
+      test('uses a positive LlmRequest.contextWindow as is', () {
+        expect(
+          OllamaClient.contextWindowFor(request(500000, contextWindow: 2048)),
+          2048,
+        );
+        expect(
+          OllamaClient.contextWindowFor(request(2, contextWindow: 131072)),
+          131072,
+        );
+        expect(
+          OllamaClient.contextWindowFor(request(2, contextWindow: 0)),
+          8192,
+        );
+        expect(
+          OllamaClient.contextWindowFor(request(2, contextWindow: -1)),
+          8192,
+        );
+      });
+
+      test('sends the estimate as options.num_ctx', () async {
+        final server = FakeServer([
+          FakeResponse.text(_ndjson([_line('', done: true)])),
+        ]);
+        await _client(server).streamChat(request(20000)).drain<void>();
+        expect(
+          server.lastRequest.json,
+          containsPair('options', {'num_ctx': 32768}),
+        );
       });
     });
 

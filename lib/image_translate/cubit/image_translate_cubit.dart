@@ -431,6 +431,8 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
         phase: phase,
         slow: false,
         error: () => null,
+        // Re-translating text keeps the current result until the new one
+        // streams in; a full run starts from scratch.
         result: phase == ImageTranslatePhase.translatingText
             ? null
             : () => null,

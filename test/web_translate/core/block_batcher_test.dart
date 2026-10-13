@@ -79,7 +79,11 @@ void main() {
     });
 
     test('items compare by value', () {
-      expect(const TranslationItem(1, 'a'), const TranslationItem(1, 'a'));
+      final a = TranslationItem(1, 'a'.toUpperCase());
+      const b = TranslationItem(1, 'A');
+      expect(a, b);
+      expect(a.hashCode, b.hashCode);
+      expect(a == const TranslationItem(2, 'A'), isFalse);
     });
   });
 }

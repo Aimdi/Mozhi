@@ -48,9 +48,9 @@ void main() {
   test('isEmpty and hasUsage', () {
     expect(snapshot.isEmpty, isFalse);
     expect(snapshot.hasUsage, isTrue);
-    final budgetOnly = UsageSnapshot(
+    const budgetOnly = UsageSnapshot(
       currentMonth: october,
-      budgets: const {'c': UsageBudget(monthlyChars: 1)},
+      budgets: {'c': UsageBudget(monthlyChars: 1)},
     );
     expect(budgetOnly.isEmpty, isFalse);
     expect(budgetOnly.hasUsage, isFalse);

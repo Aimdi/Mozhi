@@ -5,6 +5,7 @@ export 'image_translate_button.dart';
 export 'image_translate_empty_state.dart';
 export 'image_translate_error_view.dart';
 export 'image_translate_labels.dart';
+export 'image_translate_links.dart';
 export 'image_translate_preview.dart';
 export 'image_translate_progress.dart';
 export 'image_translate_result_section.dart';

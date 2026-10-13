@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/semantics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -53,6 +54,9 @@ enum _InstanceAction { prefer, moveUp, moveDown, remove }
 class _InstancesViewState extends State<InstancesView> {
   final Map<String, PingStatus> _pings = {};
 
+  /// Bumped on every full refresh so only the latest one is announced.
+  int _round = 0;
+
   @override
   void initState() {
     super.initState();
@@ -60,7 +64,23 @@ class _InstancesViewState extends State<InstancesView> {
     for (final instance in instances) {
       _pings[instance.url] = const PingChecking();
     }
-    unawaited(Future.wait(instances.map(_ping)));
+    unawaited(_pingAll(instances));
+  }
+
+  /// Pings [instances] and, once all of them have answered, announces how
+  /// many are reachable (WCAG 4.1.3) instead of one message per badge.
+  Future<void> _pingAll(List<MozhiInstance> instances) async {
+    final round = ++_round;
+    await Future.wait(instances.map(_ping));
+    if (!mounted || round != _round || instances.isEmpty) return;
+    final online = instances.where((i) => _pings[i.url] is PingOnline).length;
+    unawaited(
+      SemanticsService.sendAnnouncement(
+        View.of(context),
+        context.l10n.settingsInstancesPingSummary(online, instances.length),
+        Directionality.of(context),
+      ),
+    );
   }
 
   Future<void> _ping(MozhiInstance instance) async {
@@ -82,7 +102,7 @@ class _InstancesViewState extends State<InstancesView> {
         _pings[instance.url] = const PingChecking();
       }
     });
-    return Future.wait(instances.map(_ping));
+    return _pingAll(instances);
   }
 
   void _onInstancesChanged(BuildContext context, AppSettings settings) {
@@ -189,6 +209,13 @@ class _InstancesViewState extends State<InstancesView> {
         appBar: AppBar(
           title: Text(l10n.settingsInstancesTitle),
           actions: [
+            // Pull to refresh needs a drag; this is the pointer, keyboard
+            // and switch-access alternative (WCAG 2.5.7, 2.1.1).
+            IconButton(
+              tooltip: l10n.settingsInstancesRefresh,
+              icon: const Icon(Icons.refresh),
+              onPressed: instances.isEmpty ? null : _refresh,
+            ),
             IconButton(
               tooltip: l10n.settingsInstancesReset,
               icon: const Icon(Icons.restore),
@@ -315,10 +342,13 @@ class _Header extends StatelessWidget {
               children: [
                 Icon(Icons.dns_outlined, size: 48, color: colors.outline),
                 const SizedBox(height: 16),
-                Text(
-                  l10n.settingsInstancesEmptyTitle,
-                  style: theme.textTheme.titleMedium,
-                  textAlign: TextAlign.center,
+                Semantics(
+                  header: true,
+                  child: Text(
+                    l10n.settingsInstancesEmptyTitle,
+                    style: theme.textTheme.titleMedium,
+                    textAlign: TextAlign.center,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -367,12 +397,17 @@ class _InstanceTile extends StatelessWidget {
     final preferred = index == 0;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
+      // The preferred card keeps the normal surface (so badge and text
+      // contrast stay the same) and is marked by a primary outline instead.
       child: Card.filled(
         margin: EdgeInsets.zero,
-        color: preferred
-            ? colors.secondaryContainer
-            : colors.surfaceContainerLow,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        color: colors.surfaceContainerLow,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: preferred
+              ? BorderSide(color: colors.primary, width: 2)
+              : BorderSide.none,
+        ),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: Row(
@@ -467,7 +502,8 @@ class _InstanceTile extends StatelessWidget {
 }
 
 /// Latency badge: green < 500 ms, amber < 1500 ms, red otherwise or
-/// "Offline" when the ping failed.
+/// "Offline" when the ping failed. Each level also has its own icon and a
+/// spoken quality word, so colour is not the only cue (WCAG 1.4.1).
 class LatencyBadge extends StatelessWidget {
   const new({required this.status, super.key});
 
@@ -488,15 +524,34 @@ class LatencyBadge extends StatelessWidget {
         color: colors.error,
         icon: Icons.cloud_off_outlined,
       ),
-      PingOnline(:final latency) => StatusBadge(
-        label: l10n.settingsInstancesLatency(latency.inMilliseconds),
-        color: latency.inMilliseconds < 500
-            ? colors.success
-            : latency.inMilliseconds < 1500
-            ? colors.warning
-            : colors.error,
-        icon: Icons.network_check,
-      ),
+      PingOnline(:final latency) => _online(l10n, colors, latency),
     };
+  }
+
+  static StatusBadge _online(
+    AppLocalizations l10n,
+    ColorScheme colors,
+    Duration latency,
+  ) {
+    final ms = latency.inMilliseconds;
+    final (color, icon, spoken) = ms < 500
+        ? (colors.success, Icons.speed, l10n.settingsInstancesLatencyFast(ms))
+        : ms < 1500
+        ? (
+            colors.warning,
+            Icons.timelapse,
+            l10n.settingsInstancesLatencyModerate(ms),
+          )
+        : (
+            colors.error,
+            Icons.hourglass_bottom,
+            l10n.settingsInstancesLatencySlow(ms),
+          );
+    return StatusBadge(
+      label: l10n.settingsInstancesLatency(ms),
+      color: color,
+      icon: icon,
+      semanticsLabel: spoken,
+    );
   }
 }

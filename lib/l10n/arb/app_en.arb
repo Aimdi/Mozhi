@@ -4141,5 +4141,341 @@
   "historySearchLabel": "Search history",
   "@historySearchLabel": {
     "description": "historySearchLabel"
+  },
+  "proofreadCategoryOther": "Other",
+  "@proofreadCategoryOther": {
+    "description": "proofreadCategoryOther"
+  },
+  "proofreadStaleNotice": "Your text has changed since it was checked.",
+  "@proofreadStaleNotice": {
+    "description": "proofreadStaleNotice"
+  },
+  "proofreadStaleAction": "Proofread again",
+  "@proofreadStaleAction": {
+    "description": "proofreadStaleAction"
+  },
+  "proofreadEnginesErrorTitle": "Couldn't load your AI providers",
+  "@proofreadEnginesErrorTitle": {
+    "description": "proofreadEnginesErrorTitle"
+  },
+  "proofreadEnginesErrorBody": "Check your connection and try again.",
+  "@proofreadEnginesErrorBody": {
+    "description": "proofreadEnginesErrorBody"
+  },
+  "proofreadAnnounceDone": "{count, plural, =1{Proofreading done: 1 suggested edit} other{Proofreading done: {count} suggested edits}}",
+  "@proofreadAnnounceDone": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "proofreadAnnounceFailed": "Couldn't proofread. {message}",
+  "@proofreadAnnounceFailed": {
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "translateAnnounceReady": "Translation ready",
+  "@translateAnnounceReady": {
+    "description": "translateAnnounceReady"
+  },
+  "translateLoading": "Loading…",
+  "@translateLoading": {
+    "description": "translateLoading"
+  },
+  "translateInsightSemantics": "“{phrase}”, word insight",
+  "@translateInsightSemantics": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      }
+    }
+  },
+  "translateInsightsListLabel": "Word insights",
+  "@translateInsightsListLabel": {
+    "description": "translateInsightsListLabel"
+  },
+  "translateInsightOpen": "Insight for “{phrase}”",
+  "@translateInsightOpen": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      }
+    }
+  },
+  "translateCompareFinished": "{succeeded} of {total} engines translated",
+  "@translateCompareFinished": {
+    "placeholders": {
+      "succeeded": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "translateAlternativesLoaded": "{count, plural, =1{1 alternative} other{{count} alternatives}}",
+  "@translateAlternativesLoaded": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "translateDictionaryReady": "Dictionary entry ready",
+  "@translateDictionaryReady": {
+    "description": "translateDictionaryReady"
+  },
+  "translateExplainReady": "Explanation ready",
+  "@translateExplainReady": {
+    "description": "translateExplainReady"
+  },
+  "translateExplainQuestionLabel": "Follow-up question",
+  "@translateExplainQuestionLabel": {
+    "description": "translateExplainQuestionLabel"
+  },
+  "translateSeconds": "{seconds} s",
+  "@translateSeconds": {
+    "placeholders": {
+      "seconds": {
+        "type": "String"
+      }
+    }
+  },
+  "translateSecondsSemantics": "{seconds} seconds",
+  "@translateSecondsSemantics": {
+    "placeholders": {
+      "seconds": {
+        "type": "String"
+      }
+    }
+  },
+  "translateGlossaryEntry": "{term} → {translation}",
+  "@translateGlossaryEntry": {
+    "placeholders": {
+      "term": {
+        "type": "String"
+      },
+      "translation": {
+        "type": "String"
+      }
+    }
+  },
+  "translateGlossaryEntrySemantics": "{term} translates to {translation}",
+  "@translateGlossaryEntrySemantics": {
+    "placeholders": {
+      "term": {
+        "type": "String"
+      },
+      "translation": {
+        "type": "String"
+      }
+    }
+  },
+  "translateErrorEngineUnavailable": "This engine isn't available on the Mozhi instance. Pick another engine.",
+  "@translateErrorEngineUnavailable": {
+    "description": "translateErrorEngineUnavailable"
+  },
+  "translateErrorTargetUnsupported": "This engine can't translate into the selected language. Pick another target language or engine.",
+  "@translateErrorTargetUnsupported": {
+    "description": "translateErrorTargetUnsupported"
+  },
+  "translateErrorSourceUnsupported": "This engine can't translate from the selected language. Pick another source language or engine.",
+  "@translateErrorSourceUnsupported": {
+    "description": "translateErrorSourceUnsupported"
+  },
+  "translateErrorUpstream": "The Mozhi instance couldn't reach this engine's service. Try again later or pick another engine.",
+  "@translateErrorUpstream": {
+    "description": "translateErrorUpstream"
+  },
+  "translateErrorUpstreamHost": "{instance} couldn't reach this engine's service. Try again later or pick another engine.",
+  "@translateErrorUpstreamHost": {
+    "placeholders": {
+      "instance": {
+        "type": "String"
+      }
+    }
+  },
+  "translateErrorEngineCrashed": "The engine failed on the Mozhi instance. Try another engine.",
+  "@translateErrorEngineCrashed": {
+    "description": "translateErrorEngineCrashed"
+  },
+  "translateErrorEmptyResult": "The engine returned an empty translation. Try another engine.",
+  "@translateErrorEmptyResult": {
+    "description": "translateErrorEmptyResult"
+  },
+  "translateErrorTooLong": "The text is too long for this instance. Shorten it and try again.",
+  "@translateErrorTooLong": {
+    "description": "translateErrorTooLong"
+  },
+  "translateErrorOfflineModelMissing": "Download the offline language models first to translate on this device.",
+  "@translateErrorOfflineModelMissing": {
+    "description": "translateErrorOfflineModelMissing"
+  },
+  "translateErrorOfflineModelMissingFor": "Download the offline models for {languages} to translate on this device.",
+  "@translateErrorOfflineModelMissingFor": {
+    "placeholders": {
+      "languages": {
+        "type": "String"
+      }
+    }
+  },
+  "translateErrorOfflineUnsupported": "This language isn't available for offline translation. Pick another language or engine.",
+  "@translateErrorOfflineUnsupported": {
+    "description": "translateErrorOfflineUnsupported"
+  },
+  "translateOfflineModelsAction": "Download languages",
+  "@translateOfflineModelsAction": {
+    "description": "translateOfflineModelsAction"
+  },
+  "translateOfflineEnginesHeader": "On this device",
+  "@translateOfflineEnginesHeader": {
+    "description": "translateOfflineEnginesHeader"
+  },
+  "translateErrorDetails": "Details",
+  "@translateErrorDetails": {
+    "description": "translateErrorDetails"
+  },
+  "translateErrorHideDetails": "Hide details",
+  "@translateErrorHideDetails": {
+    "description": "translateErrorHideDetails"
+  },
+  "translateActiveOptionsLabel": "Active translation options",
+  "@translateActiveOptionsLabel": {
+    "description": "translateActiveOptionsLabel"
+  },
+  "translateActiveOptionsReset": "Reset options",
+  "@translateActiveOptionsReset": {
+    "description": "translateActiveOptionsReset"
+  },
+  "translateActiveOptionRemove": "Remove {option}",
+  "@translateActiveOptionRemove": {
+    "placeholders": {
+      "option": {
+        "type": "String"
+      }
+    }
+  },
+  "translateActiveOptionContext": "Context: {context}",
+  "@translateActiveOptionContext": {
+    "placeholders": {
+      "context": {
+        "type": "String"
+      }
+    }
+  },
+  "translateActiveOptionGlossary": "{count, plural, =1{Glossary · 1 term} other{Glossary · {count} terms}}",
+  "@translateActiveOptionGlossary": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "translateActiveOptionSpeaker": "Speaker: {gender}",
+  "@translateActiveOptionSpeaker": {
+    "placeholders": {
+      "gender": {
+        "type": "String"
+      }
+    }
+  },
+  "translateActiveOptionAddressee": "Addressee: {gender}",
+  "@translateActiveOptionAddressee": {
+    "placeholders": {
+      "gender": {
+        "type": "String"
+      }
+    }
+  },
+  "translateActiveOptionReadingLevel": "Reading level {level}",
+  "@translateActiveOptionReadingLevel": {
+    "placeholders": {
+      "level": {
+        "type": "String"
+      }
+    }
+  },
+  "translateActiveOptionNoFormatting": "Formatting not kept",
+  "@translateActiveOptionNoFormatting": {
+    "description": "translateActiveOptionNoFormatting"
+  },
+  "translateDetectedLanguageUncertain": "Detected: {language}?",
+  "@translateDetectedLanguageUncertain": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "translateDetectionUncertainHint": "Short texts are hard to detect. Choose the source language if this is wrong.",
+  "@translateDetectionUncertainHint": {
+    "description": "translateDetectionUncertainHint"
+  },
+  "translateChangeSourceLanguage": "Change source language",
+  "@translateChangeSourceLanguage": {
+    "description": "translateChangeSourceLanguage"
+  },
+  "translateKeyboardShortcuts": "Keyboard shortcuts",
+  "@translateKeyboardShortcuts": {
+    "description": "translateKeyboardShortcuts"
+  },
+  "translateShortcutTranslateNow": "Translate now",
+  "@translateShortcutTranslateNow": {
+    "description": "translateShortcutTranslateNow"
+  },
+  "translateShortcutCopyOutput": "Copy the translation",
+  "@translateShortcutCopyOutput": {
+    "description": "translateShortcutCopyOutput"
+  },
+  "translateShortcutClear": "Clear the text (while typing)",
+  "@translateShortcutClear": {
+    "description": "translateShortcutClear"
+  },
+  "translateShortcutTargetPicker": "Choose the target language",
+  "@translateShortcutTargetPicker": {
+    "description": "translateShortcutTargetPicker"
+  },
+  "translateShortcutSourcePicker": "Choose the source language",
+  "@translateShortcutSourcePicker": {
+    "description": "translateShortcutSourcePicker"
+  },
+  "translateShortcutHelp": "Show keyboard shortcuts",
+  "@translateShortcutHelp": {
+    "description": "translateShortcutHelp"
+  },
+  "translateShortcutOr": "{first} or {second}",
+  "@translateShortcutOr": {
+    "placeholders": {
+      "first": {
+        "type": "String"
+      },
+      "second": {
+        "type": "String"
+      }
+    }
+  },
+  "translateMoreTools": "More tools",
+  "@translateMoreTools": {
+    "description": "translateMoreTools"
+  },
+  "translateToolImage": "Image (camera)",
+  "@translateToolImage": {
+    "description": "translateToolImage"
+  },
+  "translateToolDocuments": "Documents",
+  "@translateToolDocuments": {
+    "description": "translateToolDocuments"
+  },
+  "translateToolWebPage": "Web page",
+  "@translateToolWebPage": {
+    "description": "translateToolWebPage"
+  },
+  "translateToolConversation": "Conversation",
+  "@translateToolConversation": {
+    "description": "translateToolConversation"
   }
 }

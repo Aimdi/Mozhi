@@ -100,6 +100,7 @@ class LlmRequest {
     this.maxTokens,
     this.jsonOutput = false,
     this.effort,
+    this.contextWindow,
   });
 
   final String model;
@@ -133,6 +134,16 @@ class LlmRequest {
   /// Ignored by Gemini and Ollama.
   final String? effort;
 
+  /// Context window (prompt + reply, in tokens) the server should allocate.
+  ///
+  /// Only Ollama lets the client choose it: sent as `options.num_ctx`. When
+  /// null (or not positive) Ollama gets 8192, raised to 16384 or 32768
+  /// when a rough estimate of the prompt plus its reply would not fit (see
+  /// `OllamaClient.contextWindowFor`); Ollama's own default of a few
+  /// thousand tokens silently drops the start of longer prompts. Ignored by
+  /// the other providers, whose context size is fixed by the server.
+  final int? contextWindow;
+
   LlmRequest copyWith({
     String? model,
     List<LlmMessage>? messages,
@@ -140,6 +151,7 @@ class LlmRequest {
     int? maxTokens,
     bool? jsonOutput,
     String? effort,
+    int? contextWindow,
   }) => LlmRequest(
     model: model ?? this.model,
     messages: messages ?? this.messages,
@@ -147,6 +159,7 @@ class LlmRequest {
     maxTokens: maxTokens ?? this.maxTokens,
     jsonOutput: jsonOutput ?? this.jsonOutput,
     effort: effort ?? this.effort,
+    contextWindow: contextWindow ?? this.contextWindow,
   );
 }
 

@@ -9,7 +9,7 @@ import 'package:mozhi/web_translate/data/web_page_fetcher.dart';
 
 /// A client that hands the raw [http.BaseRequest] to [handler].
 class RecordingClient extends http.BaseClient {
-  RecordingClient(this.handler);
+  new(this.handler);
 
   final Future<http.StreamedResponse> Function(http.BaseRequest request)
   handler;
@@ -29,7 +29,7 @@ class RecordingClient extends http.BaseClient {
 /// A response that knows its final URL (like browser clients).
 class UrlResponse extends http.StreamedResponse
     implements http.BaseResponseWithUrl {
-  UrlResponse(
+  new(
     super.stream,
     super.statusCode, {
     required this.url,
@@ -40,7 +40,7 @@ class UrlResponse extends http.StreamedResponse
   final Uri url;
 }
 
-final pageUri = Uri.parse('https://example.com/article');
+final Uri pageUri = Uri.parse('https://example.com/article');
 
 Future<WebPageException> fetchError(WebPageFetcher fetcher, [Uri? uri]) async {
   try {

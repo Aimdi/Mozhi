@@ -39,8 +39,10 @@ class _ModelPickerSheetState extends State<ModelPickerSheet> {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: TextField(
               autofocus: widget.models.length > 8,
+              // A label (not only a hint) keeps the field named once text
+              // is typed (WCAG 3.3.2, 4.1.2).
               decoration: InputDecoration(
-                hintText: l10n.settingsProviderModelSearch,
+                labelText: l10n.settingsProviderModelSearch,
                 prefixIcon: const Icon(Icons.search),
                 border: const OutlineInputBorder(),
               ),
@@ -52,7 +54,11 @@ class _ModelPickerSheetState extends State<ModelPickerSheet> {
                 ? Center(
                     child: Padding(
                       padding: const EdgeInsets.all(24),
-                      child: Text(l10n.settingsProviderModelsEmpty),
+                      child: Semantics(
+                        container: true,
+                        liveRegion: true,
+                        child: Text(l10n.settingsProviderModelsEmpty),
+                      ),
                     ),
                   )
                 : ListView.builder(

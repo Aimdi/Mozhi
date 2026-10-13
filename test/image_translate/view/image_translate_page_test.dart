@@ -309,6 +309,15 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('AI vision · Claude'), findsNothing);
 
+      final onClaude = translateState(engine: claude);
+      translateController
+        ..add(onClaude)
+        ..add(
+          onClaude.copyWith(options: const TranslationOptions(context: 'Menu')),
+        );
+      await tester.pumpAndSettle();
+      expect(find.text('Mozhi (Google Lens)'), findsNWidgets(2));
+
       translateController.add(translateState(engines: const [deepl]));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('image_translate_no_methods')), findsOne);

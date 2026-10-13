@@ -14,6 +14,19 @@ class LlmApiException implements Exception {
   bool get isRateLimited => statusCode == 429;
   bool get isNotFound => statusCode == 404;
 
+  /// The server answered with a redirect (3xx). Redirects are never
+  /// followed, so that API keys are not sent to another host; the base URL
+  /// should be updated instead.
+  bool get isRedirect => (statusCode ?? 0) ~/ 100 == 3;
+
+  /// Whether this is an [LlmTruncatedException]: the model stopped at its
+  /// output limit and the response is incomplete.
+  bool get isTruncated => this is LlmTruncatedException;
+
+  /// Whether this is an [LlmInterruptedException]: the response ended
+  /// without the provider's end-of-response signal.
+  bool get isInterrupted => this is LlmInterruptedException;
+
   @override
   String toString() => 'LlmApiException(${statusCode ?? '-'}): $message';
 }

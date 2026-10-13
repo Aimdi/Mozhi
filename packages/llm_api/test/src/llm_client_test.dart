@@ -54,6 +54,34 @@ void main() {
       expect(httpClient.closed, isFalse);
     });
 
+    test('LlmRequest.contextWindow only changes Ollama requests', () async {
+      const request = LlmRequest(model: 'm', messages: [LlmMessage.user('Hi')]);
+      for (final provider in LlmProvider.values) {
+        final server = FakeServer([
+          FakeResponse.text(''),
+          FakeResponse.text(''),
+        ]);
+        final client = LlmClient(
+          endpointFor(provider),
+          httpClient: server.client,
+        );
+        for (final sent in [request, request.copyWith(contextWindow: 2048)]) {
+          try {
+            await client.streamChat(sent).drain<void>();
+          } on LlmInterruptedException {
+            // The scripted responses are empty.
+          }
+        }
+        final [plain, sized] = server.requests;
+        if (provider == LlmProvider.ollama) {
+          expect(plain.json, containsPair('options', {'num_ctx': 8192}));
+          expect(sized.json, containsPair('options', {'num_ctx': 2048}));
+        } else {
+          expect(sized.body, plain.body, reason: provider.name);
+        }
+      }
+    });
+
     test('chat concatenates the streamed deltas', () async {
       final server = FakeServer([
         FakeResponse.text(

@@ -23,7 +23,7 @@ enum PromptProfile {
     if (id.contains('translategemma') || id.contains('translate-gemma')) {
       return PromptProfile.translateGemma;
     }
-    if (RegExp(r'hy-?mt|hunyuan-?mt').hasMatch(id)) {
+    if (RegExp('hy-?mt|hunyuan-?mt').hasMatch(id)) {
       return PromptProfile.hunyuanMt;
     }
     return PromptProfile.general;

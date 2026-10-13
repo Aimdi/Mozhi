@@ -119,6 +119,33 @@ void main() {
       );
 
       blocTest<HistoryCubit, HistoryState>(
+        'restore puts a deleted entry back through the repository '
+        '(regression: undo must not go through add)',
+        setUp: () =>
+            when(() => repository.restore(one))
+                .thenAnswer((_) async => [two, one]),
+        build: buildCubit,
+        seed: () => ready([two]),
+        act: (cubit) => cubit.restore(one),
+        expect: () => [
+          ready([two, one]),
+        ],
+        verify: (_) => verifyNever(() => repository.add(any())),
+      );
+
+      blocTest<HistoryCubit, HistoryState>(
+        'restore reports storage errors',
+        setUp: () =>
+            when(() => repository.restore(one))
+                .thenThrow(StateError('disk full')),
+        build: buildCubit,
+        seed: () => ready([two]),
+        act: (cubit) => cubit.restore(one),
+        expect: () => const <HistoryState>[],
+        errors: () => [isA<StateError>()],
+      );
+
+      blocTest<HistoryCubit, HistoryState>(
         'toggleFavorite emits the updated entries',
         setUp: () =>
             when(() => repository.toggleFavorite('1'))

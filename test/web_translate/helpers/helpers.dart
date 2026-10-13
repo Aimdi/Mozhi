@@ -7,7 +7,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/web_translate/web_translate.dart';
@@ -63,7 +62,7 @@ http.Client htmlClient(
 
 /// A translation repository whose [translate] is driven by [translator].
 class FakeTranslationRepository extends Fake implements TranslationRepository {
-  FakeTranslationRepository([
+  new([
     Stream<TranslationResult> Function(
       TranslationEngine engine,
       TranslationRequest request,
@@ -109,10 +108,10 @@ Stream<TranslationResult> upperCaseTranslator(
 ) => Stream.value(result(request.text.toUpperCase(), detected: 'en'));
 
 class MockTranslateCubit extends MockCubit<TranslateState>
-    implements TranslateCubit {}
+    implements TranslateCubit;
 
 class MockWebTranslateCubit extends MockCubit<WebTranslateState>
-    implements WebTranslateCubit {}
+    implements WebTranslateCubit;
 
 /// A translate state with [engine] selected (or no engines).
 TranslateState translateState({
@@ -164,7 +163,7 @@ extension PumpWebTranslate on WidgetTester {
 
 /// Answers clipboard calls; records what was copied.
 class FakeClipboard {
-  FakeClipboard(this.tester, {this.pasteText}) {
+  new(this.tester, {this.pasteText}) {
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       SystemChannels.platform,
       (call) async {

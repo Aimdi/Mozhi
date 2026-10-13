@@ -15,9 +15,11 @@ abstract final class WebTranslateShare {
   @visibleForTesting
   static Future<void> Function(ShareParams params) share = _share;
 
+  // coverage:ignore-start
   static Future<void> _share(ShareParams params) async {
     await SharePlus.instance.share(params);
   }
+  // coverage:ignore-end
 }
 
 /// The reader mode actually shown: side by side needs a wide window.

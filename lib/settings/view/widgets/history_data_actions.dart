@@ -169,7 +169,9 @@ class _ImportHistoryDialogState extends State<ImportHistoryDialog> {
             keyboardType: TextInputType.multiline,
             style: const TextStyle(fontFamily: 'monospace'),
             decoration: InputDecoration(
+              labelText: l10n.settingsImportLabel,
               hintText: l10n.settingsImportHint,
+              alignLabelWithHint: true,
               errorText: _error,
               errorMaxLines: 3,
               border: const OutlineInputBorder(),

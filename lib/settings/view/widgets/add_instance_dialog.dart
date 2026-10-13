@@ -14,6 +14,24 @@ String describeError(Object error) => switch (error) {
   _ => error.toString(),
 };
 
+/// Why [input] must not be saved as a service URL, or null when it is fine:
+/// `userInfo` (`https://user:pass@host`) and query strings (`?key=…`) would
+/// put credentials into plain preferences, backups, the UI and error
+/// messages.
+UrlSecretProblem? urlSecretProblem(String input) {
+  final trimmed = input.trim();
+  if (trimmed.isEmpty) return null;
+  final hasScheme = RegExp('^[a-zA-Z][a-zA-Z0-9+.-]*://').hasMatch(trimmed);
+  final uri = Uri.tryParse(hasScheme ? trimmed : '//$trimmed');
+  if (uri == null) return null;
+  if (uri.userInfo.isNotEmpty) return UrlSecretProblem.credentials;
+  if (uri.hasQuery) return UrlSecretProblem.query;
+  return null;
+}
+
+/// See [urlSecretProblem].
+enum UrlSecretProblem { credentials, query }
+
 /// Asks for an instance URL (+ optional label) and returns the new
 /// [MozhiInstance], or null when cancelled. [existingUrls] are rejected as
 /// duplicates.
@@ -48,12 +66,14 @@ class _AddInstanceDialogState extends State<AddInstanceDialog> {
   final _formKey = GlobalKey<FormState>();
   final _urlController = TextEditingController();
   final _labelController = TextEditingController();
+  final _urlFocus = FocusNode();
   _TestState? _test;
 
   @override
   void dispose() {
     _urlController.dispose();
     _labelController.dispose();
+    _urlFocus.dispose();
     super.dispose();
   }
 
@@ -70,6 +90,13 @@ class _AddInstanceDialogState extends State<AddInstanceDialog> {
     if (value == null || value.trim().isEmpty) {
       return l10n.settingsInstanceUrlInvalid;
     }
+    switch (urlSecretProblem(value)) {
+      case UrlSecretProblem.credentials:
+        return l10n.settingsInstanceUrlCredentials;
+      case UrlSecretProblem.query:
+        return l10n.settingsInstanceUrlQuery;
+      case null:
+    }
     final uri = _normalized();
     if (uri == null) return l10n.settingsInstanceUrlInvalid;
     if (widget.existingUrls.contains(uri.toString())) {
@@ -79,7 +106,12 @@ class _AddInstanceDialogState extends State<AddInstanceDialog> {
   }
 
   MozhiInstance? _buildInstance() {
-    if (!(_formKey.currentState?.validate() ?? false)) return null;
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      // The URL is the only validated field: move focus back to it so its
+      // error is read and can be fixed right away (WCAG 3.3.1).
+      _urlFocus.requestFocus();
+      return null;
+    }
     final uri = _normalized();
     if (uri == null) return null;
     final label = _labelController.text.trim();
@@ -112,7 +144,6 @@ class _AddInstanceDialogState extends State<AddInstanceDialog> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final colors = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
     final test = _test;
     return AlertDialog(
       title: Text(l10n.settingsInstancesAdd),
@@ -125,6 +156,7 @@ class _AddInstanceDialogState extends State<AddInstanceDialog> {
           children: [
             TextFormField(
               controller: _urlController,
+              focusNode: _urlFocus,
               autofocus: true,
               keyboardType: TextInputType.url,
               autocorrect: false,
@@ -133,7 +165,8 @@ class _AddInstanceDialogState extends State<AddInstanceDialog> {
                 labelText: l10n.settingsInstanceUrl,
                 hintText: l10n.settingsInstanceUrlHint,
                 prefixIcon: const Icon(Icons.link),
-                errorMaxLines: 3,
+                border: const OutlineInputBorder(),
+                errorMaxLines: 4,
               ),
               validator: _validateUrl,
               onChanged: (_) {
@@ -147,20 +180,25 @@ class _AddInstanceDialogState extends State<AddInstanceDialog> {
               decoration: InputDecoration(
                 labelText: l10n.settingsInstanceLabel,
                 prefixIcon: const Icon(Icons.label_outline),
+                border: const OutlineInputBorder(),
               ),
               onFieldSubmitted: (_) => _save(),
             ),
             if (test != null) ...[
               const SizedBox(height: 16),
               switch (test) {
-                _Testing() => const LinearProgressIndicator(),
-                _TestOk(:final latency) => Text(
-                  l10n.settingsInstanceTestOk(latency.inMilliseconds),
-                  style: textTheme.bodyMedium?.copyWith(color: colors.success),
+                _Testing() => LinearProgressIndicator(
+                  semanticsLabel: l10n.settingsInstanceTesting,
                 ),
-                _TestFailed(:final message) => Text(
-                  l10n.settingsInstanceTestFailed(message),
-                  style: textTheme.bodyMedium?.copyWith(color: colors.error),
+                _TestOk(:final latency) => _TestMessage(
+                  icon: Icons.check_circle_outline,
+                  color: colors.success,
+                  text: l10n.settingsInstanceTestOk(latency.inMilliseconds),
+                ),
+                _TestFailed(:final message) => _TestMessage(
+                  icon: Icons.error_outline,
+                  color: colors.error,
+                  text: l10n.settingsInstanceTestFailed(message),
                 ),
               },
             ],
@@ -177,6 +215,35 @@ class _AddInstanceDialogState extends State<AddInstanceDialog> {
           child: Text(l10n.settingsInstanceTest),
         ),
         FilledButton(onPressed: _save, child: Text(l10n.commonAdd)),
+      ],
+    );
+  }
+}
+
+/// Test outcome: a coloured icon plus text in the normal on-surface colour
+/// (coloured text on the dialog surface fell below 4.5:1), announced as a
+/// status message (WCAG 4.1.3).
+class _TestMessage extends StatelessWidget {
+  const new({required this.icon, required this.color, required this.text});
+
+  final IconData icon;
+  final Color color;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 20, color: color),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Semantics(
+            container: true,
+            liveRegion: true,
+            child: Text(text, style: Theme.of(context).textTheme.bodyMedium),
+          ),
+        ),
       ],
     );
   }

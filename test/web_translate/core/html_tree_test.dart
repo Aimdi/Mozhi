@@ -102,7 +102,7 @@ void main() {
       final html = '${'<div>' * (maxHtmlDepth + 50)}deep';
       final doc = parseHtml(html);
       var depth = 0;
-      HtmlElement node = doc;
+      var node = doc;
       while (node.elementChildren.isNotEmpty) {
         node = node.elementChildren.first;
         depth++;

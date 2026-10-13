@@ -78,6 +78,7 @@ TranslateState readyState({
   Language source = Language.auto,
   Language target = en,
   TranslationResult? result,
+  String? resultInput,
   TranslateStatus status = TranslateStatus.idle,
   TranslationOptions options = const TranslationOptions(),
 }) => TranslateState(
@@ -91,6 +92,8 @@ TranslateState readyState({
   target: target,
   input: input,
   result: result,
+  // A result belongs to the input unless said otherwise.
+  resultInput: resultInput ?? (result == null ? null : input),
   status: status,
   options: options,
 );
@@ -158,11 +161,19 @@ class TranslateMocks {
   List<HistoryEntry> historyEntries() =>
       verify(() => history.add(captureAny())).captured.cast<HistoryEntry>();
 
+  /// Device languages seen by the smart swap (none by default).
+  List<String> deviceLanguages = const [];
+
+  /// The cubit's clock; null for the real one.
+  DateTime Function()? clock;
+
   TranslateCubit build() => TranslateCubit(
     repository: repository,
     settings: settings,
     history: history,
     debounce: fastDebounce,
     aiDebounce: fastAiDebounce,
+    clock: clock,
+    deviceLanguages: () => deviceLanguages,
   );
 }

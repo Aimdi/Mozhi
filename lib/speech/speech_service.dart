@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/speech/audio_output.dart';
 import 'package:mozhi/speech/device_tts.dart';
+import 'package:mozhi/speech/speech_chunker.dart';
 import 'package:mozhi/speech/speech_language.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -31,21 +32,60 @@ enum _Backend { mozhi, device }
 
 enum _Outcome { skipped, superseded, started }
 
+/// One Mozhi read-aloud: [text] split into [chunks] that are fetched and
+/// played one after another.
+class _MozhiPlayback {
+  new({
+    required this.generation,
+    required this.text,
+    required this.languageCode,
+    required this.slow,
+    required this.chunks,
+  });
+
+  final int generation;
+  final String text;
+  final String languageCode;
+  final bool slow;
+  final List<String> chunks;
+
+  /// Index of the chunk playing, or last played.
+  int index = 0;
+
+  /// Audio of the chunk after [index], fetched while [index] plays; null
+  /// when it could not be fetched.
+  Future<Uint8List?>? next;
+
+  /// Whether the device engine has taken over reading [text].
+  bool handedOver = false;
+
+  bool get hasNext => index + 1 < chunks.length;
+}
+
 /// Reads text aloud.
 ///
 /// Strategy: Mozhi `/api/tts` first (google, falling back to reverso, via
 /// [TranslationRepository.textToSpeech]) when at least one instance is
-/// configured and the language looks speakable; the MP3 is played with
-/// [AudioOutput] and the last 20 clips are cached in memory. On any
-/// fetch/playback failure, or without instances, the device engine
-/// ([DeviceTts]) speaks it if it has a voice for the language. Otherwise
-/// [toggle] throws [SpeechUnavailableException]. With [preferDeviceVoice]
-/// the device engine is tried first and Mozhi is only the fallback.
+/// configured and the language looks speakable. The endpoint is GET-only
+/// with a ~4 KiB request line, so the text is split into chunks of at most
+/// [maxSpeechChunkLength] characters at sentence, clause or word breaks
+/// ([splitTextForSpeech]); the MP3 clips are played one after another with
+/// [AudioOutput], the next one being fetched while the current one plays,
+/// and the last 20 clips are cached in memory. On any fetch/playback
+/// failure, or without instances, the device engine ([DeviceTts]) speaks the
+/// whole text if it has a voice for the language. Otherwise [toggle] throws
+/// [SpeechUnavailableException]. With [preferDeviceVoice] the device engine
+/// is tried first and Mozhi is only the fallback.
+///
+/// A later chunk failing does not make [toggle] throw (it has already
+/// returned): the device engine reads the whole text from the start instead,
+/// or, without a device voice, the clip playing is finished and the service
+/// becomes idle.
 ///
 /// [speaking] exposes the id of the clip currently playing (null = idle) so
 /// buttons can show a stop icon. The id is reported as speaking from the
-/// moment [toggle] is called (including while the clip is being fetched)
-/// until it completes, is stopped, or fails.
+/// moment [toggle] is called (including while the clips are being fetched)
+/// until the last one completes, is stopped, or fails.
 ///
 /// `output` defaults to [AudioPlayersOutput] and `deviceTts` to
 /// [FlutterTtsDeviceTts]; the service owns both and disposes them in
@@ -70,7 +110,7 @@ class SpeechService {
     );
   }
 
-  /// Number of clips kept in the in-memory LRU cache.
+  /// Number of clips (chunks) kept in the in-memory LRU cache.
   static const cacheSize = 20;
 
   /// [AudioOutput] playback rate for `slow` Mozhi clips.
@@ -102,6 +142,9 @@ class SpeechService {
   /// stops a backend nobody newer has taken over.
   int? _audioOwner;
   int? _deviceOwner;
+
+  /// The latest Mozhi read-aloud (set as its first chunk starts).
+  _MozhiPlayback? _mozhi;
 
   bool? _preferDevice;
   Future<bool>? _preferDeviceLoad;
@@ -201,6 +244,8 @@ class SpeechService {
     }
   }
 
+  /// Fetches and starts the first chunk of [text]; completions play the
+  /// rest ([_playNextChunk]).
   Future<_Outcome> _playMozhi(
     String text,
     String languageCode, {
@@ -210,35 +255,143 @@ class SpeechService {
     if (_repository.instances.isEmpty || !_mozhiSupports(languageCode)) {
       return _Outcome.skipped;
     }
+    final playback = _MozhiPlayback(
+      generation: generation,
+      text: text,
+      languageCode: languageCode,
+      slow: slow,
+      chunks: splitTextForSpeech(text),
+    );
     await _output.setPlaybackRate(slow ? slowPlaybackRate : 1);
-    final bytes = await _fetch(text, languageCode);
+    final bytes = await _fetch(playback.chunks.first, languageCode);
     if (generation != _generation) return _Outcome.superseded;
+    _mozhi = playback;
+    if (!await _startChunk(playback, bytes)) return _Outcome.superseded;
+    return _Outcome.started;
+  }
+
+  /// Plays [bytes] as [playback]'s current chunk and prefetches the next
+  /// one. False when [playback] was superseded meanwhile.
+  Future<bool> _startChunk(_MozhiPlayback playback, Uint8List bytes) async {
+    final generation = playback.generation;
     _audioOwner = generation;
     await _output.play(bytes);
     if (generation != _generation) {
       // Stopped while starting: make sure nothing keeps playing.
       if (_audioOwner == generation) await _output.stop();
-      return _Outcome.superseded;
+      return false;
     }
     _playing = generation;
     _playingBackend = _Backend.mozhi;
-    return _Outcome.started;
+    _prefetchNext(playback);
+    return true;
   }
 
+  /// Starts fetching the chunk after the current one. A failure hands the
+  /// whole text over to the device engine ([_interruptForDevice]).
+  void _prefetchNext(_MozhiPlayback playback) {
+    if (!playback.hasNext) return;
+    playback.next =
+        _fetch(
+          playback.chunks[playback.index + 1],
+          playback.languageCode,
+        ).then<Uint8List?>(
+          (bytes) => bytes,
+          onError: (Object _) {
+            if (playback.generation == _generation) {
+              unawaited(_interruptForDevice(playback));
+            }
+            return null;
+          },
+        );
+  }
+
+  /// Called when [playback]'s current chunk has finished: plays the next
+  /// one once it is fetched, or hands over to the device engine.
+  Future<void> _playNextChunk(_MozhiPlayback playback) async {
+    final generation = playback.generation;
+    // Completions are ignored until the next chunk has started.
+    _playing = null;
+    _playingBackend = null;
+    final bytes = await playback.next;
+    if (generation != _generation) return;
+    if (bytes != null) {
+      playback.index++;
+      try {
+        await _startChunk(playback, bytes);
+        return;
+      } on Object {
+        if (generation != _generation) return;
+      }
+    }
+    await _handOverToDevice(playback);
+  }
+
+  /// A later chunk could not be fetched while the current one plays: stops
+  /// it and lets the device engine read the whole text, unless the device
+  /// has no voice for it (then the current chunk plays out and
+  /// [_playNextChunk] ends the playback).
+  Future<void> _interruptForDevice(_MozhiPlayback playback) async {
+    final generation = playback.generation;
+    final tag = await _deviceTag(playback.languageCode);
+    if (tag == null ||
+        generation != _generation ||
+        _playing != generation ||
+        playback.handedOver) {
+      return;
+    }
+    await _handOverToDevice(playback, tag: tag);
+  }
+
+  /// Reads [playback]'s whole text on the device engine after a chunk
+  /// failed; becomes idle when the device cannot. A [tag] means the device
+  /// voice is known to exist and a chunk is still playing.
+  Future<void> _handOverToDevice(_MozhiPlayback playback, {String? tag}) async {
+    if (playback.handedOver) return;
+    playback.handedOver = true;
+    final generation = playback.generation;
+    _playing = null;
+    _playingBackend = null;
+    try {
+      if (tag != null) await _output.stop();
+      final outcome = await _speakOnDevice(
+        playback.text,
+        playback.languageCode,
+        slow: playback.slow,
+        generation: generation,
+        tag: tag,
+      );
+      if (outcome != _Outcome.skipped) return;
+    } on Object {
+      // toggle() has returned already; there is nothing left to try.
+    }
+    if (generation == _generation) _setCurrent(null);
+  }
+
+  /// The device engine's tag for [languageCode], or null when it has no
+  /// voice for it.
+  Future<String?> _deviceTag(String languageCode) async {
+    final tag = speechLanguageTag(languageCode);
+    if (tag == null ||
+        !_device.isSupported ||
+        !await _device.isLanguageAvailable(tag)) {
+      return null;
+    }
+    return tag;
+  }
+
+  /// Speaks [text] on the device; [tag] skips the voice lookup.
   Future<_Outcome> _speakOnDevice(
     String text,
     String languageCode, {
     required bool slow,
     required int generation,
+    String? tag,
   }) async {
-    final tag = speechLanguageTag(languageCode);
-    if (tag == null ||
-        !_device.isSupported ||
-        !await _device.isLanguageAvailable(tag)) {
-      return _Outcome.skipped;
-    }
+    final resolved = tag ?? await _deviceTag(languageCode);
+    if (resolved == null) return _Outcome.skipped;
     if (generation != _generation) return _Outcome.superseded;
-    await _device.setLanguage(tag);
+    await _device.setLanguage(resolved);
     if (generation != _generation) return _Outcome.superseded;
     await _device.setSpeechRate(slow: slow);
     if (generation != _generation) return _Outcome.superseded;
@@ -314,6 +467,13 @@ class SpeechService {
         _playing != _generation ||
         _playingBackend != backend) {
       return;
+    }
+    if (backend == _Backend.mozhi) {
+      if (_mozhi case final playback?
+          when playback.generation == _playing && playback.hasNext) {
+        unawaited(_playNextChunk(playback));
+        return;
+      }
     }
     _playing = null;
     _playingBackend = null;

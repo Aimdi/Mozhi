@@ -195,17 +195,20 @@ void main() {
     );
 
     blocTest<TranslateCubit, TranslateState>(
-      'emits failure when languages fail to load',
+      'emits failure but keeps the engines when languages fail to load',
       build: () {
         when(() => mocks.repository.getTargetLanguages(any()))
             .thenThrow(enginesError);
         return mocks.build();
       },
       act: (cubit) => cubit.loadEngines(),
+      errors: () => [enginesError],
       verify: (cubit) {
         expect(cubit.state.enginesStatus, EnginesStatus.failure);
         expect(cubit.state.error, enginesError);
-        expect(cubit.state.engine, isNull);
+        expect(cubit.state.engines, allEngines);
+        expect(cubit.state.engine, google);
+        expect(cubit.state.assistEngine, claude);
       },
     );
 

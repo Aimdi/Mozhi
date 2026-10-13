@@ -28,6 +28,24 @@ void main() {
     });
   });
 
+  group(LlmRequest, () {
+    const request = LlmRequest(
+      model: 'm',
+      messages: [LlmMessage.user('Hi')],
+      contextWindow: 4096,
+    );
+
+    test('contextWindow defaults to null', () {
+      expect(const LlmRequest(model: 'm', messages: []).contextWindow, isNull);
+    });
+
+    test('copyWith keeps or replaces contextWindow', () {
+      expect(request.copyWith(model: 'n').contextWindow, 4096);
+      expect(request.copyWith(model: 'n').model, 'n');
+      expect(request.copyWith(contextWindow: 16384).contextWindow, 16384);
+    });
+  });
+
   group(LlmModel, () {
     test('label prefers a non-empty display name', () {
       expect(const LlmModel(id: 'a', displayName: 'Alpha').label, 'Alpha');

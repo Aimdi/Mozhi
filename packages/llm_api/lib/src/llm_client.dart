@@ -25,6 +25,10 @@ import 'package:llm_api/src/providers/openai_compatible_client.dart';
 ///   `LlmInterruptedException`.
 /// * Requests honour [timeout] for connection + time-to-first-byte; once
 ///   streaming, an idle gap longer than [timeout] errors the stream.
+/// * Redirects are never followed, because HTTP stacks forward custom auth
+///   headers (`x-api-key`, `x-goog-api-key`) to the new host: a 3xx answer
+///   errors with `LlmApiException` (`isRedirect`, message
+///   `Redirected to <host> — update the base URL`).
 /// * Cancelling the subscription aborts the HTTP request (use
 ///   `http.AbortableRequest` / close a per-request client).
 /// * Works on web: uses only `package:http` (BrowserClient streams via

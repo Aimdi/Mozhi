@@ -32,6 +32,11 @@ class HistoryCubit extends Cubit<HistoryState> {
 
   Future<void> add(HistoryEntry entry) => _run(() => _repository.add(entry));
 
+  /// Puts a deleted [entry] back at its original position (use this to
+  /// undo [delete]; see [HistoryRepository.restore]).
+  Future<void> restore(HistoryEntry entry) =>
+      _run(() => _repository.restore(entry));
+
   Future<void> toggleFavorite(String id) =>
       _run(() => _repository.toggleFavorite(id));
 

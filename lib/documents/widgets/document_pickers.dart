@@ -23,11 +23,7 @@ Future<TranslationEngine?> showDocumentEnginePicker(
 
 /// Engines with their privacy badge; the selected one is checked.
 class DocumentEngineSheet extends StatelessWidget {
-  const DocumentEngineSheet({
-    required this.engines,
-    required this.selected,
-    super.key,
-  });
+  const new({required this.engines, required this.selected, super.key});
 
   final List<TranslationEngine> engines;
   final TranslationEngine? selected;
@@ -99,7 +95,7 @@ Future<Language?> showDocumentLanguagePicker(
 }
 
 class DocumentLanguageSheet extends StatefulWidget {
-  const DocumentLanguageSheet({
+  const new({
     required this.title,
     required this.languages,
     required this.selected,

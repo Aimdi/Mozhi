@@ -168,6 +168,188 @@ void main() {
         expect(pool.active, instanceC);
       });
 
+      test('tries instances added while a request is in flight', () async {
+        pool.update([instanceA, instanceB]);
+        final visited = <MozhiInstance>[];
+        final result = await pool.run((client, instance) async {
+          visited.add(instance);
+          if (instance == instanceA) {
+            // "Reset to defaults" replaced the list; A's client is closed.
+            pool.update([instanceC]);
+            throw const MozhiApiException(
+              'HTTP request failed. Client is already closed.',
+            );
+          }
+          return instance.url;
+        });
+        expect(result, instanceC.url);
+        expect(visited, [instanceA, instanceC]);
+        expect(pool.active, instanceC);
+      });
+
+      test('continues after the failed instance in the new order', () async {
+        pool.update([instanceA, instanceB]);
+        final visited = <MozhiInstance>[];
+        await pool.run((client, instance) async {
+          visited.add(instance);
+          if (instance == instanceA) {
+            pool.update([instanceA, instanceC, instanceB]);
+            throw serverError();
+          }
+          if (instance == instanceC) throw serverError();
+        });
+        expect(visited, [instanceA, instanceC, instanceB]);
+      });
+
+      test('fails over on instance-level HTTP statuses', () async {
+        for (final status in [301, 302, 401, 403, 404, 405, 408, 410]) {
+          pool.update([instanceA, instanceB]);
+          pool.resetPreferred();
+          final visited = <MozhiInstance>[];
+          final result = await pool.run((client, instance) async {
+            visited.add(instance);
+            if (instance == instanceA) {
+              throw MozhiApiException('instance', statusCode: status);
+            }
+            return 'ok';
+          });
+          expect(result, 'ok', reason: '$status');
+          expect(visited, [instanceA, instanceB], reason: '$status');
+        }
+      });
+
+      test('rethrows Mozhi input errors reported as 500 without failing '
+          'over', () async {
+        for (final message in [
+          'Target Language Code invalid',
+          'Target language code invalid',
+          'Source language code invalid',
+          'Engine does not exist or has been disabled.',
+          'Engine nopenot supported or implemented',
+          'from, to, engine, text are required query strings.',
+          'engine is a required query string.',
+          'Engine does not exist and/or doesn\'t support TTS and/or has been '
+              'disabled.',
+          'there is no uploaded file associated with the given key',
+        ]) {
+          pool.update([instanceA, instanceB]);
+          final visited = <MozhiInstance>[];
+          await expectLater(
+            pool.run<void>((client, instance) async {
+              visited.add(instance);
+              throw MozhiApiException(message, statusCode: 500);
+            }),
+            throwsA(
+              isA<MozhiApiException>().having(
+                (e) => e.message,
+                'message',
+                message,
+              ),
+            ),
+            reason: message,
+          );
+          expect(visited, [instanceA], reason: message);
+        }
+      });
+
+      test('keeps failing over on upstream failures', () async {
+        for (final message in [
+          'Post "https://translate.google.com/_/x": Forbidden',
+          'Get "https://api.mymemory.translated.net/get?q=required+arguments": '
+              'Forbidden',
+          'ErrTransport: Get "https://translate.google.com/translate_tts": '
+              'Forbidden',
+          'runtime error: invalid memory address or nil pointer dereference',
+        ]) {
+          pool.update([instanceA, instanceB]);
+          pool.resetPreferred();
+          final visited = <MozhiInstance>[];
+          await pool.run((client, instance) async {
+            visited.add(instance);
+            if (instance == instanceA) {
+              throw MozhiApiException(message, statusCode: 500);
+            }
+          });
+          expect(visited, [instanceA, instanceB], reason: message);
+        }
+      });
+
+      group('with failOverOnTimeout: false', () {
+        test('rethrows timeouts without trying another instance', () async {
+          pool.update([instanceA, instanceB]);
+          for (final error in <Object>[
+            TimeoutException('slow'),
+            const MozhiApiException('No response within 30000 ms'),
+          ]) {
+            final visited = <MozhiInstance>[];
+            await expectLater(
+              pool.run<void>((client, instance) async {
+                visited.add(instance);
+                throw error;
+              }, failOverOnTimeout: false),
+              throwsA(same(error)),
+            );
+            expect(visited, [instanceA]);
+          }
+        });
+
+        test('still fails over on connection errors and 5xx', () async {
+          pool.update([instanceA, instanceB, instanceC]);
+          final visited = <MozhiInstance>[];
+          await pool.run((client, instance) async {
+            visited.add(instance);
+            if (instance == instanceA) {
+              throw const MozhiApiException('Connection refused');
+            }
+            if (instance == instanceB) throw serverError();
+          }, failOverOnTimeout: false);
+          expect(visited, [instanceA, instanceB, instanceC]);
+        });
+      });
+
+      test('sanitises the errors it throws', () async {
+        pool.update([instanceA, instanceB]);
+        await expectLater(
+          pool.run<void>((client, instance) async {
+            throw MozhiApiException(
+              'Get "https://api.mymemory.translated.net/get?langpair=en%7Cfr'
+              '&q=my+secret": Forbidden',
+              statusCode: 500,
+              uri: Uri.parse('https://a.example/api/tts?text=my+secret'),
+            );
+          }),
+          throwsA(
+            isA<MozhiApiException>()
+                .having(
+                  (e) => e.message,
+                  'message',
+                  'Get "https://api.mymemory.translated.net": Forbidden',
+                )
+                .having((e) => e.statusCode, 'statusCode', 500)
+                .having(
+                  (e) => e.uri,
+                  'uri',
+                  Uri.parse('https://a.example/api/tts'),
+                ),
+          ),
+        );
+        await expectLater(
+          pool.run<void>((client, instance) async {
+            throw MozhiApiException(
+              'Target language code invalid https://x.example/?q=secret',
+              statusCode: 500,
+            );
+          }),
+          throwsA(
+            isA<MozhiApiException>().having(
+              (e) => e.message,
+              'message',
+              'Target language code invalid https://x.example',
+            ),
+          ),
+        );
+      });
+
       test('does not prefer an instance removed during the request', () async {
         pool.update([instanceA, instanceB]);
         await pool.run((client, instance) async {
@@ -202,16 +384,53 @@ void main() {
         verifyNever(() => clients[instanceB.url]!.close());
       });
 
-      test('keeps the preferred instance while it is configured', () async {
+      test('keeps the failover preference while the order is unchanged', () async {
         pool.update([instanceA, instanceB]);
         await pool.run((client, instance) async {
           if (instance == instanceA) throw serverError();
         });
         expect(pool.active, instanceB);
-        pool.update([instanceC, instanceB]);
+        pool.update([instanceA, instanceB]);
         expect(pool.active, instanceB);
-        pool.update([instanceC, instanceA]);
+      });
+
+      test('forgets the failover preference when the order changes', () async {
+        pool.update([instanceA, instanceB, instanceC]);
+        await pool.run((client, instance) async {});
+        expect(pool.active, instanceA);
+        // The user prefers C: requests must go there, not stay on A.
+        pool.update([instanceC, instanceA, instanceB]);
         expect(pool.active, instanceC);
+        final visited = <MozhiInstance>[];
+        await pool.run((client, instance) async => visited.add(instance));
+        expect(visited, [instanceC]);
+      });
+
+      test('forgets the preference when an instance is added or removed', () async {
+        pool.update([instanceA, instanceB]);
+        await pool.run((client, instance) async {
+          if (instance == instanceA) throw serverError();
+        });
+        expect(pool.active, instanceB);
+        pool.update([instanceA, instanceB, instanceC]);
+        expect(pool.active, instanceA);
+
+        await pool.run((client, instance) async {
+          if (instance == instanceA) throw serverError();
+        });
+        expect(pool.active, instanceB);
+        pool.update([instanceA, instanceB]);
+        expect(pool.active, instanceA);
+      });
+
+      test('resetPreferred starts at the first instance again', () async {
+        pool.update([instanceA, instanceB]);
+        await pool.run((client, instance) async {
+          if (instance == instanceA) throw serverError();
+        });
+        expect(pool.active, instanceB);
+        pool.resetPreferred();
+        expect(pool.active, instanceA);
       });
 
       test('picks up a new label for the preferred instance', () async {
@@ -248,12 +467,115 @@ void main() {
         verify(() => clients[instanceB.url]!.close()).called(1);
       });
 
+      test('sanitises errors', () async {
+        pool.update([instanceA]);
+        await expectLater(
+          pool.withClient<void>(
+            instanceA,
+            (c) async => throw MozhiApiException(
+              'Post "https://translate.google.com/x?q=1": Forbidden',
+              statusCode: 500,
+            ),
+          ),
+          throwsA(
+            isA<MozhiApiException>().having(
+              (e) => e.message,
+              'message',
+              'Post "https://translate.google.com": Forbidden',
+            ),
+          ),
+        );
+      });
+
       test('closes the temporary client when the action fails', () async {
         await expectLater(
           pool.withClient<void>(instanceB, (c) async => throw serverError()),
           throwsA(isA<MozhiApiException>()),
         );
         verify(() => clients[instanceB.url]!.close()).called(1);
+      });
+    });
+
+    group('static helpers', () {
+      test('isInputError needs a status code', () {
+        expect(
+          MozhiPool.isInputError(
+            const MozhiApiException('Target language code invalid'),
+          ),
+          isFalse,
+        );
+        expect(
+          MozhiPool.isInputError(
+            const MozhiApiException(
+              'Target language code invalid',
+              statusCode: 500,
+            ),
+          ),
+          isTrue,
+        );
+        expect(
+          MozhiPool.isInputError(
+            const MozhiApiException('Authentication required', statusCode: 401),
+          ),
+          isFalse,
+        );
+      });
+
+      test('isTimeout recognises the client timeout only', () {
+        expect(
+          MozhiPool.isTimeout(
+            const MozhiApiException('No response within 30000 ms'),
+          ),
+          isTrue,
+        );
+        expect(
+          MozhiPool.isTimeout(const MozhiApiException('Connection refused')),
+          isFalse,
+        );
+        expect(
+          MozhiPool.isTimeout(
+            const MozhiApiException('No response within', statusCode: 504),
+          ),
+          isFalse,
+        );
+      });
+
+      test('canFailOver', () {
+        expect(MozhiPool.canFailOver(serverError()), isTrue);
+        expect(MozhiPool.canFailOver(badRequest()), isFalse);
+        const timeout = MozhiApiException('No response within 10 ms');
+        expect(MozhiPool.canFailOver(timeout), isTrue);
+        expect(MozhiPool.canFailOver(timeout, failOverOnTimeout: false), isFalse);
+      });
+
+      test('sanitize keeps clean errors and caps long messages', () {
+        const clean = MozhiApiException(
+          'boom',
+          statusCode: 502,
+          uri: null,
+        );
+        expect(MozhiPool.sanitize(clean), same(clean));
+        final withUri = MozhiApiException(
+          'boom',
+          uri: Uri.parse('https://a.example/api/translate'),
+        );
+        expect(MozhiPool.sanitize(withUri), same(withUri));
+
+        final long = MozhiApiException('x' * 1000, statusCode: 500);
+        final sanitized = MozhiPool.sanitize(long);
+        expect(sanitized.message.length, MozhiPool.maxMessageLength);
+        expect(sanitized.message, endsWith('…'));
+        expect(sanitized.statusCode, 500);
+      });
+
+      test('sanitizeMessage keeps ports and drops credentials', () {
+        expect(
+          MozhiPool.sanitizeMessage(
+            'Get "http://user:pw@10.0.0.2:8080/api?q=hi": refused',
+          ),
+          'Get "http://10.0.0.2:8080": refused',
+        );
+        expect(MozhiPool.sanitizeMessage('Get "file:///etc/x": no'), contains('<url>'));
       });
     });
 

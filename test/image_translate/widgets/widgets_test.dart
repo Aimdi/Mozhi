@@ -8,6 +8,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/image_translate/image_translate.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 import '../helpers/helpers.dart';
@@ -291,6 +292,23 @@ void main() {
       expect(arguments['mimeTypes'], ['image/png']);
     });
 
+    testWidgets('offers the translator for recognised text only', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        successState(
+          method: onDeviceMethod,
+          result: const ImageTranslation(sourceText: 'Hola'),
+        ).copyWith(status: ImageTranslateStatus.ready),
+      );
+      expect(find.byKey(const Key('image_translate_open_button')), findsOne);
+      expect(
+        find.byKey(const Key('image_translate_share_button')),
+        findsNothing,
+      );
+    });
+
     testWidgets('opens the source text in the translator', (tester) async {
       await pump(tester, successState());
       await tester.tap(find.byKey(const Key('image_translate_open_button')));
@@ -415,9 +433,7 @@ void main() {
     });
 
     testWidgets('falls back to the catalogue', (tester) async {
-      harness = ImageTranslateHarness(
-        translate: const TranslateState(sourceLanguages: [Language.auto]),
-      );
+      harness = ImageTranslateHarness(translate: const TranslateState());
       final cubit = mockImageCubit(working);
       await harness.pumpWithCubit(
         tester,
@@ -434,7 +450,7 @@ void main() {
       expect(find.text(l10n.imageTranslateNoLanguages), findsOneWidget);
       await tester.enterText(
         find.byKey(const Key('image_language_search')),
-        'es',
+        'spanish',
       );
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('image_language_es')));

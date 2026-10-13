@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -46,8 +48,8 @@ class ProofreadView extends StatelessWidget {
     final hasEngines = context.select<ProofreadCubit, bool>(
       (cubit) => cubit.state.availableEngines.isNotEmpty,
     );
-    final enginesLoading = context.select<TranslateCubit, bool>(
-      (cubit) => cubit.state.enginesStatus == EnginesStatus.loading,
+    final enginesStatus = context.select<TranslateCubit, EnginesStatus>(
+      (cubit) => cubit.state.enginesStatus,
     );
 
     final Widget body;
@@ -58,16 +60,25 @@ class ProofreadView extends StatelessWidget {
             ? const _WideLayout()
             : const _NarrowLayout(),
       );
-    } else if (enginesLoading) {
+    } else if (enginesStatus == EnginesStatus.loading) {
       body = const Center(child: CircularProgressIndicator());
+    } else if (enginesStatus == EnginesStatus.failure) {
+      // Loading failed, which says nothing about configured AI providers.
+      body = ProofreadEnginesError(
+        onRetry: () => unawaited(
+          context.read<TranslateCubit>().loadEngines(refresh: true),
+        ),
+      );
     } else {
       body = const ProofreadEmptyState();
     }
 
     return BlocListener<TranslateCubit, TranslateState>(
+      // Engine equality ignores details such as the model, so compare
+      // instances to pick up edited providers.
       listenWhen: (previous, current) =>
-          previous.engines != current.engines ||
-          previous.assistEngine != current.assistEngine,
+          !identical(previous.engines, current.engines) ||
+          !identical(previous.assistEngine, current.assistEngine),
       listener: (context, state) => context.read<ProofreadCubit>().setEngines(
         state.engines,
         preferred: state.assistEngine,

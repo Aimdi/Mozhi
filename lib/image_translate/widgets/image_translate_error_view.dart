@@ -1,7 +1,7 @@
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:mozhi/app/router.dart';
 import 'package:mozhi/image_translate/widgets/image_translate_labels.dart';
+import 'package:mozhi/image_translate/widgets/image_translate_links.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/widgets/translate_error.dart';
 
@@ -21,11 +21,11 @@ class ImageTranslateErrorView extends StatelessWidget {
     final (fixLabel, fixRoute) = switch (info.fix) {
       TranslateErrorFix.instances => (
         l10n.translateManageInstances,
-        AppRoutes.instances,
+        ImageTranslateLinks.instances,
       ),
       TranslateErrorFix.providers => (
         l10n.translateProvidersAction,
-        AppRoutes.providers,
+        ImageTranslateLinks.providers,
       ),
       TranslateErrorFix.none => (null, null),
     };

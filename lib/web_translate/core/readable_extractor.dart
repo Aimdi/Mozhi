@@ -831,7 +831,7 @@ class _BlockBuilder {
     if (text.isEmpty) return;
     final collapsed = text.replaceAll(_whitespace, ' ').replaceAll('​', '');
     if (collapsed.isEmpty) return;
-    if (_inLink > 0) _linkChars += collapsed.trim().length;
+    if (_inLink > 0) _linkChars += collapsed.replaceAll(' ', '').length;
     _text.write(collapsed);
   }
 
@@ -845,10 +845,11 @@ class _BlockBuilder {
     if (text.isEmpty) return;
     final context = _context;
     final kind = context.kind;
+    final visible = text.replaceAll(_whitespace, '').length;
     if ((kind == ReadableBlockKind.paragraph ||
             kind == ReadableBlockKind.listItem) &&
         text.length < 100 &&
-        links >= text.length * 0.9) {
+        links >= visible * 0.9) {
       return; // Navigation-like leftovers ("Related: <a>...</a>").
     }
     _blocks.add(

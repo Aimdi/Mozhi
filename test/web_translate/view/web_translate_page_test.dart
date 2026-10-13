@@ -13,7 +13,6 @@ import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/web_translate/web_translate.dart';
 import 'package:mozhi/web_translate/widgets/web_reader.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:translation_repository/translation_repository.dart';
 
 import '../helpers/helpers.dart';
 
@@ -303,6 +302,50 @@ void main() {
       await tester.tap(find.byKey(const Key('web_translate_copy_button')));
       await tester.pumpAndSettle();
       expect(clipboard.copied, startsWith('Sample page\n\nFirst paragraph'));
+      await tester.tap(find.byKey(const Key('web_translate_share_button')));
+      await tester.pump();
+      expect(shared!.subject, 'Sample page');
+      expect(shared!.text, startsWith('Sample page\n\nFirst paragraph'));
+    });
+
+    testWidgets('loads when the keyboard action is pressed', (tester) async {
+      await pumpPage(tester, page());
+      await tester.enterText(
+        find.byKey(const Key('web_translate_url_field')),
+        'example.com/sample',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.go);
+      await tester.pumpAndSettle();
+      expect(find.text('SAMPLE PAGE'), findsOneWidget);
+    });
+
+    testWidgets('ignores selection changes while loading', (tester) async {
+      final response = Completer<http.Response>();
+      final states = StreamController<TranslateState>();
+      addTearDown(states.close);
+      whenListen(translateCubit, states.stream, initialState: translateState());
+      await pumpPage(
+        tester,
+        page(client: MockClient((request) => response.future)),
+      );
+      await tester.enterText(
+        find.byKey(const Key('web_translate_url_field')),
+        'example.com/sample',
+      );
+      await tester.tap(find.byKey(const Key('web_translate_go_button')));
+      await tester.pump();
+
+      // Changed while loading: ignored.
+      states.add(translateState(target: arabic));
+      await tester.pump();
+      response.complete(http.Response(samplePageHtml, 200));
+      await tester.pumpAndSettle();
+      expect(repository.requests.single.target, spanish);
+
+      // Back to the selection the page was translated with: nothing to do.
+      states.add(translateState());
+      await tester.pumpAndSettle();
+      expect(repository.requests, hasLength(1));
     });
   });
 
@@ -314,7 +357,9 @@ void main() {
             path: '/',
             builder: (context, state) => Scaffold(
               appBar: AppBar(
-                actions: const [WebTranslateButton(url: 'example.com')],
+                // A non-const instance (covers the constructor).
+                // ignore: prefer_const_constructors, prefer_const_literals_to_create_immutables
+                actions: [WebTranslateButton(url: 'example.com')],
               ),
             ),
           ),

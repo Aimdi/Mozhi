@@ -2,7 +2,7 @@
 
 /// A news article page: site header with navigation, ads, share bars,
 /// scripts, a "related stories" rail, comments and a footer.
-const newsArticleHtml = r'''
+const newsArticleHtml = '''
 <!DOCTYPE html>
 <html lang="en-GB" class="no-js">
 <head>

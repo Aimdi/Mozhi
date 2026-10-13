@@ -24,12 +24,121 @@ void main() {
       Stream<String> deltas, {
       TranslationRequest request = autoRequest,
       Duration interval = Duration.zero,
+      bool parseMarker = true,
+      String? detectedSource,
     }) => aiTranslationStream(
       open: () => deltas,
       engine: engine,
       request: request,
       snapshotInterval: interval,
+      parseMarker: parseMarker,
+      detectedSource: detectedSource,
     );
+
+    test('never shows a trailing marker while it streams in', () async {
+      final results = await build(
+        Stream.fromIterable(['Hallo', '\n[[lang:', 'en]]']),
+      ).toList();
+      expect(results.map((r) => r.text), ['Hallo', 'Hallo']);
+      expect(results.map((r) => r.isComplete), [false, true]);
+      expect(results.last.detectedSource, 'en');
+      for (final result in results) {
+        expect(result.text, isNot(contains('[')));
+      }
+    });
+
+    test('holds back a partial marker at the end of a line', () async {
+      final results = await build(
+        Stream.fromIterable(['Hallo [[la', 'ng: de', '-AT ]]']),
+        request: englishRequest,
+      ).toList();
+      expect(results.map((r) => r.text), everyElement('Hallo'));
+    });
+
+    test('shows brackets that cannot become a marker', () async {
+      final results = await build(
+        Stream.fromIterable(['Array [1]', ' and [[x]]']),
+        request: englishRequest,
+      ).toList();
+      expect(results.map((r) => r.text), [
+        'Array [1]',
+        'Array [1] and [[x]]',
+        'Array [1] and [[x]]',
+      ]);
+    });
+
+    group('stripPartialTrailingMarker', () {
+      test('strips every prefix of a trailing marker', () {
+        for (final partial in [
+          '[',
+          '[[',
+          '[[ ',
+          '[[l',
+          '[[lan',
+          '[[lang',
+          '[[langu',
+          '[[language',
+          '[[lang ',
+          '[[lang:',
+          '[[lang: ',
+          '[[lang:e',
+          '[[lang:en',
+          '[[lang:en-',
+          '[[lang:en-U',
+          '[[LANG=pt_BR',
+          '[[lang:en]',
+          '[[lang:en ]',
+        ]) {
+          expect(
+            stripPartialTrailingMarker('Hallo\n$partial'),
+            'Hallo',
+            reason: partial,
+          );
+        }
+      });
+
+      test('keeps complete markers and other text', () {
+        for (final text in [
+          'Hallo\n[[lang:en]]',
+          'Hallo [x]',
+          'Hallo [[lang:english]',
+          'Hallo [[lang:en]] more',
+          'a [b',
+          'Hallo',
+          '',
+        ]) {
+          expect(stripPartialTrailingMarker(text), text, reason: text);
+        }
+      });
+
+      test('only looks at the end of long texts', () {
+        final text = '[[lang ${'x' * 100}';
+        expect(stripPartialTrailingMarker(text), text);
+      });
+    });
+
+    group('with parseMarker: false', () {
+      test('passes markers through and reports the given language', () async {
+        final results = await build(
+          Stream.fromIterable(['[[lang:fr]]', ' Hallo']),
+          parseMarker: false,
+          detectedSource: 'en',
+        ).toList();
+        expect(results.first.text, '[[lang:fr]]');
+        expect(results.last.text, '[[lang:fr]] Hallo');
+        expect(results.map((r) => r.detectedSource), everyElement('en'));
+      });
+
+      test('emits from the first delta', () async {
+        final results = await build(
+          Stream.fromIterable(['[', 'x]']),
+          parseMarker: false,
+          request: englishRequest,
+        ).toList();
+        expect(results.map((r) => r.text), ['[', '[x]', '[x]']);
+        expect(results.map((r) => r.detectedSource), everyElement(isNull));
+      });
+    });
 
     test('hides a split language marker and reports the language', () async {
       final results = await build(

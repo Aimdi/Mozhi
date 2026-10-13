@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -5,6 +6,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/settings_page.dart';
 import 'package:mozhi/settings/view/widgets/history_data_actions.dart';
+import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 import 'helpers.dart';
@@ -120,6 +122,78 @@ void main() {
         () =>
             router.push<Object?>('/settings/about', extra: any(named: 'extra')),
       ).called(1);
+    });
+
+    group('round-2 pages', () {
+      Future<void> expectPush(
+        WidgetTester tester,
+        String title,
+        String location,
+      ) async {
+        await tester.ensureVisible(find.text(title));
+        await tester.tap(find.text(title));
+        verify(() => router.push<Object?>(location, extra: any(named: 'extra')))
+            .called(1);
+      }
+
+      testWidgets('opens offline languages, usage, presets and glossaries', (
+        tester,
+      ) async {
+        await pump(tester);
+        await expectPush(tester, 'Offline languages', '/settings/offline');
+        await expectPush(tester, 'Usage & costs', '/settings/usage');
+        await expectPush(tester, 'Presets', '/settings/presets');
+        await expectPush(tester, 'Glossaries', '/settings/glossaries');
+        await expectPush(tester, 'Run setup again', '/onboarding');
+      });
+
+      testWidgets('groups the entries into sections', (tester) async {
+        await pump(tester);
+        Finder inSection(String section, String title) => find.descendant(
+          of: find.ancestor(
+            of: find.text(section),
+            matching: find.byType(SettingsSection),
+          ),
+          matching: find.text(title),
+        );
+        expect(
+          inSection('Translation services', 'Offline languages'),
+          findsOne,
+        );
+        expect(inSection('Translation services', 'Usage & costs'), findsOne);
+        expect(inSection('Translation', 'Presets'), findsOne);
+        expect(inSection('Translation', 'Glossaries'), findsOne);
+        expect(inSection('About', 'Run setup again'), findsOne);
+      });
+
+      for (final platform in [TargetPlatform.android, TargetPlatform.iOS]) {
+        testWidgets('shows offline languages on ${platform.name}', (
+          tester,
+        ) async {
+          debugDefaultTargetPlatformOverride = platform;
+          await pump(tester);
+          expect(find.text('Offline languages'), findsOneWidget);
+          expect(SettingsView.offlineSupported, isTrue);
+          debugDefaultTargetPlatformOverride = null;
+        });
+      }
+
+      for (final platform in [
+        TargetPlatform.linux,
+        TargetPlatform.macOS,
+        TargetPlatform.windows,
+      ]) {
+        testWidgets('hides offline languages on ${platform.name}', (
+          tester,
+        ) async {
+          debugDefaultTargetPlatformOverride = platform;
+          await pump(tester);
+          expect(find.text('Offline languages'), findsNothing);
+          expect(find.text('Usage & costs'), findsOneWidget);
+          expect(SettingsView.offlineSupported, isFalse);
+          debugDefaultTargetPlatformOverride = null;
+        });
+      }
     });
 
     group('translation toggles', () {
@@ -239,6 +313,80 @@ void main() {
         );
         expect(find.text('Dynamic color'), findsNothing);
         expect(find.text('Accent color'), findsOneWidget);
+      });
+
+      testWidgets('marks the selected theme with a check', (tester) async {
+        await pump(tester);
+        expect(
+          find.descendant(
+            of: find.byType(SegmentedButton<ThemeMode>),
+            matching: find.byIcon(Icons.check),
+          ),
+          findsOneWidget,
+        );
+        expect(find.bySemanticsLabel('Theme'), findsOneWidget);
+      });
+
+      testWidgets('uses radio rows for the theme with large text', (
+        tester,
+      ) async {
+        await pump(tester, textScale: 2);
+        expect(find.byType(SegmentedButton<ThemeMode>), findsNothing);
+        expect(find.byType(RadioListTile<ThemeMode>), findsNWidgets(3));
+        await tester.ensureVisible(find.text('Dark'));
+        await tester.tap(find.text('Dark'));
+        verify(() => settings.setThemeMode(ThemeMode.dark)).called(1);
+      });
+
+      testWidgets('accent swatches keep their tap action for screen readers', (
+        tester,
+      ) async {
+        final handle = tester.ensureSemantics();
+        await pump(tester, state: const AppSettings(dynamicColor: false));
+        final node = tester.getSemantics(find.bySemanticsLabel('Teal'));
+        expect(
+          node,
+          isSemantics(
+            label: 'Teal',
+            isButton: true,
+            hasTapAction: true,
+            isInMutuallyExclusiveGroup: true,
+            hasSelectedState: true,
+            isSelected: false,
+          ),
+        );
+        expect(
+          tester.getSemantics(find.bySemanticsLabel('Indigo')),
+          isSemantics(isSelected: true),
+        );
+        expect(node.id, isNonZero);
+        tester.semantics.tap(find.semantics.byLabel('Teal'));
+        verify(() => settings.setSeedColor(0xFF00897B)).called(1);
+        handle.dispose();
+      });
+
+      testWidgets('swatches do not animate with reduced motion', (
+        tester,
+      ) async {
+        when(() => settings.state)
+            .thenReturn(const AppSettings(dynamicColor: false));
+        tester.setScreenSize(const Size(800, 3000));
+        await tester.pumpView(
+          Builder(
+            builder: (context) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(disableAnimations: true),
+              child: const SettingsPage(),
+            ),
+          ),
+          settings: settings,
+          history: history,
+          router: router,
+        );
+        final containers = tester.widgetList<AnimatedContainer>(
+          find.byType(AnimatedContainer),
+        );
+        expect(containers, isNotEmpty);
+        expect(containers.map((c) => c.duration), everyElement(Duration.zero));
       });
 
       testWidgets('pure black toggles in dark/system mode', (tester) async {
@@ -426,6 +574,31 @@ void main() {
           const Offset(0, -300),
         );
         expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('keyboard focus finishes the left column first', (
+        tester,
+      ) async {
+        await pump(tester, size: const Size(1400, 1600));
+        final middle = tester.getCenter(find.byType(SettingsView)).dx;
+        final columns = <int>[];
+        Rect? first;
+        for (var i = 0; i < 80; i++) {
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          await tester.pump();
+          final rect = FocusManager.instance.primaryFocus!.rect;
+          if (rect == first) break;
+          first ??= rect;
+          columns.add(rect.center.dx < middle ? 0 : 1);
+        }
+        expect(columns, contains(0));
+        expect(columns, contains(1));
+        final switchIndex = columns.indexOf(1);
+        expect(
+          columns.sublist(switchIndex),
+          everyElement(1),
+          reason: 'focus went back to the left column: $columns',
+        );
       });
 
       testWidgets('renders in dark mode', (tester) async {

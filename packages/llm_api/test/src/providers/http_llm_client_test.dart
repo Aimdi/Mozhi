@@ -48,8 +48,182 @@ Matcher _apiException({
     .having((e) => e.statusCode, 'statusCode', statusCode)
     .having((e) => e.body, 'body', body);
 
+/// A server at `api.example.com` that answers every request with
+/// `302 Location: http://other-host.example/collect`, behind a client that,
+/// like dart:io's, follows redirects when the request allows it and then
+/// copies every header except `Authorization` to the new host.
+class _RedirectingServer {
+  static final Uri target = Uri.parse('http://other-host.example/collect');
+
+  /// Every request received, including followed redirects.
+  final List<http.BaseRequest> requests = [];
+
+  late final http.Client client = MockClient.streaming((request, body) async {
+    await body.drain<void>();
+    requests.add(request);
+    if (request.url.host == target.host) {
+      return http.StreamedResponse(Stream.value(utf8.encode('{}')), 200);
+    }
+    if (request.followRedirects && request.maxRedirects > 0) {
+      final redirected = http.Request('GET', target)
+        ..headers.addAll({...request.headers}..remove('authorization'));
+      return await client.send(redirected);
+    }
+    return http.StreamedResponse(
+      const Stream.empty(),
+      302,
+      headers: {'location': '$target'},
+    );
+  });
+}
+
 void main() {
   group('HttpLlmClient', () {
+    group('redirects', () {
+      final redirected = isA<LlmApiException>()
+          .having(
+            (e) => e.message,
+            'message',
+            'Redirected to other-host.example — update the base URL',
+          )
+          .having((e) => e.statusCode, 'statusCode', 302)
+          .having((e) => e.isRedirect, 'isRedirect', isTrue)
+          .having((e) => e.body, 'body', isNull);
+
+      test('the fake client forwards custom headers when following', () async {
+        final server = _RedirectingServer();
+        await server.client.send(
+          http.Request('GET', Uri.parse('https://api.example.com/v1/models'))
+            ..headers['x-api-key'] = 'sk-secret',
+        );
+        expect(server.requests, hasLength(2));
+        expect(server.requests.last.url.host, 'other-host.example');
+        expect(server.requests.last.headers['x-api-key'], 'sk-secret');
+      });
+
+      test('are never followed, so keys never reach another host', () async {
+        for (final provider in LlmProvider.values) {
+          final server = _RedirectingServer();
+          final client = LlmClient(
+            LlmEndpoint(
+              provider: provider,
+              baseUrl: Uri.parse('https://api.example.com/v1'),
+              apiKey: 'sk-secret',
+              headers: const {'X-Custom-Auth': 'token'},
+            ),
+            httpClient: server.client,
+          );
+          await expectLater(
+            client.streamChat(_request),
+            emitsError(redirected),
+            reason: provider.name,
+          );
+          await expectLater(
+            client.listModels(),
+            throwsA(redirected),
+            reason: provider.name,
+          );
+          expect(server.requests, hasLength(2), reason: provider.name);
+          for (final request in server.requests) {
+            expect(request.url.host, 'api.example.com', reason: provider.name);
+            expect(request.followRedirects, isFalse, reason: provider.name);
+            expect(request.maxRedirects, 0, reason: provider.name);
+          }
+        }
+      });
+
+      test('name where the server pointed', () async {
+        const base = 'https://api.example.com/v1';
+        final cases = <(String, Map<String, String>, String)>[
+          (
+            base,
+            {'Content-Type': 'text/html', 'Location': 'https://b.example/x?k'},
+            'b.example',
+          ),
+          (base, {'location': '//c.example/v1/models'}, 'c.example'),
+          (
+            base,
+            {'location': 'https://api.example.com/v1/models/?page=2#top'},
+            'https://api.example.com/v1/models/',
+          ),
+          (base, {'location': ' /login '}, 'https://api.example.com/login'),
+          (
+            'http://192.168.1.5:1234/v1',
+            {'location': 'https://192.168.1.5:8443/v1/models'},
+            'https://192.168.1.5:8443/v1/models',
+          ),
+          (base, {}, 'another address'),
+          (base, {'location': '  '}, 'another address'),
+          (base, {'location': 'http://[::1'}, 'another address'),
+          (base, {'location': 'mailto:x'}, 'another address'),
+        ];
+        for (final (baseUrl, headers, destination) in cases) {
+          final server = FakeServer([
+            FakeResponse.text(
+              '<html>Moved</html>',
+              statusCode: 301,
+              headers: headers,
+            ),
+          ]);
+          await expectLater(
+            _client(server.client, baseUrl: baseUrl).listModels(),
+            throwsA(
+              _apiException(
+                message: 'Redirected to $destination — update the base URL',
+                statusCode: 301,
+                body: isNull,
+              ),
+            ),
+            reason: '$headers',
+          );
+        }
+      });
+
+      test('reports any 3xx and releases the response body', () async {
+        for (final status in [300, 303, 304, 307, 308]) {
+          final body = StreamController<List<int>>();
+          var cancelled = false;
+          body.onCancel = () => cancelled = true;
+          final server = FakeServer([
+            FakeResponse.controlled(body, statusCode: status),
+          ]);
+          await expectLater(
+            _client(server.client).streamChat(_request),
+            emitsError(
+              isA<LlmApiException>()
+                  .having((e) => e.statusCode, 'statusCode', status)
+                  .having((e) => e.isRedirect, 'isRedirect', isTrue),
+            ),
+          );
+          await pumpEventQueue();
+          expect(cancelled, isTrue, reason: '$status');
+          expect(server.requests, hasLength(1));
+          await expectLater(server.lastRequest.abortTrigger, completes);
+        }
+      });
+
+      test('never expose the API key in the redirect target', () async {
+        const key = 'sk-secret-123';
+        final server = FakeServer([
+          FakeResponse.text(
+            '',
+            statusCode: 307,
+            headers: {'location': '/v1/$key/models'},
+          ),
+        ]);
+        await expectLater(
+          _client(server.client, apiKey: key).listModels(),
+          throwsA(
+            _apiException(
+              message:
+                  'Redirected to https://api.example.com/v1/[redacted]/models '
+                  '— update the base URL',
+            ),
+          ),
+        );
+      });
+    });
+
     group('urls and headers', () {
       test('appends paths to a base URL with a trailing slash', () async {
         final server = FakeServer([

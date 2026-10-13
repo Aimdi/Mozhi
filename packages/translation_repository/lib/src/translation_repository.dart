@@ -4,41 +4,85 @@ import 'dart:typed_data';
 import 'package:collection/collection.dart';
 import 'package:llm_api/llm_api.dart';
 import 'package:mozhi_api/mozhi_api.dart';
+import 'package:mt_api/mt_api.dart';
+import 'package:translation_repository/src/cache/translation_cache.dart';
 import 'package:translation_repository/src/language_catalog.dart';
+import 'package:translation_repository/src/language_matcher.dart';
 import 'package:translation_repository/src/models/models.dart';
+import 'package:translation_repository/src/offline/offline_translator.dart';
+import 'package:translation_repository/src/prompts/mt_prompts.dart';
 import 'package:translation_repository/src/prompts/response_parsers.dart';
 import 'package:translation_repository/src/prompts/translation_prompts.dart';
 import 'package:translation_repository/src/repository/ai_translation_stream.dart';
 import 'package:translation_repository/src/repository/llm_pool.dart';
 import 'package:translation_repository/src/repository/mappers.dart';
 import 'package:translation_repository/src/repository/mozhi_pool.dart';
+import 'package:translation_repository/src/repository/mt_engines.dart';
+import 'package:translation_repository/src/repository/offline_engine.dart';
+import 'package:translation_repository/src/repository/repository_exceptions.dart';
 
 typedef MozhiClientFactory = MozhiApiClient Function(Uri baseUrl);
 typedef LlmClientFactory = LlmClient Function(LlmEndpoint endpoint);
+
+/// Creates the DeepL client of a [MtService.deepl] provider.
+typedef DeeplClientFactory = DeeplClient Function(AiProviderConfig config);
+
+/// Creates the LibreTranslate client of a [MtService.libreTranslate]
+/// provider.
+typedef LibreTranslateClientFactory = LibreTranslateClient Function(
+  AiProviderConfig config,
+);
 
 /// The single entry point the app uses for anything translation related.
 ///
 /// Configuration is pushed by the app whenever settings change
 /// ([updateConfiguration]). Mozhi requests go to the first reachable
-/// instance in [instances] order: on a retryable `MozhiApiException`
-/// (network/timeout/429/5xx) the next instance is tried and, on success,
-/// becomes the preferred one for the session ([activeInstance]).
+/// instance in [instances] order: on a failure another instance might not
+/// repeat (network errors, timeouts, 3xx/4xx from a proxy, 429, 5xx that
+/// are not Mozhi input errors) the next instance is tried and, on success,
+/// becomes the preferred one ([activeInstance]) until the instance order
+/// changes or [resetActiveInstance] is called. Requests that carry the
+/// user's text or image are not re-sent after a timeout, because the slow
+/// instance may already have received them.
+///
 /// Language lists and engine lists are cached in memory per instance+engine
-/// (cleared by [updateConfiguration] when instances change, or
-/// `refresh: true`).
+/// (keyed by the instance that answered; cleared by [updateConfiguration]
+/// when instances change, or `refresh: true`). Final translations are
+/// cached in a [TranslationCache] ([clearCache]); a provider's entries are
+/// dropped whenever its configuration changes.
 class TranslationRepository {
-  /// [mozhiClientFactory] / [llmClientFactory] create the HTTP clients
-  /// (defaults: `MozhiApiClient(baseUrl: ...)` / `LlmClient(endpoint)`).
-  /// Clients are cached per Mozhi instance URL and per AI provider
-  /// connection settings.
+  /// [mozhiClientFactory] / [llmClientFactory] / [deeplClientFactory] /
+  /// [libreTranslateClientFactory] create the HTTP clients (defaults:
+  /// `MozhiApiClient(baseUrl: ...)`, `LlmClient(endpoint)`,
+  /// `DeeplClient(authKey: apiKey, baseUrl: ...)`,
+  /// `LibreTranslateClient(baseUrl: ..., apiKey: ...)`). Clients are cached
+  /// per Mozhi instance URL and per provider connection settings.
+  ///
+  /// [offline] enables the on-device engine ([TranslationEngine.offline])
+  /// when it [OfflineTranslator.isAvailable]; it is also used to identify
+  /// the source language privately where a detection is needed.
+  ///
+  /// [cache] stores final results (default: a [TranslationCache] with its
+  /// default size and lifetime; pass `TranslationCache(maxEntries: 0)` to
+  /// disable caching).
   ///
   /// `snapshotInterval` throttles intermediate AI streaming snapshots.
   new({
     MozhiClientFactory? mozhiClientFactory,
     LlmClientFactory? llmClientFactory,
+    DeeplClientFactory? deeplClientFactory,
+    LibreTranslateClientFactory? libreTranslateClientFactory,
+    OfflineTranslator? offline,
+    TranslationCache? cache,
     this._snapshotInterval = const Duration(milliseconds: 50),
   }) : _mozhi = MozhiPool(mozhiClientFactory ?? _defaultMozhiClient),
-       _llm = LlmPool(llmClientFactory ?? _defaultLlmClient);
+       _llm = LlmPool(llmClientFactory ?? _defaultLlmClient),
+       _mt = MtEngines(
+         deepl: deeplClientFactory,
+         libre: libreTranslateClientFactory,
+       ),
+       _offline = offline == null ? null : OfflineEngine(offline),
+       _cache = cache ?? TranslationCache();
 
   static MozhiApiClient _defaultMozhiClient(Uri baseUrl) =>
       MozhiApiClient(baseUrl: baseUrl);
@@ -48,10 +92,14 @@ class TranslationRepository {
 
   final MozhiPool _mozhi;
   final LlmPool _llm;
+  final MtEngines _mt;
+  final OfflineEngine? _offline;
+  final TranslationCache _cache;
   final Duration _snapshotInterval;
   List<AiProviderConfig> _providers = const [];
 
-  /// Keyed by active instance URL (+ engine and direction for languages).
+  /// Keyed by the URL of the instance that answered (+ engine and direction
+  /// for languages).
   final Map<String, Future<List<TranslationEngine>>> _engines = {};
   final Map<String, Future<List<Language>>> _languages = {};
 
@@ -65,8 +113,20 @@ class TranslationRepository {
     required List<AiProviderConfig> providers,
   }) {
     if (_mozhi.update(instances)) _clearMozhiCaches();
+    final current = {for (final provider in providers) provider.id: provider};
+    for (final previous in _providers) {
+      if (current[previous.id] != previous) _invalidateProvider(previous.id);
+    }
     _providers = List.unmodifiable(providers);
     _llm.update(providers);
+    _mt.update(providers);
+  }
+
+  /// Drops cached translations of the engines of provider [id].
+  void _invalidateProvider(String id) {
+    _cache
+      ..invalidateEngine('ai:$id')
+      ..invalidateEngine('mt:$id');
   }
 
   List<MozhiInstance> get instances => _mozhi.instances;
@@ -75,149 +135,288 @@ class TranslationRepository {
   /// Instance currently preferred for Mozhi calls (null when none).
   MozhiInstance? get activeInstance => _mozhi.active;
 
+  /// Forgets the instance a failover switched to, so the next Mozhi request
+  /// starts at the first configured instance again (e.g. after the user
+  /// chose that instance explicitly).
+  void resetActiveInstance() => _mozhi.resetPreferred();
+
+  /// Whether the on-device engine is available (an [OfflineTranslator] was
+  /// injected and is available on this platform).
+  bool get hasOfflineEngine => _offline?.isAvailable ?? false;
+
+  /// Removes every cached translation.
+  void clearCache() => _cache.clear();
+
   /// Engines: Mozhi engines advertised by the active instance (via
   /// `/api/engines`, `subtitle` = instance display name, i.e. its label or
-  /// host) followed by enabled AI providers (`name` = provider name,
-  /// `subtitle` = model, `isLocal`).
-  /// If no instance is reachable, returns only AI engines (and does not
-  /// throw) unless there are none, in which case the last error is thrown.
+  /// host), then the enabled providers in configuration order (AI providers:
+  /// `ai:<id>`, `subtitle` = model, `promptProfile` resolved; machine
+  /// translation services: `mt:<id>`, `subtitle` = service or host,
+  /// `mtService`), then [TranslationEngine.offline] when [hasOfflineEngine].
+  /// If no instance is reachable, returns only the other engines (and does
+  /// not throw) unless there are none, in which case the last error is
+  /// thrown.
+  ///
+  /// `refresh: true` reloads the Mozhi engine and language lists and the
+  /// services' language lists, and starts at the first instance again.
   Future<List<TranslationEngine>> getEngines({bool refresh = false}) async {
-    if (refresh) _clearMozhiCaches();
-    final ai = [
+    if (refresh) {
+      _clearMozhiCaches();
+      _mozhi.resetPreferred();
+      _mt.clearLanguages();
+    }
+    final others = [
       for (final provider in _providers)
-        if (provider.enabled)
-          TranslationEngine(
-            id: 'ai:${provider.id}',
-            kind: EngineKind.ai,
-            name: provider.name,
-            subtitle: provider.model,
-            providerId: provider.id,
-            isLocal: provider.isLocal,
-          ),
+        if (provider.enabled) _engineFor(provider),
+      if (hasOfflineEngine) TranslationEngine.offline(),
     ];
-    if (_mozhi.instances.isEmpty) return ai;
+    if (_mozhi.instances.isEmpty) return others;
     try {
-      return [...await _loadMozhiEngines(), ...ai];
+      return [...await _loadMozhiEngines(), ...others];
     } on Object {
-      if (ai.isEmpty) rethrow;
-      return ai;
+      if (others.isEmpty) rethrow;
+      return others;
     }
   }
 
-  Future<List<TranslationEngine>> _loadMozhiEngines() => _cached(
-    _engines,
-    _mozhi.active?.url ?? '',
-    () => _mozhi.run((client, instance) async {
-      final engines = await client.getEngines();
-      return List<TranslationEngine>.unmodifiable([
-        for (final MapEntry(key: id, value: name) in engines.entries)
-          TranslationEngine(
-            id: 'mozhi:$id',
-            kind: EngineKind.mozhi,
-            name: name.isEmpty ? id : name,
-            subtitle: instance.displayName,
-            mozhiEngine: id,
-          ),
-      ]);
-    }),
-  );
+  static TranslationEngine _engineFor(AiProviderConfig provider) =>
+      provider.isMtService
+      ? TranslationEngine(
+          id: 'mt:${provider.id}',
+          kind: EngineKind.mt,
+          name: provider.name,
+          subtitle: _mtSubtitle(provider),
+          providerId: provider.id,
+          isLocal: provider.isLocal,
+          mtService: provider.service,
+        )
+      : TranslationEngine(
+          id: 'ai:${provider.id}',
+          kind: EngineKind.ai,
+          name: provider.name,
+          subtitle: provider.model,
+          providerId: provider.id,
+          isLocal: provider.isLocal,
+          promptProfile: provider.resolvedPromptProfile,
+        );
+
+  static String _mtSubtitle(AiProviderConfig provider) {
+    final url = provider.baseUrl.trim();
+    final host = url.isEmpty
+        ? ''
+        : Uri.tryParse(url.contains('://') ? url : 'https://$url')?.host ?? '';
+    if (host.isNotEmpty) return host;
+    return switch (provider.service) {
+      MtService.deepl => 'DeepL API',
+      MtService.libreTranslate => 'LibreTranslate',
+      MtService.llm => provider.model,
+    };
+  }
+
+  Future<List<TranslationEngine>> _loadMozhiEngines() =>
+      _cachedMozhi(_engines, '', (client, instance) async {
+        final engines = await client.getEngines();
+        return List<TranslationEngine>.unmodifiable([
+          for (final MapEntry(key: id, value: name) in engines.entries)
+            TranslationEngine(
+              id: 'mozhi:$id',
+              kind: EngineKind.mozhi,
+              name: name.isEmpty ? id : name,
+              subtitle: instance.displayName,
+              mozhiEngine: id,
+            ),
+        ]);
+      });
 
   void _clearMozhiCaches() {
     _engines.clear();
     _languages.clear();
   }
 
-  /// Returns the cached future for [key] or stores the one [load] creates;
-  /// failed loads are evicted so the next call retries.
-  static Future<T> _cached<T>(
+  /// Returns the cached future for [suffix] on the active instance, or
+  /// loads it with failover. The entry is stored under the instance that
+  /// actually answered, so a later failover back to the first instance does
+  /// not serve the other instance's list. Failed loads are evicted so the
+  /// next call retries.
+  Future<T> _cachedMozhi<T>(
     Map<String, Future<T>> cache,
-    String key,
-    Future<T> Function() load,
+    String suffix,
+    Future<T> Function(MozhiApiClient client, MozhiInstance instance) load,
   ) {
+    String keyFor(String url) => suffix.isEmpty ? url : '$url|$suffix';
+    final key = keyFor(_mozhi.active?.url ?? '');
     final cached = cache[key];
     if (cached != null) return cached;
-    final future = load();
+    late final Future<T> future;
+    Future<T> fetch() async {
+      try {
+        final (url, value) = await _mozhi.run(
+          (client, instance) async =>
+              (instance.url, await load(client, instance)),
+        );
+        final actual = keyFor(url);
+        if (actual != key && identical(cache[key], future)) {
+          cache
+            ..removeWhere((entry, _) => entry == key)
+            ..[actual] = future;
+        }
+        return value;
+      } on Object {
+        cache.removeWhere((_, value) => identical(value, future));
+        rethrow;
+      }
+    }
+
+    future = fetch();
     cache[key] = future;
-    unawaited(
-      future.then<void>(
-        (_) {},
-        onError: (Object _) {
-          cache.removeWhere((_, value) => identical(value, future));
-        },
-      ),
-    );
     return future;
   }
 
   /// Mozhi: `/api/source_languages` mapped to [Language] (id `auto` ->
   /// [Language.auto] first, names from the engine, `nativeName` from
   /// `LanguageCatalog` when known). AI: [Language.auto] + catalogue.
+  /// Offline: [Language.auto] + the backend's languages. Machine
+  /// translation services: [Language.auto] + the service's list (cached).
   Future<List<Language>> getSourceLanguages(TranslationEngine engine) =>
-      engine.isAi
-      ? Future.sync(() => [Language.auto, ...LanguageCatalog.all])
-      : _mozhiLanguages(engine, source: true);
+      switch (engine.kind) {
+        EngineKind.ai => Future.sync(
+          () => [Language.auto, ...LanguageCatalog.all],
+        ),
+        EngineKind.mozhi => _mozhiLanguages(engine, source: true),
+        EngineKind.offline => Future.sync(
+          () => _offlineFor(engine).sourceLanguages,
+        ),
+        EngineKind.mt => Future.sync(
+          () => _mt.sourceLanguages(_mtProviderFor(engine)),
+        ),
+      };
 
-  /// Mozhi: `/api/target_languages`. AI: catalogue.
+  /// Mozhi: `/api/target_languages` (for DeepL, regional ids Mozhi cannot
+  /// translate into are mapped to their base language, and `zh-hant` is
+  /// dropped). AI: catalogue. Offline: the backend's languages. Machine
+  /// translation services: the service's list (cached).
   Future<List<Language>> getTargetLanguages(TranslationEngine engine) =>
-      engine.isAi
-      ? Future.sync(() => LanguageCatalog.all)
-      : _mozhiLanguages(engine, source: false);
+      switch (engine.kind) {
+        EngineKind.ai => Future.sync(() => LanguageCatalog.all),
+        EngineKind.mozhi => _mozhiLanguages(engine, source: false),
+        EngineKind.offline => Future.sync(() => _offlineFor(engine).languages),
+        EngineKind.mt => Future.sync(
+          () => _mt.targetLanguages(_mtProviderFor(engine)),
+        ),
+      };
 
   Future<List<Language>> _mozhiLanguages(
     TranslationEngine engine, {
     required bool source,
   }) {
     final id = mozhiEngineId(engine);
-    final key = [
-      _mozhi.active?.url ?? '',
-      id,
-      if (source) 'source' else 'target',
-    ].join('|');
-    return _cached(
-      _languages,
-      key,
-      () => _mozhi.run((client, _) async {
-        final languages = source
-            ? await client.getSourceLanguages(id)
-            : await client.getTargetLanguages(id);
-        return List<Language>.unmodifiable(mapMozhiLanguages(languages));
-      }),
+    return _cachedMozhi(_languages, '$id|${source ? 'source' : 'target'}', (
+      client,
+      _,
+    ) async {
+      final languages = source
+          ? await client.getSourceLanguages(id)
+          : await client.getTargetLanguages(id);
+      final fixed = !source && id.toLowerCase() == 'deepl'
+          ? fixMozhiDeeplTargets(languages)
+          : languages;
+      return List<Language>.unmodifiable(mapMozhiLanguages(fixed));
+    });
+  }
+
+  /// Mozhi, offline and machine translation engines: one complete result.
+  /// Mozhi results carry transliterations, word choices and synonyms; an
+  /// empty translation of non-empty text is a retryable
+  /// `MozhiApiException` (status 502, "Google returned an empty
+  /// translation."). AI: streams growing snapshots (`isComplete: false`)
+  /// and a final `isComplete: true` result; the `[[lang:xx]]` marker is
+  /// parsed into `detectedSource` and never shown; `<think>` content never
+  /// appears; text is passed through `ResponseParsers.cleanTranslation` on
+  /// completion. Empty/whitespace input emits nothing and completes.
+  /// `detectedSource` is normalised and only set for an auto source.
+  ///
+  /// Translation-specialised AI models ([TranslationEngine.usesMtProfile])
+  /// get `MtPrompts` (no options, no marker, the model card's sampling
+  /// unless the provider sets a temperature) and need a source language:
+  /// for an auto source it is identified on the device when possible, else
+  /// (for non-local engines) with Mozhi, else
+  /// [SourceLanguageRequiredException] is emitted.
+  ///
+  /// Final results are served from and stored in the cache; `refresh: true`
+  /// skips the lookup (e.g. "Regenerate").
+  ///
+  /// Errors are forwarded as-is (`MozhiApiException`, `LlmApiException`,
+  /// `LlmRefusalException`, `MtApiException`,
+  /// `OfflineModelMissingException`, `OfflineLanguageUnsupportedException`,
+  /// [SourceLanguageRequiredException]). Cancelling the subscription
+  /// cancels the underlying HTTP request (AI, DeepL and LibreTranslate).
+  ///
+  /// A custom language on an engine that cannot take one, or an engine
+  /// whose provider is not configured, is reported as an [ArgumentError]
+  /// stream error.
+  Stream<TranslationResult> translate(
+    TranslationEngine engine,
+    TranslationRequest request, {
+    bool refresh = false,
+  }) {
+    if (request.text.trim().isEmpty) return const Stream.empty();
+    final safe = _sanitizeRequest(request);
+    if (refresh) _cache.remove(engine, safe);
+    return _cache.cachedTranslate(
+      engine,
+      safe,
+      () => _translateUncached(engine, safe),
     );
   }
 
-  /// Mozhi: one complete result (with transliterations, word choices,
-  /// synonyms; `detectedSource` normalised). AI: streams growing snapshots
-  /// (`isComplete: false`) and a final `isComplete: true` result; the
-  /// `[[lang:xx]]` marker is parsed into `detectedSource` and never shown;
-  /// `<think>` content never appears; text is passed through
-  /// `ResponseParsers.cleanTranslation` on completion. Empty/whitespace
-  /// input emits nothing and completes. Errors are forwarded as-is
-  /// (`MozhiApiException`, `LlmApiException`, `LlmRefusalException`).
-  /// Cancelling the subscription cancels the underlying HTTP request.
-  ///
-  /// A custom target language on a Mozhi engine is reported as an
-  /// [ArgumentError] stream error.
-  Stream<TranslationResult> translate(
+  /// Security W4: custom target "languages" end up in the system prompt.
+  /// The prompt builders sanitise and cap them; nothing to do here until
+  /// they export a sanitiser for the repository to apply as well.
+  static TranslationRequest _sanitizeRequest(TranslationRequest request) =>
+      request;
+
+  Stream<TranslationResult> _translateUncached(
     TranslationEngine engine,
     TranslationRequest request,
-  ) {
-    if (request.text.trim().isEmpty) return const Stream.empty();
-    if (engine.isMozhi) {
-      return Stream.fromFuture(_translateMozhi(engine, request));
-    }
-    return aiTranslationStream(
-      open: () {
-        final config = _providerFor(engine);
-        return _llm
-            .clientFor(config)
-            .streamChat(
-              _llmRequest(config, TranslationPrompts.translate(request)),
-            );
+  ) => switch (engine.kind) {
+    EngineKind.mozhi => Stream.fromFuture(_translateMozhi(engine, request)),
+    EngineKind.ai => _translateAi(engine, request),
+    EngineKind.offline => Stream.fromFuture(
+      Future.sync(() => _offlineFor(engine).translate(engine, request)),
+    ),
+    EngineKind.mt => _abortable(
+      (abort) =>
+          _mt.translate(engine, _mtProviderFor(engine), request, abort: abort),
+    ),
+  };
+
+  /// A single-result stream whose cancellation completes the abort trigger
+  /// passed to [run].
+  static Stream<T> _abortable<T>(Future<T> Function(Future<void> abort) run) {
+    final abort = Completer<void>();
+    late final StreamController<T> controller;
+    controller = StreamController<T>(
+      onListen: () {
+        Future.sync(() => run(abort.future))
+            .then(
+              (value) {
+                if (controller.isClosed) return;
+                controller.add(value);
+                unawaited(controller.close());
+              },
+              onError: (Object error, StackTrace stackTrace) {
+                if (controller.isClosed) return;
+                controller.addError(error, stackTrace);
+                unawaited(controller.close());
+              },
+            )
+            .ignore();
       },
-      engine: engine,
-      request: request,
-      snapshotInterval: _snapshotInterval,
+      onCancel: () {
+        if (!abort.isCompleted) abort.complete();
+      },
     );
+    return controller.stream;
   }
 
   Future<TranslationResult> _translateMozhi(
@@ -225,15 +424,25 @@ class TranslationRepository {
     TranslationRequest request,
   ) async {
     _checkMozhiLanguages(request.source, request.target);
+    final id = mozhiEngineId(engine);
     final stopwatch = Stopwatch()..start();
-    final translation = await _mozhi.run(
-      (client, _) => client.translate(
-        engine: mozhiEngineId(engine),
+    final translation = await _mozhi.run((client, _) async {
+      final result = await client.translate(
+        engine: id,
         from: request.source.code,
-        to: request.target.code,
+        to: mozhiTargetCode(id, request.target.code),
         text: request.text,
-      ),
-    );
+      );
+      if (result.translatedText.trim().isEmpty) {
+        // DeepL (DeepLX) reports upstream failures as 200 with an empty
+        // text (mozhi-contract G2); DeepLX limits are per instance.
+        throw MozhiApiException(
+          '${engine.name} returned an empty translation.',
+          statusCode: 502,
+        );
+      }
+      return result;
+    }, failOverOnTimeout: false);
     return mapMozhiTranslation(
       engine,
       request,
@@ -242,21 +451,129 @@ class TranslationRepository {
     );
   }
 
-  /// Runs [engines] concurrently and emits a [CompareEntry] per engine as
-  /// soon as it finishes (only final results; failures as
-  /// `CompareEntry.failure`). Mozhi engines are batched into a single
-  /// `translateWithEngines` call when 2+ Mozhi engines are requested, with
-  /// engines missing from the batch response reported as failures.
-  Stream<CompareEntry> compare(
-    List<TranslationEngine> engines,
+  Stream<TranslationResult> _translateAi(
+    TranslationEngine engine,
     TranslationRequest request,
   ) {
+    final config = _configFor(engine, 'ai:');
+    if (config == null || config.isMtService) {
+      return Stream.error(
+        ArgumentError.value(engine.id, 'engine', 'Unknown AI provider'),
+      );
+    }
+    final profile = config.resolvedPromptProfile;
+    if (profile.isTranslationOnly) {
+      return _translateWithMtProfile(engine, config, profile, request);
+    }
+    return aiTranslationStream(
+      open: () => _llm
+          .clientFor(config)
+          .streamChat(
+            _llmRequest(config, TranslationPrompts.translate(request)),
+          ),
+      engine: engine,
+      request: request,
+      snapshotInterval: _snapshotInterval,
+    );
+  }
+
+  Stream<TranslationResult> _translateWithMtProfile(
+    TranslationEngine engine,
+    AiProviderConfig config,
+    PromptProfile profile,
+    TranslationRequest request,
+  ) async* {
+    if (request.source.isCustom || request.target.isCustom) {
+      final custom = request.source.isCustom ? request.source : request.target;
+      throw ArgumentError.value(
+        custom.code,
+        request.source.isCustom ? 'source' : 'target',
+        '${engine.name} only translates between real languages',
+      );
+    }
+    String? detected;
+    var explicit = request;
+    if (request.source.isAuto) {
+      detected = await _detectSource(engine, request.text);
+      explicit = request.copyWith(source: _languageFor(detected));
+    }
+    if (LanguageMatcher.normalize(explicit.source.code) ==
+        LanguageMatcher.normalize(explicit.target.code)) {
+      // Nothing to translate; do not spend a generation on an echo.
+      yield TranslationResult(
+        engineId: engine.id,
+        engineName: engine.name,
+        text: request.text,
+        detectedSource: detected,
+        elapsed: Duration.zero,
+      );
+      return;
+    }
+    final sampling = MtPrompts.sampling(profile);
+    yield* aiTranslationStream(
+      open: () => _llm
+          .clientFor(config)
+          .streamChat(
+            _llmRequest(
+              config,
+              MtPrompts.translate(profile, explicit),
+              defaultTemperature: sampling.temperature,
+            ),
+          ),
+      engine: engine,
+      request: explicit,
+      snapshotInterval: _snapshotInterval,
+      parseMarker: false,
+      detectedSource: detected,
+    );
+  }
+
+  static Language _languageFor(String code) =>
+      LanguageCatalog.byCode(code) ??
+      Language(code: code, name: LanguageCatalog.nameOf(code));
+
+  /// The language of [text] for an engine that needs an explicit source:
+  /// on-device identification first (private), then Mozhi google unless
+  /// [engine] is local (the user keeps that text off the network).
+  Future<String> _detectSource(TranslationEngine engine, String text) async {
+    Object? failure;
+    final offline = _offline;
+    if (offline != null && offline.isAvailable) {
+      try {
+        final code = normalizeDetected(
+          await offline.translator.identifyLanguage(text),
+        );
+        if (code != null) return code;
+      } on Object catch (error) {
+        failure = error;
+      }
+    }
+    if (!engine.isLocal && _mozhi.instances.isNotEmpty) {
+      try {
+        return (await _detectWithMozhi(text)).code;
+      } on Object catch (error) {
+        failure = error;
+      }
+    }
+    throw SourceLanguageRequiredException(engineId: engine.id, cause: failure);
+  }
+
+  /// Runs [engines] concurrently and emits a [CompareEntry] per engine as
+  /// soon as it finishes (only final results; failures as
+  /// `CompareEntry.failure`). Every engine is translated on its own, like
+  /// [translate] (so results come from and go to the cache): Mozhi engines
+  /// get one single-engine request each, because `engine=all` and
+  /// comma-separated lists crash Mozhi servers whose DuckDuckGo upstream is
+  /// unreachable (mozhi-contract G1) and drop failures silently.
+  Stream<CompareEntry> compare(
+    List<TranslationEngine> engines,
+    TranslationRequest request, {
+    bool refresh = false,
+  }) {
     final unique = {for (final engine in engines) engine.id: engine}.values;
     if (request.text.trim().isEmpty || unique.isEmpty) {
       return const Stream.empty();
     }
-    final mozhi = unique.where((e) => e.isMozhi).toList();
-    final ai = unique.where((e) => e.isAi).toList();
     final subscriptions = <StreamSubscription<TranslationResult>>[];
     late final StreamController<CompareEntry> controller;
     var cancelled = false;
@@ -265,72 +582,29 @@ class TranslationRepository {
       if (!cancelled && !controller.isClosed) controller.add(entry);
     }
 
-    CompareEntry failure(TranslationEngine engine, Object error) =>
-        CompareEntry.failure(
-          engineId: engine.id,
-          engineName: engine.name,
-          error: error,
-        );
-
-    Future<void> runMozhi(TranslationEngine engine) async {
-      try {
-        emit(CompareEntry.success(await _translateMozhi(engine, request)));
-      } on Object catch (error) {
-        emit(failure(engine, error));
-      }
-    }
-
-    Future<void> runMozhiBatch(List<TranslationEngine> batch) async {
-      try {
-        _checkMozhiLanguages(request.source, request.target);
-        final stopwatch = Stopwatch()..start();
-        final results = await _mozhi.run(
-          (client, _) => client.translateWithEngines(
-            engines: [for (final engine in batch) mozhiEngineId(engine)],
-            from: request.source.code,
-            to: request.target.code,
-            text: request.text,
-          ),
-        );
-        final elapsed = stopwatch.elapsed;
-        for (final engine in batch) {
-          final id = mozhiEngineId(engine).toLowerCase();
-          final translation = results.firstWhereOrNull(
-            (r) => r.engine.toLowerCase() == id,
-          );
-          emit(
-            translation == null
-                ? failure(
-                    engine,
-                    MozhiApiException('${engine.name} returned no result.'),
-                  )
-                : CompareEntry.success(
-                    mapMozhiTranslation(
-                      engine,
-                      request,
-                      translation,
-                      elapsed: elapsed,
-                    ),
-                  ),
-          );
-        }
-      } on Object catch (error) {
-        for (final engine in batch) {
-          emit(failure(engine, error));
-        }
-      }
-    }
-
-    // Only the final result of an AI stream is complete; the stream always
+    // Only the final result of an AI stream is complete; every stream
     // closes after an error.
-    Future<void> runAi(TranslationEngine engine) {
+    Future<void> run(TranslationEngine engine) {
       final completer = Completer<void>();
+      var reported = false;
+      void report(CompareEntry entry) {
+        if (reported) return;
+        reported = true;
+        emit(entry);
+      }
+
       subscriptions.add(
-        translate(engine, request)
+        translate(engine, request, refresh: refresh)
             .where((result) => result.isComplete)
             .listen(
-              (result) => emit(CompareEntry.success(result)),
-              onError: (Object error) => emit(failure(engine, error)),
+              (result) => report(CompareEntry.success(result)),
+              onError: (Object error) => report(
+                CompareEntry.failure(
+                  engineId: engine.id,
+                  engineName: engine.name,
+                  error: error,
+                ),
+              ),
               onDone: completer.complete,
             ),
       );
@@ -339,15 +613,8 @@ class TranslationRepository {
 
     controller = StreamController<CompareEntry>(
       onListen: () {
-        final tasks = [
-          if (mozhi.length >= 2)
-            runMozhiBatch(mozhi)
-          else
-            ...mozhi.map(runMozhi),
-          ...ai.map(runAi),
-        ];
         unawaited(
-          Future.wait(tasks).whenComplete(() {
+          Future.wait(unique.map(run)).whenComplete(() {
             if (!controller.isClosed) unawaited(controller.close());
           }),
         );
@@ -412,7 +679,8 @@ class TranslationRepository {
   );
 
   /// Streams Markdown as text deltas (concatenate them for the full text).
-  /// Requires an AI engine (an [ArgumentError] stream error otherwise).
+  /// Requires an AI engine with [TranslationEngine.supportsExtras] (an
+  /// [ArgumentError] stream error otherwise).
   Stream<String> explain(
     TranslationEngine engine,
     TranslationRequest request,
@@ -420,7 +688,7 @@ class TranslationRepository {
     String? question,
     String uiLanguage = 'English',
   }) async* {
-    final config = _providerFor(engine);
+    final config = _extrasProviderFor(engine);
     yield* _llm
         .clientFor(config)
         .streamChat(
@@ -476,24 +744,43 @@ class TranslationRepository {
     (output) => ResponseParsers.parseProofread(output, input: text),
   );
 
-  /// Uses the AI [engine] when given, else Mozhi google with `from=auto`
-  /// (taking `detected`), else throws.
+  /// Uses the AI [engine] when it [TranslationEngine.supportsExtras]; the
+  /// on-device identifier when [engine] is the offline engine; else Mozhi
+  /// google with `from=auto` (taking `detected`); else the on-device
+  /// identifier when available ([SourceLanguageRequiredException] when it
+  /// cannot tell); else throws a [StateError].
   Future<DetectedLanguage> detectLanguage(
     String text, {
     TranslationEngine? engine,
   }) async {
-    if (engine != null && engine.isAi) {
+    if (engine != null && engine.supportsExtras) {
       return await _chatJson(
         engine,
         () => TranslationPrompts.detectLanguage(text),
         ResponseParsers.parseDetectedLanguage,
       );
     }
+    final offline = _offline;
+    final onDevice = offline != null && offline.isAvailable;
+    if (onDevice &&
+        ((engine?.isOffline ?? false) || _mozhi.instances.isEmpty)) {
+      final code = normalizeDetected(
+        await offline.translator.identifyLanguage(text),
+      );
+      if (code == null) {
+        throw SourceLanguageRequiredException(engineId: engine?.id);
+      }
+      return DetectedLanguage(code: code);
+    }
     if (_mozhi.instances.isEmpty) {
       throw StateError(
         'Language detection needs an AI engine or a Mozhi instance.',
       );
     }
+    return await _detectWithMozhi(text);
+  }
+
+  Future<DetectedLanguage> _detectWithMozhi(String text) async {
     final translation = await _mozhi.run(
       (client, _) => client.translate(
         engine: 'google',
@@ -501,6 +788,7 @@ class TranslationRepository {
         to: 'en',
         text: text,
       ),
+      failOverOnTimeout: false,
     );
     final code = normalizeDetected(translation.detectedLanguage);
     if (code == null) {
@@ -509,9 +797,10 @@ class TranslationRepository {
     return DetectedLanguage(code: code);
   }
 
-  /// Mozhi `/api/tts` on the active instance with failover. [engine] is
-  /// `google` (default) or `reverso`. When Google fails on every instance,
-  /// Reverso is tried before giving up (the Google error is rethrown).
+  /// Mozhi `/api/tts` on the active instance with failover (not after a
+  /// timeout). [engine] is `google` (default) or `reverso`. When Google
+  /// fails on every instance, Reverso is tried before giving up (the Google
+  /// error is rethrown).
   Future<Uint8List> textToSpeech({
     required String text,
     required String languageCode,
@@ -523,6 +812,7 @@ class TranslationRepository {
         language: languageCode,
         text: text,
       ),
+      failOverOnTimeout: false,
     );
     try {
       return await speak(engine);
@@ -536,9 +826,11 @@ class TranslationRepository {
     }
   }
 
-  /// AI engine with vision: `TranslationPrompts.translateImage`.
-  /// Mozhi engine: `/api/image` (requires PNG; Google only, so the Google
-  /// engine is used whichever Mozhi engine is passed).
+  /// AI engine with vision: `TranslationPrompts.translateImage` (not for
+  /// translation-specialised models). Mozhi engine: `/api/image` (requires
+  /// PNG; Google only, so the Google engine is used whichever Mozhi engine
+  /// is passed). Other engines throw an [ArgumentError]: an image picked for
+  /// the offline or a machine translation engine is never sent to Mozhi.
   Future<ImageTranslationResult> translateImage(
     TranslationEngine engine,
     Uint8List imageBytes, {
@@ -548,7 +840,7 @@ class TranslationRepository {
     TranslationOptions options = const TranslationOptions(),
   }) async {
     if (engine.isAi) {
-      final config = _providerFor(engine);
+      final config = _extrasProviderFor(engine);
       final output = await _llm
           .clientFor(config)
           .chat(
@@ -571,6 +863,13 @@ class TranslationRepository {
         ),
       );
     }
+    if (!engine.isMozhi) {
+      throw ArgumentError.value(
+        engine.id,
+        'engine',
+        'Image translation requires an AI or Mozhi engine',
+      );
+    }
     _checkMozhiLanguages(source, target);
     if (mimeType.toLowerCase() != 'image/png') {
       throw ArgumentError.value(
@@ -585,6 +884,7 @@ class TranslationRepository {
         from: source.code,
         to: target.code,
       ),
+      failOverOnTimeout: false,
     );
     return ImageTranslationResult(
       translatedImage: decodeBase64Image(translation.translatedImageBase64),
@@ -597,52 +897,130 @@ class TranslationRepository {
   Future<Duration> pingInstance(MozhiInstance instance) =>
       _mozhi.withClient(instance, (client) => client.ping());
 
-  Future<List<LlmModel>> listModels(AiProviderConfig config) =>
-      _llm.withTemporaryClient(config, (client) => client.listModels());
-
-  /// Sends a tiny translation ("Hello" -> French) with [config]; returns the
-  /// output; throws the provider error on failure.
-  Future<String> testProvider(AiProviderConfig config) =>
-      _llm.withTemporaryClient(config, (client) async {
-        const request = TranslationRequest(
-          text: 'Hello, world!',
-          source: Language(code: 'en', name: 'English'),
-          target: Language(code: 'fr', name: 'French'),
-        );
-        final output = await client.chat(
-          _llmRequest(config, TranslationPrompts.translate(request)),
-        );
-        final text = ResponseParsers.cleanTranslation(
-          ResponseParsers.splitLanguageMarker(output).text,
-          source: request.text,
-        );
-        if (text.trim().isEmpty) {
-          throw const LlmApiException('The model returned an empty response.');
-        }
-        return text;
-      });
-
-  /// Closes all cached HTTP clients.
-  void dispose() {
-    _clearMozhiCaches();
-    _mozhi.dispose();
-    _llm.dispose();
+  /// The models of an AI provider; machine translation services have none
+  /// (an empty list).
+  Future<List<LlmModel>> listModels(AiProviderConfig config) async {
+    if (config.isMtService) return const [];
+    return await _llm.withTemporaryClient(
+      config,
+      (client) => client.listModels(),
+    );
   }
 
-  /// The configuration of AI [engine]; [ArgumentError] for Mozhi engines and
+  /// Sends a tiny translation ("Hello" -> French) with [config]; returns the
+  /// output; throws the provider error on failure. Machine translation
+  /// services use their API; translation-specialised models get their own
+  /// prompt template.
+  Future<String> testProvider(AiProviderConfig config) {
+    if (config.isMtService) return _mt.test(config);
+    return _llm.withTemporaryClient(config, (client) async {
+      const request = TranslationRequest(
+        text: 'Hello, world!',
+        source: Language(code: 'en', name: 'English'),
+        target: Language(code: 'fr', name: 'French'),
+      );
+      final profile = config.resolvedPromptProfile;
+      final translationOnly = profile.isTranslationOnly;
+      final output = await client.chat(
+        _llmRequest(
+          config,
+          translationOnly
+              ? MtPrompts.translate(profile, request)
+              : TranslationPrompts.translate(request),
+          defaultTemperature: translationOnly
+              ? MtPrompts.sampling(profile).temperature
+              : null,
+        ),
+      );
+      final text = ResponseParsers.cleanTranslation(
+        translationOnly
+            ? output
+            : ResponseParsers.splitLanguageMarker(output).text,
+        source: request.text,
+      );
+      if (text.trim().isEmpty) {
+        throw const LlmApiException('The model returned an empty response.');
+      }
+      return text;
+    });
+  }
+
+  /// Closes all cached HTTP clients and empties the caches.
+  void dispose() {
+    _clearMozhiCaches();
+    _cache.clear();
+    _mozhi.dispose();
+    _llm.dispose();
+    _mt.dispose();
+  }
+
+  /// The configuration of AI [engine]; [ArgumentError] for other kinds and
   /// unknown providers.
-  AiProviderConfig _providerFor(TranslationEngine engine) {
+  AiProviderConfig _aiProviderFor(TranslationEngine engine) {
     if (!engine.isAi) {
       throw ArgumentError.value(engine.id, 'engine', 'Requires an AI engine');
     }
-    final id =
-        engine.providerId ??
-        (engine.id.startsWith('ai:') ? engine.id.substring(3) : engine.id);
-    final config = _providers.firstWhereOrNull((p) => p.id == id);
-    if (config == null) {
+    final config = _configFor(engine, 'ai:');
+    if (config == null || config.isMtService) {
       throw ArgumentError.value(engine.id, 'engine', 'Unknown AI provider');
     }
     return config;
+  }
+
+  /// Like [_aiProviderFor], but also rejects translation-specialised models,
+  /// which cannot follow the extras' prompts.
+  AiProviderConfig _extrasProviderFor(TranslationEngine engine) {
+    final config = _aiProviderFor(engine);
+    if (config.resolvedPromptProfile.isTranslationOnly) {
+      throw ArgumentError.value(
+        engine.id,
+        'engine',
+        'This model only supports plain translation',
+      );
+    }
+    return config;
+  }
+
+  /// The configuration of machine translation [engine]; [ArgumentError] for
+  /// other kinds and unknown providers.
+  AiProviderConfig _mtProviderFor(TranslationEngine engine) {
+    if (!engine.isMt) {
+      throw ArgumentError.value(
+        engine.id,
+        'engine',
+        'Requires a machine translation engine',
+      );
+    }
+    final config = _configFor(engine, 'mt:');
+    if (config == null || !config.isMtService) {
+      throw ArgumentError.value(
+        engine.id,
+        'engine',
+        'Unknown machine translation service',
+      );
+    }
+    return config;
+  }
+
+  AiProviderConfig? _configFor(TranslationEngine engine, String prefix) {
+    final id =
+        engine.providerId ??
+        (engine.id.startsWith(prefix)
+            ? engine.id.substring(prefix.length)
+            : engine.id);
+    return _providers.firstWhereOrNull((p) => p.id == id);
+  }
+
+  OfflineEngine _offlineFor(TranslationEngine engine) {
+    final offline = _offline;
+    if (!engine.isOffline || offline == null) {
+      throw ArgumentError.value(
+        engine.id,
+        'engine',
+        'No offline translator is configured',
+      );
+    }
+    return offline;
   }
 
   static void _checkMozhiLanguages(Language source, Language target) {
@@ -656,17 +1034,20 @@ class TranslationRepository {
   }
 
   /// Anthropic models reject non-default sampling parameters, so the
-  /// temperature is never sent to them.
+  /// temperature is never sent to them. Elsewhere the provider's own
+  /// temperature wins over [defaultTemperature] (a model card's
+  /// recommendation).
   static LlmRequest _llmRequest(
     AiProviderConfig config,
     List<LlmMessage> messages, {
     bool jsonOutput = false,
+    double? defaultTemperature,
   }) => LlmRequest(
     model: config.model,
     messages: messages,
     temperature: config.provider == LlmProvider.anthropic
         ? null
-        : config.temperature,
+        : config.temperature ?? defaultTemperature,
     effort: config.effort,
     jsonOutput: jsonOutput,
   );
@@ -678,7 +1059,7 @@ class TranslationRepository {
     List<LlmMessage> Function() messages,
     T Function(String output) parse,
   ) async {
-    final config = _providerFor(engine);
+    final config = _extrasProviderFor(engine);
     final client = _llm.clientFor(config);
     final request = _llmRequest(config, messages(), jsonOutput: true);
     final output = await client.chat(request);

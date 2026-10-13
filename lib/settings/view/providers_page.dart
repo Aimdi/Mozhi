@@ -265,10 +265,13 @@ class _EmptyState extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
-          Text(
-            l10n.settingsProvidersEmptyTitle,
-            style: theme.textTheme.headlineSmall,
-            textAlign: TextAlign.center,
+          Semantics(
+            header: true,
+            child: Text(
+              l10n.settingsProvidersEmptyTitle,
+              style: theme.textTheme.headlineSmall,
+              textAlign: TextAlign.center,
+            ),
           ),
           const SizedBox(height: 12),
           Text(

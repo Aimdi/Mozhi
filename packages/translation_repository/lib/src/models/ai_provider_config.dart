@@ -1,8 +1,38 @@
 import 'package:collection/collection.dart';
 import 'package:llm_api/llm_api.dart';
 import 'package:meta/meta.dart';
+import 'package:translation_repository/src/models/prompt_profile.dart';
 
-/// A user-configured AI backend.
+/// The kind of service an [AiProviderConfig] talks to.
+enum MtService {
+  /// A large language model reached through [AiProviderConfig.provider]
+  /// (the default).
+  llm,
+
+  /// The DeepL API v2 (Free or Pro). [AiProviderConfig.apiKey] is the DeepL
+  /// auth key; an empty [AiProviderConfig.baseUrl] picks the official API
+  /// from the key (`:fx` keys use the free API), otherwise it is a proxy.
+  deepl,
+
+  /// A LibreTranslate server at [AiProviderConfig.baseUrl];
+  /// [AiProviderConfig.apiKey] is only needed by servers that require one.
+  libreTranslate;
+
+  /// Parses [value] (an enum name; case, `_`, `-` and spaces are ignored,
+  /// and `libre` means [libreTranslate]); null when unknown.
+  static MtService? tryParse(Object? value) {
+    if (value is! String) return null;
+    final key = value.toLowerCase().replaceAll(RegExp('[^a-z]'), '');
+    for (final service in MtService.values) {
+      if (service.name.toLowerCase() == key) return service;
+    }
+    return key == 'libre' ? MtService.libreTranslate : null;
+  }
+}
+
+/// A user-configured translation backend: an AI (LLM) provider or, with a
+/// non-default [service], a classic machine translation service (DeepL or
+/// LibreTranslate) that is used with its own key or server.
 ///
 /// [apiKey] is NOT part of [toJson]/[AiProviderConfig.fromJson]: the app
 /// keeps keys in secure storage and injects them with [copyWith].
@@ -21,6 +51,8 @@ class AiProviderConfig {
     this.headers = const {},
     this.enabled = true,
     this.supportsVision = false,
+    this.service = MtService.llm,
+    this.promptProfile = PromptProfile.auto,
   });
 
   /// Tolerant counterpart of [toJson]. Throws [FormatException] only when
@@ -50,6 +82,9 @@ class AiProviderConfig {
           : const {},
       enabled: json['enabled'] != false,
       supportsVision: json['supportsVision'] == true,
+      service: MtService.tryParse(json['service']) ?? MtService.llm,
+      promptProfile:
+          PromptProfile.tryParse(json['promptProfile']) ?? PromptProfile.auto,
     );
   }
 
@@ -74,6 +109,23 @@ class AiProviderConfig {
 
   /// Whether the model accepts images (enables image translation via AI).
   final bool supportsVision;
+
+  /// [MtService.llm] (default) for AI providers; [MtService.deepl] or
+  /// [MtService.libreTranslate] for machine translation services, whose
+  /// [provider], [model], [effort], [temperature], [headers],
+  /// [supportsVision] and [promptProfile] are ignored.
+  final MtService service;
+
+  /// How prompts are built for [model]; [PromptProfile.auto] (default)
+  /// detects translation-specialised models from the model id. See
+  /// [resolvedPromptProfile].
+  final PromptProfile promptProfile;
+
+  /// Whether this is a machine translation service rather than an LLM.
+  bool get isMtService => service != MtService.llm;
+
+  /// [promptProfile] resolved against [model] (never [PromptProfile.auto]).
+  PromptProfile get resolvedPromptProfile => promptProfile.resolve(model);
 
   /// Heuristic: runs on the user's machine / LAN (privacy badge).
   ///
@@ -108,6 +160,8 @@ class AiProviderConfig {
     Map<String, String>? headers,
     bool? enabled,
     bool? supportsVision,
+    MtService? service,
+    PromptProfile? promptProfile,
     bool clearApiKey = false,
     bool clearPresetId = false,
     bool clearEffort = false,
@@ -125,9 +179,13 @@ class AiProviderConfig {
     headers: headers ?? this.headers,
     enabled: enabled ?? this.enabled,
     supportsVision: supportsVision ?? this.supportsVision,
+    service: service ?? this.service,
+    promptProfile: promptProfile ?? this.promptProfile,
   );
 
-  /// Never contains the API key.
+  /// Never contains the API key. `service` is only written for machine
+  /// translation services and `promptProfile` only when it is not
+  /// [PromptProfile.auto].
   Map<String, dynamic> toJson() => {
     'id': id,
     'name': name,
@@ -140,6 +198,9 @@ class AiProviderConfig {
     if (headers.isNotEmpty) 'headers': Map<String, String>.of(headers),
     'enabled': enabled,
     'supportsVision': supportsVision,
+    if (service != MtService.llm) 'service': service.name,
+    if (promptProfile != PromptProfile.auto)
+      'promptProfile': promptProfile.name,
   };
 
   @override
@@ -156,6 +217,8 @@ class AiProviderConfig {
       other.temperature == temperature &&
       other.enabled == enabled &&
       other.supportsVision == supportsVision &&
+      other.service == service &&
+      other.promptProfile == promptProfile &&
       const MapEquality<String, String>().equals(other.headers, headers);
 
   @override
@@ -171,12 +234,15 @@ class AiProviderConfig {
     temperature,
     enabled,
     supportsVision,
+    service,
+    promptProfile,
     const MapEquality<String, String>().hash(headers),
   );
 
   @override
-  String toString() =>
-      'AiProviderConfig($id, $name, ${provider.name}, $baseUrl, $model)';
+  String toString() => service == MtService.llm
+      ? 'AiProviderConfig($id, $name, ${provider.name}, $baseUrl, $model)'
+      : 'AiProviderConfig($id, $name, ${service.name}, $baseUrl)';
 
   /// Whether [host] (a bare host name or IP literal, as in [Uri.host]) is on
   /// this machine or a private network. See [isLocal].
@@ -300,6 +366,7 @@ class AiProviderPreset {
     this.description = '',
     this.defaultEffort,
     this.headers = const {},
+    this.service = MtService.llm,
   });
 
   final String id;
@@ -320,6 +387,10 @@ class AiProviderPreset {
   final String? defaultEffort;
   final Map<String, String> headers;
 
+  /// [MtService.llm] for AI presets ([all]); a machine translation service
+  /// for [mtServices].
+  final MtService service;
+
   /// Builds a config from this preset.
   AiProviderConfig toConfig({
     required String id,
@@ -337,6 +408,7 @@ class AiProviderPreset {
     presetId: this.id,
     effort: defaultEffort,
     headers: headers,
+    service: service,
   );
 
   /// Built-in presets. Must include at least: OpenAI, Anthropic (default
@@ -349,12 +421,46 @@ class AiProviderPreset {
   /// "Custom (OpenAI-compatible)".
   static List<AiProviderPreset> get all => _presets;
 
+  /// Machine translation services that are used with the user's own key or
+  /// server: DeepL API (`deepl`) and LibreTranslate (`libretranslate`).
+  /// Kept out of [all], which lists LLM providers only.
+  static List<AiProviderPreset> get mtServices => _mtPresets;
+
+  /// Looks [id] up in [all] and [mtServices].
   static AiProviderPreset? byId(String id) {
-    for (final preset in _presets) {
+    for (final preset in [..._presets, ..._mtPresets]) {
       if (preset.id == id) return preset;
     }
     return null;
   }
+
+  static const _mtPresets = <AiProviderPreset>[
+    AiProviderPreset(
+      id: 'deepl',
+      name: 'DeepL API',
+      provider: LlmProvider.openAiCompatible,
+      baseUrl: '',
+      defaultModel: '',
+      apiKeyUrl: 'https://www.deepl.com/your-account/keys',
+      description:
+          'DeepL with your own API key (Free or Pro). Leave the URL empty '
+          'to use the official API.',
+      service: MtService.deepl,
+    ),
+    AiProviderPreset(
+      id: 'libretranslate',
+      name: 'LibreTranslate',
+      provider: LlmProvider.openAiCompatible,
+      baseUrl: 'https://libretranslate.com',
+      defaultModel: '',
+      requiresApiKey: false,
+      apiKeyUrl: 'https://portal.libretranslate.com',
+      description:
+          'Open-source machine translation on your own server or '
+          'libretranslate.com (needs a key there).',
+      service: MtService.libreTranslate,
+    ),
+  ];
 
   static const _presets = <AiProviderPreset>[
     AiProviderPreset(
