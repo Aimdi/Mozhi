@@ -1,0 +1,71 @@
+{
+  "@@locale": "en",
+  "appTitle": "Mozhi",
+  "@appTitle": {
+    "description": "Application name"
+  },
+  "commonCancel": "Cancel",
+  "@commonCancel": {
+    "description": "Generic cancel button"
+  },
+  "commonSave": "Save",
+  "@commonSave": {
+    "description": "Generic save button"
+  },
+  "commonDelete": "Delete",
+  "@commonDelete": {
+    "description": "Generic delete button"
+  },
+  "commonCopy": "Copy",
+  "@commonCopy": {
+    "description": "Copy to clipboard action"
+  },
+  "commonCopied": "Copied to clipboard",
+  "@commonCopied": {
+    "description": "Snackbar after copying"
+  },
+  "commonShare": "Share",
+  "@commonShare": {
+    "description": "Share action"
+  },
+  "commonRetry": "Retry",
+  "@commonRetry": {
+    "description": "Retry action"
+  },
+  "commonClose": "Close",
+  "@commonClose": {
+    "description": "Close action"
+  },
+  "commonClear": "Clear",
+  "@commonClear": {
+    "description": "Clear action"
+  },
+  "commonListen": "Listen",
+  "@commonListen": {
+    "description": "Text-to-speech play action"
+  },
+  "commonStop": "Stop",
+  "@commonStop": {
+    "description": "Stop playback"
+  },
+  "commonSearch": "Search",
+  "@commonSearch": {
+    "description": "Search field hint"
+  },
+  "navTranslate": "Translate",
+  "@navTranslate": {
+    "description": "Bottom navigation: translate tab"
+  },
+  "navProofread": "Proofread",
+  "@navProofread": {
+    "description": "Bottom navigation: proofread tab"
+  },
+  "navHistory": "History",
+  "@navHistory": {
+    "description": "Bottom navigation: history tab"
+  },
+  "navSettings": "Settings",
+  "@navSettings": {
+    "description": "Bottom navigation: settings tab"
+  }
+}
