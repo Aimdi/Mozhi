@@ -21,9 +21,8 @@ class OnboardingBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final style = Theme.of(
-      context,
-    ).textTheme.labelMedium?.copyWith(color: color, fontWeight: FontWeight.w600);
+    final style = Theme.of(context).textTheme.labelMedium
+        ?.copyWith(color: color, fontWeight: FontWeight.w600);
     return DecoratedBox(
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),

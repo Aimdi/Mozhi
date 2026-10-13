@@ -135,10 +135,14 @@ class OfflineModelsCubit extends Cubit<OfflineModelsState> {
   }
 }
 
-/// Names [code] via [LanguageCatalog], falling back to the code itself.
-OfflineLanguage describeOfflineLanguage(String code) {
+/// Names [code] via [LanguageCatalog] (or [lookup]), falling back to the
+/// code itself when the language is unknown or the lookup fails.
+OfflineLanguage describeOfflineLanguage(
+  String code, {
+  Language? Function(String code) lookup = LanguageCatalog.byCode,
+}) {
   try {
-    final language = LanguageCatalog.byCode(code);
+    final language = lookup(code);
     final name = language?.name ?? LanguageCatalog.nameOf(code);
     final nativeName = language?.nativeName;
     return OfflineLanguage(

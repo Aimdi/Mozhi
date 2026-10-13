@@ -16,7 +16,7 @@ class AiStep extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final colors = Theme.of(context).colorScheme;
-    final presetId = context.select((OnboardingCubit c) => c.state.presetId);
+    final presetId = context.select((c) => c.state.presetId);
     return OnboardingStepLayout(
       icon: Icons.auto_awesome_outlined,
       title: l10n.onboardingAiTitle,
@@ -66,9 +66,8 @@ class AiStep extends StatelessWidget {
         ],
         Text(
           l10n.onboardingAiLater,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: colors.onSurfaceVariant,
-          ),
+          style: Theme.of(context).textTheme.bodySmall
+              ?.copyWith(color: colors.onSurfaceVariant),
         ),
       ],
     );

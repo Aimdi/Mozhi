@@ -11,15 +11,15 @@ enum PingStatus { pending, success, failure, timedOut }
 class InstancePing extends Equatable {
   const new({required this.status, this.latency, this.error});
 
-  const InstancePing.pending() : this(status: PingStatus.pending);
+  const new pending() : this(status: PingStatus.pending);
 
-  const InstancePing.success(Duration latency)
+  const new success(Duration latency)
     : this(status: PingStatus.success, latency: latency);
 
-  const InstancePing.failure(String error)
+  const new failure(String error)
     : this(status: PingStatus.failure, error: error);
 
-  const InstancePing.timedOut() : this(status: PingStatus.timedOut);
+  const new timedOut() : this(status: PingStatus.timedOut);
 
   final PingStatus status;
 

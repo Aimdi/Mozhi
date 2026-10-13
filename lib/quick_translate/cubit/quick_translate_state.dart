@@ -20,7 +20,7 @@ enum QuickTranslateStatus {
   noEngines,
 }
 
-/// State of [QuickTranslateCubit]: one incoming text, always translated
+/// State of `QuickTranslateCubit`: one incoming text, always translated
 /// from an auto-detected source language into [target].
 class QuickTranslateState extends Equatable {
   const new({

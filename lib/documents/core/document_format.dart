@@ -140,7 +140,5 @@ String _fileCode(String code) {
       .replaceAll(RegExp(r'^-|-$'), '');
   if (cleaned.isEmpty) return 'translated';
   // Custom AI "languages" (e.g. "Pirate speak") become lower case slugs.
-  return cleaned.length > 12 || cleaned.contains(RegExp('[A-Z].*[A-Z]{2}'))
-      ? cleaned.toLowerCase()
-      : cleaned;
+  return _localeStem.hasMatch(cleaned) ? cleaned : cleaned.toLowerCase();
 }

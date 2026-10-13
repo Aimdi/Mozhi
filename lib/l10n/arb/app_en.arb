@@ -3326,5 +3326,149 @@
   "imageTranslateErrorTimeout": "Image translation timed out. Google Lens can take up to a minute; try again or use a smaller image.",
   "@imageTranslateErrorTimeout": {
     "description": "imageTranslateErrorTimeout"
+  },
+  "conversationTitle": "Conversation",
+  "@conversationTitle": {
+    "description": "conversationTitle"
+  },
+  "conversationOpen": "Conversation mode",
+  "@conversationOpen": {
+    "description": "conversationOpen"
+  },
+  "conversationFaceToFaceEnter": "Face-to-face mode",
+  "@conversationFaceToFaceEnter": {
+    "description": "conversationFaceToFaceEnter"
+  },
+  "conversationFaceToFaceExit": "Exit face-to-face mode",
+  "@conversationFaceToFaceExit": {
+    "description": "conversationFaceToFaceExit"
+  },
+  "conversationAutoSpeak": "Read translations aloud",
+  "@conversationAutoSpeak": {
+    "description": "conversationAutoSpeak"
+  },
+  "conversationCopyTranscript": "Copy transcript",
+  "@conversationCopyTranscript": {
+    "description": "conversationCopyTranscript"
+  },
+  "conversationShareTranscript": "Share transcript",
+  "@conversationShareTranscript": {
+    "description": "conversationShareTranscript"
+  },
+  "conversationClear": "Clear conversation",
+  "@conversationClear": {
+    "description": "conversationClear"
+  },
+  "conversationClearTitle": "Clear conversation?",
+  "@conversationClearTitle": {
+    "description": "conversationClearTitle"
+  },
+  "conversationClearBody": "All messages in this conversation will be removed.",
+  "@conversationClearBody": {
+    "description": "conversationClearBody"
+  },
+  "conversationEmptyTitle": "Start talking",
+  "@conversationEmptyTitle": {
+    "description": "conversationEmptyTitle"
+  },
+  "conversationEmptyBody": "Type or use the microphone. Each message is translated for the other person.",
+  "@conversationEmptyBody": {
+    "description": "conversationEmptyBody"
+  },
+  "conversationInputHint": "Type in {language}",
+  "@conversationInputHint": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "conversationSend": "Translate and send",
+  "@conversationSend": {
+    "description": "conversationSend"
+  },
+  "conversationTranslating": "Translating…",
+  "@conversationTranslating": {
+    "description": "conversationTranslating"
+  },
+  "conversationSwapLanguages": "Swap languages",
+  "@conversationSwapLanguages": {
+    "description": "conversationSwapLanguages"
+  },
+  "conversationChangeLanguage": "Change language: {language}",
+  "@conversationChangeLanguage": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "conversationPickLanguage": "Choose a language",
+  "@conversationPickLanguage": {
+    "description": "conversationPickLanguage"
+  },
+  "conversationSearchLanguages": "Search languages",
+  "@conversationSearchLanguages": {
+    "description": "conversationSearchLanguages"
+  },
+  "conversationNoLanguagesFound": "No matching languages",
+  "@conversationNoLanguagesFound": {
+    "description": "conversationNoLanguagesFound"
+  },
+  "conversationRecentLanguages": "Recent",
+  "@conversationRecentLanguages": {
+    "description": "conversationRecentLanguages"
+  },
+  "conversationAllLanguages": "All languages",
+  "@conversationAllLanguages": {
+    "description": "conversationAllLanguages"
+  },
+  "conversationTranscriptTitle": "Conversation: {languageA} ↔ {languageB}",
+  "@conversationTranscriptTitle": {
+    "placeholders": {
+      "languageA": {
+        "type": "String"
+      },
+      "languageB": {
+        "type": "String"
+      }
+    }
+  },
+  "conversationNoEngine": "No translation engine is set up.",
+  "@conversationNoEngine": {
+    "description": "conversationNoEngine"
+  },
+  "conversationSpeechError": "Couldn't play audio.",
+  "@conversationSpeechError": {
+    "description": "conversationSpeechError"
+  },
+  "conversationCopyOriginal": "Copy original",
+  "@conversationCopyOriginal": {
+    "description": "conversationCopyOriginal"
+  },
+  "conversationCopyTranslation": "Copy translation",
+  "@conversationCopyTranslation": {
+    "description": "conversationCopyTranslation"
+  },
+  "conversationDeleteMessage": "Delete message",
+  "@conversationDeleteMessage": {
+    "description": "conversationDeleteMessage"
+  },
+  "conversationMessageSemantics": "{source}: {original}. {target}: {translation}",
+  "@conversationMessageSemantics": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      },
+      "original": {
+        "type": "String"
+      },
+      "target": {
+        "type": "String"
+      },
+      "translation": {
+        "type": "String"
+      }
+    }
   }
 }

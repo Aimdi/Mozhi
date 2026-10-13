@@ -21,19 +21,15 @@ String onboardingErrorMessage(Object error) => switch (error) {
 /// instance, adding the user's own instance and setting up an optional AI
 /// provider. Every choice is applied to [SettingsCubit] right away.
 class OnboardingCubit extends Cubit<OnboardingState> {
-  /// [pingTimeout] bounds each instance ping, [testTimeout] the provider
+  /// [_pingTimeout] bounds each instance ping, [_testTimeout] the provider
   /// test and model list. [clock] creates provider ids (tests).
   new({
-    required TranslationRepository repository,
-    required SettingsCubit settings,
-    Duration pingTimeout = const Duration(seconds: 6),
-    Duration testTimeout = const Duration(seconds: 90),
+    required this._repository,
+    required this._settings,
+    this._pingTimeout = const Duration(seconds: 6),
+    this._testTimeout = const Duration(seconds: 90),
     DateTime Function()? clock,
-  }) : _repository = repository,
-       _settings = settings,
-       _pingTimeout = pingTimeout,
-       _testTimeout = testTimeout,
-       _clock = clock ?? DateTime.now,
+  }) : _clock = clock ?? DateTime.now,
        super(const OnboardingState());
 
   final TranslationRepository _repository;

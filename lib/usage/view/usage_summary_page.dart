@@ -112,18 +112,10 @@ class UsageSummaryView extends StatelessWidget {
         title: Text(l10n.usageTitle),
         actions: [
           if (hasUsage)
-            PopupMenuButton<void>(
-              tooltip: l10n.commonMoreOptions,
-              itemBuilder: (context) => [
-                PopupMenuItem<void>(
-                  onTap: () => unawaited(_confirmReset(context)),
-                  child: ListTile(
-                    leading: const Icon(Icons.restart_alt),
-                    title: Text(l10n.usageResetAction),
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                ),
-              ],
+            IconButton(
+              onPressed: () => _confirmReset(context),
+              tooltip: l10n.usageResetAction,
+              icon: const Icon(Icons.restart_alt),
             ),
         ],
       ),

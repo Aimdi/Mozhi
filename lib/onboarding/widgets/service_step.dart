@@ -5,7 +5,6 @@ import 'package:mozhi/onboarding/cubit/onboarding_cubit.dart';
 import 'package:mozhi/onboarding/widgets/instance_tile.dart';
 import 'package:mozhi/onboarding/widgets/onboarding_badge.dart';
 import 'package:mozhi/onboarding/widgets/step_layout.dart';
-import 'package:mozhi/settings/cubit/settings_cubit.dart';
 
 /// Step 2: find the fastest public Mozhi instance or add your own.
 class ServiceStep extends StatelessWidget {
@@ -36,11 +35,9 @@ class _FindFastest extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final cubit = context.read<OnboardingCubit>();
-    final status = context.select((OnboardingCubit c) => c.state.serviceStatus);
-    final sortBySpeed = context.select(
-      (OnboardingCubit c) => c.state.sortBySpeed,
-    );
-    final progress = context.select((OnboardingCubit c) {
+    final status = context.select((c) => c.state.serviceStatus);
+    final sortBySpeed = context.select((c) => c.state.sortBySpeed);
+    final progress = context.select((c) {
       final pings = c.state.pings.values;
       if (pings.isEmpty) return 0.0;
       final done = pings.where((p) => p.status != PingStatus.pending).length;
@@ -90,7 +87,7 @@ class _InstanceList extends StatelessWidget {
     final l10n = context.l10n;
     final colors = Theme.of(context).colorScheme;
     final cubit = context.read<OnboardingCubit>();
-    final instances = context.select((SettingsCubit c) => c.state.instances);
+    final instances = context.select((c) => c.state.instances);
     final state = context.watch<OnboardingCubit>().state;
     final fastest = state.fastestUrl;
     if (instances.isEmpty) {
@@ -171,18 +168,10 @@ class _OwnInstanceFormState extends State<OwnInstanceForm> {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final cubit = context.read<OnboardingCubit>();
-    final status = context.select(
-      (OnboardingCubit c) => c.state.ownInstanceStatus,
-    );
-    final error = context.select(
-      (OnboardingCubit c) => c.state.ownInstanceError,
-    );
-    final message = context.select(
-      (OnboardingCubit c) => c.state.ownInstanceMessage,
-    );
-    final latency = context.select(
-      (OnboardingCubit c) => c.state.ownInstanceLatency,
-    );
+    final status = context.select((c) => c.state.ownInstanceStatus);
+    final error = context.select((c) => c.state.ownInstanceError);
+    final message = context.select((c) => c.state.ownInstanceMessage);
+    final latency = context.select((c) => c.state.ownInstanceLatency);
     final testing = status == OwnInstanceStatus.testing;
     final errorText = switch (error) {
       null => null,
