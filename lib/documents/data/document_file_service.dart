@@ -1,6 +1,3 @@
-import 'dart:typed_data';
-import 'dart:ui';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -116,6 +113,8 @@ class PlatformDocumentFileService implements DocumentFileService {
           sharePositionOrigin: origin,
         ),
       );
+      // share_plus reports unsupported platforms (old Windows) this way.
+      // ignore: avoid_catching_errors
     } on UnimplementedError {
       throw const ShareUnsupportedException();
     }
