@@ -157,9 +157,8 @@ void main() {
 
       await const TranslateLink(to: 'Pirate speak').applyTo(cubit);
 
-      verify(
-        () => cubit.setTarget(const Language.custom('Pirate speak')),
-      ).called(1);
+      verify(() => cubit.setTarget(const Language.custom('Pirate speak')))
+          .called(1);
       verifyNever(() => cubit.setInputAndTranslate(any()));
     });
 
@@ -219,9 +218,8 @@ void main() {
           enginesStatus: EnginesStatus.loading,
         ),
       );
-      await const TranslateLink(
-        text: 'y',
-      ).applyTo(cubit, timeout: const Duration(milliseconds: 10));
+      await const TranslateLink(text: 'y')
+          .applyTo(cubit, timeout: const Duration(milliseconds: 10));
       verify(() => cubit.setInputAndTranslate('y')).called(1);
     });
 

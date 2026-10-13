@@ -593,6 +593,7 @@ void main() {
     blocTest<TranslateCubit, TranslateState>(
       'ignores stale results and failures',
       setUp: () {
+        mocks.stubTranslate();
         var calls = 0;
         when(
           () => mocks.repository.lookUp(

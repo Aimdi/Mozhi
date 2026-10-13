@@ -70,9 +70,10 @@ void main() {
 
     test('is Material 3 with the given scheme', () {
       expect(theme.useMaterial3, isTrue);
-      expect(theme.colorScheme.primary, ColorScheme.fromSeed(
-        seedColor: seed,
-      ).primary);
+      expect(
+        theme.colorScheme.primary,
+        ColorScheme.fromSeed(seedColor: seed).primary,
+      );
       expect(theme.scaffoldBackgroundColor, theme.colorScheme.surface);
     });
 

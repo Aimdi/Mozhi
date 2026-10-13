@@ -20,7 +20,7 @@ void main() {
     });
 
     test('uses the primary store while it works', () async {
-      when(() => primary.read('k')).thenAnswer((_) async => 'v');
+      when(() => primary.read(any())).thenAnswer((_) async => 'v');
       when(() => primary.write('k', 'v')).thenAnswer((_) async {});
       when(() => primary.delete('k')).thenAnswer((_) async {});
 

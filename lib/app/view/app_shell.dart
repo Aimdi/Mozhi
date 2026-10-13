@@ -90,7 +90,9 @@ class AppShell extends StatelessWidget {
               onDestinationSelected: onDestinationSelected,
               extended: extended,
               minExtendedWidth: 200,
-              labelType: extended ? NavigationRailLabelType.none : null,
+              labelType: extended
+                  ? NavigationRailLabelType.none
+                  : NavigationRailLabelType.all,
               leading: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 child: _RailHeader(extended: extended),
