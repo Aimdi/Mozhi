@@ -125,8 +125,7 @@ class _HistoryViewState extends State<HistoryView> {
                       if (!saveHistory) const _HistoryDisabledBanner(),
                       // The hint disappears once text is typed; the label
                       // keeps the field named (WCAG 3.3.2, 4.1.2).
-                      Semantics(
-                        label: l10n.historySearchLabel,
+                      KeyedSubtree(
                         child: SearchBar(
                           controller: _search,
                           hintText: l10n.historySearchHint,

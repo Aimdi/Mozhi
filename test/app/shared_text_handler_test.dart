@@ -1,12 +1,12 @@
 import 'dart:async';
 
 import 'package:bloc_test/bloc_test.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/app/shared_text_handler.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
-import 'package:translation_repository/translation_repository.dart';
 
 class _MockTranslateCubit extends MockCubit<TranslateState>
     implements TranslateCubit;
@@ -15,31 +15,34 @@ class _MockSharedTextService extends Mock implements SharedTextService;
 
 const _ready = TranslateState(enginesStatus: EnginesStatus.ready);
 
-TranslateState _translated(String input, String output) => TranslateState(
-  enginesStatus: EnginesStatus.ready,
-  input: input,
-  status: TranslateStatus.success,
-  result: TranslationResult(engineId: 'e', engineName: 'E', text: output),
-);
-
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('SharedTextHandler', () {
     late _MockTranslateCubit cubit;
     late _MockSharedTextService service;
     late StreamController<SharedText> texts;
-    late StreamController<TranslateState> states;
     late int shown;
-    late int replaceOffers;
+    late List<QuickTranslateRequest> quick;
+    late String? clipboard;
     late SharedTextHandler handler;
+
+    void verifyExternal(String text) =>
+        verify(() => cubit.setExternalInput(text)).called(1);
+
+    void verifyNoInput() {
+      verifyNever(() => cubit.setExternalInput(any()));
+      verifyNever(() => cubit.setInputAndTranslate(any()));
+    }
 
     setUp(() {
       cubit = _MockTranslateCubit();
       service = _MockSharedTextService();
       texts = StreamController<SharedText>.broadcast();
-      states = StreamController<TranslateState>.broadcast();
       shown = 0;
-      replaceOffers = 0;
-      whenListen(cubit, states.stream, initialState: _ready);
+      quick = [];
+      clipboard = null;
+      when(() => cubit.state).thenReturn(_ready);
       when(() => cubit.isClosed).thenReturn(false);
       when(() => service.texts).thenAnswer((_) => texts.stream);
       when(() => service.initialText()).thenAnswer((_) async => null);
@@ -48,28 +51,29 @@ void main() {
         service: service,
         translateCubit: cubit,
         onShowTranslate: () => shown++,
-        onReplaceAvailable: () => replaceOffers++,
+        onQuickTranslate: quick.add,
+        readClipboard: () async => clipboard,
       );
     });
 
     tearDown(() async {
       await handler.dispose();
       await texts.close();
-      await states.close();
     });
 
-    test('translates the launch text', () async {
+    test('opens the launch text as external input', () async {
       when(() => service.initialText())
           .thenAnswer((_) async => const SharedText('hello'));
 
       await handler.start();
 
       expect(shown, 1);
-      verify(() => cubit.setInputAndTranslate('hello')).called(1);
-      expect(replaceOffers, 0);
+      verifyExternal('hello');
+      verifyNever(() => cubit.setInputAndTranslate(any()));
+      expect(quick, isEmpty);
     });
 
-    test('translates texts shared while running', () async {
+    test('opens texts shared while running', () async {
       await handler.start();
       expect(shown, 0);
 
@@ -77,7 +81,7 @@ void main() {
       await pumpEventQueue();
 
       expect(shown, 1);
-      verify(() => cubit.setInputAndTranslate('later')).called(1);
+      verifyExternal('later');
     });
 
     test('ignores errors of the platform stream', () async {
@@ -88,15 +92,19 @@ void main() {
         ..add(const SharedText('next'));
       await pumpEventQueue();
 
-      verify(() => cubit.setInputAndTranslate('next')).called(1);
+      verifyExternal('next');
     });
 
     test('ignores blank texts', () async {
       await handler.start();
       await handler.handle(const SharedText('  '));
+      await handler.handle(
+        const SharedText(' ', isProcessText: true, readOnly: false),
+      );
 
       expect(shown, 0);
-      verifyNever(() => cubit.setInputAndTranslate(any()));
+      expect(quick, isEmpty);
+      verifyNoInput();
     });
 
     test('survives platforms without support', () async {
@@ -106,72 +114,128 @@ void main() {
       expect(shown, 0);
     });
 
-    test(
-      'offers the replacement once a writable selection is translated',
-      () async {
-        await handler.handle(
-          const SharedText('hola', readOnly: false, isProcessText: true),
-        );
-        expect(replaceOffers, 0);
-
-        states
-          ..add(_ready.copyWith(status: TranslateStatus.translating))
-          ..add(_translated('hola', 'hello'));
-        await pumpEventQueue();
-        expect(replaceOffers, 1);
-
-        // Only once.
-        states.add(_translated('hola', 'hi'));
-        await pumpEventQueue();
-        expect(replaceOffers, 1);
-      },
-    );
-
-    test(
-      'offers the replacement immediately when already translated',
-      () async {
-        when(() => cubit.state).thenReturn(_translated('hola', 'hello'));
-
+    group('PROCESS_TEXT', () {
+      test('shows a writable selection in quick translate', () async {
         await handler.handle(
           const SharedText('hola', readOnly: false, isProcessText: true),
         );
 
-        expect(replaceOffers, 1);
-      },
-    );
+        expect(shown, 0);
+        verifyNoInput();
+        expect(quick, hasLength(1));
+        final request = quick.single;
+        expect(request.text, 'hola');
+        expect(request.canReplace, isTrue);
 
-    test('does not offer a replacement when the translation fails', () async {
-      await handler.handle(
-        const SharedText('hola', readOnly: false, isProcessText: true),
+        request.onReplace!('hello');
+        await pumpEventQueue();
+        verify(() => service.returnResult('hello')).called(1);
+      });
+
+      test('offers no replacement for a read-only selection', () async {
+        await handler.handle(const SharedText('hola', isProcessText: true));
+
+        final request = quick.single;
+        expect(request.canReplace, isFalse);
+        expect(request.onReplace, isNull);
+      });
+
+      test('"Open in app" opens the translate tab', () async {
+        await handler.handle(const SharedText('hola', isProcessText: true));
+
+        quick.single.onOpenInApp();
+        await pumpEventQueue();
+
+        expect(shown, 1);
+        verifyExternal('hola');
+      });
+
+      test('opens in the app without a quick translate UI', () async {
+        handler = SharedTextHandler(
+          service: service,
+          translateCubit: cubit,
+          onShowTranslate: () => shown++,
+        );
+
+        await handler.handle(
+          const SharedText('hola', readOnly: false, isProcessText: true),
+        );
+
+        expect(shown, 1);
+        verifyExternal('hola');
+      });
+    });
+
+    group('replaceSelection', () {
+      test('returns the translation to the calling app', () async {
+        await handler.replaceSelection('hello');
+
+        verify(() => service.returnResult('hello')).called(1);
+      });
+
+      test('ignores a blank translation', () async {
+        await handler.replaceSelection('  ');
+
+        verifyNever(() => service.returnResult(any()));
+      });
+    });
+
+    group('translate clipboard', () {
+      const action = SharedText(
+        '',
+        action: SharedText.translateClipboardAction,
       );
-      states.add(_ready.copyWith(status: TranslateStatus.failure));
-      await pumpEventQueue();
 
-      expect(replaceOffers, 0);
-    });
+      test('opens the clipboard text as external input', () async {
+        clipboard = 'from the clipboard';
 
-    test('does not offer a replacement for read-only or shared text', () async {
-      await handler.handle(const SharedText('a', isProcessText: true));
-      await handler.handle(const SharedText('b', readOnly: false));
-      states.add(_translated('b', 'B'));
-      await pumpEventQueue();
+        await handler.handle(action);
 
-      expect(replaceOffers, 0);
-      expect(shown, 2);
-    });
+        expect(shown, 1);
+        verifyExternal('from the clipboard');
+        expect(quick, isEmpty);
+      });
 
-    test('replaceSelection returns the current output', () async {
-      when(() => cubit.state).thenReturn(_translated('hola', 'hello'));
+      test('only shows the translate tab for an empty clipboard', () async {
+        clipboard = '  ';
 
-      await handler.replaceSelection();
+        await handler.handle(action);
 
-      verify(() => service.returnResult('hello')).called(1);
-    });
+        expect(shown, 1);
+        verifyNoInput();
+      });
 
-    test('replaceSelection ignores an empty output', () async {
-      await handler.replaceSelection();
+      test('survives a failing clipboard', () async {
+        handler = SharedTextHandler(
+          service: service,
+          translateCubit: cubit,
+          onShowTranslate: () => shown++,
+          readClipboard: () async => throw PlatformException(code: 'x'),
+        );
 
-      verifyNever(() => service.returnResult(any()));
+        await handler.handle(action);
+
+        expect(shown, 1);
+        verifyNoInput();
+      });
+
+      test('does nothing once disposed', () async {
+        final read = Completer<String?>();
+        handler = SharedTextHandler(
+          service: service,
+          translateCubit: cubit,
+          onShowTranslate: () => shown++,
+          readClipboard: () => read.future,
+        );
+
+        final done = handler.handle(action);
+        await handler.dispose();
+        read.complete('late');
+        await done;
+
+        expect(shown, 0);
+        verifyNoInput();
+      });
     });
 
     test('stops after dispose', () async {
@@ -180,9 +244,58 @@ void main() {
 
       texts.add(const SharedText('late'));
       await handler.handle(const SharedText('later'));
+      await handler.openInApp('latest');
       await pumpEventQueue();
 
       expect(shown, 0);
+      verifyNoInput();
     });
+  });
+
+  group('readClipboardText', () {
+    late Object? data;
+
+    setUp(() {
+      data = null;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+            if (call.method != 'Clipboard.getData') return null;
+            if (data is Exception) throw data! as Exception;
+            return data;
+          });
+    });
+
+    tearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+
+    test('reads the plain text', () async {
+      data = <String, Object?>{'text': 'copied'};
+
+      expect(await readClipboardText(), 'copied');
+    });
+
+    test('is null for an empty clipboard', () async {
+      expect(await readClipboardText(), isNull);
+    });
+
+    test('is null when the platform fails', () async {
+      data = PlatformException(code: 'denied');
+
+      expect(await readClipboardText(), isNull);
+    });
+  });
+
+  test('QuickTranslateRequest.canReplace follows onReplace', () {
+    final readOnly = QuickTranslateRequest(text: 'a', onOpenInApp: () {});
+    final writable = QuickTranslateRequest(
+      text: 'a',
+      onOpenInApp: () {},
+      onReplace: (_) {},
+    );
+
+    expect(readOnly.canReplace, isFalse);
+    expect(writable.canReplace, isTrue);
   });
 }
