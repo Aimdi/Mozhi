@@ -211,7 +211,7 @@ void main() {
 
       await tester.tap(find.text('Undo'));
       await tester.pumpAndSettle();
-      verify(() => history.add(_today)).called(1);
+      verify(() => history.restore(_today)).called(1);
       expect(find.text('Good morning'), findsOneWidget);
     });
 
@@ -226,7 +226,7 @@ void main() {
         expect(find.text('Good morning'), findsNothing);
         await tester.tap(find.text('Undo'));
         await tester.pumpAndSettle();
-        verify(() => history.add(_today)).called(1);
+        verify(() => history.restore(_today)).called(1);
       });
 
       testWidgets('long press opens the same menu', (tester) async {

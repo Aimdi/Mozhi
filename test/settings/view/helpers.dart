@@ -43,6 +43,7 @@ MockHistoryCubit createHistoryCubit([HistoryState? state]) {
   when(() => cubit.state)
       .thenReturn(state ?? const HistoryState(status: HistoryStatus.ready));
   when(() => cubit.add(any())).thenAnswer((_) async {});
+  when(() => cubit.restore(any())).thenAnswer((_) async {});
   when(() => cubit.delete(any())).thenAnswer((_) async {});
   when(() => cubit.toggleFavorite(any())).thenAnswer((_) async {});
   when(() => cubit.clear(keepFavorites: any(named: 'keepFavorites')))

@@ -65,7 +65,7 @@ class _HistoryViewState extends State<HistoryView> {
           action: SnackBarAction(
             label: l10n.commonUndo,
             onPressed: () {
-              unawaited(cubit.add(entry));
+              unawaited(cubit.restore(entry));
               if (mounted) setState(() => _dismissed.remove(entry.id));
             },
           ),
