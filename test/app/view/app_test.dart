@@ -6,15 +6,37 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/app/app.dart';
+import 'package:mozhi/app/fallback_key_value_store.dart';
+import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/history/models/history_entry.dart';
+import 'package:mozhi/onboarding/view/onboarding_page.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
+import 'package:mozhi/presets/cubit/glossary_cubit.dart';
+import 'package:mozhi/presets/cubit/presets_cubit.dart';
+import 'package:mozhi/quick_translate/view/quick_translate_sheet.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/view/translate_page.dart';
+import 'package:mozhi/usage/data/usage_tracker.dart';
+import 'package:mozhi/usage/models/models.dart';
+import 'package:mozhi/voice/speech_input_service.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 import '../mocks.dart';
+
+/// Secure storage that is not available.
+class _BrokenStore implements KeyValueStore {
+  @override
+  Future<String?> read(String key) async => throw StateError('no keyring');
+
+  @override
+  Future<void> write(String key, String value) async =>
+      throw StateError('no keyring');
+
+  @override
+  Future<void> delete(String key) async => throw StateError('no keyring');
+}
 
 void main() {
   setUpAll(() {
@@ -38,17 +60,6 @@ void main() {
     late TestEnvironment env;
     late StreamController<SharedText> sharedTexts;
 
-    AppDependencies dependencies({
-      AppSettings settings = const AppSettings(instances: [testInstance]),
-    }) => AppDependencies(
-      translationRepository: env.translationRepository,
-      settingsRepository: env.settingsRepository,
-      historyRepository: env.historyRepository,
-      speechService: env.speechService,
-      sharedTextService: env.sharedTextService,
-      settings: settings,
-    );
-
     setUp(() {
       env = TestEnvironment();
       sharedTexts = StreamController<SharedText>.broadcast();
@@ -71,15 +82,19 @@ void main() {
 
     tearDown(() => sharedTexts.close());
 
-    Future<void> pumpApp(WidgetTester tester, {AppSettings? settings}) async {
+    Future<void> pumpApp(
+      WidgetTester tester, {
+      AppSettings? settings,
+      KeyValueStore? secrets,
+    }) async {
       tester.view.physicalSize = const Size(400, 900);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       await tester.pumpWidget(
         App(
           dependencies: settings == null
-              ? dependencies()
-              : dependencies(settings: settings),
+              ? env.dependencies(secrets: secrets)
+              : env.dependencies(settings: settings, secrets: secrets),
         ),
       );
       await tester.pump();
@@ -88,6 +103,9 @@ void main() {
 
     BuildContext shellContext(WidgetTester tester) =>
         tester.element(find.byType(AppShell));
+
+    TranslateCubit translateCubit(WidgetTester tester) =>
+        shellContext(tester).read<TranslateCubit>();
 
     testWidgets('renders the translate tab with the app shell', (tester) async {
       await pumpApp(tester);
@@ -118,6 +136,7 @@ void main() {
           instances: [testInstance],
           dynamicColor: false,
           pureBlack: true,
+          onboardingComplete: true,
         ),
       );
 
@@ -202,31 +221,187 @@ void main() {
       );
     });
 
-    testWidgets('offers to replace selected text once translated', (
+    group('selected text (PROCESS_TEXT)', () {
+      setUp(() {
+        when(
+          () => env.translationRepository.translate(any(), any()),
+        ).thenAnswer(
+          (_) => Stream.value(
+            const TranslationResult(
+              engineId: 'mozhi:google',
+              engineName: 'Google',
+              text: 'hello',
+            ),
+          ),
+        );
+        when(env.sharedTextService.initialText).thenAnswer(
+          (_) async =>
+              const SharedText('hola', readOnly: false, isProcessText: true),
+        );
+      });
+
+      testWidgets('shows quick translate and replaces the selection', (
+        tester,
+      ) async {
+        await pumpApp(tester);
+        await tester.pump(const Duration(seconds: 1));
+
+        expect(find.byType(QuickTranslateSheet), findsOneWidget);
+        expect(translateCubit(tester).state.input, isEmpty);
+        expect(find.text('hello'), findsOneWidget);
+
+        await tester.tap(find.byKey(const Key('quick_translate_replace')));
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 1));
+
+        verify(() => env.sharedTextService.returnResult('hello')).called(1);
+        expect(find.byType(QuickTranslateSheet), findsNothing);
+      });
+
+      testWidgets('"Open in app" moves the text to the translate tab', (
+        tester,
+      ) async {
+        await pumpApp(tester);
+        await tester.pump(const Duration(seconds: 1));
+
+        await tester.tap(find.byKey(const Key('quick_translate_open_in_app')));
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 1));
+
+        expect(find.byType(QuickTranslateSheet), findsNothing);
+        expect(translateCubit(tester).state.input, 'hola');
+        verifyNever(() => env.sharedTextService.returnResult(any()));
+      });
+    });
+
+    testWidgets('does not auto-run AI translations of shared text', (
       tester,
     ) async {
-      when(() => env.translationRepository.translate(any(), any())).thenAnswer(
-        (_) => Stream.value(
-          const TranslationResult(
-            engineId: 'mozhi:google',
-            engineName: 'Google',
-            text: 'hello',
-          ),
+      const provider = AiProviderConfig(
+        id: 'cloud',
+        name: 'Cloud',
+        provider: LlmProvider.openAiCompatible,
+        baseUrl: 'https://api.example.test/v1',
+        model: 'm',
+      );
+      const aiEngine = TranslationEngine(
+        id: 'ai:cloud',
+        kind: EngineKind.ai,
+        name: 'Cloud',
+        providerId: 'cloud',
+      );
+      when(
+        () => env.translationRepository.getEngines(
+          refresh: any(named: 'refresh'),
+        ),
+      ).thenAnswer((_) async => const [aiEngine]);
+      when(env.sharedTextService.initialText)
+          .thenAnswer((_) async => const SharedText('hola'));
+
+      await pumpApp(
+        tester,
+        settings: const AppSettings(
+          instances: [testInstance],
+          providers: [provider],
+          engineId: 'ai:cloud',
+          onboardingComplete: true,
         ),
       );
-      when(env.sharedTextService.initialText).thenAnswer(
-        (_) async =>
-            const SharedText('hola', readOnly: false, isProcessText: true),
+
+      expect(translateCubit(tester).state.input, 'hola');
+      verifyNever(() => env.translationRepository.translate(any(), any()));
+    });
+
+    testWidgets('shows the onboarding on the first run', (tester) async {
+      await pumpApp(
+        tester,
+        settings: const AppSettings(instances: [testInstance]),
+      );
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(find.byType(OnboardingPage), findsOneWidget);
+      expect(find.byType(AppShell), findsNothing);
+    });
+
+    testWidgets('warns once when API keys are kept in memory', (
+      tester,
+    ) async {
+      final secrets = FallbackKeyValueStore(_BrokenStore());
+      await secrets.probe();
+
+      await pumpApp(tester, secrets: secrets);
+
+      expect(
+        find.text(
+          "API keys can't be stored securely on this device; they will be "
+          'kept only for this session.',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('says nothing when secure storage works', (tester) async {
+      await pumpApp(tester);
+
+      expect(find.byType(SnackBar), findsNothing);
+    });
+
+    testWidgets('provides the app-wide services', (tester) async {
+      await pumpApp(tester);
+      final context = shellContext(tester);
+
+      expect(context.read<SpeechInputService>(), env.speechInputService);
+      expect(context.read<OfflineTranslator>(), env.offlineTranslator);
+      expect(context.read<UsageTracker>(), env.usageTracker);
+      expect(context.read<KeyValueStore>(), same(env.preferences));
+      expect(context.read<PresetsCubit>(), isA<PresetsCubit>());
+      expect(context.read<GlossaryCubit>(), isA<GlossaryCubit>());
+    });
+
+    testWidgets('shows usage budget warnings with the provider name', (
+      tester,
+    ) async {
+      const provider = AiProviderConfig(
+        id: 'cloud',
+        name: 'Cloud AI',
+        provider: LlmProvider.openAiCompatible,
+        baseUrl: 'https://api.example.test/v1',
+        model: 'm',
+      );
+      await pumpApp(
+        tester,
+        settings: const AppSettings(
+          instances: [testInstance],
+          providers: [provider],
+          onboardingComplete: true,
+        ),
       );
 
-      await pumpApp(tester);
-      await tester.pump(const Duration(milliseconds: 750));
-
-      expect(find.text('Translation ready'), findsOneWidget);
-      await tester.tap(find.text('Replace text'));
+      await tester.runAsync(() async {
+        await env.usageTracker.setBudget(
+          'cloud',
+          const UsageBudget(monthlyChars: 10),
+        );
+        await env.usageTracker.record('cloud', 10, 10);
+        await env.usageTracker.setBudget(
+          'other',
+          const UsageBudget(monthlyChars: 10),
+        );
+      });
       await tester.pump();
 
-      verify(() => env.sharedTextService.returnResult('hello')).called(1);
+      expect(
+        find.text('Cloud AI has reached its monthly budget'),
+        findsOneWidget,
+      );
+
+      await tester.runAsync(() => env.usageTracker.record('other', 10, 10));
+      await tester.pump();
+
+      expect(
+        find.text('Your AI provider has reached its monthly budget'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('opens translate links', (tester) async {
@@ -259,6 +434,8 @@ void main() {
 
       expect(translate.isClosed, isTrue);
       expect(settings.isClosed, isTrue);
+      expect(env.offlineTranslator.disposed, isTrue);
+      verify(env.speechService.dispose).called(1);
     });
   });
 

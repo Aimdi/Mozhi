@@ -123,27 +123,23 @@ class _HistoryViewState extends State<HistoryView> {
                   sliver: SliverList.list(
                     children: [
                       if (!saveHistory) const _HistoryDisabledBanner(),
-                      // The hint disappears once text is typed; the label
-                      // keeps the field named (WCAG 3.3.2, 4.1.2).
-                      KeyedSubtree(
-                        child: SearchBar(
-                          controller: _search,
-                          hintText: l10n.historySearchHint,
-                          elevation: const WidgetStatePropertyAll(0),
-                          leading: const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 8),
-                            child: Icon(Icons.search),
-                          ),
-                          trailing: [
-                            if (_search.text.isNotEmpty)
-                              IconButton(
-                                tooltip: l10n.historyClearSearch,
-                                icon: const Icon(Icons.close),
-                                onPressed: _clearSearch,
-                              ),
-                          ],
-                          onChanged: _onSearch,
+                      SearchBar(
+                        controller: _search,
+                        hintText: l10n.historySearchHint,
+                        elevation: const WidgetStatePropertyAll(0),
+                        leading: const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 8),
+                          child: Icon(Icons.search),
                         ),
+                        trailing: [
+                          if (_search.text.isNotEmpty)
+                            IconButton(
+                              tooltip: l10n.historyClearSearch,
+                              icon: const Icon(Icons.close),
+                              onPressed: _clearSearch,
+                            ),
+                        ],
+                        onChanged: _onSearch,
                       ),
                       const SizedBox(height: 12),
                       Wrap(

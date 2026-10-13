@@ -160,7 +160,14 @@ void main() {
       await pump(tester);
       await tester.enterText(find.byType(SearchBar), 'morning');
       await tester.pump();
-      expect(find.semantics.byLabel(RegExp('Search history')), findsAny);
+      expect(
+        tester.getSemantics(find.byType(EditableText)),
+        isSemantics(
+          label: 'Search history',
+          value: 'morning',
+          isTextField: true,
+        ),
+      );
       handle.dispose();
     });
 

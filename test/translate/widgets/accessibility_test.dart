@@ -724,7 +724,7 @@ void main() {
       await harness.pump(tester, child: const InputCard());
       expect(
         tester.getSemantics(find.byKey(const Key('translate_input_field'))),
-        isSemantics(isTextField: true, label: 'Text to translate\nEnter text'),
+        isSemantics(isTextField: true, label: 'Text to translate'),
       );
       handle.dispose();
     });

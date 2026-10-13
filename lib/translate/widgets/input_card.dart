@@ -109,6 +109,9 @@ class _InputCardState extends State<InputCard> {
         return Card(
           key: const Key('translate_input_card'),
           margin: EdgeInsets.zero,
+          // Keep the field, its counter and buttons as separate nodes (a
+          // merged card would read the counter as part of the field name).
+          semanticContainer: false,
           elevation: 0,
           color: theme.colorScheme.surfaceContainerLow,
           shape: const RoundedRectangleBorder(

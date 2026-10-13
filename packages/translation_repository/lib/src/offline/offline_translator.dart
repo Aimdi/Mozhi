@@ -35,7 +35,7 @@ abstract interface class OfflineTranslator {
 
 /// The models for [languages] must be downloaded first.
 final class OfflineModelMissingException implements Exception {
-  const OfflineModelMissingException(this.languages);
+  const new(this.languages);
 
   final List<String> languages;
 
@@ -45,7 +45,7 @@ final class OfflineModelMissingException implements Exception {
 
 /// The language is not supported by the offline backend.
 final class OfflineLanguageUnsupportedException implements Exception {
-  const OfflineLanguageUnsupportedException(this.language);
+  const new(this.language);
 
   final String language;
 
