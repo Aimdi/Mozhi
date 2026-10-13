@@ -59,9 +59,8 @@ void main() {
     });
 
     test('translates the launch text', () async {
-      when(
-        () => service.initialText(),
-      ).thenAnswer((_) async => const SharedText('hello'));
+      when(() => service.initialText())
+          .thenAnswer((_) async => const SharedText('hello'));
 
       await handler.start();
 
@@ -96,35 +95,39 @@ void main() {
       expect(shown, 0);
     });
 
-    test('offers the replacement once a writable selection is translated',
-        () async {
-      await handler.handle(
-        const SharedText('hola', readOnly: false, isProcessText: true),
-      );
-      expect(replaceOffers, 0);
+    test(
+      'offers the replacement once a writable selection is translated',
+      () async {
+        await handler.handle(
+          const SharedText('hola', readOnly: false, isProcessText: true),
+        );
+        expect(replaceOffers, 0);
 
-      states
-        ..add(_ready.copyWith(status: TranslateStatus.translating))
-        ..add(_translated('hola', 'hello'));
-      await pumpEventQueue();
-      expect(replaceOffers, 1);
+        states
+          ..add(_ready.copyWith(status: TranslateStatus.translating))
+          ..add(_translated('hola', 'hello'));
+        await pumpEventQueue();
+        expect(replaceOffers, 1);
 
-      // Only once.
-      states.add(_translated('hola', 'hi'));
-      await pumpEventQueue();
-      expect(replaceOffers, 1);
-    });
+        // Only once.
+        states.add(_translated('hola', 'hi'));
+        await pumpEventQueue();
+        expect(replaceOffers, 1);
+      },
+    );
 
-    test('offers the replacement immediately when already translated',
-        () async {
-      when(() => cubit.state).thenReturn(_translated('hola', 'hello'));
+    test(
+      'offers the replacement immediately when already translated',
+      () async {
+        when(() => cubit.state).thenReturn(_translated('hola', 'hello'));
 
-      await handler.handle(
-        const SharedText('hola', readOnly: false, isProcessText: true),
-      );
+        await handler.handle(
+          const SharedText('hola', readOnly: false, isProcessText: true),
+        );
 
-      expect(replaceOffers, 1);
-    });
+        expect(replaceOffers, 1);
+      },
+    );
 
     test('does not offer a replacement when the translation fails', () async {
       await handler.handle(

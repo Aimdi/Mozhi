@@ -7,12 +7,10 @@ import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-import 'debug_log.dart';
 import 'translate_cubit_helpers.dart';
 
 void main() {
   setUpAll(registerTranslateFallbacks);
-  logFailures();
 
   late TranslateMocks mocks;
 
@@ -867,6 +865,20 @@ void main() {
         expect(cubit.state.source, en);
         expect(cubit.state.target, de);
         expect(cubit.state.input, 'Hello');
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'keeps languages missing from the other list as they are',
+      build: () => mocks.build(),
+      seed: () => readyState(
+        source: en,
+        target: de,
+      ).copyWith(sourceLanguages: [Language.auto, en], targetLanguages: [de]),
+      act: (cubit) => cubit.swap(),
+      verify: (cubit) {
+        expect(cubit.state.source, de);
+        expect(cubit.state.target, en);
       },
     );
 

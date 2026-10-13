@@ -98,7 +98,18 @@ class ProofreadEditChange extends StatelessWidget {
               semanticsLabel: l10n.proofreadRemovedSemantics(edit.original),
             ),
           if (hasOriginal && hasReplacement)
-            TextSpan(text: '  →  ', semanticsLabel: l10n.proofreadChangedTo),
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Icon(
+                  Icons.arrow_forward,
+                  size: 16,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  semanticLabel: l10n.proofreadChangedTo,
+                ),
+              ),
+            ),
           if (hasReplacement)
             TextSpan(
               text: edit.replacement,

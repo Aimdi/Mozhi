@@ -300,6 +300,7 @@ void main() {
         expect(find.text('Fact check'), findsOneWidget);
         expect(find.text('Subject-verb agreement.'), findsOneWidget);
         expect(find.byType(ProofreadEditTile), findsNWidgets(3));
+        expect(find.byIcon(Icons.arrow_forward), findsNWidgets(3));
       });
 
       testWidgets('toggles, accepts and rejects edits', (tester) async {
@@ -536,7 +537,7 @@ void main() {
           ),
         );
         expect(find.textContaining('inserted'), findsOneWidget);
-        expect(find.textContaining('→'), findsNothing);
+        expect(find.byIcon(Icons.arrow_forward), findsNothing);
       });
 
       testWidgets('shows a clean result', (tester) async {

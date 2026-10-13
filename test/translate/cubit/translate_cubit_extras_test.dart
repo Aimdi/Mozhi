@@ -6,12 +6,10 @@ import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-import 'debug_log.dart';
 import 'translate_cubit_helpers.dart';
 
 void main() {
   setUpAll(registerTranslateFallbacks);
-  logFailures();
 
   late TranslateMocks mocks;
 
