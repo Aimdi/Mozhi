@@ -13,9 +13,9 @@ import 'package:mozhi/translate/widgets/language_text.dart';
 import 'package:mozhi/translate/widgets/listen_button.dart';
 import 'package:mozhi/translate/widgets/status_announcer.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
-import 'package:mozhi/usage/widgets/token_estimate_label.dart';
-import 'package:mozhi/voice/speech_input_service.dart';
-import 'package:mozhi/voice/widgets/voice_input_button.dart';
+import 'package:mozhi/usage/usage.dart' show TokenEstimateLabel;
+import 'package:mozhi/voice/voice.dart'
+    show SpeechInputService, VoiceInputButton;
 
 /// Whether the user has to press "Translate" (instant translation is off
 /// for the current engine kind).
@@ -46,7 +46,7 @@ int truncatedInputLimit(TranslateState state) =>
 
 /// The app-wide [SpeechInputService], or null when none is provided (voice
 /// input is then not offered).
-SpeechInputService? speechInputServiceOf(BuildContext context) {
+SpeechInputService? _speechInputServiceOf(BuildContext context) {
   try {
     return context.read<SpeechInputService>();
   } on ProviderNotFoundException {
@@ -84,6 +84,8 @@ class _InputCardState extends State<InputCard> {
   /// The whole text of the last field edit that the length limit cut (see
   /// [_LengthOverflowFormatter]); reset by every edit.
   String? _overflow;
+
+  static final _endsWithSpace = RegExp(r'\s$');
 
   /// The input before the current dictation; recognised speech is appended
   /// to it (each partial result replaces the previous one).
@@ -138,7 +140,7 @@ class _InputCardState extends State<InputCard> {
     // A later utterance of the same session goes after this one.
     _dictationBase = isFinal ? null : base;
     if (spoken.isEmpty) return;
-    final separator = base.isEmpty || base.endsWith(RegExp(r'\s')) ? '' : ' ';
+    final separator = base.isEmpty || _endsWithSpace.hasMatch(base) ? '' : ' ';
     final combined = '$base$separator$spoken';
     _syncController(combined);
     _cubit.setInput(combined);
@@ -214,13 +216,12 @@ class _InputCardState extends State<InputCard> {
                                 ),
                               ],
                               // The card shows its own character count.
-                              buildCounter:
-                                  (
-                                    context, {
-                                    required currentLength,
-                                    required isFocused,
-                                    required maxLength,
-                                  }) => null,
+                              buildCounter: (
+                                context, {
+                                required currentLength,
+                                required isFocused,
+                                required maxLength,
+                              }) => null,
                               keyboardType: TextInputType.multiline,
                               textInputAction: TextInputAction.newline,
                               textDirection: inputTextDirection(state),
@@ -285,7 +286,7 @@ class _InputCardState extends State<InputCard> {
                             text: input,
                             languageCode: state.effectiveSourceCode,
                           ),
-                          if (speechInputServiceOf(context) case final speech?)
+                          if (_speechInputServiceOf(context) case final speech?)
                             VoiceInputButton.standalone(
                               key: const Key('translate_voice_input'),
                               service: speech,
@@ -331,13 +332,18 @@ class _InputCardState extends State<InputCard> {
                                                 .onSurfaceVariant,
                                           ),
                                     ),
-                                    // Nothing below 500 characters.
+                                    // Nothing below 500 characters; one
+                                    // line like the count.
                                     if (state.isAiEngine)
-                                      TokenEstimateLabel(
-                                        key: const Key(
-                                          'translate_token_estimate',
+                                      DefaultTextStyle.merge(
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        child: TokenEstimateLabel(
+                                          key: const Key(
+                                            'translate_token_estimate',
+                                          ),
+                                          text: input,
                                         ),
-                                        text: input,
                                       ),
                                   ],
                                 ),

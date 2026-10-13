@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -8,10 +10,12 @@ import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/presets/presets.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/speech/speech_service.dart';
 import 'package:mozhi/translate/translate.dart';
+import 'package:mozhi/voice/voice.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 class MockTranslateCubit extends MockCubit<TranslateState>
@@ -24,6 +28,57 @@ class MockHistoryCubit extends MockCubit<HistoryState> implements HistoryCubit;
 class MockSpeechService extends Mock implements SpeechService;
 
 class MockGoRouter extends Mock implements GoRouter;
+
+class MockPresetsCubit extends MockCubit<PresetsState> implements PresetsCubit;
+
+class MockSpeechInputService extends Mock implements SpeechInputService;
+
+/// A [MockSpeechInputService] that is idle and reports every started
+/// session on [states]; push recognised text with [say].
+class FakeSpeechInput {
+  new() {
+    when(() => service.isPlatformSupported).thenReturn(true);
+    when(() => service.state).thenReturn(const SpeechInputIdle());
+    when(() => service.states).thenAnswer((_) => states.stream);
+    when(() => service.results).thenAnswer((_) => results.stream);
+    when(() => service.preferOnDevice).thenReturn(ValueNotifier(false));
+    when(service.refreshAvailability).thenAnswer((_) async {});
+    when(service.cancel).thenAnswer((_) async {});
+    when(service.stop).thenAnswer((_) async {
+      states.add(const SpeechInputIdle());
+    });
+    when(
+      () => service.listen(
+        any(),
+        preferOnDevice: any(named: 'preferOnDevice'),
+        owner: any(named: 'owner'),
+      ),
+    ).thenAnswer((invocation) async {
+      owner = invocation.namedArguments[#owner];
+      languages.add(invocation.positionalArguments.first as String?);
+      states.add(SpeechInputListening(owner: owner));
+      return true;
+    });
+    addTearDown(states.close);
+    addTearDown(results.close);
+  }
+
+  final service = MockSpeechInputService();
+  final states = StreamController<SpeechInputState>.broadcast();
+  final results = StreamController<SpeechInputResult>.broadcast();
+
+  /// Owner of the last started session.
+  Object? owner;
+
+  /// Language of every started session.
+  final languages = <String?>[];
+
+  void say(String text, {bool isFinal = false}) =>
+      results.add(SpeechInputResult(text, isFinal: isFinal, owner: owner));
+
+  /// Ends the session.
+  void finish() => states.add(const SpeechInputIdle());
+}
 
 const deepl = TranslationEngine(
   id: 'mozhi:deepl',
@@ -138,6 +193,8 @@ class TranslateHarness {
     TranslateState? state,
     AppSettings settings = const AppSettings(),
     HistoryState history = const HistoryState(),
+    this.presets,
+    this.speechInput,
   }) {
     when(() => translate.state).thenReturn(state ?? readyState());
     when(() => translate.isClosed).thenReturn(false);
@@ -147,8 +204,12 @@ class TranslateHarness {
     when(translate.translate).thenAnswer((_) async {});
     when(() => translate.applySuggestion(any())).thenAnswer((_) async {});
     when(translate.runCompare).thenAnswer((_) async {});
-    when(() => translate.loadAlternatives(span: any(named: 'span')))
-        .thenAnswer((_) async {});
+    when(
+      () => translate.loadAlternatives(
+        span: any(named: 'span'),
+        spanStart: any(named: 'spanStart'),
+      ),
+    ).thenAnswer((_) async {});
     when(translate.loadInsights).thenAnswer((_) async {});
     when(translate.loadSuggestions).thenAnswer((_) async {});
     when(() => translate.explain(question: any(named: 'question')))
@@ -163,6 +224,8 @@ class TranslateHarness {
 
     when(() => router.push<void>(any(), extra: any(named: 'extra')))
         .thenAnswer((_) async {});
+    when(() => router.push<Object?>(any(), extra: any(named: 'extra')))
+        .thenAnswer((_) async => null);
 
     when(() => speech.speaking).thenAnswer((_) => const Stream.empty());
     when(() => speech.current).thenReturn(null);
@@ -180,6 +243,12 @@ class TranslateHarness {
   final history = MockHistoryCubit();
   final speech = MockSpeechService();
   final router = MockGoRouter();
+
+  /// Provided above the app when set (the preset picker needs it).
+  final PresetsCubit? presets;
+
+  /// Provided above the app when set (voice input needs it).
+  final SpeechInputService? speechInput;
 
   void setState(TranslateState state) =>
       when(() => translate.state).thenReturn(state);
@@ -209,13 +278,19 @@ class TranslateHarness {
     await tester.pumpWidget(
       InheritedGoRouter(
         goRouter: router,
-        child: RepositoryProvider<SpeechService>.value(
-          value: speech,
+        child: MultiRepositoryProvider(
+          providers: [
+            RepositoryProvider<SpeechService>.value(value: speech),
+            if (speechInput case final speechInput?)
+              RepositoryProvider<SpeechInputService>.value(value: speechInput),
+          ],
           child: MultiBlocProvider(
             providers: [
               BlocProvider<TranslateCubit>.value(value: translate),
               BlocProvider<SettingsCubit>.value(value: settings),
               BlocProvider<HistoryCubit>.value(value: history),
+              if (presets case final presets?)
+                BlocProvider<PresetsCubit>.value(value: presets),
             ],
             child: MaterialApp(
               theme: ThemeData(useMaterial3: true, platform: platform),

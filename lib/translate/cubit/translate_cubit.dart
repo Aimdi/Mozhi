@@ -1492,12 +1492,7 @@ class TranslateCubit extends Cubit<TranslateState> {
     final request = _extrasRequest();
     final Stream<String> stream;
     try {
-      stream = _repository.explain(
-        engine,
-        request,
-        output,
-        question: question,
-      );
+      stream = _repository.explain(engine, request, output, question: question);
     } on Object catch (error) {
       fail(error);
       return done.future;
@@ -1613,11 +1608,15 @@ class TranslateCubit extends Cubit<TranslateState> {
     final tracker = _usageTracker;
     final providerId = engine.providerId;
     if (tracker == null || providerId == null || providerId.isEmpty) return;
-    unawaited(
-      tracker
-          .recordText(providerId, input: input, output: output)
-          .then((_) {}, onError: (Object _) {}),
-    );
+    try {
+      unawaited(
+        tracker
+            .recordText(providerId, input: input, output: output)
+            .then((_) {}, onError: (Object _) {}),
+      );
+    } on Object {
+      // Usage counting must never break a translation.
+    }
   }
 
   /// What an extras request sends besides the prompt: the source text, the

@@ -13,7 +13,8 @@ import 'package:mozhi/translate/widgets/translate_layout.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// AI extras under a finished translation: refinement chips (AI engines),
-/// alternatives, explain and (short inputs) a dictionary card.
+/// alternatives, explain and (short inputs) a dictionary card. Hidden while
+/// the translation belongs to text the user has since edited.
 class ExtrasSection extends StatelessWidget {
   const new({super.key});
 
@@ -23,7 +24,8 @@ class ExtrasSection extends StatelessWidget {
       builder: (context, state) {
         if (!state.hasExtras ||
             state.output.trim().isEmpty ||
-            state.status != TranslateStatus.success) {
+            state.status != TranslateStatus.success ||
+            state.isResultStale) {
           return const SizedBox.shrink();
         }
         return Column(
@@ -141,9 +143,13 @@ class _ExtrasCard extends StatelessWidget {
               leading: const Icon(Icons.alt_route),
               title: Text(l10n.translateAlternatives),
               onExpansionChanged: (expanded) {
+                // Alternatives for a selected part (see
+                // showSpanAlternativesSheet) are replaced by ones for the
+                // whole translation.
                 if (expanded &&
                     (state.alternativesStatus == ExtraStatus.idle ||
-                        state.alternativesStatus == ExtraStatus.failure)) {
+                        state.alternativesStatus == ExtraStatus.failure ||
+                        state.alternativesSpan != null)) {
                   unawaited(cubit.loadAlternatives());
                 }
               },
@@ -171,12 +177,77 @@ class _ExtrasCard extends StatelessWidget {
   }
 }
 
+/// Opens a sheet with the alternatives for a selected part of the
+/// translation (`TranslateState.alternativesSpan`), as requested with
+/// `TranslateCubit.loadAlternatives(span: ..., spanStart: ...)`. Using one
+/// replaces that part of the translation and closes the sheet.
+Future<void> showSpanAlternativesSheet(BuildContext context) {
+  final cubit = context.read<TranslateCubit>();
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    showDragHandle: true,
+    builder: (sheetContext) => BlocProvider.value(
+      value: cubit,
+      child: SpanAlternativesSheet(
+        onUsed: () => Navigator.of(sheetContext).pop(),
+      ),
+    ),
+  );
+}
+
+/// Title and [AlternativesList] for the selected part of the translation.
+class SpanAlternativesSheet extends StatelessWidget {
+  const new({this.onUsed, super.key});
+
+  /// Called after an alternative was used.
+  final VoidCallback? onUsed;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    return BlocBuilder<TranslateCubit, TranslateState>(
+      builder: (context, state) {
+        final span = state.alternativesSpan?.trim() ?? '';
+        return SingleChildScrollView(
+          key: const Key('translate_span_alternatives_sheet'),
+          padding: const EdgeInsets.only(bottom: 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+                child: Semantics(
+                  header: true,
+                  child: Text(
+                    span.isEmpty
+                        ? l10n.translateAlternatives
+                        : l10n.translateSpanAlternativesTitle(span),
+                    style: theme.textTheme.titleLarge,
+                  ),
+                ),
+              ),
+              AlternativesList(state: state, onUsed: onUsed),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
 /// Body of the "Alternatives" panel. Screen readers hear how many
 /// alternatives arrived (or that there are none).
 class AlternativesList extends StatelessWidget {
-  const new({required this.state, super.key});
+  const new({required this.state, this.onUsed, super.key});
 
   final TranslateState state;
+
+  /// Called after an alternative was used.
+  final VoidCallback? onUsed;
 
   @override
   Widget build(BuildContext context) {
@@ -218,7 +289,12 @@ class AlternativesList extends StatelessWidget {
           child: TranslateErrorView(
             error: state.extraError,
             dense: true,
-            onRetry: () => unawaited(cubit.loadAlternatives()),
+            onRetry: () => unawaited(
+              cubit.loadAlternatives(
+                span: state.alternativesSpan,
+                spanStart: state.alternativesSpanStart,
+              ),
+            ),
           ),
         );
       case ExtraStatus.ready:
@@ -251,7 +327,10 @@ class AlternativesList extends StatelessWidget {
                 subtitle: explanation.isEmpty ? null : Text(explanation),
                 // "Move up into the output": points to the start edge.
                 trailing: Icon(rtl ? Icons.north_east : Icons.north_west),
-                onTap: () => cubit.useAlternative(text),
+                onTap: () {
+                  cubit.useAlternative(text);
+                  onUsed?.call();
+                },
               ),
           ],
         );

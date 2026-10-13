@@ -35,6 +35,81 @@ void main() {
       expect(find.text('Alternatives'), findsNothing);
     });
 
+    testWidgets('is hidden for a translation of edited text', (tester) async {
+      final harness = TranslateHarness(
+        state: _aiState().copyWith(
+          input: 'Hello there',
+          resultInput: () => 'Hello world',
+        ),
+      );
+      await harness.pump(tester, child: const ExtrasSection());
+      expect(find.text('Alternatives'), findsNothing);
+      expect(find.text('Explain'), findsNothing);
+    });
+
+    testWidgets('alternatives for a selected part are replaced on expand', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(
+        state: _aiState().copyWith(
+          alternativesStatus: ExtraStatus.ready,
+          alternatives: () => const AlternativeTranslations(
+            description: '',
+            alternatives: [Alternative(text: "l'univers")],
+          ),
+          alternativesSpan: () => 'monde',
+          alternativesSpanStart: () => 11,
+        ),
+      );
+      await harness.pump(tester, child: const ExtrasSection());
+      await tester.tap(find.text('Alternatives'));
+      await tester.pumpAndSettle();
+      verify(harness.translate.loadAlternatives).called(1);
+    });
+
+    testWidgets('retrying alternatives for a selected part keeps the part', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(
+        state: _aiState().copyWith(
+          alternativesStatus: ExtraStatus.failure,
+          extraError: () => const LlmApiException('x', statusCode: 429),
+          alternativesSpan: () => 'monde',
+          alternativesSpanStart: () => 11,
+        ),
+      );
+      await harness.pump(
+        tester,
+        child: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showSpanAlternativesSheet(context),
+            child: const Text('Open'),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+      expect(find.text('Alternatives for “monde”'), findsOneWidget);
+      await tester.tap(find.text('Retry'));
+      verify(
+        () => harness.translate.loadAlternatives(span: 'monde', spanStart: 11),
+      ).called(1);
+    });
+
+    testWidgets('the selection sheet falls back to a plain title', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(
+        state: _aiState().copyWith(alternativesStatus: ExtraStatus.loading),
+      );
+      await harness.pump(tester, child: const SpanAlternativesSheet());
+      expect(find.text('Alternatives'), findsOneWidget);
+      expect(
+        find.byKey(const Key('translate_alternatives_progress')),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('refinement chips apply suggestions', (tester) async {
       final harness = TranslateHarness(state: _aiState());
       await harness.pump(tester, child: const ExtrasSection());

@@ -9,6 +9,7 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/offline.dart' show OfflineEngineBadge;
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/translate/widgets/extras_section.dart';
 import 'package:mozhi/translate/widgets/insight_sheet.dart';
 import 'package:mozhi/translate/widgets/language_bar.dart';
 import 'package:mozhi/translate/widgets/language_text.dart';
@@ -48,6 +49,10 @@ HistoryEntry? findHistoryEntry(
 /// of being read out in full.
 const maxAnnouncedOutputLength = 400;
 
+/// Opacity of a translation that belongs to text the user has since edited
+/// (`TranslateState.isResultStale`).
+const staleOutputOpacity = 0.6;
+
 /// Direction of the translated text: the target language's, or (custom
 /// targets) the direction of its characters.
 TextDirection? outputTextDirection(TranslateState state) =>
@@ -60,6 +65,11 @@ TextDirection? outputTextDirection(TranslateState state) =>
 ///
 /// A finished translation is announced to screen readers once (never per
 /// streamed token); errors are announced by [TranslateErrorView].
+///
+/// A translation of text the user has since edited is dimmed (and described
+/// as out of date to screen readers) and offers no AI extras. Selecting part
+/// of a finished translation offers "Alternatives" for that part when an AI
+/// engine is available (see [showSpanAlternativesSheet]).
 class OutputCard extends StatefulWidget {
   const new({super.key});
 
@@ -92,7 +102,9 @@ class _OutputCardState extends State<OutputCard> {
       history.add(
         HistoryEntry(
           id: now.microsecondsSinceEpoch.toString(),
-          text: state.input.trim(),
+          // The text the shown translation was made for (the input may
+          // have been edited since).
+          text: (state.resultInput ?? state.input).trim(),
           translation: state.output,
           source: state.source,
           target: state.target,
@@ -244,6 +256,8 @@ class _OutputCardState extends State<OutputCard> {
     final locale = localeForLanguage(state.target);
     final uncertain = detectionIsUncertain(state);
     final offline = result != null && isOfflineEngineId(result.engineId);
+    final stale = state.isResultStale;
+    final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -253,26 +267,43 @@ class _OutputCardState extends State<OutputCard> {
           // A named container; completion is announced separately (a live
           // region here would fire on every streamed token or not at all).
           child: Semantics(
+            key: const Key('translate_output_semantics'),
             container: true,
             label: l10n.translateOutputLabel,
-            child: SizedBox(
-              width: double.infinity,
-              child: insightsReady
-                  ? InsightText(
-                      text: output,
-                      insights: state.insights,
-                      style: style,
-                      textDirection: direction,
-                      locale: locale,
-                      onTap: (insight) =>
-                          unawaited(showInsightSheet(context, insight)),
-                    )
-                  : SelectableText.rich(
-                      TextSpan(text: output, locale: locale),
-                      key: const Key('translate_output_text'),
-                      style: style,
-                      textDirection: direction,
-                    ),
+            // Out of date until the edited text is translated (a running
+            // translation shows its own progress).
+            hint: stale && state.status != TranslateStatus.translating
+                ? l10n.translateResultStaleHint
+                : null,
+            child: AnimatedOpacity(
+              key: const Key('translate_output_opacity'),
+              opacity: stale ? staleOutputOpacity : 1,
+              duration: reduceMotion
+                  ? Duration.zero
+                  : const Duration(milliseconds: 150),
+              child: SizedBox(
+                width: double.infinity,
+                child: insightsReady
+                    ? InsightText(
+                        text: output,
+                        insights: state.insights,
+                        source: state.resultInput ?? state.input,
+                        style: style,
+                        textDirection: direction,
+                        locale: locale,
+                        onTapAt: (insight, offset) => unawaited(
+                          showInsightSheet(context, insight, offset: offset),
+                        ),
+                      )
+                    : SelectableText.rich(
+                        TextSpan(text: output, locale: locale),
+                        key: const Key('translate_output_text'),
+                        style: style,
+                        textDirection: direction,
+                        contextMenuBuilder: (context, editable) =>
+                            _contextMenu(context, editable, state),
+                      ),
+              ),
             ),
           ),
         ),
@@ -323,6 +354,60 @@ class _OutputCardState extends State<OutputCard> {
         _actions(context, state),
       ],
     );
+  }
+
+  /// Whether alternatives can be requested for a part of the translation.
+  static bool _offersSpanAlternatives(TranslateState state) =>
+      state.hasExtras &&
+      state.status == TranslateStatus.success &&
+      (state.result?.isComplete ?? false) &&
+      !state.isResultStale;
+
+  /// The platform's selection toolbar plus "Alternatives" for the selected
+  /// part of a finished translation.
+  Widget _contextMenu(
+    BuildContext context,
+    EditableTextState editable,
+    TranslateState state,
+  ) {
+    final value = editable.textEditingValue;
+    final selection = value.selection;
+    final items = [...editable.contextMenuButtonItems];
+    if (_offersSpanAlternatives(state) &&
+        selection.isValid &&
+        !selection.isCollapsed &&
+        selection.textInside(value.text).trim().isNotEmpty) {
+      items.add(
+        ContextMenuButtonItem(
+          label: context.l10n.translateAlternatives,
+          onPressed: () {
+            editable.hideToolbar();
+            _alternativesForSelection(value);
+          },
+        ),
+      );
+    }
+    return AdaptiveTextSelectionToolbar.buttonItems(
+      anchors: editable.contextMenuAnchors,
+      buttonItems: items,
+    );
+  }
+
+  /// Requests alternatives for the selected text (trimmed, with its offset
+  /// in the output) and shows them in a sheet.
+  void _alternativesForSelection(TextEditingValue value) {
+    final selection = value.selection;
+    final raw = selection.textInside(value.text);
+    final span = raw.trim();
+    if (span.isEmpty) return;
+    final start = selection.start + raw.length - raw.trimLeft().length;
+    unawaited(
+      context.read<TranslateCubit>().loadAlternatives(
+        span: span,
+        spanStart: start,
+      ),
+    );
+    unawaited(showSpanAlternativesSheet(context));
   }
 
   Widget _insightsStatus(BuildContext context, TranslateState state) {
@@ -389,7 +474,7 @@ class _OutputCardState extends State<OutputCard> {
           builder: (context, history) {
             final entry = findHistoryEntry(
               history.entries,
-              state.input,
+              state.resultInput ?? state.input,
               output,
             );
             final favorite = entry?.isFavorite ?? false;
@@ -414,7 +499,10 @@ class _OutputCardState extends State<OutputCard> {
             isSelected: _showInsights,
             icon: const Icon(Icons.lightbulb_outline),
             selectedIcon: const Icon(Icons.lightbulb),
-            onPressed: complete ? () => _toggleInsights(state) : null,
+            // No extras for a translation of text that has been edited.
+            onPressed: complete && !state.isResultStale
+                ? () => _toggleInsights(state)
+                : null,
           ),
       ],
     );

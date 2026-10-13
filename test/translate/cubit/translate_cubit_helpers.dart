@@ -5,6 +5,7 @@ import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/usage/usage.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 class MockTranslationRepository extends Mock implements TranslationRepository;
@@ -167,6 +168,9 @@ class TranslateMocks {
   /// The cubit's clock; null for the real one.
   DateTime Function()? clock;
 
+  /// Counts provider usage; none by default.
+  UsageTracker? usageTracker;
+
   TranslateCubit build() => TranslateCubit(
     repository: repository,
     settings: settings,
@@ -175,5 +179,6 @@ class TranslateMocks {
     aiDebounce: fastAiDebounce,
     clock: clock,
     deviceLanguages: () => deviceLanguages,
+    usageTracker: usageTracker,
   );
 }

@@ -21,6 +21,53 @@ const _insight = WordInsight(
   variations: [Alternative(text: 'la terre', explanation: 'more poetic')],
 );
 
+/// "chat" occurs twice; the insight is about the second one.
+const _catSource = 'The cat sleeps. The black cat eats.';
+const _catOutput = 'Le chat dort. Le chat noir mange.';
+const _blackCat = WordInsight(
+  sourceText: 'black cat',
+  targetText: 'chat',
+  explanation: 'The black one.',
+  variations: [Alternative(text: 'matou')],
+);
+
+TranslateState _cats() => translatedState(
+  assistEngine: claude,
+  input: _catSource,
+  result: const TranslationResult(
+    engineId: 'mozhi:deepl',
+    engineName: 'DeepL',
+    text: _catOutput,
+  ),
+).copyWith(insightsStatus: ExtraStatus.ready, insights: const [_blackCat]);
+
+/// "Hello world" -> "Bonjour le monde", after the input was edited.
+TranslateState _stale({TranslateStatus? status}) =>
+    translatedState(assistEngine: claude).copyWith(
+      input: 'Hello there',
+      resultInput: () => 'Hello world',
+      status: status,
+    );
+
+/// Selects [start, end) of the output text and opens the selection toolbar.
+Future<void> _select(WidgetTester tester, int start, int end) async {
+  final editable = tester.state<EditableTextState>(
+    find.descendant(
+      of: find.byKey(const Key('translate_output_text')),
+      matching: find.byType(EditableText),
+    ),
+  );
+  editable.userUpdateTextEditingValue(
+    editable.textEditingValue.copyWith(
+      selection: TextSelection(baseOffset: start, extentOffset: end),
+    ),
+    SelectionChangedCause.longPress,
+  );
+  await tester.pump();
+  expect(editable.showToolbar(), isTrue);
+  await tester.pumpAndSettle();
+}
+
 void main() {
   setUpAll(registerTranslateFallbacks);
 
@@ -322,9 +369,66 @@ void main() {
 
         await tester.tap(find.text('la terre'));
         await tester.pumpAndSettle();
-        verify(() => harness.translate.applyVariation(_insight, 'la terre'))
-            .called(1);
+        // The tapped highlight starts at 8.
+        verify(
+          () =>
+              harness.translate.applyVariation(_insight, 'la terre', offset: 8),
+        ).called(1);
         expect(find.text('Other ways to say it'), findsNothing);
+      });
+
+      testWidgets('underline the occurrence the insight refers to', (
+        tester,
+      ) async {
+        final harness = TranslateHarness(state: _cats());
+        await harness.pump(tester, child: const OutputCard());
+        await tester.tap(find.byTooltip('Insights'));
+        await tester.pump();
+
+        // The first "chat" is plain text.
+        await tester.tapOnText(find.textRange.ofSubstring('chat').first);
+        await tester.pumpAndSettle();
+        expect(find.text('The black one.'), findsNothing);
+
+        await tester.tapOnText(find.textRange.ofSubstring('chat').at(1));
+        await tester.pumpAndSettle();
+        expect(find.text('The black one.'), findsOneWidget);
+        await tester.tap(find.text('matou'));
+        await tester.pumpAndSettle();
+        verify(
+          () =>
+              harness.translate.applyVariation(_blackCat, 'matou', offset: 17),
+        ).called(1);
+      });
+
+      testWidgets('chips apply variations at the located occurrence', (
+        tester,
+      ) async {
+        final harness = TranslateHarness(state: _cats());
+        await harness.pump(tester, child: const OutputCard());
+        await tester.tap(find.byTooltip('Insights'));
+        await tester.pump();
+        await tester.tap(
+          find.byKey(const ValueKey('translate_insight_chip:0')),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('matou'));
+        await tester.pumpAndSettle();
+        verify(
+          () =>
+              harness.translate.applyVariation(_blackCat, 'matou', offset: 17),
+        ).called(1);
+      });
+
+      testWidgets('are not offered for an out-of-date translation', (
+        tester,
+      ) async {
+        final harness = TranslateHarness(state: _stale());
+        await harness.pump(tester, child: const OutputCard());
+        final button = tester.widget<IconButton>(
+          find.byKey(const Key('translate_insights_button')),
+        );
+        expect(button.onPressed, isNull);
       });
 
       testWidgets('reload after the next translation completes', (
@@ -353,6 +457,154 @@ void main() {
         await tester.pump();
         verify(harness.translate.loadInsights).called(1);
       });
+    });
+  });
+
+  group('out-of-date translation', () {
+    double opacity(WidgetTester tester) => tester
+        .widget<AnimatedOpacity>(
+          find.byKey(const Key('translate_output_opacity')),
+        )
+        .opacity;
+
+    String? hint(WidgetTester tester) => tester
+        .getSemantics(find.byKey(const Key('translate_output_semantics')))
+        .hint;
+
+    testWidgets('a current translation is shown as is', (tester) async {
+      final handle = tester.ensureSemantics();
+      final harness = TranslateHarness(state: translatedState());
+      await harness.pump(tester, child: const OutputCard());
+      expect(opacity(tester), 1);
+      expect(hint(tester), isEmpty);
+      handle.dispose();
+    });
+
+    testWidgets('is dimmed and described as out of date', (tester) async {
+      final handle = tester.ensureSemantics();
+      final harness = TranslateHarness(state: _stale());
+      await harness.pump(tester, child: const OutputCard());
+      await tester.pumpAndSettle();
+      expect(opacity(tester), staleOutputOpacity);
+      expect(hint(tester), 'Out of date — translate again');
+      expect(find.text('Bonjour le monde'), findsOneWidget);
+      handle.dispose();
+    });
+
+    testWidgets('stays dimmed without the hint while translating again', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final harness = TranslateHarness(
+        state: _stale(status: TranslateStatus.translating),
+      );
+      await harness.pump(tester, child: const OutputCard());
+      expect(opacity(tester), staleOutputOpacity);
+      expect(hint(tester), isEmpty);
+      handle.dispose();
+    });
+
+    testWidgets('dims without animation when motion is reduced', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(state: _stale());
+      await harness.pump(
+        tester,
+        child: const OutputCard(),
+        disableAnimations: true,
+      );
+      final widget = tester.widget<AnimatedOpacity>(
+        find.byKey(const Key('translate_output_opacity')),
+      );
+      expect(widget.duration, Duration.zero);
+    });
+
+    testWidgets('favourites the text the translation was made for', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(state: _stale());
+      await harness.pump(tester, child: const OutputCard());
+      await tester.tap(find.byTooltip('Add to favourites'));
+      final entry =
+          verify(() => harness.history.add(captureAny())).captured.single
+              as HistoryEntry;
+      expect(entry.text, 'Hello world');
+      expect(entry.translation, 'Bonjour le monde');
+    });
+  });
+
+  group('alternatives for a selection', () {
+    const alternatives = AlternativeTranslations(
+      description: '',
+      alternatives: [Alternative(text: "l'univers", explanation: 'grander')],
+    );
+
+    testWidgets('are offered in the selection toolbar', (tester) async {
+      final harness = TranslateHarness(
+        state: translatedState(assistEngine: claude),
+      );
+      await harness.pump(tester, child: const OutputCard());
+      // " monde": the leading space is not part of the span.
+      await _select(tester, 10, 16);
+      expect(find.text('Copy'), findsOneWidget);
+      await tester.tap(find.text('Alternatives'));
+      await tester.pumpAndSettle();
+      verify(
+        () => harness.translate.loadAlternatives(span: 'monde', spanStart: 11),
+      ).called(1);
+      expect(
+        find.byKey(const Key('translate_span_alternatives_sheet')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('can be used from the sheet', (tester) async {
+      final harness = TranslateHarness(
+        state: translatedState(assistEngine: claude).copyWith(
+          alternativesStatus: ExtraStatus.ready,
+          alternatives: () => alternatives,
+          alternativesSpan: () => 'monde',
+          alternativesSpanStart: () => 11,
+        ),
+      );
+      await harness.pump(tester, child: const OutputCard());
+      await _select(tester, 11, 16);
+      await tester.tap(find.text('Alternatives'));
+      await tester.pumpAndSettle();
+      expect(find.text('Alternatives for “monde”'), findsOneWidget);
+      await tester.tap(find.text("l'univers"));
+      await tester.pumpAndSettle();
+      verify(() => harness.translate.useAlternative("l'univers")).called(1);
+      expect(
+        find.byKey(const Key('translate_span_alternatives_sheet')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('are not offered without an AI engine', (tester) async {
+      final harness = TranslateHarness(state: translatedState());
+      await harness.pump(tester, child: const OutputCard());
+      await _select(tester, 11, 16);
+      expect(find.text('Copy'), findsOneWidget);
+      expect(find.text('Alternatives'), findsNothing);
+    });
+
+    testWidgets('are not offered for an out-of-date translation', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(state: _stale());
+      await harness.pump(tester, child: const OutputCard());
+      await _select(tester, 11, 16);
+      expect(find.text('Alternatives'), findsNothing);
+    });
+
+    testWidgets('are not offered for blank selections', (tester) async {
+      final harness = TranslateHarness(
+        state: translatedState(assistEngine: claude),
+      );
+      await harness.pump(tester, child: const OutputCard());
+      await _select(tester, 7, 8);
+      expect(find.text('Alternatives'), findsNothing);
     });
   });
 

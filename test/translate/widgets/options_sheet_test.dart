@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/presets/presets.dart';
 import 'package:mozhi/translate/translate.dart';
 import 'package:mozhi/translate/widgets/widgets.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -14,8 +17,9 @@ TranslateState _state([
 Future<TranslateHarness> _open(
   WidgetTester tester, [
   TranslationOptions options = const TranslationOptions(),
+  PresetsCubit? presets,
 ]) async {
-  final harness = TranslateHarness(state: _state(options));
+  final harness = TranslateHarness(state: _state(options), presets: presets);
   await harness.pump(
     tester,
     child: const OptionsButton(),
@@ -179,6 +183,156 @@ void main() {
         find.byKey(const Key('translate_options_reset')),
       );
       expect(reset.onPressed, isNull);
+    });
+  });
+
+  group('presets', () {
+    const work = Preset(
+      id: 'work',
+      name: 'Work',
+      options: TranslationOptions(
+        formality: Formality.more,
+        context: 'An email to a colleague.',
+      ),
+    );
+
+    MockPresetsCubit presetsCubit() {
+      final cubit = MockPresetsCubit();
+      when(() => cubit.state).thenReturn(
+        const PresetsState(status: PresetsStatus.ready, presets: [work]),
+      );
+      return cubit;
+    }
+
+    testWidgets('are not offered without a presets cubit', (tester) async {
+      await _open(tester);
+      expect(find.byType(PresetPicker), findsNothing);
+      expect(find.text('Preset'), findsNothing);
+    });
+
+    testWidgets('choosing one sets its options and keeps the glossary', (
+      tester,
+    ) async {
+      final harness = await _open(
+        tester,
+        const TranslationOptions(glossary: {'cat': 'Katze'}),
+        presetsCubit(),
+      );
+      expect(find.text('Preset'), findsOneWidget);
+      expect(
+        find.byKey(const Key('translate_options_presets')),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const Key('preset_picker_work')));
+      await tester.pump();
+      final options = _captured(harness);
+      expect(options.formality, Formality.more);
+      expect(options.context, 'An email to a colleague.');
+      expect(options.glossary, {'cat': 'Katze'});
+      final context = tester.widget<TextField>(
+        find.byKey(const Key('translate_options_context')),
+      );
+      expect(context.controller!.text, 'An email to a colleague.');
+    });
+
+    testWidgets('a preset replaces context that is still being typed', (
+      tester,
+    ) async {
+      final harness = await _open(
+        tester,
+        const TranslationOptions(),
+        presetsCubit(),
+      );
+      await tester.enterText(
+        find.byKey(const Key('translate_options_context')),
+        'typing',
+      );
+      await tester.tap(find.byKey(const Key('preset_picker_work')));
+      // The typed context would have been applied after this pause.
+      await tester.pump(const Duration(seconds: 1));
+      final options = verify(() => harness.translate.setOptions(captureAny()))
+          .captured
+          .cast<TranslationOptions>();
+      expect(options.map((o) => o.context), ['An email to a colleague.']);
+    });
+
+    testWidgets('"Default" restores the standard settings', (tester) async {
+      final harness = await _open(
+        tester,
+        const TranslationOptions(
+          readingLevel: ReadingLevel.a2,
+          context: 'Kids',
+        ),
+        presetsCubit(),
+      );
+      await tester.tap(find.byKey(const Key('preset_picker_default')));
+      await tester.pump();
+      final options = _captured(harness);
+      expect(options.readingLevel, ReadingLevel.standard);
+      expect(options.context, isEmpty);
+      final context = tester.widget<TextField>(
+        find.byKey(const Key('translate_options_context')),
+      );
+      expect(context.controller!.text, isEmpty);
+    });
+
+    testWidgets('"Manage presets" closes the sheet and opens the page', (
+      tester,
+    ) async {
+      final harness = await _open(
+        tester,
+        const TranslationOptions(),
+        presetsCubit(),
+      );
+      await tester.tap(find.byKey(const Key('preset_picker_manage')));
+      await tester.pumpAndSettle();
+      expect(find.byType(TranslationOptionsSheet), findsNothing);
+      verify(() => harness.router.push<void>(translatePresetsLocation))
+          .called(1);
+    });
+
+    testWidgets('disappear when the engine is no longer an AI engine', (
+      tester,
+    ) async {
+      final states = StreamController<TranslateState>.broadcast();
+      addTearDown(states.close);
+      final harness = TranslateHarness(
+        state: _state(),
+        presets: presetsCubit(),
+      );
+      when(() => harness.translate.stream).thenAnswer((_) => states.stream);
+      await harness.pump(
+        tester,
+        child: const OptionsButton(),
+        size: const Size(800, 2000),
+      );
+      await tester.tap(find.byKey(const Key('translate_options_button')));
+      await tester.pumpAndSettle();
+      expect(find.byType(PresetPicker), findsOneWidget);
+
+      final mozhi = readyState();
+      harness.setState(mozhi);
+      states.add(mozhi);
+      await tester.pumpAndSettle();
+      expect(find.byType(PresetPicker), findsNothing);
+    });
+
+    testWidgets('are not offered for engines other than AI', (tester) async {
+      final harness = TranslateHarness(presets: presetsCubit());
+      await harness.pump(
+        tester,
+        size: const Size(800, 2000),
+        child: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showOptionsSheet(context),
+            child: const Text('Open'),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+      expect(find.byType(TranslationOptionsSheet), findsOneWidget);
+      expect(find.byType(PresetPicker), findsNothing);
     });
   });
 

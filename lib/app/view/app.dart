@@ -65,6 +65,7 @@ class _AppState extends State<App> {
       repository: _deps.translationRepository,
       settings: _settingsCubit,
       history: _historyCubit,
+      usageTracker: _deps.usageTracker,
     );
     unawaited(_translateCubit.loadEngines());
     unawaited(_deps.usageTracker.load().then<void>((_) {}, onError: (_) {}));

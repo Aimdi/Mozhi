@@ -9,8 +9,24 @@ import 'package:mozhi/translate/widgets/language_text.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Opens the details of one word insight; tapping a variation applies it.
-Future<void> showInsightSheet(BuildContext context, WordInsight insight) {
+///
+/// The variation replaces the occurrence of the insight's phrase that starts
+/// at [offset] in the output (the tapped highlight) when given, otherwise
+/// the one [TranslateCubit.locateInsight] finds.
+Future<void> showInsightSheet(
+  BuildContext context,
+  WordInsight insight, {
+  int? offset,
+}) {
   final cubit = context.read<TranslateCubit>();
+  final state = cubit.state;
+  final start =
+      offset ??
+      TranslateCubit.locateInsight(
+        state.output,
+        insight,
+        source: state.resultInput ?? state.input,
+      );
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -24,7 +40,7 @@ Future<void> showInsightSheet(BuildContext context, WordInsight insight) {
           : cubit.state.source,
       onVariation: (variation) {
         Navigator.of(sheetContext).pop();
-        cubit.applyVariation(insight, variation);
+        cubit.applyVariation(insight, variation, offset: start);
       },
     ),
   );
@@ -150,11 +166,17 @@ class InsightSheet extends StatelessWidget {
 }
 
 /// Output text with each insight's `targetText` underlined and tappable.
+///
+/// Each phrase is underlined where [TranslateCubit.locateInsight] places it
+/// (whole words, nearest to where its source phrase sits in [source]), so a
+/// repeated phrase is marked at the right occurrence.
 class InsightText extends StatefulWidget {
   const new({
     required this.text,
     required this.insights,
-    required this.onTap,
+    this.onTap,
+    this.onTapAt,
+    this.source,
     this.style,
     this.textDirection,
     this.locale,
@@ -163,7 +185,17 @@ class InsightText extends StatefulWidget {
 
   final String text;
   final List<WordInsight> insights;
-  final ValueChanged<WordInsight> onTap;
+
+  /// Called with the tapped insight (unless [onTapAt] is set).
+  final ValueChanged<WordInsight>? onTap;
+
+  /// Called with the tapped insight and the start of the tapped highlight
+  /// in [text]; takes precedence over [onTap].
+  final void Function(WordInsight insight, int offset)? onTapAt;
+
+  /// The text [text] is a translation of (helps to pick the occurrence of a
+  /// repeated phrase).
+  final String? source;
   final TextStyle? style;
 
   /// Direction of [text] (the target language's).
@@ -171,6 +203,47 @@ class InsightText extends StatefulWidget {
 
   /// Language of [text], so screen readers use a matching voice.
   final Locale? locale;
+
+  /// Non-overlapping (start, end, insight) ranges, in text order.
+  ///
+  /// Each insight is placed where [TranslateCubit.locateInsight] finds it
+  /// (using [source], the text [text] translates). When another insight
+  /// already covers that place, the nearest free occurrence is used;
+  /// insights whose phrase does not occur are skipped.
+  static List<(int, int, WordInsight)> ranges(
+    String text,
+    List<WordInsight> insights, {
+    String? source,
+  }) {
+    final result = <(int, int, WordInsight)>[];
+    bool free(int start, int end) =>
+        !result.any((r) => start < r.$2 && end > r.$1);
+    for (final insight in insights) {
+      final target = insight.targetText;
+      if (target.trim().isEmpty) continue;
+      final located = TranslateCubit.locateInsight(
+        text,
+        insight,
+        source: source,
+      );
+      if (located == null) continue;
+      final candidates = [
+        for (
+          var i = text.indexOf(target);
+          i >= 0;
+          i = text.indexOf(target, i + 1)
+        )
+          if (i != located) i,
+      ]..sort((a, b) => (a - located).abs().compareTo((b - located).abs()));
+      for (final start in [located, ...candidates]) {
+        if (free(start, start + target.length)) {
+          result.add((start, start + target.length, insight));
+          break;
+        }
+      }
+    }
+    return result..sort((a, b) => a.$1.compareTo(b.$1));
+  }
 
   @override
   State<InsightText> createState() => _InsightTextState();
@@ -192,29 +265,13 @@ class _InsightTextState extends State<InsightText> {
     _recognizers.clear();
   }
 
-  /// Non-overlapping (start, end, insight) ranges, in text order.
-  static List<(int, int, WordInsight)> ranges(
-    String text,
-    List<WordInsight> insights,
-  ) {
-    final result = <(int, int, WordInsight)>[];
-    for (final insight in insights) {
-      final target = insight.targetText;
-      if (target.trim().isEmpty) continue;
-      var from = 0;
-      while (true) {
-        final start = text.indexOf(target, from);
-        if (start < 0) break;
-        final end = start + target.length;
-        final overlaps = result.any((r) => start < r.$2 && end > r.$1);
-        if (!overlaps) {
-          result.add((start, end, insight));
-          break;
-        }
-        from = start + 1;
-      }
+  void _onTap(WordInsight insight, int offset) {
+    final onTapAt = widget.onTapAt;
+    if (onTapAt != null) {
+      onTapAt(insight, offset);
+    } else {
+      widget.onTap?.call(insight);
     }
-    return result..sort((a, b) => a.$1.compareTo(b.$1));
   }
 
   @override
@@ -231,12 +288,16 @@ class _InsightTextState extends State<InsightText> {
     final text = widget.text;
     final spans = <InlineSpan>[];
     var cursor = 0;
-    for (final (start, end, insight) in ranges(text, widget.insights)) {
+    for (final (start, end, insight) in InsightText.ranges(
+      text,
+      widget.insights,
+      source: widget.source,
+    )) {
       if (start > cursor) {
         spans.add(TextSpan(text: text.substring(cursor, start)));
       }
       final recognizer = TapGestureRecognizer()
-        ..onTap = () => widget.onTap(insight);
+        ..onTap = () => _onTap(insight, start);
       _recognizers.add(recognizer);
       final phrase = text.substring(start, end);
       spans.add(

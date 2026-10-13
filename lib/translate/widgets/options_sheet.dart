@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/presets/presets.dart' show PresetPicker, PresetsCubit;
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -74,9 +76,23 @@ class OptionsButton extends StatelessWidget {
   }
 }
 
+/// Location of the presets page ("Manage presets" in the preset picker).
+const translatePresetsLocation = '/settings/presets';
+
+/// The app-wide [PresetsCubit], or null when none is provided (the preset
+/// picker is then not offered).
+PresetsCubit? _presetsCubitOf(BuildContext context) {
+  try {
+    return context.read<PresetsCubit>();
+  } on ProviderNotFoundException {
+    return null;
+  }
+}
+
 /// Opens the translation options bottom sheet.
 Future<void> showOptionsSheet(BuildContext context) {
   final cubit = context.read<TranslateCubit>();
+  final presets = _presetsCubitOf(context);
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -84,14 +100,23 @@ Future<void> showOptionsSheet(BuildContext context) {
     showDragHandle: true,
     builder: (_) => BlocProvider.value(
       value: cubit,
-      child: const TranslationOptionsSheet(),
+      child: presets == null
+          ? const TranslationOptionsSheet()
+          : BlocProvider.value(
+              value: presets,
+              child: const TranslationOptionsSheet(),
+            ),
     ),
   );
 }
 
-/// Style, formality, reading level, genders, context, formatting and
-/// glossary (Kagi translation settings). Every change calls
+/// Preset, style, formality, reading level, genders, context, formatting
+/// and glossary (Kagi translation settings). Every change calls
 /// `TranslateCubit.setOptions`.
+///
+/// The preset picker ([PresetPicker]) is shown for AI engines when a
+/// [PresetsCubit] is provided above; choosing a preset replaces the
+/// settings (the glossary is kept).
 class TranslationOptionsSheet extends StatefulWidget {
   const new({super.key});
 
@@ -154,6 +179,22 @@ class _TranslationOptionsSheetState extends State<TranslationOptionsSheet> {
     _set(TranslationOptions(instructions: _options.instructions));
   }
 
+  /// A preset replaces every setting, including a context still being
+  /// typed.
+  void _applyPreset(TranslationOptions options) {
+    _contextDebounce?.cancel();
+    _contextDebounce = null;
+    if (_context.text.trim() != options.context) {
+      _context.text = options.context;
+    }
+    _set(options);
+  }
+
+  void _managePresets(GoRouter router) {
+    Navigator.of(context).pop();
+    unawaited(router.push<void>(translatePresetsLocation));
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
@@ -167,9 +208,14 @@ class _TranslationOptionsSheetState extends State<TranslationOptionsSheet> {
         builder: (context, controller) =>
             BlocBuilder<TranslateCubit, TranslateState>(
               buildWhen: (previous, current) =>
-                  !identical(previous.options, current.options),
+                  !identical(previous.options, current.options) ||
+                  previous.isAiEngine != current.isAiEngine,
               builder: (context, state) {
                 final options = state.options;
+                final presets = state.isAiEngine
+                    ? _presetsCubitOf(context)
+                    : null;
+                final router = GoRouter.maybeOf(context);
                 return ListView(
                   controller: controller,
                   padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
@@ -192,6 +238,17 @@ class _TranslationOptionsSheetState extends State<TranslationOptionsSheet> {
                         ),
                       ],
                     ),
+                    if (presets != null) ...[
+                      _Label(l10n.translateOptionsPreset),
+                      PresetPicker(
+                        key: const Key('translate_options_presets'),
+                        value: options,
+                        onChanged: _applyPreset,
+                        onManagePresets: router == null
+                            ? null
+                            : () => _managePresets(router),
+                      ),
+                    ],
                     _Label(l10n.translateOptionsStyle),
                     // The default check icon marks the selected segment
                     // without relying on colour alone.

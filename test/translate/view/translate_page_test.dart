@@ -99,6 +99,33 @@ void main() {
       expect(find.byType(OutputCard), findsOneWidget);
     });
 
+    testWidgets('input actions fit at 320 dp with large text', (tester) async {
+      final harness = TranslateHarness(
+        state: translatedState(
+          engine: claude,
+          input: 'word ' * 120,
+        ).copyWith(inputTruncated: true),
+        speechInput: FakeSpeechInput().service,
+      );
+      final errors = <String>[];
+      final previous = FlutterError.onError;
+      FlutterError.onError = (details) => errors.add(details.toString());
+      addTearDown(() => FlutterError.onError = previous);
+      await harness.pump(tester, size: const Size(320, 640), textScale: 2);
+      await tester.pump();
+      FlutterError.onError = previous;
+      expect(errors, isEmpty);
+      for (final key in [
+        'translate_voice_input',
+        'translate_image_button',
+        'translate_character_count',
+        'translate_token_estimate',
+        'translate_input_truncated',
+      ]) {
+        expect(find.byKey(Key(key)), findsOneWidget, reason: key);
+      }
+    });
+
     testWidgets('renders in dark mode', (tester) async {
       final harness = TranslateHarness(state: translatedState());
       await harness.pump(tester, themeMode: ThemeMode.dark);
