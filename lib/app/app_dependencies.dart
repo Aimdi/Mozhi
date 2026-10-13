@@ -8,7 +8,7 @@ import 'package:translation_repository/translation_repository.dart';
 /// Long-lived services created once by `bootstrap` and handed to the `App`,
 /// which provides them to the widget tree.
 class AppDependencies {
-  const AppDependencies({
+  const new({
     required this.translationRepository,
     required this.settingsRepository,
     required this.historyRepository,

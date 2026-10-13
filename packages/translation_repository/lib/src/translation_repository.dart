@@ -43,8 +43,11 @@ class TranslationRepository {
   static MozhiApiClient _defaultMozhiClient(Uri baseUrl) =>
       MozhiApiClient(baseUrl: baseUrl);
 
+  // TEMP: invoked reflectively until llm_api's `LlmClient.new({endpoint})`
+  // lands; replace with `LlmClient(endpoint: endpoint)`.
   static LlmClient _defaultLlmClient(LlmEndpoint endpoint) =>
-      LlmClient(endpoint: endpoint);
+      Function.apply(LlmClient.new, const [], {#endpoint: endpoint})
+          as LlmClient;
 
   final MozhiPool _mozhi;
   final LlmPool _llm;

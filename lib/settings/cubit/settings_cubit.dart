@@ -9,7 +9,7 @@ import 'package:translation_repository/translation_repository.dart';
 /// App-wide settings. Every mutation emits immediately and persists
 /// asynchronously (errors are reported via `addError`, never thrown).
 ///
-/// [repository] defaults to a [SettingsRepository] backed by the platform
+/// `repository` defaults to a [SettingsRepository] backed by the platform
 /// stores. Typical bootstrap:
 /// `SettingsCubit(repository: repo, initial: await repo.load())`.
 class SettingsCubit extends Cubit<AppSettings> {
@@ -126,7 +126,10 @@ class SettingsCubit extends Cubit<AppSettings> {
     state.copyWith(
       providers: List.unmodifiable([
         for (final provider in state.providers)
-          provider.id == id ? provider.copyWith(enabled: enabled) : provider,
+          if (provider.id == id)
+            provider.copyWith(enabled: enabled)
+          else
+            provider,
       ]),
     ),
   );

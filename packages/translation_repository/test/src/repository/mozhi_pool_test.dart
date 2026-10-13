@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:mocktail/mocktail.dart';
-import 'package:mozhi_api/mozhi_api.dart';
 import 'package:test/test.dart';
 import 'package:translation_repository/src/repository/mozhi_pool.dart';
 import 'package:translation_repository/translation_repository.dart';

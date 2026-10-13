@@ -8,7 +8,7 @@ import 'package:translation_repository/translation_repository.dart';
 /// screen: a Kagi-style URL (`/translate?text=…&from=…&to=…`), a share
 /// intent or text selected in another app.
 class TranslateLink extends Equatable {
-  const TranslateLink({this.text, this.from, this.to});
+  const new({this.text, this.from, this.to});
 
   /// Parses Kagi/Google style query parameters from [uri].
   ///
@@ -92,12 +92,12 @@ Future<TranslateState?> waitForEngines(
   if (settled(cubit.state)) return cubit.state;
   if (cubit.isClosed) return null;
   try {
-    return await cubit.stream.firstWhere(settled).timeout(timeout);
+    return await cubit.stream
+        .cast<TranslateState?>()
+        .firstWhere((s) => s != null && settled(s), orElse: () => null)
+        .timeout(timeout);
   } on TimeoutException {
     return cubit.isClosed ? null : cubit.state;
-  } on StateError {
-    // The stream closed without the engines settling.
-    return null;
   }
 }
 

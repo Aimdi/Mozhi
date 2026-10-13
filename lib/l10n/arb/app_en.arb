@@ -1706,5 +1706,13 @@
   "historyCleared": "History cleared",
   "@historyCleared": {
     "description": "historyCleared"
+  },
+  "settingsInstancesMoveUp": "Move up",
+  "@settingsInstancesMoveUp": {
+    "description": "settingsInstancesMoveUp"
+  },
+  "settingsInstancesMoveDown": "Move down",
+  "@settingsInstancesMoveDown": {
+    "description": "settingsInstancesMoveDown"
   }
 }

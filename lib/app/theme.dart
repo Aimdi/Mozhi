@@ -11,14 +11,14 @@ const double kExpandedBreakpoint = 840;
 /// A matching pair of light and dark themes.
 @immutable
 class AppThemes {
-  const AppThemes({required this.light, required this.dark});
+  const new({required this.light, required this.dark});
 
   /// Builds the themes for [settings].
   ///
   /// When [AppSettings.dynamicColor] is on and the platform reported a
   /// palette ([lightDynamic] / [darkDynamic]), it is used; otherwise the
   /// palette is generated from [AppSettings.seedColor].
-  factory AppThemes.fromSettings(
+  factory fromSettings(
     AppSettings settings, {
     ColorScheme? lightDynamic,
     ColorScheme? darkDynamic,

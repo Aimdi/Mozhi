@@ -33,22 +33,24 @@ class HistoryRepository {
     return _entries!;
   });
 
-  Future<List<HistoryEntry>> add(HistoryEntry entry) =>
-      _mutate((entries) {
-        final newest = entries.firstOrNull;
-        if (newest != null && _sameRequest(newest, entry)) {
-          return [
-            entry.copyWith(isFavorite: newest.isFavorite || entry.isFavorite),
-            ...entries.skip(1).where((e) => e.id != entry.id),
-          ];
-        }
-        return [entry, ...entries.where((e) => e.id != entry.id)];
-      });
+  Future<List<HistoryEntry>> add(HistoryEntry entry) => _mutate((entries) {
+    final newest = entries.firstOrNull;
+    if (newest != null && _sameRequest(newest, entry)) {
+      return [
+        entry.copyWith(isFavorite: newest.isFavorite || entry.isFavorite),
+        ...entries.skip(1).where((e) => e.id != entry.id),
+      ];
+    }
+    return [entry, ...entries.where((e) => e.id != entry.id)];
+  });
 
   Future<List<HistoryEntry>> toggleFavorite(String id) => _mutate(
     (entries) => [
       for (final entry in entries)
-        entry.id == id ? entry.copyWith(isFavorite: !entry.isFavorite) : entry,
+        if (entry.id == id)
+          entry.copyWith(isFavorite: !entry.isFavorite)
+        else
+          entry,
     ],
   );
 
@@ -77,7 +79,7 @@ class HistoryRepository {
   /// entry (or is empty).
   Future<List<HistoryEntry>> importJson(String json) async {
     final imported = _decodeStrict(json);
-    return _mutate((entries) {
+    return await _mutate((entries) {
       final ids = {for (final entry in entries) entry.id};
       return [...entries, ...imported.where((e) => ids.add(e.id))]
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));

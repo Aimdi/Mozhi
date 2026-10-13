@@ -4,7 +4,7 @@ import 'package:mozhi/l10n/l10n.dart';
 
 /// One top-level destination of the app.
 class AppDestination {
-  const AppDestination({
+  const new({
     required this.icon,
     required this.selectedIcon,
     required this.label,
@@ -42,7 +42,7 @@ class AppDestination {
 /// Adaptive app chrome: a bottom [NavigationBar] on compact/medium widths
 /// and a [NavigationRail] from [kExpandedBreakpoint] dp.
 class AppShell extends StatelessWidget {
-  const AppShell({
+  const new({
     required this.selectedIndex,
     required this.onDestinationSelected,
     required this.child,
@@ -114,7 +114,7 @@ class AppShell extends StatelessWidget {
 }
 
 class _RailHeader extends StatelessWidget {
-  const _RailHeader({required this.extended});
+  const new({required this.extended});
 
   final bool extended;
 

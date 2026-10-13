@@ -385,7 +385,7 @@ class MozhiApiClient {
       switch (json) {
         final Map<String, dynamic> object => object,
         _ => throw MozhiApiException(
-          'Expected a JSON object, got ${json.runtimeType}',
+          'Unexpected response: expected a JSON object',
           uri: uri,
         ),
       };
@@ -395,7 +395,7 @@ class MozhiApiClient {
     final List<Object?> list => list,
     null => const [],
     _ => throw MozhiApiException(
-      'Expected a JSON array, got ${json.runtimeType}',
+      'Unexpected response: expected a JSON array',
       uri: uri,
     ),
   };

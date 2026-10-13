@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
 
 /// Mirrors Kagi Translate's settings panel. Only AI engines honour these.
@@ -26,9 +27,45 @@ class TranslationOptions {
     this.instructions = '',
   });
 
-  factory fromJson() {
-    throw UnimplementedError('TODO(translation_repository)');
-  }
+  /// Tolerant counterpart of [toJson]: unknown or missing values fall back to
+  /// the defaults. Also accepts Kagi's wire values (`default`, `prefer_more`,
+  /// `A1`, `male`, ...).
+  factory fromJson(Map<String, dynamic> json) => TranslationOptions(
+    style: _parseEnum(
+      json['style'] ?? json['translation_style'],
+      TranslationStyle.values,
+      TranslationStyle.natural,
+    ),
+    formality: _parseEnum(
+      json['formality'],
+      Formality.values,
+      Formality.automatic,
+      aliases: const {
+        'default': Formality.automatic,
+        'auto': Formality.automatic,
+        'formal': Formality.more,
+        'informal': Formality.less,
+      },
+    ),
+    readingLevel: _parseEnum(
+      json['readingLevel'] ?? json['language_complexity'],
+      ReadingLevel.values,
+      ReadingLevel.standard,
+    ),
+    speakerGender: _parseGender(
+      json['speakerGender'] ?? json['speaker_gender'],
+    ),
+    addresseeGender: _parseGender(
+      json['addresseeGender'] ?? json['addressee_gender'],
+    ),
+    context: _parseString(json['context']),
+    preserveFormatting: _parseBool(
+      json['preserveFormatting'] ?? json['preserve_formatting'],
+      fallback: true,
+    ),
+    glossary: _parseGlossary(json['glossary']),
+    instructions: _parseString(json['instructions']),
+  );
 
   final TranslationStyle style;
   final Formality formality;
@@ -61,22 +98,136 @@ class TranslationOptions {
     bool? preserveFormatting,
     Map<String, String>? glossary,
     String? instructions,
-  }) {
-    throw UnimplementedError('TODO(translation_repository)');
-  }
+  }) => TranslationOptions(
+    style: style ?? this.style,
+    formality: formality ?? this.formality,
+    readingLevel: readingLevel ?? this.readingLevel,
+    speakerGender: speakerGender ?? this.speakerGender,
+    addresseeGender: addresseeGender ?? this.addresseeGender,
+    context: context ?? this.context,
+    preserveFormatting: preserveFormatting ?? this.preserveFormatting,
+    glossary: glossary ?? this.glossary,
+    instructions: instructions ?? this.instructions,
+  );
 
   /// Enum values serialise by `.name`; unknown values fall back to defaults.
-  Map<String, dynamic> toJson() {
-    throw UnimplementedError('TODO(translation_repository)');
-  }
+  ///
+  /// [instructions] is only written when non-empty (it is a one-off value the
+  /// app normally strips before persisting).
+  Map<String, dynamic> toJson() => {
+    'style': style.name,
+    'formality': formality.name,
+    'readingLevel': readingLevel.name,
+    'speakerGender': speakerGender.name,
+    'addresseeGender': addresseeGender.name,
+    'context': context,
+    'preserveFormatting': preserveFormatting,
+    'glossary': Map<String, String>.of(glossary),
+    if (instructions.isNotEmpty) 'instructions': instructions,
+  };
+
+  static const _glossaryEquality = MapEquality<String, String>();
 
   @override
-  bool operator ==(Object other) {
-    throw UnimplementedError('TODO(translation_repository): deep equality');
-  }
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TranslationOptions &&
+          other.style == style &&
+          other.formality == formality &&
+          other.readingLevel == readingLevel &&
+          other.speakerGender == speakerGender &&
+          other.addresseeGender == addresseeGender &&
+          other.context == context &&
+          other.preserveFormatting == preserveFormatting &&
+          other.instructions == instructions &&
+          _glossaryEquality.equals(other.glossary, glossary);
 
   @override
-  int get hashCode {
-    throw UnimplementedError('TODO(translation_repository)');
+  int get hashCode => Object.hash(
+    style,
+    formality,
+    readingLevel,
+    speakerGender,
+    addresseeGender,
+    context,
+    preserveFormatting,
+    instructions,
+    _glossaryEquality.hash(glossary),
+  );
+
+  @override
+  String toString() =>
+      'TranslationOptions(style: ${style.name}, '
+      'formality: ${formality.name}, readingLevel: ${readingLevel.name}, '
+      'speakerGender: ${speakerGender.name}, '
+      'addresseeGender: ${addresseeGender.name}, context: $context, '
+      'preserveFormatting: $preserveFormatting, glossary: $glossary, '
+      'instructions: $instructions)';
+}
+
+/// Matches [value] against enum names ignoring case, `_` and `-`, so both
+/// `preferMore` and `prefer_more` resolve.
+T _parseEnum<T extends Enum>(
+  Object? value,
+  List<T> values,
+  T fallback, {
+  Map<String, T> aliases = const {},
+}) {
+  if (value is! String) return fallback;
+  final key = _enumKey(value);
+  for (final v in values) {
+    if (_enumKey(v.name) == key) return v;
   }
+  for (final entry in aliases.entries) {
+    if (_enumKey(entry.key) == key) return entry.value;
+  }
+  return fallback;
+}
+
+String _enumKey(String s) =>
+    s.trim().toLowerCase().replaceAll(RegExp('[_ -]'), '');
+
+Gender _parseGender(Object? value) => _parseEnum(
+  value,
+  Gender.values,
+  Gender.unknown,
+  aliases: const {
+    'male': Gender.masculine,
+    'man': Gender.masculine,
+    'female': Gender.feminine,
+    'woman': Gender.feminine,
+    'nonbinary': Gender.neutral,
+    'non-binary': Gender.neutral,
+  },
+);
+
+String _parseString(Object? value) => value is String ? value : '';
+
+bool _parseBool(Object? value, {required bool fallback}) => switch (value) {
+  final bool b => b,
+  'true' => true,
+  'false' => false,
+  _ => fallback,
+};
+
+Map<String, String> _parseGlossary(Object? value) {
+  if (value is Map) {
+    return {
+      for (final MapEntry(:key, :value) in value.entries)
+        if (key is String && value is String && key.trim().isNotEmpty)
+          key: value,
+    };
+  }
+  // Also accept a list of {"source": ..., "target": ...} pairs.
+  if (value is List) {
+    return {
+      for (final item in value)
+        if (item is Map &&
+            item['source'] is String &&
+            item['target'] is String &&
+            (item['source'] as String).trim().isNotEmpty)
+          item['source'] as String: item['target'] as String,
+    };
+  }
+  return const {};
 }

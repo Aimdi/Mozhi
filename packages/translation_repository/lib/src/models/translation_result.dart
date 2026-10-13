@@ -1,4 +1,7 @@
+import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
+
+const _list = ListEquality<Object?>();
 
 /// Dictionary data for one word (from Mozhi `word_choices`).
 @immutable
@@ -14,6 +17,23 @@ class WordChoice {
   final String definition;
   final List<String> examplesSource;
   final List<String> examplesTarget;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is WordChoice &&
+          other.word == word &&
+          other.definition == definition &&
+          _list.equals(other.examplesSource, examplesSource) &&
+          _list.equals(other.examplesTarget, examplesTarget);
+
+  @override
+  int get hashCode => Object.hash(
+    word,
+    definition,
+    _list.hash(examplesSource),
+    _list.hash(examplesTarget),
+  );
 }
 
 /// One (possibly partial, while streaming) translation.
@@ -70,6 +90,42 @@ class TranslationResult {
     targetSynonyms: targetSynonyms,
     elapsed: elapsed ?? this.elapsed,
   );
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TranslationResult &&
+          other.engineId == engineId &&
+          other.engineName == engineName &&
+          other.text == text &&
+          other.isComplete == isComplete &&
+          other.detectedSource == detectedSource &&
+          other.sourceTransliteration == sourceTransliteration &&
+          other.targetTransliteration == targetTransliteration &&
+          _list.equals(other.wordChoices, wordChoices) &&
+          _list.equals(other.sourceSynonyms, sourceSynonyms) &&
+          _list.equals(other.targetSynonyms, targetSynonyms) &&
+          other.elapsed == elapsed;
+
+  @override
+  int get hashCode => Object.hash(
+    engineId,
+    engineName,
+    text,
+    isComplete,
+    detectedSource,
+    sourceTransliteration,
+    targetTransliteration,
+    _list.hash(wordChoices),
+    _list.hash(sourceSynonyms),
+    _list.hash(targetSynonyms),
+    elapsed,
+  );
+
+  @override
+  String toString() =>
+      'TranslationResult($engineId, complete: $isComplete, '
+      'detected: $detectedSource, text: $text)';
 }
 
 /// A result (or failure) from compare mode.
@@ -93,4 +149,16 @@ class CompareEntry {
   bool get isSuccess => result != null;
   String get id => result?.engineId ?? engineId!;
   String get name => result?.engineName ?? engineName!;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CompareEntry &&
+          other.result == result &&
+          other.engineId == engineId &&
+          other.engineName == engineName &&
+          other.error == error;
+
+  @override
+  int get hashCode => Object.hash(result, engineId, engineName, error);
 }

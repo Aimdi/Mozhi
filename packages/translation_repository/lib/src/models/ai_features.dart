@@ -1,4 +1,7 @@
+import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
+
+const _list = ListEquality<Object?>();
 
 /// Kagi `/api/alternative-translations` equivalent.
 @immutable
@@ -11,6 +14,16 @@ class AlternativeTranslations {
   /// One sentence describing the main translation's choices.
   final String description;
   final List<Alternative> alternatives;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AlternativeTranslations &&
+          other.description == description &&
+          _list.equals(other.alternatives, alternatives);
+
+  @override
+  int get hashCode => Object.hash(description, _list.hash(alternatives));
 }
 
 @immutable
@@ -21,6 +34,16 @@ class Alternative {
 
   /// How it differs, e.g. "slightly more formal".
   final String explanation;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Alternative &&
+          other.text == text &&
+          other.explanation == explanation;
+
+  @override
+  int get hashCode => Object.hash(text, explanation);
 }
 
 /// Kagi word insights: an underlined span of the translation with
@@ -46,6 +69,19 @@ class WordInsight {
   final String type;
   final String explanation;
   final List<Alternative> variations;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is WordInsight &&
+          other.sourceText == sourceText &&
+          other.targetText == targetText &&
+          other.type == type &&
+          other.explanation == explanation &&
+          _list.equals(other.variations, variations);
+
+  @override
+  int get hashCode => Object.hash(sourceText, targetText, type, explanation, _list.hash(variations));
 }
 
 /// A refinement chip shown under the output (Kagi translation-suggestions).
@@ -78,6 +114,18 @@ class RefinementSuggestion {
     RefinementSuggestion(label: 'More fluent', instruction: 'Make it sound completely natural to a native speaker, prioritising idiomatic phrasing.', icon: 'fluent'),
     RefinementSuggestion(label: 'More literal', instruction: 'Stay closer to the source wording and structure.', icon: 'literal'),
   ];
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RefinementSuggestion &&
+          other.label == label &&
+          other.instruction == instruction &&
+          other.description == description &&
+          other.icon == icon;
+
+  @override
+  int get hashCode => Object.hash(label, instruction, description, icon);
 }
 
 /// Kagi dictionary entry (LLM generated).
@@ -104,6 +152,22 @@ class DictionaryEntry {
   final List<String> synonyms;
   final String etymology;
   final String notes;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DictionaryEntry &&
+          other.word == word &&
+          other.pronunciation == pronunciation &&
+          _list.equals(other.partsOfSpeech, partsOfSpeech) &&
+          _list.equals(other.senses, senses) &&
+          _list.equals(other.examples, examples) &&
+          _list.equals(other.synonyms, synonyms) &&
+          other.etymology == etymology &&
+          other.notes == notes;
+
+  @override
+  int get hashCode => Object.hash(word, pronunciation, _list.hash(partsOfSpeech), _list.hash(senses), _list.hash(examples), _list.hash(synonyms), etymology, notes);
 }
 
 @immutable
@@ -123,6 +187,18 @@ class DictionarySense {
 
   /// e.g. "informal", "rare", "British".
   final String usage;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DictionarySense &&
+          other.definition == definition &&
+          other.partOfSpeech == partOfSpeech &&
+          _list.equals(other.translations, translations) &&
+          other.usage == usage;
+
+  @override
+  int get hashCode => Object.hash(definition, partOfSpeech, _list.hash(translations), usage);
 }
 
 @immutable
@@ -131,6 +207,16 @@ class DictionaryExample {
 
   final String source;
   final String translation;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DictionaryExample &&
+          other.source == source &&
+          other.translation == translation;
+
+  @override
+  int get hashCode => Object.hash(source, translation);
 }
 
 enum WritingStyle { general, academic, business, casual, creative, email }
@@ -153,6 +239,18 @@ class ProofreadResult {
 
   /// One or two sentences on overall style/tone/repetition.
   final String summary;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ProofreadResult &&
+          other.correctedText == correctedText &&
+          _list.equals(other.edits, edits) &&
+          other.detectedLanguage == detectedLanguage &&
+          other.summary == summary;
+
+  @override
+  int get hashCode => Object.hash(correctedText, _list.hash(edits), detectedLanguage, summary);
 }
 
 @immutable
@@ -172,6 +270,18 @@ class ProofreadEdit {
   /// grammar | spelling | punctuation | style | clarity | word_choice |
   /// tone | repetition.
   final String category;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ProofreadEdit &&
+          other.original == original &&
+          other.replacement == replacement &&
+          other.explanation == explanation &&
+          other.category == category;
+
+  @override
+  int get hashCode => Object.hash(original, replacement, explanation, category);
 }
 
 /// Language detection outcome.
@@ -188,6 +298,18 @@ class DetectedLanguage {
   final bool isUncertain;
   final bool isMixed;
   final List<String> alternatives;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DetectedLanguage &&
+          other.code == code &&
+          other.isUncertain == isUncertain &&
+          other.isMixed == isMixed &&
+          _list.equals(other.alternatives, alternatives);
+
+  @override
+  int get hashCode => Object.hash(code, isUncertain, isMixed, _list.hash(alternatives));
 }
 
 /// Result of translating an image.
@@ -207,4 +329,16 @@ class ImageTranslationResult {
 
   /// Extra context a vision model gave about the image.
   final String notes;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ImageTranslationResult &&
+          _list.equals(other.translatedImage, translatedImage) &&
+          other.sourceText == sourceText &&
+          other.translatedText == translatedText &&
+          other.notes == notes;
+
+  @override
+  int get hashCode => Object.hash(_list.hash(translatedImage), sourceText, translatedText, notes);
 }

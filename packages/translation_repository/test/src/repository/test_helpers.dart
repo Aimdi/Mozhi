@@ -6,9 +6,9 @@ import 'package:mocktail/mocktail.dart';
 import 'package:mozhi_api/mozhi_api.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-class MockMozhiApiClient extends Mock implements MozhiApiClient {}
+class MockMozhiApiClient extends Mock implements MozhiApiClient;
 
-class MockLlmClient extends Mock implements LlmClient {}
+class MockLlmClient extends Mock implements LlmClient;
 
 /// Registers fallback values for `any()` matchers.
 void registerTestFallbacks() {

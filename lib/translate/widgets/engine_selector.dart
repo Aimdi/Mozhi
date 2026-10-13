@@ -1,0 +1,321 @@
+import 'dart:async';
+
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:translation_repository/translation_repository.dart';
+
+/// App bar button showing the current engine; opens [EngineSheet].
+class EngineSelectorButton extends StatelessWidget {
+  const EngineSelectorButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    return BlocBuilder<TranslateCubit, TranslateState>(
+      buildWhen: (previous, current) =>
+          previous.engine != current.engine ||
+          previous.engines != current.engines,
+      builder: (context, state) {
+        final engine = state.engine;
+        final name = engine?.name ?? l10n.translateEngineSheetTitle;
+        final subtitle = engine?.subtitle;
+        return Tooltip(
+          message: l10n.translateEngineSelectorTooltip,
+          child: TextButton(
+            key: const Key('translate_engine_selector'),
+            style: TextButton.styleFrom(
+              minimumSize: const Size(48, 48),
+              padding: const EdgeInsetsDirectional.only(start: 12, end: 4),
+              shape: const StadiumBorder(),
+              foregroundColor: theme.colorScheme.onSurface,
+            ),
+            onPressed: state.engines.isEmpty
+                ? null
+                : () => unawaited(showEngineSheet(context)),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (engine != null) ...[
+                  EngineIcon(engine: engine, size: 20),
+                  const SizedBox(width: 8),
+                ],
+                Flexible(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleMedium,
+                      ),
+                      if (subtitle != null && subtitle.isNotEmpty)
+                        Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.arrow_drop_down),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Opens the engine picker as a modal bottom sheet.
+Future<void> showEngineSheet(BuildContext context) {
+  final cubit = context.read<TranslateCubit>();
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    showDragHandle: true,
+    builder: (_) =>
+        BlocProvider.value(value: cubit, child: const EngineSheet()),
+  );
+}
+
+/// Engines grouped into "Mozhi engines (via host)" and "AI models", each
+/// with a privacy badge.
+class EngineSheet extends StatelessWidget {
+  const EngineSheet({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final state = context.watch<TranslateCubit>().state;
+    final mozhi = state.engines.where((e) => e.isMozhi).toList();
+    final ai = state.engines.where((e) => e.isAi).toList();
+    final host = _instanceHost(mozhi);
+
+    void select(TranslationEngine engine) {
+      final cubit = context.read<TranslateCubit>();
+      Navigator.of(context).pop();
+      if (engine.id != state.engine?.id) unawaited(cubit.selectEngine(engine));
+    }
+
+    void open(String location) {
+      final router = GoRouter.of(context);
+      Navigator.of(context).pop();
+      router.go(location);
+    }
+
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.7,
+      minChildSize: 0.3,
+      maxChildSize: 1,
+      builder: (context, controller) => ListView(
+        controller: controller,
+        padding: const EdgeInsets.only(bottom: 16),
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+            child: Text(
+              l10n.translateEngineSheetTitle,
+              style: theme.textTheme.titleLarge,
+            ),
+          ),
+          if (mozhi.isNotEmpty) ...[
+            _SectionHeader(
+              host == null
+                  ? l10n.translateMozhiEnginesHeaderNoInstance
+                  : l10n.translateMozhiEnginesHeader(host),
+            ),
+            for (final engine in mozhi)
+              _EngineTile(
+                engine: engine,
+                selected: engine.id == state.engine?.id,
+                showSubtitle: false,
+                onTap: () => select(engine),
+              ),
+          ],
+          if (ai.isNotEmpty) ...[
+            _SectionHeader(l10n.translateAiModelsHeader),
+            for (final engine in ai)
+              _EngineTile(
+                engine: engine,
+                selected: engine.id == state.engine?.id,
+                showSubtitle: true,
+                onTap: () => select(engine),
+              ),
+          ],
+          const Divider(height: 24),
+          ListTile(
+            leading: const Icon(Icons.add),
+            title: Text(l10n.translateAddAiProvider),
+            onTap: () => open('/settings/providers'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.dns_outlined),
+            title: Text(l10n.translateManageInstances),
+            onTap: () => open('/settings/instances'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String? _instanceHost(List<TranslationEngine> mozhi) {
+    for (final engine in mozhi) {
+      final subtitle = engine.subtitle?.trim();
+      if (subtitle != null && subtitle.isNotEmpty) {
+        return subtitle.replaceFirst(RegExp(r'^via\s+'), '');
+      }
+    }
+    return null;
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader(this.title);
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Semantics(
+      header: true,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 4),
+        child: Text(
+          title,
+          style: theme.textTheme.labelLarge?.copyWith(
+            color: theme.colorScheme.primary,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EngineTile extends StatelessWidget {
+  const _EngineTile({
+    required this.engine,
+    required this.selected,
+    required this.showSubtitle,
+    required this.onTap,
+  });
+
+  final TranslationEngine engine;
+  final bool selected;
+  final bool showSubtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final subtitle = engine.subtitle;
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 24),
+      selected: selected,
+      leading: EngineIcon(engine: engine),
+      title: Text(engine.name),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            PrivacyBadge(engine: engine),
+            if (showSubtitle && subtitle != null && subtitle.isNotEmpty)
+              Text(subtitle),
+          ],
+        ),
+      ),
+      trailing: selected ? const Icon(Icons.check) : null,
+      onTap: onTap,
+    );
+  }
+}
+
+/// Icon for an engine kind (local AI, cloud AI, Mozhi).
+class EngineIcon extends StatelessWidget {
+  const EngineIcon({required this.engine, this.size, super.key});
+
+  final TranslationEngine engine;
+  final double? size;
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = switch (engine) {
+      TranslationEngine(isAi: true, isLocal: true) => Icons.memory,
+      TranslationEngine(isAi: true) => Icons.auto_awesome_outlined,
+      _ => Icons.translate,
+    };
+    return Icon(icon, size: size);
+  }
+}
+
+/// Where the text goes: Local (on device/LAN), Self-hosted (Mozhi proxy) or
+/// Cloud (third-party AI provider).
+class PrivacyBadge extends StatelessWidget {
+  const PrivacyBadge({required this.engine, super.key});
+
+  final TranslationEngine engine;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final scheme = Theme.of(context).colorScheme;
+    final (label, icon, background, foreground) = switch (engine) {
+      TranslationEngine(isLocal: true) => (
+        l10n.translateBadgeLocal,
+        Icons.lock_outline,
+        scheme.tertiaryContainer,
+        scheme.onTertiaryContainer,
+      ),
+      TranslationEngine(isMozhi: true) => (
+        l10n.translateBadgeSelfHosted,
+        Icons.dns_outlined,
+        scheme.secondaryContainer,
+        scheme.onSecondaryContainer,
+      ),
+      _ => (
+        l10n.translateBadgeCloud,
+        Icons.cloud_outlined,
+        scheme.surfaceContainerHighest,
+        scheme.onSurfaceVariant,
+      ),
+    };
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: foreground),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                label,
+                style: Theme.of(context).textTheme.labelSmall
+                    ?.copyWith(color: foreground),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

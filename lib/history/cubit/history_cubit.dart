@@ -5,7 +5,7 @@ import 'package:mozhi/history/models/history_entry.dart';
 
 export 'history_state.dart';
 
-/// Exposes the local translation history. [repository] defaults to a
+/// Exposes the local translation history. `repository` defaults to a
 /// [HistoryRepository] backed by the platform preferences.
 ///
 /// Storage errors of [load] switch to [HistoryStatus.failure]; errors of the
