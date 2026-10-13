@@ -8,7 +8,7 @@ import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 class _MockTranslateCubit extends MockCubit<TranslateState>
-    implements TranslateCubit {}
+    implements TranslateCubit;
 
 const _english = Language(code: 'en', name: 'English');
 const _spanish = Language(code: 'es', name: 'Spanish', nativeName: 'Español');

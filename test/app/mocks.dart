@@ -15,24 +15,22 @@ import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-class MockTranslationRepository extends Mock implements TranslationRepository {}
+class MockTranslationRepository extends Mock implements TranslationRepository;
 
-class MockSettingsRepository extends Mock implements SettingsRepository {}
+class MockSettingsRepository extends Mock implements SettingsRepository;
 
-class MockHistoryRepository extends Mock implements HistoryRepository {}
+class MockHistoryRepository extends Mock implements HistoryRepository;
 
-class MockSpeechService extends Mock implements SpeechService {}
+class MockSpeechService extends Mock implements SpeechService;
 
-class MockSharedTextService extends Mock implements SharedTextService {}
+class MockSharedTextService extends Mock implements SharedTextService;
 
-class MockSettingsCubit extends MockCubit<AppSettings>
-    implements SettingsCubit {}
+class MockSettingsCubit extends MockCubit<AppSettings> implements SettingsCubit;
 
-class MockHistoryCubit extends MockCubit<HistoryState>
-    implements HistoryCubit {}
+class MockHistoryCubit extends MockCubit<HistoryState> implements HistoryCubit;
 
 class MockTranslateCubit extends MockCubit<TranslateState>
-    implements TranslateCubit {}
+    implements TranslateCubit;
 
 /// A local instance so nothing points at the network in tests.
 const testInstance = MozhiInstance(url: 'http://mozhi.test', label: 'Test');
@@ -93,9 +91,7 @@ void stubSpeechService(MockSpeechService speech) {
 
 /// Mocked dependencies and cubits for pumping routes/pages.
 class TestEnvironment {
-  TestEnvironment({
-    AppSettings settings = const AppSettings(instances: [testInstance]),
-  }) {
+  new({AppSettings settings = const AppSettings(instances: [testInstance])}) {
     stubTranslationRepository(translationRepository);
     stubSpeechService(speechService);
     when(() => sharedTextService.texts).thenAnswer((_) => const Stream.empty());

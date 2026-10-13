@@ -182,7 +182,7 @@ void main() {
       expect(find.byType(HistoryPage), findsOneWidget);
     });
 
-    testWidgets('keeps each tab\'s stack and pops on re-tap', (tester) async {
+    testWidgets("keeps each tab's stack and pops on re-tap", (tester) async {
       await pumpRouter(tester);
       await go(tester, '/settings/about');
 

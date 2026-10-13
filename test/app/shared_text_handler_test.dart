@@ -9,9 +9,9 @@ import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 class _MockTranslateCubit extends MockCubit<TranslateState>
-    implements TranslateCubit {}
+    implements TranslateCubit;
 
-class _MockSharedTextService extends Mock implements SharedTextService {}
+class _MockSharedTextService extends Mock implements SharedTextService;
 
 const _ready = TranslateState(enginesStatus: EnginesStatus.ready);
 

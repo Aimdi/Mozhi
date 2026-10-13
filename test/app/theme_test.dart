@@ -12,10 +12,7 @@ void main() {
         brightness: Brightness.light,
         seedColor: seed,
       );
-      expect(
-        scheme,
-        ColorScheme.fromSeed(seedColor: seed, brightness: Brightness.light),
-      );
+      expect(scheme, ColorScheme.fromSeed(seedColor: seed));
     });
 
     test('uses the dynamic scheme of the same brightness', () {

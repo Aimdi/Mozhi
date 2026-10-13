@@ -5,7 +5,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/app/fallback_key_value_store.dart';
 import 'package:mozhi/core/key_value_store.dart';
 
-class _MockStore extends Mock implements KeyValueStore {}
+class _MockStore extends Mock implements KeyValueStore;
 
 void main() {
   group('FallbackKeyValueStore', () {

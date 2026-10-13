@@ -361,13 +361,17 @@ void main() {
         await pump(tester, providerId: 'p1');
         await tester.tap(find.text('Browse models'));
         await tester.pumpAndSettle();
-        expect(find.text('gpt-5'), findsWidgets);
+        Finder inSheet(String text) => find.descendant(
+          of: find.byType(BottomSheet),
+          matching: find.text(text),
+        );
+        expect(inSheet('gpt-5'), findsOneWidget);
         await tester.enterText(
           find.widgetWithText(TextField, 'Search models'),
           'nano',
         );
         await tester.pumpAndSettle();
-        expect(find.text('gpt-5'), findsNothing);
+        expect(inSheet('gpt-5'), findsNothing);
         await tester.tap(find.text('GPT-5 nano'));
         await tester.pumpAndSettle();
         expect(textOf(tester, 'Model'), 'gpt-5-nano');
