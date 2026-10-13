@@ -36,7 +36,7 @@ dart run tool/mozhi_contract/contract_test.dart --base http://127.0.0.1:3123
 
 - `tool/mozhi_contract/server/` is a 20-line Go module that calls
   `serve.Serve(host, port)` from the pinned Mozhi revision.
-  - `go.sum` is committed.
+  - `go.sum` is included.
   - `proxy.golang.org` serves the `codeberg.org` modules, so codeberg itself
     is not needed. Building with a cold cache takes about 4 minutes.
 - `contract_test.dart` runs from the repo root. It uses the app's package

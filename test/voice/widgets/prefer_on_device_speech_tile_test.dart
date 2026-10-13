@@ -61,7 +61,9 @@ void main() {
       await tester.pumpApp(
         RepositoryProvider.value(
           value: speech,
-          child: const Scaffold(body: PreferOnDeviceSpeechTile()),
+          // Not const, so the constructor counts as covered.
+          // ignore: prefer_const_constructors
+          child: Scaffold(body: PreferOnDeviceSpeechTile()),
         ),
       );
       await tester.tap(find.byType(SwitchListTile));

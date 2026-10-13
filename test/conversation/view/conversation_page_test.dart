@@ -641,21 +641,21 @@ void main() {
 
     testWidgets('shares the formatted transcript', (tester) async {
       String? shared;
-      String? subject;
-      Rect? origin;
+      String? sharedSubject;
+      Rect? sharedOrigin;
       await pumpPage(
         tester,
-        share: (text, {subject: s, origin: o}) async {
+        share: (text, {subject, origin}) async {
           shared = text;
-          subject = s;
-          origin = o;
+          sharedSubject = subject;
+          sharedOrigin = origin;
         },
       );
       await send(tester, ConversationSide.a, 'Hello');
       await openMenuItem(tester, 'conversation_menu_share');
       expect(shared, contains('English: Hello\n→ Spanish: Hola'));
-      expect(subject, 'Conversation');
-      expect(origin, isNotNull);
+      expect(sharedSubject, 'Conversation');
+      expect(sharedOrigin, isNotNull);
     });
 
     testWidgets('clear asks first, then empties the conversation', (

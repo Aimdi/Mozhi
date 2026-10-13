@@ -23,7 +23,7 @@ abstract final class WebTranslateRoute {
 
 /// App bar button that opens the web page translator.
 class WebTranslateButton extends StatelessWidget {
-  const WebTranslateButton({this.url, super.key});
+  const new({this.url, super.key});
 
   /// Address to load right away, if any.
   final String? url;

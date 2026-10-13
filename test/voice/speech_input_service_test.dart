@@ -81,6 +81,12 @@ void main() {
       }
     });
 
+    test('creates the plugin adapter lazily by default', () async {
+      final created = SpeechInputService(store: store);
+      expect(created.state, const SpeechInputIdle());
+      await created.dispose();
+    });
+
     test('defaults follow the test platform (Android)', () {
       final created = SpeechInputService(store: store, adapter: recognizer);
       expect(created.isPlatformSupported, isTrue);
@@ -554,6 +560,18 @@ void main() {
       ]) {
         expect(classifySpeechError(code), isNull, reason: code);
       }
+    });
+
+    test('only listening and error states have owners', () {
+      final owner = Object();
+      expect(const SpeechInputIdle().isOwnedBy(owner), isFalse);
+      expect(const SpeechInputIdle().isOwnedBy(null), isFalse);
+      expect(const SpeechInputUnavailable().isListening, isFalse);
+      expect(SpeechInputListening(owner: owner).isOwnedBy(owner), isTrue);
+      expect(
+        SpeechInputError('x', permanent: false, owner: owner).isOwnedBy(owner),
+        isTrue,
+      );
     });
 
     test('isPermanent marks blocking failures', () {

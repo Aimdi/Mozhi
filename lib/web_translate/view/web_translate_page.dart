@@ -39,7 +39,7 @@ Future<ReadablePage> _extractInBackground(FetchedWebPage page) =>
 ///
 /// Needs [TranslationRepository] and [TranslateCubit] above it.
 class WebTranslatePage extends StatelessWidget {
-  const WebTranslatePage({
+  const new({
     this.initialUrl,
     this.fetcher,
     this.extract,
@@ -75,7 +75,7 @@ class WebTranslatePage extends StatelessWidget {
 }
 
 class WebTranslateView extends StatefulWidget {
-  const WebTranslateView({
+  const new({
     this.autoLoad = false,
     this.isWeb = false,
     super.key,
@@ -210,7 +210,7 @@ class _WebTranslateViewState extends State<WebTranslateView> {
 }
 
 class _Controls extends StatelessWidget {
-  const _Controls({
+  const new({
     required this.controller,
     required this.isWeb,
     required this.onLoad,
@@ -268,7 +268,7 @@ class _Controls extends StatelessWidget {
 }
 
 class _Body extends StatelessWidget {
-  const _Body({required this.wide});
+  const new({required this.wide});
 
   final bool wide;
 

@@ -361,9 +361,8 @@ class SpeechInputService {
     if (_disposed || _activeSession == null) return;
     switch (status) {
       case SpeechRecognizerStatus.listening:
-        if (_state is! SpeechInputListening) {
-          _emit(SpeechInputListening(owner: _owner));
-        }
+        // Already reported as listening when the session started.
+        break;
       case SpeechRecognizerStatus.notListening:
       case SpeechRecognizerStatus.done:
         _activeSession = null;

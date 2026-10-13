@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart' show immutable;
-
 /// Maps Mozhi / BCP-47 language codes onto speech recogniser locale ids.
 ///
 /// Recognisers name their locales inconsistently (`en_US` on Android,
@@ -55,7 +53,7 @@ abstract final class SpeechLocaleMatcher {
 
   static int _score(_Tag wanted, _Tag candidate, _Tag? system) {
     var score = 0;
-    if (candidate == wanted) score += 1000;
+    if (candidate.sameAs(wanted)) score += 1000;
     if (wanted.region != null) {
       if (candidate.region == wanted.region) {
         score += 100;
@@ -65,7 +63,7 @@ abstract final class SpeechLocaleMatcher {
       }
     }
     if (candidate.script == wanted.script) score += 10;
-    if (candidate == system) score += 4;
+    if (candidate.sameAs(system)) score += 4;
     if (wanted.region == null &&
         candidate.region != null &&
         _defaultRegions[wanted.language] == candidate.region) {
@@ -109,7 +107,6 @@ abstract final class SpeechLocaleMatcher {
 }
 
 /// A parsed `language[-Script][-REGION]` tag (variants are ignored).
-@immutable
 final class _Tag {
   const new(this.language, this.script, this.region);
 
@@ -142,15 +139,11 @@ final class _Tag {
   final String? script;
   final String? region;
 
-  @override
-  bool operator ==(Object other) =>
-      other is _Tag &&
+  bool sameAs(_Tag? other) =>
+      other != null &&
       other.language == language &&
       other.script == script &&
       other.region == region;
-
-  @override
-  int get hashCode => Object.hash(language, script, region);
 
   @override
   String toString() => [language, ?script, ?region].join('-');

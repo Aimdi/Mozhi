@@ -38,6 +38,13 @@ void main() {
     );
   }
 
+  Future<void> tapVisible(WidgetTester tester, Finder finder) async {
+    await tester.ensureVisible(finder);
+    await tester.pumpAndSettle();
+    await tester.tap(finder);
+    await tester.pumpAndSettle();
+  }
+
   Future<void> tapNext(WidgetTester tester) async {
     await tester.tap(find.text('Next'));
     await tester.pumpAndSettle();
@@ -146,18 +153,11 @@ void main() {
       await tapNext(tester);
       await tapNext(tester);
 
-      await tester.tap(find.text('Ollama'));
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Test'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Test'));
-      await tester.pumpAndSettle();
+      await tapVisible(tester, find.text('Ollama'));
+      await tapVisible(tester, find.text('Test'));
       expect(find.textContaining('Bonjour !'), findsOneWidget);
 
-      await tester.ensureVisible(find.text('Save'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Save'));
-      await tester.pumpAndSettle();
+      await tapVisible(tester, find.text('Save'));
       expect(settings.state.providers.single.presetId, 'ollama');
 
       await tapNext(tester);
