@@ -92,9 +92,9 @@ reading level)*; edit, rename or delete them, add your own, and choose one to
 apply by default.
 
 **Glossaries** are managed next to presets and are not part of them. Each
-glossary applies to a source and target language, or to any language, and
-holds term pairs ("always translate X as Y"), optionally case-sensitive and
-with a private note. Presets and glossaries can be exported (copied as text or
+glossary has a name, applies to a source and a target language (or to any
+language), can be switched on and off, and holds term pairs ("always
+translate X as Y"), optionally case-sensitive and with a private note. Presets and glossaries can be exported (copied as text or
 shared as a file) and imported again, glossaries also from pasted text such as
 CSV.
 

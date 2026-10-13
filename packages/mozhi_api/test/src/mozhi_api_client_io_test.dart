@@ -52,16 +52,14 @@ void main() {
 
     /// A Mozhi stand-in that records the method, path and decoded form of
     /// each request.
-    Future<(HttpServer, List<(String, String, Map<String, String>)>)>
-    instance() async {
-      final seen = <(String, String, Map<String, String>)>[];
+    Future<(HttpServer, List<Map<String, Object>>)> instance() async {
+      final seen = <Map<String, Object>>[];
       final server = await serve((request) async {
         final body = await utf8.decoder.bind(request).join();
-        seen.add((
-          request.method,
-          request.uri.path,
-          Uri.splitQueryString(body),
-        ));
+        seen.add({
+          'request': '${request.method} ${request.uri.path}',
+          'form': Uri.splitQueryString(body),
+        });
         request.response.headers.contentType = ContentType.json;
         request.response.write(
           request.uri.path == '/api/version'
@@ -102,17 +100,16 @@ void main() {
 
           expect(translation.translatedText, 'cat');
           expect(seen, [
-            ('GET', '/api/version', <String, String>{}),
-            (
-              'POST',
-              '/api/translate',
-              {
+            {'request': 'GET /api/version', 'form': <String, String>{}},
+            {
+              'request': 'POST /api/translate',
+              'form': {
                 'engine': 'google',
                 'from': 'auto',
                 'to': 'en',
                 'text': '猫 & co',
               },
-            ),
+            },
           ]);
         },
       );

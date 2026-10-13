@@ -1,8 +1,8 @@
 # Architecture
 
-Mozhi is a Flutter app on top of three pure Dart packages and one Flutter
-plugin package. Network clients know nothing about Flutter, the domain layer
-knows nothing about widgets, and the app layer holds state in Cubits.
+Mozhi is a Flutter app on top of pure Dart packages and one Flutter plugin
+package. Network clients know nothing about Flutter, the domain layer knows
+nothing about widgets, and the app layer holds state in Cubits.
 
 - [Packages and layers](#packages-and-layers)
 - [The app layer](#the-app-layer)
@@ -61,7 +61,9 @@ flowchart TB
 | `packages/llm_api` | `http` | Streaming chat clients for the four wire protocols (`LlmProvider`): OpenAI-compatible (SSE), Anthropic Messages (SSE), Gemini (SSE) and Ollama native (NDJSON). Model listing, cancellation, reasoning-tag filtering, error extraction into `LlmApiException` / `LlmRefusalException`. Uses only `package:http`, so it runs on the web. |
 | `packages/translation_repository` | `mozhi_api`, `llm_api` | Domain models (`TranslationEngine`, `TranslationRequest`, `TranslationResult`, `TranslationOptions`, `AiProviderConfig` and its presets, `MozhiInstance`, ...), the ~290-language catalogue, prompt construction and response parsing, and `TranslationRepository`, the single entry point that unifies Mozhi engines, AI providers and the offline engine. |
 | `packages/mlkit_translator` | `translation_repository`, Google ML Kit | Implements `OfflineTranslator` with on-device ML Kit translation and language identification (Android and iOS). |
-| `lib/` | all of the above | UI, state, persistence and platform integration. |
+| `packages/mt_api` | `http` | Clients for classic machine-translation APIs (DeepL API v2 and LibreTranslate). |
+| `packages/mozhi_cli` | `mozhi_api`, `llm_api`, `translation_repository` | A command-line translator built on the same packages. |
+| `lib/` | the packages above | UI, state, persistence and platform integration. |
 
 The packages are contract-first: their public APIs are kept stable so that
 features can be built in parallel. Each package has its own unit tests.
@@ -80,7 +82,8 @@ lib/
   speech/       SpeechService (text-to-speech playback)
   platform/     SharedTextService (Android share / text selection bridge)
   image_translate/, voice/, documents/, offline/, presets/, onboarding/,
-  conversation/ round-2 features
+  conversation/, quick_translate/, usage/, web_translate/
+                feature modules, each with its own Cubits and views
   l10n/         ARB files and generated localisations
 ```
 
