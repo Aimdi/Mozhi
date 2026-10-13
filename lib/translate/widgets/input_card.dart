@@ -2,14 +2,20 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/image_translate/widgets/image_translate_button.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/language_text.dart';
 import 'package:mozhi/translate/widgets/listen_button.dart';
+import 'package:mozhi/translate/widgets/status_announcer.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
+import 'package:mozhi/usage/widgets/token_estimate_label.dart';
+import 'package:mozhi/voice/speech_input_service.dart';
+import 'package:mozhi/voice/widgets/voice_input_button.dart';
 
 /// Whether the user has to press "Translate" (instant translation is off
 /// for the current engine kind).
@@ -29,9 +35,36 @@ TextDirection? inputTextDirection(TranslateState state) {
       textDirectionForCode(state.result?.detectedSource);
 }
 
-/// The source text field with paste/clear/listen actions, character count
-/// and (when instant translation is off) a "Translate" button. Esc clears
-/// the field while it is focused and not empty.
+/// The limit the input was cut to when `TranslateState.inputTruncated` is
+/// set: text from outside the app is cut to
+/// [TranslateCubit.maxExternalInputLength], anything else to
+/// [TranslateCubit.maxInputLength].
+int truncatedInputLimit(TranslateState state) =>
+    state.input.length > TranslateCubit.maxExternalInputLength
+    ? TranslateCubit.maxInputLength
+    : TranslateCubit.maxExternalInputLength;
+
+/// The app-wide [SpeechInputService], or null when none is provided (voice
+/// input is then not offered).
+SpeechInputService? speechInputServiceOf(BuildContext context) {
+  try {
+    return context.read<SpeechInputService>();
+  } on ProviderNotFoundException {
+    return null;
+  }
+}
+
+/// The source text field with listen/voice/image/paste/clear actions,
+/// character count (plus a token estimate for AI engines), a notice when
+/// long text was shortened and (when instant translation is off) a
+/// "Translate" button. Esc clears the field while it is focused and not
+/// empty.
+///
+/// The field is limited to [TranslateCubit.maxInputLength] characters;
+/// longer pasted text is passed on whole so the cubit cuts it and reports
+/// it (`TranslateState.inputTruncated`). Voice input is offered when a
+/// [SpeechInputService] is provided above; dictated text is appended to the
+/// input.
 class InputCard extends StatefulWidget {
   const new({this.minLines = 4, super.key});
 
@@ -47,6 +80,14 @@ class _InputCardState extends State<InputCard> {
     text: _cubit.state.input,
   );
   final _focusNode = FocusNode(debugLabel: 'translate_input');
+
+  /// The whole text of the last field edit that the length limit cut (see
+  /// [_LengthOverflowFormatter]); reset by every edit.
+  String? _overflow;
+
+  /// The input before the current dictation; recognised speech is appended
+  /// to it (each partial result replaces the previous one).
+  String? _dictationBase;
 
   @override
   void dispose() {
@@ -77,6 +118,30 @@ class _InputCardState extends State<InputCard> {
     _syncController('');
     _cubit.clear();
     _focusNode.requestFocus();
+  }
+
+  /// Typed or pasted text; text the field's length limit cut is passed on
+  /// whole so the cubit cuts it the same way and shows the notice.
+  void _onChanged(String text) {
+    final overflow = _overflow;
+    _overflow = null;
+    _cubit.setInput(overflow ?? text);
+  }
+
+  void _onListeningChanged(bool listening) {
+    _dictationBase = listening ? _controller.text : null;
+  }
+
+  void _onVoiceResult(String text, {required bool isFinal}) {
+    final spoken = text.trim();
+    final base = _dictationBase ?? _controller.text;
+    // A later utterance of the same session goes after this one.
+    _dictationBase = isFinal ? null : base;
+    if (spoken.isEmpty) return;
+    final separator = base.isEmpty || base.endsWith(RegExp(r'\s')) ? '' : ' ';
+    final combined = '$base$separator$spoken';
+    _syncController(combined);
+    _cubit.setInput(combined);
   }
 
   /// Esc clears a non-empty field; otherwise the key keeps bubbling (e.g.
@@ -140,7 +205,22 @@ class _InputCardState extends State<InputCard> {
                               key: const Key('translate_input_field'),
                               controller: _controller,
                               focusNode: _focusNode,
-                              onChanged: _cubit.setInput,
+                              onChanged: _onChanged,
+                              maxLength: TranslateCubit.maxInputLength,
+                              inputFormatters: [
+                                _LengthOverflowFormatter(
+                                  TranslateCubit.maxInputLength,
+                                  onOverflow: (text) => _overflow = text,
+                                ),
+                              ],
+                              // The card shows its own character count.
+                              buildCounter:
+                                  (
+                                    context, {
+                                    required currentLength,
+                                    required isFocused,
+                                    required maxLength,
+                                  }) => null,
                               keyboardType: TextInputType.multiline,
                               textInputAction: TextInputAction.newline,
                               textDirection: inputTextDirection(state),
@@ -174,6 +254,8 @@ class _InputCardState extends State<InputCard> {
                       ),
                   ],
                 ),
+                if (state.inputTruncated)
+                  _TruncatedNotice(limit: truncatedInputLimit(state)),
                 if (settings.showTransliteration &&
                     transliteration.trim().isNotEmpty)
                   Padding(
@@ -203,6 +285,19 @@ class _InputCardState extends State<InputCard> {
                             text: input,
                             languageCode: state.effectiveSourceCode,
                           ),
+                          if (speechInputServiceOf(context) case final speech?)
+                            VoiceInputButton.standalone(
+                              key: const Key('translate_voice_input'),
+                              service: speech,
+                              // `auto` uses the device's recognition language.
+                              languageCode: state.source.code,
+                              onResult: _onVoiceResult,
+                              onListeningChanged: _onListeningChanged,
+                            ),
+                          if (GoRouter.maybeOf(context) != null)
+                            const ImageTranslateButton(
+                              key: Key('translate_image_button'),
+                            ),
                           if (input.isEmpty)
                             IconButton(
                               key: const Key('translate_paste_button'),
@@ -216,15 +311,35 @@ class _InputCardState extends State<InputCard> {
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 8,
                                 ),
-                                child: Text(
-                                  l10n.translateCharacterCount(
-                                    input.characters.length,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.labelMedium?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      l10n.translateCharacterCount(
+                                        input.characters.length,
+                                      ),
+                                      key: const Key(
+                                        'translate_character_count',
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.textTheme.labelMedium
+                                          ?.copyWith(
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
+                                    ),
+                                    // Nothing below 500 characters.
+                                    if (state.isAiEngine)
+                                      TokenEstimateLabel(
+                                        key: const Key(
+                                          'translate_token_estimate',
+                                        ),
+                                        text: input,
+                                      ),
+                                  ],
                                 ),
                               ),
                             ),
@@ -251,5 +366,67 @@ class _InputCardState extends State<InputCard> {
         );
       },
     );
+  }
+}
+
+/// "Text shortened to the maximum length of N characters." under the
+/// field, announced once to screen readers when it appears.
+class _TruncatedNotice extends StatelessWidget {
+  const new({required this.limit});
+
+  final int limit;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final message = context.l10n.translateInputTruncated(limit);
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(end: 12, top: 4, bottom: 4),
+      child: StatusAnnouncer(
+        message: message,
+        announceInitial: true,
+        child: Row(
+          key: const Key('translate_input_truncated'),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              Icons.content_cut,
+              size: 18,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                message,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Reports, before the field's length limit cuts an edit, the whole text
+/// of an edit longer than [maxLength] characters (null otherwise). Leaves
+/// the value unchanged.
+class _LengthOverflowFormatter extends TextInputFormatter {
+  new(this.maxLength, {required this.onOverflow});
+
+  final int maxLength;
+  final ValueChanged<String?> onOverflow;
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    onOverflow(
+      newValue.text.characters.length > maxLength ? newValue.text : null,
+    );
+    return newValue;
   }
 }
