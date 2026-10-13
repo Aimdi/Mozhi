@@ -72,23 +72,15 @@ void main() {
       expect(h.stdout, contains('Clear and simple.'));
       final engine =
           verify(
-                () => h.repository.proofread(
-                  captureAny(),
-                  'I has a really cat.',
-                  style: WritingStyle.general,
-                  level: CorrectionLevel.standard,
-                  formality: Formality.automatic,
-                  context: '',
-                ),
+                () =>
+                    h.repository.proofread(captureAny(), 'I has a really cat.'),
               ).captured.single
               as TranslationEngine;
       expect(engine.id, 'ai:local');
     });
 
     test('passes options and uses the default AI engine', () async {
-      h.writeConfig(
-        h.readConfig().withValue(ConfigKey.engine, 'ai:claude'),
-      );
+      h.writeConfig(h.readConfig().withValue(ConfigKey.engine, 'ai:claude'));
       final code = await h.run([
         'proofread',
         '--style',

@@ -75,11 +75,19 @@ There are no prebuilt packages yet. Build from source as described in
 
 ## First run
 
-When you open Mozhi for the first time, a short setup screen asks how you want
-to translate: through a public Mozhi instance (works immediately, nothing to
-configure), your own Mozhi instance, an AI provider, or on-device offline
-models. You can skip it; everything it sets up is also available in
-**Settings** later.
+When you open Mozhi for the first time, a short setup takes you through three
+steps (you can **Skip** at any point; everything is also available in
+**Settings** later):
+
+1. **Welcome**: what Mozhi does and how it handles your privacy.
+2. **Choose a translation service**: **Find the fastest public instance**
+   tests the built-in public instances and moves the fastest to the top
+   (**Sort by speed** orders them all by response time), or **Use my own
+   instance** to enter your server's address and **Test & add** it.
+3. **Add an AI translator** (optional): pick a provider, enter its key or
+   your local server's address, and test it.
+
+Then tap **Start translating**.
 
 After that you land on the **Translate** tab:
 

@@ -61,13 +61,8 @@ void main() {
       });
 
       test('prompts for the key on terminals', () async {
-        when(
-          () => h.logger.prompt(any(), hidden: true),
-        ).thenReturn('sk-typed');
-        expect(
-          await h.run(['config', 'providers', 'add', '-p', 'gemini']),
-          0,
-        );
+        when(() => h.logger.prompt(any(), hidden: true)).thenReturn('sk-typed');
+        expect(await h.run(['config', 'providers', 'add', '-p', 'gemini']), 0);
         expect(h.readConfig().providers.single.config.apiKey, 'sk-typed');
       });
 
@@ -125,16 +120,14 @@ void main() {
       });
 
       test('asks for --model when the server has none', () async {
-        when(
-          () => h.repository.listModels(any()),
-        ).thenAnswer((_) async => const []);
+        when(() => h.repository.listModels(any()))
+            .thenAnswer((_) async => const []);
         expect(
           await h.run(['config', 'providers', 'add', '-p', 'llamacpp']),
           ExitCode.usage.code,
         );
-        when(
-          () => h.repository.listModels(any()),
-        ).thenThrow(const LlmApiException('refused'));
+        when(() => h.repository.listModels(any()))
+            .thenThrow(const LlmApiException('refused'));
         expect(
           await h.run(['config', 'providers', 'add', '-p', 'llamacpp']),
           ExitCode.usage.code,
@@ -256,14 +249,11 @@ void main() {
           ),
         )
         ..environment['KEY'] = 'sk-env';
-      when(
-        () => h.repository.testProvider(any()),
-      ).thenAnswer((_) async => 'Bonjour, le monde !');
+      when(() => h.repository.testProvider(any()))
+          .thenAnswer((_) async => 'Bonjour, le monde !');
       expect(await h.run(['config', 'providers', 'test', 'claude']), 0);
       final config =
-          verify(
-                () => h.repository.testProvider(captureAny()),
-              ).captured.single
+          verify(() => h.repository.testProvider(captureAny())).captured.single
               as AiProviderConfig;
       expect(config.apiKey, 'sk-env');
       expect(h.stdout, contains('Claude works'));
@@ -274,9 +264,9 @@ void main() {
       h.writeConfig(
         const CliConfig(providers: [ProviderEntry(claudeProvider)]),
       );
-      when(() => h.repository.testProvider(any())).thenThrow(
-        const LlmApiException('invalid x-api-key', statusCode: 401),
-      );
+      when(
+        () => h.repository.testProvider(any()),
+      ).thenThrow(const LlmApiException('invalid x-api-key', statusCode: 401));
       expect(
         await h.run(['config', 'providers', 'test', 'claude']),
         ExitCode.unavailable.code,
@@ -308,9 +298,8 @@ void main() {
         {'id': 'gemma3', 'name': 'Gemma 3'},
         {'id': 'qwen3', 'contextWindow': 32768},
       ]);
-      when(
-        () => h.repository.listModels(any()),
-      ).thenAnswer((_) async => const []);
+      when(() => h.repository.listModels(any()))
+          .thenAnswer((_) async => const []);
       h.out.clear();
       expect(await h.run(['config', 'providers', 'models', 'local']), 0);
       expect(h.stdout, contains('did not report any models'));

@@ -15,9 +15,8 @@ void main() {
     tearDown(() => h.dispose());
 
     test('detects with the Mozhi instance', () async {
-      when(
-        () => h.repository.detectLanguage(any()),
-      ).thenAnswer((_) async => const DetectedLanguage(code: 'fr'));
+      when(() => h.repository.detectLanguage(any()))
+          .thenAnswer((_) async => const DetectedLanguage(code: 'fr'));
       expect(await h.run(['detect', 'Bonjour']), 0);
       expect(h.out, ['fr\tFrench']);
     });
@@ -56,11 +55,12 @@ void main() {
     });
 
     test('marks uncertain results', () async {
-      when(
-        () => h.repository.detectLanguage(any()),
-      ).thenAnswer(
-        (_) async =>
-            const DetectedLanguage(code: 'xx', isUncertain: true, isMixed: true),
+      when(() => h.repository.detectLanguage(any())).thenAnswer(
+        (_) async => const DetectedLanguage(
+          code: 'xx',
+          isUncertain: true,
+          isMixed: true,
+        ),
       );
       expect(await h.run(['detect', '-e', 'google', 'x']), 0);
       expect(h.out, ['xx\txx (uncertain) (mixed)']);

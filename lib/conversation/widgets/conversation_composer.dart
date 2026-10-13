@@ -16,7 +16,7 @@ import 'package:translation_repository/translation_repository.dart';
 /// side and clears the field. Dictation from the [micBuilder] button
 /// replaces the text while the person speaks and sends the final result.
 class ConversationComposer extends StatefulWidget {
-  const ConversationComposer({required this.side, this.micBuilder, super.key});
+  const new({required this.side, this.micBuilder, super.key});
 
   final ConversationSide side;
   final ConversationMicBuilder? micBuilder;

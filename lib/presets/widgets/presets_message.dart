@@ -2,7 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 /// Centered icon, title, optional body and action (empty / error states).
 class PresetsMessage extends StatelessWidget {
-  const PresetsMessage({
+  const new({
     required this.icon,
     required this.title,
     this.body,

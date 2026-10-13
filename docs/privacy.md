@@ -69,7 +69,8 @@ Some features send additional data to the same back ends:
 - **Dictation** uses your operating system's speech recognition (or, in the
   web app, the browser's). Depending on the device and its settings, the audio
   may be processed online by Google (Android, Chrome) or Apple (iOS, macOS)
-  rather than on the device.
+  rather than on the device. On Android 12+, iOS and macOS, **Prefer
+  on-device speech recognition** asks the system to keep it on the device.
 - **Text from other apps** (text selection, share sheet) is handled exactly
   like typed text: it goes to the engine you have selected.
 

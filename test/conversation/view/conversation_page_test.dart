@@ -364,7 +364,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.enterText(
         find.byKey(const Key('conversation_language_search')),
-        'Japanese',
+        'japan',
       );
       await tester.pumpAndSettle();
       await tester.tap(find.text('Japanese'));

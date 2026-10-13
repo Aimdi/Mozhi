@@ -30,9 +30,8 @@ void main() {
 
     setUp(() {
       h = Harness();
-      when(
-        () => h.repository.getEngines(),
-      ).thenAnswer((_) async => [googleEngine, deeplEngine, local, cloud]);
+      when(() => h.repository.getEngines())
+          .thenAnswer((_) async => [googleEngine, deeplEngine, local, cloud]);
     });
 
     tearDown(() => h.dispose());
@@ -63,9 +62,7 @@ void main() {
     });
 
     test('warns when only AI engines are available', () async {
-      when(
-        () => h.repository.getEngines(),
-      ).thenAnswer((_) async => [local]);
+      when(() => h.repository.getEngines()).thenAnswer((_) async => [local]);
       expect(await h.run(['engines']), 0);
       expect(h.warnings.single, contains('No Mozhi instance'));
     });

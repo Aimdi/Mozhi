@@ -311,11 +311,12 @@ sending a request.
 
 **Image translation fails with an error about size (`413 Request Entity Too
 Large`).**
-Mozhi accepts request bodies up to 4 MB, which includes uploaded images.
-Crop or scale the image down. If you use a reverse proxy, make sure its limit
-is at least as high (nginx defaults to 1 MB). If you call the API yourself,
-note that Mozhi only accepts PNG images ("Invalid image, only png images are
-accepted").
+Mozhi accepts request bodies up to 4 MB, which includes uploaded images. The
+app scales photos down before uploading (longest side 2048 px, under 4 MB),
+so a `413` usually comes from a reverse proxy in front of Mozhi with a lower
+limit: nginx allows only 1 MB by default (`client_max_body_size 4m;` fixes
+it). If you call the API yourself, note that Mozhi only accepts PNG images
+("Invalid image, only png images are accepted").
 
 **LibreTranslate doesn't show up as an engine.**
 It needs both `MOZHI_LIBRETRANSLATE_URL` and an enabled flag (the Compose

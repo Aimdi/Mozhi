@@ -49,8 +49,8 @@ void main() {
       test('sorts by latency and reports failures', () async {
         when(() => h.console.stdoutHasTerminal).thenReturn(true);
         when(() => h.repository.pingInstance(any())).thenAnswer((invocation) {
-          final instance = invocation.positionalArguments.first
-              as MozhiInstance;
+          final instance =
+              invocation.positionalArguments.first as MozhiInstance;
           return switch (instance.url) {
             'https://a.example' => Future.value(
               const Duration(milliseconds: 300),
@@ -91,9 +91,8 @@ void main() {
       });
 
       test('pings the public instances by default and prints JSON', () async {
-        when(
-          () => h.repository.pingInstance(any()),
-        ).thenAnswer((_) async => const Duration(milliseconds: 42));
+        when(() => h.repository.pingInstance(any()))
+            .thenAnswer((_) async => const Duration(milliseconds: 42));
         expect(await h.run(['instances', 'ping', '--json']), 0);
         final json = h.json()! as List<Object?>;
         expect(json, hasLength(MozhiInstance.publicInstances.length));
@@ -106,9 +105,8 @@ void main() {
       });
 
       test('times out slow instances and fails when none answer', () async {
-        when(
-          () => h.repository.pingInstance(any()),
-        ).thenAnswer((_) => Completer<Duration>().future);
+        when(() => h.repository.pingInstance(any()))
+            .thenAnswer((_) => Completer<Duration>().future);
         final code = await h.run([
           'instances',
           'ping',

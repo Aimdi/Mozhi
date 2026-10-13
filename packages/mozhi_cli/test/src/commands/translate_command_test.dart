@@ -17,12 +17,10 @@ void main() {
 
     setUp(() {
       h = Harness();
-      when(
-        () => h.repository.getTargetLanguages(any()),
-      ).thenAnswer((_) async => [english, french, german]);
-      when(
-        () => h.repository.getSourceLanguages(any()),
-      ).thenAnswer((_) async => [Language.auto, english, french, german]);
+      when(() => h.repository.getTargetLanguages(any()))
+          .thenAnswer((_) async => [english, french, german]);
+      when(() => h.repository.getSourceLanguages(any()))
+          .thenAnswer((_) async => [Language.auto, english, french, german]);
       when(() => h.repository.translate(any(), any())).thenAnswer(
         (_) => Stream.value(
           const TranslationResult(
@@ -40,9 +38,9 @@ void main() {
     tearDown(() => h.dispose());
 
     TranslationRequest capturedRequest() =>
-        verify(
-              () => h.repository.translate(any(), captureAny()),
-            ).captured.single
+        verify(() => h.repository.translate(any(), captureAny()))
+                .captured
+                .single
             as TranslationRequest;
 
     test('translates the argument with Mozhi google by default', () async {
@@ -80,10 +78,7 @@ void main() {
     });
 
     test('maps languages onto the engine list', () async {
-      expect(
-        await h.run(['translate', '-f', 'French', '-t', 'deu', 'x']),
-        0,
-      );
+      expect(await h.run(['translate', '-f', 'French', '-t', 'deu', 'x']), 0);
       final request = capturedRequest();
       expect(request.source, french);
       expect(request.target, german);
@@ -113,9 +108,9 @@ void main() {
       );
       expect(await h.run(['translate', 'x']), 0);
       final engine =
-          verify(
-                () => h.repository.translate(captureAny(), any()),
-              ).captured.single
+          verify(() => h.repository.translate(captureAny(), any()))
+                  .captured
+                  .single
               as TranslationEngine;
       expect(engine.id, 'mozhi:deepl');
       verify(
@@ -195,9 +190,7 @@ void main() {
     group('AI engines', () {
       setUp(() {
         h.writeConfig(
-          const CliConfig(
-            providers: [ProviderEntry(ollamaProvider)],
-          ),
+          const CliConfig(providers: [ProviderEntry(ollamaProvider)]),
         );
         when(() => h.repository.translate(any(), any())).thenAnswer(
           (_) => Stream.fromIterable(const [
@@ -295,9 +288,8 @@ void main() {
           throw const LlmRefusalException('no', category: 'cyber');
         }
 
-        when(
-          () => h.repository.translate(any(), any()),
-        ).thenAnswer((_) => refuse());
+        when(() => h.repository.translate(any(), any()))
+            .thenAnswer((_) => refuse());
         expect(
           await h.run(['translate', '-e', 'ai', 'x']),
           ExitCode.unavailable.code,
@@ -308,9 +300,8 @@ void main() {
 
       test('fails when the stream ends without a result', () async {
         h.terminal();
-        when(
-          () => h.repository.translate(any(), any()),
-        ).thenAnswer((_) => const Stream.empty());
+        when(() => h.repository.translate(any(), any()))
+            .thenAnswer((_) => const Stream.empty());
         expect(
           await h.run(['translate', '-e', 'ai', 'x']),
           ExitCode.unavailable.code,
@@ -376,9 +367,9 @@ void main() {
       test('compares every Mozhi engine', () async {
         expect(await h.run(['translate', '-c', '-t', 'es', 'Hi']), 0);
         final engines =
-            verify(
-                  () => h.repository.compare(captureAny(), any()),
-                ).captured.single
+            verify(() => h.repository.compare(captureAny(), any()))
+                    .captured
+                    .single
                 as List<TranslationEngine>;
         expect(engines, [googleEngine, deeplEngine]);
         expect(h.out[0], contains('DeepL'));
@@ -413,9 +404,9 @@ void main() {
           0,
         );
         final engines =
-            verify(
-                  () => h.repository.compare(captureAny(), any()),
-                ).captured.single
+            verify(() => h.repository.compare(captureAny(), any()))
+                    .captured
+                    .single
                 as List<TranslationEngine>;
         expect(engines.map((e) => e.id), ['mozhi:yandex', 'mozhi:deepl']);
         verifyNever(() => h.repository.getEngines());

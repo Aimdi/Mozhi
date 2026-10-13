@@ -19,9 +19,8 @@ void main() {
           Language(code: 'fr', name: 'French', nativeName: 'Français'),
         ],
       );
-      when(
-        () => h.repository.getSourceLanguages(any()),
-      ).thenAnswer((_) async => [Language.auto, english]);
+      when(() => h.repository.getSourceLanguages(any()))
+          .thenAnswer((_) async => [Language.auto, english]);
     });
 
     tearDown(() => h.dispose());
@@ -32,9 +31,9 @@ void main() {
       expect(h.stdout, contains('Français'));
       expect(h.stderr, contains('2 target languages (Google)'));
       final engine =
-          verify(
-                () => h.repository.getTargetLanguages(captureAny()),
-              ).captured.single
+          verify(() => h.repository.getTargetLanguages(captureAny()))
+                  .captured
+                  .single
               as TranslationEngine;
       expect(engine.id, 'mozhi:google');
     });

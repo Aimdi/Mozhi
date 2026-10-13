@@ -44,10 +44,7 @@ void main() {
     });
 
     test('reports unknown options with exit code 64', () async {
-      expect(
-        await h.run(['translate', '--bogus', 'x']),
-        ExitCode.usage.code,
-      );
+      expect(await h.run(['translate', '--bogus', 'x']), ExitCode.usage.code);
       expect(h.stderr, contains('bogus'));
     });
 

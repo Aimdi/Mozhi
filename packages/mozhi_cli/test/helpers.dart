@@ -76,18 +76,14 @@ class Harness {
       sink.add(style == null ? '$message' : '${style(message)}');
     }
 
-    when(
-      () => logger.info(any(), style: any(named: 'style')),
-    ).thenAnswer((i) => record(out, i));
-    when(
-      () => logger.success(any(), style: any(named: 'style')),
-    ).thenAnswer((i) => record(out, i));
-    when(
-      () => logger.detail(any(), style: any(named: 'style')),
-    ).thenAnswer((i) => record(details, i));
-    when(
-      () => logger.err(any(), style: any(named: 'style')),
-    ).thenAnswer((i) => record(err, i));
+    when(() => logger.info(any(), style: any(named: 'style')))
+        .thenAnswer((i) => record(out, i));
+    when(() => logger.success(any(), style: any(named: 'style')))
+        .thenAnswer((i) => record(out, i));
+    when(() => logger.detail(any(), style: any(named: 'style')))
+        .thenAnswer((i) => record(details, i));
+    when(() => logger.err(any(), style: any(named: 'style')))
+        .thenAnswer((i) => record(err, i));
     when(
       () => logger.warn(
         any(),
@@ -95,9 +91,9 @@ class Harness {
         style: any(named: 'style'),
       ),
     ).thenAnswer((i) => warnings.add(i.positionalArguments.first as String));
-    when(() => logger.write(any())).thenAnswer(
-      (i) => written.write(i.positionalArguments.first as String?),
-    );
+    when(
+      () => logger.write(any()),
+    ).thenAnswer((i) => written.write(i.positionalArguments.first as String?));
     when(() => logger.progress(any())).thenReturn(progress);
     when(() => console.environment).thenReturn(environment);
     when(() => console.isWindows).thenReturn(false);
@@ -106,9 +102,8 @@ class Harness {
     when(() => console.supportsAnsiEscapes).thenReturn(false);
     when(() => console.terminalColumns).thenReturn(80);
     when(() => console.terminalLines).thenReturn(24);
-    when(() => repository.activeInstance).thenReturn(
-      MozhiInstance.publicInstances.first,
-    );
+    when(() => repository.activeInstance)
+        .thenReturn(MozhiInstance.publicInstances.first);
 
     runner = MozhiCliCommandRunner(
       logger: logger,

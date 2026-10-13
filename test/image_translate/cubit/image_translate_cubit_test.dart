@@ -631,14 +631,18 @@ void main() {
     );
 
     blocTest<ImageTranslateCubit, ImageTranslateState>(
-      'translateText ignores empty text and missing images',
+      'translateText needs an image',
       build: build,
-      act: (cubit) async {
-        await cubit.translateText('Hola');
-        cubit.emit(ready);
-        await cubit.translateText('  ');
-      },
-      expect: () => [ready],
+      act: (cubit) => cubit.translateText('Hola'),
+      expect: () => const <ImageTranslateState>[],
+    );
+
+    blocTest<ImageTranslateCubit, ImageTranslateState>(
+      'translateText ignores empty text',
+      build: build,
+      seed: () => ready,
+      act: (cubit) => cubit.translateText('  '),
+      expect: () => const <ImageTranslateState>[],
     );
 
     blocTest<ImageTranslateCubit, ImageTranslateState>(
@@ -908,9 +912,8 @@ void main() {
         await Future<void>.delayed(Duration.zero);
 
         recognizer.gate = Completer<void>();
-        await cubit
-            .selectMethod(onDeviceMethod)
-            .timeout(Duration.zero, onTimeout: () {});
+        unawaited(cubit.selectMethod(onDeviceMethod));
+        await Future<void>.delayed(Duration.zero);
         cubit.cancel();
         recognizer.gate!.complete();
         await Future<void>.delayed(Duration.zero);
@@ -944,14 +947,18 @@ void main() {
 
   group('translate', () {
     blocTest<ImageTranslateCubit, ImageTranslateState>(
-      'needs an image and a method',
+      'needs an image',
       build: build,
-      act: (cubit) async {
-        await cubit.translate();
-        cubit.emit(base.copyWith(image: () => jpegImage, method: () => null));
-        await cubit.translate();
-      },
-      expect: () => [base.copyWith(image: () => jpegImage, method: () => null)],
+      act: (cubit) => cubit.translate(),
+      expect: () => const <ImageTranslateState>[],
+    );
+
+    blocTest<ImageTranslateCubit, ImageTranslateState>(
+      'needs a method',
+      build: build,
+      seed: () => base.copyWith(image: () => jpegImage, method: () => null),
+      act: (cubit) => cubit.translate(),
+      expect: () => const <ImageTranslateState>[],
     );
   });
 

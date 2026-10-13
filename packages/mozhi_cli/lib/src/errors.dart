@@ -32,8 +32,9 @@ class CliException implements Exception {
 /// a readable message.
 CliException describeError(Object error) => switch (error) {
   CliException() => error,
-  ParallelWaitError(:final errors) when errors is Iterable =>
-    describeError(errors.whereType<Object>().firstOrNull ?? error),
+  ParallelWaitError(:final errors) when errors is Iterable => describeError(
+    errors.whereType<Object>().firstOrNull ?? error,
+  ),
   LlmRefusalException(:final message, :final category) =>
     CliException.unavailable(
       'The AI model declined the request'

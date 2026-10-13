@@ -84,9 +84,19 @@ Mozhi engines ignore these options.
 
 ## Presets
 
-**AI.** Save the current translation options as a named preset, for example
-"E-mail to clients" (formal, business context, your product glossary) or
-"Chat with friends" (informal), and switch between them in one tap.
+**AI.** Like Kagi Translate's presets: a preset is a named set of translation
+options (style, formality, reading level, genders, context and formatting)
+that you apply in one tap. A few examples to start from are included, such
+as *Email to colleague (formal)*, *Chat with friends (casual)* and *Simple (A2
+reading level)*; edit, rename or delete them, add your own, and choose one to
+apply by default.
+
+**Glossaries** are managed next to presets and are not part of them. Each
+glossary applies to a source and target language, or to any language, and
+holds term pairs ("always translate X as Y"), optionally case-sensitive and
+with a private note. Presets and glossaries can be exported (copied as text or
+shared as a file) and imported again, glossaries also from pasted text such as
+CSV.
 
 ## Custom languages and styles
 
@@ -139,20 +149,26 @@ in any language.
 ## Image translation
 
 Translate text in photos and screenshots: take a picture or pick one from your
-gallery.
+gallery, then choose how to translate it:
 
-- With an AI model that has **Supports images** turned on, the model reads
-  and translates the text in the image itself, with your translation options.
-- With a Mozhi instance, the image is translated by Google through Mozhi,
-  which returns the recognised text, its translation and a translated copy of
-  the image. Mozhi accepts images up to 4 MB.
-- On Android and iOS the text can also be recognised on the device (ML Kit
-  text recognition) and then translated with any engine.
+- **AI vision**: an AI model with **Supports images** turned on reads and
+  translates the text itself, with your translation options. One choice per
+  such model.
+- **Mozhi (Google Lens)**: when your instance offers Google, Mozhi sends the
+  image to Google and returns the recognised text, its translation and a copy
+  of the image with the translation drawn in.
+- **On-device recognition** (Android and iOS): ML Kit reads the text on the
+  phone, and the text is then translated with your current engine.
+
+Large photos are scaled down before uploading (longest side 2048 px, under
+4 MB), which keeps them within Mozhi's upload limit.
 
 ## Voice
 
 - **Dictation**: tap the microphone and speak instead of typing. Speech
-  recognition is provided by your device's operating system.
+  recognition is provided by your device's operating system (or browser).
+  On Android 12+, iOS and macOS you can turn on **Prefer on-device speech
+  recognition** so the audio isn't sent to an online service.
 - **Conversation**: two people, two languages. Each person speaks in turn and
   hears or reads the other's words in their own language.
 - **Device voices**: besides your Mozhi instance's voices (see
@@ -161,19 +177,31 @@ gallery.
 
 ## Documents
 
-Translate whole text documents instead of copying them piece by piece: open a
-file, translate it with the current engine and options, then save or share
-the result. Long documents are sent in parts. AI engines with **Preserve
-formatting** on keep the structure (headings, lists, Markdown) intact.
+Translate whole files instead of copying them piece by piece: open a file (or
+paste its content), translate it with any engine, then save or share the
+result. Supported formats:
+
+| Format | Extensions | What is kept |
+| --- | --- | --- |
+| Plain text | `.txt` | Paragraphs (translated one by one) |
+| Markdown | `.md`, `.markdown` | Markup, code, inline code and URLs stay verbatim |
+| SubRip subtitles | `.srt` | Numbering and timestamps |
+| WebVTT subtitles | `.vtt` | Header, notes, styles, timings and cue settings |
+| JSON / ARB string tables | `.json`, `.arb` | Keys, `@` metadata and ICU placeholders/plurals; only string values are translated |
+
+Documents are split into parts that are translated a couple at a time, with
+progress shown as they finish; failed parts are retried.
 
 ## Offline translation
 
 On Android and iOS, Mozhi can translate without any network using Google's ML
-Kit on-device models (about 60 languages). Download the languages you need
-once (around 30 MB each, over Wi-Fi by default); after that, translation runs
-entirely on the phone. Quality is below the online engines, but it works on a
-plane and nothing leaves the device. Offline translation is not available on
-the web or desktop.
+Kit on-device models (about 60 languages). In the offline languages page,
+download the languages you need once (around 30 MB each; **Wi-Fi only** is on
+by default) and delete them when you no longer need them. After that,
+translation runs entirely on the phone, and results are marked **Offline**.
+Quality is below the online engines, but it works on a plane and nothing
+leaves the device. Offline translation is not available on the web or
+desktop.
 
 ## History and favourites
 
