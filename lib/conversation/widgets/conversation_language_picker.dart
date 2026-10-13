@@ -24,7 +24,7 @@ Future<Language?> showConversationLanguagePicker(
 }
 
 class ConversationLanguagePicker extends StatefulWidget {
-  const ConversationLanguagePicker({
+  const new({
     required this.selected,
     required this.languages,
     this.recent = const [],
@@ -170,7 +170,7 @@ class _ConversationLanguagePickerState
 }
 
 class _Header extends StatelessWidget {
-  const _Header(this.label);
+  const new(this.label);
 
   final String label;
 

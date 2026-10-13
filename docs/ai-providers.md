@@ -198,8 +198,8 @@ server listen on the network instead of only on `localhost`. Allow the port in
 the computer's firewall if needed. On the computer itself (desktop app),
 `localhost` works.
 
-Find the computer's address with `ipconfig` (Windows), `ipconfig getifaddr
-en0` (macOS) or `ip -4 addr` (Linux).
+Find the computer's address with `ipconfig` (Windows),
+`ipconfig getifaddr en0` (macOS) or `ip -4 addr` (Linux).
 
 > Local servers usually have no password: anyone on your network can use
 > them. That's fine at home; on shared networks keep them on `localhost`, use
@@ -292,17 +292,18 @@ There are two kinds of models to choose from:
 - **Translation-specialised models**, such as Tencent's **Hy-MT2** and
   Google's **TranslateGemma**, are trained to do one thing: translate. They
   are excellent for their size and fast. They ignore most of the translation
-  options and do not produce the extras (alternatives, insights, explanations,
-  dictionary, proofreading), because those need a model that follows general
-  instructions and writes structured answers.
+  options and can't reliably produce the extras (alternatives, insights,
+  explanations, dictionary, proofreading), because those need a model that
+  follows general instructions and writes structured answers.
 - **General instruction models**, such as **Qwen3** and **Gemma 3**, translate
   well from about 12B parameters and also handle every Kagi-style extra, the
   options, custom styles like *Pirate speak*, and the Proofread tab.
 
-A practical setup is a translation model for everyday use plus a general model
-as a second provider for when you want extras. When your main engine is a
-Mozhi engine, extras use the model chosen under **Settings > AI assistant for
-insights**.
+A practical setup is to add both as providers: translate with the
+translation model day to day and switch to the general model when you want
+options or extras (with an AI engine selected, extras use that same model).
+When you translate with a Mozhi engine, extras use the model chosen under
+**Settings > AI assistant for insights**, so pick the general model there.
 
 | Your hardware | Translation model | General model (extras) |
 | --- | --- | --- |

@@ -129,6 +129,8 @@ void main() {
               english,
             ],
           );
+          when(() => repository.translate(any(), any()))
+              .thenAnswer((_) => const Stream.empty());
         },
         build: () => build(target: const Language.custom('Pirate speak')),
         act: (cubit) => cubit.start(),
@@ -559,6 +561,9 @@ void main() {
         setUp: () {
           when(() => repository.getTargetLanguages(deepl))
               .thenAnswer((_) async => const [english, german]);
+          when(() => repository.translate(any(), any())).thenAnswer(
+            (_) => Stream.value(result('Hello world', detectedSource: 'fr')),
+          );
         },
         build: build,
         seed: () => loaded().copyWith(status: QuickTranslateStatus.success),

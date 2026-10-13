@@ -146,10 +146,16 @@ class GlossaryCubit extends Cubit<GlossaryState> {
   });
 
   /// Inserts [term] at [index] (clamped), e.g. to undo [removeTerm].
+  /// A term with the same source is replaced; invalid terms are ignored.
   Future<void> insertTerm(String id, int index, GlossaryTerm term) =>
       _change(id, (glossary) {
-        final terms = [...glossary.terms]
-          ..insert(index.clamp(0, glossary.terms.length), term);
+        if (!term.isValid) return glossary;
+        final trimmed = term.trimmed();
+        final terms = [
+          for (final existing in glossary.terms)
+            if (!existing.sameSourceAs(trimmed)) existing,
+        ];
+        terms.insert(index.clamp(0, terms.length), trimmed);
         return glossary.copyWith(terms: terms);
       });
 

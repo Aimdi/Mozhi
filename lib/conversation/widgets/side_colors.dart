@@ -5,14 +5,14 @@ import 'package:mozhi/conversation/models/conversation_turn.dart';
 /// side A uses the primary palette, side B the tertiary one.
 @immutable
 class ConversationSideColors {
-  const ConversationSideColors({
+  const new({
     required this.container,
     required this.onContainer,
     required this.accent,
     required this.onAccent,
   });
 
-  factory ConversationSideColors.of(
+  factory of(
     BuildContext context,
     ConversationSide side,
   ) {

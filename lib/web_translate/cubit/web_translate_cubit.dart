@@ -32,17 +32,14 @@ typedef ReadablePageExtractor = Future<ReadablePage> Function(
 ///
 /// The cubit owns [fetcher] and closes it on [close].
 class WebTranslateCubit extends Cubit<WebTranslateState> {
-  WebTranslateCubit({
-    required TranslationRepository repository,
-    required WebPageFetcher fetcher,
+  new({
+    required this._repository,
+    required this._fetcher,
     ReadablePageExtractor? extract,
-    BlockBatcher batcher = const BlockBatcher(),
+    this._batcher = const BlockBatcher(),
     int concurrency = 2,
     String initialUrl = '',
-  }) : _repository = repository,
-       _fetcher = fetcher,
-       _extract = extract ?? _extractInline,
-       _batcher = batcher,
+  }) : _extract = extract ?? _extractInline,
        _concurrency = math.max(1, concurrency),
        super(WebTranslateState(url: initialUrl));
 
@@ -343,7 +340,7 @@ class WebTranslateCubit extends Cubit<WebTranslateState> {
 
 /// Thrown into pending translations of a cancelled job.
 class _Cancelled implements Exception {
-  const _Cancelled();
+  const new();
 }
 
 /// The in-flight requests of one translation run.

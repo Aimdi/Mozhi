@@ -31,7 +31,7 @@ enum ReaderMode { translated, original, sideBySide }
 /// The engine and languages a page is translated with (taken from the
 /// text translator's current selection).
 class WebTranslateSelection extends Equatable {
-  const WebTranslateSelection({
+  const new({
     required this.engine,
     required this.source,
     required this.target,
@@ -48,7 +48,7 @@ class WebTranslateSelection extends Equatable {
 }
 
 class WebTranslateState extends Equatable {
-  const WebTranslateState({
+  const new({
     this.url = '',
     this.urlInvalid = false,
     this.status = WebTranslateStatus.idle,

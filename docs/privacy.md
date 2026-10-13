@@ -60,14 +60,16 @@ Some features send additional data to the same back ends:
   requested when you open them.
 - **Proofread** sends the text to the AI model you selected.
 - **Listen** (text-to-speech) sends the text to your Mozhi instance, which
-  fetches the audio from Google (or Reverso). Device voices, where used, work
-  on the device.
+  fetches the audio from Google (or Reverso). Device voices, where used, are
+  provided by the operating system's text-to-speech engine and usually run on
+  the device.
 - **Image translation** sends the image to the AI model (with **Supports
   images**) or to your Mozhi instance, which passes it to Google. On-device
   text recognition keeps the image on the phone.
-- **Dictation** uses your operating system's speech recognition. Depending on
-  the device and its settings, the audio may be processed by Google (Android)
-  or Apple (iOS, macOS) rather than on the device.
+- **Dictation** uses your operating system's speech recognition (or, in the
+  web app, the browser's). Depending on the device and its settings, the audio
+  may be processed online by Google (Android, Chrome) or Apple (iOS, macOS)
+  rather than on the device.
 - **Text from other apps** (text selection, share sheet) is handled exactly
   like typed text: it goes to the engine you have selected.
 

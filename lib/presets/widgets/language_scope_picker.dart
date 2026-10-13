@@ -18,7 +18,7 @@ Future<String?> showLanguageScopePicker(
 );
 
 class LanguageScopePicker extends StatefulWidget {
-  const LanguageScopePicker({
+  const new({
     required this.title,
     required this.selected,
     super.key,
@@ -126,7 +126,7 @@ class _LanguageScopePickerState extends State<LanguageScopePicker> {
 }
 
 class _LanguageTile extends StatelessWidget {
-  const _LanguageTile({
+  const new({
     required this.title,
     required this.selected,
     required this.onTap,

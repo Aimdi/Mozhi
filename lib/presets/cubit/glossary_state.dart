@@ -4,10 +4,7 @@ import 'package:mozhi/presets/models/glossary.dart';
 enum GlossaryStatus { initial, loading, ready, failure }
 
 class GlossaryState extends Equatable {
-  const new({
-    this.status = GlossaryStatus.initial,
-    this.glossaries = const [],
-  });
+  const new({this.status = GlossaryStatus.initial, this.glossaries = const []});
 
   final GlossaryStatus status;
 

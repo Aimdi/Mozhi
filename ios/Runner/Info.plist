@@ -24,8 +24,36 @@
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
+	<!-- Deep links mozhi://<screen>[/<path>][?<query>], e.g. mozhi://image or
+	     mozhi://translate?text=hola. Flutter hands the whole URL to the router
+	     (FlutterDeepLinkingEnabled); unlike Android, the screen arrives as the
+	     URL host, so the Dart router maps mozhi://<screen> to /<screen>. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleURLName</key>
+			<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>mozhi</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>FlutterDeepLinkingEnabled</key>
+	<true/>
+	<!-- Camera translate (image_picker) and voice input (speech_to_text). -->
+	<key>NSCameraUsageDescription</key>
+	<string>Mozhi uses the camera to photograph text you want to translate.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Mozhi uses the microphone so you can speak the text you want to translate.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Mozhi reads the photos you choose so it can find and translate the text in them.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Mozhi turns your speech into text so it can be translated. Depending on the language, Apple may process the audio on its servers.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<!-- Self-hosted Mozhi instances and local AI servers are often reached

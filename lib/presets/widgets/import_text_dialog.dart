@@ -25,7 +25,7 @@ Future<T?> showImportTextDialog<T>(
 /// Paste text (JSON, CSV, ...) and hand it to [onImport]. Any error thrown by
 /// [onImport] shows [invalidMessage]; on success the dialog pops the result.
 class ImportTextDialog<T> extends StatefulWidget {
-  const ImportTextDialog({
+  const new({
     required this.title,
     required this.hint,
     required this.invalidMessage,
