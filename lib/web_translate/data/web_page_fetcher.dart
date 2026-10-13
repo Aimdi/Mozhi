@@ -35,7 +35,7 @@ enum WebPageError {
 
 /// A failure to load a web page.
 class WebPageException implements Exception {
-  const WebPageException(
+  const new(
     this.error, {
     this.uri,
     this.statusCode,
@@ -62,7 +62,7 @@ class WebPageException implements Exception {
 
 /// A downloaded page.
 class FetchedWebPage {
-  const FetchedWebPage({
+  const new({
     required this.url,
     required this.body,
     required this.charset,
@@ -105,7 +105,7 @@ class FetchedWebPage {
 ///
 /// Errors are reported as [WebPageException]s.
 class WebPageFetcher {
-  WebPageFetcher({
+  new({
     http.Client? client,
     bool? isWeb,
     this.timeout = const Duration(seconds: 25),
@@ -117,7 +117,7 @@ class WebPageFetcher {
        _isWeb = isWeb ?? kIsWeb;
 
   /// 2 MiB.
-  static const defaultMaxBytes = 2 * 1024 * 1024;
+  static const int defaultMaxBytes = 2 * 1024 * 1024;
 
   /// A current desktop Chrome on Windows.
   static const desktopUserAgent =

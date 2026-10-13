@@ -1,66 +1,62 @@
-# Mlkit Translator
+# mlkit_translator
 
-[![style: very good analysis][very_good_analysis_badge]][very_good_analysis_link]
-[![Powered by Mason](https://img.shields.io/endpoint?url=https%3A%2F%2Ftinyurl.com%2Fmason-badge)](https://github.com/felangel/mason)
-[![License: MIT][license_badge]][license_link]
+Offline on-device translation for Mozhi using Google ML Kit (Android and
+iOS). `MlKitOfflineTranslator` implements `OfflineTranslator` from
+`translation_repository`.
 
-Offline on-device translation for Mozhi using Google ML Kit (Android and iOS).
-
-## Installation 💻
-
-**❗ In order to start using Mlkit Translator you must have the [Flutter SDK][flutter_install_link] installed on your machine.**
-
-Install via `flutter pub add`:
-
-```sh
-dart pub add mlkit_translator
+```dart
+final offline = MlKitOfflineTranslator();
+if (offline.isAvailable) {
+  await offline.downloadLanguage('de', wifiOnly: true); // ~30 MB
+  try {
+    final text = await offline.translate(
+      'Good morning',
+      source: 'en-GB', // app codes are mapped: en-GB -> en
+      target: 'de',
+    );
+  } on OfflineModelMissingException catch (e) {
+    // e.languages lists the ML Kit codes that must be downloaded first.
+  }
+}
+await offline.dispose();
 ```
 
----
+## Behaviour
 
-## Continuous Integration 🤖
+- `isAvailable` is true on Android and iOS only (never on web/desktop).
+  Elsewhere `downloadedLanguages()` is empty, `identifyLanguage()` returns
+  null and the other operations throw `UnsupportedError`.
+- `supportedLanguages` are the 59 ML Kit model codes (`af` ... `zh`, `cy`).
+  Every method accepts app/catalogue codes and maps them with
+  `MlKitLanguageCodes.toMlKit` (`zh-CN`/`zh-TW`/`zh-Hans`/`zh-Hant` -> `zh`,
+  `nb`/`nn` -> `no`, `iw` -> `he`, `fil` -> `tl`, `in` -> `id`,
+  `pt-BR` -> `pt`, `en-US` -> `en`, case and `_` insensitive). Unsupported
+  codes throw `OfflineLanguageUnsupportedException`.
+- `translate()` never downloads: ML Kit's `translateText` silently fetches
+  missing models on Android, so both models are checked first and
+  `OfflineModelMissingException` is thrown instead. `source: 'auto'`
+  identifies the language first. Native translators are cached per pair
+  (LRU of 3) and closed by `dispose()` or when a model is deleted.
+- `identifyLanguage()` maps `und` to null and normalises codes
+  (`iw` -> `he`); romanised text keeps its script (`ja-Latn`).
+- Plugin access goes through `MlKitBindings` (`GoogleMlKitBindings` by
+  default), so the class can be tested with fakes.
 
-Mlkit Translator comes with a built-in [GitHub Actions workflow][github_actions_link] powered by [Very Good Workflows][very_good_workflows_link] but you can also add your preferred CI/CD solution.
+## Platform setup
 
-Out of the box, on each pull request and push, the CI `formats`, `lints`, and `tests` the code. This ensures the code remains consistent and behaves correctly as you add functionality or make changes. The project uses [Very Good Analysis][very_good_analysis_link] for a strict set of analysis options used by our team. Code coverage is enforced using the [Very Good Workflows][very_good_workflows_link].
+- **iOS:** ML Kit needs iOS 15.5+ (set `platform :ios, '15.5'` in the
+  Podfile and `IPHONEOS_DEPLOYMENT_TARGET = 15.5` in the Runner project) and
+  64-bit devices only (exclude `armv7`).
+- **Android:** minSdk 21; no extra permissions beyond `INTERNET` for
+  downloads. The ML Kit translate and language-id libraries add an
+  estimated 3–5 MB per ABI (native code plus the bundled ~1 MB
+  language-identification model; check with
+  `flutter build apk --analyze-size`). Translation models (~30 MB each)
+  are downloaded at runtime, never bundled.
 
----
-
-## Running Tests 🧪
-
-For first time users, install the [very_good_cli][very_good_cli_link]:
+## Tests
 
 ```sh
-dart pub global activate very_good_cli
+python3 /home/user/.tools/vgmcp.py call test \
+  '{"directory":"/home/user/Mozhi/packages/mlkit_translator","optimization":false}'
 ```
-
-To run all unit tests:
-
-```sh
-very_good test --coverage
-```
-
-To view the generated coverage report you can use [lcov](https://github.com/linux-test-project/lcov).
-
-```sh
-# Generate Coverage Report
-genhtml coverage/lcov.info -o coverage/
-
-# Open Coverage Report
-open coverage/index.html
-```
-
-[flutter_install_link]: https://docs.flutter.dev/get-started/install
-[github_actions_link]: https://docs.github.com/en/actions/learn-github-actions
-[license_badge]: https://img.shields.io/badge/license-MIT-blue.svg
-[license_link]: https://opensource.org/licenses/MIT
-[logo_black]: https://raw.githubusercontent.com/VGVentures/very_good_brand/main/styles/README/vgv_logo_black.png#gh-light-mode-only
-[logo_white]: https://raw.githubusercontent.com/VGVentures/very_good_brand/main/styles/README/vgv_logo_white.png#gh-dark-mode-only
-[mason_link]: https://github.com/felangel/mason
-[very_good_analysis_badge]: https://img.shields.io/badge/style-very_good_analysis-B22C89.svg
-[very_good_analysis_link]: https://pub.dev/packages/very_good_analysis
-[very_good_cli_link]: https://pub.dev/packages/very_good_cli
-[very_good_ventures_link]: https://verygood.ventures
-[very_good_ventures_link_light]: https://verygood.ventures#gh-light-mode-only
-[very_good_ventures_link_dark]: https://verygood.ventures#gh-dark-mode-only
-[very_good_workflows_link]: https://github.com/VeryGoodOpenSource/very_good_workflows

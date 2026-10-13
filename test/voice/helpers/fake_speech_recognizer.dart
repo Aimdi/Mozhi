@@ -37,7 +37,7 @@ class FakeSpeechRecognizer implements SpeechRecognizerAdapter {
 
   late void Function(SpeechRecognizerError error) _onError;
   late void Function(SpeechRecognizerStatus status) _onStatus;
-  late SpeechResultListener _onResult;
+  late SpeechRecognizerResultListener _onResult;
   late void Function(double level) _onSoundLevel;
 
   SpeechListenRequest get lastRequest => requests.last;
@@ -85,7 +85,7 @@ class FakeSpeechRecognizer implements SpeechRecognizerAdapter {
   @override
   Future<void> listen({
     required SpeechListenRequest request,
-    required SpeechResultListener onResult,
+    required SpeechRecognizerResultListener onResult,
     required void Function(double level) onSoundLevel,
   }) async {
     requests.add(request);

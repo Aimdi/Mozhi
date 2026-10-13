@@ -35,6 +35,10 @@ http.Response _text(
   headers: headers,
 );
 
+/// The `Authorization` header for [credentials] (`user:password`).
+String _basic(String credentials) =>
+    'Basic ${base64Encode(utf8.encode(credentials))}';
+
 Matcher _throwsMozhiError({
   required int? statusCode,
   Object message = anything,
@@ -701,19 +705,74 @@ void main() {
             });
           }
 
-          test('keeps user info and an IPv6 host', () async {
+          test('keeps an IPv6 host and sends user info as a decoded basic '
+              'Authorization header instead of in the URL', () async {
             await endpoint.call(
               client(
                 () async => _json(endpoint.body),
-                baseUrl: Uri.parse('http://me:secret@[fd00::5]:8080'),
+                baseUrl: Uri.parse(
+                  'http://me:p%40ss%20w%C3%B6rd@[fd00::5]:8080',
+                ),
               ),
             );
 
-            final url = requests.single.url;
-            expect(url.userInfo, 'me:secret');
-            expect(url.host, 'fd00::5');
-            expect(url.port, 8080);
-            expect(url.path, '/${endpoint.path}');
+            final request = requests.single;
+            expect(request.url.userInfo, isEmpty);
+            expect(request.url.host, 'fd00::5');
+            expect(request.url.port, 8080);
+            expect(request.url.path, '/${endpoint.path}');
+            expect(request.headers['authorization'], _basic('me:p@ss wörd'));
+          });
+
+          test('sends no Authorization header without user info', () async {
+            await endpoint.call(client(() async => _json(endpoint.body)));
+
+            expect(requests.single.headers, isNot(contains('authorization')));
+          });
+
+          test('aborts the request when the timeout runs out', () async {
+            final aborted = Completer<void>();
+            final abortable = MozhiApiClient(
+              baseUrl: _baseUrl,
+              timeout: const Duration(milliseconds: 5),
+              httpClient: MockClient.streaming((request, _) async {
+                // Like IOClient/BrowserClient: fail once the trigger fires.
+                await (request as http.Abortable).abortTrigger;
+                aborted.complete();
+                throw http.RequestAbortedException(request.url);
+              }),
+            );
+
+            await expectLater(
+              endpoint.call(abortable),
+              _throwsMozhiError(
+                statusCode: null,
+                message: 'No response within 5 ms',
+              ),
+            );
+            await aborted.future;
+          });
+
+          test('does not abort a request that succeeded', () async {
+            var triggered = false;
+            await endpoint.call(
+              MozhiApiClient(
+                baseUrl: _baseUrl,
+                timeout: const Duration(milliseconds: 50),
+                httpClient: MockClient.streaming((request, body) async {
+                  final trigger = (request as http.Abortable).abortTrigger!;
+                  unawaited(trigger.then((_) => triggered = true));
+                  await body.drain<void>();
+                  return http.StreamedResponse(
+                    Stream.value(utf8.encode(endpoint.body)),
+                    200,
+                  );
+                }),
+              ),
+            );
+
+            await Future<void>.delayed(const Duration(milliseconds: 100));
+            expect(triggered, isFalse);
           });
 
           test('times out after the configured timeout', () async {
@@ -851,13 +910,13 @@ void main() {
               message: 'HTTP 504',
             ),
             (
-              description: 'redirect target (POST redirects are not followed)',
+              description: 'target of a redirect that is not followed (303)',
               response: _text(
                 '',
-                301,
-                headers: {'location': 'https://mozhi.example/api/version'},
+                303,
+                headers: {'location': 'https://mozhi.example/other'},
               ),
-              message: 'Redirected to https://mozhi.example/api/version',
+              message: 'Redirected to https://mozhi.example/other',
             ),
             (
               description: 'body of a redirect without a location',
@@ -973,6 +1032,345 @@ void main() {
           expect(stackTrace.toString(), contains('mozhi_api_client_test.dart'));
         }
       });
+    });
+
+    group('redirects', () {
+      final httpTranslate = Uri.parse('http://mozhi.example/api/translate');
+      final httpsTranslate = Uri.parse('https://mozhi.example/api/translate');
+      const form = {
+        'engine': 'google',
+        'from': 'auto',
+        'to': 'en',
+        'text': 'a & b = c?',
+      };
+
+      http.Response redirect(int status, String location) =>
+          _text('', status, headers: {'location': location});
+
+      /// Answers the requests in order with [responses].
+      MozhiApiClient clientAnswering(
+        List<http.Response> responses, {
+        Uri? baseUrl,
+      }) {
+        final queue = Queue.of(responses);
+        return MozhiApiClient(
+          baseUrl: baseUrl ?? _baseUrl,
+          httpClient: MockClient((request) async {
+            requests.add(request);
+            return queue.removeFirst();
+          }),
+        );
+      }
+
+      Future<MozhiTranslation> translate(MozhiApiClient client) =>
+          client.translate(
+            engine: form['engine']!,
+            from: form['from']!,
+            to: form['to']!,
+            text: form['text']!,
+          );
+
+      for (final status in [301, 302, 307, 308]) {
+        test('re-POSTs the same form to the Location of a $status', () async {
+          final translation = await translate(
+            clientAnswering([
+              redirect(status, httpsTranslate.toString()),
+              _json(googleTranslationJson),
+            ], baseUrl: Uri.parse('http://mozhi.example')),
+          );
+
+          expect(translation.translatedText, 'cat');
+          expect(requests.map((r) => (r.method, r.url)), [
+            ('POST', httpTranslate),
+            ('POST', httpsTranslate),
+          ]);
+          for (final request in requests) {
+            expect(request.followRedirects, isFalse);
+            expect(
+              request.headers['content-type'],
+              startsWith('application/x-www-form-urlencoded'),
+            );
+            expect(request.bodyFields, form);
+          }
+        });
+      }
+
+      test('follows redirects for translateWithEngines', () async {
+        final translations =
+            await clientAnswering([
+              redirect(308, 'https://mozhi.example/v2/api/translate'),
+              _json(allEnginesTranslationJson),
+            ]).translateWithEngines(
+              engines: ['google', 'deepl'],
+              from: 'de',
+              to: 'en',
+              text: 'Guten Morgen',
+            );
+
+        expect(translations, hasLength(3));
+        expect(requests.last.url.path, '/v2/api/translate');
+        expect(requests.last.bodyFields['engine'], 'google,deepl');
+      });
+
+      test('resolves relative Locations against the redirected URL and '
+          'drops fragments', () async {
+        await translate(
+          clientAnswering([
+            redirect(307, '/mozhi/api/translate'),
+            redirect(308, '//mirror.example:8443/api/translate#top'),
+            _json(googleTranslationJson),
+          ]),
+        );
+
+        expect(requests.map((r) => r.url), [
+          httpsTranslate,
+          Uri.parse('https://mozhi.example/mozhi/api/translate'),
+          Uri.parse('https://mirror.example:8443/api/translate'),
+        ]);
+      });
+
+      test('re-sends the image and fields of translateImage', () async {
+        final png = Uint8List.fromList(const [0x89, 0x50, 0x4E, 0x47, 0, 9]);
+        final sent = <(http.BaseRequest, List<int>)>[];
+        final client = MozhiApiClient(
+          baseUrl: Uri.parse('http://mozhi.example'),
+          httpClient: MockClient.streaming((request, body) async {
+            sent.add((request, await body.toBytes()));
+            return sent.length == 1
+                ? http.StreamedResponse(
+                    const Stream.empty(),
+                    301,
+                    headers: {'location': 'https://mozhi.example/api/image'},
+                  )
+                : http.StreamedResponse(
+                    Stream.value(utf8.encode(imageTranslationJson)),
+                    200,
+                  );
+          }),
+        );
+
+        final result = await client.translateImage(
+          pngBytes: png,
+          from: 'fr',
+          to: 'en',
+        );
+
+        expect(result.translatedText, 'Emergency exit');
+        expect(sent.map((s) => s.$1.url.toString()), [
+          'http://mozhi.example/api/image',
+          'https://mozhi.example/api/image',
+        ]);
+        for (final (request, body) in sent) {
+          expect(request.method, 'POST');
+          expect(request.followRedirects, isFalse);
+          final multipart = request as http.MultipartRequest;
+          expect(multipart.fields, {
+            'engine': 'google',
+            'from': 'fr',
+            'to': 'en',
+          });
+          final boundary = MediaType.parse(request.headers['content-type']!)
+              .parameters['boundary']!;
+          final image = _parseMultipart(body, boundary).singleWhere(
+            (p) => p.headers['content-disposition']!.contains('name="image"'),
+          );
+          expect(image.content, png);
+          expect(image.headers['content-type'], 'image/png');
+        }
+      });
+
+      test('follows a GET redirect that the client did not follow', () async {
+        final version = await clientAnswering([
+          redirect(301, 'https://mozhi.example/v2/api/version'),
+          _json(versionJson),
+        ]).getVersion();
+
+        expect(version.goVersion, 'go1.23.1');
+        expect(requests.first.followRedirects, isTrue);
+        expect(requests.last.url.path, '/v2/api/version');
+      });
+
+      test('never follows a redirect from https to http', () async {
+        await expectLater(
+          translate(clientAnswering([redirect(301, httpTranslate.toString())])),
+          throwsA(
+            isA<MozhiApiException>()
+                .having((e) => e.statusCode, 'statusCode', 301)
+                .having(
+                  (e) => e.message,
+                  'message',
+                  'Redirected to $httpTranslate',
+                )
+                .having((e) => e.uri, 'uri', httpsTranslate)
+                .having((e) => e.isRetryable, 'isRetryable', isTrue),
+          ),
+        );
+        expect(requests, hasLength(1));
+      });
+
+      for (final location in [
+        'ftp://mozhi.example/api/translate',
+        'http://[::1',
+      ]) {
+        test('does not follow the Location $location', () async {
+          await expectLater(
+            translate(clientAnswering([redirect(308, location)])),
+            _throwsMozhiError(
+              statusCode: 308,
+              message: 'Redirected to $location',
+              uri: httpsTranslate,
+            ),
+          );
+          expect(requests, hasLength(1));
+        });
+      }
+
+      test('does not follow a redirect with a blank Location', () async {
+        await expectLater(
+          translate(
+            clientAnswering([
+              _text(
+                '',
+                307,
+                reasonPhrase: 'Temporary Redirect',
+                headers: {'location': '  '},
+              ),
+            ]),
+          ),
+          _throwsMozhiError(statusCode: 307, message: 'Temporary Redirect'),
+        );
+        expect(requests, hasLength(1));
+      });
+
+      test('does not turn a POST into a GET without the form on 303', () async {
+        await expectLater(
+          translate(
+            clientAnswering([redirect(303, 'https://mozhi.example/result')]),
+          ),
+          _throwsMozhiError(
+            statusCode: 303,
+            message: 'Redirected to https://mozhi.example/result',
+          ),
+        );
+        expect(requests, hasLength(1));
+      });
+
+      test('gives up after ${MozhiApiClient.maxRedirects} redirects', () async {
+        const hops = MozhiApiClient.maxRedirects;
+        await expectLater(
+          translate(
+            clientAnswering([
+              for (var hop = 1; hop <= hops + 1; hop++)
+                redirect(302, 'https://mozhi.example/hop$hop'),
+            ]),
+          ),
+          _throwsMozhiError(
+            statusCode: 302,
+            message: 'Redirected to https://mozhi.example/hop${hops + 1}',
+            uri: Uri.parse('https://mozhi.example/hop$hops'),
+          ),
+        );
+        expect(requests, hasLength(hops + 1));
+      });
+
+      test('reports the final URL when the redirected request fails', () async {
+        final target = Uri.parse('https://mozhi.example/v2/api/translate');
+
+        await expectLater(
+          translate(
+            clientAnswering([
+              redirect(308, target.toString()),
+              _text('Engine does not exist or has been disabled.', 500),
+            ]),
+          ),
+          _throwsMozhiError(statusCode: 500, uri: target),
+        );
+        requests.clear();
+        await expectLater(
+          translate(
+            clientAnswering([redirect(308, target.toString()), _json('[]')]),
+          ),
+          _throwsMozhiError(
+            statusCode: null,
+            message: 'google returned no translation',
+            uri: target,
+          ),
+        );
+      });
+
+      test('sends credentials only to the origin of the base URL and never '
+          'puts them in a URL', () async {
+        await translate(
+          clientAnswering([
+            redirect(307, '/moved/api/translate'),
+            redirect(308, 'https://mozhi.example/api/translate'),
+            redirect(308, 'https://evil:creds@cdn.example/api/translate'),
+            _json(googleTranslationJson),
+          ], baseUrl: Uri.parse('http://me:secret@mozhi.example')),
+        );
+
+        expect(requests.map((r) => r.headers['authorization']), [
+          _basic('me:secret'),
+          _basic('me:secret'),
+          null,
+          null,
+        ]);
+        expect(requests.map((r) => r.url.userInfo), everyElement(isEmpty));
+        expect(requests.last.url.host, 'cdn.example');
+      });
+
+      test(
+        'applies one timeout to every hop and reports the last URL',
+        () async {
+          final client = MozhiApiClient(
+            baseUrl: _baseUrl,
+            timeout: const Duration(milliseconds: 20),
+            httpClient: MockClient((request) {
+              requests.add(request);
+              return requests.length == 1
+                  ? Future.value(redirect(307, '/v2/api/translate'))
+                  : Completer<http.Response>().future; // never answers
+            }),
+          );
+
+          await expectLater(
+            translate(client),
+            _throwsMozhiError(
+              statusCode: null,
+              message: 'No response within 20 ms',
+              uri: Uri.parse('https://mozhi.example/v2/api/translate'),
+            ),
+          );
+          expect(requests, hasLength(2));
+        },
+      );
+
+      test(
+        'does not follow a redirect that arrives after the timeout',
+        () async {
+          final answer = Completer<http.Response>();
+          final client = MozhiApiClient(
+            baseUrl: _baseUrl,
+            timeout: const Duration(milliseconds: 5),
+            httpClient: MockClient((request) {
+              requests.add(request);
+              return answer.future;
+            }),
+          );
+
+          await expectLater(
+            translate(client),
+            _throwsMozhiError(
+              statusCode: null,
+              message: 'No response within 5 ms',
+            ),
+          );
+          answer.complete(redirect(308, '/v2/api/translate'));
+          await pumpEventQueue();
+
+          expect(requests, hasLength(1));
+        },
+      );
     });
 
     group('close', () {

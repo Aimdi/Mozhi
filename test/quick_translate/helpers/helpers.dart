@@ -12,18 +12,16 @@ import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/speech/speech_service.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-class MockTranslationRepository extends Mock implements TranslationRepository {}
+class MockTranslationRepository extends Mock implements TranslationRepository;
 
-class MockSettingsCubit extends MockCubit<AppSettings>
-    implements SettingsCubit {}
+class MockSettingsCubit extends MockCubit<AppSettings> implements SettingsCubit;
 
-class MockHistoryCubit extends MockCubit<HistoryState>
-    implements HistoryCubit {}
+class MockHistoryCubit extends MockCubit<HistoryState> implements HistoryCubit;
 
-class MockSpeechService extends Mock implements SpeechService {}
+class MockSpeechService extends Mock implements SpeechService;
 
 class MockQuickTranslateCubit extends MockCubit<QuickTranslateState>
-    implements QuickTranslateCubit {}
+    implements QuickTranslateCubit;
 
 const google = TranslationEngine(
   id: 'mozhi:google',

@@ -22,10 +22,10 @@ void main() {
         );
       });
 
-      test('removes <thinking> and <reasoning> blocks', () {
+      test('removes consecutive <thinking> and <reasoning> blocks', () {
         expect(
           ThinkTagFilter.strip(
-            '<thinking>a</thinking>One <reasoning>b</reasoning>two',
+            '<thinking>a</thinking>\n<reasoning>b</reasoning> One two',
           ),
           'One two',
         );
@@ -35,11 +35,56 @@ void main() {
         expect(ThinkTagFilter.strip('<THINK>x</Think>Answer'), 'Answer');
       });
 
-      test('keeps whitespace that precedes a block', () {
+      test('drops whitespace around a leading block', () {
+        expect(ThinkTagFilter.strip(' \n<think>x</think>  tail'), 'tail');
+      });
+
+      test('keeps leading whitespace before visible text', () {
+        expect(ThinkTagFilter.strip('  Hello'), '  Hello');
+        expect(ThinkTagFilter.strip(' \n '), ' \n ');
+        expect(ThinkTagFilter.strip(''), isEmpty);
+      });
+
+      test('keeps tags that follow visible text', () {
+        const texts = [
+          'Utilisez la balise <reasoning> pour structurer la réponse.',
+          'Le mot <Think> signifie penser. Fin.',
+          'Wrap it in <thinking>...</thinking> tags, then answer.',
+          '{"translation": "Use the <think> tag here."}',
+          '  lead <think>x</think>  tail',
+          'One <reasoning>b</reasoning>two',
+        ];
+        for (final text in texts) {
+          expect(ThinkTagFilter.strip(text), text);
+        }
+      });
+
+      test('keeps tags after a removed leading block', () {
         expect(
-          ThinkTagFilter.strip('  lead <think>x</think>  tail'),
-          '  lead tail',
+          ThinkTagFilter.strip('<think>plan</think>\nUse the <reasoning> tag.'),
+          'Use the <reasoning> tag.',
         );
+      });
+
+      test('removes reasoning before a closing tag without opening tag', () {
+        expect(
+          ThinkTagFilter.strip(
+            'Okay, the user wants French. "Hello" is "Bonjour".\n'
+            '</think>\n\nBonjour',
+          ),
+          'Bonjour',
+        );
+        expect(ThinkTagFilter.strip('\n</THINKING>\n\nAnswer'), 'Answer');
+        expect(ThinkTagFilter.strip('x</reasoning>'), isEmpty);
+        expect(
+          ThinkTagFilter.strip('a</think>\n<think>b</think> c'),
+          'c',
+        );
+      });
+
+      test('keeps a closing tag that follows an opening tag', () {
+        const text = 'Use <think> and </think> tags.';
+        expect(ThinkTagFilter.strip(text), text);
       });
 
       test('leaves text without tags untouched', () {
@@ -59,11 +104,13 @@ void main() {
       });
 
       test('drops an unterminated block', () {
-        expect(ThinkTagFilter.strip('Hi <think>never closes'), 'Hi ');
+        expect(ThinkTagFilter.strip(' <think>never closes'), isEmpty);
       });
 
-      test('keeps a trailing partial opening tag as text', () {
+      test('keeps a trailing partial tag as text', () {
         expect(ThinkTagFilter.strip('Hello <thi'), 'Hello <thi');
+        expect(ThinkTagFilter.strip(' <thi'), ' <thi');
+        expect(ThinkTagFilter.strip('</thin'), '</thin');
       });
 
       test('returns an empty string for a lone block', () {
@@ -102,17 +149,56 @@ void main() {
             .transform(const ThinkTagFilter())
             .listen(output.add);
 
-        controller.add('Hello <thin');
+        controller.add('\n<thin');
         await pumpEventQueue();
-        expect(output, ['Hello ']);
+        expect(output, isEmpty);
 
         controller.add('king> hidden');
         await pumpEventQueue();
-        expect(output, ['Hello ']);
+        expect(output, isEmpty);
+
+        controller.add('</thinking>\nHello <thin');
+        await pumpEventQueue();
+        expect(output, ['Hello <thin']);
+
+        controller.add('king> shown');
+        await pumpEventQueue();
+        expect(output, ['Hello <thin', 'king> shown']);
 
         await controller.close();
         await subscription.cancel();
-        expect(output, ['Hello ']);
+        expect(output, ['Hello <thin', 'king> shown']);
+      });
+
+      test('keeps tags that follow visible text', () async {
+        expect(
+          await _filter([
+            'Utilisez la balise <rea',
+            'soning> pour structurer ',
+            'la réponse.',
+          ]),
+          'Utilisez la balise <reasoning> pour structurer la réponse.',
+        );
+        expect(
+          await _filter(['Le mot ', '<Think>', ' signifie penser. Fin.']),
+          'Le mot <Think> signifie penser. Fin.',
+        );
+      });
+
+      test('drops a closing tag that only whitespace precedes', () async {
+        expect(await _filter(['\n</th', 'ink>\n\n', 'Bonjour']), 'Bonjour');
+      });
+
+      test('passes a closing tag after visible text through so that strip '
+          'can remove the reasoning from the accumulated text', () async {
+        final output = await _filter([
+          'Okay, the user ',
+          'wants French.\n</th',
+          'ink>\n\nBon',
+          'jour',
+        ]);
+        expect(output, 'Okay, the user wants French.\n</think>\n\nBonjour');
+        expect(ThinkTagFilter.strip(output), 'Bonjour');
       });
 
       test('ignores "<" inside a block that does not close it', () async {
@@ -128,10 +214,11 @@ void main() {
       });
 
       test('drops an unterminated block at end of stream', () async {
-        expect(await _filter(['Hi ', '<think>a', 'b</th']), 'Hi ');
+        expect(await _filter([' ', '<think>a', 'b</th']), isEmpty);
       });
 
       test('flushes a trailing partial tag at end of stream', () async {
+        expect(await _filter(['\n', '<reas']), '\n<reas');
         expect(await _filter(['Hi ', '<reas']), 'Hi <reas');
       });
 
@@ -141,6 +228,12 @@ void main() {
           'Before <THINKING>x</thinking> after <reasoning>y',
           'a <b <think>c</think> d <thin',
           '日本語 <think>思考</think> テキスト 👋',
+          ' \n<thinking>x</thinking>\n<REASONING>y</reasoning>  Answer '
+              '<think>kept</think>',
+          '\n</think>\n\nBonjour',
+          '<b>bold</b> <think>',
+          '  <thin',
+          ' \n ',
         ];
         for (final input in inputs) {
           final expected = ThinkTagFilter.strip(input);

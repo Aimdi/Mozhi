@@ -20,7 +20,7 @@ void main() {
       final document = parseJson(text);
       expect(document.format, DocumentFormat.json);
       expect(texts(document), ['Hello world', 'Save', 'One', 'Two']);
-      expect(document.segments.map((Segment s) => s.label), [
+      expect(document.segments.map((s) => s.label), [
         'title',
         'nested.save',
         'nested.items[0]',
@@ -166,11 +166,7 @@ void main() {
       const text = '["Hello", ["World", 1.5e3], {"k": "Value"}]';
       final document = parseJson(text);
       expect(texts(document), ['Hello', 'World', 'Value']);
-      expect(document.segments.map((Segment s) => s.label), [
-        '[0]',
-        '[1][0]',
-        '[2].k',
-      ]);
+      expect(document.segments.map((s) => s.label), ['[0]', '[1][0]', '[2].k']);
       expectRoundTrip(document, text);
     });
 

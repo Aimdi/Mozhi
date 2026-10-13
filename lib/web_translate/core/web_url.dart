@@ -43,7 +43,7 @@ Uri? normalizeWebUrl(String input) {
 bool isLikelyWebUrl(String text) {
   final trimmed = text.trim();
   if (trimmed.isEmpty || trimmed.contains(_whitespace)) return false;
-  if (RegExp(r'^https?://', caseSensitive: false).hasMatch(trimmed)) {
+  if (RegExp('^https?://', caseSensitive: false).hasMatch(trimmed)) {
     return normalizeWebUrl(trimmed) != null;
   }
   return _bareDomain.hasMatch(trimmed) && normalizeWebUrl(trimmed) != null;

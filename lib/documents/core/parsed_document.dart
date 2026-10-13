@@ -122,9 +122,8 @@ class ParsedDocument {
 
   /// Rebuilds the document with [translations] (indexed like [segments];
   /// null or missing entries keep the original text).
-  String render([
-    List<String?> translations = const [],
-  ]) => _renderAll(translations, bilingual: false);
+  String render([List<String?> translations = const []]) =>
+      _renderAll(translations, bilingual: false);
 
   /// Like [render], but each translated segment is written after its
   /// original, separated by a line break (meant for subtitles).

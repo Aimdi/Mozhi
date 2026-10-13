@@ -53,11 +53,9 @@ class ConversationCubit extends Cubit<ConversationState> {
            autoSpeak: autoSpeak,
          ),
        ) {
+    // Speech ids are unique per conversation, so nothing of this one can
+    // be playing yet.
     _speaking = _speech.speaking.listen(_onSpeaking);
-    final speakingTurnId = _turnIdOf(_speech.current);
-    if (speakingTurnId != null) {
-      emit(state.copyWith(speakingTurnId: () => speakingTurnId));
-    }
   }
 
   /// Distinguishes the speech ids of different conversations.
@@ -112,7 +110,9 @@ class ConversationCubit extends Cubit<ConversationState> {
       ?byCode(deviceLanguageCode),
       resolve('en'),
       resolve('es'),
-    ].firstWhere((language) => LanguageMatcher.normalize(language.code) != bKey);
+    ].firstWhere(
+      (language) => LanguageMatcher.normalize(language.code) != bKey,
+    );
     return (a: a, b: b);
   }
 
@@ -133,11 +133,13 @@ class ConversationCubit extends Cubit<ConversationState> {
   }
 
   /// Translates [text] said by [side] for the other side and appends it to
-  /// the transcript. Blank text is ignored. Completes when the translation
-  /// finished, failed or was cancelled.
+  /// the transcript. Blank text is ignored. Without an engine the turn is
+  /// added as failed ([ConversationNoEngineException]). Completes when the
+  /// translation finished, failed or was cancelled.
   Future<void> submit(ConversationSide side, String text) {
     final original = text.trim();
     if (original.isEmpty || isClosed) return Future.value();
+    final engine = _engine();
     final turn = ConversationTurn(
       id: _nextId++,
       side: side,
@@ -145,40 +147,40 @@ class ConversationCubit extends Cubit<ConversationState> {
       source: state.languageOf(side),
       target: state.languageOf(side.other),
       createdAt: _clock(),
+      engineId: engine?.id,
+      engineName: engine?.name,
+      status: engine == null
+          ? ConversationTurnStatus.failed
+          : ConversationTurnStatus.translating,
+      error: engine == null ? const ConversationNoEngineException() : null,
     );
     emit(state.copyWith(turns: [...state.turns, turn]));
-    return _translate(turn);
+    if (engine == null) return Future.value();
+    return _translate(turn, engine);
   }
 
   /// Translates a failed turn again with the current engine.
   Future<void> retry(int turnId) {
     final turn = state.turnById(turnId);
     if (turn == null || !turn.isFailed || isClosed) return Future.value();
-    return _translate(turn);
+    final engine = _engine();
+    final reset = _updateTurn(
+      turnId,
+      (current) => engine == null
+          ? current.copyWith(error: () => const ConversationNoEngineException())
+          : current.copyWith(
+              translation: '',
+              engineId: () => engine.id,
+              engineName: () => engine.name,
+              status: ConversationTurnStatus.translating,
+              error: () => null,
+            ),
+    );
+    if (engine == null || reset == null) return Future.value();
+    return _translate(reset, engine);
   }
 
-  Future<void> _translate(ConversationTurn turn) {
-    final engine = _engine();
-    if (engine == null) {
-      _updateTurn(
-        turn.id,
-        (current) => current.copyWith(
-          status: ConversationTurnStatus.failed,
-          error: () => const ConversationNoEngineException(),
-        ),
-      );
-      return Future.value();
-    }
-    _updateTurn(
-      turn.id,
-      (current) => current.copyWith(
-        translation: '',
-        engineId: () => engine.id,
-        engineName: () => engine.name,
-        status: ConversationTurnStatus.translating,
-        error: () => null,
-      ),
-    );
+  Future<void> _translate(ConversationTurn turn, TranslationEngine engine) {
     final request = TranslationRequest(
       text: turn.original,
       source: _resolve(turn.source),
@@ -245,9 +247,9 @@ class ConversationCubit extends Cubit<ConversationState> {
     ];
     final recent = previous.skip(math.max(0, previous.length - contextTurns));
     final setting =
-        'This is a live spoken conversation between a '
-        '${state.languageA.name} speaker and a ${state.languageB.name} '
-        'speaker. Translate it as natural speech.';
+        'This is a live spoken conversation between two people: one '
+        'speaks ${state.languageA.name}, the other '
+        '${state.languageB.name}. Translate it as natural speech.';
     final lines = [
       if (base.context.trim().isNotEmpty) base.context.trim(),
       setting,

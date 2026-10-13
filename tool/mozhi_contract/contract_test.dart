@@ -670,6 +670,52 @@ final class _Contract {
             )
           : _Pass(detail);
     });
+
+    await check(
+      'every advertised target id passes translate validation',
+      () async {
+        // libmozhi validates `to` against the engine's *source* list, so ids
+        // that only appear in the target list are rejected before any
+        // upstream request is made.
+        final rejected = <String>[];
+        var tried = 0;
+        for (final engine in engines) {
+          final sourceIds = {
+            for (final l in await client.getSourceLanguages(engine)) l.id,
+          };
+          final targetOnly = [
+            for (final l in await client.getTargetLanguages(engine))
+              if (!sourceIds.contains(l.id)) l.id,
+          ];
+          final from = sourceIds.firstWhere((id) => id != 'auto');
+          for (final to in targetOnly) {
+            tried++;
+            try {
+              await client.translate(
+                engine: engine,
+                from: from,
+                to: to,
+                text: 'Hello',
+              );
+            } on MozhiApiException catch (error) {
+              if (error.message.toLowerCase().contains(
+                'target language code',
+              )) {
+                rejected.add('$engine:$to');
+              }
+            }
+          }
+        }
+        if (rejected.isEmpty) {
+          return _Pass('$tried target-only ids tried, none rejected');
+        }
+        return _Gap(
+          '${rejected.length} advertised target ids are rejected with 500 '
+          '"Target language code invalid": ${rejected.join(', ')}. The app '
+          'offers them (from /api/target_languages) but they can never work.',
+        );
+      },
+    );
   }
 
   static List<String> _duplicates(List<String> ids) {

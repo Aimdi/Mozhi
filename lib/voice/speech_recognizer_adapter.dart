@@ -89,7 +89,7 @@ class SpeechListenRequest extends Equatable {
 }
 
 /// Receives recognised words; [isFinal] marks the last result of a session.
-typedef SpeechResultListener = void Function(
+typedef SpeechRecognizerResultListener = void Function(
   String text, {
   required bool isFinal,
 });
@@ -117,7 +117,7 @@ abstract interface class SpeechRecognizerAdapter {
   /// Starts a listen session. Throws when the session cannot start.
   Future<void> listen({
     required SpeechListenRequest request,
-    required SpeechResultListener onResult,
+    required SpeechRecognizerResultListener onResult,
     required void Function(double level) onSoundLevel,
   });
 
@@ -179,7 +179,7 @@ class SpeechToTextAdapter implements SpeechRecognizerAdapter {
   @override
   Future<void> listen({
     required SpeechListenRequest request,
-    required SpeechResultListener onResult,
+    required SpeechRecognizerResultListener onResult,
     required void Function(double level) onSoundLevel,
   }) async {
     await _speech.listen(

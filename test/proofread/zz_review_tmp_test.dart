@@ -90,7 +90,7 @@ void main() {
     await tester.pump();
     // Sheet still shows the old edit.
     expect(find.text('Use "an" before a vowel sound.'), findsWidgets);
-    await tester.tap(find.text('Revert'));
+    await tester.tap(find.text('Revert edit'));
     await tester.pump(const Duration(seconds: 1));
     verify(() => cubit.toggleEdit(1)).called(1);
     // ignore: avoid_print

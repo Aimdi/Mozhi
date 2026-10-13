@@ -5,7 +5,7 @@ import 'package:equatable/equatable.dart';
 
 /// A text to translate, identified by [id].
 class TranslationItem extends Equatable {
-  const TranslationItem(this.id, this.text);
+  const new(this.id, this.text);
 
   final int id;
   final String text;
@@ -17,7 +17,7 @@ class TranslationItem extends Equatable {
 /// Packs [TranslationItem]s into batches that are sent as one request,
 /// separated by blank lines (which translators keep as paragraph breaks).
 class BlockBatcher {
-  const BlockBatcher({this.maxChars = 1800, this.maxItems = 12});
+  const new({this.maxChars = 1800, this.maxItems = 12});
 
   /// Soft limit of characters per batch (a longer item is sent alone).
   final int maxChars;

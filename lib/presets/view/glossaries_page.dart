@@ -23,7 +23,7 @@ typedef OpenGlossary = void Function(BuildContext context, String glossaryId);
 /// Tapping a glossary calls [onOpenGlossary], which defaults to pushing a
 /// [GlossaryEditorPage] with `Navigator.push`.
 class GlossariesPage extends StatelessWidget {
-  const GlossariesPage({this.onOpenGlossary, super.key});
+  const new({this.onOpenGlossary, super.key});
 
   final OpenGlossary? onOpenGlossary;
 
@@ -49,7 +49,7 @@ class GlossariesPage extends StatelessWidget {
 enum _MenuAction { import, export }
 
 class GlossariesView extends StatefulWidget {
-  const GlossariesView({required this.onOpenGlossary, super.key});
+  const new({required this.onOpenGlossary, super.key});
 
   final OpenGlossary onOpenGlossary;
 
@@ -241,7 +241,7 @@ class _GlossariesViewState extends State<GlossariesView> {
 }
 
 class _GlossaryTile extends StatelessWidget {
-  const _GlossaryTile({
+  const new({
     required this.glossary,
     required this.onTap,
     required this.onEnabled,

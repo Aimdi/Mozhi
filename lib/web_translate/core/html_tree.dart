@@ -14,14 +14,14 @@ sealed class HtmlNode {
 
 /// Character data.
 final class HtmlTextNode extends HtmlNode {
-  HtmlTextNode(this.text);
+  new(this.text);
 
   String text;
 }
 
 /// An element with lower-case [name] and attributes.
 final class HtmlElement extends HtmlNode {
-  HtmlElement(this.name, [Map<String, String>? attributes])
+  new(this.name, [Map<String, String>? attributes])
     : attributes = attributes ?? {};
 
   final String name;

@@ -12,12 +12,12 @@ import 'package:mozhi/web_translate/core/html_entities.dart';
 
 /// A token produced by [tokenizeHtml].
 sealed class HtmlToken {
-  const HtmlToken();
+  const new();
 }
 
 /// `<name attr="value">`; [name] and attribute names are lower-cased.
 final class HtmlStartTag extends HtmlToken {
-  const HtmlStartTag(
+  const new(
     this.name, {
     this.attributes = const {},
     this.selfClosing = false,
@@ -35,7 +35,7 @@ final class HtmlStartTag extends HtmlToken {
 
 /// `</name>`; [name] is lower-cased.
 final class HtmlEndTag extends HtmlToken {
-  const HtmlEndTag(this.name);
+  const new(this.name);
 
   final String name;
 
@@ -45,7 +45,7 @@ final class HtmlEndTag extends HtmlToken {
 
 /// Character data with entities decoded (raw for `<script>`/`<style>`).
 final class HtmlCharacters extends HtmlToken {
-  const HtmlCharacters(this.text);
+  const new(this.text);
 
   final String text;
 

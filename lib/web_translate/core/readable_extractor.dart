@@ -35,7 +35,7 @@ enum ReadableBlockKind {
 
 /// One block of readable content.
 class ReadableBlock extends Equatable {
-  const ReadableBlock({
+  const new({
     required this.kind,
     required this.text,
     this.src,
@@ -79,7 +79,7 @@ class ReadableBlock extends Equatable {
 
 /// The readable content of a page.
 class ReadablePage extends Equatable {
-  const ReadablePage({
+  const new({
     required this.title,
     required this.blocks,
     this.siteName,
@@ -120,7 +120,7 @@ class ReadablePage extends Equatable {
 /// bars, comments, sidebars and the like are removed. When this leaves
 /// almost nothing the page is extracted again without the class/id rules.
 class ReadableExtractor {
-  const ReadableExtractor({
+  const new({
     this.minArticleLength = 200,
     this.retryThreshold = 250,
   });
@@ -460,7 +460,7 @@ class ReadableExtractor {
 // ---------------------------------------------------------------------
 
 class _Metadata {
-  _Metadata({
+  new({
     this.title,
     this.ogTitle,
     this.siteName,
@@ -468,7 +468,7 @@ class _Metadata {
     this.baseHref,
   });
 
-  factory _Metadata.of(HtmlElement document) {
+  factory of(HtmlElement document) {
     String? title;
     String? ogTitle;
     String? twitterTitle;
@@ -626,7 +626,7 @@ class _Metrics {
 
 /// The block a run of inline text belongs to.
 class _Context {
-  _Context(this.kind, {this.number, this.depth = 0});
+  new(this.kind, {this.number, this.depth = 0});
 
   final ReadableBlockKind kind;
 
@@ -636,7 +636,7 @@ class _Context {
 }
 
 class _BlockBuilder {
-  _BlockBuilder(this.baseUri);
+  new(this.baseUri);
 
   final Uri? baseUri;
   final List<ReadableBlock> _blocks = [];
@@ -918,7 +918,7 @@ final _maybeCandidate = RegExp(
 /// Class/id tokens that always mark ads, share bars and the like.
 final _adToken = RegExp(
   r'^(ads?|adv|advert\w*|adsbygoogle|ad[-_]\w+|\w+[-_]ads?|sponsored|'
-  r'promoted|paywall|sr-only|visually-hidden|screen-reader-text|'
+  'promoted|paywall|sr-only|visually-hidden|screen-reader-text|'
   r'skip-link|cookie-banner|share-buttons|social-share)$',
 );
 

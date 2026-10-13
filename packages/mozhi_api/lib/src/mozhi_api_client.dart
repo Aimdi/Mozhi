@@ -531,8 +531,8 @@ class MozhiApiClient {
     final status = response.statusCode;
     final reason = response.reasonPhrase?.trim() ?? '';
     final fallback = reason.isEmpty ? 'HTTP $status' : reason;
-    final location = response.headers['location'];
-    if (status >= 300 && status < 400 && location != null) {
+    final location = response.headers['location']?.trim() ?? '';
+    if (status >= 300 && status < 400 && location.isNotEmpty) {
       return 'Redirected to $location';
     }
     final body = _decodeBody(response).trim();

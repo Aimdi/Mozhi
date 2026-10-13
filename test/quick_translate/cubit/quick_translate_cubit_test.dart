@@ -692,7 +692,7 @@ void main() {
               .thenAnswer((_) => Stream.value(result('Hello world')));
         },
         build: build,
-        seed: () => loaded(target: french),
+        seed: loaded,
         act: (cubit) => cubit.setTarget(english),
         verify: (cubit) => expect(cubit.state.target, english),
       );

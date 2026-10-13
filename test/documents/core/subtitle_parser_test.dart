@@ -23,7 +23,7 @@ void main() {
         'Hello there.',
         '⟨1⟩Two lines,⟨2⟩\n⟨3⟩second line.',
       ]);
-      expect(document.segments.map((Segment s) => s.label), ['1', '2']);
+      expect(document.segments.map((s) => s.label), ['1', '2']);
       expectRoundTrip(document, srt);
     });
 
@@ -118,7 +118,7 @@ void main() {
         '⟨1⟩We are in New York City',
         '⟨1⟩Karaoke⟨2⟩ ⟨3⟩style ⟨4⟩ more',
       ]);
-      expect(document.segments.map((Segment s) => s.label), ['1', '2']);
+      expect(document.segments.map((s) => s.label), ['1', '2']);
       expectRoundTrip(document, vtt);
     });
 

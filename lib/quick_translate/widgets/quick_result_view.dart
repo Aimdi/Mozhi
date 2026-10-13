@@ -58,9 +58,8 @@ class QuickResultView extends StatelessWidget {
 
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 150),
-      layoutBuilder: (current, previous) => Stack(
-        children: [...previous, ?current],
-      ),
+      layoutBuilder: (current, previous) =>
+          Stack(children: [...previous, ?current]),
       child: child,
     );
   }

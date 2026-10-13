@@ -31,7 +31,7 @@ Future<Preset?> showPresetEditor(
 
 /// Name, every option control and "use as default" for one preset.
 class PresetEditorSheet extends StatefulWidget {
-  const PresetEditorSheet({
+  const new({
     this.preset,
     this.initialOptions = const TranslationOptions(),
     super.key,

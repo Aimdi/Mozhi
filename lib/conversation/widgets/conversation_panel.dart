@@ -13,7 +13,7 @@ import 'package:mozhi/conversation/widgets/conversation_transcript_list.dart';
 /// Side B's panel is turned by 180° so it reads the right way up for the
 /// person across the table; dialogs opened from it are turned as well.
 class ConversationPanel extends StatelessWidget {
-  const ConversationPanel({required this.side, this.micBuilder, super.key});
+  const new({required this.side, this.micBuilder, super.key});
 
   final ConversationSide side;
   final ConversationMicBuilder? micBuilder;

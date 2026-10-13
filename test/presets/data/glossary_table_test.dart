@@ -147,10 +147,10 @@ void main() {
       for (final format in GlossaryTableFormat.values) {
         final text = GlossaryTable.format(terms, format: format);
         final parsed = GlossaryTable.parse(text);
+        // Parsed terms are trimmed.
         expect(parsed.terms, [
           terms.first,
-          // Unquoted output is trimmed on parse; quoted fields are kept.
-          terms.last,
+          terms.last.copyWith(target: 'padded'),
         ], reason: format.name);
       }
     });

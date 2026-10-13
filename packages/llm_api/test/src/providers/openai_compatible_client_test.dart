@@ -222,15 +222,96 @@ void main() {
         expect(await _client(server).chat(_request), 'Bonjour');
       });
 
-      test('completes when the stream ends without [DONE]', () async {
+      test('completes at a finish_reason without [DONE]', () async {
         final server = FakeServer([
           FakeResponse.text(
             sse([
-              _chunk({'content': 'ok'}),
+              _chunk({'content': 'ok'}, finish: 'stop'),
             ]),
           ),
         ]);
         expect(await _client(server).chat(_request), 'ok');
+      });
+
+      test('throws LlmInterruptedException when the stream ends without '
+          '[DONE] or a finish_reason', () async {
+        final server = FakeServer([
+          FakeResponse.text(
+            sse([
+              _chunk({'content': 'Bonjour, '}),
+              _chunk({'content': 'comment'}),
+            ]),
+          ),
+        ]);
+        await expectLater(
+          _client(server).streamChat(_request),
+          emitsInOrder(<Object>[
+            'Bonjour, ',
+            'comment',
+            emitsError(
+              isA<LlmInterruptedException>()
+                  .having(
+                    (e) => e.message,
+                    'message',
+                    LlmInterruptedException.defaultMessage,
+                  )
+                  .having((e) => e.partialText, 'partialText', 'Bonjour, comment')
+                  .having((e) => e.statusCode, 'statusCode', isNull),
+            ),
+            emitsDone,
+          ]),
+        );
+      });
+
+      test('throws LlmTruncatedException at finish_reason length', () async {
+        final server = FakeServer([
+          FakeResponse.text(
+            sse([
+              _chunk({'content': '<think>plan</think>Partial '}),
+              _chunk({'content': 'para 1'}),
+              _chunk({}, finish: 'length'),
+              '[DONE]',
+            ]),
+          ),
+        ]);
+        await expectLater(
+          _client(server).streamChat(_request),
+          emitsInOrder(<Object>[
+            'Partial ',
+            'para 1',
+            emitsError(
+              isA<LlmTruncatedException>()
+                  .having(
+                    (e) => e.message,
+                    'message',
+                    LlmTruncatedException.defaultMessage,
+                  )
+                  .having((e) => e.partialText, 'partialText', 'Partial para 1')
+                  .having((e) => e.reason, 'reason', 'length'),
+            ),
+            emitsDone,
+          ]),
+        );
+      });
+
+      test('chat throws LlmTruncatedException with the partial text', () async {
+        final server = FakeServer([
+          FakeResponse.text(
+            sse([
+              _chunk({'content': 'Partial'}, finish: 'length'),
+            ]),
+          ),
+        ]);
+        await expectLater(
+          _client(server).chat(_request),
+          throwsA(
+            isA<LlmTruncatedException>().having(
+              (e) => e.partialText,
+              'partialText',
+              'Partial',
+            ),
+          ),
+        );
       });
 
       test('throws an error chunk as LlmApiException', () async {
