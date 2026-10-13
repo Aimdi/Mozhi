@@ -132,6 +132,87 @@ void main() {
       verify(() => repository.pingInstance(_fast)).called(2);
     });
 
+    testWidgets('refresh button pings again without a drag', (tester) async {
+      await pump(tester);
+      await tester.tap(find.byTooltip('Check latency again'));
+      await tester.pump();
+      expect(find.text('Checking…'), findsNWidgets(3));
+      await tester.pumpAndSettle();
+      verify(() => repository.pingInstance(_fast)).called(2);
+      verify(() => repository.pingInstance(_down)).called(2);
+      expect(find.text('120 ms'), findsOneWidget);
+    });
+
+    testWidgets('refresh button is disabled without instances', (
+      tester,
+    ) async {
+      when(() => settings.state).thenReturn(const AppSettings(instances: []));
+      await pump(tester);
+      final button = tester.widget<IconButton>(
+        find.widgetWithIcon(IconButton, Icons.refresh),
+      );
+      expect(button.onPressed, isNull);
+    });
+
+    testWidgets('announces how many instances are reachable once', (
+      tester,
+    ) async {
+      await pump(tester);
+      expect(tester.takeAnnouncements(), [
+        isAccessibilityAnnouncement('2 of 3 instances reachable'),
+      ]);
+      await tester.tap(find.byTooltip('Check latency again'));
+      await tester.pumpAndSettle();
+      expect(tester.takeAnnouncements(), [
+        isAccessibilityAnnouncement('2 of 3 instances reachable'),
+      ]);
+    });
+
+    testWidgets('latency levels differ by icon and spoken word', (
+      tester,
+    ) async {
+      when(
+        () => repository.pingInstance(_down),
+      ).thenAnswer((_) async => const Duration(milliseconds: 2400));
+      final handle = tester.ensureSemantics();
+      await pump(tester);
+      Finder icon(String label, IconData icon) => find.descendant(
+        of: find.ancestor(
+          of: find.text(label),
+          matching: find.byType(StatusBadge),
+        ),
+        matching: find.byIcon(icon),
+      );
+      expect(icon('120 ms', Icons.speed), findsOneWidget);
+      expect(icon('900 ms', Icons.timelapse), findsOneWidget);
+      expect(icon('2400 ms', Icons.hourglass_bottom), findsOneWidget);
+      expect(find.bySemanticsLabel('120 ms, fast'), findsOneWidget);
+      expect(find.bySemanticsLabel('900 ms, moderate'), findsOneWidget);
+      expect(find.bySemanticsLabel('2400 ms, slow'), findsOneWidget);
+      handle.dispose();
+    });
+
+    testWidgets('outlines the preferred instance instead of tinting it', (
+      tester,
+    ) async {
+      await pump(tester);
+      final colors = Theme.of(tester.element(find.text('Fast'))).colorScheme;
+      Card card(String text) => tester.widget<Card>(
+        find.ancestor(of: find.text(text), matching: find.byType(Card)).first,
+      );
+      final preferred = card('Fast');
+      final other = card('slow.example.com');
+      expect(preferred.color, colors.surfaceContainerLow);
+      expect(other.color, colors.surfaceContainerLow);
+      final side = (preferred.shape! as RoundedRectangleBorder).side;
+      expect(side.color, colors.primary);
+      expect(side.width, 2);
+      expect(
+        (other.shape! as RoundedRectangleBorder).side,
+        BorderSide.none,
+      );
+    });
+
     testWidgets('pings instances added later', (tester) async {
       const added = MozhiInstance(url: 'https://new.example.com');
       when(() => repository.pingInstance(added))
@@ -291,6 +372,56 @@ void main() {
         verifyNever(() => settings.addInstance(any()));
       });
 
+      testWidgets('rejects credentials in the URL and refocuses it', (
+        tester,
+      ) async {
+        await openDialog(tester);
+        await tester.enterText(
+          field('Instance URL'),
+          'https://me:secret@mozhi.example.com',
+        );
+        await tester.tap(find.text('Add'));
+        await tester.pumpAndSettle();
+        expect(
+          find.textContaining('Remove the user name and password'),
+          findsOneWidget,
+        );
+        final editable = tester.widget<EditableText>(
+          find.descendant(
+            of: field('Instance URL'),
+            matching: find.byType(EditableText),
+          ),
+        );
+        expect(editable.focusNode.hasFocus, isTrue);
+
+        // Also without a scheme.
+        await tester.enterText(field('Instance URL'), 'me@mozhi.example.com');
+        await tester.tap(find.text('Test'));
+        await tester.pumpAndSettle();
+        expect(
+          find.textContaining('Remove the user name and password'),
+          findsOneWidget,
+        );
+        verifyNever(() => settings.addInstance(any()));
+        verifyNever(
+          () => repository.pingInstance(
+            any(that: isNot(isIn([_fast, _slow, _down]))),
+          ),
+        );
+      });
+
+      testWidgets('rejects query strings in the URL', (tester) async {
+        await openDialog(tester);
+        await tester.enterText(
+          field('Instance URL'),
+          'https://mozhi.example.com/?token=abc',
+        );
+        await tester.tap(find.text('Add'));
+        await tester.pumpAndSettle();
+        expect(find.textContaining('Remove the part after “?”'), findsOne);
+        verifyNever(() => settings.addInstance(any()));
+      });
+
       testWidgets('rejects duplicates', (tester) async {
         await openDialog(tester);
         await tester.enterText(field('Instance URL'), 'fast.example.com/');
@@ -325,10 +456,24 @@ void main() {
         ).thenAnswer((_) async => const Duration(milliseconds: 42));
         await openDialog(tester);
         await tester.enterText(field('Instance URL'), 'ok.example.com');
+        final handle = tester.ensureSemantics();
         await tester.tap(find.text('Test'));
+        await tester.pump();
+        expect(find.bySemanticsLabel('Testing instance…'), findsOneWidget);
         await tester.pumpAndSettle();
         expect(find.text('Reachable in 42 ms'), findsOneWidget);
+        expect(
+          tester.getSemantics(find.text('Reachable in 42 ms')),
+          isSemantics(label: 'Reachable in 42 ms', isLiveRegion: true),
+        );
+        // The text keeps the on-surface colour; only the icon is green.
+        final text = tester.widget<Text>(find.text('Reachable in 42 ms'));
+        final colors = Theme.of(
+          tester.element(find.text('Reachable in 42 ms')),
+        ).colorScheme;
+        expect(text.style?.color, colors.onSurface);
         verifyNever(() => settings.addInstance(any()));
+        handle.dispose();
       });
 
       testWidgets('shows test failures', (tester) async {

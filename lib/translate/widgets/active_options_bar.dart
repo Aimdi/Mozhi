@@ -8,8 +8,8 @@ import 'package:mozhi/translate/widgets/options_sheet.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-/// One non-default translation option: its chip [label] and the options
-/// with just that option reset.
+/// One non-default translation option: its chip `label` (and `tooltip`)
+/// and the options with just that option reset (`cleared`).
 typedef ActiveOption = ({
   String label,
   String? tooltip,

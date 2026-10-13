@@ -13,7 +13,7 @@ enum TranslateTool {
   conversation('/conversation', Icons.forum_outlined),
   shortcuts(null, Icons.keyboard_outlined);
 
-  const new(this.route, this.icon);
+  new(this.route, this.icon);
 
   /// Route pushed on top of the translate screen (null: opens a dialog).
   final String? route;
