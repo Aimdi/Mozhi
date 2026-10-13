@@ -379,6 +379,7 @@ class _GlossaryEditorViewState extends State<GlossaryEditorView> {
                       final (index, term) = visible[i];
                       return _TermRow(
                         key: ValueKey('term-$index-${term.source}'),
+                        index: index,
                         term: term,
                         wide: wide,
                         onTap: () => unawaited(_editTerm(index, term)),
@@ -492,6 +493,7 @@ class _TableHeader extends StatelessWidget {
 
 class _TermRow extends StatelessWidget {
   const _TermRow({
+    required this.index,
     required this.term,
     required this.wide,
     required this.onTap,
@@ -499,6 +501,8 @@ class _TermRow extends StatelessWidget {
     super.key,
   });
 
+  /// Index of [term] in the glossary.
+  final int index;
   final GlossaryTerm term;
   final bool wide;
   final VoidCallback onTap;
@@ -596,7 +600,7 @@ class _TermRow extends StatelessWidget {
       );
     }
     return Dismissible(
-      key: ValueKey('dismiss-${term.source}'),
+      key: ValueKey('dismiss-${term.source}-$index'),
       direction: DismissDirection.endToStart,
       onDismissed: (_) => onDelete(),
       background: ColoredBox(

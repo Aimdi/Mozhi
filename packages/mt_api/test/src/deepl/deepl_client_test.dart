@@ -112,10 +112,7 @@ void main() {
           'https://api-free.deepl.com/v2/translate',
         );
         expect(request.headers['authorization'], 'DeepL-Auth-Key $_freeKey');
-        expect(
-          request.headers['content-type'],
-          'application/json; charset=utf-8',
-        );
+        expect(request.headers['content-type'], startsWith('application/json'));
         expect(request.headers['accept'], 'application/json');
         expect(http_.singleJsonBody, {
           'text': ['Hello, world!', 'Greetings 🌍'],

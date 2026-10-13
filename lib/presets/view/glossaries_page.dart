@@ -31,13 +31,11 @@ class GlossariesPage extends StatelessWidget {
   /// [GlossaryCubit] so it also works from a nested navigator).
   static void pushEditor(BuildContext context, String glossaryId) {
     final cubit = context.read<GlossaryCubit>();
-    unawaited(
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => BlocProvider.value(
-            value: cubit,
-            child: GlossaryEditorPage(glossaryId: glossaryId),
-          ),
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => BlocProvider.value(
+          value: cubit,
+          child: GlossaryEditorPage(glossaryId: glossaryId),
         ),
       ),
     );

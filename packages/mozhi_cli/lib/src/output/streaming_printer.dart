@@ -8,11 +8,7 @@ import 'package:mozhi_cli/src/output/text_width.dart';
 /// the streamed lines are erased with ANSI escapes and the final text is
 /// printed instead, as long as everything printed still fits on the screen.
 class StreamingPrinter {
-  new({
-    required this._write,
-    required this._columns,
-    required this._lines,
-  });
+  new({required this._write, required this._columns, required this._lines});
 
   final void Function(String text) _write;
   final int _columns;

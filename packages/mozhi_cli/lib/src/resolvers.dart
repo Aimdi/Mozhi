@@ -36,10 +36,7 @@ TranslationEngine aiEngine(AiProviderConfig provider) => TranslationEngine(
 ///
 /// Unknown bare names are treated as Mozhi engines (instances can offer
 /// engines this tool does not know about).
-TranslationEngine resolveEngine(
-  String spec,
-  List<AiProviderConfig> providers,
-) {
+TranslationEngine resolveEngine(String spec, List<AiProviderConfig> providers) {
   final trimmed = spec.trim();
   final lower = trimmed.toLowerCase();
   if (trimmed.isEmpty) {
@@ -124,7 +121,8 @@ Language resolveLanguage(
       '"auto" can only be used as the source language.',
     );
   }
-  final known = LanguageCatalog.byCode(trimmed) ?? LanguageCatalog.byName(trimmed);
+  final known =
+      LanguageCatalog.byCode(trimmed) ?? LanguageCatalog.byName(trimmed);
   if (known != null) return known;
   if (allowCustom) return Language.custom(trimmed);
   return Language(code: trimmed, name: trimmed);

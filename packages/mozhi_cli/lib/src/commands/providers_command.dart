@@ -16,9 +16,8 @@ const protocolNames = <String, LlmProvider>{
   'ollama': LlmProvider.ollama,
 };
 
-String protocolName(LlmProvider provider) => protocolNames.entries
-    .firstWhere((entry) => entry.value == provider)
-    .key;
+String protocolName(LlmProvider provider) =>
+    protocolNames.entries.firstWhere((entry) => entry.value == provider).key;
 
 /// A table of the providers in [config]; the default engine is starred.
 String providersTable(
@@ -139,11 +138,7 @@ class ProvidersAddCommand extends MozhiCommand {
         splitCommas: false,
         help: 'Extra HTTP header (repeatable).',
       )
-      ..addFlag(
-        'vision',
-        negatable: false,
-        help: 'The model accepts images.',
-      )
+      ..addFlag('vision', negatable: false, help: 'The model accepts images.')
       ..addFlag(
         'default',
         negatable: false,
@@ -208,9 +203,7 @@ class ProvidersAddCommand extends MozhiCommand {
     var provider = AiProviderConfig(
       id: id,
       name: name,
-      provider: protocol != null
-          ? protocolNames[protocol]!
-          : preset!.provider,
+      provider: protocol != null ? protocolNames[protocol]! : preset!.provider,
       baseUrl: baseUrl,
       model: option('model') ?? preset?.defaultModel ?? '',
       apiKey: apiKey,
@@ -226,9 +219,10 @@ class ProvidersAddCommand extends MozhiCommand {
         model: await _pickModel(
           apiKeyEnv == null
               ? provider
-              : ProviderEntry(provider, apiKeyEnv: apiKeyEnv).resolve(
-                  console.environment,
-                ),
+              : ProviderEntry(
+                  provider,
+                  apiKeyEnv: apiKeyEnv,
+                ).resolve(console.environment),
         ),
       );
     }
@@ -419,8 +413,7 @@ class ProvidersTestCommand extends MozhiCommand with _ProviderArgument {
   String get name => 'test';
 
   @override
-  String get description =>
-      'Send a short test translation to an AI provider.';
+  String get description => 'Send a short test translation to an AI provider.';
 
   @override
   Future<int> run() async {

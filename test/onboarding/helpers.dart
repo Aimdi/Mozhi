@@ -30,7 +30,7 @@ const instanceC = MozhiInstance(
   label: 'Charlie',
   isCustom: false,
 );
-const testInstances = [instanceA, instanceB, instanceC];
+const testInstances = <MozhiInstance>[instanceA, instanceB, instanceC];
 
 const testSettings = AppSettings(instances: testInstances);
 

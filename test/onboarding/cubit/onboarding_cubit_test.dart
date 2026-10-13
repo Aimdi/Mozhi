@@ -572,7 +572,7 @@ void main() {
     });
 
     test('local presets need an address but no key', () {
-      final cubit = build()
+      build()
         ..selectPreset('ollama')
         ..updateProviderDraft(baseUrl: '192.168.1.20:11434/')
         ..saveProvider();

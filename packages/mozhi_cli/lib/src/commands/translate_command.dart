@@ -58,7 +58,8 @@ class TranslateCommand extends MozhiCommand {
       ..addFlag(
         'json',
         negatable: false,
-        help: 'Print the result (with transliterations, synonyms, ...) as JSON.',
+        help:
+            'Print the result (with transliterations, synonyms, ...) as JSON.',
       )
       ..addSeparator('AI options (ignored by Mozhi engines):')
       ..addOption(
@@ -353,7 +354,8 @@ class TranslateCommand extends MozhiCommand {
     }
 
     return TranslationOptions(
-      style: choice('style', TranslationStyle.values) ?? TranslationStyle.natural,
+      style:
+          choice('style', TranslationStyle.values) ?? TranslationStyle.natural,
       formality: choice('formality', Formality.values) ?? Formality.automatic,
       readingLevel:
           choice('reading-level', ReadingLevel.values) ?? ReadingLevel.standard,

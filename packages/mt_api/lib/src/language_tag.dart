@@ -16,7 +16,7 @@ class LanguageTag {
     final parts = code
         .trim()
         .toLowerCase()
-        .split(RegExp('[-_]'))
+        .split(RegExp(r'[-_\s]+'))
         .where((part) => part.isNotEmpty)
         .toList();
     if (parts.isEmpty) return null;

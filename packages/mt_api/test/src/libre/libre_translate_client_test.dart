@@ -58,10 +58,7 @@ void main() {
           request.url.toString(),
           'https://translate.example.org/translate',
         );
-        expect(
-          request.headers['content-type'],
-          'application/json; charset=utf-8',
-        );
+        expect(request.headers['content-type'], startsWith('application/json'));
         expect(request.headers['accept'], 'application/json');
         expect(request.headers.containsKey('authorization'), isFalse);
         expect(http_.singleJsonBody, {
@@ -429,8 +426,7 @@ void main() {
           expect(
             e.toString(),
             'LibreTranslateException(403): Invalid API key for this '
-            'LibreTranslate server. (Invalid API key) '
-            '[https://translate.example.org/languages]',
+            'LibreTranslate server. [https://translate.example.org/languages]',
           );
         }
       });

@@ -73,9 +73,9 @@ CliException describeError(Object error) => switch (error) {
   ),
   io.SocketException(:final message) ||
   io.HttpException(:final message) ||
-  io.TlsException(:final message) => CliException.unavailable(
-    'Network error: $message',
-  ),
+  io.TlsException(
+    :final message,
+  ) => CliException.unavailable('Network error: $message'),
   ArgumentError(:final message, :final invalidValue) => CliException.usage(
     '$message${invalidValue == null ? '' : ': $invalidValue'}',
   ),

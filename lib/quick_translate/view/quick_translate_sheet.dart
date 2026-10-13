@@ -185,12 +185,18 @@ class _QuickTranslateViewState extends State<QuickTranslateView> {
   static const _copiedDuration = Duration(seconds: 2);
   static const _noticeDuration = Duration(seconds: 4);
 
-  late final SpeechService? _speech = _maybeRead<SpeechService>(context);
+  SpeechService? _speech;
   bool _picking = false;
   bool _copied = false;
   String? _notice;
   Timer? _copiedTimer;
   Timer? _noticeTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _speech = _maybeRead<SpeechService>(context);
+  }
 
   @override
   void dispose() {

@@ -26,7 +26,9 @@ String renderTable(
       final padded = column == headers.length - 1
           ? cell
           : '${padDisplay(cell, widths[column])}  ';
-      buffer.write(style == null ? padded : _styleKeepingPadding(padded, style));
+      buffer.write(
+        style == null ? padded : _styleKeepingPadding(padded, style),
+      );
     }
     return buffer.toString().trimRight();
   }

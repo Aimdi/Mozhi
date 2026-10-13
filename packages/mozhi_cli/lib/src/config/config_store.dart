@@ -131,7 +131,10 @@ class ConfigStore {
     try {
       result = io.Process.runSync('chmod', [mode, path]);
     } on io.ProcessException catch (error) {
-      throw io.FileSystemException('chmod $mode failed: ${error.message}', path);
+      throw io.FileSystemException(
+        'chmod $mode failed: ${error.message}',
+        path,
+      );
     }
     if (result.exitCode != 0) {
       throw io.FileSystemException(
