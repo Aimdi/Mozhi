@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 
@@ -57,7 +56,7 @@ class TranslateShortcutsDialog extends StatelessWidget {
     final theme = Theme.of(context);
     final rows = translateShortcutHelp(
       l10n,
-      command: usesCommandKey(defaultTargetPlatform),
+      command: usesCommandKey(theme.platform),
     );
     return AlertDialog(
       key: const Key('translate_shortcuts_dialog'),

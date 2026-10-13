@@ -254,11 +254,10 @@ abstract final class ProofreadDiff {
   }
 
   /// Located edits as `(index, location)`, sorted by position.
-  static List<(int, EditLocation)> _ordered(List<EditLocation?> locations) =>
-      [
-        for (var i = 0; i < locations.length; i++)
-          if (locations[i] case final location?) (i, location),
-      ]..sort((a, b) => a.$2.start.compareTo(b.$2.start));
+  static List<(int, EditLocation)> _ordered(List<EditLocation?> locations) => [
+    for (var i = 0; i < locations.length; i++)
+      if (locations[i] case final location?) (i, location),
+  ]..sort((a, b) => a.$2.start.compareTo(b.$2.start));
 
   /// Inline diff of [source] with the [accepted] edits applied. Accepted
   /// edits are refined with a word-level diff of original vs replacement;

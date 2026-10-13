@@ -47,7 +47,7 @@ Stream<TranslationResult> aiTranslationStream({
     engineName: engine.name,
     text: isComplete
         ? ResponseParsers.cleanTranslation(split.text, source: request.text)
-        : stripPartialTrailingMarker(split.text),
+        : split.text,
     isComplete: isComplete,
     detectedSource:
         detectedSource ??
@@ -83,7 +83,13 @@ Stream<TranslationResult> aiTranslationStream({
     buffer.write(delta);
     final accumulated = buffer.toString();
     if (parseMarker && ResponseParsers.isMarkerPending(accumulated)) return;
-    final snapshot = split(accumulated);
+    var snapshot = split(accumulated);
+    if (parseMarker) {
+      snapshot = (
+        language: snapshot.language,
+        text: stripPartialTrailingMarker(snapshot.text),
+      );
+    }
     if (snapshot == lastSnapshot) return;
     lastSnapshot = snapshot;
     pending = result(snapshot, isComplete: false);

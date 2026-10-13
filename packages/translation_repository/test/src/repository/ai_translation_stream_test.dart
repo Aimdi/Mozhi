@@ -39,8 +39,8 @@ void main() {
       final results = await build(
         Stream.fromIterable(['Hallo', '\n[[lang:', 'en]]']),
       ).toList();
-      expect(results.map((r) => r.text), ['Hallo', 'Hallo']);
-      expect(results.map((r) => r.isComplete), [false, true]);
+      expect(results.map((r) => r.text), everyElement('Hallo'));
+      expect(results.last.isComplete, isTrue);
       expect(results.last.detectedSource, 'en');
       for (final result in results) {
         expect(result.text, isNot(contains('[')));

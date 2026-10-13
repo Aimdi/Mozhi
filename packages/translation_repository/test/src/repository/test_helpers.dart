@@ -10,6 +10,63 @@ class MockMozhiApiClient extends Mock implements MozhiApiClient;
 
 class MockLlmClient extends Mock implements LlmClient;
 
+class MockDeeplClient extends Mock implements DeeplClient;
+
+class MockLibreTranslateClient extends Mock implements LibreTranslateClient;
+
+/// An [OfflineTranslator] that records its calls.
+class FakeOfflineTranslator implements OfflineTranslator {
+  FakeOfflineTranslator({
+    this.isAvailable = true,
+    this.supportedLanguages = const {'en', 'de', 'fr', 'zh', 'he'},
+    this.identified,
+  });
+
+  @override
+  bool isAvailable;
+
+  @override
+  Set<String> supportedLanguages;
+
+  /// What [identifyLanguage] returns.
+  String? identified;
+
+  /// Thrown by [translate] when set.
+  Object? error;
+
+  final List<({String text, String source, String target})> calls = [];
+  final List<String> identifyCalls = [];
+
+  @override
+  Future<String> translate(
+    String text, {
+    required String source,
+    required String target,
+  }) async {
+    calls.add((text: text, source: source, target: target));
+    if (error case final error?) throw error;
+    return '$text ($source>$target)';
+  }
+
+  @override
+  Future<String?> identifyLanguage(String text) async {
+    identifyCalls.add(text);
+    return identified;
+  }
+
+  @override
+  Future<Set<String>> downloadedLanguages() async => supportedLanguages;
+
+  @override
+  Future<void> downloadLanguage(String code, {bool wifiOnly = true}) async {}
+
+  @override
+  Future<void> deleteLanguage(String code) async {}
+
+  @override
+  Future<void> dispose() async {}
+}
+
 /// Registers fallback values for `any()` matchers.
 void registerTestFallbacks() {
   registerFallbackValue(const LlmRequest(model: 'fallback', messages: []));
@@ -59,12 +116,56 @@ const disabledConfig = AiProviderConfig(
   enabled: false,
 );
 
+const deeplConfig = AiProviderConfig(
+  id: 'deepl',
+  name: 'DeepL',
+  provider: LlmProvider.openAiCompatible,
+  baseUrl: '',
+  model: '',
+  apiKey: 'key:fx',
+  service: MtService.deepl,
+);
+
+const libreConfig = AiProviderConfig(
+  id: 'libre',
+  name: 'Libre',
+  provider: LlmProvider.openAiCompatible,
+  baseUrl: 'http://localhost:5000',
+  model: '',
+  service: MtService.libreTranslate,
+);
+
+const gemmaConfig = AiProviderConfig(
+  id: 'gemma',
+  name: 'TranslateGemma',
+  provider: LlmProvider.ollama,
+  baseUrl: 'http://gemma.local:11434',
+  model: 'translategemma:4b',
+);
+
+const cloudGemmaConfig = AiProviderConfig(
+  id: 'cloud-gemma',
+  name: 'Hosted Hy-MT',
+  provider: LlmProvider.openAiCompatible,
+  baseUrl: 'https://mt.example.com/v1',
+  model: 'Hunyuan-MT-7B',
+);
+
+TranslationEngine mtEngine(AiProviderConfig config) => TranslationEngine(
+  id: 'mt:${config.id}',
+  kind: EngineKind.mt,
+  name: config.name,
+  providerId: config.id,
+  mtService: config.service,
+);
+
 TranslationEngine aiEngine(AiProviderConfig config) => TranslationEngine(
   id: 'ai:${config.id}',
   kind: EngineKind.ai,
   name: config.name,
   subtitle: config.model,
   providerId: config.id,
+  promptProfile: config.resolvedPromptProfile,
 );
 
 final googleEngine = TranslationEngine.mozhi('google', 'Google');
