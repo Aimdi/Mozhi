@@ -6,6 +6,7 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/ai_generated_header.dart';
 import 'package:mozhi/translate/widgets/markdown_lite.dart';
+import 'package:mozhi/translate/widgets/status_announcer.dart';
 import 'package:mozhi/translate/widgets/translate_error.dart';
 
 /// Opens the streaming explanation of the current translation.
@@ -65,86 +66,104 @@ class _ExplainSheetState extends State<ExplainSheet> {
                   previous.explainStatus != current.explainStatus,
               builder: (context, state) {
                 final loading = state.explainStatus == ExtraStatus.loading;
-                return Column(
-                  children: [
-                    Expanded(
-                      child: ListView(
-                        controller: controller,
-                        padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-                        children: [
-                          AiGeneratedHeader(
-                            title: l10n.translateExplainTitle,
-                            style: theme.textTheme.titleLarge,
-                          ),
-                          if (_asked != null) ...[
-                            const SizedBox(height: 12),
-                            Text(
-                              l10n.translateExplainYouAsked(_asked!),
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: muted,
-                                fontStyle: FontStyle.italic,
+                // Announced once when streaming finishes, never per token.
+                return StatusAnnouncer(
+                  message: state.explainStatus == ExtraStatus.ready
+                      ? l10n.translateExplainReady
+                      : null,
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: ListView(
+                          controller: controller,
+                          padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+                          children: [
+                            AiGeneratedHeader(
+                              title: l10n.translateExplainTitle,
+                              style: theme.textTheme.titleLarge,
+                            ),
+                            if (_asked != null) ...[
+                              const SizedBox(height: 12),
+                              Text(
+                                l10n.translateExplainYouAsked(_asked!),
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: muted,
+                                  fontStyle: FontStyle.italic,
+                                ),
                               ),
+                            ],
+                            const SizedBox(height: 16),
+                            if (loading && state.explanation.isEmpty)
+                              LinearProgressIndicator(
+                                key: const Key('translate_explain_progress'),
+                                semanticsLabel: l10n.translateLoading,
+                              ),
+                            SelectionArea(
+                              child: MarkdownLite(state.explanation),
                             ),
+                            if (loading && state.explanation.isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              Align(
+                                alignment: AlignmentDirectional.centerStart,
+                                child: SizedBox.square(
+                                  dimension: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    semanticsLabel: l10n.translateLoading,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            if (state.explainStatus == ExtraStatus.failure)
+                              TranslateErrorView(
+                                error: state.extraError,
+                                dense: true,
+                                onRetry: () => unawaited(
+                                  context.read<TranslateCubit>().explain(
+                                    question: _asked,
+                                  ),
+                                ),
+                              ),
                           ],
-                          const SizedBox(height: 16),
-                          if (loading && state.explanation.isEmpty)
-                            const LinearProgressIndicator(
-                              key: Key('translate_explain_progress'),
-                            ),
-                          SelectionArea(child: MarkdownLite(state.explanation)),
-                          if (loading && state.explanation.isNotEmpty) ...[
-                            const SizedBox(height: 12),
-                            const Align(
-                              alignment: AlignmentDirectional.centerStart,
-                              child: SizedBox.square(
-                                dimension: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
+                        ),
+                      ),
+                      const Divider(height: 1),
+                      Padding(
+                        padding: const EdgeInsetsDirectional.fromSTEB(
+                          16,
+                          8,
+                          8,
+                          8,
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Semantics(
+                                label: l10n.translateExplainQuestionLabel,
+                                child: TextField(
+                                  key: const Key('translate_explain_question'),
+                                  controller: _question,
+                                  textInputAction: TextInputAction.send,
+                                  onSubmitted: (_) => _send(),
+                                  minLines: 1,
+                                  maxLines: 4,
+                                  decoration: InputDecoration(
+                                    hintText: l10n.translateExplainFollowUpHint,
+                                    border: InputBorder.none,
+                                  ),
                                 ),
                               ),
                             ),
+                            IconButton(
+                              tooltip: l10n.translateExplainSend,
+                              icon: const Icon(Icons.send),
+                              onPressed: loading ? null : _send,
+                            ),
                           ],
-                          if (state.explainStatus == ExtraStatus.failure)
-                            TranslateErrorView(
-                              error: state.extraError,
-                              dense: true,
-                              onRetry: () => unawaited(
-                                context.read<TranslateCubit>().explain(
-                                  question: _asked,
-                                ),
-                              ),
-                            ),
-                        ],
+                        ),
                       ),
-                    ),
-                    const Divider(height: 1),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              key: const Key('translate_explain_question'),
-                              controller: _question,
-                              textInputAction: TextInputAction.send,
-                              onSubmitted: (_) => _send(),
-                              minLines: 1,
-                              maxLines: 4,
-                              decoration: InputDecoration(
-                                hintText: l10n.translateExplainFollowUpHint,
-                                border: InputBorder.none,
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            tooltip: l10n.translateExplainSend,
-                            icon: const Icon(Icons.send),
-                            onPressed: loading ? null : _send,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 );
               },
             ),

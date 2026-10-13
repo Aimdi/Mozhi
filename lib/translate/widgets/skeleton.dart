@@ -25,7 +25,10 @@ class _SkeletonBoxState extends State<SkeletonBox>
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (MediaQuery.disableAnimationsOf(context)) {
-      _controller.stop();
+      // Reduced motion: a static, fully visible placeholder.
+      _controller
+        ..stop()
+        ..value = 1;
     } else if (!_controller.isAnimating) {
       _controller.repeat(reverse: true);
     }

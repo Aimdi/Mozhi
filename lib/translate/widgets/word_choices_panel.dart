@@ -97,7 +97,10 @@ class _Panel extends StatelessWidget {
                 ),
               ),
             if (synonyms.isNotEmpty) ...[
-              Text(l10n.translateDictionarySynonyms, style: label),
+              Semantics(
+                header: true,
+                child: Text(l10n.translateDictionarySynonyms, style: label),
+              ),
               const SizedBox(height: 4),
               Text(synonyms.join(', ')),
             ],

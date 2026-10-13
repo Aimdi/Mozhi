@@ -28,10 +28,13 @@ class NoEnginesView extends StatelessWidget {
                 color: theme.colorScheme.primary,
               ),
               const SizedBox(height: 16),
-              Text(
-                l10n.translateNoEnginesTitle,
-                style: theme.textTheme.headlineSmall,
-                textAlign: TextAlign.center,
+              Semantics(
+                header: true,
+                child: Text(
+                  l10n.translateNoEnginesTitle,
+                  style: theme.textTheme.headlineSmall,
+                  textAlign: TextAlign.center,
+                ),
               ),
               const SizedBox(height: 12),
               Text(

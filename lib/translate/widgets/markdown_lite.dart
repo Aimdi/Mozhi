@@ -75,7 +75,14 @@ class MarkdownLite extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 24, child: Text(marker, style: body)),
+          // A minimum (not fixed) width so "10." never clips at large text.
+          ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 24),
+            child: Padding(
+              padding: const EdgeInsetsDirectional.only(end: 4),
+              child: Text(marker, style: body),
+            ),
+          ),
           Expanded(child: rich(text)),
         ],
       ),
