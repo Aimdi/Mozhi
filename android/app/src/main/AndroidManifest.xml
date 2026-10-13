@@ -1,11 +1,32 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Mozhi instances and AI providers (including LAN servers over http). -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Voice input (speech_to_text). Requested at runtime when the user taps
+         the microphone. BLUETOOTH_CONNECT is deliberately not declared: the
+         plugin then simply skips Bluetooth headset routing instead of asking
+         for the "Nearby devices" permission. CAMERA is not declared either:
+         image_picker hands photos off to the system camera app
+         (ACTION_IMAGE_CAPTURE), which needs no permission unless CAMERA is
+         declared. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- RECORD_AUDIO implies a required microphone; keep the app installable
+         on devices without one (voice input is optional). -->
+    <uses-feature android:name="android.hardware.microphone" android:required="false"/>
 
+    <!-- Backups: settings and history are backed up (cloud backups only when
+         they can be end-to-end encrypted), but flutter_secure_storage's
+         preference files (API keys) are excluded from both cloud backup and
+         device-to-device transfer. Their AndroidKeyStore wrapping keys never
+         leave the device, so restored ciphertext could not be decrypted
+         anyway. See res/xml/data_extraction_rules.xml (Android 12+) and
+         res/xml/backup_rules.xml (Android 11 and lower). -->
     <application
         android:label="${appName}"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
+        android:allowBackup="true"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:enableOnBackInvokedCallback="true"
         android:usesCleartextTraffic="true"
         android:networkSecurityConfig="@xml/network_security_config">
@@ -26,6 +47,15 @@
                 android:name="io.flutter.embedding.android.NormalTheme"
                 android:resource="@style/NormalTheme"
                 />
+            <!-- Hand mozhi:// links to the router. MainActivity rewrites them to
+                 plain routes first (mozhi://image?x=1 -> /image?x=1). -->
+            <meta-data
+                android:name="flutter_deeplinking_enabled"
+                android:value="true" />
+            <!-- Static launcher shortcuts (long-press the app icon). -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
@@ -42,7 +72,35 @@
                 <category android:name="android.intent.category.DEFAULT"/>
                 <data android:mimeType="text/plain"/>
             </intent-filter>
+            <!-- Deep links: mozhi://<screen>[/<path>][?<query>] opens /<screen>…,
+                 e.g. mozhi://translate?text=hola&from=es&to=en or mozhi://image.
+                 The <data> elements of one filter combine, so this matches
+                 scheme "mozhi" with any of the listed hosts. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="mozhi"/>
+                <data android:host="translate"/>
+                <data android:host="image"/>
+                <data android:host="conversation"/>
+                <data android:host="proofread"/>
+                <data android:host="documents"/>
+                <data android:host="web"/>
+            </intent-filter>
         </activity>
+        <!-- Quick Settings tile "Translate": opens Mozhi and translates the
+             clipboard (MainActivity action TRANSLATE_CLIPBOARD). -->
+        <service
+            android:name=".TranslateTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_translate"
+            android:label="@string/tile_translate_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE"/>
+            </intent-filter>
+        </service>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
@@ -67,6 +125,18 @@
         <intent>
             <action android:name="android.intent.action.SEND"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- Speech recognizers (speech_to_text). -->
+        <intent>
+            <action android:name="android.speech.RecognitionService"/>
+        </intent>
+        <!-- Text-to-speech engines (flutter_tts). -->
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE"/>
+        </intent>
+        <!-- Camera apps for camera translate (image_picker). -->
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE"/>
         </intent>
     </queries>
 </manifest>

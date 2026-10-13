@@ -25,7 +25,10 @@ void main() {
 
   test('totalFor sums all providers', () {
     expect(snapshot.totalFor(), a + b);
-    expect(snapshot.totalFor(month: const UsageMonth(2020, 1)), UsageStats.zero);
+    expect(
+      snapshot.totalFor(month: const UsageMonth(2020, 1)),
+      UsageStats.zero,
+    );
   });
 
   test('budgets and their status', () {

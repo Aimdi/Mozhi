@@ -31,18 +31,18 @@ abstract final class ProtectedPatterns {
       RegExp(alternatives.map((pattern) => '(?:$pattern)').join('|'));
 
   /// Plain text: URLs and e-mail addresses.
-  static final plainText = combine([url, email]);
+  static final RegExp plainText = combine([url, email]);
 
   /// Subtitle cues: formatting tags (`<i>`, `<font …>`, WebVTT `<v Name>`,
   /// `<c.yellow>`, timestamps), ASS overrides (`{\an8}`) and entities.
-  static final subtitle = combine([
+  static final RegExp subtitle = combine([
     r'<[^<>\n]+>',
     r'\{\\[^{}\n]*\}',
     htmlEntity,
   ]);
 
   /// Markdown inline content.
-  static final markdown = combine([
+  static final RegExp markdown = combine([
     // Code spans (single or double backticks).
     r'``(?:[^`]|`(?!`))+``|`[^`\n]+`',
     // Images are kept whole.
@@ -65,7 +65,7 @@ abstract final class ProtectedPatterns {
   ]);
 
   /// JSON / ARB string values (ICU arguments are handled structurally).
-  static final json = combine([
+  static final RegExp json = combine([
     htmlTag,
     htmlEntity,
     url,

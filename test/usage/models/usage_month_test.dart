@@ -4,7 +4,10 @@ import 'package:mozhi/usage/models/models.dart';
 void main() {
   group('UsageMonth', () {
     test('of takes year and month of a date', () {
-      expect(UsageMonth.of(DateTime(2026, 10, 31, 23, 59)), UsageMonth(2026, 10));
+      expect(
+        UsageMonth.of(DateTime(2026, 10, 31, 23, 59)),
+        UsageMonth(2026, 10),
+      );
     });
 
     test('key is zero padded', () {

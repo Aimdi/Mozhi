@@ -2,4 +2,19 @@
 <resources>
     <!-- Label of the text selection action (ACTION_PROCESS_TEXT). -->
     <string name="translate_with_mozhi">Translate with Mozhi</string>
+
+    <!-- Quick Settings tile (TranslateTileService). -->
+    <string name="tile_translate_label">Translate</string>
+    <string name="tile_translate_description">Translate the clipboard with Mozhi</string>
+
+    <!-- Static launcher shortcuts (res/xml/shortcuts.xml). Short labels should
+         stay within about 10 characters, long labels within about 25. -->
+    <string name="shortcut_clipboard_short">Clipboard</string>
+    <string name="shortcut_clipboard_long">Translate clipboard</string>
+    <string name="shortcut_camera_short">Camera</string>
+    <string name="shortcut_camera_long">Camera translate</string>
+    <string name="shortcut_conversation_short">Conversation</string>
+    <string name="shortcut_conversation_long">Conversation</string>
+    <string name="shortcut_proofread_short">Proofread</string>
+    <string name="shortcut_proofread_long">Proofread</string>
 </resources>

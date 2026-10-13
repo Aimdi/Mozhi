@@ -19,7 +19,7 @@ final placeholderPattern = RegExp(r'[⟨〈]\s*(\d{1,4})\s*[⟩〉]');
 /// document) and uses `\n` line breaks. Protected spans appear as numbered
 /// placeholders (`⟨1⟩`) that the translation must keep.
 class Segment extends Equatable {
-  const Segment(this.text, {this.label});
+  const new(this.text, {this.label});
 
   final String text;
 
@@ -32,12 +32,12 @@ class Segment extends Equatable {
 
 /// A node of a parsed document's template.
 sealed class DocNode {
-  const DocNode();
+  const new();
 }
 
 /// Text copied verbatim to the output.
 final class TextNode extends DocNode {
-  const TextNode(this.text);
+  const new(this.text);
 
   final String text;
 
@@ -48,7 +48,7 @@ final class TextNode extends DocNode {
 /// The place of [Segment] number [segment]; renders its translation (or
 /// the original text when untranslated).
 final class SegmentNode extends DocNode {
-  const SegmentNode({
+  const new({
     required this.segment,
     required this.sourceParts,
     required this.tokens,
@@ -85,11 +85,7 @@ final class SegmentNode extends DocNode {
 /// literal): when nothing inside changes the [raw] original is kept,
 /// otherwise the rendered [children] are passed through [encode].
 final class EncodedNode extends DocNode {
-  const EncodedNode({
-    required this.raw,
-    required this.children,
-    required this.encode,
-  });
+  const new({required this.raw, required this.children, required this.encode});
 
   final String raw;
   final List<DocNode> children;
@@ -102,7 +98,7 @@ final class EncodedNode extends DocNode {
 /// `render()` (no translations) returns the original text exactly; so does
 /// rendering every segment's own [Segment.text].
 class ParsedDocument {
-  ParsedDocument({
+  new({
     required this.format,
     required List<DocNode> nodes,
     required List<Segment> segments,
@@ -163,7 +159,7 @@ class ParsedDocument {
 }
 
 class _Renderer {
-  const _Renderer(
+  const new(
     this.translations, {
     this.segments = const [],
     this.bilingual = false,

@@ -1,6 +1,6 @@
 /// One line of a document together with its original terminator.
 class SourceLine {
-  const SourceLine(this.content, this.ending);
+  const new(this.content, this.ending);
 
   /// The line without its terminator.
   final String content;

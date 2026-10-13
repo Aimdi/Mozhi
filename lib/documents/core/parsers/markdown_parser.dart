@@ -51,7 +51,7 @@ final _frontMatterOpen = RegExp(r'^---[ \t]*$');
 final _frontMatterClose = RegExp(r'^(?:---|\.\.\.)[ \t]*$');
 
 class _MarkdownParser {
-  _MarkdownParser(this.lines) : lineBreak = dominantLineBreak(lines);
+  new(this.lines) : lineBreak = dominantLineBreak(lines);
 
   final List<SourceLine> lines;
   final String lineBreak;

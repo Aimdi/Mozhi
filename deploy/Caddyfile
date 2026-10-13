@@ -8,7 +8,6 @@
 # Caddy installed directly on the host instead? Use this file as is and set
 # MOZHI_UPSTREAM=localhost:3000 (and OLLAMA_UPSTREAM=localhost:11434), or
 # replace the placeholders with literal values.
-
 {
 	# Optional: an address for certificate expiry notices.
 	# email you@example.com
@@ -20,7 +19,7 @@
 	# Mozhi rejects request bodies over 4 MB (image translation uploads);
 	# fail early with the same limit.
 	request_body {
-		max_size 4MB
+		max_size 4MiB
 	}
 
 	# Mozhi already sends HSTS, CSP and the other security headers; just drop

@@ -17,7 +17,7 @@ enum TextEncoding {
 
 /// Thrown when bytes do not look like text at all (e.g. a binary file).
 class BinaryContentException implements Exception {
-  const BinaryContentException();
+  const new();
 
   @override
   String toString() => 'BinaryContentException: not a text file';
@@ -25,7 +25,7 @@ class BinaryContentException implements Exception {
 
 /// Text decoded from a file, with the encoding to use when writing it back.
 class DecodedText {
-  const DecodedText(this.text, this.encoding);
+  const new(this.text, this.encoding);
 
   final String text;
   final TextEncoding encoding;

@@ -93,7 +93,10 @@ void main() {
         const UsageBudget(monthlyChars: 500, warningThreshold: 0.5),
       );
       await cubit.setBudget('b', 300);
-      expect(tracker.snapshot.budgetFor('b'), const UsageBudget(monthlyChars: 300));
+      expect(
+        tracker.snapshot.budgetFor('b'),
+        const UsageBudget(monthlyChars: 300),
+      );
       await cubit.setBudget('a', null);
       await cubit.setBudget('b', 0);
     },

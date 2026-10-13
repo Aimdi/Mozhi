@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Launcher shortcut icons: the app's default seed colour (indigo) behind
+         a white glyph. -->
+    <color name="shortcut_icon_background">#FF3F51B5</color>
+    <color name="shortcut_icon_glyph">#FFFFFFFF</color>
+</resources>

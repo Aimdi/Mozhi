@@ -85,8 +85,10 @@ class UsageHistoryChart extends StatelessWidget {
     final label = context.l10n.usageHistoryLabel(
       [
         for (var i = 0; i < months.length; i++)
-          '${context.usageMonthShort(months[i])}: '
-              '${context.usageNumber(values[i])}',
+          context.l10n.usageHistoryValue(
+            context.usageMonthShort(months[i]),
+            context.usageNumber(values[i]),
+          ),
       ].join(', '),
     );
     return Semantics(

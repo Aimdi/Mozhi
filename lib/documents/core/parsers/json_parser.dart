@@ -7,7 +7,7 @@ import 'package:mozhi/documents/core/parsers/protected_patterns.dart';
 
 /// Thrown when a document cannot be parsed in the requested format.
 class DocumentParseException implements Exception {
-  const DocumentParseException(this.message);
+  const new(this.message);
 
   final String message;
 
@@ -53,9 +53,9 @@ bool looksLikeNaturalLanguage(String text) {
 }
 
 final _identifier = RegExp(
-  r'^(?:[a-z0-9]+(?:[_.][a-z0-9]+)+'
-  r'|[a-z]+(?:[A-Z][a-z0-9]*)+'
-  r'|[A-Z0-9]+(?:_[A-Z0-9]+)+'
+  '^(?:[a-z0-9]+(?:[_.][a-z0-9]+)+'
+  '|[a-z]+(?:[A-Z][a-z0-9]*)+'
+  '|[A-Z0-9]+(?:_[A-Z0-9]+)+'
   r'|[a-z]+[0-9]+[a-z0-9]*)$',
 );
 final _path = RegExp(r'^[\w.~-]*[/\\][\w./\\~-]*$');
@@ -64,7 +64,7 @@ final _hexColor = RegExp(
 );
 
 class _JsonParser {
-  _JsonParser(this.source);
+  new(this.source);
 
   final String source;
   final DocumentBuilder builder = DocumentBuilder();
@@ -191,7 +191,7 @@ class _JsonParser {
     }
   }
 
-  static final _fallbackPattern = ProtectedPatterns.combine([
+  static final RegExp _fallbackPattern = ProtectedPatterns.combine([
     r'\{[^{}]*\}',
     ProtectedPatterns.htmlTag,
     ProtectedPatterns.url,
@@ -209,7 +209,7 @@ class _JsonParser {
 /// Apostrophes are taken literally (Flutter's default). Throws
 /// [FormatException] on unbalanced braces or malformed arguments.
 class IcuMessageParser {
-  IcuMessageParser(this.source, this.builder, {this.label});
+  new(this.source, this.builder, {this.label});
 
   final String source;
   final DocumentBuilder builder;
@@ -335,7 +335,7 @@ class IcuMessageParser {
       literal.clear();
     }
 
-    final variantInPlural = type == 'select' ? inPlural : true;
+    final variantInPlural = !(type == 'select') || inPlural;
     var variants = 0;
     while (true) {
       literal.write(_spaces());
@@ -396,18 +396,18 @@ class IcuMessageParser {
 }
 
 sealed class _Icu {
-  const _Icu();
+  const new();
 }
 
 final class _IcuText extends _Icu {
-  const _IcuText(this.text);
+  const new(this.text);
 
   final String text;
 }
 
 /// A simple argument (`{name}`, `{n, number}`), `#` or `{{name}}`.
 final class _IcuToken extends _Icu {
-  const _IcuToken(this.text);
+  const new(this.text);
 
   final String text;
 }
@@ -415,7 +415,7 @@ final class _IcuToken extends _Icu {
 /// A plural/select argument: literal structure strings and variant
 /// messages (`List<_Icu>`).
 final class _IcuComplex extends _Icu {
-  const _IcuComplex(this.parts);
+  const new(this.parts);
 
   final List<Object> parts;
 }

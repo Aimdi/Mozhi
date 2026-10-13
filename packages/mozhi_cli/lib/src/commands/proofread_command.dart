@@ -102,8 +102,9 @@ class ProofreadCommand extends MozhiCommand {
         final change = edit.replacement.isEmpty
             ? '${red.wrap('- ${edit.original}')}'
             : '${red.wrap(edit.original)} → ${green.wrap(edit.replacement)}';
+        final category = edit.category.replaceAll('_', ' ');
         logger.info(
-          '  • $change ${darkGray.wrap('(${edit.category.replaceAll('_', ' ')})')}'
+          '  • $change ${darkGray.wrap('($category)')}'
           '${edit.explanation.isEmpty ? '' : '\n    ${edit.explanation}'}',
         );
       }

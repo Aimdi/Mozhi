@@ -12,12 +12,12 @@ import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-class MockTranslationRepository extends Mock implements TranslationRepository {}
+class MockTranslationRepository extends Mock implements TranslationRepository;
 
 class MockOnboardingCubit extends MockCubit<OnboardingState>
-    implements OnboardingCubit {}
+    implements OnboardingCubit;
 
-class MockGoRouter extends Mock implements GoRouter {}
+class MockGoRouter extends Mock implements GoRouter;
 
 const instanceA = MozhiInstance(
   url: 'https://a.example',

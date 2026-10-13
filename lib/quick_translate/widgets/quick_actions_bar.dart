@@ -1,9 +1,9 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 
-/// Copy / Listen / Open in app / Replace buttons of the quick translate
-/// sheet. Null callbacks hide the button (Copy and Replace are shown but
-/// disabled until [enabled]).
+/// Listen / Copy / Open in app / Replace buttons of the quick translate
+/// sheet. Copy and Replace are disabled until [enabled]; a null
+/// [listenButton], [onReplace] or [onOpenInApp] hides that button.
 class QuickActionsBar extends StatelessWidget {
   const new({
     required this.enabled,

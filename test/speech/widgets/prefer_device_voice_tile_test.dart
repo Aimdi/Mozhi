@@ -9,7 +9,7 @@ import 'package:mozhi/speech/widgets/prefer_device_voice_tile.dart';
 
 import '../../helpers/helpers.dart';
 
-class _MockSpeechService extends Mock implements SpeechService {}
+class _MockSpeechService extends Mock implements SpeechService;
 
 void main() {
   group(PreferDeviceVoiceTile, () {

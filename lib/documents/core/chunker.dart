@@ -8,11 +8,7 @@ export 'batch_codec.dart' show ChunkEncoding;
 /// One piece of a segment that is translated as a whole: the segment
 /// itself, or a part of an oversized segment.
 class TranslationUnit extends Equatable {
-  const new({
-    required this.segment,
-    required this.part,
-    required this.text,
-  });
+  const new({required this.segment, required this.part, required this.text});
 
   final int segment;
   final int part;
@@ -24,11 +20,7 @@ class TranslationUnit extends Equatable {
 
 /// Units translated together in one request.
 class Chunk extends Equatable {
-  const new({
-    required this.index,
-    required this.units,
-    required this.encoding,
-  });
+  const new({required this.index, required this.units, required this.encoding});
 
   final int index;
   final List<TranslationUnit> units;

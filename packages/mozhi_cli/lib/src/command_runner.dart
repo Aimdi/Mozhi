@@ -158,6 +158,6 @@ Exit codes: 0 success, 64 usage error, 66 missing input file,
       _logger.info(packageVersion);
       return ExitCode.success.code;
     }
-    return super.runCommand(topLevelResults);
+    return await super.runCommand(topLevelResults);
   }
 }

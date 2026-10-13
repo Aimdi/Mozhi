@@ -50,16 +50,28 @@ void main() {
   Future<void> pump(WidgetTester tester, Widget child) =>
       tester.pumpApp(Scaffold(body: Center(child: child)));
 
+  Finder mic() => find.descendant(
+    of: find.byType(VoiceInputButton),
+    matching: find.byType(IconButton),
+  );
+
   IconButton iconButton(WidgetTester tester, [int index = 0]) =>
-      tester.widgetList<IconButton>(find.byType(IconButton)).elementAt(index);
+      tester.widgetList<IconButton>(mic()).elementAt(index);
 
   Finder ring() => find.byKey(VoiceInputButton.levelRingKey);
 
   double ringScale(WidgetTester tester) =>
       tester.widget<AnimatedScale>(ring()).scale;
 
+  double renderedScale(WidgetTester tester) => tester
+      .widget<ScaleTransition>(
+        find.descendant(of: ring(), matching: find.byType(ScaleTransition)),
+      )
+      .scale
+      .value;
+
   Future<void> tapMic(WidgetTester tester) async {
-    await tester.tap(find.byType(IconButton).first);
+    await tester.tap(mic().first);
     await tester.pump();
     await tester.pump();
   }
@@ -86,7 +98,7 @@ void main() {
         platformSupported: false,
       );
       await pump(tester, button(using: unsupported));
-      expect(find.byType(IconButton), findsNothing);
+      expect(mic(), findsNothing);
       expect(tester.getSize(find.byType(VoiceInputButton)), Size.zero);
     });
 
@@ -100,7 +112,7 @@ void main() {
       await tapMic(tester);
       await tester.pump();
 
-      expect(find.byType(IconButton), findsNothing);
+      expect(mic(), findsNothing);
       expect(find.text(l10n.voiceErrorPermission), findsOneWidget);
       expect(received, isEmpty);
     });
@@ -111,7 +123,7 @@ void main() {
       await tapMic(tester);
       await tester.pump();
 
-      expect(find.byType(IconButton), findsNothing);
+      expect(mic(), findsNothing);
       expect(find.text(l10n.voiceErrorUnavailable), findsOneWidget);
     });
 
@@ -123,7 +135,7 @@ void main() {
         ..permission = false;
       await pump(tester, button());
       await tapMic(tester);
-      expect(find.byType(IconButton), findsNothing);
+      expect(mic(), findsNothing);
 
       recognizer.permission = true;
       tester.binding
@@ -131,7 +143,7 @@ void main() {
         ..handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pump();
       await tester.pump();
-      expect(find.byType(IconButton), findsOneWidget);
+      expect(mic(), findsOneWidget);
     });
 
     testWidgets('listens, shows the level ring and forwards results', (
@@ -171,6 +183,8 @@ void main() {
         ..emitLevel(10);
       await tester.pump();
       expect(ringScale(tester), 1.5);
+      await tester.pumpAndSettle();
+      expect(renderedScale(tester), 1.5);
 
       recognizer.emitLevel(5);
       await tester.pump();
@@ -178,12 +192,9 @@ void main() {
 
       // The scale animates rather than jumping.
       await tester.pump(const Duration(milliseconds: 60));
-      expect(
-        tester.getSize(ring()).width,
-        inExclusiveRange(48 * 1.25, 48 * 1.5),
-      );
+      expect(renderedScale(tester), inExclusiveRange(1.25, 1.5));
       await tester.pumpAndSettle();
-      expect(tester.getSize(ring()).width, 48);
+      expect(renderedScale(tester), 1.25);
     });
 
     testWidgets('keeps the ring static when animations are disabled', (
@@ -231,7 +242,7 @@ void main() {
 
       expect(find.text(l10n.voiceErrorNoMatch), findsOneWidget);
       expect(ring(), findsNothing);
-      expect(find.byType(IconButton), findsOneWidget);
+      expect(mic(), findsOneWidget);
     });
 
     testWidgets('uses the on-device wording for missing languages', (
@@ -303,7 +314,9 @@ void main() {
         ..handleAppLifecycleStateChanged(AppLifecycleState.hidden);
       await tester.pump();
       expect(recognizer.stopCalls, 1);
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      tester.binding
+        ..handleAppLifecycleStateChanged(AppLifecycleState.inactive)
+        ..handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     });
 
     testWidgets('switches to a new service', (tester) async {
@@ -316,7 +329,7 @@ void main() {
       await tapMic(tester);
       await pump(tester, button(using: other));
       expect(recognizer.cancelCalls, 1);
-      expect(find.byType(IconButton), findsNothing);
+      expect(mic(), findsNothing);
     });
 
     testWidgets('reads the service from the context', (tester) async {
@@ -338,19 +351,21 @@ void main() {
     testWidgets('works without a ScaffoldMessenger', (tester) async {
       recognizer.initResult = false;
       await tester.pumpWidget(
-        Localizations(
-          locale: const Locale('en'),
-          delegates: AppLocalizations.localizationsDelegates,
-          child: Directionality(
-            textDirection: TextDirection.ltr,
-            child: Material(child: button()),
+        WidgetsApp(
+          color: const Color(0xFF000000),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          pageRouteBuilder: <T>(settings, builder) => PageRouteBuilder<T>(
+            settings: settings,
+            pageBuilder: (context, _, _) => builder(context),
           ),
+          home: Material(child: Center(child: button())),
         ),
       );
-      await tester.tap(find.byType(IconButton));
+      await tapMic(tester);
       await tester.pump();
-      await tester.pump();
-      expect(find.byType(IconButton), findsNothing);
+      expect(mic(), findsNothing);
+      expect(tester.takeException(), isNull);
     });
   });
 

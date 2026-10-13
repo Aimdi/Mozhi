@@ -63,7 +63,9 @@ class UsageCardView extends StatelessWidget {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final snapshot = context.select((c) => c.state.snapshot);
+    final snapshot = context.select<UsageCubit, UsageSnapshot>(
+      (cubit) => cubit.state.snapshot,
+    );
     final stats = snapshot.statsFor(providerId);
     final last = snapshot.statsFor(providerId, month: snapshot.lastMonth);
     final budget = snapshot.budgetFor(providerId);

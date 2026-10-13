@@ -69,6 +69,7 @@ class EnginesCommand extends MozhiCommand {
   static String _details(TranslationEngine engine) => [
     if (engine.isMozhi && engine.subtitle != null) 'via ${engine.subtitle}',
     if (engine.isAi && (engine.subtitle?.isNotEmpty ?? false)) engine.subtitle!,
-    if (engine.isAi) engine.isLocal ? 'local' : 'cloud',
+    if (engine.isAi && engine.isLocal) 'local',
+    if (engine.isAi && !engine.isLocal) 'cloud',
   ].join(' · ');
 }

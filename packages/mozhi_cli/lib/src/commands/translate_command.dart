@@ -136,7 +136,7 @@ class TranslateCommand extends MozhiCommand {
     final sourceInput = option('from') ?? config.source ?? 'auto';
     final targetInput =
         option('to') ?? config.target ?? CliConfig.defaultTarget;
-    return withRepository(
+    return await withRepository(
       (repository) => compare
           ? _compare(repository, specs, text, sourceInput, targetInput, options)
           : _translate(
@@ -255,10 +255,12 @@ class TranslateCommand extends MozhiCommand {
     throw CliException.usage(
       '${engine.name} does not support "${language.name}"'
       '${isSource ? ' as a source language' : ''}.',
-      hint:
-          'See the supported languages with: mozhi languages --engine $id'
-          '${isSource ? ' --source' : ''}'
-          '${isSource ? '' : '\nFree-form targets need an AI engine (--engine ai).'}',
+      hint: isSource
+          ? 'See the supported languages with: '
+                'mozhi languages --engine $id --source'
+          : 'See the supported languages with: '
+                'mozhi languages --engine $id\n'
+                'Free-form targets need an AI engine (--engine ai).',
     );
   }
 
@@ -380,9 +382,10 @@ class TranslateCommand extends MozhiCommand {
     return parseGlossary([
       for (final line in lines)
         if (line.trim().isNotEmpty && !line.trimLeft().startsWith('#'))
-          line.contains('\t') && !line.contains('=')
-              ? line.replaceFirst('\t', '=')
-              : line,
+          if (line.contains('\t') && !line.contains('='))
+            line.replaceFirst('\t', '=')
+          else
+            line,
     ]);
   }
 }

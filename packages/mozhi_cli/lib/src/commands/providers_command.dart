@@ -28,8 +28,11 @@ String providersTable(
   [
     for (final entry in config.providers)
       [
-        '${entry.id}${config.engine == 'ai:${entry.id}' ? ' *' : ''}'
-            '${entry.config.enabled ? '' : ' (disabled)'}',
+        [
+          entry.id,
+          if (config.engine == 'ai:${entry.id}') ' *',
+          if (!entry.config.enabled) ' (disabled)',
+        ].join(),
         entry.name,
         protocolName(entry.config.provider),
         entry.config.model,

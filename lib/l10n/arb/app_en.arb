@@ -3470,5 +3470,17 @@
         "type": "String"
       }
     }
+  },
+  "usageHistoryValue": "{month}: {value}",
+  "@usageHistoryValue": {
+    "description": "One month in the usage chart label, e.g. May: 1,200.",
+    "placeholders": {
+      "month": {
+        "type": "String"
+      },
+      "value": {
+        "type": "String"
+      }
+    }
   }
 }
