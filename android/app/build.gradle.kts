@@ -135,7 +135,7 @@ flutter {
 val mlkitTextRecognitionVersion = "16.0.1"
 
 dependencies {
-    implementation("org.jetbrains.kotlin:kotlin-stdlib:2.2.10")
+    implementation("org.jetbrains.kotlin:kotlin-stdlib:2.3.21")
     implementation("com.google.mlkit:text-recognition-chinese:$mlkitTextRecognitionVersion")
     implementation("com.google.mlkit:text-recognition-devanagari:$mlkitTextRecognitionVersion")
     implementation("com.google.mlkit:text-recognition-japanese:$mlkitTextRecognitionVersion")
