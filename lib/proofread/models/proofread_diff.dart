@@ -120,7 +120,7 @@ abstract final class ProofreadDiff {
     if (appliedText == corrected) return edits;
 
     final boundaries = _tokenBoundaries(source);
-    final extra = <ProofreadEdit>[];
+    final extra = <_Unlisted>[];
     final segments = wordDiff(appliedText, corrected);
     var position = 0;
     var i = 0;
@@ -141,30 +141,43 @@ abstract final class ProofreadDiff {
         inserted = segments[i].text;
         i++;
       }
-      final edit = _unlistedEdit(
+      _placeUnlisted(
         source,
         locator,
         gaps,
         boundaries,
+        extra,
         start: position,
         end: position + removed.length,
         inserted: inserted,
       );
-      if (edit != null) extra.add(edit);
       position += removed.length;
     }
-    return extra.isEmpty ? edits : [...edits, ...extra];
+    if (extra.isEmpty) return edits;
+    return [
+      ...edits,
+      for (final change in extra)
+        ProofreadEdit(
+          original: source.substring(change.start, change.end),
+          replacement: change.replacement,
+          category: otherCategory,
+        ),
+    ];
   }
 
-  /// Turns the change of applied-text range [start, end) into [inserted]
-  /// into an edit of [source], or `null` when the change touches a listed
-  /// edit or cannot be located unambiguously. The original is widened by
-  /// neighbouring tokens until [locate] would place it exactly here.
-  static ProofreadEdit? _unlistedEdit(
+  /// Adds to [placed] the change of applied-text range [start, end) into
+  /// [inserted], as a change of [source]. Skips it when it touches a listed
+  /// edit or cannot be located unambiguously.
+  ///
+  /// The original is widened by neighbouring tokens until [locate] would
+  /// place it exactly here; a change that touches the previous unlisted
+  /// change is merged into it.
+  static void _placeUnlisted(
     String source,
     _Locator locator,
     List<_Gap> gaps,
-    List<int> boundaries, {
+    List<int> boundaries,
+    List<_Unlisted> placed, {
     required int start,
     required int end,
     required String inserted,
@@ -176,45 +189,45 @@ abstract final class ProofreadDiff {
         break;
       }
     }
-    if (gap == null) return null;
-    final changeStart = gap.start + (start - gap.appliedStart);
-    final changeEnd = changeStart + (end - start);
-    var from = changeStart;
-    var to = changeEnd;
+    if (gap == null) return;
+    var from = gap.start + (start - gap.appliedStart);
+    var to = from + (end - start);
+    var replacement = inserted;
     for (var attempt = 0; attempt < _maxWidening; attempt++) {
       if (to > from) {
-        final original = source.substring(from, to);
-        final location = locator.find(original);
+        final location = locator.find(source.substring(from, to));
         if (location != null && location.start == from && location.end == to) {
           locator.commit(location);
-          return ProofreadEdit(
-            original: original,
-            replacement:
-                source.substring(from, changeStart) +
-                inserted +
-                source.substring(changeEnd, to),
-            category: otherCategory,
-          );
+          placed.add(_Unlisted(from, to, replacement));
+          return;
         }
       }
-      final left = from > gap.start
-          ? math.max(_boundaryBefore(boundaries, from), gap.start)
+      final previous = placed.isEmpty ? null : placed.last;
+      final leftLimit = math.max(gap.start, previous?.end ?? 0);
+      final left = from > leftLimit
+          ? math.max(_boundaryBefore(boundaries, from), leftLimit)
           : null;
       final right = to < gap.end
           ? math.min(_boundaryAfter(boundaries, to), gap.end)
           : null;
       if (left != null && (attempt.isEven || right == null)) {
+        replacement = source.substring(left, from) + replacement;
         from = left;
       } else if (right != null) {
+        replacement += source.substring(to, right);
         to = right;
+      } else if (previous != null && previous.end == from) {
+        locator.undo();
+        placed.removeLast();
+        replacement = previous.replacement + replacement;
+        from = previous.start;
       } else {
-        return null;
+        return;
       }
     }
-    return null;
   }
 
-  /// How many neighbouring tokens [_unlistedEdit] may add to an original.
+  /// How many times [_placeUnlisted] may widen or merge a change.
   static const _maxWidening = 12;
 
   /// Start offsets of the tokens of [text], followed by its length.
@@ -564,6 +577,16 @@ final class _Gap {
   int get appliedEnd => appliedStart + end - start;
 }
 
+/// A change that a corrected text makes to [start, end) of the source
+/// without listing it as an edit.
+final class _Unlisted {
+  const new(this.start, this.end, this.replacement);
+
+  final int start;
+  final int end;
+  final String replacement;
+}
+
 /// Places edit originals in a source text (see [ProofreadDiff.locate]).
 final class _Locator {
   new(this.source);
@@ -572,6 +595,9 @@ final class _Locator {
 
   /// Placed locations, sorted by start and never overlapping.
   final _placed = <EditLocation>[];
+
+  /// Placed locations in placement order, with the cursor before each.
+  final _history = <(EditLocation, int)>[];
   var _cursor = 0;
 
   /// Where [original] would be placed next (without placing it).
@@ -591,8 +617,16 @@ final class _Locator {
   }
 
   void commit(EditLocation location) {
+    _history.add((location, _cursor));
     _placed.insert(_lowerBound(location.start), location);
     if (location.end > _cursor) _cursor = location.end;
+  }
+
+  /// Takes back the last [commit].
+  void undo() {
+    final (location, cursor) = _history.removeLast();
+    _placed.removeAt(_lowerBound(location.start));
+    _cursor = cursor;
   }
 
   EditLocation? _first(String original, int from, {required bool boundary}) {

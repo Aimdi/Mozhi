@@ -9,7 +9,7 @@ typedef TranslateShortcutHelp = ({
 });
 
 /// Whether shortcuts use ⌘ (macOS / iOS) rather than Ctrl.
-bool usesCommandKey(TargetPlatform platform) =>
+bool shortcutUsesCommandKey(TargetPlatform platform) =>
     platform == TargetPlatform.macOS || platform == TargetPlatform.iOS;
 
 /// The translate screen's shortcuts, as shown in the cheat sheet.
@@ -56,7 +56,7 @@ class TranslateShortcutsDialog extends StatelessWidget {
     final theme = Theme.of(context);
     final rows = translateShortcutHelp(
       l10n,
-      command: usesCommandKey(theme.platform),
+      command: shortcutUsesCommandKey(theme.platform),
     );
     return AlertDialog(
       key: const Key('translate_shortcuts_dialog'),

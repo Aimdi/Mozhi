@@ -8,7 +8,7 @@ import 'package:mozhi/translate/widgets/translate_layout.dart';
 /// Opens the language picker for the source ([source]) or target language
 /// and applies the choice. [autofocusSearch] focuses the search field
 /// (keyboard shortcut: type to filter, Enter picks the first match).
-Future<void> pickLanguage(
+Future<void> pickTranslateLanguage(
   BuildContext context, {
   required bool source,
   bool autofocusSearch = false,
@@ -101,7 +101,7 @@ class LanguageBar extends StatelessWidget {
                     : uncertain
                     ? Icons.help_outline
                     : Icons.auto_awesome_outlined,
-                onPressed: () => pickLanguage(context, source: true),
+                onPressed: () => pickTranslateLanguage(context, source: true),
               ),
             ),
             SizedBox(
@@ -122,7 +122,7 @@ class LanguageBar extends StatelessWidget {
                 semanticLabel: l10n.translateTargetLanguage(state.target.name),
                 tooltip: state.target.name,
                 icon: state.target.isCustom ? Icons.auto_awesome : null,
-                onPressed: () => pickLanguage(context, source: false),
+                onPressed: () => pickTranslateLanguage(context, source: false),
               ),
             ),
           ],

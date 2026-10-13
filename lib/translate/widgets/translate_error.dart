@@ -301,23 +301,23 @@ class TranslateErrorView extends StatelessWidget {
             ],
           ),
         ],
-        if (details != null) ErrorDetails(details: details),
+        if (details != null) TranslateErrorDetails(details: details),
       ],
     );
   }
 }
 
 /// "Details" toggle revealing the sanitized technical message.
-class ErrorDetails extends StatefulWidget {
+class TranslateErrorDetails extends StatefulWidget {
   const new({required this.details, super.key});
 
   final String details;
 
   @override
-  State<ErrorDetails> createState() => _ErrorDetailsState();
+  State<TranslateErrorDetails> createState() => _TranslateErrorDetailsState();
 }
 
-class _ErrorDetailsState extends State<ErrorDetails> {
+class _TranslateErrorDetailsState extends State<TranslateErrorDetails> {
   bool _open = false;
 
   @override

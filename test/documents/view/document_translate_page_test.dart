@@ -60,7 +60,12 @@ void main() {
 
   Future<void> pickFile(WidgetTester tester, String name, String text) async {
     files.pickResult = PickedFile(name: name, bytes: bytesOf(text));
-    await tester.tap(find.byKey(const Key('documents_pick_file')));
+    final pick = find.byKey(const Key('documents_pick_file'));
+    await tester.tap(
+      pick.evaluate().isEmpty
+          ? find.byKey(const Key('documents_replace_file'))
+          : pick,
+    );
     await tester.pumpAndSettle();
   }
 

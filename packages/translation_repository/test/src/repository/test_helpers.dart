@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:llm_api/llm_api.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi_api/mozhi_api.dart';
+import 'package:mt_api/mt_api.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 class MockMozhiApiClient extends Mock implements MozhiApiClient;
@@ -71,6 +72,7 @@ class FakeOfflineTranslator implements OfflineTranslator {
 void registerTestFallbacks() {
   registerFallbackValue(const LlmRequest(model: 'fallback', messages: []));
   registerFallbackValue(Uint8List(0));
+  registerFallbackValue(DeeplLanguageType.target);
 }
 
 const instanceA = MozhiInstance(url: 'https://a.example', label: 'Alpha');

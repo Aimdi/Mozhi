@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:bloc_test/bloc_test.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
@@ -143,9 +144,7 @@ void main() {
       expect(find.text('120 ms'), findsOneWidget);
     });
 
-    testWidgets('refresh button is disabled without instances', (
-      tester,
-    ) async {
+    testWidgets('refresh button is disabled without instances', (tester) async {
       when(() => settings.state).thenReturn(const AppSettings(instances: []));
       await pump(tester);
       final button = tester.widget<IconButton>(
@@ -171,9 +170,8 @@ void main() {
     testWidgets('latency levels differ by icon and spoken word', (
       tester,
     ) async {
-      when(
-        () => repository.pingInstance(_down),
-      ).thenAnswer((_) async => const Duration(milliseconds: 2400));
+      when(() => repository.pingInstance(_down))
+          .thenAnswer((_) async => const Duration(milliseconds: 2400));
       final handle = tester.ensureSemantics();
       await pump(tester);
       Finder icon(String label, IconData icon) => find.descendant(
@@ -186,9 +184,9 @@ void main() {
       expect(icon('120 ms', Icons.speed), findsOneWidget);
       expect(icon('900 ms', Icons.timelapse), findsOneWidget);
       expect(icon('2400 ms', Icons.hourglass_bottom), findsOneWidget);
-      expect(find.bySemanticsLabel('120 ms, fast'), findsOneWidget);
-      expect(find.bySemanticsLabel('900 ms, moderate'), findsOneWidget);
-      expect(find.bySemanticsLabel('2400 ms, slow'), findsOneWidget);
+      expect(find.semantics.byLabel(RegExp('120 ms, fast')), findsOne);
+      expect(find.semantics.byLabel(RegExp('900 ms, moderate')), findsOne);
+      expect(find.semantics.byLabel(RegExp('2400 ms, slow')), findsOne);
       handle.dispose();
     });
 
@@ -207,10 +205,7 @@ void main() {
       final side = (preferred.shape! as RoundedRectangleBorder).side;
       expect(side.color, colors.primary);
       expect(side.width, 2);
-      expect(
-        (other.shape! as RoundedRectangleBorder).side,
-        BorderSide.none,
-      );
+      expect((other.shape! as RoundedRectangleBorder).side, BorderSide.none);
     });
 
     testWidgets('pings instances added later', (tester) async {
@@ -403,11 +398,8 @@ void main() {
           findsOneWidget,
         );
         verifyNever(() => settings.addInstance(any()));
-        verifyNever(
-          () => repository.pingInstance(
-            any(that: isNot(isIn([_fast, _slow, _down]))),
-          ),
-        );
+        // Only the three initial pings; the test button sent nothing.
+        verify(() => repository.pingInstance(any())).called(3);
       });
 
       testWidgets('rejects query strings in the URL', (tester) async {
@@ -459,19 +451,27 @@ void main() {
         final handle = tester.ensureSemantics();
         await tester.tap(find.text('Test'));
         await tester.pump();
-        expect(find.bySemanticsLabel('Testing instance…'), findsOneWidget);
+        expect(find.semantics.byLabel(RegExp('Testing instance…')), findsOne);
         await tester.pumpAndSettle();
         expect(find.text('Reachable in 42 ms'), findsOneWidget);
         expect(
           tester.getSemantics(find.text('Reachable in 42 ms')),
           isSemantics(label: 'Reachable in 42 ms', isLiveRegion: true),
         );
-        // The text keeps the on-surface colour; only the icon is green.
-        final text = tester.widget<Text>(find.text('Reachable in 42 ms'));
-        final colors = Theme.of(
-          tester.element(find.text('Reachable in 42 ms')),
-        ).colorScheme;
-        expect(text.style?.color, colors.onSurface);
+        // Only the icon is green; the text keeps full contrast on the
+        // dialog surface.
+        final paragraph = tester.renderObject<RenderParagraph>(
+          find.text('Reachable in 42 ms'),
+        );
+        final colors = Theme.of(tester.element(find.text('Reachable in 42 ms')))
+            .colorScheme;
+        expect(
+          contrastRatio(
+            paragraph.text.style!.color!,
+            colors.surfaceContainerHigh,
+          ),
+          greaterThanOrEqualTo(7),
+        );
         verifyNever(() => settings.addInstance(any()));
         handle.dispose();
       });

@@ -10,7 +10,7 @@ import 'package:translation_repository/translation_repository.dart';
 
 /// One non-default translation option: its chip `label` (and `tooltip`)
 /// and the options with just that option reset (`cleared`).
-typedef ActiveOption = ({
+typedef ActiveTranslationOption = ({
   String label,
   String? tooltip,
   TranslationOptions cleared,
@@ -21,7 +21,7 @@ const _contextPreviewLength = 24;
 
 /// The user-chosen options that differ from the defaults, in the order of
 /// the options sheet.
-List<ActiveOption> activeOptions(
+List<ActiveTranslationOption> activeTranslationOptions(
   AppLocalizations l10n,
   TranslationOptions options,
 ) {
@@ -35,7 +35,7 @@ List<ActiveOption> activeOptions(
       ),
     if (options.formality != Formality.automatic)
       (
-        label: formalityLabel(l10n, options.formality),
+        label: translateFormalityLabel(l10n, options.formality),
         tooltip: null,
         cleared: options.copyWith(formality: Formality.automatic),
       ),
@@ -44,13 +44,13 @@ List<ActiveOption> activeOptions(
         label: l10n.translateActiveOptionReadingLevel(
           options.readingLevel.name.toUpperCase(),
         ),
-        tooltip: readingLevelLabel(l10n, options.readingLevel),
+        tooltip: translateReadingLevelLabel(l10n, options.readingLevel),
         cleared: options.copyWith(readingLevel: ReadingLevel.standard),
       ),
     if (options.speakerGender != Gender.unknown)
       (
         label: l10n.translateActiveOptionSpeaker(
-          genderLabel(l10n, options.speakerGender),
+          translateGenderLabel(l10n, options.speakerGender),
         ),
         tooltip: null,
         cleared: options.copyWith(speakerGender: Gender.unknown),
@@ -58,7 +58,7 @@ List<ActiveOption> activeOptions(
     if (options.addresseeGender != Gender.unknown)
       (
         label: l10n.translateActiveOptionAddressee(
-          genderLabel(l10n, options.addresseeGender),
+          translateGenderLabel(l10n, options.addresseeGender),
         ),
         tooltip: null,
         cleared: options.copyWith(addresseeGender: Gender.unknown),
@@ -114,7 +114,7 @@ class ActiveOptionsBar extends StatelessWidget {
           return const SizedBox.shrink();
         }
         final cubit = context.read<TranslateCubit>();
-        final active = activeOptions(l10n, options);
+        final active = activeTranslationOptions(l10n, options);
         return Padding(
           padding: const EdgeInsets.only(top: TranslateLayout.gap),
           child: Semantics(

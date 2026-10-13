@@ -81,8 +81,9 @@ class FakeTranslationRepository extends Fake implements TranslationRepository {
   @override
   Stream<TranslationResult> translate(
     TranslationEngine engine,
-    TranslationRequest request,
-  ) {
+    TranslationRequest request, {
+    bool refresh = false,
+  }) {
     requests.add(request);
     return translator(engine, request);
   }

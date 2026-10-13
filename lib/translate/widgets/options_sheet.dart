@@ -8,7 +8,7 @@ import 'package:mozhi/translate/widgets/translate_layout.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Display name of a formality option.
-String formalityLabel(AppLocalizations l10n, Formality value) =>
+String translateFormalityLabel(AppLocalizations l10n, Formality value) =>
     switch (value) {
       Formality.automatic => l10n.translateFormalityDefault,
       Formality.more => l10n.translateFormalityMore,
@@ -18,7 +18,7 @@ String formalityLabel(AppLocalizations l10n, Formality value) =>
     };
 
 /// Display name of a gender option.
-String genderLabel(AppLocalizations l10n, Gender value) => switch (value) {
+String translateGenderLabel(AppLocalizations l10n, Gender value) => switch (value) {
   Gender.unknown => l10n.translateGenderUnknown,
   Gender.masculine => l10n.translateGenderMasculine,
   Gender.feminine => l10n.translateGenderFeminine,
@@ -26,7 +26,7 @@ String genderLabel(AppLocalizations l10n, Gender value) => switch (value) {
 };
 
 /// Display name of a reading level ("B1 · Intermediate").
-String readingLevelLabel(AppLocalizations l10n, ReadingLevel level) =>
+String translateReadingLevelLabel(AppLocalizations l10n, ReadingLevel level) =>
     switch (level) {
       ReadingLevel.standard =>
         '${l10n.translateReadingStandard} · '
@@ -215,7 +215,7 @@ class _TranslationOptionsSheetState extends State<TranslationOptionsSheet> {
                       groupLabel: l10n.translateOptionsFormality,
                       values: Formality.values,
                       selected: options.formality,
-                      label: (value) => formalityLabel(l10n, value),
+                      label: (value) => translateFormalityLabel(l10n, value),
                       onSelected: (value) =>
                           _set(options.copyWith(formality: value)),
                     ),
@@ -240,7 +240,7 @@ class _TranslationOptionsSheetState extends State<TranslationOptionsSheet> {
                                   DropdownMenuItem(
                                     value: level,
                                     child: Text(
-                                      readingLevelLabel(l10n, level),
+                                      translateReadingLevelLabel(l10n, level),
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
@@ -259,7 +259,7 @@ class _TranslationOptionsSheetState extends State<TranslationOptionsSheet> {
                       groupLabel: l10n.translateOptionsSpeakerGender,
                       values: Gender.values,
                       selected: options.speakerGender,
-                      label: (value) => genderLabel(l10n, value),
+                      label: (value) => translateGenderLabel(l10n, value),
                       onSelected: (value) =>
                           _set(options.copyWith(speakerGender: value)),
                     ),
@@ -268,7 +268,7 @@ class _TranslationOptionsSheetState extends State<TranslationOptionsSheet> {
                       groupLabel: l10n.translateOptionsAddresseeGender,
                       values: Gender.values,
                       selected: options.addresseeGender,
-                      label: (value) => genderLabel(l10n, value),
+                      label: (value) => translateGenderLabel(l10n, value),
                       onSelected: (value) =>
                           _set(options.copyWith(addresseeGender: value)),
                     ),
