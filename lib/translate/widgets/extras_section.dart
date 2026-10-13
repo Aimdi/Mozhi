@@ -6,6 +6,8 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/dictionary_card.dart';
 import 'package:mozhi/translate/widgets/explain_sheet.dart';
+import 'package:mozhi/translate/widgets/language_text.dart';
+import 'package:mozhi/translate/widgets/status_announcer.dart';
 import 'package:mozhi/translate/widgets/translate_error.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -91,9 +93,12 @@ class RefinementChips extends StatelessWidget {
               ActionChip(
                 key: const Key('translate_more_suggestions'),
                 avatar: loading
-                    ? const SizedBox.square(
+                    ? SizedBox.square(
                         dimension: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          semanticsLabel: l10n.translateLoading,
+                        ),
                       )
                     : const Icon(Icons.auto_awesome),
                 label: Text(l10n.translateMoreSuggestions),
@@ -166,7 +171,8 @@ class _ExtrasCard extends StatelessWidget {
   }
 }
 
-/// Body of the "Alternatives" panel.
+/// Body of the "Alternatives" panel. Screen readers hear how many
+/// alternatives arrived (or that there are none).
 class AlternativesList extends StatelessWidget {
   const new({required this.state, super.key});
 
@@ -175,18 +181,35 @@ class AlternativesList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final count = state.alternatives?.alternatives.length ?? 0;
+    return StatusAnnouncer(
+      message: state.alternativesStatus == ExtraStatus.ready
+          ? (count == 0
+                ? l10n.translateAlternativesEmpty
+                : l10n.translateAlternativesLoaded(count))
+          : null,
+      child: _body(context),
+    );
+  }
+
+  Widget _body(BuildContext context) {
+    final l10n = context.l10n;
     final theme = Theme.of(context);
     final cubit = context.read<TranslateCubit>();
     final alternatives = state.alternatives;
+    final locale = localeForLanguage(state.target);
+    final direction = textDirectionForLanguage(state.target);
+    final rtl = Directionality.of(context) == TextDirection.rtl;
     const padding = EdgeInsets.symmetric(horizontal: 16, vertical: 8);
     switch (state.alternativesStatus) {
       case ExtraStatus.idle:
         return const SizedBox.shrink();
       case ExtraStatus.loading:
-        return const Padding(
+        return Padding(
           padding: padding,
           child: LinearProgressIndicator(
-            key: Key('translate_alternatives_progress'),
+            key: const Key('translate_alternatives_progress'),
+            semanticsLabel: l10n.translateLoading,
           ),
         );
       case ExtraStatus.failure:
@@ -221,9 +244,13 @@ class AlternativesList extends StatelessWidget {
             for (final Alternative(:text, :explanation)
                 in alternatives.alternatives)
               ListTile(
-                title: Text(text),
+                title: Text.rich(
+                  TextSpan(text: text, locale: locale),
+                  textDirection: direction ?? textDirectionForText(text),
+                ),
                 subtitle: explanation.isEmpty ? null : Text(explanation),
-                trailing: const Icon(Icons.north_west),
+                // "Move up into the output": points to the start edge.
+                trailing: Icon(rtl ? Icons.north_east : Icons.north_west),
                 onTap: () => cubit.useAlternative(text),
               ),
           ],

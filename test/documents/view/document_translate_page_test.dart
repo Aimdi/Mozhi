@@ -225,8 +225,8 @@ void main() {
 
     testWidgets('shows size and binary errors', (tester) async {
       await pumpPage(tester);
-      final cubit = cubitOf(tester);
-      cubit.loadFile('b.txt', bytesOf('a${String.fromCharCode(0)}b'));
+      final cubit = cubitOf(tester)
+        ..loadFile('b.txt', bytesOf('a${String.fromCharCode(0)}b'));
       await tester.pumpAndSettle();
       expect(find.text("This doesn't look like a text file."), findsOneWidget);
 

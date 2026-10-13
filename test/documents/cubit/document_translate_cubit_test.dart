@@ -206,18 +206,20 @@ void main() {
         final cubit = build()..setMode(DocumentInputMode.text);
         addTearDown(cubit.close);
         expect(cubit.state.hasDocument, isFalse);
-        cubit.setText('Pasted');
-        cubit.setMode(DocumentInputMode.file);
+        cubit
+          ..setText('Pasted')
+          ..setMode(DocumentInputMode.file);
         expect(cubit.state.hasDocument, isFalse);
         expect(cubit.state.mode, DocumentInputMode.file);
 
-        cubit.loadFile('a.txt', bytesOf('From file'));
-        cubit.setMode(DocumentInputMode.text);
+        cubit
+          ..loadFile('a.txt', bytesOf('From file'))
+          ..setMode(DocumentInputMode.text);
         expect(cubit.state.text, 'Pasted');
         cubit.setMode(DocumentInputMode.file);
         expect(cubit.state.text, 'From file');
         expect(cubit.state.fileName, 'a.txt');
-        cubit.setMode(DocumentInputMode.file);
+        cubit.setMode(DocumentInputMode.file); // Already in file mode.
         expect(cubit.state.text, 'From file');
       });
 
@@ -246,15 +248,18 @@ void main() {
         cubit.clear();
         expect(cubit.state.hasDocument, isFalse);
         expect(cubit.state.fileName, isNull);
-        cubit.setMode(DocumentInputMode.text);
-        cubit.setMode(DocumentInputMode.file);
+        cubit
+          ..setMode(DocumentInputMode.text)
+          ..setMode(DocumentInputMode.file);
         expect(cubit.state.hasDocument, isFalse);
 
-        cubit.setText('Typed');
-        cubit.clear();
+        cubit
+          ..setText('Typed')
+          ..clear();
         expect(cubit.state.text, '');
-        cubit.setMode(DocumentInputMode.file);
-        cubit.setMode(DocumentInputMode.text);
+        cubit
+          ..setMode(DocumentInputMode.file)
+          ..setMode(DocumentInputMode.text);
         expect(cubit.state.text, '');
       });
     });
@@ -291,8 +296,9 @@ void main() {
         await cubit.translate();
         cubit.setBilingual(enabled: true);
         expect(cubit.state.output, contains('Hello there.\nHELLO THERE.\n'));
-        cubit.setBilingual(enabled: true);
-        cubit.setBilingual(enabled: false);
+        cubit
+          ..setBilingual(enabled: true)
+          ..setBilingual(enabled: false);
         expect(cubit.state.output, isNot(contains('Hello there.')));
       });
 
@@ -336,11 +342,12 @@ void main() {
             gates.add(gate);
             late final StreamController<TranslationResult> controller;
             controller = StreamController(
-              onListen: () => gate.future.then((_) {
-                controller
-                  ..add(result(request.text.toUpperCase()))
-                  ..close();
-              }),
+              onListen: () => unawaited(
+                gate.future.then((_) {
+                  controller.add(result(request.text.toUpperCase()));
+                  unawaited(controller.close());
+                }),
+              ),
               onCancel: () => cancelled++,
             );
             return controller.stream;
@@ -568,12 +575,13 @@ void main() {
         expect(cubit.state.targetLanguages, const [english, french]);
 
         // The user picks their own target: further syncs keep it.
-        cubit.setTarget(english);
-        cubit.syncEngines(
-          engines: const [googleEngine, deeplEngine, aiEngine],
-          engine: googleEngine,
-          target: spanish,
-        );
+        cubit
+          ..setTarget(english)
+          ..syncEngines(
+            engines: const [googleEngine, deeplEngine, aiEngine],
+            engine: googleEngine,
+            target: spanish,
+          );
         expect(cubit.state.engine, deeplEngine);
         expect(cubit.state.target, english);
         expect(cubit.state.engines, hasLength(3));
@@ -610,12 +618,13 @@ void main() {
         final cubit = build(engine: null)
           ..syncEngines(engines: const [googleEngine], engine: googleEngine);
         addTearDown(cubit.close);
-        cubit.loadFile('a.txt', bytesOf('one'));
-        cubit.syncEngines(
-          engines: const [googleEngine],
-          engine: googleEngine,
-          target: german,
-        );
+        cubit
+          ..loadFile('a.txt', bytesOf('one'))
+          ..syncEngines(
+            engines: const [googleEngine],
+            engine: googleEngine,
+            target: german,
+          );
         expect(cubit.state.status, DocumentStatus.ready);
       });
     });

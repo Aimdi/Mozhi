@@ -17,7 +17,7 @@ class MockLibreTranslateClient extends Mock implements LibreTranslateClient;
 
 /// An [OfflineTranslator] that records its calls.
 class FakeOfflineTranslator implements OfflineTranslator {
-  FakeOfflineTranslator({
+  new({
     this.isAvailable = true,
     this.supportedLanguages = const {'en', 'de', 'fr', 'zh', 'he'},
     this.identified,
@@ -33,7 +33,7 @@ class FakeOfflineTranslator implements OfflineTranslator {
   String? identified;
 
   /// Thrown by [translate] when set.
-  Object? error;
+  Exception? error;
 
   final List<({String text, String source, String target})> calls = [];
   final List<String> identifyCalls = [];

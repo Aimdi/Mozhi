@@ -361,6 +361,7 @@ class TranslationRepository {
   }) {
     if (request.text.trim().isEmpty) return const Stream.empty();
     final safe = _sanitizeRequest(request);
+    if (safe == null) return Stream.error(_emptyCustomLanguage(request));
     if (refresh) _cache.remove(engine, safe);
     return _cache.cachedTranslate(
       engine,
@@ -369,11 +370,43 @@ class TranslationRepository {
     );
   }
 
-  /// Security W4: custom target "languages" end up in the system prompt.
-  /// The prompt builders sanitise and cap them; nothing to do here until
-  /// they export a sanitiser for the repository to apply as well.
-  static TranslationRequest _sanitizeRequest(TranslationRequest request) =>
-      request;
+  /// Security W4: free-form (custom) language names end up in the system
+  /// prompt and may come from a link. They are passed through
+  /// [TranslationPrompts.sanitizeCustomLanguage] (one line, no quotes or
+  /// angle brackets, at most 60 characters) before anything else sees them,
+  /// so results and cache entries carry the sanitised name. Null when a
+  /// custom name is empty after sanitising.
+  static TranslationRequest? _sanitizeRequest(TranslationRequest request) {
+    final source = _sanitizeLanguage(request.source);
+    final target = _sanitizeLanguage(request.target);
+    if (source == null || target == null) return null;
+    if (identical(source, request.source) &&
+        identical(target, request.target)) {
+      return request;
+    }
+    return request.copyWith(source: source, target: target);
+  }
+
+  static Language? _sanitizeLanguage(Language language) {
+    if (!language.isCustom) return language;
+    final name = TranslationPrompts.sanitizeCustomLanguage(language.code);
+    if (name.isEmpty) return null;
+    return name == language.code && name == language.name
+        ? language
+        : Language.custom(name);
+  }
+
+  static ArgumentError _emptyCustomLanguage(TranslationRequest request) {
+    final empty =
+        request.source.isCustom && _sanitizeLanguage(request.source) == null
+        ? request.source
+        : request.target;
+    return ArgumentError.value(
+      empty.code,
+      empty == request.source ? 'source' : 'target',
+      'Custom language name is empty',
+    );
+  }
 
   Stream<TranslationResult> _translateUncached(
     TranslationEngine engine,
@@ -841,6 +874,14 @@ class TranslationRepository {
   }) async {
     if (engine.isAi) {
       final config = _extrasProviderFor(engine);
+      final safe = _sanitizeRequest(
+        TranslationRequest(text: '', source: source, target: target),
+      );
+      if (safe == null) {
+        throw _emptyCustomLanguage(
+          TranslationRequest(text: '', source: source, target: target),
+        );
+      }
       final output = await _llm
           .clientFor(config)
           .chat(
@@ -849,8 +890,8 @@ class TranslationRepository {
               TranslationPrompts.translateImage(
                 imageBytes,
                 mimeType: mimeType,
-                source: source,
-                target: target,
+                source: safe.source,
+                target: safe.target,
                 options: options,
               ),
             ),

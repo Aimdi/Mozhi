@@ -7,6 +7,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:mozhi_api/mozhi_api.dart';
 import 'package:mt_api/mt_api.dart';
 import 'package:test/test.dart';
+import 'package:translation_repository/src/repository/mt_engines.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 import 'repository/test_helpers.dart';
@@ -106,16 +107,6 @@ void main() {
       when(
         () => client.translate(
           engine: any(named: 'engine'),
-          from: any(named: 'from'),
-          to: any(named: 'to'),
-          text: any(named: 'text'),
-        ),
-      );
-
-  When<Future<List<MozhiTranslation>>> whenBatch(MockMozhiApiClient client) =>
-      when(
-        () => client.translateWithEngines(
-          engines: any(named: 'engines'),
           from: any(named: 'from'),
           to: any(named: 'to'),
           text: any(named: 'text'),
@@ -488,16 +479,19 @@ void main() {
       expect(repository.activeInstance, instanceA);
     });
 
-    test('reordering the instances moves requests to the new first one', () async {
-      configure(instances: [instanceA, instanceB]);
-      stubEngines(a(), {'google': 'Google'});
-      stubEngines(b(), {'deepl': 'DeepL'});
-      await repository.getEngines();
-      configure(instances: [instanceB, instanceA]);
-      expect(repository.activeInstance, instanceB);
-      final engines = await repository.getEngines();
-      expect(engines.first.subtitle, instanceB.displayName);
-    });
+    test(
+      'reordering the instances moves requests to the new first one',
+      () async {
+        configure(instances: [instanceA, instanceB]);
+        stubEngines(a(), {'google': 'Google'});
+        stubEngines(b(), {'deepl': 'DeepL'});
+        await repository.getEngines();
+        configure(instances: [instanceB, instanceA]);
+        expect(repository.activeInstance, instanceB);
+        final engines = await repository.getEngines();
+        expect(engines.first.subtitle, instanceB.displayName);
+      },
+    );
 
     test('lists machine translation services and the offline engine', () async {
       repository = newRepository(offline: FakeOfflineTranslator());
@@ -675,8 +669,7 @@ void main() {
     test('keeps DeepL source lists and other engines unchanged', () async {
       configure();
       const list = [MozhiLanguage(id: 'en-us', name: 'English (American)')];
-      when(() => a().getSourceLanguages('deepl'))
-          .thenAnswer((_) async => list);
+      when(() => a().getSourceLanguages('deepl')).thenAnswer((_) async => list);
       when(() => a().getTargetLanguages('google'))
           .thenAnswer((_) async => list);
       expect(
@@ -849,9 +842,8 @@ void main() {
 
     test('does not re-send the text after a timeout', () async {
       configure();
-      whenTranslate(a()).thenThrow(
-        const MozhiApiException('No response within 30000 ms'),
-      );
+      whenTranslate(a())
+          .thenThrow(const MozhiApiException('No response within 30000 ms'));
       await expectLater(
         repository.translate(googleEngine, autoToGerman),
         emitsError(isA<MozhiApiException>()),
@@ -867,7 +859,8 @@ void main() {
     test('treats an empty translation as a failure and fails over', () async {
       configure();
       whenTranslate(a()).thenAnswer(
-        (_) async => const MozhiTranslation(engine: 'deepl', translatedText: ' '),
+        (_) async =>
+            const MozhiTranslation(engine: 'deepl', translatedText: ' '),
       );
       whenTranslate(b()).thenAnswer(
         (_) async =>
@@ -884,7 +877,8 @@ void main() {
       configure();
       for (final client in [a(), b()]) {
         whenTranslate(client).thenAnswer(
-          (_) async => const MozhiTranslation(engine: 'deepl', translatedText: ''),
+          (_) async =>
+              const MozhiTranslation(engine: 'deepl', translatedText: ''),
         );
       }
       await expectLater(
@@ -901,17 +895,23 @@ void main() {
       );
     });
 
-    test('does not fail over on input errors the server reports as 500', () async {
-      configure();
-      whenTranslate(a()).thenThrow(
-        const MozhiApiException('Target language code invalid', statusCode: 500),
-      );
-      await expectLater(
-        repository.translate(googleEngine, autoToGerman),
-        emitsError(isA<MozhiApiException>()),
-      );
-      verifyZeroInteractions(b());
-    });
+    test(
+      'does not fail over on input errors the server reports as 500',
+      () async {
+        configure();
+        whenTranslate(a()).thenThrow(
+          const MozhiApiException(
+            'Target language code invalid',
+            statusCode: 500,
+          ),
+        );
+        await expectLater(
+          repository.translate(googleEngine, autoToGerman),
+          emitsError(isA<MozhiApiException>()),
+        );
+        verifyZeroInteractions(b());
+      },
+    );
 
     test('removes upstream URLs with the user text from errors', () async {
       configure();
@@ -972,7 +972,9 @@ void main() {
     test('serves repeated translations from the cache', () async {
       configure();
       whenTranslate(a()).thenAnswer((_) async => translation);
-      final first = await repository.translate(googleEngine, autoToGerman).single;
+      final first = await repository
+          .translate(googleEngine, autoToGerman)
+          .single;
       final second = await repository
           .translate(googleEngine, autoToGerman)
           .single;
@@ -994,7 +996,9 @@ void main() {
           .translate(claude, englishToGerman)
           .toList();
       expect(streamed, hasLength(3));
-      final cached = await repository.translate(claude, englishToGerman).toList();
+      final cached = await repository
+          .translate(claude, englishToGerman)
+          .toList();
       expect(cached.single, streamed.last);
       verify(() => llmOf(claudeConfig).streamChat(any())).called(1);
     });
@@ -1313,7 +1317,10 @@ void main() {
           text: any(named: 'text'),
         ),
       ).captured.cast<String>();
-      expect(sent, unorderedEquals(['google', 'deepl', 'duckduckgo', 'yandex']));
+      expect(
+        sent,
+        unorderedEquals(['google', 'deepl', 'duckduckgo', 'yandex']),
+      );
       expect(sent, everyElement(isNot(anyOf(contains(','), equals('all')))));
       verifyNoBatches(a());
     });
@@ -1389,9 +1396,8 @@ void main() {
       final offline = FakeOfflineTranslator();
       repository = newRepository(offline: offline);
       configure(providers: [deeplConfig]);
-      when(
-        () => deepl.languages(type: any(named: 'type')),
-      ).thenAnswer((_) async => const []);
+      when(() => deepl.languages(type: any(named: 'type')))
+          .thenAnswer((_) async => const []);
       when(
         () => deepl.translateText(
           text: any(named: 'text'),
@@ -1603,9 +1609,7 @@ void main() {
       repository = newRepository(offline: offline);
       configure(providers: [gemmaConfig]);
       stubStream(llmOf(gemmaConfig), ['Hallo']);
-      final results = await repository
-          .translate(gemma, autoToGerman)
-          .toList();
+      final results = await repository.translate(gemma, autoToGerman).toList();
       expect(results.map((r) => r.detectedSource), everyElement('en'));
       expect(offline.identifyCalls, ['Hello world']);
       final explicit = autoToGerman.copyWith(
@@ -1780,18 +1784,14 @@ void main() {
     );
 
     void stubDeeplLanguages() {
-      when(
-        () => deepl.languages(type: DeeplLanguageType.source),
-      ).thenAnswer(
+      when(() => deepl.languages(type: DeeplLanguageType.source)).thenAnswer(
         (_) async => const [
           DeeplLanguage(code: 'EN', name: 'English'),
           DeeplLanguage(code: 'DE', name: 'German'),
           DeeplLanguage(code: 'ZH', name: 'Chinese'),
         ],
       );
-      when(
-        () => deepl.languages(type: DeeplLanguageType.target),
-      ).thenAnswer(
+      when(() => deepl.languages()).thenAnswer(
         (_) async => const [
           DeeplLanguage(code: 'DE', name: 'German'),
           DeeplLanguage(code: 'EN-GB', name: 'English (British)'),
@@ -1822,7 +1822,7 @@ void main() {
       expect(targets.last.name, LanguageCatalog.byCode('no')!.name);
       expect(targets.first.nativeName, 'Deutsch');
       await repository.getTargetLanguages(deeplMt);
-      verify(() => deepl.languages(type: DeeplLanguageType.target)).called(1);
+      verify(() => deepl.languages()).called(1);
       expect(mtBuilt.single, deeplConfig);
     });
 
@@ -1862,9 +1862,8 @@ void main() {
 
     test('DeepL explicit sources and default codes', () async {
       configure(providers: [deeplConfig]);
-      when(
-        () => deepl.languages(type: any(named: 'type')),
-      ).thenThrow(const DeeplApiException('down'));
+      when(() => deepl.languages(type: any(named: 'type')))
+          .thenThrow(const DeeplApiException('down'));
       whenDeepl().thenAnswer(
         (_) async =>
             const DeeplTranslation(text: 'Hallo', detectedSourceLanguage: ''),
@@ -1994,7 +1993,13 @@ void main() {
         ),
       );
       final sources = await repository.getSourceLanguages(libreMt);
-      expect(sources.map((l) => l.code), ['auto', 'en', 'de', 'pt-BR', 'zh-TW']);
+      expect(sources.map((l) => l.code), [
+        'auto',
+        'en',
+        'de',
+        'pt-BR',
+        'zh-TW',
+      ]);
       final targets = await repository.getTargetLanguages(libreMt);
       expect(targets.map((l) => l.code), ['en', 'de', 'zh-TW']);
 
@@ -2004,7 +2009,6 @@ void main() {
       verify(
         () => libre.translate(
           text: 'Hello world',
-          source: 'auto',
           target: 'de',
           abortTrigger: any(named: 'abortTrigger'),
         ),
@@ -2064,7 +2068,7 @@ void main() {
       verify(deepl.close).called(1);
       await repository.getTargetLanguages(deeplMt);
       expect(mtBuilt, hasLength(2));
-      verify(() => deepl.languages(type: DeeplLanguageType.target)).called(2);
+      verify(() => deepl.languages()).called(2);
 
       configure(providers: []);
       verify(deepl.close).called(1);
@@ -2079,7 +2083,7 @@ void main() {
         service: MtService.libreTranslate,
         baseUrl: 'http://localhost:5000',
       );
-      configure(providers: [switched]);
+      configure(instances: [], providers: [switched]);
       verify(deepl.close).called(1);
       final engine = (await repository.getEngines()).single;
       expect(engine.mtService, MtService.libreTranslate);
@@ -2093,14 +2097,13 @@ void main() {
       await repository.getTargetLanguages(deeplMt);
       await repository.getEngines(refresh: true);
       await repository.getTargetLanguages(deeplMt);
-      verify(() => deepl.languages(type: DeeplLanguageType.target)).called(2);
+      verify(() => deepl.languages()).called(2);
     });
 
     test('failed language loads are retried', () async {
       configure(providers: [deeplConfig]);
-      when(
-        () => deepl.languages(type: any(named: 'type')),
-      ).thenThrow(const DeeplApiException('down'));
+      when(() => deepl.languages(type: any(named: 'type')))
+          .thenThrow(const DeeplApiException('down'));
       await expectLater(
         repository.getTargetLanguages(deeplMt),
         throwsA(isA<DeeplApiException>()),
@@ -2184,7 +2187,10 @@ void main() {
       final sources = await repository.getSourceLanguages(offlineEngine);
       expect(sources.first, Language.auto);
       final targets = await repository.getTargetLanguages(offlineEngine);
-      expect(targets.map((l) => l.code), unorderedEquals(offline.supportedLanguages));
+      expect(
+        targets.map((l) => l.code),
+        unorderedEquals(offline.supportedLanguages),
+      );
       expect(
         targets.map((l) => l.name),
         orderedEquals([...targets.map((l) => l.name)]..sort()),

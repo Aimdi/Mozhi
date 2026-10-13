@@ -4,6 +4,7 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/proofread/cubit/proofread_cubit.dart';
+import 'package:mozhi/proofread/models/proofread_diff.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 class _MockTranslationRepository extends Mock implements TranslationRepository;
@@ -113,12 +114,54 @@ void main() {
 
     group('setEngines', () {
       blocTest<ProofreadCubit, ProofreadState>(
-        'keeps the current engine when still available',
-        build: () => build(engine: _ollama),
-        act: (cubit) =>
-            cubit.setEngines([_openAi, _ollama], preferred: _openAi),
-        expect: () => <ProofreadState>[],
+        'keeps an engine the user picked while it is available',
+        build: build,
+        act: (cubit) => cubit
+          ..setEngine(_ollama)
+          ..setEngines([_openAi, _ollama], preferred: _openAi),
+        expect: () => const [
+          ProofreadState(engine: _ollama, availableEngines: [_openAi, _ollama]),
+        ],
       );
+
+      blocTest<ProofreadCubit, ProofreadState>(
+        'follows the preferred engine until the user picks one',
+        build: () => build(engine: _openAi),
+        act: (cubit) => cubit
+          ..setEngines([_openAi, _ollama], preferred: _ollama)
+          ..setEngines([_openAi, _ollama]),
+        expect: () => const [
+          ProofreadState(engine: _ollama, availableEngines: [_openAi, _ollama]),
+        ],
+      );
+
+      blocTest<ProofreadCubit, ProofreadState>(
+        'follows the preferred engine again once the pick is removed',
+        build: build,
+        act: (cubit) => cubit
+          ..setEngine(_ollama)
+          ..setEngines([_openAi])
+          ..setEngines([_openAi, _ollama], preferred: _ollama),
+        expect: () => const [
+          ProofreadState(engine: _ollama, availableEngines: [_openAi, _ollama]),
+          ProofreadState(engine: _openAi, availableEngines: [_openAi]),
+          ProofreadState(engine: _ollama, availableEngines: [_openAi, _ollama]),
+        ],
+      );
+
+      test('refreshes details of an edited engine', () {
+        const remote = TranslationEngine(
+          id: 'ai:ollama',
+          kind: EngineKind.ai,
+          name: 'Ollama',
+          subtitle: 'llama3.1',
+        );
+        final cubit = build(engine: _ollama)
+          ..setEngines([_openAi, remote], preferred: remote);
+        expect(cubit.state.engine?.subtitle, 'llama3.1');
+        expect(cubit.state.engine?.isLocal, isFalse);
+        expect(cubit.state.availableEngines.last.isLocal, isFalse);
+      });
 
       blocTest<ProofreadCubit, ProofreadState>(
         'falls back to the preferred, then the first engine',
@@ -275,6 +318,89 @@ void main() {
           ),
         ],
       );
+
+      blocTest<ProofreadCubit, ProofreadState>(
+        'turns changes missing from the edits into edits',
+        setUp: () => stubProofread(
+          () async => const ProofreadResult(
+            correctedText: 'I have an apple and an orange. The end.',
+            edits: _edits,
+            summary: 'Fixed.',
+          ),
+        ),
+        build: build,
+        seed: () => ready.copyWith(input: '$_input Teh end.'),
+        act: (cubit) => cubit.proofread(),
+        expect: () => [
+          ready.copyWith(
+            input: '$_input Teh end.',
+            status: ProofreadStatus.loading,
+          ),
+          ready.copyWith(
+            input: '$_input Teh end.',
+            status: ProofreadStatus.success,
+            result: () => const ProofreadResult(
+              correctedText: 'I have an apple and an orange. The end.',
+              edits: [
+                ..._edits,
+                ProofreadEdit(
+                  original: 'Teh',
+                  replacement: 'The',
+                  category: ProofreadDiff.otherCategory,
+                ),
+              ],
+              summary: 'Fixed.',
+            ),
+            proofreadInput: '$_input Teh end.',
+            acceptedEdits: {0, 1, 2, 3},
+          ),
+        ],
+      );
+
+      test('toggling one edit leaves every other change in place', () async {
+        stubProofread(
+          () async => const ProofreadResult(
+            correctedText: 'I have an apple and an orange. The end.',
+            edits: _edits,
+          ),
+        );
+        final cubit = build()..setInput('$_input Teh end.');
+        await cubit.proofread();
+        cubit.toggleEdit(0);
+        expect(cubit.outputText, 'I has an apple and an orange. The end.');
+        await cubit.close();
+      });
+
+      test('applies the edits when the corrected text omits them', () async {
+        stubProofread(
+          () async =>
+              const ProofreadResult(correctedText: _input, edits: _edits),
+        );
+        final cubit = build()..setInput(_input);
+        await cubit.proofread();
+        expect(cubit.state.edits, _edits);
+        expect(cubit.outputText, 'I have an apple and an orange.');
+        await cubit.close();
+      });
+
+      test('reconciles long texts in the background', () async {
+        final words = List.generate(800, (i) => 'word$i');
+        final input = words.join(' ');
+        final corrected = [
+          for (var i = 0; i < words.length; i++)
+            if (i % 100 == 0) 'fixed$i' else words[i],
+        ].join(' ');
+        expect(
+          input.length + corrected.length,
+          greaterThanOrEqualTo(ProofreadCubit.backgroundDiffLength),
+        );
+        stubProofread(() async => ProofreadResult(correctedText: corrected));
+        final cubit = build()..setInput(input);
+        await cubit.proofread();
+        expect(cubit.state.edits, hasLength(8));
+        expect(cubit.outputText, corrected);
+        await cubit.close();
+      });
 
       blocTest<ProofreadCubit, ProofreadState>(
         'does nothing without input',

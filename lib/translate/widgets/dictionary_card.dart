@@ -5,6 +5,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/ai_generated_header.dart';
+import 'package:mozhi/translate/widgets/language_text.dart';
+import 'package:mozhi/translate/widgets/status_announcer.dart';
 import 'package:mozhi/translate/widgets/translate_error.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -35,9 +37,11 @@ class DictionaryCard extends StatelessWidget {
               label: Text(l10n.translateDictionaryLookUp(state.input.trim())),
             ),
           ),
-          ExtraStatus.loading => const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: LinearProgressIndicator(),
+          ExtraStatus.loading => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: LinearProgressIndicator(
+              semanticsLabel: l10n.translateLoading,
+            ),
           ),
           ExtraStatus.failure => TranslateErrorView(
             error: state.extraError,
@@ -46,42 +50,65 @@ class DictionaryCard extends StatelessWidget {
           ),
           ExtraStatus.ready when entry != null => DictionaryEntryView(
             entry: entry,
+            sourceLanguage: state.source.isAuto
+                ? _detected(state.result?.detectedSource)
+                : state.source,
+            targetLanguage: state.target,
           ),
           ExtraStatus.ready => const SizedBox.shrink(),
         };
-        return Card(
-          key: const Key('translate_dictionary_card'),
-          margin: EdgeInsets.zero,
-          elevation: 0,
-          color: theme.colorScheme.surfaceContainerLow,
-          shape: const RoundedRectangleBorder(
-            borderRadius: TranslateLayout.cardBorderRadius,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                AiGeneratedHeader(
-                  icon: Icons.menu_book_outlined,
-                  title: l10n.translateDictionary,
-                ),
-                const SizedBox(height: 8),
-                body,
-              ],
+        return StatusAnnouncer(
+          message: state.dictionaryStatus == ExtraStatus.ready && entry != null
+              ? l10n.translateDictionaryReady
+              : null,
+          child: Card(
+            key: const Key('translate_dictionary_card'),
+            margin: EdgeInsets.zero,
+            elevation: 0,
+            color: theme.colorScheme.surfaceContainerLow,
+            shape: const RoundedRectangleBorder(
+              borderRadius: TranslateLayout.cardBorderRadius,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AiGeneratedHeader(
+                    icon: Icons.menu_book_outlined,
+                    title: l10n.translateDictionary,
+                  ),
+                  const SizedBox(height: 8),
+                  body,
+                ],
+              ),
             ),
           ),
         );
       },
     );
   }
+
+  static Language? _detected(String? code) =>
+      code == null || code.isEmpty ? null : Language(code: code, name: code);
 }
 
 /// Word, IPA, senses, examples and synonyms of a [DictionaryEntry].
 class DictionaryEntryView extends StatelessWidget {
-  const new({required this.entry, super.key});
+  const new({
+    required this.entry,
+    this.sourceLanguage,
+    this.targetLanguage,
+    super.key,
+  });
 
   final DictionaryEntry entry;
+
+  /// Language of the word and the example sentences.
+  final Language? sourceLanguage;
+
+  /// Language of the translations.
+  final Language? targetLanguage;
 
   @override
   Widget build(BuildContext context) {
@@ -91,6 +118,18 @@ class DictionaryEntryView extends StatelessWidget {
     final label = theme.textTheme.labelLarge?.copyWith(
       color: theme.colorScheme.primary,
     );
+    final source = sourceLanguage;
+    final target = targetLanguage;
+    final sourceLocale = source == null ? null : localeForLanguage(source);
+    final targetLocale = target == null ? null : localeForLanguage(target);
+    final sourceDirection = source == null
+        ? null
+        : textDirectionForLanguage(source);
+    final targetDirection = target == null
+        ? null
+        : textDirectionForLanguage(target);
+    Widget heading(String text) =>
+        Semantics(header: true, child: Text(text, style: label));
     return SelectionArea(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -99,7 +138,11 @@ class DictionaryEntryView extends StatelessWidget {
             spacing: 12,
             crossAxisAlignment: WrapCrossAlignment.end,
             children: [
-              Text(entry.word, style: theme.textTheme.headlineSmall),
+              Text.rich(
+                TextSpan(text: entry.word, locale: sourceLocale),
+                textDirection: sourceDirection,
+                style: theme.textTheme.headlineSmall,
+              ),
               if (entry.pronunciation.isNotEmpty)
                 Text(
                   '/${entry.pronunciation.replaceAll('/', '')}/',
@@ -117,26 +160,36 @@ class DictionaryEntryView extends StatelessWidget {
             ),
           for (final (index, sense) in entry.senses.indexed) ...[
             const SizedBox(height: 12),
-            _Sense(number: index + 1, sense: sense),
+            _Sense(
+              number: index + 1,
+              sense: sense,
+              translationLocale: targetLocale,
+              translationDirection: targetDirection,
+            ),
           ],
           if (entry.examples.isNotEmpty) ...[
             const SizedBox(height: 16),
-            Text(l10n.translateDictionaryExamples, style: label),
+            heading(l10n.translateDictionaryExamples),
             for (final example in entry.examples)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      example.source,
+                    Text.rich(
+                      TextSpan(text: example.source, locale: sourceLocale),
+                      textDirection: sourceDirection,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         fontStyle: FontStyle.italic,
                       ),
                     ),
                     if (example.translation.isNotEmpty)
-                      Text(
-                        example.translation,
+                      Text.rich(
+                        TextSpan(
+                          text: example.translation,
+                          locale: targetLocale,
+                        ),
+                        textDirection: targetDirection,
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: muted,
                         ),
@@ -147,13 +200,13 @@ class DictionaryEntryView extends StatelessWidget {
           ],
           if (entry.synonyms.isNotEmpty) ...[
             const SizedBox(height: 16),
-            Text(l10n.translateDictionarySynonyms, style: label),
+            heading(l10n.translateDictionarySynonyms),
             const SizedBox(height: 4),
             Text(entry.synonyms.join(', ')),
           ],
           if (entry.etymology.isNotEmpty) ...[
             const SizedBox(height: 16),
-            Text(l10n.translateDictionaryEtymology, style: label),
+            heading(l10n.translateDictionaryEtymology),
             const SizedBox(height: 4),
             Text(entry.etymology, style: TextStyle(color: muted)),
           ],
@@ -168,10 +221,17 @@ class DictionaryEntryView extends StatelessWidget {
 }
 
 class _Sense extends StatelessWidget {
-  const new({required this.number, required this.sense});
+  const new({
+    required this.number,
+    required this.sense,
+    this.translationLocale,
+    this.translationDirection,
+  });
 
   final int number;
   final DictionarySense sense;
+  final Locale? translationLocale;
+  final TextDirection? translationDirection;
 
   @override
   Widget build(BuildContext context) {
@@ -180,9 +240,13 @@ class _Sense extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          width: 24,
-          child: Text('$number.', style: theme.textTheme.bodyLarge),
+        // A minimum (not fixed) width: "10." at 200 % text must not clip.
+        ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 24),
+          child: Padding(
+            padding: const EdgeInsetsDirectional.only(end: 4),
+            child: Text('$number.', style: theme.textTheme.bodyLarge),
+          ),
         ),
         Expanded(
           child: Column(
@@ -212,8 +276,12 @@ class _Sense extends StatelessWidget {
               if (sense.translations.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 2),
-                  child: Text(
-                    sense.translations.join(', '),
+                  child: Text.rich(
+                    TextSpan(
+                      text: sense.translations.join(', '),
+                      locale: translationLocale,
+                    ),
+                    textDirection: translationDirection,
                     style: theme.textTheme.bodyLarge?.copyWith(
                       fontWeight: FontWeight.w600,
                       color: theme.colorScheme.primary,

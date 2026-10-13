@@ -59,6 +59,9 @@ class QuickTranslateCubit extends Cubit<QuickTranslateState> {
   /// The user chose the target in this session: no automatic switching.
   bool _targetPicked = false;
 
+  /// The languages of the selected engine could not be loaded.
+  bool _languagesFailed = false;
+
   /// Loads engines + target languages, then translates. Safe to call again
   /// (e.g. to retry); [refresh] refetches the engine list.
   Future<void> start({bool refresh = false}) async {
@@ -108,9 +111,12 @@ class QuickTranslateCubit extends Cubit<QuickTranslateState> {
     await translate();
   }
 
-  /// Retries whatever failed: loading the engines, or the translation.
+  /// Retries whatever failed: loading the engines, the engine's
+  /// languages, or the translation.
   Future<void> retry() {
-    if (state.engine == null) return start(refresh: true);
+    final engine = state.engine;
+    if (engine == null) return start(refresh: true);
+    if (_languagesFailed) return selectEngine(engine);
     return translate();
   }
 
@@ -159,6 +165,7 @@ class QuickTranslateCubit extends Cubit<QuickTranslateState> {
     try {
       final targets = await _repository.getTargetLanguages(engine);
       if (!_isCurrentLoad(request)) return;
+      _languagesFailed = false;
       emit(
         state.copyWith(
           targetLanguages: targets,
@@ -167,6 +174,7 @@ class QuickTranslateCubit extends Cubit<QuickTranslateState> {
       );
     } on Object catch (error) {
       if (!_isCurrentLoad(request)) return;
+      _languagesFailed = true;
       emit(
         state.copyWith(
           status: QuickTranslateStatus.failure,

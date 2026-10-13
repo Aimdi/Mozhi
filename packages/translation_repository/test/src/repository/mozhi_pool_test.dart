@@ -203,8 +203,9 @@ void main() {
 
       test('fails over on instance-level HTTP statuses', () async {
         for (final status in [301, 302, 401, 403, 404, 405, 408, 410]) {
-          pool.update([instanceA, instanceB]);
-          pool.resetPreferred();
+          pool
+            ..update([instanceA, instanceB])
+            ..resetPreferred();
           final visited = <MozhiInstance>[];
           final result = await pool.run((client, instance) async {
             visited.add(instance);
@@ -220,6 +221,9 @@ void main() {
 
       test('rethrows Mozhi input errors reported as 500 without failing '
           'over', () async {
+        const ttsError =
+            "Engine does not exist and/or doesn't support TTS and/or has "
+            'been disabled.';
         for (final message in [
           'Target Language Code invalid',
           'Target language code invalid',
@@ -228,8 +232,7 @@ void main() {
           'Engine nopenot supported or implemented',
           'from, to, engine, text are required query strings.',
           'engine is a required query string.',
-          'Engine does not exist and/or doesn\'t support TTS and/or has been '
-              'disabled.',
+          ttsError,
           'there is no uploaded file associated with the given key',
         ]) {
           pool.update([instanceA, instanceB]);
@@ -253,16 +256,20 @@ void main() {
       });
 
       test('keeps failing over on upstream failures', () async {
+        const host = 'https://api.mymemory.translated.net';
+        const mymemoryError = 'Get "$host/get?q=required+arguments": Forbidden';
+        const ttsError =
+            'ErrTransport: Get "https://translate.google.com/translate_tts": '
+            'Forbidden';
         for (final message in [
           'Post "https://translate.google.com/_/x": Forbidden',
-          'Get "https://api.mymemory.translated.net/get?q=required+arguments": '
-              'Forbidden',
-          'ErrTransport: Get "https://translate.google.com/translate_tts": '
-              'Forbidden',
+          mymemoryError,
+          ttsError,
           'runtime error: invalid memory address or nil pointer dereference',
         ]) {
-          pool.update([instanceA, instanceB]);
-          pool.resetPreferred();
+          pool
+            ..update([instanceA, instanceB])
+            ..resetPreferred();
           final visited = <MozhiInstance>[];
           await pool.run((client, instance) async {
             visited.add(instance);
@@ -277,7 +284,7 @@ void main() {
       group('with failOverOnTimeout: false', () {
         test('rethrows timeouts without trying another instance', () async {
           pool.update([instanceA, instanceB]);
-          for (final error in <Object>[
+          for (final error in <Exception>[
             TimeoutException('slow'),
             const MozhiApiException('No response within 30000 ms'),
           ]) {
@@ -311,9 +318,9 @@ void main() {
         pool.update([instanceA, instanceB]);
         await expectLater(
           pool.run<void>((client, instance) async {
+            const query = 'langpair=en%7Cfr&q=my+secret';
             throw MozhiApiException(
-              'Get "https://api.mymemory.translated.net/get?langpair=en%7Cfr'
-              '&q=my+secret": Forbidden',
+              'Get "https://api.mymemory.translated.net/get?$query": Forbidden',
               statusCode: 500,
               uri: Uri.parse('https://a.example/api/tts?text=my+secret'),
             );
@@ -335,7 +342,7 @@ void main() {
         );
         await expectLater(
           pool.run<void>((client, instance) async {
-            throw MozhiApiException(
+            throw const MozhiApiException(
               'Target language code invalid https://x.example/?q=secret',
               statusCode: 500,
             );
@@ -384,15 +391,18 @@ void main() {
         verifyNever(() => clients[instanceB.url]!.close());
       });
 
-      test('keeps the failover preference while the order is unchanged', () async {
-        pool.update([instanceA, instanceB]);
-        await pool.run((client, instance) async {
-          if (instance == instanceA) throw serverError();
-        });
-        expect(pool.active, instanceB);
-        pool.update([instanceA, instanceB]);
-        expect(pool.active, instanceB);
-      });
+      test(
+        'keeps the failover preference while the order is unchanged',
+        () async {
+          pool.update([instanceA, instanceB]);
+          await pool.run((client, instance) async {
+            if (instance == instanceA) throw serverError();
+          });
+          expect(pool.active, instanceB);
+          pool.update([instanceA, instanceB]);
+          expect(pool.active, instanceB);
+        },
+      );
 
       test('forgets the failover preference when the order changes', () async {
         pool.update([instanceA, instanceB, instanceC]);
@@ -406,22 +416,25 @@ void main() {
         expect(visited, [instanceC]);
       });
 
-      test('forgets the preference when an instance is added or removed', () async {
-        pool.update([instanceA, instanceB]);
-        await pool.run((client, instance) async {
-          if (instance == instanceA) throw serverError();
-        });
-        expect(pool.active, instanceB);
-        pool.update([instanceA, instanceB, instanceC]);
-        expect(pool.active, instanceA);
+      test(
+        'forgets the preference when an instance is added or removed',
+        () async {
+          pool.update([instanceA, instanceB]);
+          await pool.run((client, instance) async {
+            if (instance == instanceA) throw serverError();
+          });
+          expect(pool.active, instanceB);
+          pool.update([instanceA, instanceB, instanceC]);
+          expect(pool.active, instanceA);
 
-        await pool.run((client, instance) async {
-          if (instance == instanceA) throw serverError();
-        });
-        expect(pool.active, instanceB);
-        pool.update([instanceA, instanceB]);
-        expect(pool.active, instanceA);
-      });
+          await pool.run((client, instance) async {
+            if (instance == instanceA) throw serverError();
+          });
+          expect(pool.active, instanceB);
+          pool.update([instanceA, instanceB]);
+          expect(pool.active, instanceA);
+        },
+      );
 
       test('resetPreferred starts at the first instance again', () async {
         pool.update([instanceA, instanceB]);
@@ -472,7 +485,7 @@ void main() {
         await expectLater(
           pool.withClient<void>(
             instanceA,
-            (c) async => throw MozhiApiException(
+            (c) async => throw const MozhiApiException(
               'Post "https://translate.google.com/x?q=1": Forbidden',
               statusCode: 500,
             ),
@@ -545,15 +558,14 @@ void main() {
         expect(MozhiPool.canFailOver(badRequest()), isFalse);
         const timeout = MozhiApiException('No response within 10 ms');
         expect(MozhiPool.canFailOver(timeout), isTrue);
-        expect(MozhiPool.canFailOver(timeout, failOverOnTimeout: false), isFalse);
+        expect(
+          MozhiPool.canFailOver(timeout, failOverOnTimeout: false),
+          isFalse,
+        );
       });
 
       test('sanitize keeps clean errors and caps long messages', () {
-        const clean = MozhiApiException(
-          'boom',
-          statusCode: 502,
-          uri: null,
-        );
+        const clean = MozhiApiException('boom', statusCode: 502);
         expect(MozhiPool.sanitize(clean), same(clean));
         final withUri = MozhiApiException(
           'boom',
@@ -575,7 +587,10 @@ void main() {
           ),
           'Get "http://10.0.0.2:8080": refused',
         );
-        expect(MozhiPool.sanitizeMessage('Get "file:///etc/x": no'), contains('<url>'));
+        expect(
+          MozhiPool.sanitizeMessage('Get "file:///etc/x": no'),
+          contains('<url>'),
+        );
       });
     });
 

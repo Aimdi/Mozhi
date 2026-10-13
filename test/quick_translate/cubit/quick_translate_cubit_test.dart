@@ -471,6 +471,30 @@ void main() {
           verifyNever(() => repository.getEngines(refresh: true));
         },
       );
+      blocTest<QuickTranslateCubit, QuickTranslateState>(
+        'reloads the engine languages when they failed',
+        setUp: () {
+          var calls = 0;
+          when(() => repository.getTargetLanguages(deepl))
+              .thenAnswer((_) async {
+                if (calls++ == 0) throw Exception('offline');
+                return const [english, french];
+              });
+        },
+        build: build,
+        seed: loaded,
+        act: (cubit) async {
+          await cubit.selectEngine(deepl);
+          expect(cubit.state.status, QuickTranslateStatus.failure);
+          await cubit.retry();
+        },
+        verify: (cubit) {
+          expect(cubit.state.engine, deepl);
+          expect(cubit.state.targetLanguages, const [english, french]);
+          expect(cubit.state.status, QuickTranslateStatus.success);
+          verify(() => repository.translate(deepl, any())).called(1);
+        },
+      );
     });
 
     group('setTarget', () {

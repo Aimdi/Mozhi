@@ -91,6 +91,41 @@ void main() {
         verifyNever(() => settings.saveProvider(any()));
       });
 
+      testWidgets('focuses the first invalid field and announces it', (
+        tester,
+      ) async {
+        bool focused(String label) => tester
+            .widget<EditableText>(
+              find.descendant(
+                of: field(label),
+                matching: find.byType(EditableText),
+              ),
+            )
+            .focusNode
+            .hasFocus;
+        await pump(tester, presetId: 'anthropic');
+        await tester.enterText(field('Model'), '');
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
+        // The name is fine; the API key is the first missing field.
+        expect(focused('API key'), isTrue);
+        expect(tester.takeAnnouncements(), [
+          isAccessibilityAnnouncement('Fix the highlighted fields'),
+        ]);
+
+        await tester.enterText(field('Name'), '');
+        await tester.tap(find.text('Test connection'));
+        await tester.pumpAndSettle();
+        expect(focused('Name'), isTrue);
+      });
+
+      testWidgets('suggested model chips show a checkmark', (tester) async {
+        await pump(tester, presetId: 'anthropic');
+        final chips = tester.widgetList<ChoiceChip>(find.byType(ChoiceChip));
+        expect(chips, isNotEmpty);
+        expect(chips.map((c) => c.showCheckmark), everyElement(isTrue));
+      });
+
       testWidgets('validates the base URL', (tester) async {
         await pump(tester, presetId: 'custom');
         await tester.tap(find.text('Save'));
@@ -241,9 +276,189 @@ void main() {
         await tester.enterText(field('Base URL'), 'http://llm.example.com/v1');
         await tester.pump();
         expect(find.textContaining('Not encrypted'), findsOneWidget);
+        // Prominent: an error-container banner with a title.
+        final banner = find.byKey(const Key('provider_insecure_warning'));
+        expect(banner, findsOneWidget);
+        expect(
+          find.descendant(
+            of: banner,
+            matching: find.text('Connection not encrypted'),
+          ),
+          findsOneWidget,
+        );
+        final colors = Theme.of(tester.element(banner)).colorScheme;
+        expect(tester.widget<Card>(banner).color, colors.errorContainer);
         await tester.enterText(field('Base URL'), 'http://192.168.1.5:8080/v1');
         await tester.pump();
         expect(find.textContaining('Not encrypted'), findsNothing);
+      });
+
+      group('plain http to a remote host', () {
+        Future<void> fill(WidgetTester tester, {String key = ''}) async {
+          await pump(tester, presetId: 'custom');
+          await tester.enterText(
+            field('Base URL'),
+            'http://llm.example.com/v1',
+          );
+          await tester.enterText(field('Model'), 'm');
+          await tester.enterText(field('API key (optional)'), key);
+          await tester.pump();
+        }
+
+        testWidgets('needs confirmation before saving', (tester) async {
+          await fill(tester);
+          await tester.tap(find.text('Save'));
+          await tester.pumpAndSettle();
+          expect(find.text('Send without encryption?'), findsOneWidget);
+          expect(
+            find.text(
+              'llm.example.com uses plain HTTP. Anyone on the network '
+              'between you and this server can read your text.',
+            ),
+            findsOneWidget,
+          );
+          await tester.tap(find.text('Cancel'));
+          await tester.pumpAndSettle();
+          verifyNever(() => settings.saveProvider(any()));
+
+          await tester.tap(find.text('Save'));
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Send without encryption'));
+          await tester.pumpAndSettle();
+          expect(savedConfig().baseUrl, 'http://llm.example.com/v1');
+        });
+
+        testWidgets('mentions the API key when one is set', (tester) async {
+          await fill(tester, key: 'sk-1');
+          await tester.tap(find.text('Save'));
+          await tester.pumpAndSettle();
+          expect(find.textContaining('your text and your API key'), findsOne);
+        });
+
+        testWidgets('asks once per URL, also before testing', (tester) async {
+          when(() => repository.testProvider(any()))
+              .thenAnswer((_) async => 'Bonjour');
+          await fill(tester, key: 'sk-1');
+          await tester.tap(find.text('Test connection'));
+          await tester.pumpAndSettle();
+          expect(find.text('Send without encryption?'), findsOneWidget);
+          await tester.tap(find.text('Cancel'));
+          await tester.pumpAndSettle();
+          verifyNever(() => repository.testProvider(any()));
+
+          await tester.tap(find.text('Test connection'));
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Send without encryption'));
+          await tester.pumpAndSettle();
+          verify(() => repository.testProvider(any())).called(1);
+
+          // Already confirmed for this URL: saving does not ask again.
+          await tester.tap(find.text('Save'));
+          await tester.pumpAndSettle();
+          expect(find.text('Send without encryption?'), findsNothing);
+          verify(() => settings.saveProvider(any())).called(1);
+        });
+
+        testWidgets('local hosts and https need no confirmation', (
+          tester,
+        ) async {
+          await pump(tester, presetId: 'ollama');
+          await tester.tap(find.text('Save'));
+          await tester.pumpAndSettle();
+          expect(find.text('Send without encryption?'), findsNothing);
+          verify(() => settings.saveProvider(any())).called(1);
+        });
+      });
+
+      group('secrets in the base URL', () {
+        testWidgets('rejects user name and password', (tester) async {
+          await pump(tester, presetId: 'openai');
+          await tester.enterText(
+            field('Base URL'),
+            'https://me:secret@api.openai.com/v1',
+          );
+          await tester.enterText(field('API key'), 'sk-1');
+          await tester.tap(find.text('Save'));
+          await tester.pumpAndSettle();
+          expect(
+            find.textContaining('Remove the user name and password'),
+            findsOneWidget,
+          );
+          verifyNever(() => settings.saveProvider(any()));
+        });
+
+        testWidgets('rejects query strings such as ?key=', (tester) async {
+          when(() => repository.testProvider(any()))
+              .thenAnswer((_) async => 'Bonjour');
+          await pump(tester, presetId: 'gemini');
+          await tester.enterText(
+            field('Base URL'),
+            'https://generativelanguage.googleapis.com/v1beta?key=AIza',
+          );
+          await tester.enterText(field('API key'), 'AIza');
+          await tester.tap(find.text('Test connection'));
+          await tester.pumpAndSettle();
+          expect(find.textContaining('Remove the part after “?”'), findsOne);
+          verifyNever(() => repository.testProvider(any()));
+        });
+      });
+
+      group('preset headers', () {
+        Map<String, String> openRouterHeaders() =>
+            AiProviderPreset.byId('openrouter')!.headers;
+
+        testWidgets('are kept on the preset host', (tester) async {
+          await pump(tester, presetId: 'openrouter');
+          expect(openRouterHeaders(), isNotEmpty);
+          await tester.enterText(field('API key'), 'sk-or');
+          await tester.tap(find.text('Save'));
+          await tester.pumpAndSettle();
+          expect(savedConfig().headers, openRouterHeaders());
+        });
+
+        testWidgets('are dropped with a note for another host', (tester) async {
+          await pump(tester, presetId: 'openrouter');
+          expect(find.textContaining("This server isn't"), findsNothing);
+          await tester.enterText(
+            field('Base URL'),
+            'https://llm.example.com/v1',
+          );
+          await tester.pump();
+          expect(
+            find.text(
+              "This server isn't OpenRouter, so the headers added for "
+              'OpenRouter (${openRouterHeaders().keys.join(', ')}) '
+              "won't be sent.",
+            ),
+            findsOneWidget,
+          );
+          await tester.enterText(field('API key'), 'sk-or');
+          await tester.tap(find.text('Save'));
+          await tester.pumpAndSettle();
+          expect(savedConfig().headers, isEmpty);
+        });
+
+        testWidgets('of a saved provider are dropped when the host changes', (
+          tester,
+        ) async {
+          final saved = AiProviderConfig(
+            id: 'or',
+            name: 'OpenRouter',
+            provider: LlmProvider.openAiCompatible,
+            baseUrl: 'https://openrouter.ai/api/v1',
+            model: 'openrouter/auto',
+            apiKey: 'sk-or',
+            presetId: 'openrouter',
+            headers: {...openRouterHeaders(), 'X-Own': 'kept'},
+          );
+          when(() => settings.state)
+              .thenReturn(AppSettings(providers: [saved]));
+          await pump(tester, providerId: 'or');
+          await tester.enterText(field('Base URL'), 'https://proxy.example/v1');
+          await tester.tap(find.text('Save'));
+          await tester.pumpAndSettle();
+          expect(savedConfig().headers, {'X-Own': 'kept'});
+        });
       });
     });
 
@@ -387,6 +602,26 @@ void main() {
           find.text("Couldn't load models: 401: Unauthorized"),
           findsOneWidget,
         );
+        expect(
+          tester.getSemantics(
+            find.text("Couldn't load models: 401: Unauthorized"),
+          ),
+          isSemantics(isLiveRegion: true),
+        );
+      });
+
+      testWidgets('labels the loading indicator', (tester) async {
+        final models = Completer<List<LlmModel>>();
+        when(() => repository.listModels(any()))
+            .thenAnswer((_) => models.future);
+        final handle = tester.ensureSemantics();
+        await pump(tester, providerId: 'p1');
+        await tester.tap(find.text('Browse models'));
+        await tester.pump();
+        expect(find.semantics.byLabel(RegExp('Loading models…')), findsOne);
+        models.complete(const []);
+        await tester.pumpAndSettle();
+        handle.dispose();
       });
 
       testWidgets('reports an empty model list', (tester) async {
@@ -398,6 +633,20 @@ void main() {
         expect(find.text('No models found'), findsOneWidget);
         expect(find.byType(BottomSheet), findsNothing);
       });
+    });
+
+    testWidgets('temperature value grows with large text', (tester) async {
+      await pump(
+        tester,
+        providerId: 'p1',
+        size: const Size(320, 2400),
+        textScale: 2,
+      );
+      expect(tester.takeException(), isNull);
+      // One line, wider than the old fixed 40 dp box.
+      final size = tester.getSize(find.text('0.7'));
+      expect(size.width, greaterThan(40));
+      expect(size.height, lessThan(2 * 2 * 14 * 1.5));
     });
 
     testWidgets('fits 320dp with large text', (tester) async {

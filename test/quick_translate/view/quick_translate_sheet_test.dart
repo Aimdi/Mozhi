@@ -220,7 +220,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
       expect(controller.hasListener, isFalse);
-      await controller.close();
+      unawaited(controller.close());
     });
   });
 

@@ -122,12 +122,31 @@ void main() {
         expect(const ProofreadState(input: 'abc').outputText, isEmpty);
       });
 
-      test('prefers correctedText when all edits are accepted', () {
+      test('derives the output from the edits only', () {
+        // correctedText also collapses the double space without listing it;
+        // the cubit turns such changes into edits (ProofreadDiff.reconcile).
         final state = _state('I has  a apple', [
           _edit('has', 'have'),
           _edit('a apple', 'an apple'),
         ], corrected: 'I have an apple');
-        expect(state.outputText, 'I have an apple');
+        expect(state.outputText, 'I have  an apple');
+      });
+
+      test('applies every accepted edit when correctedText omits them', () {
+        const input = 'I has a apple and a orange';
+        final edits = [
+          _edit('has', 'have'),
+          _edit('a apple', 'an apple'),
+          _edit('a orange', 'an orange'),
+        ];
+        expect(
+          _state(input, edits, corrected: input).outputText,
+          'I have an apple and an orange',
+        );
+        expect(
+          _state(input, edits, accepted: {0, 1}, corrected: input).outputText,
+          'I have an apple and a orange',
+        );
       });
 
       test('prefers correctedText when there are no edits', () {
@@ -203,6 +222,37 @@ void main() {
         ], accepted: {}).copyWith(input: 'something else');
         expect(state.outputText, 'I has it');
       });
+    });
+
+    group('isStale', () {
+      test('is false without a result', () {
+        expect(const ProofreadState(input: 'a').isStale, isFalse);
+      });
+
+      test('tells whether the input changed after proofreading', () {
+        final state = _state('I has it', [_edit('has', 'have')]);
+        expect(state.isStale, isFalse);
+        expect(state.copyWith(input: 'I has it. More.').isStale, isTrue);
+      });
+    });
+
+    test('compares engine details that equality of engines ignores', () {
+      const remote = TranslationEngine(
+        id: 'ai:openai',
+        kind: EngineKind.ai,
+        name: 'OpenAI',
+        subtitle: 'gpt-5',
+        isLocal: true,
+      );
+      expect(remote, _engine);
+      expect(
+        const ProofreadState(engine: _engine, availableEngines: [_engine]),
+        isNot(const ProofreadState(engine: remote, availableEngines: [remote])),
+      );
+      expect(
+        const ProofreadState(availableEngines: [_engine]),
+        isNot(const ProofreadState(availableEngines: [remote])),
+      );
     });
 
     test('allEditsAccepted and acceptedCount ignore stray indices', () {
