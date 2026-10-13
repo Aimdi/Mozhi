@@ -39,9 +39,6 @@ void main() {
   group('GlossariesPage', () {
     late PresetsHarness harness;
 
-    setUp(() => harness = PresetsHarness());
-    tearDown(() => harness.close());
-
     List<Glossary> glossaries() => harness.glossaries.state.glossaries;
 
     Future<void> pumpLoaded(
@@ -61,16 +58,22 @@ void main() {
     }
 
     testWidgets('shows a spinner while loading', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await harness.pump(tester, const GlossariesPage());
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
 
     testWidgets('shows the empty state', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpLoaded(tester, initial: const []);
       expect(find.text('No glossaries yet'), findsOneWidget);
     });
 
     testWidgets('lists glossaries with scope and term count', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpLoaded(tester);
       expect(find.text('Glossaries'), findsOneWidget);
       expect(find.text('Pets'), findsOneWidget);
@@ -79,6 +82,8 @@ void main() {
     });
 
     testWidgets('toggles a glossary', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpLoaded(tester);
       await tester.tap(find.byKey(const Key('glossary_enabled_brand')));
       await settle(tester);
@@ -86,6 +91,8 @@ void main() {
     });
 
     testWidgets('opens the editor on tap by default', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpLoaded(tester);
       await tester.tap(find.text('Pets'));
       await settle(tester);
@@ -94,6 +101,8 @@ void main() {
     });
 
     testWidgets('uses a custom open callback', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       final opened = <String>[];
       await pumpLoaded(tester, onOpenGlossary: (_, id) => opened.add(id));
       await tester.tap(find.text('Brand'));
@@ -101,6 +110,8 @@ void main() {
     });
 
     testWidgets('creates a glossary and opens it', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       final opened = <String>[];
       await pumpLoaded(
         tester,
@@ -152,6 +163,8 @@ void main() {
     });
 
     testWidgets('cancelling the dialog creates nothing', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpLoaded(tester, initial: const []);
       await tester.tap(find.byKey(const Key('glossaries_add')));
       await settle(tester);
@@ -166,6 +179,8 @@ void main() {
     });
 
     testWidgets('swipe deletes with undo', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpLoaded(tester);
       await tester.drag(find.text('Pets'), const Offset(-600, 0));
       await settle(tester);
@@ -179,6 +194,8 @@ void main() {
     });
 
     testWidgets('imports glossaries from JSON', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpLoaded(tester, initial: const [_brand]);
       await tester.tap(find.byKey(const Key('glossaries_menu')));
       await settle(tester);
@@ -205,6 +222,8 @@ void main() {
     });
 
     testWidgets('exports all glossaries as a file', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpLoaded(tester);
       await tester.tap(find.byKey(const Key('glossaries_menu')));
       await settle(tester);
@@ -220,6 +239,8 @@ void main() {
     });
 
     testWidgets('shows a retry button when loading fails', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       final failing = _MockStore();
       var calls = 0;
       when(() => failing.read(any())).thenAnswer((_) async {

@@ -12,6 +12,7 @@ import 'package:mozhi/presets/cubit/presets_cubit.dart';
 import 'package:mozhi/presets/data/presets_repository.dart';
 import 'package:mozhi/presets/models/preset.dart';
 import 'package:mozhi/presets/view/presets_page.dart';
+import 'package:mozhi/presets/widgets/preset_editor_sheet.dart';
 import 'package:mozhi/presets/widgets/presets_share.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -26,9 +27,6 @@ const _simple = 'Simple (A2 reading level)';
 void main() {
   group('PresetsPage', () {
     late PresetsHarness harness;
-
-    setUp(() => harness = PresetsHarness());
-    tearDown(() => harness.close());
 
     Future<void> pumpLoaded(
       WidgetTester tester, {
@@ -50,11 +48,15 @@ void main() {
     }
 
     testWidgets('shows a spinner while loading', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await harness.pump(tester, const PresetsPage());
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
 
     testWidgets('lists the examples with summaries', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpLoaded(tester);
       expect(find.text('Presets'), findsOneWidget);
       expect(find.text(_email), findsOneWidget);
@@ -70,6 +72,8 @@ void main() {
     });
 
     testWidgets('marks the default preset and toggles it', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpLoaded(tester);
       await openMenuFor(tester, _chat);
       await tester.tap(find.text('Use as default'));
@@ -85,6 +89,8 @@ void main() {
     });
 
     testWidgets('duplicates and moves presets', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpLoaded(tester);
       await openMenuFor(tester, _email);
       expect(find.text('Move up'), findsNothing);
@@ -108,6 +114,8 @@ void main() {
     testWidgets('deletes from the menu and by swiping, with undo', (
       tester,
     ) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpLoaded(tester);
       await harness.presets.setDefault('builtin-chatCasual');
       await settle(tester);
@@ -133,6 +141,8 @@ void main() {
     });
 
     testWidgets('shares a single preset', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpLoaded(tester);
       await openMenuFor(tester, _simple);
       await tester.tap(find.text('Share'));
@@ -146,6 +156,8 @@ void main() {
     });
 
     testWidgets('edits a preset in the sheet', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpLoaded(tester);
       await tester.tap(find.text(_simple));
       await settle(tester);
@@ -172,6 +184,8 @@ void main() {
     });
 
     testWidgets('renames a preset and makes it the default', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpLoaded(tester);
       await tester.tap(find.text(_chat));
       await settle(tester);
@@ -179,8 +193,15 @@ void main() {
         find.byKey(const Key('preset_editor_name')),
         'Friends',
       );
-      await tester.ensureVisible(
+      await tester.scrollUntilVisible(
         find.byKey(const Key('preset_editor_default')),
+        200,
+        scrollable: find
+            .descendant(
+              of: find.byType(PresetEditorSheet),
+              matching: find.byType(Scrollable),
+            )
+            .first,
       );
       await tester.tap(find.byKey(const Key('preset_editor_default')));
       await settle(tester);
@@ -192,6 +213,8 @@ void main() {
     });
 
     testWidgets('creates a preset with the FAB', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpLoaded(tester);
       await tester.tap(find.byKey(const Key('presets_add')));
       await settle(tester);
@@ -219,6 +242,8 @@ void main() {
     });
 
     testWidgets('cancel closes the editor without saving', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpLoaded(tester);
       await tester.tap(find.byKey(const Key('presets_add')));
       await settle(tester);
@@ -228,6 +253,8 @@ void main() {
     });
 
     testWidgets('empty state restores the examples', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       harness.store.values[PresetsRepository.storageKey] = jsonEncode(
         const PresetCollection().toJson(),
       );
@@ -240,6 +267,8 @@ void main() {
     });
 
     testWidgets('restore examples from the menu', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpLoaded(tester);
       await tester.tap(find.byKey(const Key('presets_menu')));
       await settle(tester);
@@ -249,6 +278,8 @@ void main() {
     });
 
     testWidgets('imports presets from pasted JSON', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpLoaded(tester);
       await tester.tap(find.byKey(const Key('presets_menu')));
       await settle(tester);
@@ -285,6 +316,8 @@ void main() {
     });
 
     testWidgets('cancelling the import changes nothing', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpLoaded(tester);
       await tester.tap(find.byKey(const Key('presets_menu')));
       await settle(tester);
@@ -297,6 +330,8 @@ void main() {
     });
 
     testWidgets('exports all presets to the clipboard', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpLoaded(tester);
       await tester.tap(find.byKey(const Key('presets_menu')));
       await settle(tester);
@@ -310,6 +345,8 @@ void main() {
     });
 
     testWidgets('dismissing the export sheet does nothing', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpLoaded(tester);
       await tester.tap(find.byKey(const Key('presets_menu')));
       await settle(tester);
@@ -322,6 +359,8 @@ void main() {
     });
 
     testWidgets('reports export failures', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpLoaded(tester);
       harness.shared.clear();
       await tester.tap(find.byKey(const Key('presets_menu')));
@@ -340,6 +379,8 @@ void main() {
     });
 
     testWidgets('glossaries action calls back', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       var opened = 0;
       await pumpLoaded(tester, onOpenGlossaries: () => opened++);
       await tester.tap(find.byKey(const Key('presets_open_glossaries')));
@@ -347,6 +388,8 @@ void main() {
     });
 
     testWidgets('reorders by dragging the handle', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpLoaded(tester);
       final handle = find.byIcon(Icons.drag_indicator).first;
       final gesture = await tester.startGesture(tester.getCenter(handle));
@@ -361,6 +404,8 @@ void main() {
     });
 
     testWidgets('shows a retry button when loading fails', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       final failing = _MockStore();
       var calls = 0;
       when(() => failing.read(any())).thenAnswer((_) async {

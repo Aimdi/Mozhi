@@ -17,13 +17,10 @@ void main() {
     late PresetsHarness harness;
     late List<TranslationOptions> changes;
     late int manage;
-
     setUp(() {
-      harness = PresetsHarness();
       changes = [];
       manage = 0;
     });
-    tearDown(() => harness.close());
 
     Future<void> pump(
       WidgetTester tester,
@@ -55,6 +52,8 @@ void main() {
 
     group('chips', () {
       testWidgets('selects Default for standard options', (tester) async {
+        harness = PresetsHarness();
+        addTearDown(harness.close);
         await pump(
           tester,
           const TranslationOptions(glossary: {'a': 'b'}, instructions: 'x'),
@@ -69,6 +68,8 @@ void main() {
       });
 
       testWidgets('selects the matching preset', (tester) async {
+        harness = PresetsHarness();
+        addTearDown(harness.close);
         await pump(tester, BuiltInPreset.simpleA2.options);
         expect(
           chip(tester, const Key('preset_picker_builtin-simpleA2')).selected,
@@ -84,6 +85,8 @@ void main() {
       testWidgets('choosing a preset keeps glossary and instructions', (
         tester,
       ) async {
+        harness = PresetsHarness();
+        addTearDown(harness.close);
         await pump(
           tester,
           const TranslationOptions(
@@ -101,6 +104,8 @@ void main() {
       });
 
       testWidgets('Default resets the settings', (tester) async {
+        harness = PresetsHarness();
+        addTearDown(harness.close);
         await pump(
           tester,
           const TranslationOptions(
@@ -114,6 +119,8 @@ void main() {
       });
 
       testWidgets('manage presets calls back', (tester) async {
+        harness = PresetsHarness();
+        addTearDown(harness.close);
         await pump(tester, const TranslationOptions());
         await tester.ensureVisible(
           find.byKey(const Key('preset_picker_manage')),
@@ -123,11 +130,15 @@ void main() {
       });
 
       testWidgets('hides manage presets without a callback', (tester) async {
+        harness = PresetsHarness();
+        addTearDown(harness.close);
         await pump(tester, const TranslationOptions(), withManage: false);
         expect(find.byKey(const Key('preset_picker_manage')), findsNothing);
       });
 
       testWidgets('updates when presets change', (tester) async {
+        harness = PresetsHarness();
+        addTearDown(harness.close);
         await pump(tester, const TranslationOptions());
         await harness.presets.add(
           name: 'Brand new',
@@ -140,6 +151,8 @@ void main() {
 
     group('dropdown', () {
       testWidgets('shows Custom when no preset matches', (tester) async {
+        harness = PresetsHarness();
+        addTearDown(harness.close);
         await pump(
           tester,
           const TranslationOptions(context: 'Unique'),
@@ -150,6 +163,8 @@ void main() {
       });
 
       testWidgets('selects presets, Default and manage', (tester) async {
+        harness = PresetsHarness();
+        addTearDown(harness.close);
         await pump(
           tester,
           BuiltInPreset.emailFormal.options,
@@ -179,6 +194,8 @@ void main() {
       });
 
       testWidgets('selecting the current entry does nothing', (tester) async {
+        harness = PresetsHarness();
+        addTearDown(harness.close);
         await pump(
           tester,
           const TranslationOptions(),

@@ -29,9 +29,6 @@ void main() {
   group('GlossaryEditorPage', () {
     late PresetsHarness harness;
 
-    setUp(() => harness = PresetsHarness());
-    tearDown(() => harness.close());
-
     Glossary? glossary() => harness.glossaries.state.byId('pets');
 
     Future<void> pumpEditor(
@@ -78,6 +75,8 @@ void main() {
     testWidgets('shows a spinner while loading and a message when missing', (
       tester,
     ) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await harness.pump(tester, const GlossaryEditorPage(glossaryId: 'pets'));
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
       await harness.glossaries.load();
@@ -86,6 +85,8 @@ void main() {
     });
 
     testWidgets('lists terms as a table on wide screens', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpEditor(tester, size: const Size(1200, 900));
       expect(find.text('Pets & more'), findsOneWidget);
       expect(find.text('English → German'), findsOneWidget);
@@ -98,6 +99,8 @@ void main() {
     });
 
     testWidgets('lists terms as tiles on phones', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpEditor(tester, size: const Size(400, 800));
       expect(find.text('Source term'), findsNothing);
       expect(find.text('cat'), findsOneWidget);
@@ -107,6 +110,8 @@ void main() {
     });
 
     testWidgets('searches terms', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpEditor(tester);
       await tester.enterText(
         find.byKey(const Key('glossary_editor_search')),
@@ -130,6 +135,8 @@ void main() {
     });
 
     testWidgets('adds a term', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpEditor(tester);
       await tester.tap(find.byKey(const Key('glossary_editor_add')));
       await settle(tester);
@@ -167,6 +174,8 @@ void main() {
     });
 
     testWidgets('cancelling the term dialog changes nothing', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpEditor(tester);
       await tester.tap(find.byKey(const Key('glossary_editor_add')));
       await settle(tester);
@@ -176,6 +185,8 @@ void main() {
     });
 
     testWidgets('edits a term by tapping it', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpEditor(tester);
       await tester.tap(find.text('Hund'));
       await settle(tester);
@@ -190,6 +201,8 @@ void main() {
     });
 
     testWidgets('deletes a term with undo', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpEditor(tester);
       await tester.tap(find.byTooltip('Delete cat'));
       await settle(tester);
@@ -201,6 +214,8 @@ void main() {
     });
 
     testWidgets('swipe deletes a term', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpEditor(tester, size: const Size(400, 800));
       await tester.drag(find.text('Hund'), const Offset(-500, 0));
       await settle(tester);
@@ -208,6 +223,8 @@ void main() {
     });
 
     testWidgets('imports pasted CSV', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpEditor(tester);
       await tester.tap(find.byKey(const Key('glossary_editor_import')));
       await settle(tester);
@@ -236,6 +253,8 @@ void main() {
     });
 
     testWidgets('empty glossary offers add and import', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpEditor(tester, initial: _pets.copyWith(terms: const []));
       expect(find.text('No terms yet'), findsOneWidget);
       expect(find.byKey(const Key('glossary_editor_search')), findsNothing);
@@ -250,6 +269,8 @@ void main() {
     });
 
     testWidgets('exports as CSV, TSV and JSON', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpEditor(tester);
       Future<void> export(String label) async {
         await tester.tap(find.byKey(const Key('glossary_editor_export')));
@@ -275,6 +296,8 @@ void main() {
     });
 
     testWidgets('reports export failures', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpEditor(tester, initial: _pets.copyWith(name: '!!!'));
       PresetsShare.share = (
         text, {
@@ -289,6 +312,8 @@ void main() {
     });
 
     testWidgets('toggles the glossary', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpEditor(tester);
       await tester.tap(find.byKey(const Key('glossary_editor_enabled')));
       await settle(tester);
@@ -296,6 +321,8 @@ void main() {
     });
 
     testWidgets('renames and changes the languages', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpEditor(tester);
       await tester.tap(find.byTooltip('Rename or change languages'));
       await settle(tester);
@@ -316,6 +343,8 @@ void main() {
     });
 
     testWidgets('edit details from the overflow menu', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpEditor(tester);
       await tester.tap(find.byKey(const Key('glossary_editor_more')));
       await settle(tester);
@@ -327,6 +356,8 @@ void main() {
     });
 
     testWidgets('deletes the glossary after confirming', (tester) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
       await pumpEditor(tester, asRoute: true);
       Future<void> openDelete() async {
         await tester.tap(find.byKey(const Key('glossary_editor_more')));
