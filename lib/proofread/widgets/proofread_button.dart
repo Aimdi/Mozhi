@@ -5,13 +5,13 @@ import 'package:mozhi/proofread/cubit/proofread_cubit.dart';
 
 /// The "Proofread" action with a loading state.
 class ProofreadButton extends StatelessWidget {
-  const ProofreadButton({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final (canProofread, isLoading) = context.select(
-      (ProofreadCubit cubit) =>
+      (cubit) =>
           (cubit.state.canProofread, cubit.state.isLoading),
     );
     return FilledButton.icon(

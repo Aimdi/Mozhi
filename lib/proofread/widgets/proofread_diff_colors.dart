@@ -7,14 +7,14 @@ import 'package:mozhi/proofread/models/proofread_diff.dart';
 /// a green container generated for the current brightness.
 @immutable
 class ProofreadDiffColors {
-  const ProofreadDiffColors({
+  const new({
     required this.removedBackground,
     required this.removedForeground,
     required this.insertedBackground,
     required this.insertedForeground,
   });
 
-  factory ProofreadDiffColors.of(BuildContext context) {
+  factory of(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final green = _greenSchemes[theme.brightness] ??= ColorScheme.fromSeed(

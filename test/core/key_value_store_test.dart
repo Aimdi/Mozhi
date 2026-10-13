@@ -5,9 +5,9 @@ import 'package:mozhi/core/key_value_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockSharedPreferencesAsync extends Mock
-    implements SharedPreferencesAsync {}
+    implements SharedPreferencesAsync;
 
-class _MockFlutterSecureStorage extends Mock implements FlutterSecureStorage {}
+class _MockFlutterSecureStorage extends Mock implements FlutterSecureStorage;
 
 void main() {
   group(MemoryStore, () {

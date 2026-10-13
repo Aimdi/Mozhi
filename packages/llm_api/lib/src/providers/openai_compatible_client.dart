@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
-import 'package:llm_api/src/llm_client.dart';
 import 'package:llm_api/src/llm_exception.dart';
 import 'package:llm_api/src/models.dart';
 import 'package:llm_api/src/providers/error_parsing.dart';
@@ -119,20 +118,24 @@ class OpenAiCompatibleClient extends HttpLlmClient {
 
   static LlmModel? _model(Object? item) => switch (item) {
     final String id when id.isNotEmpty => LlmModel(id: id),
-    {'id': final String id} when id.isNotEmpty => LlmModel(
-      id: id,
-      displayName: switch (item['name']) {
-        final String name when name != id => name,
-        _ => null,
-      },
-      contextWindow: _contextWindow(item),
-    ),
-    {'name': final String id} when id.isNotEmpty => LlmModel(
-      id: id,
-      contextWindow: _contextWindow(item),
-    ),
+    final Map<String, Object?> item => _modelFromJson(item),
     _ => null,
   };
+
+  /// `{"id": ..., "name"?: ...}` (OpenAI, OpenRouter) or `{"name": ...}`.
+  static LlmModel? _modelFromJson(Map<String, Object?> item) {
+    final (id, name) = switch (item) {
+      {'id': final String id} => (id, item['name']),
+      {'name': final String id} => (id, null),
+      _ => ('', null),
+    };
+    if (id.isEmpty) return null;
+    return LlmModel(
+      id: id,
+      displayName: name is String && name != id ? name : null,
+      contextWindow: _contextWindow(item),
+    );
+  }
 
   /// Context sizes as reported by OpenRouter / Groq / vLLM / LM Studio.
   static int? _contextWindow(Map<String, Object?> item) => switch (item) {

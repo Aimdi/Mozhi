@@ -22,10 +22,26 @@ if (keystorePropertiesFile.exists()) {
 
 fun env(name: String): String? = System.getenv(name)?.takeIf { it.isNotBlank() }
 
-val envKeystorePath: String? = env("ANDROID_KEYSTORE_PATH")
-val propertiesKeystorePath: String? =
-    keystoreProperties.getProperty("storeFile")?.takeIf { it.isNotBlank() }
-val hasReleaseKeystore = envKeystorePath != null || propertiesKeystorePath != null
+val useEnvSigning = env("ANDROID_KEYSTORE_PATH") != null
+val releaseStoreFile = (
+    env("ANDROID_KEYSTORE_PATH")
+        ?: keystoreProperties.getProperty("storeFile")?.takeIf { it.isNotBlank() }
+)?.let { file(it) }
+val releaseStorePassword: String? =
+    if (useEnvSigning) env("ANDROID_KEYSTORE_PASSWORD")
+    else keystoreProperties.getProperty("storePassword")
+val releaseKeyAlias: String? =
+    if (useEnvSigning) env("ANDROID_KEY_ALIAS") ?: env("ANDROID_KEYSTORE_ALIAS")
+    else keystoreProperties.getProperty("keyAlias")
+val releaseKeyPassword: String? =
+    if (useEnvSigning) {
+        env("ANDROID_KEY_PASSWORD")
+            ?: env("ANDROID_KEYSTORE_PRIVATE_KEY_PASSWORD")
+            ?: env("ANDROID_KEYSTORE_PASSWORD")
+    } else {
+        keystoreProperties.getProperty("keyPassword")
+    }
+val hasReleaseKeystore = releaseStoreFile != null
 
 android {
     namespace = "io.github.aimdi.mozhi"
@@ -48,21 +64,12 @@ android {
     }
 
     signingConfigs {
-        if (hasReleaseKeystore) {
+        if (releaseStoreFile != null) {
             create("release") {
-                if (envKeystorePath != null) {
-                    storeFile = file(envKeystorePath)
-                    storePassword = env("ANDROID_KEYSTORE_PASSWORD")
-                    keyAlias = env("ANDROID_KEY_ALIAS") ?: env("ANDROID_KEYSTORE_ALIAS")
-                    keyPassword = env("ANDROID_KEY_PASSWORD")
-                        ?: env("ANDROID_KEYSTORE_PRIVATE_KEY_PASSWORD")
-                        ?: env("ANDROID_KEYSTORE_PASSWORD")
-                } else {
-                    storeFile = file(propertiesKeystorePath!!)
-                    storePassword = keystoreProperties.getProperty("storePassword")
-                    keyAlias = keystoreProperties.getProperty("keyAlias")
-                    keyPassword = keystoreProperties.getProperty("keyPassword")
-                }
+                storeFile = releaseStoreFile
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
             }
         }
     }

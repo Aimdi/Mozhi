@@ -202,20 +202,20 @@ void main() {
         final settings = AppSettings.fromJson({
           'instances': [
             _instance.toJson(),
-            {'label': 'no url'},
+            const {'label': 'no url'},
             'https://bad.example',
           ],
           'providers': [
-            {'name': 'missing id'},
+            const {'name': 'missing id'},
             _provider.toJson(),
           ],
           'recentLanguages': [
-            {'code': 'fr'},
+            const {'code': 'fr'},
             _french.toJson(),
             null,
           ],
           'pinnedLanguages': [_pirate.toJson(), 7],
-          'compareEngineIds': ['mozhi:google', 3, null, 'ai:p1'],
+          'compareEngineIds': const ['mozhi:google', 3, null, 'ai:p1'],
         });
 
         expect(settings.instances, [_instance]);
@@ -240,7 +240,7 @@ void main() {
       });
 
       test('accepts nested maps that are not Map<String, dynamic>', () {
-        final settings = AppSettings.fromJson(<String, dynamic>{
+        final settings = AppSettings.fromJson(const <String, dynamic>{
           'source': <Object?, Object?>{'code': 'de', 'name': 'German'},
         });
 
