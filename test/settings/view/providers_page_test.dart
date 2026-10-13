@@ -24,6 +24,24 @@ const _ollama = AiProviderConfig(
   enabled: false,
 );
 
+const _deepl = AiProviderConfig(
+  id: 'mt1',
+  name: 'Work translator',
+  provider: LlmProvider.openAiCompatible,
+  baseUrl: '',
+  model: '',
+  service: MtService.deepl,
+);
+
+const _libre = AiProviderConfig(
+  id: 'mt2',
+  name: 'Home translator',
+  provider: LlmProvider.openAiCompatible,
+  baseUrl: 'http://192.168.1.20:5000',
+  model: 'ignored-model',
+  service: MtService.libreTranslate,
+);
+
 void main() {
   setUpAll(registerFallbacks);
 
@@ -118,6 +136,92 @@ void main() {
           extra: any(named: 'extra'),
         ),
       ).called(1);
+    });
+
+    group('machine translation', () {
+      Finder sheetScrollable() => find
+          .descendant(
+            of: find.byType(BottomSheet),
+            matching: find.byType(Scrollable),
+          )
+          .first;
+
+      testWidgets('the chooser lists the services in their own section', (
+        tester,
+      ) async {
+        await pump(tester);
+        await tester.tap(find.text('Add provider'));
+        await tester.pumpAndSettle();
+        expect(find.text('AI models'), findsOneWidget);
+        expect(
+          tester.getSemantics(find.text('AI models')),
+          isSemantics(isHeader: true),
+        );
+        await tester.scrollUntilVisible(
+          find.text('LibreTranslate'),
+          200,
+          scrollable: sheetScrollable(),
+        );
+        final header = find.text('Machine translation');
+        expect(header, findsOneWidget);
+        expect(tester.getSemantics(header), isSemantics(isHeader: true));
+        expect(find.textContaining('Classic translation services'), findsOne);
+        // Below every AI preset.
+        expect(
+          tester.getTopLeft(header).dy,
+          greaterThan(tester.getTopLeft(find.text('Ollama')).dy),
+        );
+        for (final preset in AiProviderPreset.mtServices) {
+          expect(find.text(preset.name), findsOneWidget);
+          expect(find.text(preset.description), findsOneWidget);
+          expect(
+            tester.getTopLeft(find.text(preset.name)).dy,
+            greaterThan(tester.getTopLeft(header).dy),
+          );
+        }
+        expect(
+          find.descendant(
+            of: find.byType(BottomSheet),
+            matching: find.byIcon(Icons.translate),
+          ),
+          findsNWidgets(AiProviderPreset.mtServices.length),
+        );
+        await tester.tap(find.text('DeepL API'));
+        await tester.pumpAndSettle();
+        verify(
+          () => router.push<Object?>(
+            '/settings/providers/edit?preset=deepl',
+            extra: any(named: 'extra'),
+          ),
+        ).called(1);
+      });
+
+      testWidgets('listed services show the service and host', (tester) async {
+        await pump(
+          tester,
+          state: const AppSettings(providers: [_claude, _deepl, _libre]),
+        );
+        expect(find.text('Work translator'), findsOneWidget);
+        expect(find.text('DeepL API'), findsOneWidget);
+        expect(find.text('Home translator'), findsOneWidget);
+        expect(find.text('LibreTranslate · 192.168.1.20'), findsOneWidget);
+        expect(find.text('ignored-model'), findsNothing);
+        expect(find.text('claude-opus-5-5'), findsOneWidget);
+        // The self-hosted server is local, DeepL is in the cloud.
+        expect(find.text('Local'), findsOneWidget);
+        expect(find.text('Cloud'), findsNWidgets(2));
+        expect(find.byIcon(Icons.translate), findsNWidgets(2));
+      });
+
+      testWidgets('a DeepL proxy shows its host', (tester) async {
+        await pump(
+          tester,
+          state: AppSettings(
+            providers: [_deepl.copyWith(baseUrl: 'deepl.example.com/v2')],
+          ),
+        );
+        expect(find.text('DeepL API · deepl.example.com'), findsOneWidget);
+      });
     });
 
     testWidgets('dismissing the preset sheet does nothing', (tester) async {

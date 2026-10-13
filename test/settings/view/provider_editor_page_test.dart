@@ -83,7 +83,10 @@ void main() {
       UsageTracker? usageTracker,
     }) async {
       tester.setScreenSize(size);
-      final page = ProviderEditorPage(providerId: providerId, presetId: presetId);
+      final page = ProviderEditorPage(
+        providerId: providerId,
+        presetId: presetId,
+      );
       await tester.pumpView(
         usageTracker == null
             ? page
@@ -837,9 +840,9 @@ void main() {
             findsOneWidget,
           );
           final config =
-              verify(
-                    () => repository.testProvider(captureAny()),
-                  ).captured.single
+              verify(() => repository.testProvider(captureAny()))
+                      .captured
+                      .single
                   as AiProviderConfig;
           expect(config.service, MtService.deepl);
           expect(config.apiKey, 'dl-key:fx');
@@ -867,9 +870,7 @@ void main() {
       });
 
       group('LibreTranslate', () {
-        testWidgets('prefills the public server; key optional', (
-          tester,
-        ) async {
+        testWidgets('prefills the public server; key optional', (tester) async {
           await pump(tester, presetId: 'libretranslate');
           expect(find.text('Add translation service'), findsOneWidget);
           expect(textOf(tester, 'Server URL'), 'https://libretranslate.com');
@@ -949,8 +950,11 @@ void main() {
     group('prompt style', () {
       Finder dropdown() => find.byKey(const Key('provider_prompt_profile'));
 
-      Finder selected(String label) =>
-          find.descendant(of: dropdown(), matching: find.text(label));
+      PromptProfile? selected(WidgetTester tester) => tester
+          .widget<DropdownButton<PromptProfile>>(
+            find.byType(DropdownButton<PromptProfile>),
+          )
+          .value;
 
       testWidgets('Automatic shows the style for the current model', (
         tester,
@@ -963,17 +967,20 @@ void main() {
           ),
           findsOneWidget,
         );
-        expect(selected('Automatic (General chat model)'), findsOneWidget);
+        expect(selected(tester), PromptProfile.auto);
+        expect(find.text('Automatic (General chat model)'), findsOneWidget);
         expect(find.textContaining('only translates'), findsNothing);
 
         await tester.enterText(field('Model'), 'translategemma:4b');
         await tester.pump();
-        expect(selected('Automatic (TranslateGemma)'), findsOneWidget);
+        expect(find.text('Automatic (TranslateGemma)'), findsOneWidget);
+        expect(find.text('Automatic (General chat model)'), findsNothing);
         expect(find.textContaining('only translates'), findsOneWidget);
 
         await tester.enterText(field('Model'), 'hunyuan-mt-7b');
         await tester.pump();
-        expect(selected('Automatic (Hunyuan-MT)'), findsOneWidget);
+        expect(find.text('Automatic (Hunyuan-MT)'), findsOneWidget);
+        expect(selected(tester), PromptProfile.auto);
       });
 
       testWidgets('a new provider saves Automatic by default', (tester) async {
@@ -989,11 +996,11 @@ void main() {
         await pump(tester, presetId: 'ollama');
         await tester.tap(dropdown());
         await tester.pumpAndSettle();
-        expect(find.text('General chat model').last, findsOneWidget);
-        expect(find.text('TranslateGemma').last, findsOneWidget);
+        expect(find.text('General chat model'), findsWidgets);
+        expect(find.text('TranslateGemma'), findsWidgets);
         await tester.tap(find.text('Hunyuan-MT').last);
         await tester.pumpAndSettle();
-        expect(selected('Hunyuan-MT'), findsOneWidget);
+        expect(selected(tester), PromptProfile.hunyuanMt);
         expect(find.textContaining('only translates'), findsOneWidget);
         await tester.tap(find.text('Save'));
         await tester.pumpAndSettle();
@@ -1002,7 +1009,7 @@ void main() {
 
       testWidgets('an existing provider keeps its style', (tester) async {
         await pump(tester, providerId: 'g1');
-        expect(selected('TranslateGemma'), findsOneWidget);
+        expect(selected(tester), PromptProfile.translateGemma);
         await tester.tap(find.text('Save'));
         await tester.pumpAndSettle();
         final config = savedConfig();

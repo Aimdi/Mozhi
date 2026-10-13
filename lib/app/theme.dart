@@ -134,7 +134,9 @@ ThemeData buildAppTheme(ColorScheme scheme) {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.all(Radius.circular(10)),
       ),
-      showCheckmark: false,
+      // Selected filter/choice chips show a check mark, so selection is
+      // not conveyed by colour alone (WCAG 1.4.1).
+      showCheckmark: true,
     ),
     listTileTheme: ListTileThemeData(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16),

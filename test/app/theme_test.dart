@@ -91,7 +91,7 @@ void main() {
           BorderRadius.circular(kCardRadius),
         ),
       );
-      expect(theme.chipTheme.showCheckmark, isFalse);
+      expect(theme.chipTheme.showCheckmark, isTrue);
       expect(
         theme.chipTheme.padding,
         const EdgeInsets.symmetric(horizontal: 4),

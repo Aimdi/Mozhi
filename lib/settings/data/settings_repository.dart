@@ -112,7 +112,12 @@ class SettingsRepository {
     try {
       final json = jsonDecode(raw);
       if (json is! Map<String, dynamic>) return null;
-      return AppSettings.fromJson(json);
+      final settings = AppSettings.fromJson(json);
+      // Settings saved before onboarding existed belong to people who
+      // already set the app up: don't send them through it again.
+      return json.containsKey('onboardingComplete')
+          ? settings
+          : settings.copyWith(onboardingComplete: true);
     } on Object {
       return null;
     }

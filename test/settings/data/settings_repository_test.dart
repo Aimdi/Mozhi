@@ -145,6 +145,19 @@ void main() {
         expect(await repository.load(), equals(settings));
       });
 
+      test(
+        'marks onboarding done for settings saved before it existed',
+        () async {
+          final json = const AppSettings(engineId: 'mozhi:deepl').toJson()
+            ..remove('onboardingComplete');
+          prefs.values[SettingsRepository.settingsKey] = jsonEncode(json);
+
+          final loaded = await repository.load();
+          expect(loaded.onboardingComplete, isTrue);
+          expect(loaded.engineId, 'mozhi:deepl');
+        },
+      );
+
       test('injects API keys from the secret store', () async {
         final settings = AppSettings(
           providers: [_provider('a'), _provider('b'), _provider('c')],
