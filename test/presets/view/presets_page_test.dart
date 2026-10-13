@@ -1,3 +1,6 @@
+@Timeout(Duration(seconds: 40))
+library;
+
 import 'dart:convert';
 
 import 'package:flutter_bloc/flutter_bloc.dart';

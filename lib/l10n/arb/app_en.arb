@@ -68,14 +68,6 @@
   "@navSettings": {
     "description": "Bottom navigation: settings tab"
   },
-  "appProcessTextReady": "Translation ready",
-  "@appProcessTextReady": {
-    "description": "Snackbar shown after translating text selected in another app"
-  },
-  "appProcessTextReplace": "Replace text",
-  "@appProcessTextReplace": {
-    "description": "Snackbar action: replace the selected text in the other app with the translation"
-  },
   "translateTitle": "Translate",
   "@translateTitle": {
     "description": "translateTitle"
@@ -4138,10 +4130,6 @@
   "@historyEntryActions": {
     "description": "historyEntryActions"
   },
-  "historySearchLabel": "Search history",
-  "@historySearchLabel": {
-    "description": "historySearchLabel"
-  },
   "proofreadCategoryOther": "Other",
   "@proofreadCategoryOther": {
     "description": "proofreadCategoryOther"
@@ -4577,5 +4565,32 @@
   "settingsProviderPromptTranslationOnly": "This prompt style only translates: alternatives, tones, explanations and other AI extras are not available.",
   "@settingsProviderPromptTranslationOnly": {
     "description": "settingsProviderPromptTranslationOnly"
+  },
+  "translateInputTruncated": "Text shortened to the maximum length of {max} characters.",
+  "@translateInputTruncated": {
+    "description": "Notice under the input when long text was cut to the maximum length.",
+    "placeholders": {
+      "max": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "translateResultStaleHint": "Out of date — translate again",
+  "@translateResultStaleHint": {
+    "description": "Screen reader hint on a translation that belongs to text the user has since edited."
+  },
+  "translateOptionsPreset": "Preset",
+  "@translateOptionsPreset": {
+    "description": "Heading of the preset picker in the translation options sheet."
+  },
+  "translateSpanAlternativesTitle": "Alternatives for “{phrase}”",
+  "@translateSpanAlternativesTitle": {
+    "description": "Title of the sheet listing alternatives for a selected part of the translation.",
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      }
+    }
   }
 }

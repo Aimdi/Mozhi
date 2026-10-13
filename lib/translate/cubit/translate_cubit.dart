@@ -7,6 +7,7 @@ import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/translate/cubit/translate_state.dart';
+import 'package:mozhi/usage/data/usage_tracker.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 export 'translate_state.dart';
@@ -33,6 +34,9 @@ typedef _Languages = ({List<Language> sources, List<Language> targets});
 /// * Changing text/engine/languages/options clears extras.
 /// * When the detected language equals the target (auto source), the target
 ///   switches to the most recent other language (Kagi/Google smart swap).
+/// * With a `usageTracker`, every finished request to a bring-your-own-key
+///   provider (an engine with a `providerId`: translations, compare
+///   results and AI extras) is counted once; tracker errors are ignored.
 ///
 /// The constructor does no async work: call [loadEngines] once after
 /// construction (and whenever instances/providers change).
@@ -45,6 +49,7 @@ class TranslateCubit extends Cubit<TranslateState> {
     this.aiDebounce = const Duration(milliseconds: 1200),
     DateTime Function()? clock,
     List<String> Function()? deviceLanguages,
+    this._usageTracker,
   }) : _settings = settings,
        _clock = clock ?? DateTime.now,
        _deviceLanguages = deviceLanguages ?? _platformLanguages,
@@ -101,6 +106,9 @@ class TranslateCubit extends Cubit<TranslateState> {
   final HistoryCubit _history;
   final DateTime Function() _clock;
   final List<String> Function() _deviceLanguages;
+
+  /// Counts provider usage (characters and estimated tokens); optional.
+  final UsageTracker? _usageTracker;
 
   /// Instant-translate delay for Mozhi engines.
   final Duration debounce;
@@ -769,9 +777,15 @@ class TranslateCubit extends Cubit<TranslateState> {
       fail(error);
       return done.future;
     }
+    var counted = false;
     _translation = stream.listen(
       (result) {
         if (!_isCurrentTranslation(id)) return;
+        if (result.isComplete && !counted) {
+          // The provider did the work even when a smart swap follows.
+          counted = true;
+          _recordUsage(selected, input: request.text, output: result.text);
+        }
         _onResult(selected, request, result, smartSwap: smartSwap, auto: auto);
       },
       onError: (Object error) {
@@ -1314,6 +1328,15 @@ class TranslateCubit extends Cubit<TranslateState> {
     _compare = stream.listen(
       (entry) {
         if (!_isCurrentCompare(id)) return;
+        final result = entry.result;
+        if (result != null && result.isComplete) {
+          for (final engine in engines) {
+            if (engine.id == entry.id) {
+              _recordUsage(engine, input: text, output: result.text);
+              break;
+            }
+          }
+        }
         emit(state.copyWith(compareEntries: [...state.compareEntries, entry]));
       },
       onError: (Object error) {
@@ -1383,6 +1406,7 @@ class TranslateCubit extends Cubit<TranslateState> {
     ),
     fetch: (engine, request, output) =>
         _repository.getAlternatives(engine, request, output, span: span),
+    usageText: _alternativesText,
     ready: (s, value) => s.copyWith(
       alternativesStatus: ExtraStatus.ready,
       alternatives: () => value,
@@ -1394,6 +1418,7 @@ class TranslateCubit extends Cubit<TranslateState> {
     _Extra.insights,
     loading: (s) => s.copyWith(insightsStatus: ExtraStatus.loading),
     fetch: _repository.getInsights,
+    usageText: _insightsText,
     ready: (s, value) =>
         s.copyWith(insightsStatus: ExtraStatus.ready, insights: value),
     failed: (s) => s.copyWith(insightsStatus: ExtraStatus.failure),
@@ -1403,6 +1428,7 @@ class TranslateCubit extends Cubit<TranslateState> {
     _Extra.suggestions,
     loading: (s) => s.copyWith(suggestionsStatus: ExtraStatus.loading),
     fetch: _repository.getSuggestions,
+    usageText: _suggestionsText,
     ready: (s, value) => s.copyWith(
       suggestionsStatus: ExtraStatus.ready,
       suggestions: _mergeSuggestions(value),
@@ -1463,11 +1489,12 @@ class TranslateCubit extends Cubit<TranslateState> {
       _complete(done);
     }
 
+    final request = _extrasRequest();
     final Stream<String> stream;
     try {
       stream = _repository.explain(
         engine,
-        _extrasRequest(),
+        request,
         output,
         question: question,
       );
@@ -1475,8 +1502,10 @@ class TranslateCubit extends Cubit<TranslateState> {
       fail(error);
       return done.future;
     }
+    final explanation = StringBuffer();
     _explanation = stream.listen(
       (chunk) {
+        explanation.write(chunk);
         if (!_isCurrentExtra(_Extra.explain, token)) return;
         emit(state.copyWith(explanation: state.explanation + chunk));
       },
@@ -1484,6 +1513,11 @@ class TranslateCubit extends Cubit<TranslateState> {
         if (_isCurrentExtra(_Extra.explain, token)) fail(error);
       },
       onDone: () {
+        _recordUsage(
+          engine,
+          input: _extrasUsageInput(request, output, question: question),
+          output: explanation.toString(),
+        );
         if (!_isCurrentExtra(_Extra.explain, token)) return;
         _explanation = null;
         emit(state.copyWith(explainStatus: ExtraStatus.ready));
@@ -1513,6 +1547,7 @@ class TranslateCubit extends Cubit<TranslateState> {
         source: _effectiveSource(),
         target: state.target,
       );
+      _recordUsage(engine, input: word, output: _dictionaryText(entry));
       if (!_isCurrentExtra(_Extra.dictionary, token)) return;
       emit(
         state.copyWith(
@@ -1542,6 +1577,7 @@ class TranslateCubit extends Cubit<TranslateState> {
       String translation,
     )
     fetch,
+    required String Function(T value) usageText,
     required TranslateState Function(TranslateState state, T value) ready,
     required TranslateState Function(TranslateState state) failed,
   }) async {
@@ -1551,7 +1587,13 @@ class TranslateCubit extends Cubit<TranslateState> {
     final token = _invalidateExtra(extra);
     emit(loading(state).copyWith(extraError: () => null));
     try {
-      final value = await fetch(engine, _extrasRequest(), output);
+      final request = _extrasRequest();
+      final value = await fetch(engine, request, output);
+      _recordUsage(
+        engine,
+        input: _extrasUsageInput(request, output),
+        output: usageText(value),
+      );
       if (!_isCurrentExtra(extra, token)) return;
       emit(ready(state, value));
     } on Object catch (error) {
@@ -1559,6 +1601,80 @@ class TranslateCubit extends Cubit<TranslateState> {
       emit(failed(state).copyWith(extraError: () => error));
     }
   }
+
+  /// Counts a finished request to [engine]'s provider (engines with a
+  /// `providerId`: AI and machine translation services) when a usage
+  /// tracker is set. Never throws; tracker errors are ignored.
+  void _recordUsage(
+    TranslationEngine engine, {
+    required String input,
+    required String output,
+  }) {
+    final tracker = _usageTracker;
+    final providerId = engine.providerId;
+    if (tracker == null || providerId == null || providerId.isEmpty) return;
+    unawaited(
+      tracker
+          .recordText(providerId, input: input, output: output)
+          .then((_) {}, onError: (Object _) {}),
+    );
+  }
+
+  /// What an extras request sends besides the prompt: the source text, the
+  /// translation and (explain) the question.
+  static String _extrasUsageInput(
+    TranslationRequest request,
+    String translation, {
+    String? question,
+  }) => [request.text, translation, ?question].join('\n');
+
+  static String _alternativesText(AlternativeTranslations value) => [
+    value.description,
+    for (final alternative in value.alternatives) ...[
+      alternative.text,
+      alternative.explanation,
+    ],
+  ].join('\n');
+
+  static String _insightsText(List<WordInsight> insights) => [
+    for (final insight in insights) ...[
+      insight.sourceText,
+      insight.targetText,
+      insight.type,
+      insight.explanation,
+      for (final variation in insight.variations) ...[
+        variation.text,
+        variation.explanation,
+      ],
+    ],
+  ].join('\n');
+
+  static String _suggestionsText(List<RefinementSuggestion> suggestions) => [
+    for (final suggestion in suggestions) ...[
+      suggestion.label,
+      suggestion.instruction,
+      suggestion.description,
+    ],
+  ].join('\n');
+
+  static String _dictionaryText(DictionaryEntry entry) => [
+    entry.word,
+    entry.pronunciation,
+    ...entry.partsOfSpeech,
+    for (final sense in entry.senses) ...[
+      sense.definition,
+      sense.partOfSpeech,
+      ...sense.translations,
+      sense.usage,
+    ],
+    for (final example in entry.examples) ...[
+      example.source,
+      example.translation,
+    ],
+    ...entry.synonyms,
+    entry.etymology,
+    entry.notes,
+  ].join('\n');
 
   /// The finished output of the current input extras can work on, else
   /// null (also when the output belongs to text the user since edited).
