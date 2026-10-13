@@ -118,8 +118,10 @@ jobs:
 
       - name: Build
         run: |
+          # --no-web-resources-cdn: serve CanvasKit from the build itself
+          # instead of Google's CDN (no third-party request on start).
           flutter build web --release -t lib/main_production.dart \
-            --base-href "$WEB_BASE_HREF"
+            --base-href "$WEB_BASE_HREF" --no-web-resources-cdn
 
       - name: Zip
         env:

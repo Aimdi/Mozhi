@@ -337,9 +337,7 @@ void main() {
     });
 
     group('launch redirect', () {
-      testWidgets('sends a plain start to the onboarding once', (
-        tester,
-      ) async {
+      testWidgets('sends a plain start to the onboarding once', (tester) async {
         onboardingRouter();
         await pumpRouter(tester);
         await tester.pump(_transition);

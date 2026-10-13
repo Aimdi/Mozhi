@@ -48,8 +48,8 @@ history anywhere.
   detected source language with smart swap, transliteration, text-to-speech.
 - **History and favourites**, searchable, with JSON export and import.
 - **Android**: *Translate with Mozhi* in the text-selection menu of any app
-  (it can replace the selected text with the translation in editable fields)
-  and a share target for text.
+  opens a quick-translate sheet (with *Replace* for editable fields and
+  *Open in app*), plus a share target for text.
 - Links like `/translate?text=hola&from=es&to=en` open pre-filled (same
   parameters as Kagi Translate; `q`, `sl` and `tl` work too).
 - Material 3 with Material You colours, dark mode and pure-black mode;
@@ -59,9 +59,45 @@ history anywhere.
 
 - No account, no telemetry, no analytics.
 - History and settings stay on the device; API keys are kept in the platform's
-  secure storage.
+  secure storage (in the web app only for the browser session). Where secure
+  storage is unavailable the app says so and keeps keys in memory.
+- Shared text, selections and links never start a paid AI request on their
+  own.
 - Your text only goes to the Mozhi instance or AI provider you choose. Run both
   yourself and nothing leaves your network.
+
+---
+
+## Screens & features
+
+Besides the four tabs (Translate, Proofread, History, Settings):
+
+| Screen | Where | What it does |
+| --- | --- | --- |
+| Onboarding | first start | Pick public or your own Mozhi instance and, optionally, an AI provider |
+| Image | Translate > More tools | Photos and screenshots: AI vision, Mozhi (Google Lens) or on-device text recognition |
+| Documents | Translate > More tools | `.txt`, Markdown, SRT/VTT subtitles and JSON/ARB string tables, saved or shared when done |
+| Web page | Translate > More tools | Reader view of a page, translated block by block |
+| Conversation | Translate > More tools | Two people, two languages, with voice input and read-aloud |
+| Voice input | microphone buttons | Dictation, optionally on-device only |
+| Offline languages | Settings | ML Kit models for translating without a network (Android, iOS) |
+| Presets and glossaries | Settings | Named option sets and term lists for AI translation |
+| Usage | Settings | Requests and characters per AI provider this month, with optional budgets |
+| Quick translate | Android selection menu | Translate a selection in place without leaving the other app |
+
+Documentation:
+
+- [Getting started](docs/getting-started.md): install, first run, Android
+  shortcuts
+- [Features](docs/features.md): a tour of everything above
+- [AI providers](docs/ai-providers.md): keys, base URLs, models, local models
+- [Self-hosting Mozhi](docs/self-hosting-mozhi.md): your own instance with
+  Docker Compose, HTTPS, LAN and Tor
+- [Privacy](docs/privacy.md): what stays on the device and what each back end
+  sees
+- [FAQ](docs/faq.md)
+- [Architecture](docs/architecture.md): packages, layers and data flow (for
+  contributors)
 
 ---
 
@@ -72,7 +108,9 @@ history anywhere.
   modern phone, `armeabi-v7a` for old 32-bit devices, or `universal` if unsure.
   Check downloads against `SHA256SUMS.txt`.
 - **Web**: every CI run also produces a static build (`mozhi-web` artifact)
-  that can be served from any web server under `/Mozhi/`.
+  that can be served from any web server under `/Mozhi/app/` (the base href
+  CI uses; set the `WEB_BASE_HREF` repository variable for another path). It
+  makes no requests to a CDN.
 - **iOS, macOS, Windows**: build from source (see below).
 
 > APKs built without the release signing secrets are signed with a throwaway
@@ -148,20 +186,32 @@ flutter run --flavor production -t lib/main_production.dart
 # Android release APKs
 flutter build apk --release --flavor production -t lib/main_production.dart --split-per-abi
 
-# Web
-flutter build web --release -t lib/main_production.dart --base-href /Mozhi/
+# Web (CanvasKit served from the build, not from Google's CDN)
+flutter build web --release -t lib/main_production.dart \
+  --base-href /Mozhi/app/ --no-web-resources-cdn
 ```
 
 The three flavors install side by side on Android (`io.github.aimdi.mozhi`,
 `.stg`, `.dev`).
 
-**Release signing (Android).** Release builds use, in this order: the
-environment variables `ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`,
-`ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`; or `android/key.properties`
-(`storeFile`, `storePassword`, `keyAlias`, `keyPassword`); otherwise the debug
-key. In GitHub Actions, add the repository secrets `ANDROID_KEYSTORE_BASE64`
-(`base64 -w0 release.jks`), `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`
-and `ANDROID_KEY_PASSWORD`.
+### APK signing secrets
+
+Release builds use, in this order: the environment variables
+`ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and
+`ANDROID_KEY_PASSWORD`; or `android/key.properties` (`storeFile`,
+`storePassword`, `keyAlias`, `keyPassword`); otherwise the debug key.
+
+In GitHub Actions (Settings > Secrets and variables > Actions), add:
+
+| Secret | Value |
+| --- | --- |
+| `ANDROID_KEYSTORE_BASE64` | The keystore, base64-encoded: `base64 -w0 release.jks` |
+| `ANDROID_KEYSTORE_PASSWORD` | Keystore password |
+| `ANDROID_KEY_ALIAS` | Key alias |
+| `ANDROID_KEY_PASSWORD` | Key password |
+
+Without them CI signs with a throwaway debug key (see the note under
+[Install](#install)).
 
 **Releases.** Pushing a tag such as `v1.0.0` builds the APKs and publishes a
 GitHub release.
@@ -185,8 +235,13 @@ A layered Flutter app with pure Dart packages:
 | `packages/mozhi_api` | Client for the Mozhi REST API (`/api/translate`, `/api/engines`, languages, TTS, ...). |
 | `packages/llm_api` | Streaming clients for OpenAI-compatible, Anthropic, Gemini and Ollama APIs. |
 | `packages/translation_repository` | Domain models, language catalogue, prompts and parsers, and `TranslationRepository`, which unifies Mozhi engines and AI providers (failover, caching, compare, extras). |
-| `lib/app` | Bootstrap wiring, router (`go_router`), adaptive shell, theme. |
+| `packages/mt_api` | Clients for machine translation services (DeepL, LibreTranslate). |
+| `packages/mlkit_translator` | On-device ML Kit translation (Android, iOS) behind `OfflineTranslator`. |
+| `packages/mozhi_cli` | Command-line client. |
+| `lib/app` | Bootstrap wiring, router (`go_router`), adaptive shell, theme, shared-text and link handling. |
 | `lib/translate`, `lib/proofread`, `lib/history`, `lib/settings` | Features: Cubits (`flutter_bloc`) and views. |
+| `lib/image_translate`, `lib/documents`, `lib/web_translate`, `lib/conversation`, `lib/quick_translate` | Other translators (full-screen routes and the quick-translate sheet). |
+| `lib/onboarding`, `lib/presets`, `lib/offline`, `lib/usage`, `lib/voice` | First run, presets and glossaries, offline models, usage tracking, voice input. |
 | `lib/speech`, `lib/platform` | Text-to-speech and the Android share / text-selection bridge. |
 
 User-facing strings live in `lib/l10n/arb`.

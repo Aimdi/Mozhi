@@ -225,17 +225,16 @@ void main() {
 
     group('selected text (PROCESS_TEXT)', () {
       setUp(() {
-        when(
-          () => env.translationRepository.translate(any(), any()),
-        ).thenAnswer(
-          (_) => Stream.value(
-            const TranslationResult(
-              engineId: 'mozhi:google',
-              engineName: 'Google',
-              text: 'hello',
-            ),
-          ),
-        );
+        when(() => env.translationRepository.translate(any(), any()))
+            .thenAnswer(
+              (_) => Stream.value(
+                const TranslationResult(
+                  engineId: 'mozhi:google',
+                  engineName: 'Google',
+                  text: 'hello',
+                ),
+              ),
+            );
         when(env.sharedTextService.initialText).thenAnswer(
           (_) async =>
               const SharedText('hola', readOnly: false, isProcessText: true),
@@ -325,9 +324,7 @@ void main() {
       expect(find.byType(AppShell), findsNothing);
     });
 
-    testWidgets('warns once when API keys are kept in memory', (
-      tester,
-    ) async {
+    testWidgets('warns once when API keys are kept in memory', (tester) async {
       final secrets = FallbackKeyValueStore(_BrokenStore());
       await secrets.probe();
 

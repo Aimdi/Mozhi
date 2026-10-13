@@ -68,8 +68,10 @@ jobs:
       - name: Bloc lint
         run: dart run bloc_tools:bloc lint lib
 
-      # Pure Dart packages (and the CLI): dart test; Flutter packages
-      # (mlkit_translator): flutter test. Packages without tests are skipped.
+      # Every package under packages/ (llm_api, mlkit_translator, mozhi_api,
+      # mozhi_cli, mt_api, translation_repository): pure Dart packages and
+      # the CLI use dart test, Flutter packages (mlkit_translator) flutter
+      # test. Packages without tests are skipped.
       - name: Test packages
         run: bash .github/scripts/packages.sh test
 
@@ -203,8 +205,10 @@ jobs:
 
       - name: Build
         run: |
+          # --no-web-resources-cdn: serve CanvasKit from the build itself
+          # instead of Google's CDN (no third-party request on start).
           flutter build web --release -t lib/main_production.dart \
-            --base-href "$WEB_BASE_HREF"
+            --base-href "$WEB_BASE_HREF" --no-web-resources-cdn
           {
             echo "### Web build"
             echo

@@ -62,8 +62,8 @@ class TranslateLink extends Equatable {
   /// Source language code (or name); `auto` for detection.
   final String? from;
 
-  /// Target language code (or name). AI engines also accept free-form
-  /// targets such as `Pirate speak`.
+  /// Target language code (or name). Only languages of the engine's list
+  /// are applied: free-form AI targets such as `Pirate speak` are ignored.
   final String? to;
 
   bool get hasText => text != null && text!.trim().isNotEmpty;
@@ -82,7 +82,7 @@ class TranslateLink extends Equatable {
     Duration timeout = const Duration(seconds: 20),
   }) async {
     final state = await waitForEngines(cubit, timeout: timeout);
-    if (state == null) return;
+    if (state == null || cubit.isClosed) return;
 
     final from = this.from;
     final source = from == null
@@ -103,7 +103,8 @@ class TranslateLink extends Equatable {
       );
       return;
     }
-    // Languages only: select them without translating the current input.
+    // Languages only: select them. Like any external input, the current
+    // text is only translated again when that costs nothing.
     if ((usableSource != null && usableSource != state.source) ||
         (usableTarget != null && usableTarget != state.target)) {
       cubit.setExternalInput(

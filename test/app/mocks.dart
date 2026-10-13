@@ -55,8 +55,7 @@ class FakeOfflineTranslator implements OfflineTranslator {
       throw UnsupportedError('offline');
 
   @override
-  Future<void> deleteLanguage(String code) =>
-      throw UnsupportedError('offline');
+  Future<void> deleteLanguage(String code) => throw UnsupportedError('offline');
 
   @override
   Future<String> translate(

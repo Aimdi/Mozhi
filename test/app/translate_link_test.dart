@@ -215,9 +215,8 @@ void main() {
     });
 
     test('selects languages of a link without text', () async {
-      when(() => cubit.state).thenReturn(
-        _ready().copyWith(input: 'already typed'),
-      );
+      when(() => cubit.state)
+          .thenReturn(_ready().copyWith(input: 'already typed'));
 
       await const TranslateLink(from: 'es', to: 'fr').applyTo(cubit);
 

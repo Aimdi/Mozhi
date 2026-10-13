@@ -37,20 +37,14 @@ void main() {
       // Null resets, so the same message is announced again afterwards.
       await tester.pumpWidget(_app(null, supportsAnnounce: true));
       await tester.pumpWidget(
-        _app(
-          'مرحبا',
-          supportsAnnounce: true,
-          textDirection: TextDirection.rtl,
-        ),
+        _app('مرحبا', supportsAnnounce: true, textDirection: TextDirection.rtl),
       );
       expect(tester.takeAnnouncements(), [
         isAccessibilityAnnouncement('مرحبا', textDirection: TextDirection.rtl),
       ]);
     });
 
-    testWidgets('stays silent on the first build unless asked', (
-      tester,
-    ) async {
+    testWidgets('stays silent on the first build unless asked', (tester) async {
       await tester.pumpWidget(_app('Done', supportsAnnounce: true));
       expect(tester.takeAnnouncements(), isEmpty);
       await tester.pumpWidget(const SizedBox());
@@ -58,6 +52,24 @@ void main() {
         _app('Done', supportsAnnounce: true, announceInitial: true),
       );
       expect(tester.takeAnnouncements(), [isAccessibilityAnnouncement('Done')]);
+    });
+
+    testWidgets('lays its child out as if it were not there', (tester) async {
+      for (final message in [null, 'Ready']) {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  StatusAnnouncer(message: message, child: const Text('x')),
+                ],
+              ),
+            ),
+          ),
+        );
+        expect(tester.getSize(find.text('x')).width, 800);
+      }
     });
 
     testWidgets('falls back to a live region without announce support', (
