@@ -10,8 +10,8 @@ void main() {
   final snapshot = UsageSnapshot(
     currentMonth: october,
     months: {
-      october: {'a': a, 'b': b},
-      september: {'a': b, 'empty': UsageStats.zero},
+      october: const {'a': a, 'b': b},
+      september: const {'a': b, 'empty': UsageStats.zero},
     },
     budgets: const {'c': UsageBudget(monthlyChars: 100)},
   );

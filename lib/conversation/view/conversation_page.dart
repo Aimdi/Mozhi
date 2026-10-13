@@ -21,7 +21,7 @@ import 'package:translation_repository/translation_repository.dart';
 /// a full-screen route (outside the tab shell) so face-to-face mode gets
 /// the whole screen.
 class ConversationPage extends StatelessWidget {
-  const ConversationPage({
+  const new({
     this.micBuilder,
     this.share = shareConversationText,
     super.key,
@@ -61,7 +61,7 @@ class ConversationPage extends StatelessWidget {
 /// Builds the standard or the face-to-face layout of the
 /// [ConversationCubit] above it.
 class ConversationView extends StatelessWidget {
-  const ConversationView({
+  const new({
     this.micBuilder,
     this.share = shareConversationText,
     super.key,
@@ -141,7 +141,7 @@ class ConversationView extends StatelessWidget {
 
 /// Shared layout: languages on top, transcript, one composer per side.
 class _StandardLayout extends StatelessWidget {
-  const _StandardLayout({required this.micBuilder, required this.wide});
+  const new({required this.micBuilder, required this.wide});
 
   final ConversationMicBuilder? micBuilder;
   final bool wide;
@@ -210,7 +210,7 @@ class _StandardLayout extends StatelessWidget {
 /// Split screen: side B's half on top, upside down; controls in the middle;
 /// side A's half at the bottom.
 class _FaceToFaceLayout extends StatelessWidget {
-  const _FaceToFaceLayout({required this.micBuilder, required this.share});
+  const new({required this.micBuilder, required this.share});
 
   final ConversationMicBuilder? micBuilder;
   final ConversationShareCallback share;

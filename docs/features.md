@@ -183,8 +183,9 @@ the web or desktop.
   after picking an alternative, the newest entry is updated instead of
   duplicated.
 - **History** groups entries by day, with search across the text, the
-  translation and the language names, and an **All / Favorites** filter. Tap an entry to open it in
-  the translator; swipe it away to delete it (with undo).
+  translation and the language names, and an **All / Favorites** filter. Tap
+  an entry to open it in the translator; swipe it away to delete it (with
+  undo).
 - Star a translation to make it a **favourite**. Favourites are never removed
   automatically; the newest 1,000 other entries are kept.
 - **Clear history** can keep your favourites.

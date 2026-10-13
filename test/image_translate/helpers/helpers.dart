@@ -200,6 +200,8 @@ class FakeTextRecognitionService implements TextRecognitionService {
 
 void registerImageTranslateFallbacks() {
   registerFallbackValue(google);
+  registerFallbackValue(ImagePickSource.gallery);
+  registerFallbackValue(onDeviceMethod);
   registerFallbackValue(english);
   registerFallbackValue(Uint8List(0));
   registerFallbackValue(const TranslationOptions());

@@ -65,7 +65,9 @@ class WebReaderSliver extends StatelessWidget {
 
     return SliverMainAxisGroup(
       slivers: [
-        SliverToBoxAdapter(child: WebReaderHeader(mode: mode, wide: wide)),
+        SliverToBoxAdapter(
+          child: WebReaderHeader(mode: mode, wide: wide),
+        ),
         SliverList.separated(
           itemCount: page.blocks.length,
           separatorBuilder: (context, index) => const SizedBox(height: 14),
@@ -292,7 +294,9 @@ class WebTranslateActions extends StatelessWidget {
                 WebTranslateShare.share(
                   ShareParams(
                     text: uri == null ? text : '$text\n\n$uri',
-                    subject: translated ? state.displayTitle : state.page?.title,
+                    subject: translated
+                        ? state.displayTitle
+                        : state.page?.title,
                     sharePositionOrigin: origin,
                   ),
                 ),

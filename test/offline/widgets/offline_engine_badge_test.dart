@@ -7,7 +7,9 @@ import '../../helpers/helpers.dart';
 void main() {
   group('OfflineEngineBadge', () {
     testWidgets('shows an "Offline" label with a tooltip', (tester) async {
-      await tester.pumpApp(const Center(child: OfflineEngineBadge()));
+      // A non-const instance so the constructor is covered.
+      // ignore: prefer_const_constructors
+      await tester.pumpApp(Center(child: OfflineEngineBadge()));
       expect(find.text('Offline'), findsOneWidget);
       expect(find.byIcon(OfflineEngineBadge.icon), findsOneWidget);
       expect(find.byTooltip('Translated on this device'), findsOneWidget);

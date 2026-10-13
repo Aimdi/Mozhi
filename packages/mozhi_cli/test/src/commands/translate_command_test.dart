@@ -285,16 +285,19 @@ void main() {
 
       test('erases partial output when the model refuses', () async {
         h.terminal();
-        when(() => h.repository.translate(any(), any())).thenAnswer(
-          (_) => Stream.fromIterable(const [
-            TranslationResult(
-              engineId: 'ai:local',
-              engineName: 'Local',
-              text: 'Hal',
-              isComplete: false,
-            ),
-          ]).followedBy(const LlmRefusalException('no', category: 'cyber')),
-        );
+        Stream<TranslationResult> refuse() async* {
+          yield const TranslationResult(
+            engineId: 'ai:local',
+            engineName: 'Local',
+            text: 'Hal',
+            isComplete: false,
+          );
+          throw const LlmRefusalException('no', category: 'cyber');
+        }
+
+        when(
+          () => h.repository.translate(any(), any()),
+        ).thenAnswer((_) => refuse());
         expect(
           await h.run(['translate', '-e', 'ai', 'x']),
           ExitCode.unavailable.code,

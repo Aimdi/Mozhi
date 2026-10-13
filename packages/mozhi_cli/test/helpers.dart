@@ -68,7 +68,7 @@ class Harness {
 
     when(() => logger.level).thenAnswer((_) => level);
     when(() => logger.level = any()).thenAnswer((invocation) {
-      level = invocation.positionalArguments.first as Level;
+      return level = invocation.positionalArguments.first as Level;
     });
     void record(List<String> sink, Invocation invocation) {
       final message = invocation.positionalArguments.first as String?;
@@ -188,7 +188,9 @@ class Harness {
 
 void registerFallbacks() {
   registerFallbackValue(googleEngine);
-  registerFallbackValue(const TranslationRequest(text: '', source: english, target: french));
+  registerFallbackValue(
+    const TranslationRequest(text: '', source: english, target: french),
+  );
   registerFallbackValue(const MozhiInstance(url: 'https://example.com'));
   registerFallbackValue(ollamaProvider);
   registerFallbackValue(<MozhiInstance>[]);
