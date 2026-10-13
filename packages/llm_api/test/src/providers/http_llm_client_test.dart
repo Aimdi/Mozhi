@@ -455,6 +455,84 @@ void main() {
         );
       });
 
+      test('maps a connection dropped while streaming to '
+          'LlmInterruptedException', () async {
+        final server = FakeServer([
+          FakeResponse(() async* {
+            yield _delta('Bonjour, ');
+            throw http.ClientException('Connection closed while receiving data');
+          }),
+        ]);
+        await expectLater(
+          _client(server.client).streamChat(_request),
+          emitsInOrder(<Object>[
+            'Bonjour, ',
+            emitsError(
+              isA<LlmInterruptedException>()
+                  .having(
+                    (e) => e.message,
+                    'message',
+                    'The connection was interrupted before the response '
+                        'finished.',
+                  )
+                  .having((e) => e.partialText, 'partialText', 'Bonjour, ')
+                  .having((e) => e.statusCode, 'statusCode', isNull),
+            ),
+            emitsDone,
+          ]),
+        );
+        await expectLater(server.lastRequest.abortTrigger, completes);
+      });
+
+      test('keeps the type of truncation and interruption errors when '
+          'redacting the key', () async {
+        final truncated = FakeServer([
+          FakeResponse.text(
+            sse([
+              {
+                'choices': [
+                  {
+                    'delta': {'content': 'Part'},
+                    'finish_reason': 'length',
+                  },
+                ],
+              },
+            ]),
+          ),
+        ]);
+        await expectLater(
+          _client(truncated.client, apiKey: 'cut off').streamChat(_request),
+          emitsInOrder(<Object>[
+            'Part',
+            emitsError(
+              isA<LlmTruncatedException>()
+                  .having((e) => e.message, 'message', contains('[redacted]'))
+                  .having((e) => e.message, 'message', isNot(contains('cut off')))
+                  .having((e) => e.partialText, 'partialText', 'Part')
+                  .having((e) => e.reason, 'reason', 'length'),
+            ),
+          ]),
+        );
+
+        final interrupted = FakeServer([
+          FakeResponse.text(String.fromCharCodes(_delta('Part'))),
+        ]);
+        await expectLater(
+          _client(
+            interrupted.client,
+            apiKey: 'interrupted',
+          ).streamChat(_request),
+          emitsInOrder(<Object>[
+            'Part',
+            emitsError(
+              isA<LlmInterruptedException>()
+                  .having((e) => e.message, 'message', contains('[redacted]'))
+                  .having((e) => e.partialText, 'partialText', 'Part'),
+            ),
+          ]),
+        );
+      });
+
       test('maps unexpected errors', () async {
         final client = _client(
           MockClient.streaming((_, _) => throw StateError('boom')),

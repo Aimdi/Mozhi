@@ -24,7 +24,7 @@ String formatConversationTime(BuildContext context, DateTime time) =>
 /// Without a viewer (shared standard layout) side A sits at the start,
 /// side B at the end, and the translation is the large text.
 class ConversationTurnBubble extends StatelessWidget {
-  const ConversationTurnBubble({
+  const new({
     required this.turn,
     this.viewer,
     this.speaking = false,
@@ -243,7 +243,7 @@ class ConversationTurnBubble extends StatelessWidget {
 enum _TurnAction { copyOriginal, copyTranslation, delete }
 
 class _DialogOption extends StatelessWidget {
-  const _DialogOption({
+  const new({
     required this.icon,
     required this.label,
     required this.value,
@@ -269,7 +269,7 @@ class _DialogOption extends StatelessWidget {
 
 /// The translation part of a bubble: streaming text, progress or error.
 class _Translation extends StatelessWidget {
-  const _Translation({
+  const new({
     required this.turn,
     required this.style,
     required this.color,

@@ -78,6 +78,7 @@ services:
       start_period: 15s
     user: "65534:65534"
     read_only: true
+    tmpfs: ["/tmp"]
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     logging: *logging

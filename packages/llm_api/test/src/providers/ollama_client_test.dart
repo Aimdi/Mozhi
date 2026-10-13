@@ -36,7 +36,7 @@ void main() {
   group(OllamaClient, () {
     group('streamChat request', () {
       test('posts the exact body and headers', () async {
-        final server = FakeServer([FakeResponse.text('')]);
+        final server = FakeServer([FakeResponse.text(_ndjson([_line('', done: true)]))]);
         await _client(server).streamChat(_request).drain<void>();
 
         final request = server.lastRequest;
@@ -56,7 +56,7 @@ void main() {
       });
 
       test('sends options, format, images and the key when set', () async {
-        final server = FakeServer([FakeResponse.text('')]);
+        final server = FakeServer([FakeResponse.text(_ndjson([_line('', done: true)]))]);
         await _client(server, apiKey: 'proxy-key')
             .streamChat(
               const LlmRequest(
@@ -114,6 +114,61 @@ void main() {
             reason: 'chunk size $size',
           );
         }
+      });
+
+      test('throws LlmTruncatedException at done_reason length', () async {
+        final server = FakeServer([
+          FakeResponse.text(
+            _ndjson([
+              _line('<think>plan</think>\n'),
+              _line('Partial para 1'),
+              {..._line('', done: true), 'done_reason': 'length'},
+            ]),
+          ),
+        ]);
+        await expectLater(
+          _client(server).streamChat(_request),
+          emitsInOrder(<Object>[
+            'Partial para 1',
+            emitsError(
+              isA<LlmTruncatedException>()
+                  .having((e) => e.reason, 'reason', 'length')
+                  .having((e) => e.partialText, 'partialText', 'Partial para 1'),
+            ),
+          ]),
+        );
+      });
+
+      test('completes at done_reason stop', () async {
+        final server = FakeServer([
+          FakeResponse.text(
+            _ndjson([
+              _line('Bonjour'),
+              {..._line('', done: true), 'done_reason': 'stop'},
+            ]),
+          ),
+        ]);
+        expect(await _client(server).chat(_request), 'Bonjour');
+      });
+
+      test('throws LlmInterruptedException without done: true', () async {
+        final server = FakeServer([
+          FakeResponse.text(_ndjson([_line('Bonjour, '), _line('comment')])),
+        ]);
+        await expectLater(
+          _client(server).streamChat(_request),
+          emitsInOrder(<Object>[
+            'Bonjour, ',
+            'comment',
+            emitsError(
+              isA<LlmInterruptedException>().having(
+                (e) => e.partialText,
+                'partialText',
+                'Bonjour, comment',
+              ),
+            ),
+          ]),
+        );
       });
 
       test('throws error lines as LlmApiException', () async {

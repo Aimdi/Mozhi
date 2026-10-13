@@ -23,8 +23,12 @@ void main() {
 
   tearDown(() => settings.close());
 
-  Future<void> pumpPage(WidgetTester tester, {Widget? page}) async {
-    tester.setScreenSize(const Size(420, 900));
+  Future<void> pumpPage(
+    WidgetTester tester, {
+    Widget? page,
+    Size size = const Size(420, 900),
+  }) async {
+    tester.setScreenSize(size);
     await tester.pumpOnboarding(
       page ?? const OnboardingPage(),
       settings: settings,
@@ -110,7 +114,7 @@ void main() {
     });
 
     testWidgets('keeps form input when moving between steps', (tester) async {
-      await pumpPage(tester);
+      await pumpPage(tester, size: const Size(420, 2400));
       await tapNext(tester);
       await tester.enterText(find.byType(TextField), 'my.instance');
       await tapNext(tester);
@@ -138,24 +142,20 @@ void main() {
     testWidgets('saves an AI provider from the AI step', (tester) async {
       when(() => repository.testProvider(any()))
           .thenAnswer((_) async => 'Bonjour !');
-      tester.setScreenSize(const Size(420, 2400));
-      await tester.pumpOnboarding(
-        const OnboardingPage(),
-        settings: settings,
-        repository: repository,
-        router: router,
-        scaffold: false,
-      );
+      await pumpPage(tester, size: const Size(420, 1600));
       await tapNext(tester);
       await tapNext(tester);
 
       await tester.tap(find.text('Ollama'));
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Test'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Test'));
       await tester.pumpAndSettle();
       expect(find.textContaining('Bonjour !'), findsOneWidget);
 
+      await tester.ensureVisible(find.text('Save'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
       expect(settings.state.providers.single.presetId, 'ollama');
