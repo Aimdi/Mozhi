@@ -457,7 +457,7 @@ void main() {
           sources: const [english, spanish],
           targets: const [spanish, french],
         );
-        final cubit = build(source: english, target: german);
+        final cubit = build(source: english);
         addTearDown(cubit.close);
         final future = cubit.selectEngine(deeplEngine);
         expect(cubit.state.engine, deeplEngine);

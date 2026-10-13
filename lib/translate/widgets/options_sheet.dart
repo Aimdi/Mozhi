@@ -18,12 +18,13 @@ String translateFormalityLabel(AppLocalizations l10n, Formality value) =>
     };
 
 /// Display name of a gender option.
-String translateGenderLabel(AppLocalizations l10n, Gender value) => switch (value) {
-  Gender.unknown => l10n.translateGenderUnknown,
-  Gender.masculine => l10n.translateGenderMasculine,
-  Gender.feminine => l10n.translateGenderFeminine,
-  Gender.neutral => l10n.translateGenderNeutral,
-};
+String translateGenderLabel(AppLocalizations l10n, Gender value) =>
+    switch (value) {
+      Gender.unknown => l10n.translateGenderUnknown,
+      Gender.masculine => l10n.translateGenderMasculine,
+      Gender.feminine => l10n.translateGenderFeminine,
+      Gender.neutral => l10n.translateGenderNeutral,
+    };
 
 /// Display name of a reading level ("B1 · Intermediate").
 String translateReadingLevelLabel(AppLocalizations l10n, ReadingLevel level) =>

@@ -441,17 +441,19 @@ void main() {
       });
 
       testWidgets('tests reachability before saving', (tester) async {
+        final ping = Completer<Duration>();
         when(
           () => repository.pingInstance(
             const MozhiInstance(url: 'https://ok.example.com'),
           ),
-        ).thenAnswer((_) async => const Duration(milliseconds: 42));
+        ).thenAnswer((_) => ping.future);
         await openDialog(tester);
         await tester.enterText(field('Instance URL'), 'ok.example.com');
         final handle = tester.ensureSemantics();
         await tester.tap(find.text('Test'));
         await tester.pump();
         expect(find.semantics.byLabel(RegExp('Testing instance…')), findsOne);
+        ping.complete(const Duration(milliseconds: 42));
         await tester.pumpAndSettle();
         expect(find.text('Reachable in 42 ms'), findsOneWidget);
         expect(

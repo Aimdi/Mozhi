@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
@@ -301,7 +303,7 @@ class InsightChips extends StatelessWidget {
                   textDirection: textDirection,
                 ),
                 tooltip: l10n.translateInsightOpen(insight.targetText.trim()),
-                onPressed: () => showInsightSheet(context, insight),
+                onPressed: () => unawaited(showInsightSheet(context, insight)),
               ),
           ],
         ),

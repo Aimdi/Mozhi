@@ -7,6 +7,7 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/translate/widgets/language_text.dart';
 import 'package:mozhi/translate/widgets/listen_button.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
 
@@ -19,8 +20,18 @@ bool needsTranslateButton(TranslateState state, AppSettings settings) {
       : !settings.instantTranslate;
 }
 
+/// Direction of the source text: the chosen source language's, or (when
+/// detecting) the direction of the typed characters, falling back to the
+/// detected language.
+TextDirection? inputTextDirection(TranslateState state) {
+  if (!state.source.isAuto) return textDirectionForLanguage(state.source);
+  return textDirectionForText(state.input) ??
+      textDirectionForCode(state.result?.detectedSource);
+}
+
 /// The source text field with paste/clear/listen actions, character count
-/// and (when instant translation is off) a "Translate" button.
+/// and (when instant translation is off) a "Translate" button. Esc clears
+/// the field while it is focused and not empty.
 class InputCard extends StatefulWidget {
   const new({this.minLines = 4, super.key});
 
@@ -68,6 +79,20 @@ class _InputCardState extends State<InputCard> {
     _focusNode.requestFocus();
   }
 
+  /// Esc clears a non-empty field; otherwise the key keeps bubbling (e.g.
+  /// to dismiss a route).
+  KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent ||
+        event.logicalKey != LogicalKeyboardKey.escape ||
+        _controller.text.isEmpty ||
+        (_controller.value.composing.isValid &&
+            !_controller.value.composing.isCollapsed)) {
+      return KeyEventResult.ignored;
+    }
+    _clear();
+    return KeyEventResult.handled;
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
@@ -90,7 +115,7 @@ class _InputCardState extends State<InputCard> {
             borderRadius: TranslateLayout.cardBorderRadius,
           ),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 8, 8),
+            padding: const EdgeInsetsDirectional.fromSTEB(20, 8, 8, 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -100,27 +125,38 @@ class _InputCardState extends State<InputCard> {
                     Expanded(
                       child: Padding(
                         padding: const EdgeInsets.only(top: 4),
-                        child: TextField(
-                          key: const Key('translate_input_field'),
-                          controller: _controller,
-                          focusNode: _focusNode,
-                          onChanged: _cubit.setInput,
-                          keyboardType: TextInputType.multiline,
-                          textInputAction: TextInputAction.newline,
-                          minLines: widget.minLines,
-                          maxLines: null,
-                          style: TranslateLayout.textStyle(
-                            context,
-                            input.length,
-                          ),
-                          decoration: InputDecoration(
-                            hintText: l10n.translateInputHint,
-                            border: InputBorder.none,
-                            enabledBorder: InputBorder.none,
-                            focusedBorder: InputBorder.none,
-                            filled: false,
-                            contentPadding: const EdgeInsets.symmetric(
-                              vertical: 8,
+                        child: Focus(
+                          canRequestFocus: false,
+                          skipTraversal: true,
+                          onKeyEvent: _onKeyEvent,
+                          // The hint disappears once there is text, so name
+                          // the field explicitly for screen readers.
+                          child: Semantics(
+                            label: l10n.translateInputLabel,
+                            child: TextField(
+                              key: const Key('translate_input_field'),
+                              controller: _controller,
+                              focusNode: _focusNode,
+                              onChanged: _cubit.setInput,
+                              keyboardType: TextInputType.multiline,
+                              textInputAction: TextInputAction.newline,
+                              textDirection: inputTextDirection(state),
+                              minLines: widget.minLines,
+                              maxLines: null,
+                              style: TranslateLayout.textStyle(
+                                context,
+                                input.length,
+                              ),
+                              decoration: InputDecoration(
+                                hintText: l10n.translateInputHint,
+                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                filled: false,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  vertical: 8,
+                                ),
+                              ),
                             ),
                           ),
                         ),
@@ -138,7 +174,10 @@ class _InputCardState extends State<InputCard> {
                 if (settings.showTransliteration &&
                     transliteration.trim().isNotEmpty)
                   Padding(
-                    padding: const EdgeInsets.only(right: 12, bottom: 4),
+                    padding: const EdgeInsetsDirectional.only(
+                      end: 12,
+                      bottom: 4,
+                    ),
                     child: Text(
                       transliteration,
                       style: theme.textTheme.bodyMedium?.copyWith(

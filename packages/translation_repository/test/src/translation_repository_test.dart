@@ -1543,6 +1543,811 @@ void main() {
     });
   });
 
+  // translation-specialised models
+
+  group('translation-specialised models', () {
+    final gemma = aiEngine(gemmaConfig);
+    final hyMt = aiEngine(cloudGemmaConfig);
+
+    test('use the MT prompt and the model card sampling', () async {
+      configure(providers: [gemmaConfig]);
+      stubStream(llmOf(gemmaConfig), ['Hallo ', 'Welt']);
+      final results = await repository
+          .translate(gemma, englishToGerman)
+          .toList();
+      expect(results.last.text, 'Hallo Welt');
+      expect(results.last.isComplete, isTrue);
+      expect(results.last.detectedSource, isNull);
+      final request = capturedStream(llmOf(gemmaConfig));
+      expect(
+        request.messages,
+        MtPrompts.translate(PromptProfile.translateGemma, englishToGerman),
+      );
+      expect(
+        request.temperature,
+        MtPrompts.sampling(PromptProfile.translateGemma).temperature,
+      );
+      expect(request.model, 'translategemma:4b');
+    });
+
+    test('prefer the provider temperature', () async {
+      configure(providers: [gemmaConfig.copyWith(temperature: 0.7)]);
+      stubStream(llmOf(gemmaConfig), ['Hallo']);
+      await repository.translate(gemma, englishToGerman).drain<void>();
+      expect(capturedStream(llmOf(gemmaConfig)).temperature, 0.7);
+    });
+
+    test('follow an explicit profile over the model id', () async {
+      configure(
+        providers: [
+          claudeConfig.copyWith(promptProfile: PromptProfile.hunyuanMt),
+        ],
+      );
+      stubStream(llmOf(claudeConfig), ['Hallo']);
+      await repository.translate(claude, englishToGerman).drain<void>();
+      expect(
+        capturedStream(llmOf(claudeConfig)).messages,
+        MtPrompts.translate(PromptProfile.hunyuanMt, englishToGerman),
+      );
+    });
+
+    test('show text that looks like a marker', () async {
+      configure(providers: [gemmaConfig]);
+      stubStream(llmOf(gemmaConfig), ['[[lang:de]] Hallo']);
+      final result = await repository.translate(gemma, englishToGerman).last;
+      expect(result.text, '[[lang:de]] Hallo');
+    });
+
+    test('identify an auto source on the device first', () async {
+      final offline = FakeOfflineTranslator(identified: 'en');
+      repository = newRepository(offline: offline);
+      configure(providers: [gemmaConfig]);
+      stubStream(llmOf(gemmaConfig), ['Hallo']);
+      final results = await repository
+          .translate(gemma, autoToGerman)
+          .toList();
+      expect(results.map((r) => r.detectedSource), everyElement('en'));
+      expect(offline.identifyCalls, ['Hello world']);
+      final explicit = autoToGerman.copyWith(
+        source: LanguageCatalog.byCode('en'),
+      );
+      expect(
+        capturedStream(llmOf(gemmaConfig)).messages,
+        MtPrompts.translate(PromptProfile.translateGemma, explicit),
+      );
+      verifyZeroInteractions(a());
+    });
+
+    test('ask Mozhi for the language of non-local engines', () async {
+      configure(providers: [cloudGemmaConfig]);
+      whenTranslate(a()).thenAnswer(
+        (_) async => const MozhiTranslation(
+          engine: 'google',
+          translatedText: 'Hello world',
+          detectedLanguage: 'fr',
+        ),
+      );
+      stubStream(llmOf(cloudGemmaConfig), ['Hallo']);
+      final result = await repository.translate(hyMt, autoToGerman).last;
+      expect(result.detectedSource, 'fr');
+      verify(
+        () => a().translate(
+          engine: 'google',
+          from: 'auto',
+          to: 'en',
+          text: 'Hello world',
+        ),
+      ).called(1);
+    });
+
+    test('never send a local model text to Mozhi for detection', () async {
+      configure(providers: [gemmaConfig]);
+      await expectLater(
+        repository.translate(gemma, autoToGerman),
+        emitsError(
+          isA<SourceLanguageRequiredException>().having(
+            (e) => e.engineId,
+            'engineId',
+            'ai:gemma',
+          ),
+        ),
+      );
+      verifyZeroInteractions(a());
+      verifyNever(() => llmOf(gemmaConfig).streamChat(any()));
+    });
+
+    test('need a source when nothing can detect it', () async {
+      final offline = FakeOfflineTranslator();
+      repository = newRepository(offline: offline);
+      configure(providers: [cloudGemmaConfig]);
+      whenTranslate(a()).thenThrow(serverError());
+      whenTranslate(b()).thenThrow(serverError());
+      await expectLater(
+        repository.translate(hyMt, autoToGerman),
+        emitsError(
+          isA<SourceLanguageRequiredException>()
+              .having((e) => e.cause, 'cause', isA<MozhiApiException>())
+              .having((e) => e.toString(), 'toString', contains('ai:cloud')),
+        ),
+      );
+      expect(offline.identifyCalls, hasLength(1));
+    });
+
+    test('report on-device identification errors as the cause', () async {
+      repository = newRepository(offline: _ThrowingIdentifier());
+      configure(instances: [], providers: [gemmaConfig]);
+      await expectLater(
+        repository.translate(gemma, autoToGerman),
+        emitsError(
+          isA<SourceLanguageRequiredException>().having(
+            (e) => e.cause,
+            'cause',
+            isStateError,
+          ),
+        ),
+      );
+    });
+
+    test('return the input when source and target are the same', () async {
+      final offline = FakeOfflineTranslator(identified: 'de');
+      repository = newRepository(offline: offline);
+      configure(providers: [gemmaConfig]);
+      final result = await repository
+          .translate(gemma, autoToGerman.copyWith(text: 'Hallo'))
+          .single;
+      expect(result.text, 'Hallo');
+      expect(result.detectedSource, 'de');
+      expect(result.isComplete, isTrue);
+      verifyNever(() => llmOf(gemmaConfig).streamChat(any()));
+    });
+
+    test('reject custom languages', () async {
+      configure(providers: [gemmaConfig]);
+      await expectLater(
+        repository.translate(
+          gemma,
+          englishToGerman.copyWith(target: const Language.custom('Pirate')),
+        ),
+        emitsError(isArgumentError),
+      );
+    });
+
+    test('reject the extras', () async {
+      configure(providers: [gemmaConfig]);
+      await expectLater(
+        repository.getAlternatives(gemma, englishToGerman, 'Hallo'),
+        throwsArgumentError,
+      );
+      await expectLater(
+        repository.explain(gemma, englishToGerman, 'Hallo'),
+        emitsError(isArgumentError),
+      );
+      await expectLater(
+        repository.translateImage(
+          gemma,
+          Uint8List(0),
+          mimeType: 'image/png',
+          source: english,
+          target: german,
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('testProvider uses the MT prompt', () async {
+      stubChat(llmOf(gemmaConfig), ['Bonjour, le monde !']);
+      expect(await repository.testProvider(gemmaConfig), 'Bonjour, le monde !');
+      final request = capturedChats(llmOf(gemmaConfig)).single;
+      expect(
+        request.messages,
+        MtPrompts.translate(
+          PromptProfile.translateGemma,
+          const TranslationRequest(
+            text: 'Hello, world!',
+            source: Language(code: 'en', name: 'English'),
+            target: Language(code: 'fr', name: 'French'),
+          ),
+        ),
+      );
+    });
+  });
+
+  // machine translation services
+
+  group('machine translation services', () {
+    final deeplMt = mtEngine(deeplConfig);
+    final libreMt = mtEngine(libreConfig);
+
+    When<Future<DeeplTranslation>> whenDeepl() => when(
+      () => deepl.translateText(
+        text: any(named: 'text'),
+        targetLang: any(named: 'targetLang'),
+        sourceLang: any(named: 'sourceLang'),
+        formality: any(named: 'formality'),
+        context: any(named: 'context'),
+        preserveFormatting: any(named: 'preserveFormatting'),
+        abortTrigger: any(named: 'abortTrigger'),
+      ),
+    );
+
+    When<Future<LibreTranslation>> whenLibre() => when(
+      () => libre.translate(
+        text: any(named: 'text'),
+        target: any(named: 'target'),
+        source: any(named: 'source'),
+        abortTrigger: any(named: 'abortTrigger'),
+      ),
+    );
+
+    void stubDeeplLanguages() {
+      when(
+        () => deepl.languages(type: DeeplLanguageType.source),
+      ).thenAnswer(
+        (_) async => const [
+          DeeplLanguage(code: 'EN', name: 'English'),
+          DeeplLanguage(code: 'DE', name: 'German'),
+          DeeplLanguage(code: 'ZH', name: 'Chinese'),
+        ],
+      );
+      when(
+        () => deepl.languages(type: DeeplLanguageType.target),
+      ).thenAnswer(
+        (_) async => const [
+          DeeplLanguage(code: 'DE', name: 'German'),
+          DeeplLanguage(code: 'EN-GB', name: 'English (British)'),
+          DeeplLanguage(code: 'EN-US', name: 'English (American)'),
+          DeeplLanguage(code: 'ZH', name: 'Chinese (simplified)'),
+          DeeplLanguage(code: 'ZH-HANS', name: 'Chinese (simplified)'),
+          DeeplLanguage(code: 'ZH-HANT', name: 'Chinese (traditional)'),
+          DeeplLanguage(code: 'NB', name: ''),
+        ],
+      );
+    }
+
+    test('DeepL languages use app codes', () async {
+      configure(providers: [deeplConfig]);
+      stubDeeplLanguages();
+      final sources = await repository.getSourceLanguages(deeplMt);
+      expect(sources.map((l) => l.code), ['auto', 'en', 'de', 'zh-CN']);
+      final targets = await repository.getTargetLanguages(deeplMt);
+      expect(targets.map((l) => l.code), [
+        'de',
+        'en-GB',
+        'en-US',
+        'zh-CN',
+        'zh-TW',
+        'no',
+      ]);
+      expect(targets[1].name, 'English (British)');
+      expect(targets.last.name, LanguageCatalog.byCode('no')!.name);
+      expect(targets.first.nativeName, 'Deutsch');
+      await repository.getTargetLanguages(deeplMt);
+      verify(() => deepl.languages(type: DeeplLanguageType.target)).called(1);
+      expect(mtBuilt.single, deeplConfig);
+    });
+
+    test('DeepL translation passes formality and context', () async {
+      configure(providers: [deeplConfig]);
+      stubDeeplLanguages();
+      whenDeepl().thenAnswer(
+        (_) async => const DeeplTranslation(
+          text: 'Hallo Welt',
+          detectedSourceLanguage: 'EN',
+        ),
+      );
+      final request = autoToGerman.copyWith(
+        target: const Language(code: 'en-GB', name: 'English (UK)'),
+        options: const TranslationOptions(
+          formality: Formality.more,
+          context: '  A letter  ',
+        ),
+      );
+      final result = await repository.translate(deeplMt, request).single;
+      expect(result.text, 'Hallo Welt');
+      expect(result.engineId, 'mt:deepl');
+      expect(result.engineName, 'DeepL');
+      expect(result.detectedSource, 'en');
+      expect(result.elapsed, isNotNull);
+      verify(
+        () => deepl.translateText(
+          text: 'Hello world',
+          targetLang: 'EN-GB',
+          formality: 'prefer_more',
+          context: 'A letter',
+          preserveFormatting: true,
+          abortTrigger: any(named: 'abortTrigger'),
+        ),
+      ).called(1);
+    });
+
+    test('DeepL explicit sources and default codes', () async {
+      configure(providers: [deeplConfig]);
+      when(
+        () => deepl.languages(type: any(named: 'type')),
+      ).thenThrow(const DeeplApiException('down'));
+      whenDeepl().thenAnswer(
+        (_) async =>
+            const DeeplTranslation(text: 'Hallo', detectedSourceLanguage: ''),
+      );
+      final result = await repository
+          .translate(
+            deeplMt,
+            englishToGerman.copyWith(
+              options: const TranslationOptions(
+                formality: Formality.preferLess,
+                preserveFormatting: false,
+              ),
+            ),
+          )
+          .single;
+      expect(result.detectedSource, isNull);
+      verify(
+        () => deepl.translateText(
+          text: 'Hello world',
+          targetLang: 'DE',
+          sourceLang: 'EN',
+          formality: 'prefer_less',
+          abortTrigger: any(named: 'abortTrigger'),
+        ),
+      ).called(1);
+    });
+
+    test('maps every formality', () {
+      expect(MtEngines.deeplFormality(Formality.automatic), isNull);
+      expect(MtEngines.deeplFormality(Formality.less), 'prefer_less');
+      expect(MtEngines.deeplFormality(Formality.preferMore), 'prefer_more');
+    });
+
+    test('an empty DeepL translation is an error', () async {
+      configure(providers: [deeplConfig]);
+      stubDeeplLanguages();
+      whenDeepl().thenAnswer(
+        (_) async =>
+            const DeeplTranslation(text: ' ', detectedSourceLanguage: 'EN'),
+      );
+      await expectLater(
+        repository.translate(deeplMt, englishToGerman),
+        emitsError(
+          isA<MtApiException>().having(
+            (e) => e.kind,
+            'kind',
+            MtErrorKind.invalidResponse,
+          ),
+        ),
+      );
+    });
+
+    test('forwards service errors', () async {
+      configure(providers: [deeplConfig]);
+      stubDeeplLanguages();
+      whenDeepl().thenThrow(
+        const DeeplApiException('quota', kind: MtErrorKind.quotaExceeded),
+      );
+      await expectLater(
+        repository.translate(deeplMt, englishToGerman),
+        emitsError(isA<DeeplApiException>()),
+      );
+    });
+
+    test('cancelling aborts the request', () async {
+      configure(providers: [deeplConfig]);
+      stubDeeplLanguages();
+      final pending = Completer<DeeplTranslation>();
+      Future<void>? abort;
+      whenDeepl().thenAnswer((invocation) {
+        abort = invocation.namedArguments[#abortTrigger] as Future<void>?;
+        return pending.future;
+      });
+      final subscription = repository
+          .translate(deeplMt, englishToGerman)
+          .listen((_) {});
+      await pumpEventQueue();
+      expect(abort, isNotNull);
+      var aborted = false;
+      unawaited(abort!.then((_) => aborted = true));
+      await subscription.cancel();
+      await pumpEventQueue();
+      expect(aborted, isTrue);
+      pending.complete(
+        const DeeplTranslation(text: 'late', detectedSourceLanguage: 'EN'),
+      );
+    });
+
+    test('rejects custom languages and unknown services', () async {
+      configure(providers: [deeplConfig]);
+      await expectLater(
+        repository.translate(
+          deeplMt,
+          englishToGerman.copyWith(source: const Language.custom('Pirate')),
+        ),
+        emitsError(isArgumentError),
+      );
+      await expectLater(
+        repository.translate(mtEngine(libreConfig), englishToGerman),
+        emitsError(isArgumentError),
+      );
+      await expectLater(
+        repository.getSourceLanguages(mtEngine(libreConfig)),
+        throwsArgumentError,
+      );
+      // An AI engine id pointing at a service is not an AI provider.
+      await expectLater(
+        repository.translate(aiEngine(deeplConfig), englishToGerman),
+        emitsError(isArgumentError),
+      );
+    });
+
+    test('LibreTranslate languages and translation', () async {
+      configure(providers: [libreConfig]);
+      when(libre.languages).thenAnswer(
+        (_) async => const [
+          LibreLanguage(code: 'en', name: 'English', targets: ['de', 'zt']),
+          LibreLanguage(code: 'de', name: 'German', targets: ['en']),
+          LibreLanguage(code: 'pb', name: 'Portuguese (Brazil)'),
+          LibreLanguage(code: 'zt', name: 'Chinese (traditional)'),
+        ],
+      );
+      whenLibre().thenAnswer(
+        (_) async => const LibreTranslation(
+          text: 'Hallo Welt',
+          detectedLanguage: LibreDetectedLanguage(code: 'en', confidence: 90),
+        ),
+      );
+      final sources = await repository.getSourceLanguages(libreMt);
+      expect(sources.map((l) => l.code), ['auto', 'en', 'de', 'pt-BR', 'zh-TW']);
+      final targets = await repository.getTargetLanguages(libreMt);
+      expect(targets.map((l) => l.code), ['en', 'de', 'zh-TW']);
+
+      final result = await repository.translate(libreMt, autoToGerman).single;
+      expect(result.text, 'Hallo Welt');
+      expect(result.detectedSource, 'en');
+      verify(
+        () => libre.translate(
+          text: 'Hello world',
+          source: 'auto',
+          target: 'de',
+          abortTrigger: any(named: 'abortTrigger'),
+        ),
+      ).called(1);
+
+      await repository
+          .translate(
+            libreMt,
+            const TranslationRequest(
+              text: 'Hallo',
+              source: Language(code: 'pt-BR', name: 'Portuguese'),
+              target: Language(code: 'zh-TW', name: 'Chinese'),
+            ),
+          )
+          .drain<void>();
+      verify(
+        () => libre.translate(
+          text: 'Hallo',
+          source: 'pb',
+          target: 'zt',
+          abortTrigger: any(named: 'abortTrigger'),
+        ),
+      ).called(1);
+    });
+
+    test('LibreTranslate servers without target lists', () async {
+      configure(providers: [libreConfig]);
+      when(libre.languages).thenAnswer(
+        (_) async => const [
+          LibreLanguage(code: 'en', name: 'English'),
+          LibreLanguage(code: 'de', name: ''),
+        ],
+      );
+      final targets = await repository.getTargetLanguages(libreMt);
+      expect(targets.map((l) => l.code), ['en', 'de']);
+      expect(targets.last.name, 'German');
+    });
+
+    test('LibreTranslate without a detected language', () async {
+      configure(providers: [libreConfig]);
+      when(libre.languages).thenThrow(const LibreTranslateException('down'));
+      whenLibre().thenAnswer(
+        (_) async => const LibreTranslation(text: 'Hallo'),
+      );
+      final result = await repository.translate(libreMt, autoToGerman).single;
+      expect(result.detectedSource, isNull);
+    });
+
+    test('clients follow configuration changes', () async {
+      configure(providers: [deeplConfig]);
+      stubDeeplLanguages();
+      await repository.getTargetLanguages(deeplMt);
+      configure(providers: [deeplConfig]);
+      verifyNever(deepl.close);
+
+      configure(providers: [deeplConfig.copyWith(apiKey: 'other:fx')]);
+      verify(deepl.close).called(1);
+      await repository.getTargetLanguages(deeplMt);
+      expect(mtBuilt, hasLength(2));
+      verify(() => deepl.languages(type: DeeplLanguageType.target)).called(2);
+
+      configure(providers: []);
+      verify(deepl.close).called(1);
+    });
+
+    test('a changed service replaces the client', () async {
+      configure(providers: [deeplConfig]);
+      stubDeeplLanguages();
+      await repository.getTargetLanguages(deeplMt);
+      when(libre.languages).thenAnswer((_) async => const []);
+      final switched = deeplConfig.copyWith(
+        service: MtService.libreTranslate,
+        baseUrl: 'http://localhost:5000',
+      );
+      configure(providers: [switched]);
+      verify(deepl.close).called(1);
+      final engine = (await repository.getEngines()).single;
+      expect(engine.mtService, MtService.libreTranslate);
+      await repository.getTargetLanguages(engine);
+      verify(libre.languages).called(1);
+    });
+
+    test('refresh reloads language lists', () async {
+      configure(instances: [], providers: [deeplConfig]);
+      stubDeeplLanguages();
+      await repository.getTargetLanguages(deeplMt);
+      await repository.getEngines(refresh: true);
+      await repository.getTargetLanguages(deeplMt);
+      verify(() => deepl.languages(type: DeeplLanguageType.target)).called(2);
+    });
+
+    test('failed language loads are retried', () async {
+      configure(providers: [deeplConfig]);
+      when(
+        () => deepl.languages(type: any(named: 'type')),
+      ).thenThrow(const DeeplApiException('down'));
+      await expectLater(
+        repository.getTargetLanguages(deeplMt),
+        throwsA(isA<DeeplApiException>()),
+      );
+      stubDeeplLanguages();
+      expect(await repository.getTargetLanguages(deeplMt), isNotEmpty);
+    });
+
+    test('dispose closes the clients', () async {
+      configure(providers: [deeplConfig, libreConfig]);
+      stubDeeplLanguages();
+      when(libre.languages).thenAnswer((_) async => const []);
+      await repository.getTargetLanguages(deeplMt);
+      await repository.getTargetLanguages(libreMt);
+      repository.dispose();
+      verify(deepl.close).called(1);
+      verify(libre.close).called(1);
+    });
+
+    test('listModels returns nothing for services', () async {
+      expect(await repository.listModels(deeplConfig), isEmpty);
+      expect(llmBuilt, isEmpty);
+    });
+
+    test('testProvider translates with a temporary client', () async {
+      whenDeepl().thenAnswer(
+        (_) async => const DeeplTranslation(
+          text: 'Bonjour',
+          detectedSourceLanguage: 'EN',
+        ),
+      );
+      expect(await repository.testProvider(deeplConfig), 'Bonjour');
+      verify(
+        () => deepl.translateText(
+          text: 'Hello, world!',
+          sourceLang: 'EN',
+          targetLang: 'FR',
+        ),
+      ).called(1);
+      verify(deepl.close).called(1);
+
+      whenLibre().thenAnswer((_) async => const LibreTranslation(text: ''));
+      await expectLater(
+        repository.testProvider(libreConfig),
+        throwsA(isA<MtApiException>()),
+      );
+      verify(libre.close).called(1);
+    });
+
+    test('default clients are built from the configuration', () {
+      final deeplClient = MtEngines.defaultDeeplClient(deeplConfig);
+      expect(deeplClient.baseUrl, DeeplClient.freeBaseUrl);
+      expect(deeplClient.authKey, 'key:fx');
+      final proxied = MtEngines.defaultDeeplClient(
+        deeplConfig.copyWith(baseUrl: 'proxy.example/'),
+      );
+      expect(proxied.baseUrl, Uri.parse('https://proxy.example'));
+      final libreClient = MtEngines.defaultLibreClient(
+        libreConfig.copyWith(apiKey: 'k'),
+      );
+      expect(libreClient.baseUrl, Uri.parse('http://localhost:5000'));
+      expect(libreClient.apiKey, 'k');
+      deeplClient.close();
+      proxied.close();
+      libreClient.close();
+    });
+  });
+
+  // offline engine
+
+  group('offline engine', () {
+    final offlineEngine = TranslationEngine.offline();
+    late FakeOfflineTranslator offline;
+
+    setUp(() {
+      offline = FakeOfflineTranslator();
+      repository = newRepository(offline: offline);
+    });
+
+    test('lists the backend languages with catalogue names', () async {
+      final sources = await repository.getSourceLanguages(offlineEngine);
+      expect(sources.first, Language.auto);
+      final targets = await repository.getTargetLanguages(offlineEngine);
+      expect(targets.map((l) => l.code), unorderedEquals(offline.supportedLanguages));
+      expect(
+        targets.map((l) => l.name),
+        orderedEquals([...targets.map((l) => l.name)]..sort()),
+      );
+      expect(targets.firstWhere((l) => l.code == 'he').name, 'Hebrew');
+      expect(sources.skip(1), targets);
+    });
+
+    test('translates on the device with backend codes', () async {
+      final result = await repository
+          .translate(
+            offlineEngine,
+            const TranslationRequest(
+              text: 'Hello',
+              source: Language(code: 'en-GB', name: 'English (UK)'),
+              target: Language(code: 'iw', name: 'Hebrew'),
+            ),
+          )
+          .single;
+      expect(result.text, 'Hello (en>he)');
+      expect(result.engineId, 'offline:mlkit');
+      expect(result.detectedSource, isNull);
+      expect(result.isComplete, isTrue);
+      expect(offline.calls.single.source, 'en');
+    });
+
+    test('identifies an auto source', () async {
+      offline.identified = 'fr';
+      final result = await repository
+          .translate(offlineEngine, autoToGerman)
+          .single;
+      expect(result.detectedSource, 'fr');
+      expect(offline.calls.single.source, 'fr');
+      expect(offline.identifyCalls, ['Hello world']);
+    });
+
+    test('returns the text when it is already in the target', () async {
+      offline.identified = 'de';
+      final result = await repository
+          .translate(offlineEngine, autoToGerman)
+          .single;
+      expect(result.text, 'Hello world');
+      expect(offline.calls, isEmpty);
+    });
+
+    test('needs a source it cannot identify', () async {
+      await expectLater(
+        repository.translate(offlineEngine, autoToGerman),
+        emitsError(isA<SourceLanguageRequiredException>()),
+      );
+      offline.identified = 'und';
+      await expectLater(
+        repository.translate(offlineEngine, autoToGerman),
+        emitsError(isA<SourceLanguageRequiredException>()),
+      );
+    });
+
+    test('reports unsupported languages', () async {
+      offline.identified = 'yo';
+      await expectLater(
+        repository.translate(offlineEngine, autoToGerman),
+        emitsError(isA<OfflineLanguageUnsupportedException>()),
+      );
+      await expectLater(
+        repository.translate(
+          offlineEngine,
+          englishToGerman.copyWith(
+            target: const Language(code: 'ja', name: 'Japanese'),
+          ),
+        ),
+        emitsError(isA<OfflineLanguageUnsupportedException>()),
+      );
+      await expectLater(
+        repository.translate(
+          offlineEngine,
+          englishToGerman.copyWith(
+            source: const Language(code: 'ja', name: 'Japanese'),
+          ),
+        ),
+        emitsError(isA<OfflineLanguageUnsupportedException>()),
+      );
+    });
+
+    test('never maps Traditional Chinese targets onto Simplified', () async {
+      await expectLater(
+        repository.translate(
+          offlineEngine,
+          englishToGerman.copyWith(
+            target: const Language(code: 'zh-TW', name: 'Chinese'),
+          ),
+        ),
+        emitsError(isA<OfflineLanguageUnsupportedException>()),
+      );
+      final result = await repository
+          .translate(
+            offlineEngine,
+            englishToGerman.copyWith(
+              source: const Language(code: 'zh-TW', name: 'Chinese'),
+              target: english,
+            ),
+          )
+          .single;
+      expect(result.text, 'Hello world (zh>en)');
+    });
+
+    test('forwards missing models', () async {
+      offline.error = const OfflineModelMissingException(['de']);
+      await expectLater(
+        repository.translate(offlineEngine, englishToGerman),
+        emitsError(isA<OfflineModelMissingException>()),
+      );
+    });
+
+    test('rejects custom languages and missing backends', () async {
+      await expectLater(
+        repository.translate(
+          offlineEngine,
+          englishToGerman.copyWith(target: const Language.custom('Pirate')),
+        ),
+        emitsError(isArgumentError),
+      );
+      offline.isAvailable = false;
+      await expectLater(
+        repository.translate(offlineEngine, englishToGerman),
+        emitsError(isArgumentError),
+      );
+      repository = newRepository();
+      await expectLater(
+        repository.translate(offlineEngine, englishToGerman),
+        emitsError(isArgumentError),
+      );
+      await expectLater(
+        repository.getTargetLanguages(offlineEngine),
+        throwsArgumentError,
+      );
+    });
+
+    test('never sends an image to Mozhi', () async {
+      configure();
+      for (final engine in [offlineEngine, mtEngine(deeplConfig)]) {
+        await expectLater(
+          repository.translateImage(
+            engine,
+            Uint8List(0),
+            mimeType: 'image/png',
+            source: english,
+            target: german,
+          ),
+          throwsArgumentError,
+        );
+      }
+      verifyZeroInteractions(a());
+    });
+
+    test('refreshes the language list when the backend changes', () async {
+      final first = await repository.getTargetLanguages(offlineEngine);
+      expect(await repository.getTargetLanguages(offlineEngine), same(first));
+      offline.supportedLanguages = {'en', 'ja'};
+      final second = await repository.getTargetLanguages(offlineEngine);
+      expect(second.map((l) => l.code), unorderedEquals(['en', 'ja']));
+    });
+  });
+
   // JSON features
 
   group('JSON features', () {
@@ -2371,4 +3176,11 @@ void main() {
       verify(llmOf(claudeConfig).close).called(1);
     });
   });
+}
+
+/// An offline translator whose language identification fails.
+class _ThrowingIdentifier extends FakeOfflineTranslator {
+  @override
+  Future<String?> identifyLanguage(String text) =>
+      Future.error(StateError('no identifier'));
 }
