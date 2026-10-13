@@ -344,7 +344,7 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
     }
     final file = _file;
     if (file == null) return;
-    _file = file.copyWith(format: format);
+    _file = file.withFormat(format);
     _load(
       state,
       text: file.text,
@@ -484,7 +484,8 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
               ),
             );
           },
-          onError: (Object _) {},
+          // The translator reports failures as progress, never as errors.
+          onError: (Object _) {}, // coverage:ignore-line
           onDone: () {
             if (run == _run) {
               _subscription = null;
@@ -650,10 +651,10 @@ class _FileInput {
   final TextEncoding encoding;
   final int sizeBytes;
 
-  _FileInput copyWith({DocumentFormat? format}) => _FileInput(
+  _FileInput withFormat(DocumentFormat format) => _FileInput(
     name: name,
     text: text,
-    format: format ?? this.format,
+    format: format,
     encoding: encoding,
     sizeBytes: sizeBytes,
   );

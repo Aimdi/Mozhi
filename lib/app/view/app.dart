@@ -10,20 +10,28 @@ import 'package:mozhi/app/router.dart';
 import 'package:mozhi/app/shared_text_handler.dart';
 import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/app/translate_link.dart';
+import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/onboarding/onboarding_redirect.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
+import 'package:mozhi/presets/view/presets_providers.dart';
+import 'package:mozhi/quick_translate/view/quick_translate_sheet.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/speech/speech_service.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/usage/data/usage_tracker.dart';
+import 'package:mozhi/usage/widgets/usage_warning_listener.dart';
+import 'package:mozhi/voice/speech_input_service.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Root widget: provides the [AppDependencies] and the app-wide cubits,
-/// keeps the [TranslationRepository] in sync with the settings and routes
-/// text shared by the OS to the translate screen.
+/// keeps the [TranslationRepository] in sync with the settings, shows the
+/// first-run onboarding and routes text shared by the OS (quick translate
+/// for selections in other apps, the translate tab otherwise).
 class App extends StatefulWidget {
   const new({required this.dependencies, super.key});
 
@@ -39,6 +47,7 @@ class _AppState extends State<App> {
   late final TranslateCubit _translateCubit;
   late final GoRouter _router;
   late final SharedTextHandler _sharedText;
+  final _navigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
   final _messengerKey = GlobalKey<ScaffoldMessengerState>();
 
   AppDependencies get _deps => widget.dependencies;
@@ -58,23 +67,28 @@ class _AppState extends State<App> {
       history: _historyCubit,
     );
     unawaited(_translateCubit.loadEngines());
-    _router = createAppRouter(onTranslateLink: _openLink);
+    unawaited(_deps.usageTracker.load().then<void>((_) {}, onError: (_) {}));
 
-    // coverage:ignore-start
-    if (kIsWeb) {
-      // `https://host/Mozhi/?text=…` (query before the `#/` fragment).
-      final link = TranslateLink.fromUri(Uri.base);
-      if (link != null) _openLink(link);
-    }
-    // coverage:ignore-end
+    // `https://host/Mozhi/app/?text=…` (query before the `#/` fragment).
+    final webLink = kIsWeb ? TranslateLink.fromUri(Uri.base) : null;
+    _router = createAppRouter(
+      navigatorKey: _navigatorKey,
+      onTranslateLink: _openLink,
+      // A link must open what it links to, not the onboarding.
+      launchRedirect: (location) => webLink != null
+          ? null
+          : onboardingRedirect(_settingsCubit.state, location),
+    );
+    if (webLink != null) _openLink(webLink); // coverage:ignore-line
 
     _sharedText = SharedTextHandler(
       service: _deps.sharedTextService,
       translateCubit: _translateCubit,
       onShowTranslate: () => _router.go(AppRoutes.translate),
-      onReplaceAvailable: _offerReplace,
+      onQuickTranslate: (request) => unawaited(_showQuickTranslate(request)),
     );
     unawaited(_sharedText.start());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _warnSecretsInMemory());
   }
 
   @override
@@ -84,6 +98,10 @@ class _AppState extends State<App> {
     unawaited(_translateCubit.close());
     unawaited(_historyCubit.close());
     unawaited(_settingsCubit.close());
+    unawaited(_deps.speechInputService.dispose());
+    unawaited(_deps.speechService.dispose());
+    unawaited(_deps.usageTracker.dispose());
+    unawaited(_deps.offlineTranslator.dispose());
     super.dispose();
   }
 
@@ -91,24 +109,48 @@ class _AppState extends State<App> {
     unawaited(link.applyTo(_translateCubit));
   }
 
-  /// Text selected in another (editable) app was translated: offer to put
-  /// the translation back in its place.
-  void _offerReplace() {
+  /// Text selected in another app: the quick translate sheet (dialog on
+  /// wide windows) above whatever is shown.
+  Future<void> _showQuickTranslate(QuickTranslateRequest request) async {
+    var context = _navigatorKey.currentContext;
+    if (context == null) {
+      // Launched with the selection: wait for the first frame.
+      await WidgetsBinding.instance.endOfFrame;
+      context = _navigatorKey.currentContext;
+    }
+    if (!mounted || context == null || !context.mounted) {
+      request.onOpenInApp(); // coverage:ignore-line
+      return; // coverage:ignore-line
+    }
+    await showQuickTranslate(
+      context,
+      text: request.text,
+      canReplace: request.canReplace,
+      onReplace: request.onReplace,
+      onOpenInApp: request.onOpenInApp,
+    );
+  }
+
+  /// Secure storage is unavailable (no keyring, insecure web context, ...):
+  /// say once that API keys only last for this session.
+  void _warnSecretsInMemory() {
+    if (!mounted || !_deps.secretsInMemory) return;
     final messenger = _messengerKey.currentState;
     if (messenger == null) return;
-    final l10n = messenger.context.l10n;
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(l10n.appProcessTextReady),
-          showCloseIcon: true,
-          action: SnackBarAction(
-            label: l10n.appProcessTextReplace,
-            onPressed: () => unawaited(_sharedText.replaceSelection()),
-          ),
-        ),
-      );
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(messenger.context.l10n.appSecureStorageUnavailable),
+        showCloseIcon: true,
+        duration: const Duration(seconds: 10),
+      ),
+    );
+  }
+
+  String? _providerName(String providerId) {
+    for (final provider in _settingsCubit.state.providers) {
+      if (provider.id == providerId) return provider.name;
+    }
+    return null;
   }
 
   // ---------------------------------------------------------------------
@@ -135,6 +177,15 @@ class _AppState extends State<App> {
           value: _deps.historyRepository,
         ),
         RepositoryProvider<SpeechService>.value(value: _deps.speechService),
+        RepositoryProvider<SpeechInputService>.value(
+          value: _deps.speechInputService,
+        ),
+        RepositoryProvider<OfflineTranslator>.value(
+          value: _deps.offlineTranslator,
+        ),
+        RepositoryProvider<UsageTracker>.value(value: _deps.usageTracker),
+        // Preferences only: secrets are never handed to the widget tree.
+        RepositoryProvider<KeyValueStore>.value(value: _deps.preferences),
         RepositoryProvider<SharedTextService>.value(
           value: _deps.sharedTextService,
         ),
@@ -145,30 +196,40 @@ class _AppState extends State<App> {
           BlocProvider<HistoryCubit>.value(value: _historyCubit),
           BlocProvider<TranslateCubit>.value(value: _translateCubit),
         ],
-        child: BlocListener<SettingsCubit, AppSettings>(
-          listenWhen: engineConfigurationChanged,
-          listener: (context, settings) => _applyEngineConfiguration(settings),
-          child: BlocBuilder<SettingsCubit, AppSettings>(
-            buildWhen: appearanceChanged,
-            builder: (context, settings) => DynamicColorBuilder(
-              builder: (lightDynamic, darkDynamic) {
-                final themes = AppThemes.fromSettings(
-                  settings,
-                  lightDynamic: lightDynamic,
-                  darkDynamic: darkDynamic,
-                );
-                return MaterialApp.router(
-                  onGenerateTitle: (context) => context.l10n.appTitle,
-                  debugShowCheckedModeBanner: false,
-                  scaffoldMessengerKey: _messengerKey,
-                  theme: themes.light,
-                  darkTheme: themes.dark,
-                  themeMode: settings.themeMode,
-                  localizationsDelegates: appLocalizationsDelegates,
-                  supportedLocales: AppLocalizations.supportedLocales,
-                  routerConfig: _router,
-                );
-              },
+        child: PresetsProviders(
+          store: _deps.preferences,
+          child: BlocListener<SettingsCubit, AppSettings>(
+            listenWhen: engineConfigurationChanged,
+            listener: (context, settings) =>
+                _applyEngineConfiguration(settings),
+            child: BlocBuilder<SettingsCubit, AppSettings>(
+              buildWhen: appearanceChanged,
+              builder: (context, settings) => DynamicColorBuilder(
+                builder: (lightDynamic, darkDynamic) {
+                  final themes = AppThemes.fromSettings(
+                    settings,
+                    lightDynamic: lightDynamic,
+                    darkDynamic: darkDynamic,
+                  );
+                  return MaterialApp.router(
+                    onGenerateTitle: (context) => context.l10n.appTitle,
+                    debugShowCheckedModeBanner: false,
+                    scaffoldMessengerKey: _messengerKey,
+                    theme: themes.light,
+                    darkTheme: themes.dark,
+                    themeMode: settings.themeMode,
+                    localizationsDelegates: appLocalizationsDelegates,
+                    supportedLocales: AppLocalizations.supportedLocales,
+                    routerConfig: _router,
+                    builder: (context, child) => UsageWarningListener(
+                      tracker: _deps.usageTracker,
+                      messengerKey: _messengerKey,
+                      providerName: _providerName,
+                      child: child ?? const SizedBox.shrink(),
+                    ),
+                  );
+                },
+              ),
             ),
           ),
         ),

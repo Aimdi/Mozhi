@@ -4,14 +4,19 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/app/app_dependencies.dart';
+import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
+import 'package:mozhi/presets/view/presets_providers.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/speech/speech_service.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/usage/data/usage_tracker.dart';
+import 'package:mozhi/voice/speech_input_service.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -31,6 +36,41 @@ class MockHistoryCubit extends MockCubit<HistoryState> implements HistoryCubit;
 
 class MockTranslateCubit extends MockCubit<TranslateState>
     implements TranslateCubit;
+
+/// An on-device engine that is not available (like ML Kit off mobile).
+class FakeOfflineTranslator implements OfflineTranslator {
+  bool disposed = false;
+
+  @override
+  bool get isAvailable => false;
+
+  @override
+  Set<String> get supportedLanguages => const {};
+
+  @override
+  Future<Set<String>> downloadedLanguages() async => const {};
+
+  @override
+  Future<void> downloadLanguage(String code, {bool wifiOnly = true}) =>
+      throw UnsupportedError('offline');
+
+  @override
+  Future<void> deleteLanguage(String code) =>
+      throw UnsupportedError('offline');
+
+  @override
+  Future<String> translate(
+    String text, {
+    required String source,
+    required String target,
+  }) => throw UnsupportedError('offline');
+
+  @override
+  Future<String?> identifyLanguage(String text) async => null;
+
+  @override
+  Future<void> dispose() async => disposed = true;
+}
 
 /// A local instance so nothing points at the network in tests.
 const testInstance = MozhiInstance(url: 'http://mozhi.test', label: 'Test');
@@ -87,6 +127,7 @@ void stubSpeechService(MockSpeechService speech) {
   when(() => speech.speaking).thenAnswer((_) => const Stream.empty());
   when(() => speech.current).thenReturn(null);
   when(speech.stop).thenAnswer((_) async {});
+  when(speech.dispose).thenAnswer((_) async {});
 }
 
 /// Mocked dependencies and cubits for pumping routes/pages.
@@ -121,6 +162,35 @@ class TestEnvironment {
   final settingsCubit = MockSettingsCubit();
   final historyCubit = MockHistoryCubit();
   final translateCubit = MockTranslateCubit();
+  final preferences = MemoryStore();
+  final secrets = MemoryStore();
+  late final speechInputService = SpeechInputService(
+    store: preferences,
+    platformSupported: false,
+  );
+  final offlineTranslator = FakeOfflineTranslator();
+  late final usageTracker = UsageTracker(store: preferences);
+
+  /// [AppDependencies] made of this environment's services.
+  AppDependencies dependencies({
+    AppSettings settings = const AppSettings(
+      instances: [testInstance],
+      onboardingComplete: true,
+    ),
+    KeyValueStore? secrets,
+  }) => AppDependencies(
+    translationRepository: translationRepository,
+    settingsRepository: settingsRepository,
+    historyRepository: historyRepository,
+    speechService: speechService,
+    sharedTextService: sharedTextService,
+    settings: settings,
+    preferences: preferences,
+    secrets: secrets ?? this.secrets,
+    speechInputService: speechInputService,
+    offlineTranslator: offlineTranslator,
+    usageTracker: usageTracker,
+  );
 
   /// Wraps [child] in all providers the pages expect.
   Widget wrap(Widget child) => MultiRepositoryProvider(
@@ -131,6 +201,10 @@ class TestEnvironment {
       RepositoryProvider<SettingsRepository>.value(value: settingsRepository),
       RepositoryProvider<HistoryRepository>.value(value: historyRepository),
       RepositoryProvider<SpeechService>.value(value: speechService),
+      RepositoryProvider<SpeechInputService>.value(value: speechInputService),
+      RepositoryProvider<OfflineTranslator>.value(value: offlineTranslator),
+      RepositoryProvider<UsageTracker>.value(value: usageTracker),
+      RepositoryProvider<KeyValueStore>.value(value: preferences),
       RepositoryProvider<SharedTextService>.value(value: sharedTextService),
     ],
     child: MultiBlocProvider(
@@ -139,7 +213,7 @@ class TestEnvironment {
         BlocProvider<HistoryCubit>.value(value: historyCubit),
         BlocProvider<TranslateCubit>.value(value: translateCubit),
       ],
-      child: child,
+      child: PresetsProviders(store: preferences, child: child),
     ),
   );
 }

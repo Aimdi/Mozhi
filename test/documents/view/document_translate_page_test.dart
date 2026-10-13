@@ -36,6 +36,8 @@ void main() {
     TranslateState state = readyTranslateState,
     Stream<TranslateState>? stream,
     Size size = const Size(600, 3000),
+    PickedFile? initialFile,
+    String? initialText,
   }) async {
     setSurface(tester, size);
     whenListen(
@@ -47,6 +49,8 @@ void main() {
       translateCubit: translateCubit,
       repository: repository,
       files: files,
+      initialFile: initialFile,
+      initialText: initialText,
       translator: DocumentTranslator(
         repository: repository,
         maxAttempts: 1,
@@ -86,6 +90,22 @@ void main() {
       expect(translate.onPressed, isNull);
     });
 
+    testWidgets('opens an initial file or text', (tester) async {
+      await pumpPage(
+        tester,
+        initialFile: PickedFile(name: 'shared.vtt', bytes: bytesOf('WEBVTT')),
+        initialText: 'ignored',
+      );
+      expect(find.text('shared.vtt'), findsOneWidget);
+      expect(cubitOf(tester).state.format, DocumentFormat.vtt);
+    });
+
+    testWidgets('opens initial text in text mode', (tester) async {
+      await pumpPage(tester, initialText: 'Some long text');
+      expect(cubitOf(tester).state.mode, DocumentInputMode.text);
+      expect(find.text('Some long text'), findsOneWidget);
+    });
+
     testWidgets('shows a hint when no engine is available', (tester) async {
       await pumpPage(tester, state: const TranslateState());
       expect(find.byKey(const Key('documents_no_engines')), findsOneWidget);
@@ -104,6 +124,15 @@ void main() {
       await tester.pumpAndSettle();
       expect(cubitOf(tester).state.engine, googleEngine);
       expect(cubitOf(tester).state.targetLanguages, targetLanguages);
+
+      // Options-only changes are mirrored as well.
+      controller.add(
+        readyTranslateState.copyWith(
+          options: const TranslationOptions(context: 'Film dialogue'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(cubitOf(tester).state.options.context, 'Film dialogue');
     });
 
     testWidgets('picks, translates and exports a subtitle file', (
@@ -301,6 +330,55 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('documents_failures')), findsNothing);
       expect(find.text('Translation complete'), findsOneWidget);
+    });
+
+    testWidgets('partial translations warn that parts stay original', (
+      tester,
+    ) async {
+      stubTranslate(
+        repository,
+        respond: (request) => request.text.contains('bad')
+            ? Stream.error(const MozhiApiException('down'))
+            : Stream.value(result(request.text.toUpperCase())),
+      );
+      await pumpPage(tester);
+      final good = List.filled(200, 'good').join(' ');
+      final bad = List.filled(200, 'bad').join(' ');
+      await pickFile(tester, 'a.txt', '$good\n\n$bad');
+      expect(find.text('2 requests'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('documents_translate')));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Untranslated parts keep the original text.'),
+        findsOneWidget,
+      );
+      expect(find.text('Part 2'), findsOneWidget);
+    });
+
+    testWidgets('the translation tab explains where results appear', (
+      tester,
+    ) async {
+      await pumpPage(tester);
+      await pickFile(tester, 'a.txt', 'hello');
+      await tester.tap(find.text('Translation'));
+      await tester.pumpAndSettle();
+      expect(find.text('The translation appears here.'), findsOneWidget);
+    });
+
+    testWidgets('shows a spinner while engine languages load', (tester) async {
+      final gate = Completer<List<Language>>();
+      await pumpPage(tester);
+      when(() => repository.getSourceLanguages(deeplEngine))
+          .thenAnswer((_) => gate.future);
+      await tester.tap(find.byKey(const Key('documents_engine')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('documents_engine_mozhi:deepl')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.byKey(const Key('documents_swap')), findsNothing);
+      gate.complete(sourceLanguages);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('documents_swap')), findsOneWidget);
     });
 
     testWidgets('retry all translates missing parts', (tester) async {

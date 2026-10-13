@@ -195,6 +195,8 @@ extension PumpDocuments on WidgetTester {
     required TranslationRepository repository,
     required DocumentFileService files,
     DocumentTranslator? translator,
+    PickedFile? initialFile,
+    String? initialText,
   }) {
     return pumpApp(
       RepositoryProvider<TranslationRepository>.value(
@@ -202,6 +204,8 @@ extension PumpDocuments on WidgetTester {
         child: BlocProvider<TranslateCubit>.value(
           value: translateCubit,
           child: DocumentTranslatePage(
+            initialFile: initialFile,
+            initialText: initialText,
             fileService: files,
             translator: translator,
           ),

@@ -210,6 +210,7 @@ void main() {
         '{n, number',
         '{n, plural one{x}}',
         '{n, plural, one{x} {y}}',
+        '{n, plural, one{x',
       ]) {
         expect(() => parse(bad), throwsFormatException, reason: bad);
       }

@@ -9,8 +9,9 @@ import 'package:translation_repository/src/repository/mappers.dart';
 /// * Nothing is emitted while the accumulated text could still turn into a
 ///   `[[lang:xx]]` marker; afterwards the marker is parsed into
 ///   `detectedSource` (only when the source is auto) and never shown. A
-///   marker the model puts at the end is held back too: intermediate
-///   snapshots drop a trailing partial marker (`Hallo\n[[lang:`).
+///   marker the model puts at the end is held back too: no snapshot is
+///   emitted while the text ends with a partial marker (`Hallo\n[[lang:`,
+///   see `ResponseParsers.isMarkerPending`).
 /// * With `parseMarker: false` (translation-specialised models, which are
 ///   never asked for a marker) the text is passed through as is and
 ///   [detectedSource], when given, is reported on every result instead.
@@ -83,13 +84,7 @@ Stream<TranslationResult> aiTranslationStream({
     buffer.write(delta);
     final accumulated = buffer.toString();
     if (parseMarker && ResponseParsers.isMarkerPending(accumulated)) return;
-    var snapshot = split(accumulated);
-    if (parseMarker) {
-      snapshot = (
-        language: snapshot.language,
-        text: stripPartialTrailingMarker(snapshot.text),
-      );
-    }
+    final snapshot = split(accumulated);
     if (snapshot == lastSnapshot) return;
     lastSnapshot = snapshot;
     pending = result(snapshot, isComplete: false);
@@ -138,58 +133,4 @@ Stream<TranslationResult> aiTranslationStream({
     },
   );
   return controller.stream;
-}
-
-/// [text] without a trailing partial `[[lang:xx]]` marker (one that could
-/// still be completed by the next deltas, e.g. `Hallo\n[[lang:` or
-/// `Hallo [[la`), with the whitespace before it. Complete markers are left
-/// to `ResponseParsers.splitLanguageMarker`.
-String stripPartialTrailingMarker(String text) {
-  // A partial marker is short; only look at the last few characters.
-  final from = text.length > _maxPartialMarker
-      ? text.length - _maxPartialMarker
-      : 0;
-  for (var i = text.indexOf('[', from); i != -1; i = text.indexOf('[', i + 1)) {
-    final tail = text.substring(i);
-    if (_isPartialMarker(tail)) return text.substring(0, i).trimRight();
-  }
-  return text;
-}
-
-const _maxPartialMarker = 40;
-
-final _completeTrailingMarker = RegExp(
-  r'^\[\[\s*lang(?:uage)?\s*[:=]\s*[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{1,8})*\s*\]\]$',
-  caseSensitive: false,
-);
-
-/// Completions that turn every proper prefix of a trailing marker into a
-/// whole one.
-final _completions = <String>[
-  for (final keyword in const [
-    '[lang',
-    'lang',
-    'ang',
-    'ng',
-    'g',
-    'uage',
-    'age',
-    'ge',
-    'e',
-    '',
-  ])
-    '$keyword:fr]]',
-  'fr]]',
-  'x]]',
-  ']]',
-  ']',
-];
-
-bool _isPartialMarker(String tail) {
-  if (tail.contains('\n')) return false;
-  final trimmed = tail.trimRight();
-  if (_completeTrailingMarker.hasMatch(trimmed)) return false;
-  return _completions.any(
-    (completion) => _completeTrailingMarker.hasMatch('$trimmed$completion'),
-  );
 }

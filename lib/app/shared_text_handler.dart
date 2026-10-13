@@ -1,37 +1,81 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:mozhi/app/translate_link.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 
-/// Routes text shared by the OS (Android share sheet / "Translate with
-/// Mozhi" selection action) to the translate screen.
+/// Text selected in another app (Android `PROCESS_TEXT`, "Translate with
+/// Mozhi") to show in the quick translate UI.
+@immutable
+class QuickTranslateRequest {
+  const new({required this.text, required this.onOpenInApp, this.onReplace});
+
+  final String text;
+
+  /// Opens [text] in the translate tab ("Open in app").
+  final VoidCallback onOpenInApp;
+
+  /// Hands a translation back to the calling app, which replaces the
+  /// selection with it; null for read-only selections.
+  final ValueChanged<String>? onReplace;
+
+  /// Whether the calling app accepts a replacement.
+  bool get canReplace => onReplace != null;
+}
+
+/// Reads the clipboard text (null when empty or unavailable).
+typedef ClipboardReader = Future<String?> Function();
+
+/// [ClipboardReader] of the platform clipboard.
+Future<String?> readClipboardText() async {
+  try {
+    return (await Clipboard.getData(Clipboard.kTextPlain))?.text;
+  } on PlatformException {
+    return null;
+  }
+}
+
+/// Routes text handed over by the OS to the right screen:
 ///
-/// For a writable `PROCESS_TEXT` request, [onReplaceAvailable] is called
-/// once the translation completes so the UI can offer [replaceSelection].
+/// * a selection in another app (`PROCESS_TEXT`) opens the quick translate
+///   UI via [onQuickTranslate], with Replace for writable selections;
+/// * the "translate clipboard" action (quick-settings tile / app shortcut)
+///   reads the clipboard ([readClipboard]) and opens it in the translate
+///   tab;
+/// * anything else (share sheet) opens in the translate tab.
+///
+/// Text from outside the app goes through
+/// [TranslateCubit.setExternalInput]: it is length-capped and never starts
+/// a paid AI translation on its own.
 class SharedTextHandler {
   new({
     required this.service,
     required this.translateCubit,
     required this.onShowTranslate,
-    required this.onReplaceAvailable,
-    this.timeout = const Duration(minutes: 2),
+    this.onQuickTranslate,
+    this.readClipboard = readClipboardText,
+    this.timeout = const Duration(seconds: 20),
   });
 
   final SharedTextService service;
   final TranslateCubit translateCubit;
 
   /// Brings the translate screen to the front.
-  final void Function() onShowTranslate;
+  final VoidCallback onShowTranslate;
 
-  /// The calling app accepts the translation as a replacement.
-  final void Function() onReplaceAvailable;
+  /// Shows the quick translate UI for a `PROCESS_TEXT` selection. Without
+  /// it, selections open in the translate tab like shared text.
+  final void Function(QuickTranslateRequest request)? onQuickTranslate;
 
-  /// How long to wait for engines / the translation.
+  /// Reads the clipboard for [SharedText.isTranslateClipboard].
+  final ClipboardReader readClipboard;
+
+  /// How long to wait for the engines before applying text.
   final Duration timeout;
 
   StreamSubscription<SharedText>? _texts;
-  StreamSubscription<TranslateState>? _completion;
   bool _disposed = false;
 
   /// Handles the launch text, then texts received while running.
@@ -48,52 +92,63 @@ class SharedTextHandler {
     }
   }
 
-  /// Shows and translates [shared].
+  /// Shows [shared] where it belongs (see the class documentation).
   Future<void> handle(SharedText shared) async {
-    if (_disposed || shared.text.trim().isEmpty) return;
-    await _completion?.cancel();
-    _completion = null;
-    onShowTranslate();
-    await TranslateLink(text: shared.text)
-        .applyTo(translateCubit, timeout: timeout);
-    if (_disposed || !shared.isProcessText || shared.readOnly) return;
-
-    final current = translateCubit.state;
-    if (_isDone(current) && current.input.trim() == shared.text.trim()) {
-      _onDone(current);
+    if (_disposed) return;
+    if (shared.isTranslateClipboard) {
+      await _translateClipboard();
       return;
     }
-    _completion = translateCubit.stream
-        .where(_isDone)
-        .take(1)
-        .timeout(timeout, onTimeout: (sink) => sink.close())
-        .listen(_onDone);
+
+    final text = shared.text;
+    if (text.trim().isEmpty) return;
+    final quick = onQuickTranslate;
+    if (shared.isProcessText && quick != null) {
+      quick(
+        QuickTranslateRequest(
+          text: text,
+          onOpenInApp: () => unawaited(openInApp(text)),
+          onReplace: shared.readOnly
+              ? null
+              : (translation) => unawaited(replaceSelection(translation)),
+        ),
+      );
+      return;
+    }
+    await openInApp(text);
   }
 
-  /// Answers the pending `PROCESS_TEXT` request with the current output
+  /// Shows the translate tab with [text] as external input.
+  Future<void> openInApp(String text) async {
+    if (_disposed || text.trim().isEmpty) return;
+    onShowTranslate();
+    await TranslateLink(text: text).applyTo(translateCubit, timeout: timeout);
+  }
+
+  /// Answers the pending `PROCESS_TEXT` request with [translation]
   /// (Android then closes Mozhi and replaces the selection).
-  Future<void> replaceSelection() async {
-    final output = translateCubit.state.output;
-    if (output.trim().isEmpty) return;
-    await service.returnResult(output);
+  Future<void> replaceSelection(String translation) async {
+    if (translation.trim().isEmpty) return;
+    await service.returnResult(translation);
+  }
+
+  Future<void> _translateClipboard() async {
+    String? text;
+    try {
+      text = await readClipboard();
+    } on Object {
+      text = null;
+    }
+    if (_disposed) return;
+    if (text == null || text.trim().isEmpty) {
+      onShowTranslate();
+      return;
+    }
+    await openInApp(text);
   }
 
   Future<void> dispose() async {
     _disposed = true;
     await _texts?.cancel();
-    await _completion?.cancel();
-  }
-
-  static bool _isDone(TranslateState s) =>
-      s.status == TranslateStatus.failure ||
-      (s.status == TranslateStatus.success && (s.result?.isComplete ?? true));
-
-  void _onDone(TranslateState state) {
-    if (_disposed ||
-        state.status != TranslateStatus.success ||
-        state.output.trim().isEmpty) {
-      return;
-    }
-    onReplaceAvailable();
   }
 }

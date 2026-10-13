@@ -4477,5 +4477,9 @@
   "translateToolConversation": "Conversation",
   "@translateToolConversation": {
     "description": "translateToolConversation"
+  },
+  "appSecureStorageUnavailable": "API keys can't be stored securely on this device; they will be kept only for this session.",
+  "@appSecureStorageUnavailable": {
+    "description": "Shown once on start when the platform secure storage is unavailable and API keys are kept in memory only"
   }
 }

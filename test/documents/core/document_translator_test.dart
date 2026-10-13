@@ -312,18 +312,20 @@ void main() {
 
     test('cancelling during a retry delay stops the retry', () async {
       stub((request) => Stream.error(const MozhiApiException('busy')));
+      final events = <DocumentProgress>[];
       final subscription =
           DocumentTranslator(
                 repository: repository,
-                retryDelay: const Duration(milliseconds: 20),
+                retryDelay: const Duration(hours: 1),
               )
               .translate(plan(['a']), engine: _mozhi, source: _en, target: _de)
-              .listen((_) {});
+              .listen(events.add);
       await pumpEventQueue();
       expect(requests.length, 1);
       await subscription.cancel();
-      await Future<void>.delayed(const Duration(milliseconds: 60));
+      await pumpEventQueue();
       expect(requests.length, 1);
+      expect(events.length, 1);
     });
 
     test('cancelling between chunks emits nothing more', () async {

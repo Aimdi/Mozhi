@@ -4,8 +4,14 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/offline/offline.dart' show OfflineEngineBadge;
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/translate/widgets/translate_layout.dart';
 import 'package:translation_repository/translation_repository.dart';
+
+/// Above this text scale the selector drops its subtitle so the two lines
+/// still fit the fixed-height app bar (the subtitle is also in the sheet).
+const engineSubtitleMaxTextScale = 1.3;
 
 /// App bar button showing the current engine; opens [EngineSheet].
 class EngineSelectorButton extends StatelessWidget {
@@ -15,6 +21,8 @@ class EngineSelectorButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
+    final largeText =
+        MediaQuery.textScalerOf(context).scale(1) > engineSubtitleMaxTextScale;
     return BlocBuilder<TranslateCubit, TranslateState>(
       buildWhen: (previous, current) =>
           previous.engine != current.engine ||
@@ -22,7 +30,7 @@ class EngineSelectorButton extends StatelessWidget {
       builder: (context, state) {
         final engine = state.engine;
         final name = engine?.name ?? l10n.translateEngineSheetTitle;
-        final subtitle = engine?.subtitle;
+        final subtitle = largeText ? null : engine?.subtitle;
         return Tooltip(
           message: l10n.translateEngineSelectorTooltip,
           child: TextButton(
@@ -99,8 +107,13 @@ class EngineSheet extends StatelessWidget {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final state = context.watch<TranslateCubit>().state;
-    final mozhi = state.engines.where((e) => e.isMozhi).toList();
-    final ai = state.engines.where((e) => e.isAi).toList();
+    final offline = state.engines.where(isOnDeviceEngine).toList();
+    final mozhi = state.engines
+        .where((e) => e.isMozhi && !isOnDeviceEngine(e))
+        .toList();
+    final ai = state.engines
+        .where((e) => e.isAi && !isOnDeviceEngine(e))
+        .toList();
     final host = _instanceHost(mozhi);
 
     void select(TranslationEngine engine) {
@@ -125,11 +138,24 @@ class EngineSheet extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-            child: Text(
-              l10n.translateEngineSheetTitle,
-              style: theme.textTheme.titleLarge,
+            child: Semantics(
+              header: true,
+              child: Text(
+                l10n.translateEngineSheetTitle,
+                style: theme.textTheme.titleLarge,
+              ),
             ),
           ),
+          if (offline.isNotEmpty) ...[
+            _SectionHeader(l10n.translateOfflineEnginesHeader),
+            for (final engine in offline)
+              _EngineTile(
+                engine: engine,
+                selected: engine.id == state.engine?.id,
+                showSubtitle: true,
+                onTap: () => select(engine),
+              ),
+          ],
           if (mozhi.isNotEmpty) ...[
             _SectionHeader(
               host == null
@@ -232,7 +258,10 @@ class _EngineTile extends StatelessWidget {
           runSpacing: 4,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            PrivacyBadge(engine: engine),
+            if (isOnDeviceEngine(engine))
+              const OfflineEngineBadge()
+            else
+              PrivacyBadge(engine: engine),
             if (showSubtitle && subtitle != null && subtitle.isNotEmpty)
               Text(subtitle),
           ],
@@ -244,7 +273,12 @@ class _EngineTile extends StatelessWidget {
   }
 }
 
-/// Icon for an engine kind (local AI, cloud AI, Mozhi).
+/// Whether [engine] translates on this device (offline engines, ids
+/// `offline:<backend>`), neither through Mozhi nor an AI provider.
+bool isOnDeviceEngine(TranslationEngine engine) =>
+    isOfflineEngineId(engine.id) || (!engine.isMozhi && !engine.isAi);
+
+/// Icon for an engine kind (offline, local AI, cloud AI, Mozhi).
 class EngineIcon extends StatelessWidget {
   const new({required this.engine, this.size, super.key});
 
@@ -254,6 +288,7 @@ class EngineIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final icon = switch (engine) {
+      _ when isOnDeviceEngine(engine) => OfflineEngineBadge.icon,
       TranslationEngine(isAi: true, isLocal: true) => Icons.memory,
       TranslationEngine(isAi: true) => Icons.auto_awesome_outlined,
       _ => Icons.translate,
@@ -274,7 +309,7 @@ class PrivacyBadge extends StatelessWidget {
     final l10n = context.l10n;
     final scheme = Theme.of(context).colorScheme;
     final (label, icon, background, foreground) = switch (engine) {
-      TranslationEngine(isLocal: true) => (
+      _ when engine.isLocal || isOnDeviceEngine(engine) => (
         l10n.translateBadgeLocal,
         Icons.lock_outline,
         scheme.tertiaryContainer,

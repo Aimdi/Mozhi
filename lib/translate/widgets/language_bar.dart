@@ -37,17 +37,21 @@ final _distinctiveScript = RegExp(
   '぀-ヿ가-힯]',
 );
 
+/// Longest single word whose detected language is flagged as uncertain.
+const uncertainDetectionMaxLength = 12;
+
 /// Whether the detected source language may well be wrong: the source is
-/// "Detect language" and the input is only one or two words in a script
-/// that several languages share (detectors often misjudge "Hallo" or
-/// "Gift").
+/// "Detect language" and the input is a single short word in a script that
+/// several languages share (detectors often misjudge "Hallo", "Gift" or
+/// "Bank").
 bool detectionIsUncertain(TranslateState state) {
   if (!state.source.isAuto) return false;
   final detected = state.result?.detectedSource;
   if (detected == null || detected.isEmpty) return false;
   final text = state.input.trim();
   if (text.isEmpty || _distinctiveScript.hasMatch(text)) return false;
-  return text.split(RegExp(r'\s+')).length < 3;
+  return !text.contains(RegExp(r'\s')) &&
+      text.characters.length <= uncertainDetectionMaxLength;
 }
 
 /// Source button, swap button and target button.

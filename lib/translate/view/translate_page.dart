@@ -26,8 +26,57 @@ class SwapLanguagesIntent extends Intent {
   const new();
 }
 
+/// Ctrl/Cmd+Shift+C: copy the translation.
+class CopyOutputIntent extends Intent {
+  const new();
+}
+
+/// Ctrl/Cmd+L (target) and Ctrl/Cmd+Shift+L (source): open the language
+/// picker with its search field focused.
+class PickLanguageIntent extends Intent {
+  const new({required this.source});
+
+  final bool source;
+}
+
+/// `?` (outside text fields) or Ctrl/Cmd+/: show the shortcut cheat sheet.
+class ShowShortcutsIntent extends Intent {
+  const new();
+}
+
+/// Whether keyboard focus is in an editable text field (where `?` must be
+/// typed, not handled as a shortcut).
+bool _focusIsInTextField() {
+  final context = FocusManager.instance.primaryFocus?.context;
+  if (context == null) return false;
+  return context.widget is EditableText ||
+      context.findAncestorStateOfType<EditableTextState>() != null;
+}
+
+/// Runs `onInvoke`; [enabled] decides per key press whether the shortcut
+/// applies (a disabled action lets the key through, e.g. into a text
+/// field).
+class _ShortcutAction<T extends Intent> extends Action<T> {
+  new(this.onInvoke, {this.enabled});
+
+  final void Function(T intent) onInvoke;
+  final bool Function()? enabled;
+
+  @override
+  bool isEnabled(T intent) => enabled?.call() ?? true;
+
+  @override
+  Object? invoke(T intent) {
+    onInvoke(intent);
+    return null;
+  }
+}
+
 /// Adaptive translate screen: single column on phones, input and output
 /// side by side from [TranslateLayout.wideBreakpoint].
+///
+/// Keyboard shortcuts are listed in [shortcuts] and in the cheat sheet
+/// (`?` or Ctrl/Cmd+/); Esc in the input clears it (see [InputCard]).
 class TranslateView extends StatelessWidget {
   const new({super.key});
 
@@ -42,6 +91,25 @@ class TranslateView extends StatelessWidget {
         SwapLanguagesIntent(),
     SingleActivator(LogicalKeyboardKey.keyS, meta: true, shift: true):
         SwapLanguagesIntent(),
+    SingleActivator(LogicalKeyboardKey.keyC, control: true, shift: true):
+        CopyOutputIntent(),
+    SingleActivator(LogicalKeyboardKey.keyC, meta: true, shift: true):
+        CopyOutputIntent(),
+    SingleActivator(LogicalKeyboardKey.keyL, control: true): PickLanguageIntent(
+      source: false,
+    ),
+    SingleActivator(LogicalKeyboardKey.keyL, meta: true): PickLanguageIntent(
+      source: false,
+    ),
+    SingleActivator(LogicalKeyboardKey.keyL, control: true, shift: true):
+        PickLanguageIntent(source: true),
+    SingleActivator(LogicalKeyboardKey.keyL, meta: true, shift: true):
+        PickLanguageIntent(source: true),
+    SingleActivator(LogicalKeyboardKey.slash, control: true):
+        ShowShortcutsIntent(),
+    SingleActivator(LogicalKeyboardKey.slash, meta: true):
+        ShowShortcutsIntent(),
+    CharacterActivator('?'): ShowShortcutsIntent(),
   };
 
   void _translateNow(BuildContext context) {
@@ -58,6 +126,20 @@ class TranslateView extends StatelessWidget {
   void _swap(BuildContext context) {
     final cubit = context.read<TranslateCubit>();
     if (cubit.state.canSwap) cubit.swap();
+  }
+
+  void _copyOutput(BuildContext context) {
+    final state = context.read<TranslateCubit>().state;
+    final output = state.output;
+    if (state.compareMode || output.trim().isEmpty) return;
+    unawaited(copyToClipboard(context, output));
+  }
+
+  void _pickLanguage(BuildContext context, {required bool source}) {
+    if (context.read<TranslateCubit>().state.engines.isEmpty) return;
+    unawaited(
+      pickTranslateLanguage(context, source: source, autofocusSearch: true),
+    );
   }
 
   @override
@@ -78,6 +160,20 @@ class TranslateView extends StatelessWidget {
               _swap(context);
               return null;
             },
+          ),
+          CopyOutputIntent: _ShortcutAction<CopyOutputIntent>(
+            (_) => _copyOutput(context),
+          ),
+          PickLanguageIntent: _ShortcutAction<PickLanguageIntent>(
+            (intent) => _pickLanguage(context, source: intent.source),
+          ),
+          ShowShortcutsIntent: _ShortcutAction<ShowShortcutsIntent>(
+            (_) => unawaited(showTranslateShortcuts(context)),
+            // `?` is typed into text fields; Ctrl/Cmd+/ works everywhere.
+            enabled: () =>
+                !_focusIsInTextField() ||
+                HardwareKeyboard.instance.isControlPressed ||
+                HardwareKeyboard.instance.isMetaPressed,
           ),
         },
         child: Focus(
@@ -130,7 +226,12 @@ class _TranslateAppBar extends StatelessWidget implements PreferredSizeWidget {
     final noEngines = context.select<TranslateCubit, bool>(
       (cubit) => cubit.state.engines.isEmpty,
     );
-    if (noEngines) return AppBar(title: Text(l10n.translateTitle));
+    if (noEngines) {
+      return AppBar(
+        title: Text(l10n.translateTitle),
+        actions: const [MoreToolsButton(), SizedBox(width: 4)],
+      );
+    }
     return AppBar(
       titleSpacing: showTitle ? null : 8,
       title: showTitle
@@ -142,7 +243,12 @@ class _TranslateAppBar extends StatelessWidget implements PreferredSizeWidget {
               ],
             )
           : const EngineSelectorButton(),
-      actions: const [OptionsButton(), _CompareToggle(), SizedBox(width: 8)],
+      actions: const [
+        OptionsButton(),
+        _CompareToggle(),
+        MoreToolsButton(),
+        SizedBox(width: 4),
+      ],
     );
   }
 }
@@ -218,6 +324,7 @@ class _NarrowLayout extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               LanguageBar(),
+              ActiveOptionsBar(),
               SizedBox(height: TranslateLayout.gap),
               InputCard(),
               SizedBox(height: TranslateLayout.gap),
@@ -246,6 +353,7 @@ class _WideLayout extends StatelessWidget {
           child: Column(
             children: [
               LanguageBar(),
+              ActiveOptionsBar(),
               SizedBox(height: TranslateLayout.gap),
               Expanded(
                 child: Row(

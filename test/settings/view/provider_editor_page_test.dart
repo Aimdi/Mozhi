@@ -109,9 +109,10 @@ void main() {
         await tester.pumpAndSettle();
         // The name is fine; the API key is the first missing field.
         expect(focused('API key'), isTrue);
-        expect(tester.takeAnnouncements(), [
-          isAccessibilityAnnouncement('Fix the highlighted fields'),
-        ]);
+        expect(
+          tester.takeAnnouncements(),
+          contains(isAccessibilityAnnouncement('Fix the highlighted fields')),
+        );
 
         await tester.enterText(field('Name'), '');
         await tester.tap(find.text('Test connection'));

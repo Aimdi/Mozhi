@@ -31,20 +31,29 @@ final class HtmlElement extends HtmlNode {
   /// Child elements only.
   Iterable<HtmlElement> get elementChildren => children.whereType();
 
-  /// Pre-order traversal of the descendant elements (not this one).
-  Iterable<HtmlElement> get descendants sync* {
-    final stack = <HtmlElement>[...elementChildren.toList().reversed];
-    while (stack.isNotEmpty) {
-      final element = stack.removeLast();
-      yield element;
-      stack.addAll(element.elementChildren.toList().reversed);
+  /// The descendant elements (not this one) in document order.
+  List<HtmlElement> get descendants {
+    final result = <HtmlElement>[];
+    void collect(HtmlElement element) {
+      for (final child in element.children) {
+        if (child is HtmlElement) {
+          result.add(child);
+          collect(child);
+        }
+      }
     }
+
+    collect(this);
+    return result;
   }
 
-  /// First descendant element named [tag], else null.
+  /// First descendant element named [tag] (document order), else null.
   HtmlElement? find(String tag) {
-    for (final element in descendants) {
-      if (element.name == tag) return element;
+    for (final child in children) {
+      if (child is! HtmlElement) continue;
+      if (child.name == tag) return child;
+      final found = child.find(tag);
+      if (found != null) return found;
     }
     return null;
   }

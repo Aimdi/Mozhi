@@ -206,11 +206,7 @@ class TranslationRepository {
         ? ''
         : Uri.tryParse(url.contains('://') ? url : 'https://$url')?.host ?? '';
     if (host.isNotEmpty) return host;
-    return switch (provider.service) {
-      MtService.deepl => 'DeepL API',
-      MtService.libreTranslate => 'LibreTranslate',
-      MtService.llm => provider.model,
-    };
+    return provider.service == MtService.deepl ? 'DeepL API' : 'LibreTranslate';
   }
 
   Future<List<TranslationEngine>> _loadMozhiEngines() =>
@@ -527,7 +523,11 @@ class TranslationRepository {
     String? detected;
     var explicit = request;
     if (request.source.isAuto) {
-      detected = await _detectSource(engine, request.text);
+      detected = await _detectSource(
+        engine,
+        request.text,
+        isLocal: engine.isLocal || config.isLocal,
+      );
       explicit = request.copyWith(source: _languageFor(detected));
     }
     if (LanguageMatcher.normalize(explicit.source.code) ==
@@ -567,8 +567,12 @@ class TranslationRepository {
 
   /// The language of [text] for an engine that needs an explicit source:
   /// on-device identification first (private), then Mozhi google unless
-  /// [engine] is local (the user keeps that text off the network).
-  Future<String> _detectSource(TranslationEngine engine, String text) async {
+  /// the engine [isLocal] (the user keeps that text off the network).
+  Future<String> _detectSource(
+    TranslationEngine engine,
+    String text, {
+    required bool isLocal,
+  }) async {
     Object? failure;
     final offline = _offline;
     if (offline != null && offline.isAvailable) {
@@ -581,7 +585,7 @@ class TranslationRepository {
         failure = error;
       }
     }
-    if (!engine.isLocal && _mozhi.instances.isNotEmpty) {
+    if (!isLocal && _mozhi.instances.isNotEmpty) {
       try {
         return (await _detectWithMozhi(text)).code;
       } on Object catch (error) {
@@ -1022,16 +1026,9 @@ class TranslationRepository {
     return config;
   }
 
-  /// The configuration of machine translation [engine]; [ArgumentError] for
-  /// other kinds and unknown providers.
+  /// The configuration of machine translation [engine] (callers dispatch on
+  /// [EngineKind.mt]); [ArgumentError] for unknown providers.
   AiProviderConfig _mtProviderFor(TranslationEngine engine) {
-    if (!engine.isMt) {
-      throw ArgumentError.value(
-        engine.id,
-        'engine',
-        'Requires a machine translation engine',
-      );
-    }
     final config = _configFor(engine, 'mt:');
     if (config == null || !config.isMtService) {
       throw ArgumentError.value(

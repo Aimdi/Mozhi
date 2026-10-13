@@ -5,6 +5,7 @@ import 'package:bloc/bloc.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:mlkit_translator/mlkit_translator.dart';
 import 'package:mozhi/app/app_dependencies.dart';
 import 'package:mozhi/app/fallback_key_value_store.dart';
 import 'package:mozhi/core/key_value_store.dart';
@@ -12,6 +13,8 @@ import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/speech/speech_service.dart';
+import 'package:mozhi/usage/data/usage_tracker.dart';
+import 'package:mozhi/voice/speech_input_service.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Logs bloc changes and errors (debug builds only).
@@ -61,10 +64,13 @@ Future<void> bootstrap(
 /// Creates the long-lived services and loads the saved settings.
 ///
 /// [prefs] and [secrets] default to the platform stores; secure storage
-/// falls back to memory when it is unavailable.
+/// falls back to memory when it is unavailable (reported by
+/// [AppDependencies.secretsInMemory]). [offlineTranslator] defaults to ML
+/// Kit (available on Android and iOS only).
 Future<AppDependencies> createDependencies({
   KeyValueStore? prefs,
   KeyValueStore? secrets,
+  OfflineTranslator? offlineTranslator,
 }) async {
   final preferences = prefs ?? PreferencesStore();
   final secretStore = secrets ?? await _secureStore();
@@ -75,7 +81,8 @@ Future<AppDependencies> createDependencies({
   );
   final settings = await settingsRepository.load();
 
-  final translationRepository = TranslationRepository()
+  final offline = offlineTranslator ?? MlKitOfflineTranslator();
+  final translationRepository = TranslationRepository(offline: offline)
     ..updateConfiguration(
       instances: settings.instances,
       providers: settings.providers,
@@ -88,19 +95,28 @@ Future<AppDependencies> createDependencies({
     speechService: SpeechService(repository: translationRepository),
     sharedTextService: SharedTextService(),
     settings: settings,
+    preferences: preferences,
+    secrets: secretStore,
+    speechInputService: SpeechInputService(store: preferences),
+    offlineTranslator: offline,
+    usageTracker: UsageTracker(store: preferences),
   );
 }
 
+/// Options of the platform secure storage.
+///
+/// On the web, keys are kept in `sessionStorage` (gone when the tab
+/// closes): browser storage is readable by any script of the origin, and
+/// the encryption key sits next to the data, so nothing is persisted.
+const appSecureStorage = FlutterSecureStorage(
+  // The data-protection keychain needs a provisioning profile
+  // (keychain-access-groups); the legacy keychain works unsigned.
+  mOptions: MacOsOptions(usesDataProtectionKeychain: false),
+  webOptions: WebOptions(useSessionStorage: true),
+);
+
 Future<KeyValueStore> _secureStore() async {
-  final store = FallbackKeyValueStore(
-    SecureStore(
-      const FlutterSecureStorage(
-        // The data-protection keychain needs a provisioning profile
-        // (keychain-access-groups); the legacy keychain works unsigned.
-        mOptions: MacOsOptions(usesDataProtectionKeychain: false),
-      ),
-    ),
-  );
+  final store = FallbackKeyValueStore(SecureStore(appSecureStorage));
   await store.probe();
   return store;
 }

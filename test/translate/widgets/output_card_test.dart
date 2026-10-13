@@ -312,7 +312,9 @@ void main() {
         await tester.pump();
         expect(find.byKey(const Key('translate_insight_text')), findsOneWidget);
 
-        await tester.tapOnText(find.textRange.ofSubstring('le monde'));
+        // The first match is the underlined span in the output text (the
+        // insight chips below repeat the phrase).
+        await tester.tapOnText(find.textRange.ofSubstring('le monde').first);
         await tester.pumpAndSettle();
         expect(find.text('Nuance'), findsOneWidget);
         expect(find.text(_insight.explanation), findsOneWidget);

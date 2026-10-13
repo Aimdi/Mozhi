@@ -198,4 +198,41 @@ void main() {
       expect(decodeBase64Image('not base64 at all!'), isNull);
     });
   });
+
+  group('fixMozhiDeeplTargets', () {
+    test('maps regional targets to their base and drops zh-hant', () {
+      final fixed = fixMozhiDeeplTargets(const [
+        MozhiLanguage(id: 'de', name: 'German'),
+        MozhiLanguage(id: 'EN-US', name: 'English (American)'),
+        MozhiLanguage(id: 'en-gb', name: 'English (British)'),
+        MozhiLanguage(id: 'pt-br', name: 'Portuguese (Brazilian)'),
+        MozhiLanguage(id: 'pt-pt', name: 'Portuguese (European)'),
+        MozhiLanguage(id: 'zh-hans', name: 'Chinese (simplified)'),
+        MozhiLanguage(id: ' zh-hant ', name: 'Chinese (traditional)'),
+      ]);
+      expect(fixed.map((l) => l.id), ['de', 'en', 'en', 'pt', 'pt', 'zh']);
+      expect(fixed[1].name, 'English');
+      expect(fixed.last.name, LanguageCatalog.byCode('zh')!.name);
+      expect(mapMozhiLanguages(fixed).map((l) => l.code), [
+        'de',
+        'en',
+        'pt',
+        'zh',
+      ]);
+    });
+  });
+
+  group('mozhiTargetCode', () {
+    test('sends DeepL regional targets as the base code', () {
+      expect(mozhiTargetCode('deepl', 'en-US'), 'en');
+      expect(mozhiTargetCode('DeepL', 'pt-PT'), 'pt');
+      expect(mozhiTargetCode('deepl', 'zh-hans'), 'zh');
+      expect(mozhiTargetCode('deepl', 'zh-hant'), 'zh-hant');
+      expect(mozhiTargetCode('deepl', 'fr'), 'fr');
+    });
+
+    test('leaves other engines alone', () {
+      expect(mozhiTargetCode('google', 'en-US'), 'en-US');
+    });
+  });
 }

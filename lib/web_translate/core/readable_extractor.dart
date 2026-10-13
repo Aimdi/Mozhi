@@ -141,14 +141,14 @@ class ReadableExtractor {
 
   /// Splits plain [text] into paragraphs (separated by blank lines).
   static ReadablePage fromPlainText(String text, {String title = ''}) {
-    final blocks = <ReadableBlock>[
-      for (final part in text.replaceAll('\r\n', '\n').split(_blankLines))
-        if (_normalise(part.replaceAll('\n', '\u0000')).isNotEmpty)
-          ReadableBlock(
-            kind: ReadableBlockKind.paragraph,
-            text: _normalise(part.replaceAll('\n', '\u0000')),
-          ),
-    ];
+    final blocks = <ReadableBlock>[];
+    for (final part in text.replaceAll('\r\n', '\n').split(_blankLines)) {
+      final paragraph = _normalise(part);
+      if (paragraph.isEmpty) continue;
+      blocks.add(
+        ReadableBlock(kind: ReadableBlockKind.paragraph, text: paragraph),
+      );
+    }
     return ReadablePage(title: title, blocks: blocks);
   }
 
@@ -184,23 +184,31 @@ class ReadableExtractor {
     required bool inArticle,
     required bool protected,
   }) {
-    for (final child in element.elementChildren.toList()) {
-      if (_shouldDrop(
-        child,
-        strict: strict,
-        inArticle: inArticle,
-        protected: protected,
-      )) {
-        child.remove();
-        continue;
+    // Compacts the child list in place (linear even with many removals).
+    final children = element.children;
+    var kept = 0;
+    for (var i = 0; i < children.length; i++) {
+      final child = children[i];
+      if (child is HtmlElement) {
+        if (_shouldDrop(
+          child,
+          strict: strict,
+          inArticle: inArticle,
+          protected: protected,
+        )) {
+          child.parent = null;
+          continue;
+        }
+        _prune(
+          child,
+          strict: strict,
+          inArticle: inArticle || child.name == 'article',
+          protected: protected || _protectedTags.contains(child.name),
+        );
       }
-      _prune(
-        child,
-        strict: strict,
-        inArticle: inArticle || child.name == 'article',
-        protected: protected || _protectedTags.contains(child.name),
-      );
+      children[kept++] = child;
     }
+    children.length = kept;
   }
 
   static bool _shouldDrop(
@@ -257,7 +265,11 @@ class ReadableExtractor {
       return best;
     }
 
-    final articles = body.findAll('article').toList();
+    final all = body.descendants;
+    final articles = [
+      for (final element in all)
+        if (element.name == 'article') element,
+    ];
     final article = longest(articles);
     if (article != null && dominant(article)) {
       final total = articles.fold(0, (sum, e) => sum + metrics.text(e));
@@ -269,7 +281,7 @@ class ReadableExtractor {
     }
 
     final articleBody = longest(
-      body.descendants.where(
+      all.where(
         (e) => (e.attributes['itemprop'] ?? '').toLowerCase().contains(
           'articlebody',
         ),
@@ -278,7 +290,7 @@ class ReadableExtractor {
     if (dominant(articleBody)) return [articleBody!];
 
     final main = longest(
-      body.descendants.where(
+      all.where(
         (e) =>
             e.name == 'main' ||
             e.attributes['role']?.trim().toLowerCase() == 'main',
@@ -474,7 +486,7 @@ class _Metadata {
               !element.hasAncestor(
                 (e) => e.name == 'svg' || e.name == 'math',
               )) {
-            final text = _normalise(element.textContent);
+            final text = _collapse(element.textContent);
             if (text.isNotEmpty) title = text;
           }
         case 'meta':
@@ -482,7 +494,7 @@ class _Metadata {
               (element.attributes['property'] ?? element.attributes['name'])
                   ?.trim()
                   .toLowerCase();
-          final content = _normalise(element.attributes['content'] ?? '');
+          final content = _collapse(element.attributes['content'] ?? '');
           if (key == null || content.isEmpty) continue;
           switch (key) {
             case 'og:title':
@@ -762,7 +774,7 @@ class _BlockBuilder {
     if ((width != null && width <= 1) || (height != null && height <= 1)) {
       return; // Tracking pixel.
     }
-    final alt = _normalise(attributes['alt'] ?? '');
+    final alt = _collapse(attributes['alt'] ?? '');
     if (alt.isEmpty) return;
     final small =
         (width != null && width <= 48) || (height != null && height <= 48);
@@ -829,9 +841,9 @@ class _BlockBuilder {
 
   void _append(String text) {
     if (text.isEmpty) return;
-    final collapsed = text.replaceAll(_whitespace, ' ').replaceAll('​', '');
+    final collapsed = _collapse(text, trim: false);
     if (collapsed.isEmpty) return;
-    if (_inLink > 0) _linkChars += collapsed.replaceAll(' ', '').length;
+    if (_inLink > 0) _linkChars += _visibleLength(collapsed);
     _text.write(collapsed);
   }
 
@@ -845,7 +857,7 @@ class _BlockBuilder {
     if (text.isEmpty) return;
     final context = _context;
     final kind = context.kind;
-    final visible = text.replaceAll(_whitespace, '').length;
+    final visible = _visibleLength(text);
     if ((kind == ReadableBlockKind.paragraph ||
             kind == ReadableBlockKind.listItem) &&
         text.length < 100 &&
@@ -877,15 +889,103 @@ class _BlockBuilder {
   }
 }
 
-/// Collapses whitespace (keeping explicit `\n` line breaks, written as
-/// `\n` or NUL) and trims.
-String _normalise(String text) => text
-    .replaceAll(RegExp('[ \t\r\f  - 　]+'), ' ')
-    .replaceAll('\u0000', '\n')
-    .replaceAll(RegExp(r' *\n *'), '\n')
-    .replaceAll(RegExp(r'\n{2,}'), '\n')
-    .replaceAll('​', '')
-    .trim();
+/// Whether [c] is a whitespace code unit (Unicode White_Space, BOM).
+bool _isSpace(int c) =>
+    c == 0x20 ||
+    (c >= 0x09 && c <= 0x0D) ||
+    c == 0xA0 ||
+    c == 0x1680 ||
+    (c >= 0x2000 && c <= 0x200A) ||
+    c == 0x2028 ||
+    c == 0x2029 ||
+    c == 0x202F ||
+    c == 0x205F ||
+    c == 0x3000 ||
+    c == 0xFEFF;
+
+const _zeroWidthSpace = 0x200B;
+
+/// Collapses every whitespace run (line breaks included) into one space and
+/// drops zero-width spaces; trims unless [trim] is false.
+String _collapse(String text, {bool trim = true}) {
+  final length = text.length;
+  StringBuffer? out;
+  var start = 0;
+  var i = 0;
+  while (i < length) {
+    final c = text.codeUnitAt(i);
+    if (c != _zeroWidthSpace && !_isSpace(c)) {
+      i++;
+      continue;
+    }
+    var j = i + 1;
+    while (j < length) {
+      final d = text.codeUnitAt(j);
+      if (d != _zeroWidthSpace && !_isSpace(d)) break;
+      j++;
+    }
+    final run = text.substring(i, j);
+    final replacement = run.codeUnits.any(_isSpace) ? ' ' : '';
+    if (run != replacement) {
+      (out ??= StringBuffer())
+        ..write(text.substring(start, i))
+        ..write(replacement);
+      start = j;
+    }
+    i = j;
+  }
+  final result = out == null
+      ? text
+      : (out..write(text.substring(start))).toString();
+  return trim ? result.trim() : result;
+}
+
+/// Like [_collapse] but keeps line breaks (`\n`, from `<br>` or plain
+/// text) as single newlines, without spaces around them; trims.
+String _normalise(String text) {
+  final out = StringBuffer();
+  final length = text.length;
+  var separator = 0;
+  var i = 0;
+  while (i < length) {
+    final c = text.codeUnitAt(i);
+    if (c == 0x0A) {
+      separator = 0x0A;
+      i++;
+      continue;
+    }
+    if (c == _zeroWidthSpace) {
+      i++;
+      continue;
+    }
+    if (_isSpace(c)) {
+      if (separator != 0x0A) separator = 0x20;
+      i++;
+      continue;
+    }
+    var j = i + 1;
+    while (j < length) {
+      final d = text.codeUnitAt(j);
+      if (d == 0x0A || d == _zeroWidthSpace || _isSpace(d)) break;
+      j++;
+    }
+    if (out.isNotEmpty && separator != 0) out.writeCharCode(separator);
+    out.write(text.substring(i, j));
+    separator = 0;
+    i = j;
+  }
+  return out.toString();
+}
+
+/// Characters of [text] that are not whitespace.
+int _visibleLength(String text) {
+  var count = 0;
+  for (var i = 0; i < text.length; i++) {
+    final c = text.codeUnitAt(i);
+    if (c != _zeroWidthSpace && !_isSpace(c)) count++;
+  }
+  return count;
+}
 
 final _whitespace = RegExp(r'\s+');
 final _blankLines = RegExp(r'\n[ \t]*\n');

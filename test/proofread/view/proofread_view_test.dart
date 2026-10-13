@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/proofread/proofread.dart';
 import 'package:mozhi/proofread/widgets/widgets.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -72,6 +73,24 @@ void main() {
         verify(() => router.go('/settings/providers')).called(1);
       });
 
+      testWidgets('offers a retry when the engines failed to load', (
+        tester,
+      ) async {
+        when(() => translateCubit.loadEngines(refresh: any(named: 'refresh')))
+            .thenAnswer((_) async {});
+        await pumpView(
+          tester,
+          const ProofreadState(),
+          translateState: const TranslateState(
+            enginesStatus: EnginesStatus.failure,
+          ),
+        );
+        expect(find.byType(ProofreadEmptyState), findsNothing);
+        expect(find.text("Couldn't load your AI providers"), findsOneWidget);
+        await tester.tap(find.text('Retry'));
+        verify(() => translateCubit.loadEngines(refresh: true)).called(1);
+      });
+
       testWidgets('shows a spinner while engines load', (tester) async {
         await pumpView(
           tester,
@@ -99,6 +118,28 @@ void main() {
       await tester.pump();
       verify(() => cubit.setEngines(updated.engines, preferred: ollamaEngine))
           .called(1);
+    });
+
+    testWidgets('follows a new assist engine from the translate cubit', (
+      tester,
+    ) async {
+      // Same engine list, only the assist engine changed (e.g. the user
+      // switched the Translate tab to a local model).
+      final updated = readyTranslateState.copyWith(
+        assistEngine: () => ollamaEngine,
+      );
+      await pumpView(
+        tester,
+        readyState,
+        translateStream: Stream.value(updated),
+      );
+      await tester.pump();
+      verify(
+        () => cubit.setEngines(
+          readyTranslateState.engines,
+          preferred: ollamaEngine,
+        ),
+      ).called(1);
     });
 
     group('input', () {
@@ -135,6 +176,56 @@ void main() {
         await tester.tap(find.byTooltip('Paste'));
         await tester.pump();
         verify(() => cubit.setInput('pasted')).called(1);
+      });
+
+      TextEditingController inputController(WidgetTester tester) => tester
+          .widget<TextField>(find.byKey(const Key('proofread_input')))
+          .controller!;
+
+      testWidgets('pastes at the cursor without losing typed text', (
+        tester,
+      ) async {
+        FakeClipboard()
+          ..clipboardText = ' there'
+          ..install(tester);
+        await pumpView(tester, readyState.copyWith(input: 'Hello world'));
+        inputController(tester).selection = const TextSelection.collapsed(
+          offset: 5,
+        );
+        await tester.tap(find.byTooltip('Paste'));
+        await tester.pump();
+        verify(() => cubit.setInput('Hello there world')).called(1);
+        expect(inputController(tester).text, 'Hello there world');
+        expect(
+          inputController(tester).selection,
+          const TextSelection.collapsed(offset: 11),
+        );
+      });
+
+      testWidgets('pasting replaces the selected text', (tester) async {
+        FakeClipboard()
+          ..clipboardText = 'there'
+          ..install(tester);
+        await pumpView(tester, readyState.copyWith(input: 'Hello world'));
+        inputController(tester).selection = const TextSelection(
+          baseOffset: 6,
+          extentOffset: 11,
+        );
+        await tester.tap(find.byTooltip('Paste'));
+        await tester.pump();
+        verify(() => cubit.setInput('Hello there')).called(1);
+      });
+
+      testWidgets('pastes at the end when the field has no cursor', (
+        tester,
+      ) async {
+        FakeClipboard()
+          ..clipboardText = ' Bye.'
+          ..install(tester);
+        await pumpView(tester, readyState.copyWith(input: 'Hi.'));
+        await tester.tap(find.byTooltip('Paste'));
+        await tester.pump();
+        verify(() => cubit.setInput('Hi. Bye.')).called(1);
       });
 
       testWidgets('ignores an empty clipboard', (tester) async {
@@ -242,6 +333,53 @@ void main() {
         verify(() => cubit.setLevel(CorrectionLevel.comprehensive)).called(1);
       });
 
+      testWidgets('uses a menu for the level when labels would not fit', (
+        tester,
+      ) async {
+        await pumpView(tester, readyState, size: const Size(360, 2400));
+        expect(find.byType(SegmentedButton<CorrectionLevel>), findsNothing);
+        await tester.tap(find.byKey(const Key('proofread_level_menu')));
+        await tester.pumpAndSettle();
+        // Each option shows its description.
+        expect(
+          find.text('A thorough polish of wording, flow and tone'),
+          findsOneWidget,
+        );
+        await tester.tap(find.text('Comprehensive'));
+        await tester.pumpAndSettle();
+        verify(() => cubit.setLevel(CorrectionLevel.comprehensive)).called(1);
+      });
+
+      testWidgets('menus expose the selected option to screen readers', (
+        tester,
+      ) async {
+        final semantics = tester.ensureSemantics();
+        await pumpView(tester, readyState);
+        await tester.tap(find.byKey(const Key('proofread_style_menu')));
+        await tester.pumpAndSettle();
+        final general = find.descendant(
+          of: find.byType(MenuItemButton),
+          matching: find.text('General'),
+        );
+        expect(
+          tester.getSemantics(general),
+          isSemantics(
+            label: 'General',
+            isSelected: true,
+            isInMutuallyExclusiveGroup: true,
+          ),
+        );
+        expect(
+          tester.getSemantics(find.text('Academic')),
+          isSemantics(
+            label: 'Academic',
+            isSelected: false,
+            isInMutuallyExclusiveGroup: true,
+          ),
+        );
+        semantics.dispose();
+      });
+
       testWidgets('hides the engine picker for a single engine', (
         tester,
       ) async {
@@ -290,6 +428,7 @@ void main() {
     group('result', () {
       testWidgets('shows the diff, summary and edits', (tester) async {
         await pumpView(tester, successState());
+        expect(find.byKey(const Key('proofread_stale')), findsNothing);
         expect(find.text('Corrected text'), findsOneWidget);
         expect(find.byKey(const Key('proofread_diff')), findsOneWidget);
         expect(find.text('Fixed agreement and articles.'), findsOneWidget);
@@ -369,12 +508,32 @@ void main() {
         expect(spans.map((s) => s.text).join(), contains('a apple'));
       });
 
-      testWidgets('uses a word diff when correctedText has extra changes', (
+      testWidgets('uses a word diff for a corrected text without edits', (
         tester,
       ) async {
         await pumpView(
           tester,
           successState().copyWith(
+            input: 'I has an apple.',
+            result: () =>
+                const ProofreadResult(correctedText: 'We have an apple.'),
+            proofreadInput: 'I has an apple.',
+            acceptedEdits: {},
+          ),
+        );
+        final spans = _diffSpans(tester);
+        expect(spans.map((s) => s.text), ['I has', 'We have', ' an apple.']);
+        expect(spans.every((s) => s.recognizer == null), isTrue);
+      });
+
+      testWidgets('output only contains changes that have an edit', (
+        tester,
+      ) async {
+        final clipboard = FakeClipboard()..install(tester);
+        await pumpView(
+          tester,
+          successState().copyWith(
+            input: 'I has an apple.',
             result: () => const ProofreadResult(
               correctedText: 'We have an apple.',
               edits: [ProofreadEdit(original: 'has', replacement: 'have')],
@@ -384,8 +543,10 @@ void main() {
           ),
         );
         final spans = _diffSpans(tester);
-        expect(spans.map((s) => s.text), ['I has', 'We have', ' an apple.']);
-        expect(spans.every((s) => s.recognizer == null), isTrue);
+        expect(spans.map((s) => s.text), ['I ', 'has', 'have', ' an apple.']);
+        await tester.tap(find.byTooltip('Copy'));
+        await tester.pump();
+        expect(clipboard.copied, 'I have an apple.');
       });
 
       testWidgets('tapping a change opens its details', (tester) async {
@@ -427,6 +588,49 @@ void main() {
         await showProofreadEditSheet(element, 9);
         await tester.pumpAndSettle();
         expect(find.byType(BottomSheet), findsNothing);
+      });
+
+      testWidgets('edit sheet closes when a new result arrives', (
+        tester,
+      ) async {
+        final controller = StreamController<ProofreadState>();
+        addTearDown(controller.close);
+        await pumpView(tester, successState(), stream: controller.stream);
+        final element = tester.element(find.byKey(const Key('proofread_diff')));
+        unawaited(showProofreadEditSheet(element, 1));
+        await tester.pumpAndSettle();
+        expect(find.text('Revert edit'), findsOneWidget);
+
+        controller.add(
+          successState().copyWith(
+            result: () => const ProofreadResult(
+              correctedText: 'We have an orange.',
+              edits: [
+                ProofreadEdit(original: 'I', replacement: 'We'),
+                ProofreadEdit(original: 'apple', replacement: 'pear'),
+              ],
+            ),
+            acceptedEdits: {0, 1},
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.byType(BottomSheet), findsNothing);
+        verifyNever(() => cubit.toggleEdit(any()));
+      });
+
+      testWidgets('edit sheet follows the state of its edit', (tester) async {
+        final controller = StreamController<ProofreadState>();
+        addTearDown(controller.close);
+        await pumpView(tester, successState(), stream: controller.stream);
+        final element = tester.element(find.byKey(const Key('proofread_diff')));
+        unawaited(showProofreadEditSheet(element, 0));
+        await tester.pumpAndSettle();
+        expect(find.text('Revert edit'), findsOneWidget);
+
+        controller.add(successState(accepted: {1, 2}));
+        await tester.pumpAndSettle();
+        expect(find.text('Apply edit'), findsOneWidget);
+        expect(find.byType(BottomSheet), findsOneWidget);
       });
 
       testWidgets('copies the output', (tester) async {
@@ -485,6 +689,43 @@ void main() {
         await pumpView(tester, successState());
         await tester.tap(find.text('Use as input'));
         verify(() => cubit.useOutputAsInput()).called(1);
+      });
+
+      testWidgets('flags a result that no longer matches the input', (
+        tester,
+      ) async {
+        await pumpView(
+          tester,
+          successState().copyWith(input: '$sampleInput It were red.'),
+        );
+        expect(find.byKey(const Key('proofread_stale')), findsOneWidget);
+        expect(
+          find.text('Your text has changed since it was checked.'),
+          findsOneWidget,
+        );
+        final useAsInput = tester.widget<TextButton>(
+          find.ancestor(
+            of: find.text('Use as input'),
+            matching: find.byWidgetPredicate((w) => w is TextButton),
+          ),
+        );
+        expect(useAsInput.onPressed, isNull);
+
+        await tester.tap(find.text('Proofread again'));
+        verify(() => cubit.proofread()).called(1);
+      });
+
+      testWidgets('hides the stale notice while re-proofreading', (
+        tester,
+      ) async {
+        await pumpView(
+          tester,
+          successState().copyWith(
+            input: '$sampleInput It were red.',
+            status: ProofreadStatus.loading,
+          ),
+        );
+        expect(find.byKey(const Key('proofread_stale')), findsNothing);
       });
 
       testWidgets('disables output actions for empty output', (tester) async {
@@ -648,6 +889,59 @@ void main() {
       });
     });
 
+    group('announcements', () {
+      Future<List<String>> announce(
+        WidgetTester tester,
+        ProofreadState from,
+        ProofreadState to,
+      ) async {
+        await pumpView(tester, from, stream: Stream.value(to));
+        await tester.pump();
+        return [
+          for (final announcement in tester.takeAnnouncements())
+            announcement.message,
+        ];
+      }
+
+      final loading = readyState.copyWith(
+        input: sampleInput,
+        status: ProofreadStatus.loading,
+      );
+
+      testWidgets('announces how many edits were found', (tester) async {
+        expect(await announce(tester, loading, successState()), [
+          'Proofreading done: 3 suggested edits',
+        ]);
+      });
+
+      testWidgets('announces a clean result', (tester) async {
+        final clean = successState().copyWith(
+          result: () => const ProofreadResult(correctedText: sampleInput),
+          acceptedEdits: {},
+        );
+        expect(await announce(tester, loading, clean), [
+          'No issues found in your text.',
+        ]);
+      });
+
+      testWidgets('announces errors', (tester) async {
+        final failed = loading.copyWith(
+          status: ProofreadStatus.failure,
+          error: () => const LlmRefusalException('no'),
+        );
+        expect(await announce(tester, loading, failed), [
+          "Couldn't proofread. ${_refusalMessage(tester)}",
+        ]);
+      });
+
+      testWidgets('stays quiet for other changes', (tester) async {
+        expect(
+          await announce(tester, successState(), successState(accepted: {0})),
+          isEmpty,
+        );
+      });
+    });
+
     group('wide layout', () {
       testWidgets('shows input and result side by side', (tester) async {
         await pumpView(tester, readyState, size: const Size(1400, 1000));
@@ -705,3 +999,7 @@ List<TextSpan> _diffSpans(WidgetTester tester) {
   });
   return spans;
 }
+
+String _refusalMessage(WidgetTester tester) =>
+    AppLocalizations.of(tester.element(find.byType(ProofreadResultSection)))
+        .proofreadError(const LlmRefusalException('no'));

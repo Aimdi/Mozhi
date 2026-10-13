@@ -560,6 +560,20 @@ void main() {
       );
     });
 
+    test('fromPlainText drops zero-width spaces', () {
+      final page = ReadableExtractor.fromPlainText('zero\u200Bwidth \u200B x');
+      expect(texts(page), ['zerowidth x']);
+    });
+
+    test('collapses line breaks in titles and alt text', () {
+      final page = extractor.extract(
+        '<title>\n  Multi\n  line\ttitle\n</title>'
+        '<p>Text here.</p><img alt="Alt\n  text over lines" width="300">',
+      );
+      expect(page.title, 'Multi line title');
+      expect(page.blocks.last.text, 'Alt text over lines');
+    });
+
     test('page equality', () {
       expect(
         extractor.extract(entityHeavyHtml),

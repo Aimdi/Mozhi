@@ -154,6 +154,22 @@ void main() {
     );
 
     blocTest<TranslateCubit, TranslateState>(
+      'reads the device languages from the platform by default',
+      setUp: () => stubDetect('de'),
+      build: () => TranslateCubit(
+        repository: mocks.repository,
+        settings: mocks.settings,
+        history: mocks.history,
+      ),
+      seed: () => readyState(
+        input: 'Hallo',
+        target: de,
+      ).copyWith(targetLanguages: const [de, en]),
+      act: (cubit) => cubit.translate(),
+      verify: (cubit) => expect(cubit.state.target, en),
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
       'uses pinned languages before the device language',
       setUp: () {
         stubDetect('en');

@@ -160,5 +160,10 @@ void main() {
     test('returns English for English locales', () {
       expect(proofreadUiLanguage(const Locale('en', 'GB')), 'English');
     });
+
+    test('names other languages and falls back to English', () {
+      expect(proofreadUiLanguage(const Locale('de')), 'German');
+      expect(proofreadUiLanguage(const Locale('zz')), 'English');
+    });
   });
 }

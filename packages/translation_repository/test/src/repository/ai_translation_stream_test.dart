@@ -67,56 +67,6 @@ void main() {
       ]);
     });
 
-    group('stripPartialTrailingMarker', () {
-      test('strips every prefix of a trailing marker', () {
-        for (final partial in [
-          '[',
-          '[[',
-          '[[ ',
-          '[[l',
-          '[[lan',
-          '[[lang',
-          '[[langu',
-          '[[language',
-          '[[lang ',
-          '[[lang:',
-          '[[lang: ',
-          '[[lang:e',
-          '[[lang:en',
-          '[[lang:en-',
-          '[[lang:en-U',
-          '[[LANG=pt_BR',
-          '[[lang:en]',
-          '[[lang:en ]',
-        ]) {
-          expect(
-            stripPartialTrailingMarker('Hallo\n$partial'),
-            'Hallo',
-            reason: partial,
-          );
-        }
-      });
-
-      test('keeps complete markers and other text', () {
-        for (final text in [
-          'Hallo\n[[lang:en]]',
-          'Hallo [x]',
-          'Hallo [[lang:english]',
-          'Hallo [[lang:en]] more',
-          'a [b',
-          'Hallo',
-          '',
-        ]) {
-          expect(stripPartialTrailingMarker(text), text, reason: text);
-        }
-      });
-
-      test('only looks at the end of long texts', () {
-        final text = '[[lang ${'x' * 100}';
-        expect(stripPartialTrailingMarker(text), text);
-      });
-    });
-
     group('with parseMarker: false', () {
       test('passes markers through and reports the given language', () async {
         final results = await build(

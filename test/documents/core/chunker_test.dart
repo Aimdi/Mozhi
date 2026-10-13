@@ -78,6 +78,15 @@ void main() {
       expect(spaces.first, (text: 'aaaa bbbb', separator: ' '));
     });
 
+    test('drops trailing spaces before a cut into the separator', () {
+      final parts = splitText('aaaa bbbb   \ncccc dddd', 14);
+      expect(parts.first, (text: 'aaaa bbbb', separator: '   \n'));
+      expect(
+        parts.map((p) => '${p.text}${p.separator}').join(),
+        'aaaa bbbb   \ncccc dddd',
+      );
+    });
+
     test('splits CJK text after sentence punctuation without spaces', () {
       final parts = splitText('今日は晴れです。明日は雨でしょう。', 10);
       expect(parts.first, (text: '今日は晴れです。', separator: ''));

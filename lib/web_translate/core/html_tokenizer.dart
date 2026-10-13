@@ -65,7 +65,8 @@ const rawTextElements = {
 const escapableRawTextElements = {'title', 'textarea'};
 
 /// Splits [html] into tokens.
-Iterable<HtmlToken> tokenizeHtml(String html) sync* {
+List<HtmlToken> tokenizeHtml(String html) {
+  final tokens = <HtmlToken>[];
   final length = html.length;
   var pos = 0;
   var textStart = 0;
@@ -79,13 +80,13 @@ Iterable<HtmlToken> tokenizeHtml(String html) sync* {
       final tag = _readStartTag(html, lt);
       if (tag == null) {
         // Unterminated tag at the end of the input: drop it.
-        if (lt > textStart) yield _characters(html, textStart, lt);
+        if (lt > textStart) tokens.add(_characters(html, textStart, lt));
         textStart = length;
         pos = length;
         break;
       }
-      if (lt > textStart) yield _characters(html, textStart, lt);
-      yield tag.token;
+      if (lt > textStart) tokens.add(_characters(html, textStart, lt));
+      tokens.add(tag.token);
       pos = tag.end;
       textStart = pos;
       final name = tag.token.name;
@@ -94,26 +95,28 @@ Iterable<HtmlToken> tokenizeHtml(String html) sync* {
           (raw || escapableRawTextElements.contains(name))) {
         if (name == 'plaintext') {
           if (pos < length) {
-            yield HtmlCharacters(html.substring(pos));
+            tokens.add(HtmlCharacters(html.substring(pos)));
           }
-          return;
+          return tokens;
         }
         final close = _findEndTag(html, name, pos);
         if (close < 0) {
           if (raw) {
             // Like browsers: an unclosed script swallows the rest.
-            if (pos < length) yield HtmlCharacters(html.substring(pos));
-            return;
+            if (pos < length) tokens.add(HtmlCharacters(html.substring(pos)));
+            return tokens;
           }
           // Unclosed <title>/<textarea>: carry on as normal markup.
           continue;
         }
         if (close > pos) {
           final content = html.substring(pos, close);
-          yield HtmlCharacters(raw ? content : decodeHtmlEntities(content));
+          tokens.add(
+            HtmlCharacters(raw ? content : decodeHtmlEntities(content)),
+          );
         }
         final gt = html.indexOf('>', close);
-        yield HtmlEndTag(name);
+        tokens.add(HtmlEndTag(name));
         pos = gt < 0 ? length : gt + 1;
         textStart = pos;
       }
@@ -129,19 +132,19 @@ Iterable<HtmlToken> tokenizeHtml(String html) sync* {
         final name = _asciiLower(html.substring(lt + 2, i));
         final gt = _findTagEnd(html, i);
         if (gt < 0) {
-          if (lt > textStart) yield _characters(html, textStart, lt);
+          if (lt > textStart) tokens.add(_characters(html, textStart, lt));
           textStart = length;
           pos = length;
           break;
         }
-        if (lt > textStart) yield _characters(html, textStart, lt);
-        yield HtmlEndTag(name);
+        if (lt > textStart) tokens.add(_characters(html, textStart, lt));
+        tokens.add(HtmlEndTag(name));
         pos = gt + 1;
         textStart = pos;
         continue;
       }
       // `</>` is ignored, `</ ...>` is a bogus comment.
-      if (lt > textStart) yield _characters(html, textStart, lt);
+      if (lt > textStart) tokens.add(_characters(html, textStart, lt));
       final gt = html.indexOf('>', lt + 2);
       pos = gt < 0 ? length : gt + 1;
       textStart = pos;
@@ -149,7 +152,7 @@ Iterable<HtmlToken> tokenizeHtml(String html) sync* {
     }
 
     if (next == _bang) {
-      if (lt > textStart) yield _characters(html, textStart, lt);
+      if (lt > textStart) tokens.add(_characters(html, textStart, lt));
       if (html.startsWith('<!--', lt)) {
         final end = html.indexOf('-->', lt + 4);
         pos = end < 0 ? length : end + 3;
@@ -157,7 +160,7 @@ Iterable<HtmlToken> tokenizeHtml(String html) sync* {
         final end = html.indexOf(']]>', lt + 9);
         final contentEnd = end < 0 ? length : end;
         if (contentEnd > lt + 9) {
-          yield HtmlCharacters(html.substring(lt + 9, contentEnd));
+          tokens.add(HtmlCharacters(html.substring(lt + 9, contentEnd)));
         }
         pos = end < 0 ? length : end + 3;
       } else {
@@ -171,7 +174,7 @@ Iterable<HtmlToken> tokenizeHtml(String html) sync* {
 
     if (next == _question) {
       // Processing instruction / bogus comment: <?xml ...?>.
-      if (lt > textStart) yield _characters(html, textStart, lt);
+      if (lt > textStart) tokens.add(_characters(html, textStart, lt));
       final gt = html.indexOf('>', lt + 2);
       pos = gt < 0 ? length : gt + 1;
       textStart = pos;
@@ -182,7 +185,8 @@ Iterable<HtmlToken> tokenizeHtml(String html) sync* {
     pos = lt + 1;
   }
 
-  if (textStart < length) yield _characters(html, textStart, length);
+  if (textStart < length) tokens.add(_characters(html, textStart, length));
+  return tokens;
 }
 
 HtmlCharacters _characters(String html, int start, int end) =>

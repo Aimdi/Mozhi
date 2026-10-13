@@ -166,9 +166,13 @@ class UsageTracker {
   });
 
   /// Closes [changes] and [warnings].
-  Future<void> dispose() async {
-    await _changes.close();
-    await _warnings.close();
+  ///
+  /// Does not wait for listeners to receive the done events (a listener in
+  /// another zone, e.g. a widget test's fake async zone, may never get them).
+  Future<void> dispose() {
+    unawaited(_changes.close());
+    unawaited(_warnings.close());
+    return Future.value();
   }
 
   UsageWarning? _checkBudget(

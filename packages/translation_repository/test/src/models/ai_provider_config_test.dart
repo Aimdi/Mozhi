@@ -99,6 +99,36 @@ void main() {
         expect(parse('open_ai_compatible'), LlmProvider.openAiCompatible);
       });
 
+      test('omits the default service and prompt profile', () {
+        final json = config().toJson();
+        expect(json.containsKey('service'), isFalse);
+        expect(json.containsKey('promptProfile'), isFalse);
+        final restored = AiProviderConfig.fromJson(json);
+        expect(restored.service, MtService.llm);
+        expect(restored.promptProfile, PromptProfile.auto);
+      });
+
+      test('round-trips the service and prompt profile', () {
+        final mt = config().copyWith(
+          service: MtService.libreTranslate,
+          promptProfile: PromptProfile.hunyuanMt,
+        );
+        final json = mt.toJson();
+        expect(json['service'], 'libreTranslate');
+        expect(json['promptProfile'], 'hunyuanMt');
+        expect(AiProviderConfig.fromJson(json), mt);
+      });
+
+      test('tolerates unknown services and profiles', () {
+        final restored = AiProviderConfig.fromJson(const {
+          'id': 'x',
+          'service': 'babelfish',
+          'promptProfile': 42,
+        });
+        expect(restored.service, MtService.llm);
+        expect(restored.promptProfile, PromptProfile.auto);
+      });
+
       test('throws without an id', () {
         expect(
           () => AiProviderConfig.fromJson(const {'name': 'x'}),
@@ -159,12 +189,61 @@ void main() {
       });
     });
 
+    group('service', () {
+      test('tryParse accepts names and aliases', () {
+        expect(MtService.tryParse('deepl'), MtService.deepl);
+        expect(MtService.tryParse('DeepL'), MtService.deepl);
+        expect(MtService.tryParse('libre_translate'), MtService.libreTranslate);
+        expect(MtService.tryParse('LibreTranslate'), MtService.libreTranslate);
+        expect(MtService.tryParse('libre'), MtService.libreTranslate);
+        expect(MtService.tryParse('llm'), MtService.llm);
+        expect(MtService.tryParse('other'), isNull);
+        expect(MtService.tryParse(null), isNull);
+      });
+
+      test('isMtService and toString', () {
+        final deepl = config(apiKey: 'secret:fx')
+            .copyWith(service: MtService.deepl, baseUrl: '');
+        expect(deepl.isMtService, isTrue);
+        expect(config().isMtService, isFalse);
+        expect(deepl.toString(), contains('deepl'));
+        expect(deepl.toString(), isNot(contains('secret')));
+        expect(config().toString(), contains('openAiCompatible'));
+      });
+
+      test('resolvedPromptProfile follows the model', () {
+        expect(config().resolvedPromptProfile, PromptProfile.general);
+        expect(
+          config().copyWith(model: 'translategemma:12b').resolvedPromptProfile,
+          PromptProfile.translateGemma,
+        );
+        expect(
+          config()
+              .copyWith(
+                model: 'translategemma:12b',
+                promptProfile: PromptProfile.general,
+              )
+              .resolvedPromptProfile,
+          PromptProfile.general,
+        );
+      });
+    });
+
     test('equality covers headers and presetId', () {
       expect(full, equals(full.copyWith()));
       expect(full.hashCode, full.copyWith().hashCode);
       expect(full, isNot(equals(full.copyWith(headers: const {}))));
       expect(full, isNot(equals(full.copyWith(presetId: 'other'))));
       expect(full, isNot(equals(full.copyWith(apiKey: 'other'))));
+      expect(full, isNot(equals(full.copyWith(service: MtService.deepl))));
+      expect(
+        full,
+        isNot(equals(full.copyWith(promptProfile: PromptProfile.general))),
+      );
+      expect(
+        full.hashCode,
+        isNot(full.copyWith(service: MtService.deepl).hashCode),
+      );
       expect(full.toString(), isNot(contains('sk-secret')));
     });
 
@@ -321,6 +400,36 @@ void main() {
           );
         }
       }
+    });
+
+    test('machine translation presets are separate', () {
+      final ids = AiProviderPreset.mtServices.map((p) => p.id).toList();
+      expect(ids, ['deepl', 'libretranslate']);
+      expect(
+        AiProviderPreset.all.map((p) => p.id),
+        isNot(anyElement(isIn(ids))),
+      );
+      expect(
+        AiProviderPreset.all.map((p) => p.service),
+        everyElement(MtService.llm),
+      );
+      for (final preset in AiProviderPreset.mtServices) {
+        expect(AiProviderPreset.byId(preset.id), same(preset));
+        expect(preset.description, isNotEmpty, reason: preset.id);
+        expect(preset.apiKeyUrl, startsWith('https://'), reason: preset.id);
+        final config = preset.toConfig(id: 'x', apiKey: 'k');
+        expect(config.service, preset.service);
+        expect(config.isMtService, isTrue);
+        expect(config.presetId, preset.id);
+      }
+      final deepl = AiProviderPreset.byId('deepl')!;
+      expect(deepl.service, MtService.deepl);
+      expect(deepl.baseUrl, isEmpty);
+      expect(deepl.requiresApiKey, isTrue);
+      final libre = AiProviderPreset.byId('libretranslate')!;
+      expect(libre.service, MtService.libreTranslate);
+      expect(libre.requiresApiKey, isFalse);
+      expect(AiProviderPreset.byId('nope'), isNull);
     });
 
     test('anthropic preset', () {

@@ -66,6 +66,18 @@ void main() {
       addTearDown(cubit.close);
     });
 
+    test('creates its own translator when none is given', () async {
+      final cubit = DocumentTranslateCubit(
+        repository: repository,
+        files: files,
+        engine: googleEngine,
+      )..loadFile('a.txt', bytesOf('hello'));
+      addTearDown(cubit.close);
+      await cubit.translate();
+      expect(cubit.state.output, 'HELLO');
+      expect(cubit.state.target, english);
+    });
+
     group('loading', () {
       test('loads and plans a subtitle file', () {
         final cubit = build()..loadFile('movie.en.srt', bytesOf(srtText));
@@ -596,6 +608,35 @@ void main() {
         );
         expect(cubit.state.engine, googleEngine);
         expect(cubit.state.target, spanish);
+      });
+
+      test('syncEngines follows language changes of the same engine', () {
+        final cubit = build()..loadFile('a.txt', bytesOf('one'));
+        addTearDown(cubit.close);
+        cubit.syncEngines(
+          engines: const [googleEngine],
+          engine: googleEngine,
+          sourceLanguages: sourceLanguages,
+          targetLanguages: targetLanguages,
+          source: english,
+          target: german,
+        );
+        expect(cubit.state.source, english);
+        expect(cubit.state.status, DocumentStatus.ready);
+      });
+
+      test('swap keeps languages missing from the other list', () {
+        final cubit = build(source: french);
+        addTearDown(cubit.close);
+        cubit.swapLanguages();
+        expect(cubit.state.source, german);
+        expect(cubit.state.target, french);
+
+        final other = build(source: english, target: french);
+        addTearDown(other.close);
+        other.swapLanguages();
+        expect(other.state.source, french);
+        expect(other.state.target, english);
       });
 
       test('syncEngines keeps a finished translation', () async {

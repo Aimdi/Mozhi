@@ -50,6 +50,13 @@ void main() {
       expectRoundTrip(document, text);
     });
 
+    test('tab-indented code after a blank line stays verbatim', () {
+      const text = 'Intro\n\n\tcode here\n  \tmore code\n\nOutro';
+      final document = parseMarkdown(text);
+      expect(texts(document), ['Intro', 'Outro']);
+      expectRoundTrip(document, text);
+    });
+
     test('unterminated fences run to the end of the document', () {
       const text = 'Text\n```\ncode only\n';
       final document = parseMarkdown(text);

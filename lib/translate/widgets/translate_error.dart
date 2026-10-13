@@ -127,7 +127,10 @@ TranslateErrorInfo _describeMozhi(
   AppLocalizations l10n,
   MozhiApiException error,
 ) {
-  final message = error.message;
+  final raw = error.message;
+  // Match against the message without URLs: upstream URLs carry the user's
+  // text, which must not be mistaken for a server message.
+  final message = raw.replaceAll(_url, ' ');
   final status = error.statusCode;
   final host = error.uri?.host ?? '';
   if (status == 429 || _rateLimited.hasMatch(message)) {
@@ -145,7 +148,7 @@ TranslateErrorInfo _describeMozhi(
   if (_crashed.hasMatch(message)) {
     return TranslateErrorInfo(l10n.translateErrorEngineCrashed);
   }
-  if (status != null && _upstream.hasMatch(message)) {
+  if (status != null && _upstream.hasMatch(raw)) {
     return TranslateErrorInfo(
       host.isEmpty
           ? l10n.translateErrorUpstream

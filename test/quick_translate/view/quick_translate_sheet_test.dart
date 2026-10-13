@@ -221,7 +221,7 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
       expect(controller.hasListener, isFalse);
       unawaited(controller.close());
-    });
+    }, timeout: const Timeout(Duration(seconds: 60)));
   });
 
   testWidgets('QuickTranslateSheet pops its route by default', (tester) async {

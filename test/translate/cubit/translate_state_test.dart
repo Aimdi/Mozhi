@@ -64,6 +64,8 @@ void main() {
           options: options,
           status: TranslateStatus.success,
           result: () => result,
+          resultInput: () => 'old input',
+          inputTruncated: true,
           error: () => error,
           compareMode: true,
           compareEntries: [entry],
@@ -71,6 +73,7 @@ void main() {
           alternativesStatus: ExtraStatus.ready,
           alternatives: () => alternatives,
           alternativesSpan: () => 'span',
+          alternativesSpanStart: () => 3,
           insightsStatus: ExtraStatus.loading,
           insights: [insight],
           suggestionsStatus: ExtraStatus.failure,
@@ -94,6 +97,8 @@ void main() {
         expect(state.options, options);
         expect(state.status, TranslateStatus.success);
         expect(state.result, same(result));
+        expect(state.resultInput, 'old input');
+        expect(state.inputTruncated, isTrue);
         expect(state.error, same(error));
         expect(state.compareMode, isTrue);
         expect(state.compareEntries, [entry]);
@@ -101,6 +106,7 @@ void main() {
         expect(state.alternativesStatus, ExtraStatus.ready);
         expect(state.alternatives, same(alternatives));
         expect(state.alternativesSpan, 'span');
+        expect(state.alternativesSpanStart, 3);
         expect(state.insightsStatus, ExtraStatus.loading);
         expect(state.insights, [insight]);
         expect(state.suggestionsStatus, ExtraStatus.failure);
@@ -124,6 +130,7 @@ void main() {
                 alternatives: [],
               ),
               alternativesSpan: () => 's',
+              alternativesSpanStart: () => 1,
               dictionary: () => const DictionaryEntry(word: 'w'),
               extraError: () => 'x',
             )
@@ -134,11 +141,56 @@ void main() {
               error: () => null,
               alternatives: () => null,
               alternativesSpan: () => null,
+              alternativesSpanStart: () => null,
               dictionary: () => null,
               extraError: () => null,
             );
         expect(state, const TranslateState());
       });
+    });
+
+    group('resultInput', () {
+      test('is dropped together with the result', () {
+        final state = readyState(input: 'a', result: resultOf('x'));
+        expect(state.resultInput, 'a');
+        expect(state.copyWith(result: () => null).resultInput, isNull);
+        expect(state.copyWith(input: 'b').resultInput, 'a');
+        expect(state.copyWith(result: () => resultOf('y')).resultInput, 'a');
+        expect(
+          state
+              .copyWith(result: () => null, resultInput: () => 'kept')
+              .resultInput,
+          'kept',
+        );
+      });
+
+      test('isResultStale compares it with the input', () {
+        expect(
+          readyState(input: 'a', result: resultOf('x')).isResultStale,
+          isFalse,
+        );
+        expect(
+          readyState(
+            input: 'b',
+            result: resultOf('x'),
+            resultInput: 'a',
+          ).isResultStale,
+          isTrue,
+        );
+        // Unknown origin or no result: not stale.
+        expect(
+          TranslateState(input: 'b', result: resultOf('x')).isResultStale,
+          isFalse,
+        );
+        expect(const TranslateState(input: 'b').isResultStale, isFalse);
+      });
+    });
+
+    test('defaults for the input flags', () {
+      const state = TranslateState();
+      expect(state.inputTruncated, isFalse);
+      expect(state.resultInput, isNull);
+      expect(state.alternativesSpanStart, isNull);
     });
 
     test('output is the result text', () {

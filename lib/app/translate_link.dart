@@ -10,10 +10,20 @@ import 'package:translation_repository/translation_repository.dart';
 class TranslateLink extends Equatable {
   const new({this.text, this.from, this.to});
 
+  /// Longest text a link may carry; longer text is cut (links come from
+  /// outside the app and are not trusted).
+  static const maxTextLength = 5000;
+
+  /// Longest language code or name a link may carry; longer values are
+  /// ignored.
+  static const maxLanguageLength = 64;
+
   /// Parses Kagi/Google style query parameters from [uri].
   ///
   /// Accepted names: `text` (or `q`), `from` (or `sl`, `source`) and `to`
-  /// (or `tl`, `target`). Returns null when none of them is present.
+  /// (or `tl`, `target`). The text is cut to [maxTextLength]; languages
+  /// longer than [maxLanguageLength] are dropped. Returns null when none of
+  /// them is present.
   static TranslateLink? fromUri(Uri uri) {
     final params = uri.queryParameters;
     String? pick(List<String> names) {
@@ -24,11 +34,26 @@ class TranslateLink extends Equatable {
       return null;
     }
 
+    String? language(List<String> names) {
+      final value = pick(names)?.trim();
+      return value == null || value.length > maxLanguageLength ? null : value;
+    }
+
     final text = pick(const ['text', 'q']);
-    final from = pick(const ['from', 'sl', 'source'])?.trim();
-    final to = pick(const ['to', 'tl', 'target'])?.trim();
+    final from = language(const ['from', 'sl', 'source']);
+    final to = language(const ['to', 'tl', 'target']);
     if (text == null && from == null && to == null) return null;
-    return TranslateLink(text: text, from: from, to: to);
+    return TranslateLink(text: capText(text), from: from, to: to);
+  }
+
+  /// [text] cut to [maxTextLength] UTF-16 units without splitting a
+  /// surrogate pair.
+  static String? capText(String? text) {
+    if (text == null || text.length <= maxTextLength) return text;
+    var end = maxTextLength;
+    final last = text.codeUnitAt(end - 1);
+    if (last >= 0xD800 && last <= 0xDBFF) end--;
+    return text.substring(0, end);
   }
 
   /// Text to translate (may be null to only change languages).
@@ -44,8 +69,14 @@ class TranslateLink extends Equatable {
   bool get hasText => text != null && text!.trim().isNotEmpty;
 
   /// Applies this link to [cubit]: waits (up to [timeout]) for the engines
-  /// to finish loading, selects the matching languages, then replaces the
-  /// input and translates.
+  /// to finish loading, then hands the text and the matching languages to
+  /// [TranslateCubit.setExternalInput], which only translates right away
+  /// when that costs nothing (never a paid AI request on its own).
+  ///
+  /// Languages are only taken from the engine's lists ([matchLanguage]);
+  /// unknown values (including free-form AI targets such as
+  /// `Pirate speak`) are ignored, so a link cannot smuggle instructions
+  /// into a prompt. The text is cut to [maxTextLength].
   Future<void> applyTo(
     TranslateCubit cubit, {
     Duration timeout = const Duration(seconds: 20),
@@ -54,24 +85,33 @@ class TranslateLink extends Equatable {
     if (state == null) return;
 
     final from = this.from;
-    if (from != null) {
-      final language = matchLanguage(from, state.sourceLanguages);
-      if (language != null && language != state.source) {
-        cubit.setSource(language);
-      }
-    }
+    final source = from == null
+        ? null
+        : matchLanguage(from, state.sourceLanguages);
     final to = this.to;
-    if (to != null) {
-      final language =
-          matchLanguage(to, state.targetLanguages) ??
-          ((state.engine?.supportsCustomLanguages ?? false)
-              ? Language.custom(to)
-              : null);
-      if (language != null && language != state.target) {
-        cubit.setTarget(language);
-      }
+    final target = to == null ? null : matchLanguage(to, state.targetLanguages);
+    final usableTarget = target == null || target.isAuto || target.isCustom
+        ? null
+        : target;
+    final usableSource = source == null || source.isCustom ? null : source;
+
+    if (hasText) {
+      cubit.setExternalInput(
+        capText(text)!,
+        source: usableSource == state.source ? null : usableSource,
+        target: usableTarget == state.target ? null : usableTarget,
+      );
+      return;
     }
-    if (hasText) cubit.setInputAndTranslate(text!);
+    // Languages only: select them without translating the current input.
+    if ((usableSource != null && usableSource != state.source) ||
+        (usableTarget != null && usableTarget != state.target)) {
+      cubit.setExternalInput(
+        state.input,
+        source: usableSource == state.source ? null : usableSource,
+        target: usableTarget == state.target ? null : usableTarget,
+      );
+    }
   }
 
   @override

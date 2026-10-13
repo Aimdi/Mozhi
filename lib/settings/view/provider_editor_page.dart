@@ -523,33 +523,40 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
                 onChanged: _setProvider,
               ),
               const SizedBox(height: 16),
-              TextFormField(
-                controller: _baseUrl,
-                focusNode: _baseUrlFocus,
-                keyboardType: TextInputType.url,
-                autocorrect: false,
-                textInputAction: TextInputAction.next,
-                decoration: InputDecoration(
-                  labelText: l10n.settingsProviderBaseUrl,
-                  border: const OutlineInputBorder(),
-                  errorMaxLines: 4,
-                ),
-                validator: _validateUrl,
-              ),
-              if (_insecure)
-                _InsecureWarning(
-                  title: l10n.settingsProviderInsecureTitle,
-                  text: l10n.settingsProviderInsecureWarning,
-                ),
-              if (_presetHeadersDropped case final dropped
-                  when dropped.isNotEmpty)
-                _Note(
-                  icon: Icons.info_outline,
-                  text: l10n.settingsProviderPresetHeadersDropped(
-                    _preset!.name,
-                    dropped.keys.join(', '),
+              // One list child for the URL and its notes, so showing or
+              // hiding them doesn't shift (and rebuild) the fields below.
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextFormField(
+                    controller: _baseUrl,
+                    focusNode: _baseUrlFocus,
+                    keyboardType: TextInputType.url,
+                    autocorrect: false,
+                    textInputAction: TextInputAction.next,
+                    decoration: InputDecoration(
+                      labelText: l10n.settingsProviderBaseUrl,
+                      border: const OutlineInputBorder(),
+                      errorMaxLines: 4,
+                    ),
+                    validator: _validateUrl,
                   ),
-                ),
+                  if (_insecure)
+                    _InsecureWarning(
+                      title: l10n.settingsProviderInsecureTitle,
+                      text: l10n.settingsProviderInsecureWarning,
+                    ),
+                  if (_presetHeadersDropped case final dropped
+                      when dropped.isNotEmpty)
+                    _Note(
+                      icon: Icons.info_outline,
+                      text: l10n.settingsProviderPresetHeadersDropped(
+                        _preset!.name,
+                        dropped.keys.join(', '),
+                      ),
+                    ),
+                ],
+              ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _apiKey,

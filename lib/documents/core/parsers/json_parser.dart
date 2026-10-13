@@ -218,13 +218,7 @@ class IcuMessageParser {
 
   static const _complex = {'plural', 'select', 'selectordinal'};
 
-  List<Piece> parse() {
-    final message = _message(inPlural: false, nested: false);
-    if (_pos != source.length) {
-      throw FormatException('Unexpected "}"', source, _pos);
-    }
-    return _pieces(message);
-  }
+  List<Piece> parse() => _pieces(_message(inPlural: false, nested: false));
 
   List<Piece> _pieces(List<_Icu> message) => [
     for (final part in message)

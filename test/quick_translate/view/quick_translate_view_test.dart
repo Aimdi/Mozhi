@@ -81,6 +81,24 @@ void main() {
       expect(text.textDirection, TextDirection.rtl);
     });
 
+    testWidgets('uses a smaller style for long translations', (tester) async {
+      final long = List.filled(20, 'Une phrase assez longue.').join(' ');
+      stub(
+        readyState(
+          engine: claude,
+          target: const Language.custom('Pirate speak'),
+          translation: result(long),
+        ),
+      );
+      await tester.pumpQuick(quickView(cubit));
+      final text = tester.widget<SelectableText>(
+        byKey('quick_translate_translation'),
+      );
+      final context = tester.element(byKey('quick_translate_translation'));
+      expect(text.style, Theme.of(context).textTheme.bodyLarge);
+      expect(text.textDirection, isNull);
+    });
+
     group('progress', () {
       testWidgets('while loading engines', (tester) async {
         stub(const QuickTranslateState(text: 'Hello world'));

@@ -12,9 +12,23 @@ import 'package:translation_repository/translation_repository.dart';
 ///
 /// Needs a [TranslationRepository] and the app-wide [TranslateCubit]
 /// above it; engine, languages and options start from the translate
-/// screen. [fileService] and [translator] can be replaced in tests.
+/// screen. [initialFile]/[initialText] open a document right away;
+/// [fileService] and [translator] can be replaced in tests.
 class DocumentTranslatePage extends StatelessWidget {
-  const new({this.fileService, this.translator, super.key});
+  const new({
+    this.initialFile,
+    this.initialText,
+    this.fileService,
+    this.translator,
+    super.key,
+  });
+
+  /// A file to open right away (e.g. one shared from another app).
+  final PickedFile? initialFile;
+
+  /// Text to open right away in text mode (e.g. long input handed over
+  /// from the translate screen). Ignored when [initialFile] is given.
+  final String? initialText;
 
   /// File picking, saving, sharing and clipboard access (defaults to the
   /// platform plugins).
@@ -26,7 +40,7 @@ class DocumentTranslatePage extends StatelessWidget {
     return BlocProvider(
       create: (context) {
         final translate = context.read<TranslateCubit>().state;
-        return DocumentTranslateCubit(
+        final cubit = DocumentTranslateCubit(
           repository: context.read<TranslationRepository>(),
           files: fileService ?? const PlatformDocumentFileService(),
           translator: translator,
@@ -38,6 +52,12 @@ class DocumentTranslatePage extends StatelessWidget {
           target: translate.target,
           options: translate.options,
         );
+        if (initialFile case final file?) {
+          cubit.loadFile(file.name, file.bytes);
+        } else if (initialText case final text? when text.isNotEmpty) {
+          cubit.setText(text);
+        }
+        return cubit;
       },
       child: const DocumentTranslateView(),
     );

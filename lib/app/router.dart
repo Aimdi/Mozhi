@@ -1,15 +1,33 @@
+import 'dart:async';
+
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/translate_link.dart';
 import 'package:mozhi/app/view/app_shell.dart';
+import 'package:mozhi/conversation/view/conversation_page.dart';
+import 'package:mozhi/conversation/widgets/conversation_voice_mic.dart';
+import 'package:mozhi/documents/view/document_translate_page.dart';
 import 'package:mozhi/history/view/history_page.dart';
+import 'package:mozhi/image_translate/models/picked_image.dart';
+import 'package:mozhi/image_translate/view/image_translate_page.dart';
+import 'package:mozhi/offline/view/offline_models_page.dart';
+import 'package:mozhi/onboarding/onboarding_redirect.dart';
+import 'package:mozhi/onboarding/view/onboarding_page.dart';
+import 'package:mozhi/presets/view/glossaries_page.dart';
+import 'package:mozhi/presets/view/presets_page.dart';
 import 'package:mozhi/proofread/view/proofread_page.dart';
+import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/view/about_page.dart';
 import 'package:mozhi/settings/view/instances_page.dart';
 import 'package:mozhi/settings/view/provider_editor_page.dart';
 import 'package:mozhi/settings/view/providers_page.dart';
 import 'package:mozhi/settings/view/settings_page.dart';
 import 'package:mozhi/translate/view/translate_page.dart';
+import 'package:mozhi/usage/view/usage_summary_page.dart';
+import 'package:mozhi/web_translate/view/web_translate_page.dart';
+import 'package:mozhi/web_translate/view/web_translate_route.dart';
+import 'package:translation_repository/translation_repository.dart';
 
 /// Every location the app can show.
 abstract final class AppRoutes {
@@ -22,6 +40,27 @@ abstract final class AppRoutes {
   static const providerEditor = '/settings/providers/edit';
   static const about = '/settings/about';
 
+  /// On-device (offline) language models.
+  static const offline = '/settings/offline';
+
+  /// Translation presets.
+  static const presets = '/settings/presets';
+
+  /// Glossaries.
+  static const glossaries = '/settings/glossaries';
+
+  /// AI provider usage this and last month.
+  static const usage = '/settings/usage';
+
+  /// First-run flow (full screen, outside the tabs).
+  static const String onboarding = onboardingLocation;
+
+  /// Full-screen translators pushed above the tabs.
+  static const image = '/image';
+  static const documents = '/documents';
+  static const web = '/web';
+  static const conversation = '/conversation';
+
   /// Location of the provider editor: edit [id], or create a new provider
   /// (prefilled from [preset] when given).
   static String editProvider({String? id, String? preset}) =>
@@ -31,6 +70,24 @@ abstract final class AppRoutes {
   static String translateText({String? text, String? from, String? to}) =>
       _location(translate, {'text': ?text, 'from': ?from, 'to': ?to});
 
+  /// The image translator, opening the picker for [source] on arrival.
+  static String imageTranslate({ImagePickSource? source}) =>
+      _location(image, {ImageTranslatePage.sourceParameter: ?source?.name});
+
+  /// The web page translator, loading [url] on arrival.
+  static String webPage({String? url}) {
+    final trimmed = url?.trim() ?? '';
+    return _location(web, {
+      if (trimmed.isNotEmpty) WebTranslateRoute.urlParameter: trimmed,
+    });
+  }
+
+  /// Older locations some features link to, and where they live now.
+  static const Map<String, String> aliases = {
+    ImageTranslatePage.location: image,
+    WebTranslateRoute.path: web,
+  };
+
   static String _location(String path, Map<String, String> query) =>
       Uri(path: path, queryParameters: query.isEmpty ? null : query).toString();
 }
@@ -38,23 +95,81 @@ abstract final class AppRoutes {
 /// Called when a location carries a [TranslateLink].
 typedef TranslateLinkCallback = void Function(TranslateLink link);
 
+/// Decides where the app goes instead of the plain start location it was
+/// launched at (e.g. the first-run onboarding); null keeps it.
+typedef LaunchRedirect = String? Function(String location);
+
 /// Builds the app's router.
 ///
 /// Four tabs are kept alive in a [StatefulShellRoute.indexedStack] with an
-/// adaptive [AppShell]. Translate links (`/translate?text=…&from=…&to=…`
-/// or the same query on `/`) are handed to [onTranslateLink] and the URL
-/// is cleaned up to `/translate`.
+/// adaptive [AppShell]. The settings sub-pages stay inside the settings
+/// tab; the onboarding and the image, document, web page and conversation
+/// translators are full-screen routes on the root navigator
+/// ([navigatorKey]) above the tabs.
+///
+/// Translate links (`/translate?text=…&from=…&to=…` or the same query on
+/// `/`) are handed to [onTranslateLink] and the URL is cleaned up to
+/// `/translate`.
+///
+/// [launchRedirect] is consulted once, for the location the app starts at,
+/// and only when that is a plain start location (`/` or `/translate`
+/// without a query, see [isLaunchLocation]): deep links and shared text
+/// are never redirected.
 GoRouter createAppRouter({
   TranslateLinkCallback? onTranslateLink,
+  LaunchRedirect? launchRedirect,
   String initialLocation = AppRoutes.translate,
   GlobalKey<NavigatorState>? navigatorKey,
 }) {
+  final rootKey = navigatorKey ?? GlobalKey<NavigatorState>();
+  var launched = false;
+
+  GoRoute fullScreen(String path, GoRouterWidgetBuilder builder) =>
+      GoRoute(path: path, parentNavigatorKey: rootKey, builder: builder);
+
   return GoRouter(
-    navigatorKey: navigatorKey,
+    navigatorKey: rootKey,
     initialLocation: initialLocation,
-    redirect: (context, state) => appRedirect(state.uri, onTranslateLink),
+    redirect: (context, state) {
+      final uri = state.uri;
+      if (!launched) {
+        launched = true;
+        if (launchRedirect != null && isLaunchLocation(uri)) {
+          final target = launchRedirect(AppRoutes.translate);
+          if (target != null) return target;
+        }
+      }
+      return appRedirect(uri, onTranslateLink);
+    },
     onException: (context, state, router) => router.go(AppRoutes.translate),
     routes: [
+      fullScreen(
+        AppRoutes.onboarding,
+        (context, state) => const OnboardingPage(),
+      ),
+      fullScreen(
+        AppRoutes.image,
+        (context, state) => ImageTranslatePage(
+          initialSource: ImagePickSource.tryParse(
+            state.uri.queryParameters[ImageTranslatePage.sourceParameter],
+          ),
+        ),
+      ),
+      fullScreen(
+        AppRoutes.documents,
+        (context, state) => const DocumentTranslatePage(),
+      ),
+      fullScreen(
+        AppRoutes.web,
+        (context, state) => WebTranslatePage(
+          initialUrl: state.uri.queryParameters[WebTranslateRoute.urlParameter],
+        ),
+      ),
+      fullScreen(
+        AppRoutes.conversation,
+        (context, state) =>
+            const ConversationPage(micBuilder: conversationVoiceMicBuilder),
+      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) => AppShell(
           selectedIndex: navigationShell.currentIndex,
@@ -114,6 +229,25 @@ GoRouter createAppRouter({
                     ],
                   ),
                   GoRoute(
+                    path: 'offline',
+                    builder: (context, state) => const OfflineModelsPage(),
+                  ),
+                  GoRoute(
+                    path: 'presets',
+                    builder: (context, state) => PresetsPage(
+                      onOpenGlossaries: () =>
+                          unawaited(context.push<void>(AppRoutes.glossaries)),
+                    ),
+                  ),
+                  GoRoute(
+                    path: 'glossaries',
+                    builder: (context, state) => const GlossariesPage(),
+                  ),
+                  GoRoute(
+                    path: 'usage',
+                    builder: (context, state) => const _UsageRoute(),
+                  ),
+                  GoRoute(
                     path: 'about',
                     builder: (context, state) => const AboutPage(),
                   ),
@@ -127,15 +261,45 @@ GoRouter createAppRouter({
   );
 }
 
+/// Whether [uri] is a plain start location: `/` (or empty) or `/translate`
+/// without a query. Only these may be replaced by a [LaunchRedirect].
+bool isLaunchLocation(Uri uri) {
+  if (uri.hasQuery) return false;
+  final path = uri.path;
+  return path.isEmpty || path == '/' || path == AppRoutes.translate;
+}
+
 /// Top-level redirect: `/` goes to `/translate`; translate links are
 /// reported to [onTranslateLink] and stripped from the location so that
-/// returning to the tab does not translate again.
+/// returning to the tab does not translate again; [AppRoutes.aliases] are
+/// sent to their current location (keeping the query).
 String? appRedirect(Uri uri, TranslateLinkCallback? onTranslateLink) {
   final path = uri.path;
+  final alias = AppRoutes.aliases[path];
+  if (alias != null) return uri.replace(path: alias).toString();
+
   final isRoot = path.isEmpty || path == '/';
   if (!isRoot && path != AppRoutes.translate) return null;
 
   final link = uri.hasQuery ? TranslateLink.fromUri(uri) : null;
   if (link != null) onTranslateLink?.call(link);
   return (isRoot || link != null) ? AppRoutes.translate : null;
+}
+
+/// [UsageSummaryPage] for the configured providers; tapping a provider
+/// opens its editor.
+class _UsageRoute extends StatelessWidget {
+  const new();
+
+  @override
+  Widget build(BuildContext context) {
+    final providers = context.select<SettingsCubit, List<AiProviderConfig>>(
+      (cubit) => cubit.state.providers,
+    );
+    return UsageSummaryPage(
+      providers: providers,
+      onOpenProvider: (id) =>
+          unawaited(context.push<void>(AppRoutes.editProvider(id: id))),
+    );
+  }
 }

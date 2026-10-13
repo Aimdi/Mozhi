@@ -161,6 +161,9 @@ class TranslateHarness {
     when(() => this.history.add(any())).thenAnswer((_) async {});
     when(() => this.history.toggleFavorite(any())).thenAnswer((_) async {});
 
+    when(() => router.push<void>(any(), extra: any(named: 'extra')))
+        .thenAnswer((_) async {});
+
     when(() => speech.speaking).thenAnswer((_) => const Stream.empty());
     when(() => speech.current).thenReturn(null);
     when(
@@ -182,12 +185,20 @@ class TranslateHarness {
       when(() => translate.state).thenReturn(state);
 
   /// Pumps [child] (default [TranslateView]) inside the app-wide providers.
+  ///
+  /// [supportsAnnounce] overrides whether the platform supports semantic
+  /// announcements (false in tests by default, like Android), [locale] the
+  /// UI locale and [disableAnimations] the reduced-motion setting.
   Future<void> pump(
     WidgetTester tester, {
     Widget child = const TranslateView(),
     Size? size,
     double textScale = 1,
     ThemeMode themeMode = ThemeMode.light,
+    bool? supportsAnnounce,
+    bool disableAnimations = false,
+    Locale? locale,
+    TargetPlatform? platform,
   }) async {
     if (size != null) {
       tester.view
@@ -207,19 +218,27 @@ class TranslateHarness {
               BlocProvider<HistoryCubit>.value(value: history),
             ],
             child: MaterialApp(
-              theme: ThemeData(useMaterial3: true),
+              theme: ThemeData(useMaterial3: true, platform: platform),
               darkTheme: ThemeData(
                 useMaterial3: true,
                 brightness: Brightness.dark,
+                platform: platform,
               ),
               themeMode: themeMode,
+              locale: locale,
               localizationsDelegates: AppLocalizations.localizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
-              builder: (context, child) => MediaQuery(
-                data: MediaQuery.of(context)
-                    .copyWith(textScaler: TextScaler.linear(textScale)),
-                child: child!,
-              ),
+              builder: (context, child) {
+                final data = MediaQuery.of(context);
+                return MediaQuery(
+                  data: data.copyWith(
+                    textScaler: TextScaler.linear(textScale),
+                    supportsAnnounce: supportsAnnounce ?? data.supportsAnnounce,
+                    disableAnimations: disableAnimations,
+                  ),
+                  child: child!,
+                );
+              },
               home: child is TranslateView || child is TranslatePage
                   ? child
                   : Scaffold(body: SingleChildScrollView(child: child)),
