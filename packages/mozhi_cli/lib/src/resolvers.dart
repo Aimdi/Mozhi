@@ -130,12 +130,13 @@ Language resolveLanguage(
   return Language(code: trimmed, name: trimmed);
 }
 
-/// Parses `key=value` glossary entries (`=>` and `:` also work as
-/// separators when there is no `=`).
+/// Parses `term=translation` glossary entries (`term=>translation` works
+/// too, and `term:translation` when there is no `=`).
 Map<String, String> parseGlossary(Iterable<String> entries) {
   final glossary = <String, String>{};
   for (final entry in entries) {
-    final separator = RegExp('=>|=|:').firstMatch(entry);
+    final separator =
+        RegExp('=>?').firstMatch(entry) ?? RegExp(':').firstMatch(entry);
     final term = separator == null
         ? ''
         : entry.substring(0, separator.start).trim();

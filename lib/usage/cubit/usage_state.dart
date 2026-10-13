@@ -4,7 +4,7 @@ import 'package:mozhi/usage/models/models.dart';
 enum UsageStatus { initial, loading, ready, failure }
 
 class UsageState extends Equatable {
-  const UsageState({
+  const new({
     required this.snapshot,
     this.status = UsageStatus.initial,
   });

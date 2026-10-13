@@ -28,6 +28,7 @@ void main() {
       when(() => player.play(any())).thenAnswer((_) async {});
       when(() => player.stop()).thenAnswer((_) async {});
       when(() => player.dispose()).thenAnswer((_) async {});
+      when(() => player.setPlaybackRate(any())).thenAnswer((_) async {});
       output = AudioPlayersOutput(
         createPlayer: () {
           created++;
@@ -104,6 +105,36 @@ void main() {
       await output.stop();
 
       verify(() => player.stop()).called(1);
+    });
+
+    group('setPlaybackRate', () {
+      test('does not touch the player at normal speed', () async {
+        await output.setPlaybackRate(1);
+
+        expect(created, 0);
+      });
+
+      test('sets the rate on the player once per change', () async {
+        await output.setPlaybackRate(0.7);
+        await output.setPlaybackRate(0.7);
+        await output.setPlaybackRate(1);
+
+        final rates = verify(
+          () => player.setPlaybackRate(captureAny()),
+        ).captured;
+        expect(rates, [0.7, 1]);
+      });
+
+      test('retries a rate the player rejected', () async {
+        when(
+          () => player.setPlaybackRate(any()),
+        ).thenThrow(Exception('unsupported'));
+
+        await expectLater(output.setPlaybackRate(0.7), throwsException);
+        await expectLater(output.setPlaybackRate(0.7), throwsException);
+
+        verify(() => player.setPlaybackRate(0.7)).called(2);
+      });
     });
 
     test('dispose releases the player and closes the stream', () async {

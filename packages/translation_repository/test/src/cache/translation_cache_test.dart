@@ -451,9 +451,8 @@ void main() {
         source = StreamController<TranslationResult>();
       });
 
-      tearDown(() async {
-        if (!source.isClosed) await source.close();
-      });
+      // `close` only completes once a listener received the done event.
+      tearDown(() => unawaited(source.close()));
 
       test('emits the cached result without fetching', () async {
         cache.store(claude, request, result('Hallo Welt'));

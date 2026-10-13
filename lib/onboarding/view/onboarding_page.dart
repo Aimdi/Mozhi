@@ -77,7 +77,9 @@ class _OnboardingViewState extends State<OnboardingView> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final cubit = context.read<OnboardingCubit>();
-    final step = context.select((c) => c.state.step);
+    final step = context.select<OnboardingCubit, OnboardingStep>(
+      (c) => c.state.step,
+    );
     final isLast = step == OnboardingStep.values.last;
     return BlocListener<OnboardingCubit, OnboardingState>(
       listenWhen: (previous, current) => previous.step != current.step,

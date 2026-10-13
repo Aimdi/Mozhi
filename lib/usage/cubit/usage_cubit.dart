@@ -9,7 +9,7 @@ export 'usage_state.dart';
 
 /// Exposes a [UsageTracker] to the UI and follows its changes.
 class UsageCubit extends Cubit<UsageState> {
-  UsageCubit(this._tracker)
+  new(this._tracker)
     : super(UsageState(snapshot: _tracker.snapshot)) {
     _subscription = _tracker.changes.listen(
       (snapshot) =>

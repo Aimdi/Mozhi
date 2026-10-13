@@ -21,7 +21,7 @@ typedef UsageClock = DateTime Function();
 /// loads as empty; storage errors propagate from the failing call (the
 /// in-memory counters are still updated).
 class UsageTracker {
-  UsageTracker({KeyValueStore? store, UsageClock? clock, this.keepMonths = 13})
+  new({KeyValueStore? store, UsageClock? clock, this.keepMonths = 13})
     : assert(keepMonths >= 2, 'keep at least this and last month'),
       store = store ?? PreferencesStore(),
       _clock = clock ?? DateTime.now;
@@ -222,10 +222,10 @@ class UsageTracker {
 
 /// Mutable storage model behind [UsageTracker].
 class _UsageData {
-  _UsageData();
+  new();
 
   /// Decodes stored JSON leniently: anything unreadable is skipped.
-  factory _UsageData.decode(String? raw) {
+  factory decode(String? raw) {
     final data = _UsageData();
     if (raw == null) return data;
     final Object? json;

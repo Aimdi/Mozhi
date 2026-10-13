@@ -2,14 +2,14 @@ import 'package:equatable/equatable.dart';
 
 /// A calendar month (local time) that usage is bucketed by.
 class UsageMonth extends Equatable implements Comparable<UsageMonth> {
-  const UsageMonth(this.year, this.month)
+  const new(this.year, this.month)
     : assert(month >= 1 && month <= 12, 'month must be 1-12');
 
   /// The month that contains [time] (in the time zone of [time]).
-  factory UsageMonth.of(DateTime time) => UsageMonth(time.year, time.month);
+  factory of(DateTime time) => UsageMonth(time.year, time.month);
 
   /// Month `index ~/ 12`, `index % 12 + 1`; inverse of [index].
-  factory UsageMonth.fromIndex(int index) =>
+  factory fromIndex(int index) =>
       UsageMonth(index ~/ 12, index % 12 + 1);
 
   /// Parses a [key] like `2026-10`; returns null when malformed.

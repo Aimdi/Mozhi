@@ -5,7 +5,7 @@ import 'package:mozhi/usage/models/usage_stats.dart';
 
 /// Immutable view of all tracked usage at one point in time.
 class UsageSnapshot extends Equatable {
-  const UsageSnapshot({
+  const new({
     required this.currentMonth,
     this.months = const {},
     this.budgets = const {},

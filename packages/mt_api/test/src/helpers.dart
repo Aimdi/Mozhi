@@ -65,7 +65,7 @@ Matcher throwsMtError<T extends MtApiException>({
   required MtErrorKind kind,
   Object? statusCode = anything,
   Object message = anything,
-  Object detail = anything,
+  Object? detail = anything,
   Object uri = anything,
 }) => throwsA(
   isA<T>()

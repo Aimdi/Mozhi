@@ -1,7 +1,10 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/onboarding/cubit/onboarding_cubit.dart';
 import 'package:mozhi/onboarding/widgets/step_layout.dart';
+import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:translation_repository/translation_repository.dart';
 
 /// Step 4: summary of the setup. "Start translating" lives in the
 /// navigation bar.
@@ -13,12 +16,16 @@ class DoneStep extends StatelessWidget {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final instances = context.select((c) => c.state.instances);
+    final instances = context.select<SettingsCubit, List<MozhiInstance>>(
+      (c) => c.state.instances,
+    );
     final providers = context
-        .select((c) => c.state.providers)
+        .select<SettingsCubit, List<AiProviderConfig>>((c) => c.state.providers)
         .where((provider) => provider.enabled)
         .toList();
-    final pings = context.select((c) => c.state.pings);
+    final pings = context.select<OnboardingCubit, Map<String, InstancePing>>(
+      (c) => c.state.pings,
+    );
 
     final preferred = instances.firstOrNull;
     final latency = preferred == null ? null : pings[preferred.url]?.latency;

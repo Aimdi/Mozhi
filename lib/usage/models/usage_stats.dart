@@ -6,7 +6,7 @@ import 'package:mozhi/usage/token_estimate.dart';
 /// Characters are Unicode code points. Tokens are estimates (see
 /// [estimateTokens]); providers bill by their own tokenizer.
 class UsageStats extends Equatable {
-  const UsageStats({
+  const new({
     this.requests = 0,
     this.inputChars = 0,
     this.outputChars = 0,
@@ -17,7 +17,7 @@ class UsageStats extends Equatable {
   /// Tolerant counterpart of [toJson]: missing or invalid counters become 0,
   /// negative ones are clamped to 0, and missing token counts are estimated
   /// from the character counts.
-  factory UsageStats.fromJson(Map<String, dynamic> json) {
+  factory fromJson(Map<String, dynamic> json) {
     final inputChars = _count(json['inputChars']);
     final outputChars = _count(json['outputChars']);
     return UsageStats(

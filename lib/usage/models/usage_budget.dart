@@ -16,7 +16,7 @@ enum UsageBudgetLevel {
 
 /// A per-provider monthly budget in characters (sent + received).
 class UsageBudget extends Equatable {
-  const UsageBudget({
+  const new({
     required this.monthlyChars,
     this.warningThreshold = defaultWarningThreshold,
   }) : assert(monthlyChars > 0, 'monthlyChars must be positive'),
@@ -75,7 +75,7 @@ class UsageBudget extends Equatable {
 
 /// Usage measured against a [UsageBudget].
 class UsageBudgetStatus extends Equatable {
-  const UsageBudgetStatus({required this.budget, required this.usedChars});
+  const new({required this.budget, required this.usedChars});
 
   final UsageBudget budget;
   final int usedChars;
@@ -95,7 +95,7 @@ class UsageBudgetStatus extends Equatable {
 /// Raised by `UsageTracker.warnings` the first time in a [month] that a
 /// provider reaches [level] of its budget.
 class UsageWarning extends Equatable {
-  const UsageWarning({
+  const new({
     required this.providerId,
     required this.month,
     required this.level,
