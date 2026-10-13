@@ -15,17 +15,17 @@ import 'package:mozhi/translate/translate.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 class MockTranslateCubit extends MockCubit<TranslateState>
-    implements TranslateCubit {}
+    implements TranslateCubit;
 
 class MockSettingsCubit extends MockCubit<AppSettings>
-    implements SettingsCubit {}
+    implements SettingsCubit;
 
 class MockHistoryCubit extends MockCubit<HistoryState>
-    implements HistoryCubit {}
+    implements HistoryCubit;
 
-class MockSpeechService extends Mock implements SpeechService {}
+class MockSpeechService extends Mock implements SpeechService;
 
-class MockGoRouter extends Mock implements GoRouter {}
+class MockGoRouter extends Mock implements GoRouter;
 
 const deepl = TranslationEngine(
   id: 'mozhi:deepl',
@@ -65,7 +65,7 @@ const french = Language(code: 'fr', name: 'French', nativeName: 'Français');
 const german = Language(code: 'de', name: 'German', nativeName: 'Deutsch');
 const japanese = Language(code: 'ja', name: 'Japanese', nativeName: '日本語');
 
-const languages = [english, french, german, japanese];
+const List<Language> languages = [english, french, german, japanese];
 
 const helloResult = TranslationResult(
   engineId: 'mozhi:deepl',
@@ -136,7 +136,7 @@ void registerTranslateFallbacks() {
 
 /// Mocks and pumping for translate widget tests.
 class TranslateHarness {
-  TranslateHarness({
+  new({
     TranslateState? state,
     AppSettings settings = const AppSettings(),
     HistoryState history = const HistoryState(),
@@ -146,16 +146,16 @@ class TranslateHarness {
     when(() => translate.loadEngines(refresh: any(named: 'refresh')))
         .thenAnswer((_) async {});
     when(() => translate.selectEngine(any())).thenAnswer((_) async {});
-    when(() => translate.translate()).thenAnswer((_) async {});
+    when(translate.translate).thenAnswer((_) async {});
     when(() => translate.applySuggestion(any())).thenAnswer((_) async {});
-    when(() => translate.runCompare()).thenAnswer((_) async {});
+    when(translate.runCompare).thenAnswer((_) async {});
     when(() => translate.loadAlternatives(span: any(named: 'span')))
         .thenAnswer((_) async {});
-    when(() => translate.loadInsights()).thenAnswer((_) async {});
-    when(() => translate.loadSuggestions()).thenAnswer((_) async {});
+    when(translate.loadInsights).thenAnswer((_) async {});
+    when(translate.loadSuggestions).thenAnswer((_) async {});
     when(() => translate.explain(question: any(named: 'question')))
         .thenAnswer((_) async {});
-    when(() => translate.lookUp()).thenAnswer((_) async {});
+    when(translate.lookUp).thenAnswer((_) async {});
 
     when(() => this.settings.state).thenReturn(settings);
 
@@ -235,7 +235,7 @@ class TranslateHarness {
 
 /// Captures clipboard writes and serves [pasteText] to reads.
 class FakeClipboard {
-  FakeClipboard(WidgetTester tester, {this.pasteText}) {
+  new(WidgetTester tester, {this.pasteText}) {
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       SystemChannels.platform,
       (call) async {
