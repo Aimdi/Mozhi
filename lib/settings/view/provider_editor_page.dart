@@ -682,13 +682,16 @@ class _TemperatureField extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Slider(
-                  value: current.clamp(0, 2),
-                  max: 2,
-                  divisions: 20,
-                  label: current.toStringAsFixed(1),
-                  semanticFormatterCallback: (v) => v.toStringAsFixed(1),
-                  onChanged: onChanged,
+                child: Semantics(
+                  label: l10n.settingsProviderTemperature,
+                  child: Slider(
+                    value: current.clamp(0, 2),
+                    max: 2,
+                    divisions: 20,
+                    label: current.toStringAsFixed(1),
+                    semanticFormatterCallback: (v) => v.toStringAsFixed(1),
+                    onChanged: onChanged,
+                  ),
                 ),
               ),
               SizedBox(

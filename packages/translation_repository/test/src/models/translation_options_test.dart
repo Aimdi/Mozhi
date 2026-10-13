@@ -37,11 +37,14 @@ void main() {
 
     group('equality', () {
       test('is deep for the glossary', () {
-        final a = TranslationOptions(glossary: {'a': 'b', 'c': 'd'});
-        final b = TranslationOptions(glossary: {'c': 'd', 'a': 'b'});
+        const a = TranslationOptions(glossary: {'a': 'b', 'c': 'd'});
+        const b = TranslationOptions(glossary: {'c': 'd', 'a': 'b'});
         expect(a, equals(b));
         expect(a.hashCode, b.hashCode);
-        expect(a, isNot(TranslationOptions(glossary: {'a': 'x', 'c': 'd'})));
+        expect(
+          a,
+          isNot(const TranslationOptions(glossary: {'a': 'x', 'c': 'd'})),
+        );
       });
 
       test('compares every field', () {

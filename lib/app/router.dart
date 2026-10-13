@@ -24,16 +24,15 @@ abstract final class AppRoutes {
 
   /// Location of the provider editor: edit [id], or create a new provider
   /// (prefilled from [preset] when given).
-  static String editProvider({String? id, String? preset}) => Uri(
-    path: providerEditor,
-    queryParameters: {'id': ?id, 'preset': ?preset},
-  ).toString();
+  static String editProvider({String? id, String? preset}) =>
+      _location(providerEditor, {'id': ?id, 'preset': ?preset});
 
   /// Kagi-style translate link, e.g. `/translate?text=hola&from=es&to=en`.
-  static String translateText({String? text, String? from, String? to}) => Uri(
-    path: translate,
-    queryParameters: {'text': ?text, 'from': ?from, 'to': ?to},
-  ).toString();
+  static String translateText({String? text, String? from, String? to}) =>
+      _location(translate, {'text': ?text, 'from': ?from, 'to': ?to});
+
+  static String _location(String path, Map<String, String> query) =>
+      Uri(path: path, queryParameters: query.isEmpty ? null : query).toString();
 }
 
 /// Called when a location carries a [TranslateLink].

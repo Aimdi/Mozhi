@@ -12,7 +12,38 @@ void expectValueEquality(Object a, Object b, List<Object> different) {
   expect(a, isNot(equals(Object())));
 }
 
+/// Returns [value] unchanged; defeats const canonicalisation so equality
+/// is computed field by field rather than short-circuited by `identical`.
+T dyn<T>(T value) => value;
+
 void main() {
+  test('equality compares fields of distinct instances', () {
+    expectValueEquality(
+      DictionaryEntry(word: dyn('run'), synonyms: dyn(['a'])),
+      DictionaryEntry(word: dyn('run'), synonyms: dyn(['a'])),
+      [
+        DictionaryEntry(word: dyn('run'), synonyms: dyn(['b'])),
+      ],
+    );
+    expectValueEquality(
+      ProofreadResult(correctedText: dyn('c'), summary: dyn('s')),
+      ProofreadResult(correctedText: dyn('c'), summary: dyn('s')),
+      [ProofreadResult(correctedText: dyn('c'), summary: dyn('t'))],
+    );
+    expectValueEquality(
+      WordChoice(word: dyn('w'), examplesTarget: dyn(['x'])),
+      WordChoice(word: dyn('w'), examplesTarget: dyn(['x'])),
+      [
+        WordChoice(word: dyn('w'), examplesTarget: dyn(['y'])),
+      ],
+    );
+    expectValueEquality(
+      CompareEntry.failure(engineId: dyn('a'), engineName: 'A', error: 'e'),
+      CompareEntry.failure(engineId: dyn('a'), engineName: 'A', error: 'e'),
+      [CompareEntry.failure(engineId: dyn('a'), engineName: 'A', error: 'f')],
+    );
+  });
+
   group('AI feature models', () {
     test('AlternativeTranslations', () {
       expectValueEquality(

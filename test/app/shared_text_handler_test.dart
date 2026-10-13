@@ -80,6 +80,17 @@ void main() {
       verify(() => cubit.setInputAndTranslate('later')).called(1);
     });
 
+    test('ignores errors of the platform stream', () async {
+      await handler.start();
+
+      texts
+        ..addError(Exception('bad payload'))
+        ..add(const SharedText('next'));
+      await pumpEventQueue();
+
+      verify(() => cubit.setInputAndTranslate('next')).called(1);
+    });
+
     test('ignores blank texts', () async {
       await handler.start();
       await handler.handle(const SharedText('  '));

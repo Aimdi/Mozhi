@@ -60,11 +60,13 @@ class _AppState extends State<App> {
     unawaited(_translateCubit.loadEngines());
     _router = createAppRouter(onTranslateLink: _openLink);
 
+    // coverage:ignore-start
     if (kIsWeb) {
       // `https://host/Mozhi/?text=…` (query before the `#/` fragment).
       final link = TranslateLink.fromUri(Uri.base);
       if (link != null) _openLink(link);
     }
+    // coverage:ignore-end
 
     _sharedText = SharedTextHandler(
       service: _deps.sharedTextService,

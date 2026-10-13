@@ -36,11 +36,12 @@ class AppBlocObserver extends BlocObserver {
   }
 }
 
-/// Initialises Flutter, creates the [AppDependencies] and runs the widget
-/// returned by [builder].
+/// Initialises Flutter, creates the [AppDependencies] (with [dependencies])
+/// and runs the widget returned by [builder].
 Future<void> bootstrap(
-  FutureOr<Widget> Function(AppDependencies dependencies) builder,
-) async {
+  FutureOr<Widget> Function(AppDependencies dependencies) builder, {
+  Future<AppDependencies> Function() dependencies = createDependencies,
+}) async {
   WidgetsFlutterBinding.ensureInitialized();
 
   FlutterError.onError = (details) {
@@ -54,8 +55,7 @@ Future<void> bootstrap(
 
   if (kDebugMode) Bloc.observer = const AppBlocObserver();
 
-  final dependencies = await createDependencies();
-  runApp(await builder(dependencies));
+  runApp(await builder(await dependencies()));
 }
 
 /// Creates the long-lived services and loads the saved settings.

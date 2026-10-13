@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/app/app.dart';
@@ -226,6 +227,26 @@ void main() {
       await tester.pump();
 
       verify(() => env.sharedTextService.returnResult('hello')).called(1);
+    });
+
+    testWidgets('opens translate links', (tester) async {
+      await pumpApp(tester);
+
+      GoRouter.of(shellContext(tester))
+          .go(AppRoutes.translateText(text: 'hallo', to: 'en'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final translate = shellContext(tester).read<TranslateCubit>();
+      expect(translate.state.input, 'hallo');
+      expect(
+        GoRouter.of(shellContext(tester))
+            .routerDelegate
+            .currentConfiguration
+            .uri
+            .toString(),
+        AppRoutes.translate,
+      );
     });
 
     testWidgets('closes its cubits when removed', (tester) async {

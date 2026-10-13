@@ -9,8 +9,13 @@ self-hostable **Mozhi** translation instances plus an **AI translator**
 - `packages/llm_api` – pure Dart streaming LLM clients.
 - `packages/translation_repository` – domain models, language catalogue,
   prompts, parsers, and `TranslationRepository` (unifies both backends).
+- `packages/mlkit_translator` – Flutter package: offline ML Kit engine
+  implementing `OfflineTranslator` (from translation_repository).
 - `lib/` – the app: `app/` (shell, router, theme), `settings/`, `history/`,
-  `translate/`, `proofread/`, `speech/`, `platform/`, `core/`.
+  `translate/`, `proofread/`, `speech/`, `platform/`, `core/`, and round-2
+  features `image_translate/`, `voice/`, `documents/`, `onboarding/`,
+  `presets/`, `offline/`, `conversation/`.
+- `docs/`, `deploy/` – user documentation and self-hosting files.
 - Public APIs are defined contract-first; keep signatures stable. If a
   contract truly needs to change, change it minimally and say so in your
   final report.

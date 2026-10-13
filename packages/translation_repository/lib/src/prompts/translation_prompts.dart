@@ -915,13 +915,7 @@ final class _Prompt {
   }
 
   /// Continues the current section on a new line.
-  void line(String text) {
-    if (_sections.isEmpty) {
-      add(text);
-    } else {
-      _sections.last.write('\n$text');
-    }
-  }
+  void line(String text) => _sections.last.write('\n$text');
 
   /// Adds a `- ` bullet to the current section.
   void bullet(String text) => line('- $text');

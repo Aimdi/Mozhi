@@ -95,79 +95,93 @@ class _HistoryViewState extends State<HistoryView> {
           ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     final hasEntries = state.entries.any((e) => !_dismissed.contains(e.id));
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.historyTitle),
-        actions: [
-          if (hasEntries)
-            IconButton(
-              tooltip: l10n.historyClearMenu,
-              icon: const Icon(Icons.delete_sweep_outlined),
-              onPressed: () => confirmClearHistory(context),
-            ),
-        ],
-      ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final padding = centeredPadding(constraints.maxWidth, maxWidth: 760);
-          return CustomScrollView(
-            slivers: [
-              SliverPadding(
-                padding: padding.copyWith(bottom: 8),
-                sliver: SliverList.list(
-                  children: [
-                    if (!saveHistory) const _HistoryDisabledBanner(),
-                    SearchBar(
-                      controller: _search,
-                      hintText: l10n.historySearchHint,
-                      elevation: const WidgetStatePropertyAll(0),
-                      leading: const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 8),
-                        child: Icon(Icons.search),
-                      ),
-                      trailing: [
-                        if (_search.text.isNotEmpty)
-                          IconButton(
-                            tooltip: l10n.historyClearSearch,
-                            icon: const Icon(Icons.close),
-                            onPressed: _clearSearch,
-                          ),
-                      ],
-                      onChanged: _onSearch,
-                    ),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        ChoiceChip(
-                          label: Text(l10n.historyFilterAll),
-                          selected: !state.favoritesOnly,
-                          onSelected: (_) => context
-                              .read<HistoryCubit>()
-                              .setFavoritesOnly(enabled: false),
-                        ),
-                        ChoiceChip(
-                          avatar: state.favoritesOnly
-                              ? null
-                              : const Icon(Icons.star_outline_rounded),
-                          label: Text(l10n.historyFilterFavorites),
-                          selected: state.favoritesOnly,
-                          onSelected: (_) => context
-                              .read<HistoryCubit>()
-                              .setFavoritesOnly(enabled: true),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+    return BlocListener<HistoryCubit, HistoryState>(
+      listenWhen: (previous, current) => previous.entries != current.entries,
+      listener: _forgetDeleted,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(l10n.historyTitle),
+          actions: [
+            if (hasEntries)
+              IconButton(
+                tooltip: l10n.historyClearMenu,
+                icon: const Icon(Icons.delete_sweep_outlined),
+                onPressed: () => confirmClearHistory(context),
               ),
-              ..._content(context, state, visible, hasEntries, padding),
-            ],
-          );
-        },
+          ],
+        ),
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            final padding = centeredPadding(
+              constraints.maxWidth,
+              maxWidth: 760,
+            );
+            return CustomScrollView(
+              slivers: [
+                SliverPadding(
+                  padding: padding.copyWith(bottom: 8),
+                  sliver: SliverList.list(
+                    children: [
+                      if (!saveHistory) const _HistoryDisabledBanner(),
+                      SearchBar(
+                        controller: _search,
+                        hintText: l10n.historySearchHint,
+                        elevation: const WidgetStatePropertyAll(0),
+                        leading: const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 8),
+                          child: Icon(Icons.search),
+                        ),
+                        trailing: [
+                          if (_search.text.isNotEmpty)
+                            IconButton(
+                              tooltip: l10n.historyClearSearch,
+                              icon: const Icon(Icons.close),
+                              onPressed: _clearSearch,
+                            ),
+                        ],
+                        onChanged: _onSearch,
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          ChoiceChip(
+                            label: Text(l10n.historyFilterAll),
+                            selected: !state.favoritesOnly,
+                            onSelected: (_) => context
+                                .read<HistoryCubit>()
+                                .setFavoritesOnly(enabled: false),
+                          ),
+                          ChoiceChip(
+                            avatar: state.favoritesOnly
+                                ? null
+                                : const Icon(Icons.star_outline_rounded),
+                            label: Text(l10n.historyFilterFavorites),
+                            selected: state.favoritesOnly,
+                            onSelected: (_) => context
+                                .read<HistoryCubit>()
+                                .setFavoritesOnly(enabled: true),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                ..._content(context, state, visible, hasEntries, padding),
+              ],
+            );
+          },
+        ),
       ),
     );
+  }
+
+  /// Once the cubit no longer has a swiped entry, stop hiding its id so a
+  /// later re-import shows it again.
+  void _forgetDeleted(BuildContext context, HistoryState state) {
+    final ids = {for (final entry in state.entries) entry.id};
+    _dismissed.removeWhere((id) => !ids.contains(id));
   }
 
   List<Widget> _content(
@@ -273,11 +287,9 @@ class _HistoryViewState extends State<HistoryView> {
 
   static String _dayLabel(AppLocalizations l10n, DateTime day) {
     final today = _day(DateTime.now());
-    final difference = today.difference(day).inHours;
     if (day == today) return l10n.historyToday;
-    if (difference > 0 && difference <= 25 && today.day != day.day) {
-      final yesterday = DateTime(today.year, today.month, today.day - 1);
-      if (day == yesterday) return l10n.historyYesterday;
+    if (day == DateTime(today.year, today.month, today.day - 1)) {
+      return l10n.historyYesterday;
     }
     final format = day.year == today.year
         ? DateFormat.MMMMEEEEd(l10n.localeName)

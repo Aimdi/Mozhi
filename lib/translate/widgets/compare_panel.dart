@@ -74,13 +74,14 @@ class ComparePanel extends StatelessWidget {
             for (final entry in state.compareEntries) ...[
               const SizedBox(height: TranslateLayout.gap),
               CompareEntryCard(
+                key: ValueKey('compare:${entry.id}'),
                 entry: entry,
                 onUse: () => cubit.useCompareEntry(entry),
               ),
             ],
             for (var i = 0; i < placeholders; i++) ...[
               const SizedBox(height: TranslateLayout.gap),
-              const SkeletonCard(key: Key('translate_compare_placeholder')),
+              const SkeletonCard(),
             ],
           ],
         );

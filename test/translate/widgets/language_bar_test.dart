@@ -194,7 +194,11 @@ void main() {
           pinnedLanguages: [japanese],
         ),
       );
-      await harness.pump(tester, child: const LanguageBar());
+      await harness.pump(
+        tester,
+        child: const LanguageBar(),
+        size: const Size(800, 1600),
+      );
       await openTarget(tester);
       expect(find.text('Recent'), findsOneWidget);
       expect(find.text('Pinned'), findsOneWidget);
@@ -233,7 +237,7 @@ void main() {
       final harness = TranslateHarness();
       await harness.pump(tester, child: const LanguageBar());
       await openSource(tester);
-      await tester.tap(find.text('French'));
+      await tester.tap(find.text('French').last);
       await tester.pumpAndSettle();
       verify(() => harness.translate.setSource(french)).called(1);
     });

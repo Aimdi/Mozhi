@@ -15,16 +15,8 @@ abstract final class ResponseParsers {
   /// `\'`, Python literals (`True`/`False`/`None`) and output truncated by a
   /// token limit (the incomplete tail is dropped). When the first JSON value
   /// is an array, its first object is returned.
-  static Map<String, dynamic> extractJsonObject(String text) {
-    final value = _extractJson(text);
-    if (value is Map) return _stringKeyed(value);
-    if (value is List) {
-      for (final element in value) {
-        if (element is Map) return _stringKeyed(element);
-      }
-    }
-    throw FormatException('No JSON object found', text);
-  }
+  static Map<String, dynamic> extractJsonObject(String text) =>
+      _stringKeyed(_rootObject(_extractJson(text)));
 
   /// Splits a leading `[[lang:xx]]` marker (also tolerating `[lang:xx]`,
   /// `⟦xx⟧`, `[[xx]]`, surrounding whitespace, and a newline after it).
@@ -230,10 +222,7 @@ abstract final class ResponseParsers {
 
   static DictionaryEntry parseDictionary(String output) {
     final value = _extractJson(output);
-    final root = value is Map
-        ? value
-        : (value as List).whereType<Map<dynamic, dynamic>>().firstOrNull ??
-              const <String, dynamic>{};
+    final root = _rootObject(value);
 
     final senses = <DictionarySense>[
       for (final item in _list(root, const [
@@ -353,10 +342,7 @@ abstract final class ResponseParsers {
       if (code.isEmpty || plain.length > 40) rethrow;
       return DetectedLanguage(code: code);
     }
-    final root = value is Map
-        ? value
-        : (value as List).whereType<Map<dynamic, dynamic>>().firstOrNull ??
-              const <String, dynamic>{};
+    final root = _rootObject(value);
     final code = _languageCode(
       _string(root, const [
         'language',
@@ -594,27 +580,25 @@ abstract final class ResponseParsers {
       if (_acceptable(_decode(inner)) case final value?) return value;
     }
 
-    // Scan for the first balanced object/array that decodes.
+    // Scan for the first balanced object/array that decodes. An opening
+    // bracket that is never closed may be output truncated by a token
+    // limit: close what is open, dropping an incomplete tail.
     for (var i = 0; i < trimmed.length; i++) {
       final c = trimmed[i];
       if (c != '{' && c != '[') continue;
       final end = _balancedEnd(trimmed, i);
-      if (end < 0) continue;
-      if (_acceptable(_decode(trimmed.substring(i, end + 1))) case final v?) {
-        return v;
-      }
-    }
-
-    // Truncated output: close what is open, dropping an incomplete tail.
-    final start = trimmed.indexOf('{');
-    if (start >= 0) {
-      if (_acceptable(_decodeTruncated(trimmed.substring(start)))
-          case final value?) {
-        return value;
-      }
+      final candidate = end < 0
+          ? _decodeTruncated(trimmed.substring(i))
+          : _decode(trimmed.substring(i, end + 1));
+      if (_acceptable(candidate) case final value?) return value;
     }
     return null;
   }
+
+  /// [value] itself, or the first map of a list (see [_acceptable]).
+  static Map<dynamic, dynamic> _rootObject(Object value) => value is Map
+      ? value
+      : (value as List).whereType<Map<dynamic, dynamic>>().first;
 
   /// Maps, and lists containing at least one map.
   static Object? _acceptable(Object? value) => switch (value) {
@@ -784,7 +768,8 @@ abstract final class ResponseParsers {
     ];
     for (final attempt in attempts) {
       final value = _decode(attempt);
-      if (value != null) return value;
+      if (value is Map && value.isNotEmpty) return value;
+      if (value is List && value.isNotEmpty) return value;
     }
     return null;
   }

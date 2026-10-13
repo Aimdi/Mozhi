@@ -205,10 +205,10 @@ void main() {
       '  ': '',
       '-': '',
     };
-    cases.forEach((input, expected) {
+    for (final MapEntry(key: input, value: expected) in cases.entries) {
       test('"$input" -> "$expected"', () {
         expect(LanguageMatcher.normalize(input), expected);
       });
-    });
+    }
   });
 }
