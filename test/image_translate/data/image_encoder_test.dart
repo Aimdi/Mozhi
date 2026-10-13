@@ -81,7 +81,7 @@ void main() {
         expect(png.lengthInBytes, lessThanOrEqualTo(full.lengthInBytes ~/ 3));
         final (width, height) = await _size(png);
         expect(width, lessThan(400));
-        expect(width, 2 * height);
+        expect(width / height, closeTo(2, 0.1));
       });
     });
 

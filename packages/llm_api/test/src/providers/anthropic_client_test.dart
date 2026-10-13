@@ -291,10 +291,97 @@ void main() {
             'event: content_block_delta\n'
             'data: {"delta":{"type":"text_delta","text":"ok"}}\n\n'
             'event: ping\ndata:\n\n'
-            'data: [1]\n\n',
+            'data: [1]\n\n'
+            'event: message_stop\ndata: {}\n\n',
           ),
         ]);
         expect(await _client(server).chat(_request()), 'ok');
+      });
+
+      test('completes at a stop_reason without message_stop', () async {
+        final server = FakeServer([
+          FakeResponse.text(
+            _stream([
+              _textDelta('ok'),
+              (
+                'message_delta',
+                {
+                  'type': 'message_delta',
+                  'delta': {'stop_reason': 'end_turn'},
+                },
+              ),
+            ]),
+          ),
+        ]);
+        expect(await _client(server).chat(_request()), 'ok');
+      });
+
+      test('throws LlmTruncatedException at a length stop_reason', () async {
+        for (final reason in AnthropicClient.truncationStopReasons) {
+          final server = FakeServer([
+            FakeResponse.text(
+              _stream([
+                _textDelta('Partial para 1'),
+                (
+                  'message_delta',
+                  {
+                    'type': 'message_delta',
+                    'delta': {'stop_reason': reason},
+                    'usage': {'output_tokens': 64000},
+                  },
+                ),
+                ('message_stop', {'type': 'message_stop'}),
+              ]),
+            ),
+          ]);
+          await expectLater(
+            _client(server).streamChat(_request()),
+            emitsInOrder(<Object>[
+              'Partial para 1',
+              emitsError(
+                isA<LlmTruncatedException>()
+                    .having((e) => e.reason, 'reason', reason)
+                    .having(
+                      (e) => e.partialText,
+                      'partialText',
+                      'Partial para 1',
+                    ),
+              ),
+            ]),
+            reason: reason,
+          );
+        }
+      });
+
+      test('throws LlmInterruptedException without message_stop or '
+          'stop_reason', () async {
+        final server = FakeServer([
+          FakeResponse.text(
+            _stream([
+              _textDelta('Bonjour'),
+              (
+                'message_delta',
+                {
+                  'type': 'message_delta',
+                  'delta': {'stop_reason': null},
+                },
+              ),
+            ]),
+          ),
+        ]);
+        await expectLater(
+          _client(server).streamChat(_request()),
+          emitsInOrder(<Object>[
+            'Bonjour',
+            emitsError(
+              isA<LlmInterruptedException>().having(
+                (e) => e.partialText,
+                'partialText',
+                'Bonjour',
+              ),
+            ),
+          ]),
+        );
       });
 
       test('throws LlmRefusalException with the category', () async {
@@ -471,6 +558,53 @@ void main() {
         expect(retry.headers.containsKey('anthropic-beta'), isFalse);
       });
 
+      test('retries without output_config when effort is rejected', () async {
+        final messages = [
+          'This model does not support the effort parameter.',
+          'output_config: Extra inputs are not permitted',
+        ];
+        for (final message in messages) {
+          final server = FakeServer([
+            FakeResponse.json(error(message), statusCode: 400),
+            FakeResponse.text(_stream([_textDelta('ok')]) + _done),
+          ]);
+          expect(
+            await _client(server).chat(
+              _request('claude-haiku-4-5-20251001').copyWith(effort: 'low'),
+            ),
+            'ok',
+            reason: message,
+          );
+          expect(server.requests, hasLength(2), reason: message);
+          expect(
+            server.requests.first.json,
+            containsPair('output_config', {'effort': 'low'}),
+          );
+          final retry = server.requests.last.json! as Map<String, Object?>;
+          expect(retry, isNot(contains('output_config')));
+          expect(retry['model'], 'claude-haiku-4-5-20251001');
+          expect(retry['max_tokens'], 64000);
+        }
+      });
+
+      test('does not repeat the effort retry', () async {
+        final server = FakeServer([
+          FakeResponse.json(error('effort: unsupported'), statusCode: 400),
+          FakeResponse.json(error('effort: still unsupported'), statusCode: 400),
+        ]);
+        await expectLater(
+          _client(server).streamChat(_request().copyWith(effort: 'high')),
+          emitsError(
+            isA<LlmApiException>().having(
+              (e) => e.message,
+              'message',
+              'effort: still unsupported',
+            ),
+          ),
+        );
+        expect(server.requests, hasLength(2));
+      });
+
       test('retries both problems in turn', () async {
         final server = FakeServer([
           FakeResponse.json(error('max_tokens: too large'), statusCode: 400),
@@ -488,9 +622,13 @@ void main() {
         expect(server.requests.last.json, isNot(contains('fallbacks')));
       });
 
-      test('does not retry other 400s or fallback errors without '
-          'fallbacks', () async {
-        for (final message in ['messages: empty', 'fallbacks: invalid']) {
+      test('does not retry other 400s, or fallback and effort errors without '
+          'fallbacks or effort', () async {
+        for (final message in [
+          'messages: empty',
+          'fallbacks: invalid',
+          'effort: invalid',
+        ]) {
           final server = FakeServer([
             FakeResponse.json(error(message), statusCode: 400),
           ]);

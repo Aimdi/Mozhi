@@ -41,15 +41,19 @@ class UiImageEncoder implements ImageEncoder {
   }) async {
     var side = maxSide;
     while (true) {
-      final png = await _encode(bytes, side);
-      if (png.lengthInBytes <= maxBytes || side <= minSide) return png;
+      final (png, longSide) = await _encode(bytes, side);
+      if (png.lengthInBytes <= maxBytes || longSide <= minSide) return png;
       // PNG size grows roughly with the pixel count.
       final ratio = math.sqrt(maxBytes / png.lengthInBytes) * 0.9;
-      side = math.max(minSide, math.min(side - 1, (side * ratio).floor()));
+      side = math.max(
+        minSide,
+        math.min(longSide - 1, (longSide * ratio).floor()),
+      );
     }
   }
 
-  static Future<Uint8List> _encode(Uint8List bytes, int maxSide) async {
+  /// Returns the PNG and its long side.
+  static Future<(Uint8List, int)> _encode(Uint8List bytes, int maxSide) async {
     ui.Codec? codec;
     ui.Image? image;
     try {
@@ -60,15 +64,11 @@ class UiImageEncoder implements ImageEncoder {
         getTargetSize: (width, height) => targetSize(width, height, maxSide),
       );
       image = (await codec.getNextFrame()).image;
-      final data = await image.toByteData(format: ui.ImageByteFormat.png);
-      if (data == null) {
-        throw const ImageTranslateException(
-          ImageTranslateErrorKind.invalidImage,
-        );
-      }
-      return data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
-    } on ImageTranslateException {
-      rethrow;
+      final data = (await image.toByteData(format: ui.ImageByteFormat.png))!;
+      return (
+        data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+        math.max(image.width, image.height),
+      );
     } on Object catch (error) {
       throw ImageTranslateException(
         ImageTranslateErrorKind.invalidImage,

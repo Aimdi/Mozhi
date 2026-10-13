@@ -41,6 +41,7 @@ void main() {
     );
     final handle = tester.ensureSemantics();
     await tester.enterText(find.byKey(const Key('proofread_input')), 'abc');
+    await tester.pump();
     await tester.pump(const Duration(seconds: 1));
     final node = tester.getSemantics(find.byKey(const Key('proofread_input')));
     // ignore: avoid_print
@@ -72,6 +73,7 @@ void main() {
     );
     final element = tester.element(find.byType(ProofreadResultCard));
     unawaited(showProofreadEditSheet(element, 1));
+    await tester.pump();
     await tester.pump(const Duration(seconds: 1));
     expect(find.text('Use "an" before a vowel sound.'), findsWidgets);
     const other = ProofreadResult(
@@ -91,6 +93,7 @@ void main() {
     // Sheet still shows the old edit.
     expect(find.text('Use "an" before a vowel sound.'), findsWidgets);
     await tester.tap(find.text('Revert edit'));
+    await tester.pump();
     await tester.pump(const Duration(seconds: 1));
     verify(() => cubit.toggleEdit(1)).called(1);
     // ignore: avoid_print

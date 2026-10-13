@@ -187,6 +187,7 @@ class Harness {
 }
 
 void registerFallbacks() {
+  registerFallbackValue(Level.info);
   registerFallbackValue(googleEngine);
   registerFallbackValue(
     const TranslationRequest(text: '', source: english, target: french),

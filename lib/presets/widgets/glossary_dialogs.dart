@@ -20,7 +20,7 @@ Future<GlossaryDetails?> showGlossaryDetailsDialog(
 );
 
 class GlossaryDetailsDialog extends StatefulWidget {
-  const GlossaryDetailsDialog({this.glossary, super.key});
+  const new({this.glossary, super.key});
 
   final Glossary? glossary;
 
@@ -127,7 +127,7 @@ class _GlossaryDetailsDialogState extends State<GlossaryDetailsDialog> {
 }
 
 class _LanguageField extends StatelessWidget {
-  const _LanguageField({
+  const new({
     required this.label,
     required this.value,
     required this.onTap,
@@ -169,7 +169,7 @@ Future<GlossaryTerm?> showGlossaryTermDialog(
 );
 
 class GlossaryTermDialog extends StatefulWidget {
-  const GlossaryTermDialog({this.term, super.key});
+  const new({this.term, super.key});
 
   final GlossaryTerm? term;
 

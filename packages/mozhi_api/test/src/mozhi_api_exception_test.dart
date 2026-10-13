@@ -6,14 +6,26 @@ void main() {
     group('isRetryable', () {
       const cases = <int?, bool>{
         null: true,
+        // Answers from whatever sits in front of one instance: fail over.
+        301: true,
+        303: true,
+        308: true,
+        401: true,
+        403: true,
+        404: true,
+        405: true,
+        408: true,
+        410: true,
+        421: true,
         429: true,
         500: true,
         502: true,
         503: true,
+        // Mozhi's validation errors and size limits are the same everywhere.
         400: false,
-        401: false,
-        404: false,
         413: false,
+        414: false,
+        431: false,
       };
       cases.forEach((statusCode, retryable) {
         test('is $retryable for ${statusCode ?? 'network errors'}', () {
@@ -36,6 +48,21 @@ void main() {
           'MozhiApiException(500): Engine does not exist or has been '
           'disabled. [https://mozhi.example/api/engines]',
         );
+      });
+
+      test('leaves credentials out of the URI', () {
+        final error = MozhiApiException(
+          'Unauthorized',
+          statusCode: 401,
+          uri: Uri.parse('https://me:p%40ss@mozhi.example/api/version'),
+        );
+
+        expect(
+          error.toString(),
+          'MozhiApiException(401): Unauthorized '
+          '[https://mozhi.example/api/version]',
+        );
+        expect(error.uri!.userInfo, 'me:p%40ss');
       });
 
       test('labels transport failures without a URI', () {

@@ -38,11 +38,20 @@ Map<String, Object?> _chunk(
   ],
 };
 
+/// A response that only finishes.
+final _stop = sse([
+  {
+    'candidates': [
+      {'finishReason': 'STOP'},
+    ],
+  },
+]);
+
 void main() {
   group(GeminiClient, () {
     group('streamChat request', () {
       test('posts the exact body and headers', () async {
-        final server = FakeServer([FakeResponse.text('')]);
+        final server = FakeServer([FakeResponse.text(_stop)]);
         await _client(server).streamChat(_request).drain<void>();
 
         final request = server.lastRequest;
@@ -86,7 +95,7 @@ void main() {
       });
 
       test('sends generationConfig when options are set', () async {
-        final server = FakeServer([FakeResponse.text('')]);
+        final server = FakeServer([FakeResponse.text(_stop)]);
         await _client(server)
             .streamChat(
               _request.copyWith(
@@ -114,7 +123,7 @@ void main() {
       });
 
       test('omits systemInstruction and the key header when absent', () async {
-        final server = FakeServer([FakeResponse.text('')]);
+        final server = FakeServer([FakeResponse.text(_stop)]);
         await _client(server, apiKey: null)
             .streamChat(
               const LlmRequest(
@@ -140,7 +149,7 @@ void main() {
       });
 
       test('adds images as inlineData parts after the text', () async {
-        final server = FakeServer([FakeResponse.text('')]);
+        final server = FakeServer([FakeResponse.text(_stop)]);
         await _client(server)
             .streamChat(
               const LlmRequest(
@@ -185,7 +194,7 @@ void main() {
 
       test('keeps resource names that already contain a slash', () async {
         for (final model in ['models/gemini-pro', 'tunedModels/my-model']) {
-          final server = FakeServer([FakeResponse.text('')]);
+          final server = FakeServer([FakeResponse.text(_stop)]);
           await _client(server)
               .streamChat(_request.copyWith(model: model))
               .drain<void>();
@@ -258,6 +267,117 @@ void main() {
               ),
             ]),
             reason: reason,
+          );
+        }
+      });
+
+      test('throws LlmTruncatedException at MAX_TOKENS', () async {
+        final server = FakeServer([
+          FakeResponse.text(
+            sse([
+              _chunk([
+                {'text': 'Partial '},
+              ]),
+              _chunk([
+                {'text': 'para 1'},
+              ], finishReason: 'MAX_TOKENS'),
+            ]),
+          ),
+        ]);
+        await expectLater(
+          _client(server).streamChat(_request),
+          emitsInOrder(<Object>[
+            'Partial ',
+            'para 1',
+            emitsError(
+              isA<LlmTruncatedException>()
+                  .having((e) => e.reason, 'reason', 'MAX_TOKENS')
+                  .having((e) => e.partialText, 'partialText', 'Partial para 1'),
+            ),
+          ]),
+        );
+      });
+
+      test('throws LlmApiException for an unsupported language', () async {
+        final server = FakeServer([
+          FakeResponse.text(
+            sse([
+              {
+                'candidates': [
+                  {'finishReason': 'LANGUAGE'},
+                ],
+              },
+            ]),
+          ),
+        ]);
+        await expectLater(
+          _client(server).streamChat(_request),
+          emitsError(
+            isA<LlmApiException>()
+                .having((e) => e, 'type', isNot(isA<LlmRefusalException>()))
+                .having(
+                  (e) => e.message,
+                  'message',
+                  'Gemini does not support this language.',
+                ),
+          ),
+        );
+      });
+
+      test('throws LlmApiException for other finish reasons', () async {
+        for (final reason in [
+          'OTHER',
+          'FINISH_REASON_UNSPECIFIED',
+          'MALFORMED_FUNCTION_CALL',
+        ]) {
+          final server = FakeServer([
+            FakeResponse.text(
+              sse([
+                _chunk([
+                  {'text': 'Partial'},
+                ], finishReason: reason),
+              ]),
+            ),
+          ]);
+          await expectLater(
+            _client(server).streamChat(_request),
+            emitsInOrder(<Object>[
+              'Partial',
+              emitsError(
+                isA<LlmApiException>()
+                    .having((e) => e, 'type', isNot(isA<LlmRefusalException>()))
+                    .having(
+                      (e) => e.message,
+                      'message',
+                      'Gemini stopped without completing the response '
+                          '($reason).',
+                    ),
+              ),
+            ]),
+            reason: reason,
+          );
+        }
+      });
+
+      test('throws LlmInterruptedException without a finish reason', () async {
+        for (final body in [
+          '',
+          sse([
+            _chunk([
+              {'text': 'Bonjour'},
+            ]),
+          ]),
+        ]) {
+          final server = FakeServer([FakeResponse.text(body)]);
+          await expectLater(
+            _client(server).streamChat(_request).join(),
+            throwsA(
+              isA<LlmInterruptedException>().having(
+                (e) => e.partialText,
+                'partialText',
+                body.isEmpty ? '' : 'Bonjour',
+              ),
+            ),
           );
         }
       });
