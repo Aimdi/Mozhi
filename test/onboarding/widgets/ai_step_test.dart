@@ -279,6 +279,15 @@ void main() {
       });
     });
 
+    testWidgets('flags an invalid server address', (tester) async {
+      await pump(
+        tester,
+        presetState('custom')
+            .copyWith(baseUrl: 'ftp://x', model: 'm', showProviderErrors: true),
+      );
+      expect(find.text('Enter a valid http(s) address'), findsOneWidget);
+    });
+
     testWidgets('custom preset shows an optional key and an address', (
       tester,
     ) async {

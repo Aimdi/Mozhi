@@ -13,3 +13,4 @@ export 'widgets/conversation_actions.dart'
         ConversationModeButton,
         ConversationShareCallback,
         shareConversationText;
+export 'widgets/conversation_voice_mic.dart';

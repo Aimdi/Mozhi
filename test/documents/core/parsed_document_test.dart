@@ -90,9 +90,9 @@ void main() {
     });
 
     test('encoded nodes re-encode only when something changed', () {
-      final document = parseJson(r'{"a": "x A y", "b": "Same"}');
+      final document = parseJson(r'{"a": "x \u0041 y", "b": "Same"}');
       final output = document.render(['x A y', 'Gleich']);
-      expect(output, r'{"a": "x A y", "b": "Gleich"}');
+      expect(output, r'{"a": "x \u0041 y", "b": "Gleich"}');
       expect(jsonDecode(output), {'a': 'x A y', 'b': 'Gleich'});
     });
 

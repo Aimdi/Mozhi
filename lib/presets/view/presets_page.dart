@@ -371,6 +371,7 @@ class _PresetTile extends StatelessWidget {
             leading: ReorderableDragStartListener(
               index: index,
               child: Semantics(
+                container: true,
                 label: l10n.presetsReorderHint(name),
                 child: const SizedBox(
                   width: 48,

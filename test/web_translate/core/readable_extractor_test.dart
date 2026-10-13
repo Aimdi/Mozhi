@@ -394,6 +394,7 @@ void main() {
     test('does not treat a blog index as one article', () {
       final excerpt = 'An excerpt of a post, with some words, and commas. ' * 3;
       final page = extractor.extract('''
+        <title>My blog</title>
         <main>
           <article><h2>Post one</h2><p>$excerpt</p></article>
           <article><h2>Post two</h2><p>$excerpt</p></article>

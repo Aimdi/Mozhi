@@ -54,9 +54,12 @@ class UsageSnapshot extends Equatable {
     ...budgets.keys,
   }.toList()..sort();
 
-  bool get isEmpty =>
-      budgets.isEmpty &&
-      months.values.every((m) => m.values.every((s) => s.isEmpty));
+  /// Whether any usage was recorded (in the kept months).
+  bool get hasUsage =>
+      months.values.any((m) => m.values.any((s) => !s.isEmpty));
+
+  /// No usage and no budgets.
+  bool get isEmpty => budgets.isEmpty && !hasUsage;
 
   @override
   List<Object?> get props => [currentMonth, months, budgets];

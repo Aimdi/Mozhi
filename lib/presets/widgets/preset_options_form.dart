@@ -9,11 +9,7 @@ import 'package:translation_repository/translation_repository.dart';
 /// Stateless apart from the context text field; every change reports the
 /// complete new options through [onChanged].
 class PresetOptionsForm extends StatefulWidget {
-  const new({
-    required this.value,
-    required this.onChanged,
-    super.key,
-  });
+  const new({required this.value, required this.onChanged, super.key});
 
   final TranslationOptions value;
   final ValueChanged<TranslationOptions> onChanged;

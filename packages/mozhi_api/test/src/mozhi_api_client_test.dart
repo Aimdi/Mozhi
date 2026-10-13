@@ -1034,6 +1034,30 @@ void main() {
       });
     });
 
+    group('credentials', () {
+      const cases = {
+        'https://token@mozhi.example': 'token:',
+        'https://me:@mozhi.example': 'me:',
+        'https://me:a%3Ab:c@mozhi.example': 'me:a:b:c',
+        // Escapes that are not UTF-8 are sent as typed.
+        'https://me:%FF%25@mozhi.example': 'me:%FF%25',
+      };
+      for (final MapEntry(key: base, value: credentials) in cases.entries) {
+        test('sends "$credentials" for $base', () async {
+          await clientReturning(
+            _json(versionJson),
+            baseUrl: Uri.parse(base),
+          ).getVersion();
+
+          expect(requests.single.headers['authorization'], _basic(credentials));
+          expect(
+            requests.single.url,
+            Uri.parse('https://mozhi.example/api/version'),
+          );
+        });
+      }
+    });
+
     group('redirects', () {
       final httpTranslate = Uri.parse('http://mozhi.example/api/translate');
       final httpsTranslate = Uri.parse('https://mozhi.example/api/translate');

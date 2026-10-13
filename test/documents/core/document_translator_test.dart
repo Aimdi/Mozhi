@@ -5,7 +5,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/documents/core/core.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-class _MockRepository extends Mock implements TranslationRepository {}
+class _MockRepository extends Mock implements TranslationRepository;
 
 const _mozhi = TranslationEngine(
   id: 'mozhi:google',

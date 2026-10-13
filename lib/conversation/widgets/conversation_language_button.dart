@@ -14,7 +14,7 @@ import 'package:translation_repository/translation_repository.dart';
 /// Shows the language [side] speaks; opens the language picker (the
 /// current engine's target languages, recent languages first).
 class ConversationLanguageButton extends StatelessWidget {
-  const ConversationLanguageButton({required this.side, super.key});
+  const new({required this.side, super.key});
 
   final ConversationSide side;
 
@@ -78,7 +78,7 @@ class ConversationLanguageButton extends StatelessWidget {
 
 /// Swaps the two languages.
 class ConversationSwapButton extends StatelessWidget {
-  const ConversationSwapButton({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) => IconButton(

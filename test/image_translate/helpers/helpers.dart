@@ -15,18 +15,17 @@ import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-class MockTranslationRepository extends Mock implements TranslationRepository {}
+class MockTranslationRepository extends Mock implements TranslationRepository;
 
 class MockTranslateCubit extends MockCubit<TranslateState>
-    implements TranslateCubit {}
+    implements TranslateCubit;
 
-class MockSettingsCubit extends MockCubit<AppSettings>
-    implements SettingsCubit {}
+class MockSettingsCubit extends MockCubit<AppSettings> implements SettingsCubit;
 
 class MockImageTranslateCubit extends MockCubit<ImageTranslateState>
-    implements ImageTranslateCubit {}
+    implements ImageTranslateCubit;
 
-class MockGoRouter extends Mock implements GoRouter {}
+class MockGoRouter extends Mock implements GoRouter;
 
 /// A valid 1x1 PNG.
 final Uint8List pngBytes = base64Decode(
@@ -130,7 +129,7 @@ const claudeMethod = ImageTranslateMethod.aiVision(claude);
 const onDeviceMethod = ImageTranslateMethod.onDevice();
 
 class FakeImagePickerService implements ImagePickerService {
-  FakeImagePickerService({this.supportsCamera = true, this.image});
+  new({this.supportsCamera = true, this.image});
 
   @override
   bool supportsCamera;
@@ -153,7 +152,7 @@ class FakeImagePickerService implements ImagePickerService {
 }
 
 class FakeImageEncoder implements ImageEncoder {
-  FakeImageEncoder({Uint8List? output}) : output = output ?? encodedPng;
+  new({Uint8List? output}) : output = output ?? encodedPng;
 
   Uint8List output;
   Exception? error;
@@ -173,7 +172,7 @@ class FakeImageEncoder implements ImageEncoder {
 }
 
 class FakeTextRecognitionService implements TextRecognitionService {
-  FakeTextRecognitionService({this.isSupported = true, this.text = ''});
+  new({this.isSupported = true, this.text = ''});
 
   @override
   bool isSupported;
@@ -227,7 +226,7 @@ TranslateState translateState({
 
 /// Mocks and pumping for image translation widget tests.
 class ImageTranslateHarness {
-  ImageTranslateHarness({
+  new({
     TranslateState? translate,
     AppSettings settings = const AppSettings(providers: allProviders),
   }) {
@@ -327,7 +326,7 @@ MockImageTranslateCubit mockImageCubit(ImageTranslateState state) {
   final cubit = MockImageTranslateCubit();
   when(() => cubit.state).thenReturn(state);
   when(() => cubit.isClosed).thenReturn(false);
-  when(() => cubit.translate()).thenAnswer((_) async {});
+  when(cubit.translate).thenAnswer((_) async {});
   when(() => cubit.translateText(any())).thenAnswer((_) async {});
   when(() => cubit.pickImage(any())).thenAnswer((_) async {});
   when(() => cubit.selectMethod(any())).thenAnswer((_) async {});
@@ -338,7 +337,7 @@ MockImageTranslateCubit mockImageCubit(ImageTranslateState state) {
 
 /// Captures clipboard writes.
 class FakeClipboard {
-  FakeClipboard(WidgetTester tester) {
+  new(WidgetTester tester) {
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       SystemChannels.platform,
       (call) async {

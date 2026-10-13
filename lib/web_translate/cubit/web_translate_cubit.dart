@@ -30,7 +30,7 @@ typedef ReadablePageExtractor = Future<ReadablePage> Function(
 /// block. Progress is emitted per batch; [cancel] stops loading or
 /// translating (keeping what is translated) and [resume] continues.
 ///
-/// The cubit owns [fetcher] and closes it on [close].
+/// The cubit owns the `fetcher` and closes it on [close].
 class WebTranslateCubit extends Cubit<WebTranslateState> {
   new({
     required this._repository,

@@ -6,7 +6,7 @@ import 'package:mozhi/image_translate/image_translate.dart';
 
 import '../helpers/helpers.dart';
 
-class MockImagePicker extends Mock implements ImagePicker {}
+class MockImagePicker extends Mock implements ImagePicker;
 
 void main() {
   late MockImagePicker picker;

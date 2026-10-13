@@ -30,7 +30,7 @@ Future<void> shareConversationText(
 
 /// Entry point for the translate screen's app bar: opens conversation mode.
 class ConversationModeButton extends StatelessWidget {
-  const ConversationModeButton({required this.onPressed, super.key});
+  const new({required this.onPressed, super.key});
 
   final VoidCallback onPressed;
 
@@ -45,7 +45,7 @@ class ConversationModeButton extends StatelessWidget {
 
 /// Toggles reading each new translation aloud.
 class ConversationAutoSpeakButton extends StatelessWidget {
-  const ConversationAutoSpeakButton({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -66,7 +66,7 @@ class ConversationAutoSpeakButton extends StatelessWidget {
 
 /// Switches between the shared standard layout and face-to-face mode.
 class ConversationLayoutButton extends StatelessWidget {
-  const ConversationLayoutButton({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -92,7 +92,7 @@ enum _MenuAction { copy, share, clear }
 
 /// Overflow menu: copy or share the transcript, clear the conversation.
 class ConversationMenuButton extends StatelessWidget {
-  const ConversationMenuButton({this.share = shareConversationText, super.key});
+  const new({this.share = shareConversationText, super.key});
 
   final ConversationShareCallback share;
 

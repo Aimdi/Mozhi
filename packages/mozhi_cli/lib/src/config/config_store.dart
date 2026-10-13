@@ -67,7 +67,10 @@ class ConfigStore {
 
   io.File get _file => io.File(path);
 
-  bool get exists => _file.existsSync();
+  /// Whether something exists at [path] (a directory there is reported as
+  /// unreadable by [load]).
+  bool get exists =>
+      io.FileSystemEntity.typeSync(path) != io.FileSystemEntityType.notFound;
 
   /// Whether group or others can access the file (POSIX only).
   bool get isExposed {

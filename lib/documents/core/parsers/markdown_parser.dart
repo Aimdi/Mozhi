@@ -52,8 +52,8 @@ final _frontMatterOpen = RegExp(r'^---[ \t]*$');
 /// Block-level HTML tags, which may interrupt a paragraph.
 final _htmlBlockTag = RegExp(
   r'^[ \t]{0,3}</?(?:address|article|aside|blockquote|body|center|details|'
-  r'dialog|dd|div|dl|dt|fieldset|figcaption|figure|footer|form|h[1-6]|head|'
-  r'header|hr|html|li|main|nav|ol|p|section|summary|table|tbody|td|tfoot|th|'
+  'dialog|dd|div|dl|dt|fieldset|figcaption|figure|footer|form|h[1-6]|head|'
+  'header|hr|html|li|main|nav|ol|p|section|summary|table|tbody|td|tfoot|th|'
   r'thead|tr|ul)(?:[\s/>]|$)',
   caseSensitive: false,
 );

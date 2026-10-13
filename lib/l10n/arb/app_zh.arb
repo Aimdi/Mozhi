@@ -318,7 +318,7 @@
   "settingsProviderTypeAnthropic": "Anthropic",
   "settingsProviderTypeGemini": "Google Gemini",
   "settingsProviderTypeOllama": "Ollama（原生 API）",
-  "settingsProviderBaseUrl": "Base URL",
+  "settingsProviderBaseUrl": "基础 URL",
   "settingsProviderApiKey": "API 密钥",
   "settingsProviderApiKeyOptional": "API 密钥（可选）",
   "settingsProviderShowKey": "显示 API 密钥",

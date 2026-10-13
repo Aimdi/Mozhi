@@ -45,8 +45,15 @@ void main() {
     expect(snapshot.providerIds, ['a', 'b', 'c']);
   });
 
-  test('isEmpty', () {
+  test('isEmpty and hasUsage', () {
     expect(snapshot.isEmpty, isFalse);
+    expect(snapshot.hasUsage, isTrue);
+    final budgetOnly = UsageSnapshot(
+      currentMonth: october,
+      budgets: const {'c': UsageBudget(monthlyChars: 1)},
+    );
+    expect(budgetOnly.isEmpty, isFalse);
+    expect(budgetOnly.hasUsage, isFalse);
     expect(const UsageSnapshot(currentMonth: october).isEmpty, isTrue);
     expect(
       UsageSnapshot(

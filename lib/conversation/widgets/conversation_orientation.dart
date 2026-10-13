@@ -7,11 +7,7 @@ import 'package:mozhi/translate/widgets/translate_error.dart';
 /// face-to-face mode), so dialogs opened from it are rotated as well and
 /// read the right way up for the person across the table.
 class ConversationOrientation extends InheritedWidget {
-  const ConversationOrientation({
-    required this.upsideDown,
-    required super.child,
-    super.key,
-  });
+  const new({required this.upsideDown, required super.child, super.key});
 
   final bool upsideDown;
 

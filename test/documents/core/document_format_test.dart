@@ -37,7 +37,7 @@ void main() {
     test('sniffs pasted text', () {
       expect(
         DocumentFormat.sniff('WEBVTT\n\n00:01.000 --> 00:02.000\nHi'),
-        .vtt,
+        DocumentFormat.vtt,
       );
       expect(
         DocumentFormat.sniff('\uFEFF1\r\n00:00:01,000 --> 00:00:02,000\nHi'),

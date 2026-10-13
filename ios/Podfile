@@ -1,6 +1,6 @@
-# CocoaPods is only needed for plugins without Swift Package Manager support
-# (the google_mlkit_* plugins and flutter_tts); everything else comes in
-# through SwiftPM. Based on Flutter's Podfile template, plus:
+# With Swift Package Manager enabled (Flutter's default), CocoaPods only
+# serves the plugins without SwiftPM support: the google_mlkit_* plugins and
+# flutter_tts. Based on Flutter's Podfile template, plus:
 # - the flavoured build configurations (see the production/staging/development
 #   schemes), which CocoaPods would otherwise all treat as release;
 # - iOS 15.5, the minimum of Google ML Kit;
@@ -9,8 +9,9 @@
 # Pods-Runner.<configuration>.xcconfig files.
 
 # ML Kit (google_mlkit_text_recognition/translation/language_id) needs 15.5.
+# Keep in sync with IPHONEOS_DEPLOYMENT_TARGET in Runner.xcodeproj.
+platform :ios, '15.5'
 $iOSVersion = '15.5'
-platform :ios, $iOSVersion
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'

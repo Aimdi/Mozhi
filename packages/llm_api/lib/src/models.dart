@@ -126,7 +126,9 @@ class LlmRequest {
   final bool jsonOutput;
 
   /// Reasoning effort hint: `low` | `medium` | `high` (Anthropic also
-  /// `xhigh` | `max`). Anthropic: `output_config: {"effort": ...}`.
+  /// `xhigh` | `max`). Anthropic: `output_config: {"effort": ...}` (retried
+  /// once without it when the API answers 400 mentioning `effort` or
+  /// `output_config`, as models without effort support do).
   /// OpenAI-compatible: `reasoning_effort` (only when non-null).
   /// Ignored by Gemini and Ollama.
   final String? effort;

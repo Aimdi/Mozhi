@@ -28,6 +28,10 @@
 	<string>$(PRODUCT_COPYRIGHT)</string>
 	<key>NSMainNibFile</key>
 	<string>MainMenu</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Mozhi uses the microphone so you can speak the text you want to translate.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Mozhi turns your speech into text so it can be translated. Depending on the language, Apple may process the audio on its servers.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 </dict>

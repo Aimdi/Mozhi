@@ -104,15 +104,16 @@ class ConversationCubit extends Cubit<ConversationState> {
 
     final b = concrete(translate.target) ?? resolve('en');
     final bKey = LanguageMatcher.normalize(b.code);
-    final a = [
-      ?concrete(translate.source),
-      ?byCode(translate.effectiveSourceCode),
-      ?byCode(deviceLanguageCode),
-      resolve('en'),
-      resolve('es'),
-    ].firstWhere(
-      (language) => LanguageMatcher.normalize(language.code) != bKey,
-    );
+    final a =
+        [
+          ?concrete(translate.source),
+          ?byCode(translate.effectiveSourceCode),
+          ?byCode(deviceLanguageCode),
+          resolve('en'),
+          resolve('es'),
+        ].firstWhere(
+          (language) => LanguageMatcher.normalize(language.code) != bKey,
+        );
     return (a: a, b: b);
   }
 

@@ -18,6 +18,8 @@ Uri? normalizeWebUrl(String input) {
     text = link.group(0)!;
   }
   if (!_hasScheme.hasMatch(text)) {
+    // `mailto:x`, `javascript:x`, `about:blank`... (but not `host:8080`).
+    if (_otherScheme.hasMatch(text)) return null;
     text = text.startsWith('//') ? 'https:$text' : 'https://$text';
   }
   final uri = Uri.tryParse(text);
@@ -33,7 +35,7 @@ Uri? normalizeWebUrl(String input) {
   }
   final isIpv6 = host.contains(':');
   if (host != 'localhost' && !isIpv6 && !host.contains('.')) return null;
-  if (!isIpv6 && !_hostCharacters.hasMatch(host)) return null;
+  if (!isIpv6 && !_hostCharacters.hasMatch(_decodeHost(host))) return null;
   return uri.hasFragment ? uri.removeFragment() : uri;
 }
 
@@ -49,7 +51,16 @@ bool isLikelyWebUrl(String text) {
   return _bareDomain.hasMatch(trimmed) && normalizeWebUrl(trimmed) != null;
 }
 
+String _decodeHost(String host) {
+  try {
+    return Uri.decodeComponent(host);
+  } on ArgumentError {
+    return host;
+  }
+}
+
 final _whitespace = RegExp(r'\s');
+final _otherScheme = RegExp(r'^[a-zA-Z][a-zA-Z0-9+.\-]*:(?!\d)');
 final _hasScheme = RegExp(r'^[a-zA-Z][a-zA-Z0-9+.\-]*://');
 final _embeddedLink = RegExp(r'https?://[^\s<>"]+', caseSensitive: false);
 

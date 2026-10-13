@@ -108,11 +108,17 @@ void main() {
     ];
 
     test('chooses the batch encoding per format', () {
-      expect(Chunker.encodingFor(DocumentFormat.plainText), .paragraphs);
-      expect(Chunker.encodingFor(DocumentFormat.markdown), .paragraphs);
-      expect(Chunker.encodingFor(DocumentFormat.srt), .markers);
-      expect(Chunker.encodingFor(DocumentFormat.vtt), .markers);
-      expect(Chunker.encodingFor(DocumentFormat.json), .markers);
+      expect(
+        Chunker.encodingFor(DocumentFormat.plainText),
+        ChunkEncoding.paragraphs,
+      );
+      expect(
+        Chunker.encodingFor(DocumentFormat.markdown),
+        ChunkEncoding.paragraphs,
+      );
+      expect(Chunker.encodingFor(DocumentFormat.srt), ChunkEncoding.markers);
+      expect(Chunker.encodingFor(DocumentFormat.vtt), ChunkEncoding.markers);
+      expect(Chunker.encodingFor(DocumentFormat.json), ChunkEncoding.markers);
     });
 
     test('groups segments up to the size limit', () {

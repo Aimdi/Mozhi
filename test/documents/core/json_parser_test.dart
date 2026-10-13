@@ -154,12 +154,15 @@ void main() {
     });
 
     test('re-escapes changed values and keeps escapes of unchanged ones', () {
-      const text = r'{"a": "Line\nbreak \"quoted\"", "b": "café \/ ok"}';
+      const text = r'{"a": "Line\nbreak \"quoted\"", "b": "caf\u00e9 \/ ok"}';
       final document = parseJson(text);
       expect(texts(document), ['Line\nbreak "quoted"', 'café / ok']);
       expectRoundTrip(document, text);
       final output = document.render(['Zeile\nUmbruch "zitiert"', null]);
-      expect(output, r'{"a": "Zeile\nUmbruch \"zitiert\"", "b": "café \/ ok"}');
+      expect(
+        output,
+        r'{"a": "Zeile\nUmbruch \"zitiert\"", "b": "caf\u00e9 \/ ok"}',
+      );
     });
 
     test('top-level arrays and nested arrays', () {

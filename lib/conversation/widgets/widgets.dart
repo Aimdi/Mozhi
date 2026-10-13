@@ -6,4 +6,5 @@ export 'conversation_orientation.dart';
 export 'conversation_panel.dart';
 export 'conversation_transcript_list.dart';
 export 'conversation_turn_bubble.dart';
+export 'conversation_voice_mic.dart';
 export 'side_colors.dart';

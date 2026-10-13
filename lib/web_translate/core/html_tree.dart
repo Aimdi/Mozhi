@@ -172,7 +172,7 @@ const _closesHeading = {
   'main',
 };
 
-/// Elements that may appear in <head> (anything else closes it).
+/// Elements that may appear in `<head>` (anything else closes it).
 const _headContent = {
   'head',
   'html',

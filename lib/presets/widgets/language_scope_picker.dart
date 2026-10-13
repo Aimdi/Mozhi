@@ -18,11 +18,7 @@ Future<String?> showLanguageScopePicker(
 );
 
 class LanguageScopePicker extends StatefulWidget {
-  const new({
-    required this.title,
-    required this.selected,
-    super.key,
-  });
+  const new({required this.title, required this.selected, super.key});
 
   final String title;
 

@@ -8,7 +8,7 @@ import 'package:translation_repository/translation_repository.dart';
 
 import '../helpers/helpers.dart';
 
-class MockTextRecognizer extends Mock implements TextRecognizer {}
+class MockTextRecognizer extends Mock implements TextRecognizer;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

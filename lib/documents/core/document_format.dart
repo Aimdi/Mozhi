@@ -49,7 +49,8 @@ enum DocumentFormat {
 
   /// Guesses the format of pasted [text].
   static DocumentFormat sniff(String text) {
-    final trimmed = text.trimLeft().replaceFirst('﻿', '');
+    // trimLeft() also drops a byte order mark.
+    final trimmed = text.trimLeft();
     if (trimmed.startsWith('WEBVTT')) return vtt;
     if (_srtCue.hasMatch(trimmed)) return srt;
     if (trimmed.startsWith('{') || trimmed.startsWith('[')) {

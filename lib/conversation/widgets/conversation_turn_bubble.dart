@@ -243,11 +243,7 @@ class ConversationTurnBubble extends StatelessWidget {
 enum _TurnAction { copyOriginal, copyTranslation, delete }
 
 class _DialogOption extends StatelessWidget {
-  const new({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
+  const new({required this.icon, required this.label, required this.value});
 
   final IconData icon;
   final String label;
@@ -269,11 +265,7 @@ class _DialogOption extends StatelessWidget {
 
 /// The translation part of a bubble: streaming text, progress or error.
 class _Translation extends StatelessWidget {
-  const new({
-    required this.turn,
-    required this.style,
-    required this.color,
-  });
+  const new({required this.turn, required this.style, required this.color});
 
   final ConversationTurn turn;
   final TextStyle? style;

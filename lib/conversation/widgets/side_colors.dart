@@ -12,10 +12,7 @@ class ConversationSideColors {
     required this.onAccent,
   });
 
-  factory of(
-    BuildContext context,
-    ConversationSide side,
-  ) {
+  factory of(BuildContext context, ConversationSide side) {
     final scheme = Theme.of(context).colorScheme;
     return switch (side) {
       ConversationSide.a => ConversationSideColors(

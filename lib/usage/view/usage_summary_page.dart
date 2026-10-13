@@ -101,7 +101,7 @@ class UsageSummaryView extends StatelessWidget {
           .totalChars;
       return math.max(max, math.max(thisMonth, lastMonth));
     });
-    final hasUsage = !snapshot.isEmpty;
+    final hasUsage = snapshot.hasUsage;
 
     return Scaffold(
       appBar: AppBar(
