@@ -1,0 +1,82 @@
+# CocoaPods is only needed for plugins without Swift Package Manager support
+# (the google_mlkit_* plugins and flutter_tts); everything else comes in
+# through SwiftPM. Based on Flutter's Podfile template, plus:
+# - the flavoured build configurations (see the production/staging/development
+#   schemes), which CocoaPods would otherwise all treat as release;
+# - iOS 15.5, the minimum of Google ML Kit;
+# - the ML Kit text recognition models for non-Latin scripts.
+# Flutter/Debug.xcconfig and Flutter/Release.xcconfig include the generated
+# Pods-Runner.<configuration>.xcconfig files.
+
+# ML Kit (google_mlkit_text_recognition/translation/language_id) needs 15.5.
+$iOSVersion = '15.5'
+platform :ios, $iOSVersion
+
+# CocoaPods analytics sends network stats synchronously affecting flutter build latency.
+ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+
+project 'Runner', {
+  'Debug-production' => :debug,
+  'Debug-staging' => :debug,
+  'Debug-development' => :debug,
+  'Profile-production' => :release,
+  'Profile-staging' => :release,
+  'Profile-development' => :release,
+  'Release-production' => :release,
+  'Release-staging' => :release,
+  'Release-development' => :release,
+}
+
+def flutter_root
+  generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
+  unless File.exist?(generated_xcode_build_settings_path)
+    raise "#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure flutter pub get is executed first"
+  end
+
+  File.foreach(generated_xcode_build_settings_path) do |line|
+    matches = line.match(/FLUTTER_ROOT\=(.*)/)
+    return matches[1].strip if matches
+  end
+  raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}. Try deleting Generated.xcconfig, then run flutter pub get"
+end
+
+require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
+
+flutter_ios_podfile_setup
+
+target 'Runner' do
+  use_frameworks!
+
+  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+
+  # Camera translate: google_mlkit_text_recognition only links the Latin
+  # model. Without these, TextRecognitionScript.chinese/devanagiri/japanese/
+  # korean fail on iOS. Keep the version in line with the plugin's
+  # 'GoogleMLKit/TextRecognition' dependency (~> 9.0.0 in 0.17.1). Each adds
+  # several MB to the app.
+  pod 'GoogleMLKit/TextRecognitionChinese', '~> 9.0.0'
+  pod 'GoogleMLKit/TextRecognitionDevanagari', '~> 9.0.0'
+  pod 'GoogleMLKit/TextRecognitionJapanese', '~> 9.0.0'
+  pod 'GoogleMLKit/TextRecognitionKorean', '~> 9.0.0'
+
+  target 'RunnerTests' do
+    inherit! :search_paths
+  end
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    flutter_additional_ios_build_settings(target)
+
+    # Raise pods below ML Kit's minimum (as its README recommends) so that no
+    # pod is built for an older iOS than the app.
+    target.build_configurations.each do |config|
+      current = config.build_settings['IPHONEOS_DEPLOYMENT_TARGET']
+      next if current.nil? || current.empty?
+
+      if Gem::Version.new(current) < Gem::Version.new($iOSVersion)
+        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = $iOSVersion
+      end
+    end
+  end
+end

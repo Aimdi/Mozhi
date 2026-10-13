@@ -13,18 +13,21 @@
          on devices without one (voice input is optional). -->
     <uses-feature android:name="android.hardware.microphone" android:required="false"/>
 
-    <!-- Backups: settings and history are backed up (cloud backups only when
-         they can be end-to-end encrypted), but flutter_secure_storage's
-         preference files (API keys) are excluded from both cloud backup and
-         device-to-device transfer. Their AndroidKeyStore wrapping keys never
-         leave the device, so restored ciphertext could not be decrypted
-         anyway. See res/xml/data_extraction_rules.xml (Android 12+) and
-         res/xml/backup_rules.xml (Android 11 and lower). -->
+    <!-- Backup policy ("history stays on device", reviews/security.md W7):
+         - No cloud backup (allowBackup="false"): history, settings and API
+           keys never go to Google Drive.
+         - Android 12+ still allows device-to-device transfer when setting up
+           a new phone; res/xml/data_extraction_rules.xml lets settings and
+           history move with the user but excludes flutter_secure_storage's
+           files (API keys): their AndroidKeyStore wrapping keys never leave
+           the device, so a copy could not be decrypted anyway.
+         - res/xml/backup_rules.xml (Android 11 and lower) mirrors the
+           exclusions in case backups are ever re-enabled. -->
     <application
         android:label="${appName}"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:fullBackupContent="@xml/backup_rules"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:enableOnBackInvokedCallback="true"

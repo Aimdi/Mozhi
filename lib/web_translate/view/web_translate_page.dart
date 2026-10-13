@@ -75,11 +75,7 @@ class WebTranslatePage extends StatelessWidget {
 }
 
 class WebTranslateView extends StatefulWidget {
-  const new({
-    this.autoLoad = false,
-    this.isWeb = false,
-    super.key,
-  });
+  const new({this.autoLoad = false, this.isWeb = false, super.key});
 
   /// Loads the cubit's address after the first frame.
   final bool autoLoad;

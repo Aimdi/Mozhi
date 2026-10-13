@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/services.dart';
@@ -30,7 +29,7 @@ class MockImageTranslateCubit extends MockCubit<ImageTranslateState>
 class MockGoRouter extends Mock implements GoRouter {}
 
 /// A valid 1x1 PNG.
-final pngBytes = base64Decode(
+final Uint8List pngBytes = base64Decode(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA'
   '60e6kgAAAABJRU5ErkJggg==',
 );
@@ -116,15 +115,15 @@ const ollamaProvider = AiProviderConfig(
   model: 'gemma3',
 );
 
-const allEngines = [google, deepl, claude, ollama];
-const allProviders = [claudeProvider, ollamaProvider];
+const List<TranslationEngine> allEngines = [google, deepl, claude, ollama];
+const List<AiProviderConfig> allProviders = [claudeProvider, ollamaProvider];
 
 const english = Language(code: 'en', name: 'English', nativeName: 'English');
 const french = Language(code: 'fr', name: 'French', nativeName: 'Français');
 const german = Language(code: 'de', name: 'German', nativeName: 'Deutsch');
 const japanese = Language(code: 'ja', name: 'Japanese', nativeName: '日本語');
 
-const languages = [english, french, german, japanese];
+const List<Language> languages = [english, french, german, japanese];
 
 const mozhiMethod = ImageTranslateMethod.mozhiLens(google);
 const claudeMethod = ImageTranslateMethod.aiVision(claude);
@@ -140,7 +139,7 @@ class FakeImagePickerService implements ImagePickerService {
   PickedImage? image;
 
   /// Thrown by [pick] when set.
-  Object? error;
+  Exception? error;
 
   final picks = <ImagePickSource>[];
 
@@ -157,7 +156,7 @@ class FakeImageEncoder implements ImageEncoder {
   FakeImageEncoder({Uint8List? output}) : output = output ?? encodedPng;
 
   Uint8List output;
-  Object? error;
+  Exception? error;
   final inputs = <Uint8List>[];
 
   @override
@@ -179,7 +178,7 @@ class FakeTextRecognitionService implements TextRecognitionService {
   @override
   bool isSupported;
   String text;
-  Object? error;
+  Exception? error;
 
   /// When set, [recognize] waits for it.
   Completer<void>? gate;

@@ -17,11 +17,7 @@ sealed class HtmlToken {
 
 /// `<name attr="value">`; [name] and attribute names are lower-cased.
 final class HtmlStartTag extends HtmlToken {
-  const new(
-    this.name, {
-    this.attributes = const {},
-    this.selfClosing = false,
-  });
+  const new(this.name, {this.attributes = const {}, this.selfClosing = false});
 
   final String name;
   final Map<String, String> attributes;

@@ -7,7 +7,7 @@ import 'package:mozhi/l10n/l10n.dart';
 /// Address field with paste and clear buttons. Submitting (keyboard "go")
 /// calls [onSubmitted].
 class WebUrlField extends StatelessWidget {
-  const WebUrlField({
+  const new({
     required this.controller,
     required this.onChanged,
     required this.onSubmitted,

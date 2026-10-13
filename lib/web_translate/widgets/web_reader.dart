@@ -27,7 +27,7 @@ ReaderMode effectiveReaderMode(ReaderMode mode, {required bool wide}) =>
 /// The loaded page as slivers: a header (title, source link, engine, mode
 /// toggle, notices) followed by the blocks in the selected [ReaderMode].
 class WebReaderSliver extends StatelessWidget {
-  const WebReaderSliver({required this.wide, super.key});
+  const new({required this.wide, super.key});
 
   /// Whether side by side is available.
   final bool wide;
@@ -98,7 +98,7 @@ class WebReaderSliver extends StatelessWidget {
 
 /// Title, source link, engine label, reader mode toggle and notices.
 class WebReaderHeader extends StatelessWidget {
-  const WebReaderHeader({required this.mode, required this.wide, super.key});
+  const new({required this.mode, required this.wide, super.key});
 
   final ReaderMode mode;
   final bool wide;
@@ -220,7 +220,7 @@ class WebReaderHeader extends StatelessWidget {
 }
 
 class _Notice extends StatelessWidget {
-  const _Notice(this.message);
+  const new(this.message);
 
   final String message;
 
@@ -251,7 +251,7 @@ class _Notice extends StatelessWidget {
 
 /// App bar actions for a loaded page: open the original, copy all, share.
 class WebTranslateActions extends StatelessWidget {
-  const WebTranslateActions({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) {

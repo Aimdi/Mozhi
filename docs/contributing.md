@@ -87,13 +87,13 @@ find lib test packages -name '*.dart' -not -path 'lib/l10n/gen/*' \
 flutter analyze
 dart run bloc_tools:bloc lint lib
 
-# Pure Dart packages
-(cd packages/mozhi_api && dart test)
-(cd packages/llm_api && dart test)
-(cd packages/translation_repository && dart test)
+# Packages: `dart test` for pure Dart ones, `flutter test` for Flutter ones
+# (mlkit_translator)
+for p in packages/*/; do
+  (cd "$p" && if grep -q 'sdk: flutter' pubspec.yaml; then flutter test; else dart test; fi)
+done
 
-# Flutter package and app
-(cd packages/mlkit_translator && flutter test)
+# App
 flutter test --coverage
 ```
 

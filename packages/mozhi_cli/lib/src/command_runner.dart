@@ -141,7 +141,11 @@ Exit codes: 0 success, 64 usage error, 66 missing input file,
         _logger.detail('  - $option: ${topLevelResults[option]}');
       }
     }
-    if (topLevelResults.command case final command?) {
+    for (
+      var command = topLevelResults.command;
+      command != null;
+      command = command.command
+    ) {
       _logger
         ..detail('  Command: ${command.name}')
         ..detail('    Command options:');

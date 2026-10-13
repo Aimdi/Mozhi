@@ -6,7 +6,7 @@ import 'package:mozhi/web_translate/widgets/web_translate_messages.dart';
 /// Renders one [ReadableBlock] with [text] (the translation or the
 /// original). [pending] blocks (not translated yet) are dimmed.
 class ReadableBlockView extends StatelessWidget {
-  const ReadableBlockView({
+  const new({
     required this.block,
     required this.text,
     this.pending = false,
@@ -28,7 +28,7 @@ class ReadableBlockView extends StatelessWidget {
     final colors = theme.colorScheme;
     final body = textTheme.bodyLarge?.copyWith(height: 1.55);
 
-    final Widget content = switch (block.kind) {
+    final content = switch (block.kind) {
       ReadableBlockKind.heading1 ||
       ReadableBlockKind.heading2 ||
       ReadableBlockKind.heading3 ||

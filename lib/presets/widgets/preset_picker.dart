@@ -29,7 +29,7 @@ enum PresetPickerVariant {
 /// the glossary and one-off instructions of [value] are kept). "Default"
 /// resets the settings to the standard [TranslationOptions].
 class PresetPicker extends StatelessWidget {
-  const PresetPicker({
+  const new({
     required this.value,
     required this.onChanged,
     this.onManagePresets,

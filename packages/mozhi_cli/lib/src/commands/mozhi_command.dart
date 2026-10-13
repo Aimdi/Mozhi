@@ -25,18 +25,29 @@ abstract class MozhiCommand extends Command<int> {
 
   ConfigStore? _store;
   CliConfig? _config;
+  ArgResults? _cachedFor;
+
+  /// Commands are reused when a runner runs several times: forget what was
+  /// loaded for previous arguments.
+  void _invalidate() {
+    if (identical(_cachedFor, argResults)) return;
+    _cachedFor = argResults;
+    _store = null;
+    _config = null;
+  }
 
   /// The configuration store (`--config` overrides the default location).
-  ConfigStore get configStore => _store ??= context.configStoreFactory(
-    (globalResults?['config'] as String?) ??
-        ConfigStore.defaultPath(
-          console.environment,
-          isWindows: console.isWindows,
-        ),
-  );
+  ConfigStore get configStore =>
+      (this.._invalidate())._store ??= context.configStoreFactory(
+        (globalResults?['config'] as String?) ??
+            ConfigStore.defaultPath(
+              console.environment,
+              isWindows: console.isWindows,
+            ),
+      );
 
   /// The stored configuration (loaded once).
-  CliConfig get config => _config ??= configStore.load();
+  CliConfig get config => (this.._invalidate())._config ??= configStore.load();
 
   /// Saves [config] and makes it the current configuration.
   void saveConfig(CliConfig config) {

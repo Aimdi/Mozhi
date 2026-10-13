@@ -11,7 +11,7 @@ import 'package:mozhi/l10n/l10n.dart';
 /// [viewer] selects the face-to-face perspective (see
 /// [ConversationTurnBubble]); null is the shared standard layout.
 class ConversationTranscriptList extends StatelessWidget {
-  const ConversationTranscriptList({this.viewer, super.key});
+  const new({this.viewer, super.key});
 
   final ConversationSide? viewer;
 
@@ -47,7 +47,7 @@ class ConversationTranscriptList extends StatelessWidget {
 }
 
 class _EmptyTranscript extends StatelessWidget {
-  const _EmptyTranscript();
+  const new();
 
   @override
   Widget build(BuildContext context) {

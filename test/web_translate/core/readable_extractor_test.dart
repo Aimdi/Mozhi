@@ -195,12 +195,7 @@ void main() {
           'Was du brauchst',
           'Mein Fütterungsplan',
         ]);
-        expect(
-          page.blocks.first.kind,
-          ReadableBlockKind.heading2.isHeading
-              ? isNot(ReadableBlockKind.heading1)
-              : anything,
-        );
+        expect(page.blocks.first.text, 'Veröffentlicht am 3. Mai 2024');
         expect(allText(page), isNot(contains('Archiv')));
         expect(allText(page), isNot(contains('Impressum')));
       });

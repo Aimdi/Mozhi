@@ -120,10 +120,7 @@ class ReadablePage extends Equatable {
 /// bars, comments, sidebars and the like are removed. When this leaves
 /// almost nothing the page is extracted again without the class/id rules.
 class ReadableExtractor {
-  const new({
-    this.minArticleLength = 200,
-    this.retryThreshold = 250,
-  });
+  const new({this.minArticleLength = 200, this.retryThreshold = 250});
 
   /// Characters a semantic container (`article`, `main`) needs to be
   /// trusted as the main content (unless the whole page is shorter).
@@ -460,13 +457,7 @@ class ReadableExtractor {
 // ---------------------------------------------------------------------
 
 class _Metadata {
-  new({
-    this.title,
-    this.ogTitle,
-    this.siteName,
-    this.language,
-    this.baseHref,
-  });
+  new({this.title, this.ogTitle, this.siteName, this.language, this.baseHref});
 
   factory of(HtmlElement document) {
     String? title;

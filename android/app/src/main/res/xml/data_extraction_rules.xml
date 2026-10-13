@@ -1,23 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Backup and device-to-device transfer rules for Android 12+ (API 31+);
-     Android 11 and lower use backup_rules.xml.
+<!-- Backup and transfer rules for Android 12+ (API 31+); Android 11 and lower
+     use backup_rules.xml. See the policy comment in AndroidManifest.xml.
 
-     Everything else (settings and translation history in the
-     SharedPreferences/DataStore files) is backed up so a new phone or a
-     reinstall keeps them. Excluded: flutter_secure_storage's preference files,
-     which hold the AI provider API keys. Their values are encrypted with
-     AndroidKeyStore keys that never leave the device, so restored copies
-     could not be decrypted (InvalidKeyException) and would only leak
-     ciphertext into the backup. Users re-enter API keys after a restore.
-     File names are the plugin defaults (no custom sharedPreferencesName /
-     storageNamespace in lib/bootstrap.dart). -->
+     Files involved:
+     - sharedpref FlutterSecureStorage.xml / FlutterSecureKeyStorage.xml:
+       flutter_secure_storage (AI provider API keys). The values are encrypted
+       with AndroidKeyStore keys that never leave the device, so a copy could
+       not be decrypted elsewhere ("Failed to unwrap key"). Default file names:
+       lib/bootstrap.dart sets no sharedPreferencesName / storageNamespace.
+     - file datastore/: shared_preferences (SharedPreferencesAsync), i.e.
+       settings and translation history. -->
 <data-extraction-rules>
-    <!-- Only back up to the cloud when the backup is end-to-end encrypted
-         (requires a screen lock). -->
+    <!-- Cloud backup is already off (android:allowBackup="false"); these
+         rules keep history and keys out of it should that ever change. -->
     <cloud-backup disableIfNoEncryptionCapabilities="true">
         <exclude domain="sharedpref" path="FlutterSecureStorage.xml" />
         <exclude domain="sharedpref" path="FlutterSecureKeyStorage.xml" />
+        <exclude domain="file" path="datastore" />
     </cloud-backup>
+    <!-- Device-to-device transfer (setting up a new phone) is not affected by
+         allowBackup on Android 12+: settings and history move with the user,
+         API keys do not (they have to be entered again). -->
     <device-transfer>
         <exclude domain="sharedpref" path="FlutterSecureStorage.xml" />
         <exclude domain="sharedpref" path="FlutterSecureKeyStorage.xml" />

@@ -9,7 +9,7 @@ import 'package:mozhi/web_translate/widgets/web_translate_messages.dart';
 /// Loading / translating progress (with a stop button), the stopped state
 /// (with "continue"), errors (with retry) and "no engine" information.
 class WebTranslateStatusPanel extends StatelessWidget {
-  const WebTranslateStatusPanel({required this.onRetryLoad, super.key});
+  const new({required this.onRetryLoad, super.key});
 
   /// Reloads the page (used when loading failed).
   final VoidCallback onRetryLoad;
@@ -117,7 +117,7 @@ class WebTranslateStatusPanel extends StatelessWidget {
 }
 
 class _Banner extends StatelessWidget {
-  const _Banner({
+  const new({
     required this.icon,
     required this.message,
     this.action,
@@ -169,7 +169,7 @@ class _Banner extends StatelessWidget {
 
 /// Shown before anything is loaded.
 class WebTranslateEmptyState extends StatelessWidget {
-  const WebTranslateEmptyState({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -206,7 +206,7 @@ class WebTranslateEmptyState extends StatelessWidget {
 
 /// Web builds: explains the cross-origin (CORS) limitation.
 class WebTranslateWebNotice extends StatelessWidget {
-  const WebTranslateWebNotice({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) {
