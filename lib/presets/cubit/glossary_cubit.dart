@@ -1,0 +1,216 @@
+import 'dart:async';
+
+import 'package:bloc/bloc.dart';
+import 'package:mozhi/presets/cubit/glossary_state.dart';
+import 'package:mozhi/presets/data/glossary_repository.dart';
+import 'package:mozhi/presets/models/glossary.dart';
+
+export 'glossary_state.dart';
+
+/// Outcome of [GlossaryCubit.importTerms].
+typedef TermImport = ({int added, int updated, int skipped});
+
+/// Manages the user's glossaries. `repository` defaults to a
+/// [GlossaryRepository] backed by the platform preferences.
+///
+/// Every change is emitted first and then written through; storage errors
+/// are reported via `addError` and never thrown. The import methods throw
+/// [FormatException] for invalid input (the state is unchanged then).
+class GlossaryCubit extends Cubit<GlossaryState> {
+  GlossaryCubit({GlossaryRepository? repository})
+    : _repository = repository ?? GlossaryRepository(),
+      super(const GlossaryState());
+
+  final GlossaryRepository _repository;
+
+  Future<void> load() async {
+    emit(state.copyWith(status: GlossaryStatus.loading));
+    try {
+      final glossaries = await _repository.load();
+      if (isClosed) return;
+      emit(GlossaryState(status: GlossaryStatus.ready, glossaries: glossaries));
+    } on Object catch (error, stackTrace) {
+      if (!isClosed) emit(state.copyWith(status: GlossaryStatus.failure));
+      addError(error, stackTrace);
+    }
+  }
+
+  /// Terms of the enabled glossaries matching the pair, ready for
+  /// `TranslationOptions.glossary` (see [mergeActiveGlossaries]).
+  Map<String, String> activeGlossary({
+    required String sourceCode,
+    required String targetCode,
+  }) => state.activeGlossary(sourceCode: sourceCode, targetCode: targetCode);
+
+  /// Appends a new, enabled glossary.
+  Future<Glossary> create({
+    required String name,
+    String sourceCode = LanguageScope.any,
+    String targetCode = LanguageScope.any,
+    List<GlossaryTerm> terms = const [],
+  }) async {
+    final glossary = Glossary(
+      id: _repository.newId(),
+      name: name.trim(),
+      sourceCode: LanguageScope.normalize(sourceCode),
+      targetCode: LanguageScope.normalize(targetCode),
+      terms: mergeTerms(const [], terms).terms,
+    );
+    await _commit([...state.glossaries, glossary]);
+    return glossary;
+  }
+
+  /// Replaces the glossary with the same id (no-op when it is unknown).
+  Future<void> save(Glossary glossary) => _change(
+    glossary.id,
+    (_) => glossary.copyWith(name: glossary.name.trim()),
+  );
+
+  Future<void> rename(String id, String name) =>
+      _change(id, (glossary) => glossary.copyWith(name: name.trim()));
+
+  Future<void> setScope(
+    String id, {
+    required String sourceCode,
+    required String targetCode,
+  }) => _change(
+    id,
+    (glossary) =>
+        glossary.copyWith(sourceCode: sourceCode, targetCode: targetCode),
+  );
+
+  Future<void> setEnabled(String id, {required bool enabled}) =>
+      _change(id, (glossary) => glossary.copyWith(enabled: enabled));
+
+  Future<void> delete(String id) async {
+    if (state.byId(id) == null) return;
+    await _commit([
+      for (final glossary in state.glossaries)
+        if (glossary.id != id) glossary,
+    ]);
+  }
+
+  /// Puts a deleted [glossary] back at [index] (clamped), e.g. for undo.
+  Future<void> restore(Glossary glossary, {required int index}) async {
+    final glossaries = [
+      for (final existing in state.glossaries)
+        if (existing.id != glossary.id) existing,
+    ];
+    glossaries.insert(index.clamp(0, glossaries.length), glossary);
+    await _commit(glossaries);
+  }
+
+  /// Moves the glossary at [from] to index [to]
+  /// (`ReorderableListView.onReorderItem` semantics).
+  Future<void> move(int from, int to) async {
+    final length = state.glossaries.length;
+    if (from == to || from < 0 || to < 0 || from >= length || to >= length) {
+      return;
+    }
+    final glossaries = [...state.glossaries];
+    glossaries.insert(to, glossaries.removeAt(from));
+    await _commit(glossaries);
+  }
+
+  /// Adds [term], replacing an existing term with the same source
+  /// ([GlossaryTerm.sameSourceAs]). Invalid terms are ignored.
+  Future<void> addTerm(String id, GlossaryTerm term) => _change(
+    id,
+    (glossary) =>
+        glossary.copyWith(terms: mergeTerms(glossary.terms, [term]).terms),
+  );
+
+  /// Replaces the term at [index]. A term elsewhere with the same source is
+  /// removed so sources stay unique. Invalid terms are ignored.
+  Future<void> updateTerm(String id, int index, GlossaryTerm term) =>
+      _change(id, (glossary) {
+        if (!term.isValid || index < 0 || index >= glossary.terms.length) {
+          return glossary;
+        }
+        final updated = term.trimmed();
+        final terms = <GlossaryTerm>[];
+        for (var i = 0; i < glossary.terms.length; i++) {
+          if (i == index) {
+            terms.add(updated);
+          } else if (!glossary.terms[i].sameSourceAs(updated)) {
+            terms.add(glossary.terms[i]);
+          }
+        }
+        return glossary.copyWith(terms: terms);
+      });
+
+  Future<void> removeTerm(String id, int index) => _change(id, (glossary) {
+    if (index < 0 || index >= glossary.terms.length) return glossary;
+    return glossary.copyWith(terms: [...glossary.terms]..removeAt(index));
+  });
+
+  /// Inserts [term] at [index] (clamped), e.g. to undo [removeTerm].
+  Future<void> insertTerm(String id, int index, GlossaryTerm term) =>
+      _change(id, (glossary) {
+        final terms = [...glossary.terms]
+          ..insert(index.clamp(0, glossary.terms.length), term);
+        return glossary.copyWith(terms: terms);
+      });
+
+  /// Adds the terms from pasted CSV / TSV / JSON text
+  /// ([GlossaryRepository.parseTerms]) to glossary [id].
+  ///
+  /// Throws [FormatException] when no term is found or [id] is unknown.
+  Future<TermImport> importTerms(String id, String text) async {
+    final glossary = state.byId(id);
+    if (glossary == null) throw FormatException('Unknown glossary $id');
+    final parsed = GlossaryRepository.parseTerms(text);
+    final merge = mergeTerms(glossary.terms, parsed.terms);
+    await _change(id, (current) => current.copyWith(terms: merge.terms));
+    return (
+      added: merge.added,
+      updated: merge.updated,
+      skipped: parsed.skipped,
+    );
+  }
+
+  /// Glossary [id] as CSV, TSV or JSON; `null` when it is unknown.
+  String? exportTerms(String id, GlossaryExportFormat format) {
+    final glossary = state.byId(id);
+    return glossary == null
+        ? null
+        : GlossaryRepository.exportTerms(glossary, format);
+  }
+
+  /// Pretty JSON of all glossaries, or only of [ids].
+  String exportJson({Set<String>? ids}) => GlossaryRepository.exportJson([
+    for (final glossary in state.glossaries)
+      if (ids == null || ids.contains(glossary.id)) glossary,
+  ]);
+
+  /// Appends the glossaries in [json] (with new ids); returns their count.
+  /// Throws [FormatException] for invalid input.
+  Future<int> importJson(String json) async {
+    final imported = _repository.parseImport(json);
+    if (imported.isEmpty) return 0;
+    await _commit([...state.glossaries, ...imported]);
+    return imported.length;
+  }
+
+  Future<void> _change(String id, Glossary Function(Glossary) change) async {
+    final index = state.glossaries.indexWhere((g) => g.id == id);
+    if (index < 0) return;
+    final current = state.glossaries[index];
+    final next = change(current);
+    if (next == current) return;
+    final glossaries = [...state.glossaries];
+    glossaries[index] = next.copyWith(id: id);
+    await _commit(glossaries);
+  }
+
+  Future<void> _commit(List<Glossary> glossaries) async {
+    if (isClosed) return;
+    final next = List<Glossary>.unmodifiable(glossaries);
+    emit(GlossaryState(status: GlossaryStatus.ready, glossaries: next));
+    try {
+      await _repository.save(next);
+    } on Object catch (error, stackTrace) {
+      addError(error, stackTrace);
+    }
+  }
+}

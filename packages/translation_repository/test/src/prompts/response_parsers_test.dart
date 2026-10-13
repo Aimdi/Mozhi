@@ -381,6 +381,11 @@ void main() {
         'Translation: Bonjour',
       );
       expect(clean('Translation:'), 'Translation:');
+      // The source starts with a label of its own.
+      expect(
+        clean('Translation: the act of translating', 'Traducción: el acto'),
+        'Translation: the act of translating',
+      );
       expect(clean('Translations are hard'), 'Translations are hard');
     });
 
@@ -412,6 +417,11 @@ void main() {
         'Bonjour.\n\nNote : à demain.',
       );
       expect(clean('Note: bonjour'), 'Note: bonjour');
+      // The source has a matching final paragraph.
+      expect(
+        clean('Bonjour.\n\nNote: demain.', 'Hallo.\n\nHinweis: morgen.'),
+        'Bonjour.\n\nNote: demain.',
+      );
     });
 
     test('combines several cleanups', () {

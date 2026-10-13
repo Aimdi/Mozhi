@@ -1,0 +1,179 @@
+# Self-hosted back ends for the Mozhi app.
+#
+#   docker compose up -d                          # Mozhi only (port 3000)
+#   docker compose --profile ai up -d             # + Ollama for local AI (port 11434)
+#   docker compose --profile libre up -d          # + LibreTranslate behind Mozhi
+#   docker compose --profile https up -d          # + Caddy with automatic HTTPS
+#
+# Profiles can be combined (--profile ai --profile libre) or listed in .env
+# as COMPOSE_PROFILES=ai,libre. Copy .env.example to .env to change the
+# defaults below. See README.md in this directory and
+# docs/self-hosting-mozhi.md for the full guide.
+#
+# Requires Docker Compose v2.20 or newer.
+
+name: mozhi
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  mozhi:
+    # The official image (codeberg.org/aryak/mozhi:latest) is built FROM
+    # scratch: it has no shell and no wget, so a health check cannot run
+    # inside it as published. This two-line build adds BusyBox's static wget
+    # and nothing else. Update with: docker compose build --pull mozhi
+    #
+    # Prefer the plain image? Replace the whole `build:` block with
+    #   image: codeberg.org/aryak/mozhi:latest
+    # and delete `healthcheck:` (and the caddy `depends_on` condition).
+    build:
+      dockerfile_inline: |
+        FROM busybox:1.37-musl AS busybox
+        FROM codeberg.org/aryak/mozhi:latest
+        COPY --from=busybox /bin/wget /usr/local/bin/wget
+    restart: unless-stopped
+    ports:
+      # Set MOZHI_BIND_ADDRESS=127.0.0.1 when only the https profile (or
+      # another reverse proxy on this host) should reach Mozhi.
+      - "${MOZHI_BIND_ADDRESS:-0.0.0.0}:${MOZHI_PUBLISHED_PORT:-3000}:3000"
+    environment:
+      # Port inside the container. Keep 3000 (the health check and Caddy use
+      # it); change MOZHI_PUBLISHED_PORT instead.
+      MOZHI_PORT: "3000"
+
+      # Defaults of Mozhi's own web page. The app always sends the engine and
+      # languages itself, so these do not change what the app does.
+      MOZHI_DEFAULT_ENGINE: ${MOZHI_DEFAULT_ENGINE:-google}
+      MOZHI_DEFAULT_SOURCE_LANG: ${MOZHI_DEFAULT_SOURCE_LANG:-auto}
+      MOZHI_DEFAULT_TARGET_LANG: ${MOZHI_DEFAULT_TARGET_LANG:-en}
+      MOZHI_DEFAULT_PREFER_AUTODETECT: ${MOZHI_DEFAULT_PREFER_AUTODETECT:-false}
+
+      # Engines. An engine is enabled only when its variable is unset or
+      # exactly "true"; any other value (including an empty one) disables it.
+      MOZHI_GOOGLE_ENABLED: ${MOZHI_GOOGLE_ENABLED:-true}
+      MOZHI_DEEPL_ENABLED: ${MOZHI_DEEPL_ENABLED:-true}
+      MOZHI_REVERSO_ENABLED: ${MOZHI_REVERSO_ENABLED:-true}
+      MOZHI_YANDEX_ENABLED: ${MOZHI_YANDEX_ENABLED:-true}
+      MOZHI_MYMEMORY_ENABLED: ${MOZHI_MYMEMORY_ENABLED:-true}
+      MOZHI_DUCKDUCKGO_ENABLED: ${MOZHI_DUCKDUCKGO_ENABLED:-true}
+
+      # LibreTranslate needs a LibreTranslate server. The URL already points
+      # at the `libre` profile's container; set MOZHI_LIBRETRANSLATE_ENABLED
+      # to true when that profile (or your own server) is running.
+      MOZHI_LIBRETRANSLATE_ENABLED: ${MOZHI_LIBRETRANSLATE_ENABLED:-false}
+      MOZHI_LIBRETRANSLATE_URL: ${MOZHI_LIBRETRANSLATE_URL:-http://libretranslate:5000}
+
+      # Optional: user agent Mozhi sends to the engines. Passed through only
+      # when set in .env or the shell.
+      MOZHI_USER_AGENT:
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/wget", "-q", "--spider", "-T", "5", "http://127.0.0.1:3000/api/version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    user: "65534:65534"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    logging: *logging
+
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ai"]
+    restart: unless-stopped
+    ports:
+      # Ollama has no authentication: anyone who can reach this port can use
+      # your models. Use 127.0.0.1 plus the https profile (see Caddyfile) to
+      # require a key, or keep it on a trusted LAN / VPN.
+      - "${OLLAMA_BIND_ADDRESS:-0.0.0.0}:${OLLAMA_PUBLISHED_PORT:-11434}:11434"
+    environment:
+      OLLAMA_HOST: "0.0.0.0:11434"
+      # Keep a model in memory between translations (first request after
+      # unloading is slow).
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-30m}
+      # Room for long texts plus the translation prompt.
+      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-8192}
+      # Only needed by the Mozhi *web* app: its origin, e.g.
+      # https://example.com (or * for any). Passed through when set.
+      OLLAMA_ORIGINS:
+    volumes:
+      - ollama:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    logging: *logging
+    # NVIDIA GPU (needs the NVIDIA Container Toolkit): uncomment.
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+    # AMD GPU: use image ollama/ollama:rocm and uncomment.
+    # devices:
+    #   - /dev/kfd
+    #   - /dev/dri
+
+  libretranslate:
+    image: libretranslate/libretranslate:latest
+    profiles: ["libre"]
+    restart: unless-stopped
+    # Not published: only Mozhi talks to it, over the compose network.
+    # Uncomment to use it directly as well.
+    # ports:
+    #   - "5000:5000"
+    environment:
+      # Languages to download and load, e.g. the ones Mozhi offers for
+      # LibreTranslate: en,ar,zh,fr,de,hi,id,ga,it,ja,ko,pl,pt,ru,es,tr,vi
+      # Unset = every language (several GB, slow first start).
+      LT_LOAD_ONLY:
+      LT_UPDATE_MODELS: "true"
+    volumes:
+      - libretranslate_models:/home/libretranslate/.local:rw
+    healthcheck:
+      test: ["CMD-SHELL", "./venv/bin/python scripts/healthcheck.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      # The first start downloads language models.
+      start_period: 10m
+    logging: *logging
+
+  caddy:
+    image: caddy:2
+    profiles: ["https"]
+    restart: unless-stopped
+    depends_on:
+      mozhi:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      # Public DNS name pointing at this host; Caddy gets a certificate for
+      # it automatically. `localhost` uses Caddy's internal CA.
+      MOZHI_DOMAIN: ${MOZHI_DOMAIN:-localhost}
+      # Used only by the optional Ollama site in the Caddyfile.
+      OLLAMA_DOMAIN: ${OLLAMA_DOMAIN:-ollama.localhost}
+      OLLAMA_API_KEY:
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    logging: *logging
+
+volumes:
+  ollama:
+  libretranslate_models:
+  caddy_data:
+  caddy_config:

@@ -1,3 +1,4 @@
+export 'ai_generated_header.dart';
 export 'compare_panel.dart';
 export 'dictionary_card.dart';
 export 'engine_selector.dart';

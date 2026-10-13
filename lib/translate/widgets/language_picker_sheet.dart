@@ -230,7 +230,7 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
         ...matches.map(tile),
         if (styles.isNotEmpty) ...[
           _Header(l10n.translatePickerStyles),
-          ...styles.map(tile),
+          _StyleChips(styles: styles, selected: selected, onPick: _pick),
         ],
       ];
     }
@@ -293,7 +293,7 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
             ),
           ),
         ),
-        ...styles.map(tile),
+        _StyleChips(styles: styles, selected: selected, onPick: _pick),
       ],
       _Header(l10n.translatePickerAll),
       ...regular.map(tile),
@@ -319,6 +319,40 @@ class _Header extends StatelessWidget {
             color: theme.colorScheme.primary,
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Custom AI "languages" (LinkedIn Speak, Pirate speak, ...) as chips.
+class _StyleChips extends StatelessWidget {
+  const new({
+    required this.styles,
+    required this.selected,
+    required this.onPick,
+  });
+
+  final List<Language> styles;
+  final Language selected;
+  final ValueChanged<Language> onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 4, 24, 8),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final style in styles)
+            ChoiceChip(
+              avatar: const Icon(Icons.auto_awesome),
+              label: Text(style.name),
+              selected: style == selected,
+              showCheckmark: false,
+              onSelected: (_) => onPick(style),
+            ),
+        ],
       ),
     );
   }

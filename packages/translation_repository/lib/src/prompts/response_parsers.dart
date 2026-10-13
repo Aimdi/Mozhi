@@ -462,8 +462,13 @@ abstract final class ResponseParsers {
     caseSensitive: false,
   );
 
+  /// "Word:" at the start of a text (a label such as "Traducción:").
+  static final _anyLabel = RegExp(r'^\s*[^\s:：][^\n:：]{0,40}[:：]');
+
   static String _stripLabel(String text, String source) {
-    if (_labelPattern.hasMatch(source)) return text;
+    // A source that starts with a label of its own (in any language) may
+    // legitimately translate to "Translation:".
+    if (_anyLabel.hasMatch(source)) return text;
     final match = _labelPattern.firstMatch(text);
     if (match == null) return text;
     final rest = text.substring(match.end).trim();
@@ -521,12 +526,18 @@ abstract final class ResponseParsers {
     caseSensitive: false,
   );
 
+  static final _paragraphBreak = RegExp(r'\r?\n[ \t]*\r?\n');
+
+  /// Drops a final "Note: ..." paragraph that the source has no counterpart
+  /// for (the output has more paragraphs than the source).
   static String _stripTrailingNote(String text, String sourceLower) {
     if (sourceLower.contains('note') || sourceLower.contains('n.b.')) {
       return text;
     }
-    final paragraphs = text.split(RegExp(r'\r?\n[ \t]*\r?\n'));
-    if (paragraphs.length < 2 || !_notePattern.hasMatch(paragraphs.last)) {
+    final paragraphs = text.split(_paragraphBreak);
+    final sourceParagraphs = sourceLower.trim().split(_paragraphBreak).length;
+    if (paragraphs.length <= sourceParagraphs ||
+        !_notePattern.hasMatch(paragraphs.last)) {
       return text;
     }
     final index = text.lastIndexOf(paragraphs.last);

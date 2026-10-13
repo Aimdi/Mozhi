@@ -156,7 +156,9 @@ void main() {
       expect(find.text('•'), findsNWidgets(2));
     });
 
-    testWidgets('explain does not restart a running explanation', (tester) async {
+    testWidgets('explain does not restart a running explanation', (
+      tester,
+    ) async {
       final harness = TranslateHarness(
         state: _aiState().copyWith(explainStatus: ExtraStatus.loading),
       );

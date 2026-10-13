@@ -27,7 +27,11 @@ void main() {
     testWidgets('shows the detected language', (tester) async {
       final harness = TranslateHarness(state: translatedState());
       await harness.pump(tester, child: const LanguageBar());
-      expect(find.text('Detected: English'), findsOneWidget);
+      expect(find.text('English'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel('Source language: Detected: English'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('shows the selected source language', (tester) async {
@@ -225,7 +229,7 @@ void main() {
       await openSource(tester);
       expect(find.text('Translate from'), findsOneWidget);
       expect(find.byKey(const Key('translate_language_auto')), findsOneWidget);
-      expect(find.text('Detected: English'), findsNWidgets(2));
+      expect(find.text('Detected: English'), findsOneWidget);
       // No styles in the source list, even for AI engines.
       expect(find.text('Styles'), findsNothing);
       await tester.tap(find.byKey(const Key('translate_language_auto')));

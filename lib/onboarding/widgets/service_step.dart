@@ -1,0 +1,270 @@
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/onboarding/cubit/onboarding_cubit.dart';
+import 'package:mozhi/onboarding/widgets/instance_tile.dart';
+import 'package:mozhi/onboarding/widgets/onboarding_badge.dart';
+import 'package:mozhi/onboarding/widgets/step_layout.dart';
+import 'package:mozhi/settings/cubit/settings_cubit.dart';
+
+/// Step 2: find the fastest public Mozhi instance or add your own.
+class ServiceStep extends StatelessWidget {
+  const new({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return OnboardingStepLayout(
+      icon: Icons.dns_outlined,
+      title: l10n.onboardingServiceTitle,
+      subtitle: l10n.onboardingServiceBody,
+      children: const [
+        _FindFastest(),
+        SizedBox(height: 8),
+        _InstanceList(),
+        SizedBox(height: 24),
+        OwnInstanceForm(),
+      ],
+    );
+  }
+}
+
+class _FindFastest extends StatelessWidget {
+  const new();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final cubit = context.read<OnboardingCubit>();
+    final status = context.select((OnboardingCubit c) => c.state.serviceStatus);
+    final sortBySpeed = context.select(
+      (OnboardingCubit c) => c.state.sortBySpeed,
+    );
+    final progress = context.select((OnboardingCubit c) {
+      final pings = c.state.pings.values;
+      if (pings.isEmpty) return 0.0;
+      final done = pings.where((p) => p.status != PingStatus.pending).length;
+      return done / pings.length;
+    });
+    final pinging = status == ServiceStatus.pinging;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        FilledButton.tonalIcon(
+          style: FilledButton.styleFrom(minimumSize: const Size(64, 48)),
+          onPressed: pinging ? null : cubit.findFastestInstance,
+          icon: Icon(
+            status == ServiceStatus.done ? Icons.refresh : Icons.speed,
+          ),
+          label: Text(switch (status) {
+            ServiceStatus.idle => l10n.onboardingServiceFindFastest,
+            ServiceStatus.pinging => l10n.onboardingServiceTesting,
+            ServiceStatus.done => l10n.onboardingServiceTestAgain,
+          }),
+        ),
+        if (pinging) ...[
+          const SizedBox(height: 12),
+          LinearProgressIndicator(
+            value: progress,
+            semanticsLabel: l10n.onboardingServiceTesting,
+          ),
+        ],
+        const SizedBox(height: 8),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(l10n.onboardingServiceSortBySpeed),
+          subtitle: Text(l10n.onboardingServiceSortBySpeedHint),
+          value: sortBySpeed,
+          onChanged: (enabled) => cubit.setSortBySpeed(enabled: enabled),
+        ),
+      ],
+    );
+  }
+}
+
+class _InstanceList extends StatelessWidget {
+  const new();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final colors = Theme.of(context).colorScheme;
+    final cubit = context.read<OnboardingCubit>();
+    final instances = context.select((SettingsCubit c) => c.state.instances);
+    final state = context.watch<OnboardingCubit>().state;
+    final fastest = state.fastestUrl;
+    if (instances.isEmpty) {
+      return OnboardingNote(
+        icon: Icons.info_outline,
+        text: l10n.onboardingServiceEmpty,
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (state.noneReachable) ...[
+          OnboardingNote(
+            icon: Icons.wifi_off,
+            text: l10n.onboardingServiceNoneReachable,
+            background: colors.errorContainer,
+            foreground: colors.onErrorContainer,
+          ),
+          const SizedBox(height: 12),
+        ],
+        Card.filled(
+          margin: EdgeInsets.zero,
+          color: colors.surfaceContainerLow,
+          clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: RadioGroup<String>(
+            // The first instance is the preferred one.
+            groupValue: instances.first.url,
+            onChanged: (url) {
+              if (url != null) cubit.selectInstance(url);
+            },
+            child: Column(
+              children: [
+                for (final instance in instances)
+                  InstanceTile(
+                    key: ValueKey(instance.url),
+                    instance: instance,
+                    ping: state.pings[instance.url],
+                    isFastest:
+                        state.serviceStatus == ServiceStatus.done &&
+                        instance.url == fastest,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// "Use my own instance": URL field validated and tested by the cubit.
+class OwnInstanceForm extends StatefulWidget {
+  const new({super.key});
+
+  @override
+  State<OwnInstanceForm> createState() => _OwnInstanceFormState();
+}
+
+class _OwnInstanceFormState extends State<OwnInstanceForm> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    FocusScope.of(context).unfocus();
+    context.read<OnboardingCubit>().addOwnInstance(_controller.text);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final cubit = context.read<OnboardingCubit>();
+    final status = context.select(
+      (OnboardingCubit c) => c.state.ownInstanceStatus,
+    );
+    final error = context.select(
+      (OnboardingCubit c) => c.state.ownInstanceError,
+    );
+    final message = context.select(
+      (OnboardingCubit c) => c.state.ownInstanceMessage,
+    );
+    final latency = context.select(
+      (OnboardingCubit c) => c.state.ownInstanceLatency,
+    );
+    final testing = status == OwnInstanceStatus.testing;
+    final errorText = switch (error) {
+      null => null,
+      OwnInstanceError.empty => l10n.onboardingServiceOwnEmpty,
+      OwnInstanceError.invalidUrl => l10n.onboardingServiceOwnInvalid,
+      OwnInstanceError.unreachable => l10n.onboardingServiceOwnFailed(
+        message ?? '',
+      ),
+      OwnInstanceError.timedOut => l10n.onboardingServiceOwnTimedOut,
+    };
+    return OnboardingSection(
+      title: l10n.onboardingServiceOwnTitle,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            l10n.onboardingServiceOwnBody,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _controller,
+            keyboardType: TextInputType.url,
+            autocorrect: false,
+            enableSuggestions: false,
+            textInputAction: TextInputAction.go,
+            decoration: InputDecoration(
+              labelText: l10n.onboardingServiceOwnUrl,
+              hintText: l10n.onboardingServiceOwnHint,
+              prefixIcon: const Icon(Icons.link),
+              border: const OutlineInputBorder(),
+              errorText: errorText,
+              errorMaxLines: 4,
+            ),
+            onChanged: (_) => cubit.ownInstanceChanged(),
+            onSubmitted: testing ? null : (_) => _submit(),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: status == OwnInstanceStatus.success && latency != null
+                    ? Row(
+                        children: [
+                          Icon(
+                            Icons.check_circle,
+                            size: 20,
+                            color: theme.colorScheme.onboardingSuccess,
+                          ),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              l10n.onboardingServiceOwnAdded(
+                                latency.inMilliseconds,
+                              ),
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.onboardingSuccess,
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    : const SizedBox.shrink(),
+              ),
+              const SizedBox(width: 12),
+              FilledButton.tonalIcon(
+                style: FilledButton.styleFrom(minimumSize: const Size(64, 48)),
+                onPressed: testing ? null : _submit,
+                icon: testing
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.add_link),
+                label: Text(l10n.onboardingServiceOwnAdd),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}

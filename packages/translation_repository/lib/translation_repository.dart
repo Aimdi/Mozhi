@@ -8,6 +8,7 @@ export 'package:llm_api/llm_api.dart'
     show LlmApiException, LlmModel, LlmProvider, LlmRefusalException;
 export 'package:mozhi_api/mozhi_api.dart' show MozhiApiException;
 
+export 'src/cache/translation_cache.dart';
 export 'src/language_catalog.dart';
 export 'src/language_matcher.dart';
 export 'src/models/models.dart';

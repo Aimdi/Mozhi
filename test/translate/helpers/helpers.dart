@@ -17,11 +17,9 @@ import 'package:translation_repository/translation_repository.dart';
 class MockTranslateCubit extends MockCubit<TranslateState>
     implements TranslateCubit;
 
-class MockSettingsCubit extends MockCubit<AppSettings>
-    implements SettingsCubit;
+class MockSettingsCubit extends MockCubit<AppSettings> implements SettingsCubit;
 
-class MockHistoryCubit extends MockCubit<HistoryState>
-    implements HistoryCubit;
+class MockHistoryCubit extends MockCubit<HistoryState> implements HistoryCubit;
 
 class MockSpeechService extends Mock implements SpeechService;
 

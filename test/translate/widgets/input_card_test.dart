@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
+import 'package:mozhi/translate/translate.dart';
 import 'package:mozhi/translate/widgets/widgets.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -86,17 +89,21 @@ void main() {
     });
 
     testWidgets('typing does not reset the cursor', (tester) async {
+      final states = StreamController<TranslateState>.broadcast();
+      addTearDown(states.close);
       final harness = TranslateHarness(state: readyState(input: 'Helo'));
+      when(() => harness.translate.stream).thenAnswer((_) => states.stream);
       await harness.pump(tester, child: const InputCard());
       final finder = find.byKey(const Key('translate_input_field'));
-      final controller = tester.widget<TextField>(finder).controller!;
-      controller.value = const TextEditingValue(
-        text: 'Hello',
-        selection: TextSelection.collapsed(offset: 4),
-      );
-      // The cubit echoes the same text back.
-      harness.setState(readyState(input: 'Hello'));
+      final controller = tester.widget<TextField>(finder).controller!
+        ..value = const TextEditingValue(
+          text: 'Hello',
+          selection: TextSelection.collapsed(offset: 4),
+        );
+      // The cubit echoes the typed text back.
+      states.add(readyState(input: 'Hello'));
       await tester.pump();
+      expect(controller.text, 'Hello');
       expect(controller.selection.baseOffset, 4);
     });
 

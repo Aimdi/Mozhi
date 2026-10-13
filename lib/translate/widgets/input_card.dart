@@ -146,59 +146,62 @@ class _InputCardState extends State<InputCard> {
                       ),
                     ),
                   ),
-                Wrap(
-                  alignment: WrapAlignment.spaceBetween,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  runSpacing: 4,
-                  children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        ListenButton(
-                          id: 'source',
-                          text: input,
-                          languageCode: state.effectiveSourceCode,
-                        ),
-                        if (input.isEmpty)
-                          IconButton(
-                            key: const Key('translate_paste_button'),
-                            tooltip: l10n.translatePaste,
-                            icon: const Icon(Icons.content_paste),
-                            onPressed: () => unawaited(_paste()),
+                SizedBox(
+                  width: double.infinity,
+                  child: Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    runSpacing: 4,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ListenButton(
+                            id: 'source',
+                            text: input,
+                            languageCode: state.effectiveSourceCode,
                           ),
-                        if (input.isNotEmpty)
-                          Flexible(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                              ),
-                              child: Text(
-                                l10n.translateCharacterCount(
-                                  input.characters.length,
+                          if (input.isEmpty)
+                            IconButton(
+                              key: const Key('translate_paste_button'),
+                              tooltip: l10n.translatePaste,
+                              icon: const Icon(Icons.content_paste),
+                              onPressed: () => unawaited(_paste()),
+                            ),
+                          if (input.isNotEmpty)
+                            Flexible(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.labelMedium?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
+                                child: Text(
+                                  l10n.translateCharacterCount(
+                                    input.characters.length,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.labelMedium?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                      ],
-                    ),
-                    if (showTranslate)
-                      Tooltip(
-                        message: l10n.translateShortcutTranslate,
-                        child: FilledButton.icon(
-                          key: const Key('translate_translate_button'),
-                          onPressed: empty
-                              ? null
-                              : () => unawaited(_cubit.translate()),
-                          icon: const Icon(Icons.translate),
-                          label: Text(l10n.translateTranslateButton),
-                        ),
+                        ],
                       ),
-                  ],
+                      if (showTranslate)
+                        Tooltip(
+                          message: l10n.translateShortcutTranslate,
+                          child: FilledButton.icon(
+                            key: const Key('translate_translate_button'),
+                            onPressed: empty
+                                ? null
+                                : () => unawaited(_cubit.translate()),
+                            icon: const Icon(Icons.translate),
+                            label: Text(l10n.translateTranslateButton),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ],
             ),

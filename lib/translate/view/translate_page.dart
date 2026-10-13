@@ -122,6 +122,10 @@ class _TranslateAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final noEngines = context.select<TranslateCubit, bool>(
+      (cubit) => cubit.state.engines.isEmpty,
+    );
+    if (noEngines) return AppBar(title: Text(l10n.translateTitle));
     return AppBar(
       titleSpacing: showTitle ? null : 8,
       title: showTitle
@@ -156,8 +160,8 @@ class _CompareToggle extends StatelessWidget {
               ? l10n.translateCompareModeExit
               : l10n.translateCompareModeEnter,
           isSelected: state.compareMode,
-          icon: const Icon(Icons.view_agenda_outlined),
-          selectedIcon: const Icon(Icons.view_agenda),
+          icon: const Icon(Icons.difference_outlined),
+          selectedIcon: const Icon(Icons.difference),
           onPressed: enabled
               ? () => context.read<TranslateCubit>().setCompareMode(
                   enabled: !state.compareMode,

@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/translate/widgets/ai_generated_header.dart';
 import 'package:mozhi/translate/widgets/markdown_lite.dart';
 import 'package:mozhi/translate/widgets/translate_error.dart';
 
@@ -71,25 +72,9 @@ class _ExplainSheetState extends State<ExplainSheet> {
                         controller: controller,
                         padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
                         children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  l10n.translateExplainTitle,
-                                  style: theme.textTheme.titleLarge,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Flexible(
-                                child: Text(
-                                  l10n.translateAiGenerated,
-                                  textAlign: TextAlign.end,
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    color: muted,
-                                  ),
-                                ),
-                              ),
-                            ],
+                          AiGeneratedHeader(
+                            title: l10n.translateExplainTitle,
+                            style: theme.textTheme.titleLarge,
                           ),
                           if (_asked != null) ...[
                             const SizedBox(height: 12),

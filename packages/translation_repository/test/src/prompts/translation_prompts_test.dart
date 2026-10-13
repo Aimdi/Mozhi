@@ -94,6 +94,14 @@ void main() {
       expect(prompt, contains('URLs'));
       expect(prompt, contains('code'));
       expect(prompt, contains('personal names'));
+      expect(prompt, contains('translating is not endorsing'));
+      expect(
+        prompt,
+        contains(
+          'Even a single word or fragment gets one '
+          'translation',
+        ),
+      );
       expect(prompt, endsWith('Reply with the French translation only.'));
     });
 
@@ -105,6 +113,7 @@ void main() {
       expect(prompt, contains('official localized titles'));
       expect(prompt, contains('terminology consistent'));
       expect(prompt, contains('numbers, dates and units'));
+      expect(prompt, contains('Mirror the punctuation style'));
     });
 
     test('renders no optional sections for default options', () {
@@ -160,6 +169,9 @@ void main() {
       expect(prompt, contains('do not translate it'));
       expect(prompt, contains('correct and polish it'));
       expect(prompt, contains('Reply with the improved text only'));
+      expect(prompt, contains('content to edit'));
+      expect(prompt, contains('editing is not endorsing'));
+      expect(prompt, isNot(contains('single word')));
       expect(prompt, isNot(contains('official localized titles')));
       expect(prompt, endsWith('Reply with the improved French text only.'));
       // Codes are compared after normalisation.

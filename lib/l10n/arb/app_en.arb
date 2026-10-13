@@ -1714,5 +1714,1617 @@
   "settingsInstancesMoveDown": "Move down",
   "@settingsInstancesMoveDown": {
     "description": "settingsInstancesMoveDown"
+  },
+  "onboardingSkip": "Skip",
+  "@onboardingSkip": {
+    "description": "onboardingSkip"
+  },
+  "onboardingBack": "Back",
+  "@onboardingBack": {
+    "description": "onboardingBack"
+  },
+  "onboardingNext": "Next",
+  "@onboardingNext": {
+    "description": "onboardingNext"
+  },
+  "onboardingStartTranslating": "Start translating",
+  "@onboardingStartTranslating": {
+    "description": "onboardingStartTranslating"
+  },
+  "onboardingStepProgress": "Step {current} of {total}",
+  "@onboardingStepProgress": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "onboardingWelcomeTitle": "Welcome to Mozhi",
+  "@onboardingWelcomeTitle": {
+    "description": "onboardingWelcomeTitle"
+  },
+  "onboardingWelcomeSubtitle": "A fast, private translator that works for you, not for advertisers.",
+  "@onboardingWelcomeSubtitle": {
+    "description": "onboardingWelcomeSubtitle"
+  },
+  "onboardingWelcomeEnginesTitle": "Many engines, one app",
+  "@onboardingWelcomeEnginesTitle": {
+    "description": "onboardingWelcomeEnginesTitle"
+  },
+  "onboardingWelcomeEnginesBody": "Mozhi instances relay Google, DeepL, Yandex, Reverso, LibreTranslate and more, so the engines never see who you are.",
+  "@onboardingWelcomeEnginesBody": {
+    "description": "onboardingWelcomeEnginesBody"
+  },
+  "onboardingWelcomeAiTitle": "Optional AI translation",
+  "@onboardingWelcomeAiTitle": {
+    "description": "onboardingWelcomeAiTitle"
+  },
+  "onboardingWelcomeAiBody": "Connect an AI model, in the cloud or running on your own computer, for natural translations, alternatives and explanations.",
+  "@onboardingWelcomeAiBody": {
+    "description": "onboardingWelcomeAiBody"
+  },
+  "onboardingWelcomePrivacyTitle": "Private by design",
+  "@onboardingWelcomePrivacyTitle": {
+    "description": "onboardingWelcomePrivacyTitle"
+  },
+  "onboardingWelcomePrivacyBody": "No account, no ads, no analytics. Your history stays on this device.",
+  "@onboardingWelcomePrivacyBody": {
+    "description": "onboardingWelcomePrivacyBody"
+  },
+  "onboardingWelcomePrivacyNote": "Text you translate is only sent to the Mozhi instance or AI provider you choose. Pick one you trust, or host your own.",
+  "@onboardingWelcomePrivacyNote": {
+    "description": "onboardingWelcomePrivacyNote"
+  },
+  "onboardingServiceTitle": "Choose a translation service",
+  "@onboardingServiceTitle": {
+    "description": "onboardingServiceTitle"
+  },
+  "onboardingServiceBody": "Mozhi instances are free community servers. Mozhi uses the first one in the list and falls back to the next if it is down.",
+  "@onboardingServiceBody": {
+    "description": "onboardingServiceBody"
+  },
+  "onboardingServiceFindFastest": "Find the fastest public instance",
+  "@onboardingServiceFindFastest": {
+    "description": "onboardingServiceFindFastest"
+  },
+  "onboardingServiceTesting": "Testing instances…",
+  "@onboardingServiceTesting": {
+    "description": "onboardingServiceTesting"
+  },
+  "onboardingServiceTestAgain": "Test again",
+  "@onboardingServiceTestAgain": {
+    "description": "onboardingServiceTestAgain"
+  },
+  "onboardingServiceSortBySpeed": "Sort by speed",
+  "@onboardingServiceSortBySpeed": {
+    "description": "onboardingServiceSortBySpeed"
+  },
+  "onboardingServiceSortBySpeedHint": "Try the fastest instances first and fall back in order of speed.",
+  "@onboardingServiceSortBySpeedHint": {
+    "description": "onboardingServiceSortBySpeedHint"
+  },
+  "onboardingServiceFastest": "Fastest",
+  "@onboardingServiceFastest": {
+    "description": "onboardingServiceFastest"
+  },
+  "onboardingServiceLatency": "{ms} ms",
+  "@onboardingServiceLatency": {
+    "placeholders": {
+      "ms": {
+        "type": "int"
+      }
+    }
+  },
+  "onboardingServiceUnreachable": "Unreachable",
+  "@onboardingServiceUnreachable": {
+    "description": "onboardingServiceUnreachable"
+  },
+  "onboardingServiceTimedOut": "Timed out",
+  "@onboardingServiceTimedOut": {
+    "description": "onboardingServiceTimedOut"
+  },
+  "onboardingServiceChecking": "Checking…",
+  "@onboardingServiceChecking": {
+    "description": "onboardingServiceChecking"
+  },
+  "onboardingServiceNoneReachable": "No instance answered. Check your connection and test again, or add your own instance below.",
+  "@onboardingServiceNoneReachable": {
+    "description": "onboardingServiceNoneReachable"
+  },
+  "onboardingServiceEmpty": "No instances configured yet. Add your own below.",
+  "@onboardingServiceEmpty": {
+    "description": "onboardingServiceEmpty"
+  },
+  "onboardingServiceOwnTitle": "Use my own instance",
+  "@onboardingServiceOwnTitle": {
+    "description": "onboardingServiceOwnTitle"
+  },
+  "onboardingServiceOwnBody": "Self-host Mozhi with Docker in a few minutes and enter its address to use it first.",
+  "@onboardingServiceOwnBody": {
+    "description": "onboardingServiceOwnBody"
+  },
+  "onboardingServiceOwnUrl": "Instance URL",
+  "@onboardingServiceOwnUrl": {
+    "description": "onboardingServiceOwnUrl"
+  },
+  "onboardingServiceOwnHint": "e.g. https://mozhi.example.com",
+  "@onboardingServiceOwnHint": {
+    "description": "onboardingServiceOwnHint"
+  },
+  "onboardingServiceOwnAdd": "Test & add",
+  "@onboardingServiceOwnAdd": {
+    "description": "onboardingServiceOwnAdd"
+  },
+  "onboardingServiceOwnEmpty": "Enter the address of your instance.",
+  "@onboardingServiceOwnEmpty": {
+    "description": "onboardingServiceOwnEmpty"
+  },
+  "onboardingServiceOwnInvalid": "This does not look like a valid http(s) address.",
+  "@onboardingServiceOwnInvalid": {
+    "description": "onboardingServiceOwnInvalid"
+  },
+  "onboardingServiceOwnFailed": "Could not reach this instance: {error}",
+  "@onboardingServiceOwnFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "onboardingServiceOwnTimedOut": "Could not reach this instance: it took too long to answer.",
+  "@onboardingServiceOwnTimedOut": {
+    "description": "onboardingServiceOwnTimedOut"
+  },
+  "onboardingServiceOwnAdded": "Added and selected ({ms} ms).",
+  "@onboardingServiceOwnAdded": {
+    "placeholders": {
+      "ms": {
+        "type": "int"
+      }
+    }
+  },
+  "onboardingAiTitle": "Add an AI translator",
+  "@onboardingAiTitle": {
+    "description": "onboardingAiTitle"
+  },
+  "onboardingAiOptional": "Optional",
+  "@onboardingAiOptional": {
+    "description": "onboardingAiOptional"
+  },
+  "onboardingAiBody": "AI models translate more naturally and unlock extras:",
+  "@onboardingAiBody": {
+    "description": "onboardingAiBody"
+  },
+  "onboardingAiBenefitAlternatives": "Alternative translations",
+  "@onboardingAiBenefitAlternatives": {
+    "description": "onboardingAiBenefitAlternatives"
+  },
+  "onboardingAiBenefitInsights": "Word-by-word insights",
+  "@onboardingAiBenefitInsights": {
+    "description": "onboardingAiBenefitInsights"
+  },
+  "onboardingAiBenefitExplain": "Explanations of grammar and nuance",
+  "@onboardingAiBenefitExplain": {
+    "description": "onboardingAiBenefitExplain"
+  },
+  "onboardingAiBenefitProofread": "Proofreading",
+  "@onboardingAiBenefitProofread": {
+    "description": "onboardingAiBenefitProofread"
+  },
+  "onboardingAiBenefitStyles": "Custom styles, tone and formality",
+  "@onboardingAiBenefitStyles": {
+    "description": "onboardingAiBenefitStyles"
+  },
+  "onboardingAiPrivacy": "Cloud providers receive the text you translate. Local models keep everything on your own network.",
+  "@onboardingAiPrivacy": {
+    "description": "onboardingAiPrivacy"
+  },
+  "onboardingAiChooseProvider": "Choose a provider",
+  "@onboardingAiChooseProvider": {
+    "description": "onboardingAiChooseProvider"
+  },
+  "onboardingAiLocalBadge": "Local",
+  "@onboardingAiLocalBadge": {
+    "description": "onboardingAiLocalBadge"
+  },
+  "onboardingAiApiKey": "API key",
+  "@onboardingAiApiKey": {
+    "description": "onboardingAiApiKey"
+  },
+  "onboardingAiApiKeyOptional": "API key (optional)",
+  "@onboardingAiApiKeyOptional": {
+    "description": "onboardingAiApiKeyOptional"
+  },
+  "onboardingAiShowKey": "Show API key",
+  "@onboardingAiShowKey": {
+    "description": "onboardingAiShowKey"
+  },
+  "onboardingAiHideKey": "Hide API key",
+  "@onboardingAiHideKey": {
+    "description": "onboardingAiHideKey"
+  },
+  "onboardingAiGetKey": "Get a key",
+  "@onboardingAiGetKey": {
+    "description": "onboardingAiGetKey"
+  },
+  "onboardingAiKeyStorage": "Stored securely on this device only.",
+  "@onboardingAiKeyStorage": {
+    "description": "onboardingAiKeyStorage"
+  },
+  "onboardingAiBaseUrl": "Server address",
+  "@onboardingAiBaseUrl": {
+    "description": "onboardingAiBaseUrl"
+  },
+  "onboardingAiLanHint": "On a phone, use your computer's LAN IP, e.g. {example}",
+  "@onboardingAiLanHint": {
+    "placeholders": {
+      "example": {
+        "type": "String"
+      }
+    }
+  },
+  "onboardingAiBaseUrlHint": "e.g. https://llm.example.com/v1",
+  "@onboardingAiBaseUrlHint": {
+    "description": "onboardingAiBaseUrlHint"
+  },
+  "onboardingAiModel": "Model",
+  "@onboardingAiModel": {
+    "description": "onboardingAiModel"
+  },
+  "onboardingAiLoadModels": "Load models",
+  "@onboardingAiLoadModels": {
+    "description": "onboardingAiLoadModels"
+  },
+  "onboardingAiModelsFailed": "Could not load models: {error}",
+  "@onboardingAiModelsFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "onboardingAiRequired": "Required",
+  "@onboardingAiRequired": {
+    "description": "onboardingAiRequired"
+  },
+  "onboardingAiUrlInvalid": "Enter a valid http(s) address",
+  "@onboardingAiUrlInvalid": {
+    "description": "onboardingAiUrlInvalid"
+  },
+  "onboardingAiTest": "Test",
+  "@onboardingAiTest": {
+    "description": "onboardingAiTest"
+  },
+  "onboardingAiTesting": "Testing…",
+  "@onboardingAiTesting": {
+    "description": "onboardingAiTesting"
+  },
+  "onboardingAiTestOk": "It works! “Hello, world!” → {output}",
+  "@onboardingAiTestOk": {
+    "placeholders": {
+      "output": {
+        "type": "String"
+      }
+    }
+  },
+  "onboardingAiTestFailed": "Test failed: {error}",
+  "@onboardingAiTestFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "onboardingAiTestTimedOut": "Test failed: the provider took too long to answer.",
+  "@onboardingAiTestTimedOut": {
+    "description": "onboardingAiTestTimedOut"
+  },
+  "onboardingAiSave": "Save",
+  "@onboardingAiSave": {
+    "description": "onboardingAiSave"
+  },
+  "onboardingAiSaved": "{name} saved. You can pick it in the translator.",
+  "@onboardingAiSaved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "onboardingAiLater": "You can add or change AI providers any time in Settings.",
+  "@onboardingAiLater": {
+    "description": "onboardingAiLater"
+  },
+  "onboardingDoneTitle": "You are all set!",
+  "@onboardingDoneTitle": {
+    "description": "onboardingDoneTitle"
+  },
+  "onboardingDoneBody": "Here is how Mozhi is set up. You can change everything later in Settings.",
+  "@onboardingDoneBody": {
+    "description": "onboardingDoneBody"
+  },
+  "onboardingDoneService": "Translation service",
+  "@onboardingDoneService": {
+    "description": "onboardingDoneService"
+  },
+  "onboardingDoneServiceLatency": "{name} · {ms} ms",
+  "@onboardingDoneServiceLatency": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "ms": {
+        "type": "int"
+      }
+    }
+  },
+  "onboardingDoneFallbacks": "{count, plural, =0{No fallback instances} =1{1 fallback instance} other{{count} fallback instances}}",
+  "@onboardingDoneFallbacks": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "onboardingDoneNoService": "No Mozhi instance configured",
+  "@onboardingDoneNoService": {
+    "description": "onboardingDoneNoService"
+  },
+  "onboardingDoneAi": "AI translator",
+  "@onboardingDoneAi": {
+    "description": "onboardingDoneAi"
+  },
+  "onboardingDoneAiValue": "{name} · {model}",
+  "@onboardingDoneAiValue": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "onboardingDoneAiNone": "Not set up. You can add one in Settings.",
+  "@onboardingDoneAiNone": {
+    "description": "onboardingDoneAiNone"
+  },
+  "onboardingDonePrivacy": "Your history stays on this device. No analytics, ever.",
+  "@onboardingDonePrivacy": {
+    "description": "onboardingDonePrivacy"
+  },
+  "voiceInputStart": "Speak",
+  "@voiceInputStart": {
+    "description": "Tooltip of the microphone button that starts voice input"
+  },
+  "voiceInputStop": "Stop listening",
+  "@voiceInputStop": {
+    "description": "Tooltip of the microphone button while listening"
+  },
+  "voiceInputListening": "Listening…",
+  "@voiceInputListening": {
+    "description": "Screen reader announcement while voice input is listening"
+  },
+  "voiceErrorPermission": "Microphone access is off. To use voice input, open your device settings, find Mozhi and allow the microphone (and speech recognition on iPhone, iPad and Mac).",
+  "@voiceErrorPermission": {
+    "description": "Snackbar when microphone or speech recognition permission is denied"
+  },
+  "voiceErrorLanguage": "Speech recognition isn’t available for this language on your device. Try another language or install it in your device’s speech settings.",
+  "@voiceErrorLanguage": {
+    "description": "Snackbar when the recognizer does not support the language"
+  },
+  "voiceErrorLanguageOnDevice": "On-device speech recognition isn’t available for this language. Install the language in your device’s speech settings or turn off on-device recognition.",
+  "@voiceErrorLanguageOnDevice": {
+    "description": "Snackbar when the on-device recognizer does not support the language"
+  },
+  "voiceErrorUnavailable": "Speech recognition isn’t available on this device.",
+  "@voiceErrorUnavailable": {
+    "description": "Snackbar when no speech recognizer is available"
+  },
+  "voiceErrorAudio": "Couldn’t use the microphone. Check that no other app is using it.",
+  "@voiceErrorAudio": {
+    "description": "Snackbar when the microphone cannot be opened"
+  },
+  "voiceErrorNoMatch": "Didn’t catch that. Try speaking again.",
+  "@voiceErrorNoMatch": {
+    "description": "Snackbar when nothing was recognised"
+  },
+  "voiceErrorNetwork": "Speech recognition needs a network connection. Check your connection or turn on on-device recognition.",
+  "@voiceErrorNetwork": {
+    "description": "Snackbar on recognizer network errors"
+  },
+  "voiceErrorBusy": "Speech recognition is busy. Try again in a moment.",
+  "@voiceErrorBusy": {
+    "description": "Snackbar when the recognizer is busy"
+  },
+  "voiceErrorGeneric": "Voice input failed. Try again.",
+  "@voiceErrorGeneric": {
+    "description": "Snackbar for unknown voice input errors"
+  },
+  "voicePreferOnDeviceTitle": "Prefer on-device speech recognition",
+  "@voicePreferOnDeviceTitle": {
+    "description": "Settings switch title"
+  },
+  "voicePreferOnDeviceSubtitle": "Keeps your voice on this device when supported. Fewer languages may be available.",
+  "@voicePreferOnDeviceSubtitle": {
+    "description": "Settings switch subtitle"
+  },
+  "usageTitle": "Usage",
+  "@usageTitle": {
+    "description": "usageTitle"
+  },
+  "usageThisMonth": "This month",
+  "@usageThisMonth": {
+    "description": "usageThisMonth"
+  },
+  "usageLastMonth": "Last month",
+  "@usageLastMonth": {
+    "description": "usageLastMonth"
+  },
+  "usageRequestCount": "{count, plural, =0{No requests} =1{1 request} other{{formatted} requests}}",
+  "@usageRequestCount": {
+    "description": "Number of AI requests. formatted is count with digit grouping.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "formatted": {
+        "type": "String"
+      }
+    }
+  },
+  "usageCharacterCount": "{count, plural, =1{1 character} other{{formatted} characters}}",
+  "@usageCharacterCount": {
+    "description": "Number of characters. formatted is count with digit grouping.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "formatted": {
+        "type": "String"
+      }
+    }
+  },
+  "usageTokenEstimate": "{count, plural, =1{≈ 1 token} other{≈ {formatted} tokens}}",
+  "@usageTokenEstimate": {
+    "description": "Estimated number of AI tokens. formatted is count with digit grouping.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "formatted": {
+        "type": "String"
+      }
+    }
+  },
+  "usageInputOutput": "{input} sent · {output} received",
+  "@usageInputOutput": {
+    "description": "Characters sent to and received from the AI provider (formatted numbers).",
+    "placeholders": {
+      "input": {
+        "type": "String"
+      },
+      "output": {
+        "type": "String"
+      }
+    }
+  },
+  "usageBudgetTitle": "Monthly budget",
+  "@usageBudgetTitle": {
+    "description": "usageBudgetTitle"
+  },
+  "usageBudgetNone": "No budget set. Add one to get a warning before a big bill.",
+  "@usageBudgetNone": {
+    "description": "usageBudgetNone"
+  },
+  "usageBudgetProgress": "{used} of {limit} characters · {percent}",
+  "@usageBudgetProgress": {
+    "description": "Budget progress; used and limit are formatted numbers, percent like 42%.",
+    "placeholders": {
+      "used": {
+        "type": "String"
+      },
+      "limit": {
+        "type": "String"
+      },
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
+  "usageBudgetSet": "Set budget",
+  "@usageBudgetSet": {
+    "description": "usageBudgetSet"
+  },
+  "usageBudgetEdit": "Edit budget",
+  "@usageBudgetEdit": {
+    "description": "usageBudgetEdit"
+  },
+  "usageBudgetDialogTitle": "Monthly character budget",
+  "@usageBudgetDialogTitle": {
+    "description": "usageBudgetDialogTitle"
+  },
+  "usageBudgetDialogBody": "Counts the characters sent and received each month. You'll get a warning at {percent} of the budget.",
+  "@usageBudgetDialogBody": {
+    "placeholders": {
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
+  "usageBudgetFieldLabel": "Characters per month",
+  "@usageBudgetFieldLabel": {
+    "description": "usageBudgetFieldLabel"
+  },
+  "usageBudgetFieldInvalid": "Enter a whole number above 0",
+  "@usageBudgetFieldInvalid": {
+    "description": "usageBudgetFieldInvalid"
+  },
+  "usageBudgetRemove": "Remove budget",
+  "@usageBudgetRemove": {
+    "description": "usageBudgetRemove"
+  },
+  "usageBudgetNearLimit": "Near budget",
+  "@usageBudgetNearLimit": {
+    "description": "usageBudgetNearLimit"
+  },
+  "usageBudgetLimitReached": "Budget reached",
+  "@usageBudgetLimitReached": {
+    "description": "usageBudgetLimitReached"
+  },
+  "usageWarningNearLimit": "{provider} has used {percent} of its monthly budget",
+  "@usageWarningNearLimit": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      },
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
+  "usageWarningLimitReached": "{provider} has reached its monthly budget",
+  "@usageWarningLimitReached": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "usageEmptyTitle": "No AI usage yet",
+  "@usageEmptyTitle": {
+    "description": "usageEmptyTitle"
+  },
+  "usageEmptyBody": "Requests to your AI providers are counted here so you can keep an eye on costs.",
+  "@usageEmptyBody": {
+    "description": "usageEmptyBody"
+  },
+  "usageDisclaimer": "Counted on this device only. Tokens are estimates (about 4 characters per token, or 1 per Chinese, Japanese or Korean character), so your provider's bill may differ.",
+  "@usageDisclaimer": {
+    "description": "usageDisclaimer"
+  },
+  "usageResetAction": "Reset usage",
+  "@usageResetAction": {
+    "description": "usageResetAction"
+  },
+  "usageResetTitle": "Reset usage?",
+  "@usageResetTitle": {
+    "description": "usageResetTitle"
+  },
+  "usageResetBody": "All usage counts are deleted. Budgets stay as they are.",
+  "@usageResetBody": {
+    "description": "usageResetBody"
+  },
+  "usageResetConfirm": "Reset",
+  "@usageResetConfirm": {
+    "description": "usageResetConfirm"
+  },
+  "usageUnknownProvider": "Removed provider",
+  "@usageUnknownProvider": {
+    "description": "usageUnknownProvider"
+  },
+  "usageSomeProvider": "Your AI provider",
+  "@usageSomeProvider": {
+    "description": "usageSomeProvider"
+  },
+  "usageHistoryLabel": "Characters per month: {values}",
+  "@usageHistoryLabel": {
+    "description": "Screen reader label of the monthly bar chart; values is a comma separated list like 'May: 1,200'.",
+    "placeholders": {
+      "values": {
+        "type": "String"
+      }
+    }
+  },
+  "usageViewAll": "All providers",
+  "@usageViewAll": {
+    "description": "usageViewAll"
+  },
+  "usageNotUsed": "Not used yet",
+  "@usageNotUsed": {
+    "description": "usageNotUsed"
+  },
+  "quickTranslateTitle": "Quick translate",
+  "@quickTranslateTitle": {
+    "description": "quickTranslateTitle"
+  },
+  "quickTranslateOriginal": "Original",
+  "@quickTranslateOriginal": {
+    "description": "quickTranslateOriginal"
+  },
+  "quickTranslateShowMore": "Show more",
+  "@quickTranslateShowMore": {
+    "description": "quickTranslateShowMore"
+  },
+  "quickTranslateShowLess": "Show less",
+  "@quickTranslateShowLess": {
+    "description": "quickTranslateShowLess"
+  },
+  "quickTranslateReplace": "Replace",
+  "@quickTranslateReplace": {
+    "description": "quickTranslateReplace"
+  },
+  "quickTranslateReplaceTooltip": "Replace the selected text with the translation",
+  "@quickTranslateReplaceTooltip": {
+    "description": "quickTranslateReplaceTooltip"
+  },
+  "quickTranslateOpenInApp": "Open in app",
+  "@quickTranslateOpenInApp": {
+    "description": "quickTranslateOpenInApp"
+  },
+  "quickTranslateCopied": "Copied",
+  "@quickTranslateCopied": {
+    "description": "quickTranslateCopied"
+  },
+  "quickTranslateCommon": "Common",
+  "@quickTranslateCommon": {
+    "description": "quickTranslateCommon"
+  },
+  "quickTranslateEngine": "Engine: {engine}",
+  "@quickTranslateEngine": {
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "quickTranslateNoEngines": "No translation engine is available. Open the app to add a Mozhi instance or an AI provider.",
+  "@quickTranslateNoEngines": {
+    "description": "quickTranslateNoEngines"
+  },
+  "quickTranslateEmpty": "No translation was returned.",
+  "@quickTranslateEmpty": {
+    "description": "quickTranslateEmpty"
+  },
+  "quickTranslateTranslatingTo": "Translating to {language}…",
+  "@quickTranslateTranslatingTo": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "presetsTitle": "Presets",
+  "@presetsTitle": {
+    "description": "presetsTitle"
+  },
+  "presetsIntro": "Save the translation settings you use most and switch between them in one tap. Presets apply to AI translators.",
+  "@presetsIntro": {
+    "description": "presetsIntro"
+  },
+  "presetsNew": "New preset",
+  "@presetsNew": {
+    "description": "presetsNew"
+  },
+  "presetsEmptyTitle": "No presets yet",
+  "@presetsEmptyTitle": {
+    "description": "presetsEmptyTitle"
+  },
+  "presetsEmptyBody": "Create presets for the way you usually write, like formal emails or casual chats.",
+  "@presetsEmptyBody": {
+    "description": "presetsEmptyBody"
+  },
+  "presetsRestoreExamples": "Restore examples",
+  "@presetsRestoreExamples": {
+    "description": "presetsRestoreExamples"
+  },
+  "presetsExamplesRestored": "{count, plural, =0{All examples are already there} =1{Added 1 example} other{Added {count} examples}}",
+  "@presetsExamplesRestored": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "presetsDefaultBadge": "Default",
+  "@presetsDefaultBadge": {
+    "description": "presetsDefaultBadge"
+  },
+  "presetsSetDefault": "Use as default",
+  "@presetsSetDefault": {
+    "description": "presetsSetDefault"
+  },
+  "presetsRemoveDefault": "Stop using as default",
+  "@presetsRemoveDefault": {
+    "description": "presetsRemoveDefault"
+  },
+  "presetsEdit": "Edit",
+  "@presetsEdit": {
+    "description": "presetsEdit"
+  },
+  "presetsDuplicate": "Duplicate",
+  "@presetsDuplicate": {
+    "description": "presetsDuplicate"
+  },
+  "presetsCopyName": "{name} (copy)",
+  "@presetsCopyName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "presetsDeleted": "Deleted “{name}”",
+  "@presetsDeleted": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "presetsShareOne": "Share",
+  "@presetsShareOne": {
+    "description": "presetsShareOne"
+  },
+  "presetsExport": "Export presets",
+  "@presetsExport": {
+    "description": "presetsExport"
+  },
+  "presetsImport": "Import presets",
+  "@presetsImport": {
+    "description": "presetsImport"
+  },
+  "presetsImportHint": "Paste exported presets (JSON) here",
+  "@presetsImportHint": {
+    "description": "presetsImportHint"
+  },
+  "presetsImportDone": "{count, plural, =0{No presets imported} =1{Imported 1 preset} other{Imported {count} presets}}",
+  "@presetsImportDone": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "presetsImportInvalid": "This doesn't look like exported presets.",
+  "@presetsImportInvalid": {
+    "description": "presetsImportInvalid"
+  },
+  "presetsImportAction": "Import",
+  "@presetsImportAction": {
+    "description": "presetsImportAction"
+  },
+  "presetsPaste": "Paste from clipboard",
+  "@presetsPaste": {
+    "description": "presetsPaste"
+  },
+  "presetsCopyJson": "Copy JSON to clipboard",
+  "@presetsCopyJson": {
+    "description": "presetsCopyJson"
+  },
+  "presetsShareFile": "Share as file",
+  "@presetsShareFile": {
+    "description": "presetsShareFile"
+  },
+  "presetsExportFailed": "Couldn't export",
+  "@presetsExportFailed": {
+    "description": "presetsExportFailed"
+  },
+  "presetsLoadFailed": "Couldn't load your presets.",
+  "@presetsLoadFailed": {
+    "description": "presetsLoadFailed"
+  },
+  "presetsNameEmailFormal": "Email to colleague (formal)",
+  "@presetsNameEmailFormal": {
+    "description": "presetsNameEmailFormal"
+  },
+  "presetsNameChatCasual": "Chat with friends (casual)",
+  "@presetsNameChatCasual": {
+    "description": "presetsNameChatCasual"
+  },
+  "presetsNameSimpleA2": "Simple (A2 reading level)",
+  "@presetsNameSimpleA2": {
+    "description": "presetsNameSimpleA2"
+  },
+  "presetsUntitled": "Untitled preset",
+  "@presetsUntitled": {
+    "description": "presetsUntitled"
+  },
+  "presetsSummaryStandard": "Standard settings",
+  "@presetsSummaryStandard": {
+    "description": "presetsSummaryStandard"
+  },
+  "presetsSummaryLiteral": "Literal",
+  "@presetsSummaryLiteral": {
+    "description": "presetsSummaryLiteral"
+  },
+  "presetsSummaryReadingLevel": "Level {level}",
+  "@presetsSummaryReadingLevel": {
+    "placeholders": {
+      "level": {
+        "type": "String"
+      }
+    }
+  },
+  "presetsSummarySpeaker": "Speaker: {gender}",
+  "@presetsSummarySpeaker": {
+    "placeholders": {
+      "gender": {
+        "type": "String"
+      }
+    }
+  },
+  "presetsSummaryAddressee": "Addressee: {gender}",
+  "@presetsSummaryAddressee": {
+    "placeholders": {
+      "gender": {
+        "type": "String"
+      }
+    }
+  },
+  "presetsSummaryContext": "Context: {context}",
+  "@presetsSummaryContext": {
+    "placeholders": {
+      "context": {
+        "type": "String"
+      }
+    }
+  },
+  "presetsSummaryNoFormatting": "Plain text",
+  "@presetsSummaryNoFormatting": {
+    "description": "presetsSummaryNoFormatting"
+  },
+  "presetsActionsTooltip": "Actions for {name}",
+  "@presetsActionsTooltip": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "presetsReorderHint": "Drag to reorder {name}",
+  "@presetsReorderHint": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "presetsMoveUp": "Move up",
+  "@presetsMoveUp": {
+    "description": "presetsMoveUp"
+  },
+  "presetsMoveDown": "Move down",
+  "@presetsMoveDown": {
+    "description": "presetsMoveDown"
+  },
+  "presetsGlossaries": "Glossaries",
+  "@presetsGlossaries": {
+    "description": "presetsGlossaries"
+  },
+  "presetsEditorNewTitle": "New preset",
+  "@presetsEditorNewTitle": {
+    "description": "presetsEditorNewTitle"
+  },
+  "presetsEditorEditTitle": "Edit preset",
+  "@presetsEditorEditTitle": {
+    "description": "presetsEditorEditTitle"
+  },
+  "presetsEditorName": "Name",
+  "@presetsEditorName": {
+    "description": "presetsEditorName"
+  },
+  "presetsEditorNameHint": "e.g. Email to my landlord",
+  "@presetsEditorNameHint": {
+    "description": "presetsEditorNameHint"
+  },
+  "presetsEditorNameRequired": "Enter a name",
+  "@presetsEditorNameRequired": {
+    "description": "presetsEditorNameRequired"
+  },
+  "presetsEditorDefault": "Use as default",
+  "@presetsEditorDefault": {
+    "description": "presetsEditorDefault"
+  },
+  "presetsEditorDefaultDescription": "Selected automatically for new translations",
+  "@presetsEditorDefaultDescription": {
+    "description": "presetsEditorDefaultDescription"
+  },
+  "presetsPickerLabel": "Preset",
+  "@presetsPickerLabel": {
+    "description": "presetsPickerLabel"
+  },
+  "presetsPickerDefault": "Default",
+  "@presetsPickerDefault": {
+    "description": "presetsPickerDefault"
+  },
+  "presetsPickerCustom": "Custom",
+  "@presetsPickerCustom": {
+    "description": "presetsPickerCustom"
+  },
+  "presetsPickerManage": "Manage presets",
+  "@presetsPickerManage": {
+    "description": "presetsPickerManage"
+  },
+  "presetsPickerSelected": "{name}, selected",
+  "@presetsPickerSelected": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "glossariesTitle": "Glossaries",
+  "@glossariesTitle": {
+    "description": "glossariesTitle"
+  },
+  "glossariesIntro": "AI translators always translate glossary terms the way you define them. Enabled glossaries apply to their language pair.",
+  "@glossariesIntro": {
+    "description": "glossariesIntro"
+  },
+  "glossariesNew": "New glossary",
+  "@glossariesNew": {
+    "description": "glossariesNew"
+  },
+  "glossariesEmptyTitle": "No glossaries yet",
+  "@glossariesEmptyTitle": {
+    "description": "glossariesEmptyTitle"
+  },
+  "glossariesEmptyBody": "Add names, product terms or jargon that should always be translated a certain way.",
+  "@glossariesEmptyBody": {
+    "description": "glossariesEmptyBody"
+  },
+  "glossariesTermCount": "{count, plural, =0{No terms} =1{1 term} other{{count} terms}}",
+  "@glossariesTermCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "glossariesAnyLanguage": "Any language",
+  "@glossariesAnyLanguage": {
+    "description": "glossariesAnyLanguage"
+  },
+  "glossariesScope": "{source} → {target}",
+  "@glossariesScope": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      },
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "glossariesEnableLabel": "Use {name}",
+  "@glossariesEnableLabel": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "glossariesDeleted": "Deleted “{name}”",
+  "@glossariesDeleted": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "glossariesImport": "Import glossaries",
+  "@glossariesImport": {
+    "description": "glossariesImport"
+  },
+  "glossariesExportAll": "Export all glossaries",
+  "@glossariesExportAll": {
+    "description": "glossariesExportAll"
+  },
+  "glossariesImportHint": "Paste exported glossaries (JSON) here",
+  "@glossariesImportHint": {
+    "description": "glossariesImportHint"
+  },
+  "glossariesImportDone": "{count, plural, =0{No glossaries imported} =1{Imported 1 glossary} other{Imported {count} glossaries}}",
+  "@glossariesImportDone": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "glossariesImportInvalid": "This doesn't look like exported glossaries.",
+  "@glossariesImportInvalid": {
+    "description": "glossariesImportInvalid"
+  },
+  "glossariesUntitled": "Untitled glossary",
+  "@glossariesUntitled": {
+    "description": "glossariesUntitled"
+  },
+  "glossariesLoadFailed": "Couldn't load your glossaries.",
+  "@glossariesLoadFailed": {
+    "description": "glossariesLoadFailed"
+  },
+  "glossariesDialogNewTitle": "New glossary",
+  "@glossariesDialogNewTitle": {
+    "description": "glossariesDialogNewTitle"
+  },
+  "glossariesDialogEditTitle": "Edit glossary",
+  "@glossariesDialogEditTitle": {
+    "description": "glossariesDialogEditTitle"
+  },
+  "glossariesName": "Name",
+  "@glossariesName": {
+    "description": "glossariesName"
+  },
+  "glossariesNameHint": "e.g. Product names",
+  "@glossariesNameHint": {
+    "description": "glossariesNameHint"
+  },
+  "glossariesNameRequired": "Enter a name",
+  "@glossariesNameRequired": {
+    "description": "glossariesNameRequired"
+  },
+  "glossariesSourceLanguage": "From",
+  "@glossariesSourceLanguage": {
+    "description": "glossariesSourceLanguage"
+  },
+  "glossariesTargetLanguage": "To",
+  "@glossariesTargetLanguage": {
+    "description": "glossariesTargetLanguage"
+  },
+  "glossariesCreate": "Create",
+  "@glossariesCreate": {
+    "description": "glossariesCreate"
+  },
+  "glossariesLanguageSearch": "Search languages",
+  "@glossariesLanguageSearch": {
+    "description": "glossariesLanguageSearch"
+  },
+  "glossariesChooseSource": "Translate from",
+  "@glossariesChooseSource": {
+    "description": "glossariesChooseSource"
+  },
+  "glossariesChooseTarget": "Translate into",
+  "@glossariesChooseTarget": {
+    "description": "glossariesChooseTarget"
+  },
+  "glossaryEditorSearchHint": "Search terms",
+  "@glossaryEditorSearchHint": {
+    "description": "glossaryEditorSearchHint"
+  },
+  "glossaryEditorClearSearch": "Clear search",
+  "@glossaryEditorClearSearch": {
+    "description": "glossaryEditorClearSearch"
+  },
+  "glossaryEditorAddTerm": "Add term",
+  "@glossaryEditorAddTerm": {
+    "description": "glossaryEditorAddTerm"
+  },
+  "glossaryEditorEmptyTitle": "No terms yet",
+  "@glossaryEditorEmptyTitle": {
+    "description": "glossaryEditorEmptyTitle"
+  },
+  "glossaryEditorEmptyBody": "Add terms one by one or paste a list from a spreadsheet.",
+  "@glossaryEditorEmptyBody": {
+    "description": "glossaryEditorEmptyBody"
+  },
+  "glossaryEditorNoMatches": "No terms match your search",
+  "@glossaryEditorNoMatches": {
+    "description": "glossaryEditorNoMatches"
+  },
+  "glossaryEditorImport": "Import from CSV",
+  "@glossaryEditorImport": {
+    "description": "glossaryEditorImport"
+  },
+  "glossaryEditorImportTitle": "Import terms",
+  "@glossaryEditorImportTitle": {
+    "description": "glossaryEditorImportTitle"
+  },
+  "glossaryEditorImportHelp": "One term per line: source, translation and an optional note, separated by commas, semicolons or tabs. A header row is optional.",
+  "@glossaryEditorImportHelp": {
+    "description": "glossaryEditorImportHelp"
+  },
+  "glossaryEditorImportHint": "source,target,note\nMozhi,Mozhi,product name",
+  "@glossaryEditorImportHint": {
+    "description": "glossaryEditorImportHint"
+  },
+  "glossaryEditorImportDone": "{added} added, {updated} updated, {skipped} skipped",
+  "@glossaryEditorImportDone": {
+    "placeholders": {
+      "added": {
+        "type": "int"
+      },
+      "updated": {
+        "type": "int"
+      },
+      "skipped": {
+        "type": "int"
+      }
+    }
+  },
+  "glossaryEditorImportInvalid": "No terms found. Use one term per line: source, translation.",
+  "@glossaryEditorImportInvalid": {
+    "description": "glossaryEditorImportInvalid"
+  },
+  "glossaryEditorExport": "Export",
+  "@glossaryEditorExport": {
+    "description": "glossaryEditorExport"
+  },
+  "glossaryEditorCopyCsv": "Copy as CSV",
+  "@glossaryEditorCopyCsv": {
+    "description": "glossaryEditorCopyCsv"
+  },
+  "glossaryEditorShareCsv": "Share as CSV",
+  "@glossaryEditorShareCsv": {
+    "description": "glossaryEditorShareCsv"
+  },
+  "glossaryEditorShareTsv": "Share as TSV",
+  "@glossaryEditorShareTsv": {
+    "description": "glossaryEditorShareTsv"
+  },
+  "glossaryEditorShareJson": "Share as JSON",
+  "@glossaryEditorShareJson": {
+    "description": "glossaryEditorShareJson"
+  },
+  "glossaryEditorEditDetails": "Rename or change languages",
+  "@glossaryEditorEditDetails": {
+    "description": "glossaryEditorEditDetails"
+  },
+  "glossaryEditorDelete": "Delete glossary",
+  "@glossaryEditorDelete": {
+    "description": "glossaryEditorDelete"
+  },
+  "glossaryEditorDeleteTitle": "Delete glossary?",
+  "@glossaryEditorDeleteTitle": {
+    "description": "glossaryEditorDeleteTitle"
+  },
+  "glossaryEditorDeleteBody": "“{name}” and its terms will be removed.",
+  "@glossaryEditorDeleteBody": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "glossaryEditorEnabled": "Use this glossary",
+  "@glossaryEditorEnabled": {
+    "description": "glossaryEditorEnabled"
+  },
+  "glossaryEditorEnabledDescription": "Applies to AI translations for this language pair",
+  "@glossaryEditorEnabledDescription": {
+    "description": "glossaryEditorEnabledDescription"
+  },
+  "glossaryEditorSource": "Source term",
+  "@glossaryEditorSource": {
+    "description": "glossaryEditorSource"
+  },
+  "glossaryEditorTarget": "Translation",
+  "@glossaryEditorTarget": {
+    "description": "glossaryEditorTarget"
+  },
+  "glossaryEditorNote": "Note (optional)",
+  "@glossaryEditorNote": {
+    "description": "glossaryEditorNote"
+  },
+  "glossaryEditorNoteColumn": "Note",
+  "@glossaryEditorNoteColumn": {
+    "description": "glossaryEditorNoteColumn"
+  },
+  "glossaryEditorCaseSensitive": "Match case",
+  "@glossaryEditorCaseSensitive": {
+    "description": "glossaryEditorCaseSensitive"
+  },
+  "glossaryEditorCaseSensitiveDescription": "Only use this entry when the capitalisation matches",
+  "@glossaryEditorCaseSensitiveDescription": {
+    "description": "glossaryEditorCaseSensitiveDescription"
+  },
+  "glossaryEditorCaseSensitiveBadge": "Match case",
+  "@glossaryEditorCaseSensitiveBadge": {
+    "description": "glossaryEditorCaseSensitiveBadge"
+  },
+  "glossaryEditorTermDeleted": "Deleted “{term}”",
+  "@glossaryEditorTermDeleted": {
+    "placeholders": {
+      "term": {
+        "type": "String"
+      }
+    }
+  },
+  "glossaryEditorEditTerm": "Edit term",
+  "@glossaryEditorEditTerm": {
+    "description": "glossaryEditorEditTerm"
+  },
+  "glossaryEditorNewTerm": "New term",
+  "@glossaryEditorNewTerm": {
+    "description": "glossaryEditorNewTerm"
+  },
+  "glossaryEditorRequired": "Required",
+  "@glossaryEditorRequired": {
+    "description": "glossaryEditorRequired"
+  },
+  "glossaryEditorDeleteTerm": "Delete {term}",
+  "@glossaryEditorDeleteTerm": {
+    "placeholders": {
+      "term": {
+        "type": "String"
+      }
+    }
+  },
+  "glossaryEditorNotFound": "This glossary no longer exists.",
+  "@glossaryEditorNotFound": {
+    "description": "glossaryEditorNotFound"
+  },
+  "glossaryEditorTermSemantics": "{source} translates as {target}",
+  "@glossaryEditorTermSemantics": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      },
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineTitle": "Offline languages",
+  "@offlineTitle": {
+    "description": "offlineTitle"
+  },
+  "offlineDescription": "Translate without an internet connection using on-device models from Google ML Kit. Each language is about 30 MB and stays on this device.",
+  "@offlineDescription": {
+    "description": "offlineDescription"
+  },
+  "offlineUnavailable": "Offline translation is available on Android and iOS",
+  "@offlineUnavailable": {
+    "description": "offlineUnavailable"
+  },
+  "offlineDownloadedCount": "{count, plural, =0{No languages downloaded} =1{1 language downloaded} other{{count} languages downloaded}}",
+  "@offlineDownloadedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "offlineWifiOnly": "Download over Wi-Fi only",
+  "@offlineWifiOnly": {
+    "description": "offlineWifiOnly"
+  },
+  "offlineWifiOnlyDescription": "Downloads wait for Wi-Fi so they never use mobile data",
+  "@offlineWifiOnlyDescription": {
+    "description": "offlineWifiOnlyDescription"
+  },
+  "offlineSearchHint": "Search languages",
+  "@offlineSearchHint": {
+    "description": "offlineSearchHint"
+  },
+  "offlineSectionDownloaded": "Downloaded",
+  "@offlineSectionDownloaded": {
+    "description": "offlineSectionDownloaded"
+  },
+  "offlineSectionAvailable": "Available to download",
+  "@offlineSectionAvailable": {
+    "description": "offlineSectionAvailable"
+  },
+  "offlineNoMatches": "No languages match “{query}”",
+  "@offlineNoMatches": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineLoadFailed": "Couldn’t check which languages are downloaded",
+  "@offlineLoadFailed": {
+    "description": "offlineLoadFailed"
+  },
+  "offlineDownloadedBadge": "Downloaded",
+  "@offlineDownloadedBadge": {
+    "description": "offlineDownloadedBadge"
+  },
+  "offlineDownloadTooltip": "Download {language}",
+  "@offlineDownloadTooltip": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineDeleteTooltip": "Delete {language}",
+  "@offlineDeleteTooltip": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineDownloading": "Downloading…",
+  "@offlineDownloading": {
+    "description": "offlineDownloading"
+  },
+  "offlineDownloadingWifiOnly": "Downloading when on Wi-Fi…",
+  "@offlineDownloadingWifiOnly": {
+    "description": "offlineDownloadingWifiOnly"
+  },
+  "offlineDeleting": "Deleting…",
+  "@offlineDeleting": {
+    "description": "offlineDeleting"
+  },
+  "offlineDeleteTitle": "Delete {language}?",
+  "@offlineDeleteTitle": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineDeleteBody": "Offline translation from and to {language} stops working until you download it again.",
+  "@offlineDeleteBody": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineDownloadDone": "{language} is ready for offline use",
+  "@offlineDownloadDone": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineDeleteDone": "{language} deleted",
+  "@offlineDeleteDone": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineDownloadFailed": "Couldn’t download {language}",
+  "@offlineDownloadFailed": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineDeleteFailed": "Couldn’t delete {language}",
+  "@offlineDeleteFailed": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineBadge": "Offline",
+  "@offlineBadge": {
+    "description": "offlineBadge"
+  },
+  "offlineBadgeTooltip": "Translated on this device",
+  "@offlineBadgeTooltip": {
+    "description": "offlineBadgeTooltip"
+  },
+  "speechUnavailable": "No voice is available for this language. Add a Mozhi instance or install a voice in your device's text-to-speech settings.",
+  "@speechUnavailable": {
+    "description": "Snackbar when neither Mozhi nor the device text-to-speech can read the text aloud"
+  },
+  "speechPreferDeviceVoice": "Use device voice",
+  "@speechPreferDeviceVoice": {
+    "description": "Settings switch: read aloud with the device text-to-speech engine first"
+  },
+  "speechPreferDeviceVoiceDescription": "Read aloud with your device's text-to-speech instead of the Mozhi instance. Works offline when the voice is installed.",
+  "@speechPreferDeviceVoiceDescription": {
+    "description": "Subtitle of the use-device-voice settings switch"
+  },
+  "speechListenSlowly": "Listen slowly",
+  "@speechListenSlowly": {
+    "description": "Text-to-speech play action at reduced speed"
+  },
+  "imageTranslateTitle": "Translate image",
+  "@imageTranslateTitle": {
+    "description": "imageTranslateTitle"
+  },
+  "imageTranslateButtonTooltip": "Translate an image",
+  "@imageTranslateButtonTooltip": {
+    "description": "imageTranslateButtonTooltip"
+  },
+  "imageTranslateEmptyTitle": "Translate text in photos",
+  "@imageTranslateEmptyTitle": {
+    "description": "imageTranslateEmptyTitle"
+  },
+  "imageTranslateEmptyBody": "Choose a photo or take a picture of a sign, menu or document. The text in it is found and translated.",
+  "@imageTranslateEmptyBody": {
+    "description": "imageTranslateEmptyBody"
+  },
+  "imageTranslateMethodsHeader": "Translation methods",
+  "@imageTranslateMethodsHeader": {
+    "description": "imageTranslateMethodsHeader"
+  },
+  "imageTranslatePickGallery": "Choose image",
+  "@imageTranslatePickGallery": {
+    "description": "imageTranslatePickGallery"
+  },
+  "imageTranslateTakePhoto": "Take photo",
+  "@imageTranslateTakePhoto": {
+    "description": "imageTranslateTakePhoto"
+  },
+  "imageTranslateRemoveImage": "Remove image",
+  "@imageTranslateRemoveImage": {
+    "description": "imageTranslateRemoveImage"
+  },
+  "imageTranslateMethodLabel": "Method",
+  "@imageTranslateMethodLabel": {
+    "description": "imageTranslateMethodLabel"
+  },
+  "imageTranslateMethodMozhi": "Mozhi (Google Lens)",
+  "@imageTranslateMethodMozhi": {
+    "description": "imageTranslateMethodMozhi"
+  },
+  "imageTranslateMethodMozhiDescription": "Replaces the text in the picture itself, via your Mozhi instance.",
+  "@imageTranslateMethodMozhiDescription": {
+    "description": "imageTranslateMethodMozhiDescription"
+  },
+  "imageTranslateMethodAi": "AI vision · {name}",
+  "@imageTranslateMethodAi": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "imageTranslateMethodAiDescription": "Context-aware translation by a vision-capable AI model.",
+  "@imageTranslateMethodAiDescription": {
+    "description": "imageTranslateMethodAiDescription"
+  },
+  "imageTranslateMethodOnDevice": "On-device text recognition",
+  "@imageTranslateMethodOnDevice": {
+    "description": "imageTranslateMethodOnDevice"
+  },
+  "imageTranslateMethodOnDeviceDescription": "Reads the text on this device, then translates it with the translator's engine.",
+  "@imageTranslateMethodOnDeviceDescription": {
+    "description": "imageTranslateMethodOnDeviceDescription"
+  },
+  "imageTranslateNoMethodsTitle": "No image translation method available",
+  "@imageTranslateNoMethodsTitle": {
+    "description": "imageTranslateNoMethodsTitle"
+  },
+  "imageTranslateNoMethodsBody": "Add a Mozhi instance that offers Google, or enable vision support for an AI provider.",
+  "@imageTranslateNoMethodsBody": {
+    "description": "imageTranslateNoMethodsBody"
+  },
+  "imageTranslateTranslateAction": "Translate image",
+  "@imageTranslateTranslateAction": {
+    "description": "imageTranslateTranslateAction"
+  },
+  "imageTranslatePhasePreparing": "Preparing the image…",
+  "@imageTranslatePhasePreparing": {
+    "description": "imageTranslatePhasePreparing"
+  },
+  "imageTranslatePhaseMozhi": "Translating with Google Lens via Mozhi. This can take up to a minute.",
+  "@imageTranslatePhaseMozhi": {
+    "description": "imageTranslatePhaseMozhi"
+  },
+  "imageTranslatePhaseAi": "{name} is reading and translating the image…",
+  "@imageTranslatePhaseAi": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "imageTranslatePhaseRecognizing": "Recognizing text on this device…",
+  "@imageTranslatePhaseRecognizing": {
+    "description": "imageTranslatePhaseRecognizing"
+  },
+  "imageTranslatePhaseTranslatingText": "Translating the recognized text…",
+  "@imageTranslatePhaseTranslatingText": {
+    "description": "imageTranslatePhaseTranslatingText"
+  },
+  "imageTranslateSlow": "Still working. Large images can take a while.",
+  "@imageTranslateSlow": {
+    "description": "imageTranslateSlow"
+  },
+  "imageTranslateShowOriginal": "Original",
+  "@imageTranslateShowOriginal": {
+    "description": "imageTranslateShowOriginal"
+  },
+  "imageTranslateShowTranslated": "Translated",
+  "@imageTranslateShowTranslated": {
+    "description": "imageTranslateShowTranslated"
+  },
+  "imageTranslateOriginalImageLabel": "Selected image",
+  "@imageTranslateOriginalImageLabel": {
+    "description": "imageTranslateOriginalImageLabel"
+  },
+  "imageTranslateTranslatedImageLabel": "Translated image",
+  "@imageTranslateTranslatedImageLabel": {
+    "description": "imageTranslateTranslatedImageLabel"
+  },
+  "imageTranslateSourceTextLabel": "Text in the image",
+  "@imageTranslateSourceTextLabel": {
+    "description": "imageTranslateSourceTextLabel"
+  },
+  "imageTranslateTranslationLabel": "Translation",
+  "@imageTranslateTranslationLabel": {
+    "description": "imageTranslateTranslationLabel"
+  },
+  "imageTranslateNotesLabel": "Notes",
+  "@imageTranslateNotesLabel": {
+    "description": "imageTranslateNotesLabel"
+  },
+  "imageTranslateEditHint": "Fix recognition mistakes, then translate again",
+  "@imageTranslateEditHint": {
+    "description": "imageTranslateEditHint"
+  },
+  "imageTranslateRetranslate": "Translate again",
+  "@imageTranslateRetranslate": {
+    "description": "imageTranslateRetranslate"
+  },
+  "imageTranslateOpenInTranslator": "Open in translator",
+  "@imageTranslateOpenInTranslator": {
+    "description": "imageTranslateOpenInTranslator"
+  },
+  "imageTranslateSearchLanguages": "Search languages",
+  "@imageTranslateSearchLanguages": {
+    "description": "imageTranslateSearchLanguages"
+  },
+  "imageTranslateNoLanguages": "No matching languages",
+  "@imageTranslateNoLanguages": {
+    "description": "imageTranslateNoLanguages"
+  },
+  "imageTranslateErrorTooLarge": "The image is too large for the server. Try a smaller or cropped image.",
+  "@imageTranslateErrorTooLarge": {
+    "description": "imageTranslateErrorTooLarge"
+  },
+  "imageTranslateErrorUnsupported": "The server couldn't process this image or language pair.",
+  "@imageTranslateErrorUnsupported": {
+    "description": "imageTranslateErrorUnsupported"
+  },
+  "imageTranslateErrorInvalidImage": "This file couldn't be read as an image.",
+  "@imageTranslateErrorInvalidImage": {
+    "description": "imageTranslateErrorInvalidImage"
+  },
+  "imageTranslateErrorNoText": "No text was found in the image.",
+  "@imageTranslateErrorNoText": {
+    "description": "imageTranslateErrorNoText"
+  },
+  "imageTranslateErrorPermission": "Access to the camera or photos was denied. You can allow it in the system settings.",
+  "@imageTranslateErrorPermission": {
+    "description": "imageTranslateErrorPermission"
+  },
+  "imageTranslateErrorPick": "The image couldn't be opened.",
+  "@imageTranslateErrorPick": {
+    "description": "imageTranslateErrorPick"
+  },
+  "imageTranslateErrorNoEngine": "Choose a translation engine on the Translate tab first.",
+  "@imageTranslateErrorNoEngine": {
+    "description": "imageTranslateErrorNoEngine"
+  },
+  "imageTranslateErrorLanguage": "This method can't translate between the selected languages. Choose another language or method.",
+  "@imageTranslateErrorLanguage": {
+    "description": "imageTranslateErrorLanguage"
+  },
+  "imageTranslateErrorRecognition": "Text recognition on this device failed.",
+  "@imageTranslateErrorRecognition": {
+    "description": "imageTranslateErrorRecognition"
+  },
+  "imageTranslateErrorTimeout": "Image translation timed out. Google Lens can take up to a minute; try again or use a smaller image.",
+  "@imageTranslateErrorTimeout": {
+    "description": "imageTranslateErrorTimeout"
   }
 }

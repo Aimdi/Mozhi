@@ -2,27 +2,37 @@ name: ci
 
 on:
   push:
+    # Branches only: tag pushes are handled by release.yaml.
+    branches:
+      - "**"
   pull_request:
   workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Superseded runs are cancelled, except on the default branch, where every
+  # push is tested and (in order) deployed to GitHub Pages.
+  cancel-in-progress: ${{ github.ref != format('refs/heads/{0}', github.event.repository.default_branch) }}
 
 permissions:
   contents: read
 
 env:
   FLUTTER_VERSION: "3.47.7"
+  # The web app is published to GitHub Pages under <site>/app/, i.e.
+  # https://<owner>.github.io/Mozhi/app/. With a custom domain, set the
+  # repository variable WEB_BASE_HREF (for example "/app/").
+  WEB_BASE_HREF: ${{ vars.WEB_BASE_HREF || format('/{0}/app/', github.event.repository.name) }}
 
 jobs:
   analyze-test:
     name: Analyze and test
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
 
+      # cache: true caches the Flutter SDK and the pub cache.
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -32,20 +42,25 @@ jobs:
       - name: Install dependencies
         run: |
           flutter pub get
-          for package in packages/*/; do
-            (cd "$package" && dart pub get)
-          done
+          bash .github/scripts/packages.sh get
 
+      # lib/l10n/gen is not committed. Untranslated messages in non-English
+      # ARB files are only reported (they fall back to English), never fatal.
       - name: Generate localizations
         run: flutter gen-l10n
 
       - name: Check formatting
         run: |
-          find lib test packages -name '*.dart' \
+          dirs=()
+          for dir in lib test packages tool; do
+            if [ -d "$dir" ]; then dirs+=("$dir"); fi
+          done
+          find "${dirs[@]}" -name '*.dart' \
             -not -path 'lib/l10n/gen/*' \
             -not -path '*/.dart_tool/*' \
             -not -path '*/build/*' \
-            -print0 | xargs -0 dart format --output=none --set-exit-if-changed
+            -not -name '*.g.dart' \
+            -print0 | xargs -0 -r dart format --output=none --set-exit-if-changed
 
       - name: Analyze
         run: flutter analyze
@@ -53,13 +68,10 @@ jobs:
       - name: Bloc lint
         run: dart run bloc_tools:bloc lint lib
 
+      # Pure Dart packages (and the CLI): dart test; Flutter packages
+      # (mlkit_translator): flutter test. Packages without tests are skipped.
       - name: Test packages
-        run: |
-          for package in packages/*/; do
-            echo "::group::$package"
-            (cd "$package" && dart test)
-            echo "::endgroup::"
-          done
+        run: bash .github/scripts/packages.sh test
 
       - name: Test app
         run: flutter test --coverage
@@ -85,6 +97,7 @@ jobs:
           java-version: "17"
           cache: gradle
 
+      # cache: true caches the Flutter SDK and the pub cache.
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -134,6 +147,32 @@ jobs:
           (cd dist && sha256sum *.apk > SHA256SUMS.txt)
           ls -l dist
 
+      - name: Size report
+        run: |
+          if [ -n "${ANDROID_KEYSTORE_PATH:-}" ]; then
+            signing="release key"
+          else
+            signing="debug key (no signing secrets)"
+          fi
+          {
+            echo "### Android APKs"
+            echo
+            echo "Signed with the $signing."
+            echo
+            echo "| APK | Size |"
+            echo "| --- | ---: |"
+            for apk in dist/*.apk; do
+              size=$(numfmt --to=iec-i --suffix=B --format='%.1f' "$(stat -c %s "$apk")")
+              echo "| \`$(basename "$apk")\` | $size |"
+            done
+            echo
+            echo '```text'
+            ls -lh dist
+            echo
+            cat dist/SHA256SUMS.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
@@ -163,11 +202,155 @@ jobs:
           flutter gen-l10n
 
       - name: Build
-        run: flutter build web --release -t lib/main_production.dart --base-href /Mozhi/
+        run: |
+          flutter build web --release -t lib/main_production.dart \
+            --base-href "$WEB_BASE_HREF"
+          {
+            echo "### Web build"
+            echo
+            echo "Base href \`$WEB_BASE_HREF\`, total size $(du -sh build/web | cut -f1)."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload web build
         uses: actions/upload-artifact@v4
         with:
           name: mozhi-web
           path: build/web
+          if-no-files-found: error
+
+  # Publishes site/ (landing page) at the root and the web app under app/.
+  # Requires Settings > Pages > Source: "GitHub Actions".
+  pages:
+    name: Deploy GitHub Pages
+    needs: build-web
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: site
+
+      - name: Download web build
+        uses: actions/download-artifact@v4
+        with:
+          name: mozhi-web
+          path: build/web
+
+      - name: Assemble site
+        run: |
+          rm -rf _site
+          mkdir -p _site
+          if [ -d site ]; then
+            cp -R site/. _site/
+          else
+            echo "::notice::No site/ directory: publishing a redirect to app/."
+          fi
+          if [ ! -f _site/index.html ]; then
+            cat > _site/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+              <title>Mozhi</title>
+              <meta http-equiv="refresh" content="0; url=app/">
+              <link rel="canonical" href="app/">
+            </head>
+            <body>
+              <p><a href="app/">Open Mozhi</a></p>
+            </body>
+          </html>
+          HTML
+          fi
+          if [ -e _site/app ]; then
+            echo "::warning::site/app is replaced by the web build."
+            rm -rf _site/app
+          fi
+          mkdir -p _site/app
+          cp -R build/web/. _site/app/
+          {
+            echo "### GitHub Pages"
+            echo
+            echo '```text'
+            du -sh _site _site/app
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  # Optional, manual only (Actions > ci > Run workflow).
+  build-windows:
+    name: Build Windows (manual)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      # flutter_tts uses NuGet for its Windows build. It is pre-installed on
+      # GitHub's Windows runners; fetch it only if it is missing.
+      - name: Ensure NuGet
+        run: |
+          if (Get-Command nuget -ErrorAction SilentlyContinue) {
+            nuget help | Select-Object -First 1
+          } else {
+            $dir = Join-Path $env:RUNNER_TEMP 'nuget'
+            New-Item -ItemType Directory -Force -Path $dir | Out-Null
+            Invoke-WebRequest -Uri 'https://dist.nuget.org/win-x86-commandline/latest/nuget.exe' `
+              -OutFile (Join-Path $dir 'nuget.exe')
+            Add-Content -Path $env:GITHUB_PATH -Value $dir
+          }
+
+      - name: Install dependencies
+        run: |
+          flutter pub get
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter gen-l10n
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build
+        run: flutter build windows --release -t lib/main_production.dart
+
+      - name: Zip
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Compress-Archive -Path 'build\windows\x64\runner\Release\*' `
+            -DestinationPath 'dist\mozhi-windows-x64.zip' -Force
+          Get-ChildItem dist | Format-Table Name, Length
+
+      - name: Upload Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: mozhi-windows
+          path: dist/mozhi-windows-x64.zip
           if-no-files-found: error

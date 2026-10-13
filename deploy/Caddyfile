@@ -1,0 +1,58 @@
+# Caddy reverse proxy for a self-hosted Mozhi instance, with automatic HTTPS.
+#
+# With docker compose (`--profile https`), the {$...} placeholders come from
+# .env: MOZHI_DOMAIN must be a DNS name that points at this host, with ports
+# 80 and 443 reachable from the internet, so Caddy can get a Let's Encrypt /
+# ZeroSSL certificate.
+#
+# Caddy installed directly on the host instead? Use this file as is and set
+# MOZHI_UPSTREAM=localhost:3000 (and OLLAMA_UPSTREAM=localhost:11434), or
+# replace the placeholders with literal values.
+
+{
+	# Optional: an address for certificate expiry notices.
+	# email you@example.com
+}
+
+{$MOZHI_DOMAIN:localhost} {
+	reverse_proxy {$MOZHI_UPSTREAM:mozhi:3000}
+
+	# Mozhi rejects request bodies over 4 MB (image translation uploads);
+	# fail early with the same limit.
+	request_body {
+		max_size 4MB
+	}
+
+	# Mozhi already sends HSTS, CSP and the other security headers; just drop
+	# the version banner.
+	header -Server
+}
+
+# Optional: Ollama over HTTPS, protected by an API key (Ollama itself has no
+# authentication). Set OLLAMA_DOMAIN and a long random OLLAMA_API_KEY in .env,
+# uncomment the block, and in the app add the Ollama provider with base URL
+# https://<OLLAMA_DOMAIN> and the same key as its API key (the app sends it as
+# "Authorization: Bearer <key>"). Native apps only: browsers send CORS
+# preflight requests without the key, so the web app cannot use this.
+#
+# {$OLLAMA_DOMAIN:ollama.localhost} {
+# 	@unauthorized not header Authorization "Bearer {$OLLAMA_API_KEY}"
+# 	respond @unauthorized "Unauthorized" 401
+#
+# 	reverse_proxy {$OLLAMA_UPSTREAM:ollama:11434} {
+# 		header_up Host localhost:11434
+# 		# Streamed answers should not be buffered.
+# 		flush_interval -1
+# 	}
+# }
+
+# Optional: HTTPS on your LAN without a public domain. Caddy creates its own
+# certificate authority; install its root certificate (inside the container:
+# /data/caddy/pki/authorities/local/root.crt) on your devices. On Android,
+# install it under Settings > Security > Encryption & credentials > Install a
+# certificate > CA certificate; the app trusts user-installed CAs.
+#
+# mozhi.lan {
+# 	tls internal
+# 	reverse_proxy {$MOZHI_UPSTREAM:mozhi:3000}
+# }

@@ -14,6 +14,9 @@ abstract interface class AudioOutput {
   /// Stops playback. Does not emit [onComplete].
   Future<void> stop();
 
+  /// Playback speed for this and later clips (1.0 = normal, 0.7 = slow).
+  Future<void> setPlaybackRate(double rate);
+
   /// Emits each time a clip finishes playing on its own.
   Stream<void> get onComplete;
 
@@ -40,6 +43,7 @@ class AudioPlayersOutput implements AudioOutput {
   final StreamController<void> _completions = StreamController.broadcast();
   AudioPlayer? _player;
   StreamSubscription<void>? _playerCompletions;
+  double _rate = 1;
 
   AudioPlayer get _activePlayer {
     if (_player case final player?) return player;
@@ -65,6 +69,16 @@ class AudioPlayersOutput implements AudioOutput {
   @override
   Future<void> stop() async {
     await _player?.stop();
+  }
+
+  /// Applies [rate] through `AudioPlayer.setPlaybackRate` (kept across
+  /// clips). Skips the platform call when the rate is unchanged, so normal
+  /// speed never creates the player.
+  @override
+  Future<void> setPlaybackRate(double rate) async {
+    if (rate == _rate) return;
+    await _activePlayer.setPlaybackRate(rate);
+    _rate = rate;
   }
 
   @override

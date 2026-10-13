@@ -33,14 +33,15 @@ class LanguageBar extends StatelessWidget {
       builder: (context, state) {
         final detected = state.result?.detectedSource;
         final String sourceLabel;
+        final String sourceDescription;
         if (!state.source.isAuto) {
-          sourceLabel = state.source.name;
+          sourceLabel = sourceDescription = state.source.name;
         } else if (detected != null) {
-          sourceLabel = l10n.translateDetectedLanguage(
-            languageNameFor(detected, state.sourceLanguages),
-          );
+          // The sparkle icon marks it as detected; keep the label short.
+          sourceLabel = languageNameFor(detected, state.sourceLanguages);
+          sourceDescription = l10n.translateDetectedLanguage(sourceLabel);
         } else {
-          sourceLabel = l10n.translateDetectLanguage;
+          sourceLabel = sourceDescription = l10n.translateDetectLanguage;
         }
         return Row(
           children: [
@@ -48,8 +49,11 @@ class LanguageBar extends StatelessWidget {
               child: _LanguageButton(
                 key: const Key('translate_source_button'),
                 label: sourceLabel,
-                semanticLabel: l10n.translateSourceLanguage(sourceLabel),
-                icon: state.source.isAuto ? Icons.auto_awesome_outlined : null,
+                semanticLabel: l10n.translateSourceLanguage(sourceDescription),
+                tooltip: sourceDescription,
+                icon: state.source.isAuto && detected != null
+                    ? Icons.auto_awesome_outlined
+                    : null,
                 onPressed: () => _pick(context, source: true),
               ),
             ),
@@ -69,6 +73,7 @@ class LanguageBar extends StatelessWidget {
                 key: const Key('translate_target_button'),
                 label: state.target.name,
                 semanticLabel: l10n.translateTargetLanguage(state.target.name),
+                tooltip: state.target.name,
                 icon: state.target.isCustom ? Icons.auto_awesome : null,
                 onPressed: () => _pick(context, source: false),
               ),
@@ -84,6 +89,7 @@ class _LanguageButton extends StatelessWidget {
   const new({
     required this.label,
     required this.semanticLabel,
+    required this.tooltip,
     required this.onPressed,
     this.icon,
     super.key,
@@ -91,41 +97,46 @@ class _LanguageButton extends StatelessWidget {
 
   final String label;
   final String semanticLabel;
+  final String tooltip;
   final IconData? icon;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Semantics(
-      button: true,
-      label: semanticLabel,
-      excludeSemantics: true,
-      child: FilledButton.tonal(
-        style: FilledButton.styleFrom(
-          minimumSize: const Size(48, 48),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          backgroundColor: theme.colorScheme.surfaceContainerHigh,
-          foregroundColor: theme.colorScheme.onSurface,
-        ),
-        onPressed: onPressed,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 18, color: theme.colorScheme.primary),
-              const SizedBox(width: 6),
-            ],
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.titleSmall,
+    return Tooltip(
+      message: tooltip,
+      excludeFromSemantics: true,
+      child: Semantics(
+        button: true,
+        label: semanticLabel,
+        excludeSemantics: true,
+        child: FilledButton.tonal(
+          style: FilledButton.styleFrom(
+            minimumSize: const Size(48, 48),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            backgroundColor: theme.colorScheme.surfaceContainerHigh,
+            foregroundColor: theme.colorScheme.onSurface,
+          ),
+          onPressed: onPressed,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 18, color: theme.colorScheme.primary),
+                const SizedBox(width: 6),
+              ],
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall,
+                ),
               ),
-            ),
-            const Icon(Icons.expand_more, size: 20),
-          ],
+              const Icon(Icons.expand_more, size: 20),
+            ],
+          ),
         ),
       ),
     );
