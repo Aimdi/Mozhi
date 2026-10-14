@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:bloc/bloc.dart';
 // compute() runs long diffs off the UI isolate.
 // ignore: avoid_flutter_imports
 import 'package:flutter/foundation.dart';
 import 'package:mozhi/proofread/cubit/proofread_state.dart';
 import 'package:mozhi/proofread/models/proofread_diff.dart';
+import 'package:mozhi/usage/usage.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 export 'proofread_state.dart';
@@ -16,10 +19,15 @@ class ProofreadCubit extends Cubit<ProofreadState> {
     List<TranslationEngine> engines = const [],
     TranslationEngine? engine,
     this._uiLanguage = 'English',
+    this._usageTracker,
   }) : super(_withEngines(const ProofreadState(), engines, engine));
 
   final TranslationRepository _repository;
   final String _uiLanguage;
+
+  /// Counts what each finished proofread sends to and receives from a
+  /// bring-your-own-key provider.
+  final UsageTracker? _usageTracker;
 
   /// Incremented per request so stale responses are ignored.
   int _request = 0;
@@ -130,6 +138,7 @@ class ProofreadCubit extends Cubit<ProofreadState> {
         uiLanguage: _uiLanguage,
       );
       if (isClosed || request != _request) return;
+      _recordUsage(engine, input: text, result: result);
       final reconciled = await _reconcile(text, result);
       if (isClosed || request != _request) return;
       emit(
@@ -144,6 +153,30 @@ class ProofreadCubit extends Cubit<ProofreadState> {
       if (isClosed || request != _request) return;
       addError(error, stackTrace);
       emit(state.copyWith(status: ProofreadStatus.failure, error: () => error));
+    }
+  }
+
+  void _recordUsage(
+    TranslationEngine engine, {
+    required String input,
+    required ProofreadResult result,
+  }) {
+    final tracker = _usageTracker;
+    final providerId = engine.providerId;
+    if (tracker == null || providerId == null || providerId.isEmpty) return;
+    final output = [
+      result.correctedText,
+      result.summary,
+      for (final edit in result.edits) edit.explanation,
+    ].where((part) => part.isNotEmpty).join('\n');
+    try {
+      unawaited(
+        tracker
+            .recordText(providerId, input: input, output: output)
+            .then((_) {}, onError: (Object _) {}),
+      );
+    } on Object {
+      // Usage counting must never break proofreading.
     }
   }
 

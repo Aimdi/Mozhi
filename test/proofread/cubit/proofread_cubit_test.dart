@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/proofread/cubit/proofread_cubit.dart';
 import 'package:mozhi/proofread/models/proofread_diff.dart';
+import 'package:mozhi/usage/usage.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 class _MockTranslationRepository extends Mock implements TranslationRepository;
@@ -577,5 +579,60 @@ void main() {
         ),
       ],
     );
+
+    group('usage', () {
+      const billed = TranslationEngine(
+        id: 'ai:p1',
+        kind: EngineKind.ai,
+        name: 'OpenAI',
+        providerId: 'p1',
+      );
+
+      test('records a finished proofread for its provider', () async {
+        stubProofread(() async => _result);
+        final tracker = UsageTracker(store: MemoryStore());
+        addTearDown(tracker.dispose);
+        final cubit = ProofreadCubit(
+          repository: repository,
+          engines: const [billed],
+          usageTracker: tracker,
+        )..setInput(_input);
+        addTearDown(cubit.close);
+
+        await cubit.proofread();
+        await pumpEventQueue();
+
+        final stats = tracker.snapshot.statsFor('p1');
+        expect(stats.requests, 1);
+        expect(stats.inputChars, _input.length);
+        expect(stats.outputChars, greaterThan(_result.correctedText.length));
+      });
+
+      test('does not record failures or engines without a provider', () async {
+        final tracker = UsageTracker(store: MemoryStore());
+        addTearDown(tracker.dispose);
+
+        stubProofread(() async => throw Exception('offline'));
+        final failing = ProofreadCubit(
+          repository: repository,
+          engines: const [billed],
+          usageTracker: tracker,
+        )..setInput(_input);
+        addTearDown(failing.close);
+        await failing.proofread();
+
+        stubProofread(() async => _result);
+        final unbilled = ProofreadCubit(
+          repository: repository,
+          engines: const [_openAi],
+          usageTracker: tracker,
+        )..setInput(_input);
+        addTearDown(unbilled.close);
+        await unbilled.proofread();
+        await pumpEventQueue();
+
+        expect(tracker.snapshot.hasUsage, isFalse);
+      });
+    });
   });
 }

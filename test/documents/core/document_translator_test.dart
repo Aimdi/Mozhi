@@ -69,6 +69,42 @@ void main() {
   ).planSegments([for (final t in texts) Segment(t)], ChunkEncoding.markers);
 
   group('DocumentTranslator', () {
+    group('onTranslated', () {
+      test('reports each answered request but not cache hits', () async {
+        stub(
+          (request) => Stream.value(
+            _result(request.text.toUpperCase())
+                .copyWith(fromCache: request.text.contains('two')),
+          ),
+        );
+        final calls = <(String, String, String)>[];
+        final chunks = plan(['one', 'two', 'three'], maxUnits: 1);
+        await DocumentTranslator(
+          repository: repository,
+          retryDelay: Duration.zero,
+          onTranslated: (engine, request, result) =>
+              calls.add((engine.id, request.text, result.text)),
+        ).translate(chunks, engine: _ai, source: _en, target: _de).toList();
+
+        expect(calls, hasLength(2));
+        expect(calls.map((c) => c.$1).toSet(), {'ai:openai'});
+        expect(calls.map((c) => c.$3), containsAll(['ONE', 'THREE']));
+      });
+
+      test('ignores errors thrown by the callback', () async {
+        stub();
+        final chunks = plan(['one']);
+        final last = await DocumentTranslator(
+          repository: repository,
+          retryDelay: Duration.zero,
+          onTranslated: (_, _, _) => throw StateError('broken'),
+        ).translate(chunks, engine: _ai, source: _en, target: _de).last;
+
+        expect(last.failed, 0);
+        expect(chunks.assemble(last.results), ['ONE']);
+      });
+    });
+
     test('translates every chunk and reports progress', () async {
       stub();
       final chunks = plan(['one', 'two', 'three'], maxUnits: 2);

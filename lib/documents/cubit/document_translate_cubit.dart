@@ -7,6 +7,7 @@ import 'package:bloc/bloc.dart';
 import 'package:mozhi/documents/core/core.dart';
 import 'package:mozhi/documents/cubit/document_translate_state.dart';
 import 'package:mozhi/documents/data/document_file_service.dart';
+import 'package:mozhi/usage/usage.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 export 'document_translate_state.dart';
@@ -36,8 +37,14 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
     Language source = Language.auto,
     Language target = _english,
     TranslationOptions options = const TranslationOptions(),
+    UsageTracker? usageTracker,
   }) : _repository = repository,
-       _translator = translator ?? DocumentTranslator(repository: repository),
+       _translator =
+           translator ??
+           DocumentTranslator(
+             repository: repository,
+             onTranslated: _usageRecorder(usageTracker),
+           ),
        super(
          DocumentTranslateState(
            engines: engines,
@@ -51,6 +58,20 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
        );
 
   static const _english = Language(code: 'en', name: 'English');
+
+  /// Counts each answered chunk request of a bring-your-own-key provider.
+  static TranslatedCallback? _usageRecorder(UsageTracker? tracker) {
+    if (tracker == null) return null;
+    return (engine, request, result) {
+      final providerId = engine.providerId;
+      if (providerId == null || providerId.isEmpty) return;
+      unawaited(
+        tracker
+            .recordText(providerId, input: request.text, output: result.text)
+            .then((_) {}, onError: (Object _) {}),
+      );
+    };
+  }
 
   final TranslationRepository _repository;
   final DocumentFileService _files;

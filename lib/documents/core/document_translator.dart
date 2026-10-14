@@ -49,6 +49,14 @@ class DocumentProgress extends Equatable {
 /// Decides whether a failed request is worth repeating.
 typedef RetryPolicy = bool Function(Object error);
 
+/// Called after each request that an engine answered (not cache hits),
+/// e.g. to count what was sent to a bring-your-own-key provider.
+typedef TranslatedCallback = void Function(
+  TranslationEngine engine,
+  TranslationRequest request,
+  TranslationResult result,
+);
+
 /// Translates a [ChunkPlan] chunk by chunk through
 /// [TranslationRepository.translate], keeping [concurrency] requests in
 /// flight.
@@ -70,6 +78,7 @@ class DocumentTranslator {
     this.maxAttempts = 3,
     this.retryDelay = const Duration(seconds: 1),
     RetryPolicy? shouldRetry,
+    this.onTranslated,
   }) : assert(concurrency >= 1, 'concurrency must be positive'),
        assert(maxAttempts >= 1, 'maxAttempts must be positive'),
        shouldRetry = shouldRetry ?? isRetryableError;
@@ -79,6 +88,9 @@ class DocumentTranslator {
   final int maxAttempts;
   final Duration retryDelay;
   final RetryPolicy shouldRetry;
+
+  /// See [TranslatedCallback]. Its errors are ignored.
+  final TranslatedCallback? onTranslated;
 
   /// Instruction added for AI engines so that batch markers and
   /// placeholders survive.
@@ -274,12 +286,20 @@ class DocumentTranslator {
           },
           onDone: () {
             if (completer.isCompleted) return;
-            final text = last?.text.trim() ?? '';
-            if (text.isEmpty) {
+            final result = last;
+            final text = result?.text.trim() ?? '';
+            if (result == null || text.isEmpty) {
               completer.completeError(const EmptyTranslationException());
-            } else {
-              completer.complete(text);
+              return;
             }
+            if (!result.fromCache) {
+              try {
+                onTranslated?.call(engine, request, result);
+              } on Object {
+                // Bookkeeping must never fail a translation.
+              }
+            }
+            completer.complete(text);
           },
           cancelOnError: true,
         );

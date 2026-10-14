@@ -6,6 +6,7 @@ import 'package:mozhi/documents/data/document_file_service.dart';
 import 'package:mozhi/documents/widgets/widgets.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/usage/usage.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Document translation (DeepL/Kagi style) for text formats.
@@ -51,6 +52,7 @@ class DocumentTranslatePage extends StatelessWidget {
           source: translate.source,
           target: translate.target,
           options: translate.options,
+          usageTracker: _usageTracker(context),
         );
         if (initialFile case final file?) {
           cubit.loadFile(file.name, file.bytes);
@@ -219,5 +221,14 @@ class _WideLayout extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+/// The app's usage tracker, or null when none is provided (e.g. in tests).
+UsageTracker? _usageTracker(BuildContext context) {
+  try {
+    return context.read<UsageTracker>();
+  } on ProviderNotFoundException {
+    return null;
   }
 }
