@@ -65,6 +65,22 @@ void main() {
         expect(error.uri!.userInfo, 'me:p%40ss');
       });
 
+      test('leaves the query (user text) out of the URI', () {
+        final error = MozhiApiException(
+          'Bad gateway',
+          statusCode: 502,
+          uri: Uri.parse(
+            'https://mozhi.example:8443/api/tts?engine=google&text=secret#x',
+          ),
+        );
+
+        expect(
+          error.toString(),
+          'MozhiApiException(502): Bad gateway '
+          '[https://mozhi.example:8443/api/tts]',
+        );
+      });
+
       test('labels transport failures without a URI', () {
         expect(
           const MozhiApiException('No response within 30000 ms').toString(),

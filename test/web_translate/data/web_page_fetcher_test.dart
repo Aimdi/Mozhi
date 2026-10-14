@@ -155,6 +155,80 @@ void main() {
       expect((await fetchError(fetcher)).error, WebPageError.invalidUrl);
     });
 
+    group('redirects to the local network', () {
+      WebPageFetcher redirectingTo(String location, {List<Uri>? seen}) =>
+          WebPageFetcher(
+            isWeb: false,
+            client: MockClient((request) async {
+              seen?.add(request.url);
+              if (request.url.path == '/article') {
+                return http.Response('', 302, headers: {'location': location});
+              }
+              return http.Response('<p>local</p>', 200);
+            }),
+          );
+
+      for (final target in [
+        'http://localhost:8080/admin',
+        'http://127.0.0.1/',
+        'http://192.168.1.1/cgi-bin/reboot',
+        'http://10.0.0.5/',
+        'http://169.254.169.254/latest/meta-data/',
+        'http://[::1]/',
+        'http://[fd00::1]/',
+        'http://router.local/',
+        'http://nas/',
+        'http://2130706433/',
+        'http://0x7f.1/',
+      ]) {
+        test('refuses a public page redirecting to $target', () async {
+          final seen = <Uri>[];
+          final error = await fetchError(redirectingTo(target, seen: seen));
+          expect(error.error, WebPageError.blockedRedirect);
+          expect(seen, [pageUri]);
+        });
+      }
+
+      test('allows redirects when the address typed is local', () async {
+        final fetcher = WebPageFetcher(
+          isWeb: false,
+          client: MockClient((request) async {
+            if (request.url.path == '/') {
+              return http.Response('', 301, headers: {'location': '/wiki'});
+            }
+            return http.Response('<p>wiki</p>', 200);
+          }),
+        );
+        final page = await fetcher.fetch(Uri.parse('http://192.168.1.20/'));
+        expect(page.url, Uri.parse('http://192.168.1.20/wiki'));
+      });
+
+      test('allows public redirect targets with numeric labels', () async {
+        final page = await redirectingTo('https://cafe.de/1.2').fetch(pageUri);
+        expect(page.url, Uri.parse('https://cafe.de/1.2'));
+      });
+    });
+
+    test('isLocalNetworkHost', () {
+      expect(WebPageFetcher.isLocalNetworkHost('192.168.0.1'), isTrue);
+      expect(WebPageFetcher.isLocalNetworkHost('0177.0.0.1'), isTrue);
+      expect(WebPageFetcher.isLocalNetworkHost('example.com'), isFalse);
+      expect(WebPageFetcher.isLocalNetworkHost('8.8.8.8'), isFalse);
+      expect(WebPageFetcher.isLocalNetworkHost('dead.beef'), isFalse);
+    });
+
+    test('toString leaves query and credentials out of the URI', () {
+      final error = WebPageException(
+        WebPageError.httpStatus,
+        statusCode: 403,
+        uri: Uri.parse('https://u:p@example.com:8443/doc?token=secret#top'),
+      );
+      expect(
+        error.toString(),
+        'WebPageException(httpStatus, 403, https://example.com:8443/doc)',
+      );
+    });
+
     test('reports HTTP errors with the status code', () async {
       final fetcher = WebPageFetcher(
         isWeb: false,

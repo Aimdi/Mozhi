@@ -84,6 +84,19 @@ void main() {
       );
     });
 
+    test('toString leaves credentials and the query out of the URI', () {
+      final e = MtApiException(
+        'Failed.',
+        statusCode: 500,
+        uri: Uri.parse('https://me:secret@mt.example:8443/translate?q=hi#x'),
+      );
+      expect(
+        e.toString(),
+        'MtApiException(500): Failed. [https://mt.example:8443/translate]',
+      );
+      expect(e.toString(), isNot(contains('secret')));
+    });
+
     test('subclasses name themselves', () {
       const deepl = DeeplApiException(
         'Quota exceeded.',

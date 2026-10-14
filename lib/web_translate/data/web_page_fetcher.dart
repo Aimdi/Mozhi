@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:mozhi/web_translate/core/charset.dart';
+import 'package:translation_repository/translation_repository.dart'
+    show AiProviderConfig;
 
 /// Why a page could not be loaded.
 enum WebPageError {
@@ -29,6 +31,13 @@ enum WebPageError {
   /// More redirects than allowed.
   tooManyRedirects,
 
+  /// A public page redirected to this device or the local network
+  /// (`localhost`, a private IP address, a `.local` name, ...). Such
+  /// redirects are refused so that a website cannot make the app fetch,
+  /// and then send to a translation engine, pages of routers, NAS boxes
+  /// or other LAN services. Typing a local address directly still works.
+  blockedRedirect,
+
   /// The page has no readable text.
   noContent,
 }
@@ -51,13 +60,25 @@ class WebPageException implements Exception {
   /// The underlying exception, when there is one.
   final Object? cause;
 
+  /// Shows [uri] without user info, query and fragment (they may carry
+  /// tokens), so logs never contain them.
   @override
-  String toString() =>
-      'WebPageException(${error.name}'
-      '${statusCode == null ? '' : ', $statusCode'}'
-      '${contentType == null ? '' : ', $contentType'}'
-      '${uri == null ? '' : ', $uri'}'
-      '${cause == null ? '' : ', $cause'})';
+  String toString() {
+    final uri = this.uri;
+    final shown = uri == null
+        ? null
+        : Uri(
+            scheme: uri.scheme,
+            host: uri.host,
+            port: uri.hasPort ? uri.port : null,
+            path: uri.path,
+          );
+    return 'WebPageException(${error.name}'
+        '${statusCode == null ? '' : ', $statusCode'}'
+        '${contentType == null ? '' : ', $contentType'}'
+        '${shown == null ? '' : ', $shown'}'
+        '${cause == null ? '' : ', $cause'})';
+  }
 }
 
 /// A downloaded page.
@@ -97,7 +118,9 @@ class FetchedWebPage {
 /// * Sends a desktop browser `User-Agent` (except on the web, where
 ///   browsers do not allow it) so that sites serve their full layout.
 /// * Follows up to [maxRedirects] redirects (manually, to know the final
-///   address; on the web the browser follows them).
+///   address; on the web the browser follows them). A redirect from a
+///   public address to this device or the local network is refused
+///   ([WebPageError.blockedRedirect], see [isLocalNetworkHost]).
 /// * Reads at most [maxBytes] of the body (larger pages are truncated).
 /// * Decodes the body with [decodeHtmlBytes] (HTTP charset, `<meta>`
 ///   charset, UTF-8 / windows-1252 fallback).
@@ -191,6 +214,9 @@ class WebPageFetcher {
         if (!_isHttp(next)) {
           throw WebPageException(WebPageError.invalidUrl, uri: next);
         }
+        if (!isLocalNetworkHost(uri.host) && isLocalNetworkHost(next.host)) {
+          throw WebPageException(WebPageError.blockedRedirect, uri: next);
+        }
         current = next;
         continue;
       }
@@ -274,6 +300,25 @@ class WebPageFetcher {
       status == 303 ||
       status == 307 ||
       status == 308;
+
+  /// Whether [host] (as in [Uri.host]) is this device or on a private
+  /// network: everything `AiProviderConfig.isLocalHost` accepts, plus
+  /// numeric shorthands such as `0x7f.1` or `2130706433` that resolvers
+  /// turn into IPv4 addresses.
+  @visibleForTesting
+  static bool isLocalNetworkHost(String host) {
+    if (AiProviderConfig.isLocalHost(host)) return true;
+    // Canonical dotted quads were classified above (public).
+    if (_canonicalIpv4.hasMatch(host)) return false;
+    final labels = host.toLowerCase().split('.');
+    return labels.every(_numericLabel.hasMatch);
+  }
+
+  static final _canonicalIpv4 = RegExp(
+    r'^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}'
+    r'(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$',
+  );
+  static final _numericLabel = RegExp(r'^(?:0x[0-9a-f]*|[0-9]+)$');
 
   static bool _isHttp(Uri uri) =>
       (uri.isScheme('http') || uri.isScheme('https')) && uri.host.isNotEmpty;

@@ -64,11 +64,15 @@ class MtTransport {
       unawaited(abortTrigger.then(cancel, onError: cancel));
     }
 
-    final request = http.AbortableRequest(
-      method,
-      uri,
-      abortTrigger: abort.future,
-    )..headers.addAll(headers);
+    // Redirects are not followed: dart:io would copy every header except
+    // Authorization/Cookie to the new host, and a moved API is a
+    // configuration error the user should see (3xx is reported through
+    // [mapHttpError] like any other non-2xx status).
+    final request =
+        http.AbortableRequest(method, uri, abortTrigger: abort.future)
+          ..followRedirects = false
+          ..maxRedirects = 0
+          ..headers.addAll(headers);
     if (json != null) {
       request.headers['content-type'] = 'application/json';
       request.body = jsonEncode(json);

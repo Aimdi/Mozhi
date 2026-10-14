@@ -15,6 +15,14 @@ void main() {
   });
 
   group('OnboardingState', () {
+    test('toString masks the API key', () {
+      const state = OnboardingState(apiKey: 'sk-ant-secret', model: 'm1');
+      expect(state.toString(), isNot(contains('sk-ant-secret')));
+      expect(state.toString(), contains('<redacted>'));
+      expect(state.toString(), contains('m1'));
+      expect(const OnboardingState().toString(), isNot(contains('redacted')));
+    });
+
     test('fastestUrl picks the lowest latency among answers', () {
       const state = OnboardingState(
         pings: {

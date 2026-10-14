@@ -26,13 +26,19 @@ class MozhiApiException implements Exception {
   bool get isRetryable =>
       statusCode == null || !_requestErrors.contains(statusCode);
 
-  /// Includes [uri] without any user info, so credentials never reach logs.
+  /// Includes [uri] without user info, query and fragment, so credentials
+  /// and the user's text (`/api/tts?text=…`) never reach logs.
   @override
   String toString() {
     final uri = this.uri;
-    final shown = uri != null && uri.userInfo.isNotEmpty
-        ? uri.replace(userInfo: '')
-        : uri;
+    final shown = uri == null
+        ? null
+        : Uri(
+            scheme: uri.scheme,
+            host: uri.host,
+            port: uri.hasPort ? uri.port : null,
+            path: uri.path,
+          );
     return 'MozhiApiException(${statusCode ?? 'network'}): $message'
         '${shown == null ? '' : ' [$shown]'}';
   }

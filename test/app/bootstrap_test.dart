@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:bloc/bloc.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mlkit_translator/mlkit_translator.dart';
 import 'package:mozhi/app/app_dependencies.dart';
@@ -136,6 +137,13 @@ void main() {
       expect(dependencies.secretsInMemory, isTrue);
     });
 
+    test('keeps iOS keys on this device', () {
+      expect(
+        appSecureStorage.iOptions.toMap()['accessibility'],
+        KeychainAccessibility.unlocked_this_device.name,
+      );
+    });
+
     test('keeps web secrets for the session only', () {
       expect(appSecureStorage.webOptions.useSessionStorage, isTrue);
       expect(
@@ -211,6 +219,21 @@ void main() {
         ..fail();
       expect(cubit.state, 1);
       await cubit.close();
+    });
+
+    test('logs type names only, never state contents', () {
+      final cubit = _Counter();
+      addTearDown(cubit.close);
+      const change = Change<Object>(
+        currentState: 'sk-secret-key',
+        nextState: 'Hola, ¿qué tal?',
+      );
+
+      final line = AppBlocObserver.describeChange(cubit, change);
+
+      expect(line, 'onChange(_Counter: String -> String)');
+      expect(line, isNot(contains('sk-secret')));
+      expect(line, isNot(contains('Hola')));
     });
   });
 }

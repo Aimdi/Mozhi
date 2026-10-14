@@ -94,10 +94,20 @@ class MtApiException implements Exception {
   @protected
   String get typeName => 'MtApiException';
 
+  /// Includes [uri] without user info and query, so credentials and text
+  /// never reach logs.
   @override
   String toString() =>
       '$typeName(${statusCode ?? kind.name}): $fullMessage'
-      '${uri == null ? '' : ' [$uri]'}';
+      '${uri == null ? '' : ' [${redactUri(uri!)}]'}';
+
+  /// [uri] without user info, query and fragment.
+  static Uri redactUri(Uri uri) => Uri(
+    scheme: uri.scheme,
+    host: uri.host,
+    port: uri.hasPort ? uri.port : null,
+    path: uri.path,
+  );
 }
 
 /// Thrown by `DeeplClient`.

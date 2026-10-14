@@ -20,6 +20,7 @@ String describeWebTranslateError(AppLocalizations l10n, Object? error) {
     WebPageError.timeout => l10n.webTranslateErrorTimeout,
     WebPageError.blockedByBrowser => l10n.webTranslateErrorBlocked,
     WebPageError.tooManyRedirects => l10n.webTranslateErrorRedirects,
+    WebPageError.blockedRedirect => l10n.webTranslateErrorBlockedRedirect,
     WebPageError.noContent => l10n.webTranslateErrorNoContent,
   };
 }

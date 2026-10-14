@@ -19,14 +19,24 @@ import 'package:mozhi/voice/speech_input_service.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Logs bloc changes and errors (debug builds only).
+///
+/// Only type names are logged, never the states themselves: they hold the
+/// user's text, translations and, while onboarding, an API key.
 class AppBlocObserver extends BlocObserver {
   const new();
 
   @override
   void onChange(BlocBase<dynamic> bloc, Change<dynamic> change) {
     super.onChange(bloc, change);
-    log('onChange(${bloc.runtimeType}, $change)', name: 'bloc');
+    log(describeChange(bloc, change), name: 'bloc');
   }
+
+  /// The log line for [change] of [bloc]: type names only.
+  @visibleForTesting
+  static String describeChange(BlocBase<dynamic> bloc, Change<dynamic> change) =>
+      'onChange(${bloc.runtimeType}: '
+      '${change.currentState.runtimeType} -> '
+      '${change.nextState.runtimeType})';
 
   @override
   void onError(BlocBase<dynamic> bloc, Object error, StackTrace stackTrace) {
@@ -117,6 +127,9 @@ Future<AppDependencies> createDependencies({
 /// closes): browser storage is readable by any script of the origin, and
 /// the encryption key sits next to the data, so nothing is persisted.
 const appSecureStorage = FlutterSecureStorage(
+  // Keys stay on this device: not in iCloud Keychain, not restored from an
+  // encrypted backup onto another phone (docs/security.md).
+  iOptions: IOSOptions(accessibility: KeychainAccessibility.unlocked_this_device),
   // The data-protection keychain needs a provisioning profile
   // (keychain-access-groups); the legacy keychain works unsigned.
   mOptions: MacOsOptions(usesDataProtectionKeychain: false),

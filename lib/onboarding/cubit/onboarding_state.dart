@@ -301,4 +301,15 @@ class OnboardingState extends Equatable {
     modelsError,
     saved,
   ];
+
+  /// Like Equatable's `toString`, but with [apiKey] masked: states are
+  /// printed by test failures and debug logging, keys must never be.
+  @override
+  String toString() {
+    final values = [
+      for (final prop in props)
+        if (identical(prop, apiKey) && apiKey.isNotEmpty) '<redacted>' else prop,
+    ];
+    return 'OnboardingState(${values.join(', ')})';
+  }
 }

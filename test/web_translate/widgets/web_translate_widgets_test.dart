@@ -437,6 +437,10 @@ void main() {
         l10n.webTranslateErrorRedirects,
       );
       expect(
+        describe(const WebPageException(WebPageError.blockedRedirect)),
+        l10n.webTranslateErrorBlockedRedirect,
+      );
+      expect(
         describe(const WebPageException(WebPageError.noContent)),
         l10n.webTranslateErrorNoContent,
       );

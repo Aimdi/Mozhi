@@ -76,6 +76,18 @@ void main() {
       );
     });
 
+    test('never follows redirects', () async {
+      final client = RecordingClient(
+        (_) => textResponse('', 302, headers: {'location': 'https://evil/'}),
+      );
+      await expectLater(
+        _transport(client).send('POST', _uri, json: const {'api_key': 'k'}),
+        throwsMtError(kind: MtErrorKind.unknown, statusCode: 302, uri: _uri),
+      );
+      expect(client.single.followRedirects, isFalse);
+      expect(client.single.maxRedirects, 0);
+    });
+
     test('maps 1xx-less-than-200 and 3xx statuses as errors', () async {
       for (final status in [199, 300, 301]) {
         final client = RecordingClient((_) => textResponse('', status));

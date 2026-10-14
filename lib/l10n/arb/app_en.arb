@@ -5926,5 +5926,9 @@
   "translateMemoryBadgeTooltip": "Taken from your history: not translated again",
   "@translateMemoryBadgeTooltip": {
     "description": "translateMemoryBadgeTooltip"
+  },
+  "webTranslateErrorBlockedRedirect": "The website tried to redirect to an address on your device or local network, so the page was not loaded. If you trust that address, enter it directly.",
+  "@webTranslateErrorBlockedRedirect": {
+    "description": "Shown when a public page redirects to localhost or a private network address"
   }
 }
