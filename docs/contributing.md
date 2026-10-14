@@ -9,6 +9,7 @@ first.
 - [Get the code running](#get-the-code-running)
 - [Flavors](#flavors)
 - [Building releases](#building-releases)
+- [F-Droid variant (no ML Kit)](#f-droid-variant-no-ml-kit)
 - [Tests and checks](#tests-and-checks)
 - [Web end-to-end tests](#web-end-to-end-tests)
 - [Code style](#code-style)
@@ -75,6 +76,73 @@ flutter build windows --release -t lib/main_production.dart
 
 Release signing for Android, the CI artifacts and tagged releases are
 described in the [README](../README.md).
+
+## F-Droid variant (no ML Kit)
+
+Offline translation, language identification and on-device text
+recognition use Google ML Kit, which is closed source. F-Droid only accepts
+free software, so the F-Droid build is the same app without ML Kit. It is
+made from the normal source tree by one script:
+
+```sh
+tool/fdroid_prepare.sh        # edits the working tree: use a scratch copy
+flutter pub get
+flutter build apk --release --flavor production -t lib/main_production.dart \
+  --android-project-arg=noMlkit=true
+```
+
+The script (POSIX `sh` plus `python3`):
+
+1. removes `google_mlkit_text_recognition` and `mlkit_translator` from
+   `pubspec.yaml` (Flutter registers every plugin listed there, whatever the
+   flavor, so a Gradle flavor alone cannot drop them);
+2. copies `lib/platform/mlkit_bindings_stub.dart` over
+   `lib/platform/mlkit_bindings.dart`;
+3. deletes the files that import ML Kit:
+   `lib/image_translate/data/mlkit_text_recognition_service.dart`,
+   `packages/mlkit_translator` and their tests;
+4. deletes the `// BEGIN mlkit` … `// END mlkit` block (the
+   `com.google.mlkit:text-recognition-*` script models) from
+   `android/app/build.gradle.kts` and writes `noMlkit=true` to
+   `android/gradle.properties`; with that property Gradle also excludes the
+   whole `com.google.mlkit` group, so a stray ML Kit dependency fails the
+   build instead of ending up in the APK;
+5. checks that nothing in `pubspec.yaml`, `lib/`, `test/`, `packages/` or
+   the Gradle build still refers to ML Kit.
+
+It is idempotent (a second run only checks) and exits with an error when a
+pattern it edits is missing, so a refactoring that moves the ML Kit code
+breaks it loudly. Don't commit the prepared tree.
+
+**Keeping the variant working.** ML Kit may only be imported from
+`lib/platform/mlkit_bindings.dart`,
+`lib/image_translate/data/mlkit_text_recognition_service.dart` and
+`packages/mlkit_translator`. Everything else gets the engines through the
+bindings (`createOfflineTranslator()`, `createTextRecognitionService()`) or
+the interfaces (`OfflineTranslator` in translation_repository,
+`TextRecognitionService` in `lib/image_translate/data`). The stub keeps the
+same public API and returns `UnavailableOfflineTranslator` and
+`UnavailableTextRecognitionService`. Code that needs to know whether ML Kit
+is there uses `lib/core/on_device_ml.dart` (`mlKitIncluded`,
+`onDeviceMlSupported`; tests flip `debugMlKitIncludedOverride`). Without ML
+Kit the app shows *Offline languages* in Settings as disabled with an
+explanation, the offline engine is not offered, the on-device text
+recognition method is hidden on the image screen and the ML Kit notice is
+left out of the licenses page.
+
+The CI job *Build F-Droid variant (no ML Kit)* (`.github/workflows/main.yaml`)
+runs the script on its checkout, analyzes, builds the universal production
+APK and fails if the APK contains `com/google/mlkit` classes or ML Kit
+native libraries, or if the Gradle runtime classpath has a
+`com.google.mlkit` artifact. Its APK is uploaded as `mozhi-android-fdroid`.
+To check the variant locally without touching your checkout:
+
+```sh
+tmp=$(mktemp -d)
+git ls-files -z | xargs -0 cp --parents -t "$tmp"   # or git worktree add
+(cd "$tmp" && sh tool/fdroid_prepare.sh && flutter pub get &&
+  bash .github/scripts/packages.sh get && flutter analyze)
+```
 
 ## Tests and checks
 

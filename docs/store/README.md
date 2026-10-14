@@ -300,32 +300,28 @@ The **build is not**, because of Google ML Kit.
    right label: it means *depends on another non-free app being installed*,
    while ML Kit is bundled in the APK.)
 
-   **Suggested fix: a build without ML Kit.** A Gradle product flavor alone
-   is not enough: Flutter registers every plugin in `pubspec.yaml`, whatever
-   the flavor. What works for Flutter apps on F-Droid:
+   **Done: a build without ML Kit.** `tool/fdroid_prepare.sh` turns a
+   checkout into the F-Droid variant:
+   - removes `google_mlkit_text_recognition` and `mlkit_translator` from
+     `pubspec.yaml`;
+   - replaces `lib/platform/mlkit_bindings.dart` with its stub (no offline
+     engine, no on-device text recognition);
+   - deletes the ML Kit-only files (`lib/image_translate/data/mlkit_text_recognition_service.dart`,
+     `packages/mlkit_translator` and their tests);
+   - removes the `com.google.mlkit:text-recognition-*` block from
+     `android/app/build.gradle.kts` and sets `noMlkit=true` in
+     `android/gradle.properties` (which also excludes the whole
+     `com.google.mlkit` group).
 
-   - Keep every ML Kit import in one place on the Dart side (today:
-     `lib/bootstrap.dart`, `lib/offline/view/offline_models_page.dart`,
-     `lib/image_translate/data/text_recognition_service.dart`), behind small
-     interfaces (`OfflineTranslator` already exists in
-     translation_repository; add one for text recognition), with a stub
-     implementation in a sibling file that reports "not available".
-   - Hide **Offline languages** and **On-device text recognition** when the
-     stub is in use (the image screen already handles *No image
-     translation method available*).
-   - Guard the four `com.google.mlkit:text-recognition-*` lines in
-     `android/app/build.gradle.kts` behind a Gradle property, e.g.
-     `if (!project.hasProperty("noMlkit"))`.
-   - Add a script (e.g. `tool/fdroid_prepare.sh`) that the F-Droid recipe
-     runs as `prebuild`: remove `google_mlkit_text_recognition` and
-     `mlkit_translator` from `pubspec.yaml`, swap in the stub files, and
-     build with `--android-project-arg=noMlkit=true` (Flutter passes it to Gradle as `-PnoMlkit=true`). Run it in CI too so the ML Kit-free build keeps
-     compiling.
-   - Optionally publish that build as a separate GitHub asset
-     (`mozhi-…-foss.apk`) for people who don't want Google libraries.
-
-   These changes are in `lib/`, `packages/`, `android/` and `pubspec.yaml`,
-   outside this folder.
+   It is idempotent and fails loudly if a pattern is missing. In that build,
+   Settings shows *Offline languages* disabled with an explanation, the
+   offline engine and on-device recognition are not offered, and the ML Kit
+   notice is left out of the licenses. The CI job *Build F-Droid variant (no
+   ML Kit)* builds it on every push, fails if the APK contains
+   `com/google/mlkit` classes or ML Kit native libraries or if the Gradle
+   runtime classpath has a `com.google.mlkit` artifact, and uploads the APK
+   as `mozhi-android-fdroid`. See docs/contributing.md, "F-Droid variant
+   (no ML Kit)".
 
 2. **Flutter's Play Core references.** Flutter's Android embedding contains
    `PlayStoreDeferredComponentManager`, which refers to
@@ -393,7 +389,7 @@ Builds:
     srclibs:
       - flutter@3.47.0         # match the version CI uses
     prebuild:
-      - tool/fdroid_prepare.sh # strips ML Kit (to be written)
+      - tool/fdroid_prepare.sh # strips ML Kit (see docs/contributing.md)
       - $$flutter$$/bin/flutter config --no-analytics
       - $$flutter$$/bin/flutter pub get
     build:

@@ -184,6 +184,118 @@ jobs:
             dist/SHA256SUMS.txt
           if-no-files-found: error
 
+  # The F-Droid variant: the same app without Google ML Kit (closed source),
+  # prepared by tool/fdroid_prepare.sh exactly as the F-Droid recipe does.
+  # Keeps that build compiling and proves the APK has no ML Kit code.
+  build-fdroid:
+    name: Build F-Droid variant (no ML Kit)
+    needs: analyze-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      # Edits this job's checkout only (pubspec.yaml, lib/platform bindings,
+      # ML Kit files, android/app/build.gradle.kts, android/gradle.properties).
+      - name: Strip ML Kit
+        run: |
+          sh tool/fdroid_prepare.sh
+          sh tool/fdroid_prepare.sh # idempotent: a second run only checks
+          git status --short
+
+      - name: Install dependencies
+        run: |
+          flutter pub get
+          bash .github/scripts/packages.sh get
+          flutter gen-l10n
+          if grep -n 'mlkit' pubspec.lock; then
+            echo "::error::pubspec.lock still resolves an ML Kit package"
+            exit 1
+          fi
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Build APK
+        run: |
+          flutter build apk --release --flavor production \
+            -t lib/main_production.dart --android-project-arg=noMlkit=true
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-production-release.apk \
+            dist/mozhi-fdroid-universal.apk
+
+      - name: Check the APK has no ML Kit
+        run: |
+          apk=dist/mozhi-fdroid-universal.apk
+          work="$RUNNER_TEMP/apk"
+          rm -rf "$work"
+          mkdir -p "$work"
+          unzip -q -o "$apk" -d "$work"
+          failed=0
+
+          # ML Kit's classes (R8 keeps their names: ML Kit ships keep rules
+          # and the native code looks them up by name).
+          if grep -l -a 'Lcom/google/mlkit/' "$work"/classes*.dex; then
+            echo "::error::$apk contains com/google/mlkit classes"
+            failed=1
+          fi
+          # ML Kit's native libraries and bundled models.
+          if unzip -l "$apk" | grep -i -E 'mlkit|translate_jni|language_id|text_recognition'; then
+            echo "::error::$apk contains ML Kit native libraries or models"
+            failed=1
+          fi
+          # Independent of R8: nothing in the runtime classpath may come from
+          # com.google.mlkit (the Gradle build also excludes the group).
+          if [ -x android/gradlew ]; then
+            deps=$(cd android && ./gradlew -q :app:dependencies \
+              --configuration productionReleaseRuntimeClasspath -PnoMlkit=true)
+            if printf '%s\n' "$deps" | grep 'com.google.mlkit'; then
+              echo "::error::the Gradle runtime classpath contains ML Kit"
+              failed=1
+            fi
+            # Reported, not fatal: other Google artifacts F-Droid's scanner
+            # may flag.
+            printf '%s\n' "$deps" |
+              grep -E 'com\.google\.(android\.gms|android\.datatransport|firebase|android\.play)' |
+              sed 's/^/::warning::Google artifact in the classpath: /' || true
+          else
+            echo "::warning::android/gradlew missing: dependency check skipped"
+          fi
+          [ "$failed" = 0 ] || exit 1
+
+          (cd dist && sha256sum -- *.apk > SHA256SUMS.txt)
+          {
+            echo "### F-Droid variant (no ML Kit)"
+            echo
+            echo "No ML Kit classes, libraries or dependencies found."
+            echo
+            echo '```text'
+            ls -lh dist
+            cat dist/SHA256SUMS.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: mozhi-android-fdroid
+          path: |
+            dist/*.apk
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+
   build-web:
     name: Build web
     needs: analyze-test

@@ -1216,5 +1216,12 @@
   "translateMemoryDismiss": "Sembunyikan terjemahan dari riwayat Anda",
   "translateMemoryBadge": "Dari riwayat",
   "translateMemoryBadgeTooltip": "Diambil dari riwayat Anda: tidak diterjemahkan ulang",
-  "webTranslateErrorBlockedRedirect": "Situs web mencoba mengalihkan ke alamat di perangkat atau jaringan lokal Anda, jadi halaman tidak dimuat. Jika Anda memercayai alamat itu, masukkan langsung."
+  "webTranslateErrorBlockedRedirect": "Situs web mencoba mengalihkan ke alamat di perangkat atau jaringan lokal Anda, jadi halaman tidak dimuat. Jika Anda memercayai alamat itu, masukkan langsung.",
+  "settingsOfflineNotIncluded": "Tidak termasuk dalam build ini: memerlukan Google ML Kit, yang bukan perangkat lunak bebas",
+  "offlineNotIncluded": "Build ini tidak memiliki terjemahan offline: fitur itu memerlukan Google ML Kit, yang bukan perangkat lunak bebas",
+  "settingsInstanceInsecureTitle": "Koneksi tidak dienkripsi",
+  "settingsInstanceInsecureWarning": "Instans ini memakai HTTP tanpa enkripsi: teks yang Anda terjemahkan bisa dibaca siapa pun di jaringan perantara. Gunakan https:// untuk instans di luar jaringan Anda.",
+  "settingsInstanceInsecureConfirmTitle": "Tambahkan tanpa enkripsi?",
+  "settingsInstanceInsecureConfirmBody": "{host} memakai HTTP tanpa enkripsi. Siapa pun di jaringan antara Anda dan instans ini dapat membaca teks yang Anda terjemahkan dengannya.",
+  "settingsInstanceInsecureConfirmAction": "Tambahkan tanpa enkripsi"
 }

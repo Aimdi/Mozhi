@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -111,10 +113,18 @@ void main() {
     });
 
     testWidgets("falls back to the build's offline translator", (tester) async {
+      // On desktop the build's (ML Kit) translator is unavailable and
+      // answers without a platform channel.
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
       useTallView(tester);
       await tester.pumpApp(OfflineModelsPage(store: store));
       await tester.pumpAndSettle();
       expect(find.text('Offline languages'), findsOneWidget);
+      expect(
+        find.text('Offline translation is available on Android and iOS'),
+        findsOneWidget,
+      );
+      debugDefaultTargetPlatformOverride = null;
     });
 
     testWidgets('shows a retry button when loading fails', (tester) async {

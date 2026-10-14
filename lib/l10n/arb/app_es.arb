@@ -1216,5 +1216,12 @@
   "translateMemoryDismiss": "Ocultar la traducción de tu historial",
   "translateMemoryBadge": "Del historial",
   "translateMemoryBadgeTooltip": "Tomada de tu historial: no se ha vuelto a traducir",
-  "webTranslateErrorBlockedRedirect": "El sitio web intentó redirigir a una dirección de tu dispositivo o de tu red local, así que la página no se cargó. Si confías en esa dirección, escríbela directamente."
+  "webTranslateErrorBlockedRedirect": "El sitio web intentó redirigir a una dirección de tu dispositivo o de tu red local, así que la página no se cargó. Si confías en esa dirección, escríbela directamente.",
+  "settingsOfflineNotIncluded": "No incluido en esta versión: necesita Google ML Kit, que no es software libre",
+  "offlineNotIncluded": "Esta versión no tiene traducción sin conexión: necesita Google ML Kit, que no es software libre",
+  "settingsInstanceInsecureTitle": "Conexión sin cifrar",
+  "settingsInstanceInsecureWarning": "Esta instancia usa HTTP sin cifrar: el texto que traduces podría leerlo cualquiera en la red intermedia. Usa https:// para instancias fuera de tu red.",
+  "settingsInstanceInsecureConfirmTitle": "¿Añadir sin cifrado?",
+  "settingsInstanceInsecureConfirmBody": "{host} usa HTTP sin cifrar. Cualquiera en la red entre tú y esta instancia puede leer el texto que traduzcas con ella.",
+  "settingsInstanceInsecureConfirmAction": "Añadir sin cifrado"
 }

@@ -1216,5 +1216,12 @@
   "translateMemoryDismiss": "Ukryj tłumaczenie z historii",
   "translateMemoryBadge": "Z historii",
   "translateMemoryBadgeTooltip": "Pobrane z Twojej historii: nie przetłumaczono ponownie",
-  "webTranslateErrorBlockedRedirect": "Strona próbowała przekierować na adres na Twoim urządzeniu lub w sieci lokalnej, więc nie została wczytana. Jeśli ufasz temu adresowi, wpisz go bezpośrednio."
+  "webTranslateErrorBlockedRedirect": "Strona próbowała przekierować na adres na Twoim urządzeniu lub w sieci lokalnej, więc nie została wczytana. Jeśli ufasz temu adresowi, wpisz go bezpośrednio.",
+  "settingsOfflineNotIncluded": "Brak w tej wersji: wymaga Google ML Kit, które nie jest wolnym oprogramowaniem",
+  "offlineNotIncluded": "Ta wersja nie ma tłumaczenia offline: wymaga ono Google ML Kit, które nie jest wolnym oprogramowaniem",
+  "settingsInstanceInsecureTitle": "Połączenie nieszyfrowane",
+  "settingsInstanceInsecureWarning": "Ta instancja używa nieszyfrowanego HTTP: tłumaczony tekst mógłby odczytać każdy w sieci pośredniej. Dla instancji poza Twoją siecią używaj https://.",
+  "settingsInstanceInsecureConfirmTitle": "Dodać bez szyfrowania?",
+  "settingsInstanceInsecureConfirmBody": "{host} używa nieszyfrowanego HTTP. Każdy w sieci między Tobą a tą instancją może odczytać tłumaczony przez nią tekst.",
+  "settingsInstanceInsecureConfirmAction": "Dodaj bez szyfrowania"
 }

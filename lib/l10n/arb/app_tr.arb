@@ -1216,5 +1216,12 @@
   "translateMemoryDismiss": "Geçmişinizdeki çeviriyi gizle",
   "translateMemoryBadge": "Geçmişten",
   "translateMemoryBadgeTooltip": "Geçmişinizden alındı: yeniden çevrilmedi",
-  "webTranslateErrorBlockedRedirect": "Web sitesi cihazınızdaki veya yerel ağınızdaki bir adrese yönlendirmeye çalıştı, bu yüzden sayfa yüklenmedi. Bu adrese güveniyorsanız doğrudan girin."
+  "webTranslateErrorBlockedRedirect": "Web sitesi cihazınızdaki veya yerel ağınızdaki bir adrese yönlendirmeye çalıştı, bu yüzden sayfa yüklenmedi. Bu adrese güveniyorsanız doğrudan girin.",
+  "settingsOfflineNotIncluded": "Bu sürümde yok: özgür yazılım olmayan Google ML Kit gerektirir",
+  "offlineNotIncluded": "Bu sürümde çevrimdışı çeviri yok: özgür yazılım olmayan Google ML Kit gerektirir",
+  "settingsInstanceInsecureTitle": "Bağlantı şifrelenmemiş",
+  "settingsInstanceInsecureWarning": "Bu sunucu şifrelenmemiş HTTP kullanıyor: çevirdiğiniz metni aradaki ağdaki herkes okuyabilir. Ağınızın dışındaki sunucular için https:// kullanın.",
+  "settingsInstanceInsecureConfirmTitle": "Şifrelemeden eklensin mi?",
+  "settingsInstanceInsecureConfirmBody": "{host} şifrelenmemiş HTTP kullanıyor. Sizinle bu sunucu arasındaki ağdaki herkes onunla çevirdiğiniz metni okuyabilir.",
+  "settingsInstanceInsecureConfirmAction": "Şifrelemeden ekle"
 }

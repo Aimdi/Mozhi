@@ -1216,5 +1216,12 @@
   "translateMemoryDismiss": "अपने इतिहास से अनुवाद छिपाएं",
   "translateMemoryBadge": "इतिहास से",
   "translateMemoryBadgeTooltip": "आपके इतिहास से लिया गया: दोबारा अनुवाद नहीं किया गया",
-  "webTranslateErrorBlockedRedirect": "वेबसाइट ने आपके डिवाइस या स्थानीय नेटवर्क के किसी पते पर रीडायरेक्ट करने की कोशिश की, इसलिए पेज लोड नहीं किया गया। अगर आपको उस पते पर भरोसा है, तो उसे सीधे दर्ज करें।"
+  "webTranslateErrorBlockedRedirect": "वेबसाइट ने आपके डिवाइस या स्थानीय नेटवर्क के किसी पते पर रीडायरेक्ट करने की कोशिश की, इसलिए पेज लोड नहीं किया गया। अगर आपको उस पते पर भरोसा है, तो उसे सीधे दर्ज करें।",
+  "settingsOfflineNotIncluded": "इस बिल्ड में शामिल नहीं: इसके लिए Google ML Kit चाहिए, जो मुक्त सॉफ़्टवेयर नहीं है",
+  "offlineNotIncluded": "इस बिल्ड में ऑफ़लाइन अनुवाद नहीं है: इसके लिए Google ML Kit चाहिए, जो मुक्त सॉफ़्टवेयर नहीं है",
+  "settingsInstanceInsecureTitle": "कनेक्शन एन्क्रिप्ट नहीं है",
+  "settingsInstanceInsecureWarning": "यह इंस्टेंस बिना एन्क्रिप्शन वाला HTTP इस्तेमाल करता है: आपका अनुवादित टेक्स्ट बीच के नेटवर्क पर कोई भी पढ़ सकता है। अपने नेटवर्क से बाहर के इंस्टेंस के लिए https:// इस्तेमाल करें।",
+  "settingsInstanceInsecureConfirmTitle": "बिना एन्क्रिप्शन के जोड़ें?",
+  "settingsInstanceInsecureConfirmBody": "{host} बिना एन्क्रिप्शन वाला HTTP इस्तेमाल करता है। आपके और इस इंस्टेंस के बीच नेटवर्क पर कोई भी वह टेक्स्ट पढ़ सकता है जिसका आप इससे अनुवाद करते हैं।",
+  "settingsInstanceInsecureConfirmAction": "बिना एन्क्रिप्शन के जोड़ें"
 }

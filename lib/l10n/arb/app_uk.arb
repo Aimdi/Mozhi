@@ -1216,5 +1216,12 @@
   "translateMemoryDismiss": "Сховати переклад з історії",
   "translateMemoryBadge": "З історії",
   "translateMemoryBadgeTooltip": "Взято з вашої історії: повторно не перекладалося",
-  "webTranslateErrorBlockedRedirect": "Сайт спробував переспрямувати на адресу на вашому пристрої або в локальній мережі, тому сторінку не завантажено. Якщо ви довіряєте цій адресі, введіть її безпосередньо."
+  "webTranslateErrorBlockedRedirect": "Сайт спробував переспрямувати на адресу на вашому пристрої або в локальній мережі, тому сторінку не завантажено. Якщо ви довіряєте цій адресі, введіть її безпосередньо.",
+  "settingsOfflineNotIncluded": "Немає в цій збірці: потрібен Google ML Kit, який не є вільним ПЗ",
+  "offlineNotIncluded": "У цій збірці немає офлайн-перекладу: для нього потрібен Google ML Kit, який не є вільним ПЗ",
+  "settingsInstanceInsecureTitle": "З’єднання не зашифроване",
+  "settingsInstanceInsecureWarning": "Цей сервер використовує незашифрований HTTP: текст, який ви перекладаєте, зможе прочитати будь-хто в проміжній мережі. Для серверів поза вашою мережею використовуйте https://.",
+  "settingsInstanceInsecureConfirmTitle": "Додати без шифрування?",
+  "settingsInstanceInsecureConfirmBody": "{host} використовує незашифрований HTTP. Будь-хто в мережі між вами й цим сервером може прочитати текст, який ви через нього перекладаєте.",
+  "settingsInstanceInsecureConfirmAction": "Додати без шифрування"
 }

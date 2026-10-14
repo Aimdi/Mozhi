@@ -1216,5 +1216,12 @@
   "translateMemoryDismiss": "Übersetzung aus deinem Verlauf ausblenden",
   "translateMemoryBadge": "Aus dem Verlauf",
   "translateMemoryBadgeTooltip": "Aus deinem Verlauf übernommen: nicht erneut übersetzt",
-  "webTranslateErrorBlockedRedirect": "Die Website wollte auf eine Adresse auf deinem Gerät oder in deinem lokalen Netzwerk umleiten, daher wurde die Seite nicht geladen. Wenn du dieser Adresse vertraust, gib sie direkt ein."
+  "webTranslateErrorBlockedRedirect": "Die Website wollte auf eine Adresse auf deinem Gerät oder in deinem lokalen Netzwerk umleiten, daher wurde die Seite nicht geladen. Wenn du dieser Adresse vertraust, gib sie direkt ein.",
+  "settingsOfflineNotIncluded": "Nicht in diesem Build enthalten: benötigt Google ML Kit, das keine freie Software ist",
+  "offlineNotIncluded": "Dieser Build hat keine Offline-Übersetzung: Sie benötigt Google ML Kit, das keine freie Software ist",
+  "settingsInstanceInsecureTitle": "Verbindung nicht verschlüsselt",
+  "settingsInstanceInsecureWarning": "Diese Instanz nutzt unverschlüsseltes HTTP: Der Text, den du übersetzt, wäre für alle im Netzwerk dazwischen lesbar. Nutze https:// für Instanzen außerhalb deines Netzwerks.",
+  "settingsInstanceInsecureConfirmTitle": "Ohne Verschlüsselung hinzufügen?",
+  "settingsInstanceInsecureConfirmBody": "{host} nutzt unverschlüsseltes HTTP. Alle im Netzwerk zwischen dir und dieser Instanz können den Text lesen, den du damit übersetzt.",
+  "settingsInstanceInsecureConfirmAction": "Ohne Verschlüsselung hinzufügen"
 }

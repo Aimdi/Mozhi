@@ -1216,5 +1216,12 @@
   "translateMemoryDismiss": "Vertaling uit je geschiedenis verbergen",
   "translateMemoryBadge": "Uit geschiedenis",
   "translateMemoryBadgeTooltip": "Uit je geschiedenis gehaald: niet opnieuw vertaald",
-  "webTranslateErrorBlockedRedirect": "De website probeerde door te sturen naar een adres op je apparaat of in je lokale netwerk, dus de pagina is niet geladen. Vertrouw je dat adres, voer het dan rechtstreeks in."
+  "webTranslateErrorBlockedRedirect": "De website probeerde door te sturen naar een adres op je apparaat of in je lokale netwerk, dus de pagina is niet geladen. Vertrouw je dat adres, voer het dan rechtstreeks in.",
+  "settingsOfflineNotIncluded": "Niet in deze build: vereist Google ML Kit, dat geen vrije software is",
+  "offlineNotIncluded": "Deze build heeft geen offline vertaling: die vereist Google ML Kit, dat geen vrije software is",
+  "settingsInstanceInsecureTitle": "Verbinding niet versleuteld",
+  "settingsInstanceInsecureWarning": "Deze instantie gebruikt onversleuteld HTTP: de tekst die je vertaalt is leesbaar voor iedereen op het netwerk ertussen. Gebruik https:// voor instanties buiten je netwerk.",
+  "settingsInstanceInsecureConfirmTitle": "Toevoegen zonder versleuteling?",
+  "settingsInstanceInsecureConfirmBody": "{host} gebruikt onversleuteld HTTP. Iedereen op het netwerk tussen jou en deze instantie kan de tekst lezen die je ermee vertaalt.",
+  "settingsInstanceInsecureConfirmAction": "Toevoegen zonder versleuteling"
 }

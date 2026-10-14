@@ -1216,5 +1216,12 @@
   "translateMemoryDismiss": "隐藏历史记录中的译文",
   "translateMemoryBadge": "来自历史记录",
   "translateMemoryBadgeTooltip": "取自你的历史记录：未重新翻译",
-  "webTranslateErrorBlockedRedirect": "该网站试图重定向到你设备或本地网络上的地址，因此未加载页面。如果你信任该地址，请直接输入。"
+  "webTranslateErrorBlockedRedirect": "该网站试图重定向到你设备或本地网络上的地址，因此未加载页面。如果你信任该地址，请直接输入。",
+  "settingsOfflineNotIncluded": "此版本未包含：需要 Google ML Kit，它不是自由软件",
+  "offlineNotIncluded": "此版本没有离线翻译：该功能需要 Google ML Kit，它不是自由软件",
+  "settingsInstanceInsecureTitle": "连接未加密",
+  "settingsInstanceInsecureWarning": "此实例使用未加密的 HTTP：你翻译的文本可能被中间网络上的任何人读取。对于你网络之外的实例，请使用 https://。",
+  "settingsInstanceInsecureConfirmTitle": "不加密添加？",
+  "settingsInstanceInsecureConfirmBody": "{host} 使用未加密的 HTTP。你与此实例之间网络上的任何人都能读取你用它翻译的文本。",
+  "settingsInstanceInsecureConfirmAction": "不加密添加"
 }

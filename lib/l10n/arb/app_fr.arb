@@ -1216,5 +1216,12 @@
   "translateMemoryDismiss": "Masquer la traduction de votre historique",
   "translateMemoryBadge": "Depuis l’historique",
   "translateMemoryBadgeTooltip": "Reprise de votre historique : pas retraduite",
-  "webTranslateErrorBlockedRedirect": "Le site a tenté de rediriger vers une adresse de votre appareil ou de votre réseau local ; la page n’a donc pas été chargée. Si vous faites confiance à cette adresse, saisissez-la directement."
+  "webTranslateErrorBlockedRedirect": "Le site a tenté de rediriger vers une adresse de votre appareil ou de votre réseau local ; la page n’a donc pas été chargée. Si vous faites confiance à cette adresse, saisissez-la directement.",
+  "settingsOfflineNotIncluded": "Non inclus dans cette version : nécessite Google ML Kit, qui n’est pas un logiciel libre",
+  "offlineNotIncluded": "Cette version n’a pas de traduction hors ligne : elle nécessite Google ML Kit, qui n’est pas un logiciel libre",
+  "settingsInstanceInsecureTitle": "Connexion non chiffrée",
+  "settingsInstanceInsecureWarning": "Cette instance utilise HTTP sans chiffrement : le texte que vous traduisez serait lisible par toute personne sur le réseau intermédiaire. Utilisez https:// pour les instances hors de votre réseau.",
+  "settingsInstanceInsecureConfirmTitle": "Ajouter sans chiffrement ?",
+  "settingsInstanceInsecureConfirmBody": "{host} utilise HTTP sans chiffrement. Toute personne sur le réseau entre vous et cette instance peut lire le texte que vous y traduisez.",
+  "settingsInstanceInsecureConfirmAction": "Ajouter sans chiffrement"
 }

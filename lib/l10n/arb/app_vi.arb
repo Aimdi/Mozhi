@@ -1216,5 +1216,12 @@
   "translateMemoryDismiss": "Ẩn bản dịch từ lịch sử của bạn",
   "translateMemoryBadge": "Từ lịch sử",
   "translateMemoryBadgeTooltip": "Lấy từ lịch sử của bạn: không dịch lại",
-  "webTranslateErrorBlockedRedirect": "Trang web đã cố chuyển hướng đến một địa chỉ trên thiết bị hoặc mạng cục bộ của bạn, nên trang không được tải. Nếu bạn tin tưởng địa chỉ đó, hãy nhập trực tiếp."
+  "webTranslateErrorBlockedRedirect": "Trang web đã cố chuyển hướng đến một địa chỉ trên thiết bị hoặc mạng cục bộ của bạn, nên trang không được tải. Nếu bạn tin tưởng địa chỉ đó, hãy nhập trực tiếp.",
+  "settingsOfflineNotIncluded": "Không có trong bản dựng này: cần Google ML Kit, vốn không phải phần mềm tự do",
+  "offlineNotIncluded": "Bản dựng này không có dịch ngoại tuyến: tính năng này cần Google ML Kit, vốn không phải phần mềm tự do",
+  "settingsInstanceInsecureTitle": "Kết nối không được mã hóa",
+  "settingsInstanceInsecureWarning": "Máy chủ này dùng HTTP không mã hóa: bất kỳ ai trên mạng trung gian đều có thể đọc văn bản bạn dịch. Hãy dùng https:// cho máy chủ ngoài mạng của bạn.",
+  "settingsInstanceInsecureConfirmTitle": "Thêm mà không mã hóa?",
+  "settingsInstanceInsecureConfirmBody": "{host} dùng HTTP không mã hóa. Bất kỳ ai trên mạng giữa bạn và máy chủ này đều có thể đọc văn bản bạn dịch qua nó.",
+  "settingsInstanceInsecureConfirmAction": "Thêm mà không mã hóa"
 }

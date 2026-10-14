@@ -1216,5 +1216,12 @@
   "translateMemoryDismiss": "履歴の翻訳を非表示",
   "translateMemoryBadge": "履歴から",
   "translateMemoryBadgeTooltip": "履歴から取得：再翻訳していません",
-  "webTranslateErrorBlockedRedirect": "ウェブサイトがお使いのデバイスまたはローカルネットワーク上のアドレスへリダイレクトしようとしたため、ページを読み込みませんでした。そのアドレスを信頼できる場合は、直接入力してください。"
+  "webTranslateErrorBlockedRedirect": "ウェブサイトがお使いのデバイスまたはローカルネットワーク上のアドレスへリダイレクトしようとしたため、ページを読み込みませんでした。そのアドレスを信頼できる場合は、直接入力してください。",
+  "settingsOfflineNotIncluded": "このビルドには含まれていません: フリーソフトウェアではない Google ML Kit が必要です",
+  "offlineNotIncluded": "このビルドにはオフライン翻訳がありません: フリーソフトウェアではない Google ML Kit が必要です",
+  "settingsInstanceInsecureTitle": "接続が暗号化されていません",
+  "settingsInstanceInsecureWarning": "このインスタンスは暗号化されていない HTTP を使用しています。翻訳するテキストは途中のネットワーク上の誰にでも読まれる可能性があります。ネットワーク外のインスタンスには https:// を使用してください。",
+  "settingsInstanceInsecureConfirmTitle": "暗号化なしで追加しますか？",
+  "settingsInstanceInsecureConfirmBody": "{host} は暗号化されていない HTTP を使用しています。あなたとこのインスタンスの間のネットワーク上の誰でも、これで翻訳するテキストを読むことができます。",
+  "settingsInstanceInsecureConfirmAction": "暗号化なしで追加"
 }

@@ -7,7 +7,8 @@ import 'package:mozhi/core/on_device_ml.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/cubit/offline_models_cubit.dart';
 import 'package:mozhi/offline/widgets/offline_language_tile.dart';
-import 'package:mozhi/platform/mlkit_bindings.dart' show createOfflineTranslator;
+import 'package:mozhi/platform/mlkit_bindings.dart'
+    show createOfflineTranslator;
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:translation_repository/translation_repository.dart';
 
