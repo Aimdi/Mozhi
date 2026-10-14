@@ -76,14 +76,20 @@ bool _registered = false;
 /// Adds the notices Flutter does not collect from pub packages (the app's
 /// own license, ML Kit and native platform libraries) to the
 /// [LicenseRegistry] shown by `showLicensePage`. Safe to call repeatedly.
-void registerThirdPartyLicenses() {
+///
+/// Without [includeMlKit] (the F-Droid build, which has no ML Kit) the ML
+/// Kit notice is left out.
+void registerThirdPartyLicenses({bool includeMlKit = true}) {
   if (_registered) return;
   _registered = true;
   LicenseRegistry.addLicense(
-    () => Stream.fromIterable(const [
-      LicenseEntryWithLineBreaks([appLicensePackage], appLicenseText),
-      LicenseEntryWithLineBreaks([mlKitLicensePackage], mlKitLicenseText),
-      LicenseEntryWithLineBreaks([
+    () => Stream.fromIterable([
+      const LicenseEntryWithLineBreaks([appLicensePackage], appLicenseText),
+      if (includeMlKit)
+        const LicenseEntryWithLineBreaks([
+          mlKitLicensePackage,
+        ], mlKitLicenseText),
+      const LicenseEntryWithLineBreaks([
         nativeLibrariesLicensePackage,
       ], nativeLibrariesLicenseText),
     ]),

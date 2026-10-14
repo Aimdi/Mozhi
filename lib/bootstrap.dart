@@ -5,13 +5,13 @@ import 'package:bloc/bloc.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:mlkit_translator/mlkit_translator.dart';
 import 'package:mozhi/app/app_dependencies.dart';
 import 'package:mozhi/app/fallback_key_value_store.dart';
 import 'package:mozhi/app/third_party_licenses.dart';
 import 'package:mozhi/core/key_value_metadata_store.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/history/data/history_repository.dart';
+import 'package:mozhi/platform/mlkit_bindings.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/speech/speech_service.dart';
@@ -81,8 +81,9 @@ Future<void> bootstrap(
 ///
 /// [prefs] and [secrets] default to the platform stores; secure storage
 /// falls back to memory when it is unavailable (reported by
-/// [AppDependencies.secretsInMemory]). [offlineTranslator] defaults to ML
-/// Kit (available on Android and iOS only).
+/// [AppDependencies.secretsInMemory]). [offlineTranslator] defaults to
+/// [createOfflineTranslator]: ML Kit (Android and iOS only), or an engine
+/// that is never available in the build without ML Kit (F-Droid).
 Future<AppDependencies> createDependencies({
   KeyValueStore? prefs,
   KeyValueStore? secrets,
@@ -97,7 +98,7 @@ Future<AppDependencies> createDependencies({
   );
   final settings = await settingsRepository.load();
 
-  final offline = offlineTranslator ?? MlKitOfflineTranslator();
+  final offline = offlineTranslator ?? createOfflineTranslator();
   final translationRepository =
       TranslationRepository(
         offline: offline,

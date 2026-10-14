@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/core/key_value_store.dart';
+import 'package:mozhi/core/on_device_ml.dart';
 import 'package:mozhi/offline/offline.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -89,6 +90,31 @@ void main() {
           wifiOnly: any(named: 'wifiOnly'),
         ),
       );
+    });
+
+    testWidgets('explains a build without ML Kit', (tester) async {
+      debugMlKitIncludedOverride = false;
+      addTearDown(() => debugMlKitIncludedOverride = null);
+      translator = stubOfflineTranslator(available: false);
+      await pumpPage(tester);
+      expect(
+        find.text(
+          'This build has no offline translation: it needs Google ML Kit, '
+          'which is not free software',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Offline translation is available on Android and iOS'),
+        findsNothing,
+      );
+    });
+
+    testWidgets("falls back to the build's offline translator", (tester) async {
+      useTallView(tester);
+      await tester.pumpApp(OfflineModelsPage(store: store));
+      await tester.pumpAndSettle();
+      expect(find.text('Offline languages'), findsOneWidget);
     });
 
     testWidgets('shows a retry button when loading fails', (tester) async {

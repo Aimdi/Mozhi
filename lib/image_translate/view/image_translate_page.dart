@@ -8,6 +8,7 @@ import 'package:mozhi/image_translate/data/data.dart';
 import 'package:mozhi/image_translate/models/models.dart';
 import 'package:mozhi/image_translate/widgets/widgets.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/platform/mlkit_bindings.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -75,7 +76,7 @@ class ImageTranslatePage extends StatelessWidget {
           repository: context.read<TranslationRepository>(),
           picker: picker ?? PluginImagePickerService(),
           encoder: encoder ?? const UiImageEncoder(),
-          recognizer: recognizer ?? MlKitTextRecognitionService(),
+          recognizer: recognizer ?? createTextRecognitionService(),
           engines: translate.engines,
           providers: settings.providers,
           translateEngine: translate.engine,

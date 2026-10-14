@@ -122,6 +122,25 @@ flutter {
     source = "../.."
 }
 
+// Builds without Google ML Kit (F-Droid, see tool/fdroid_prepare.sh) set the
+// Gradle property noMlkit (`-PnoMlkit=true`, or
+// `flutter build apk --android-project-arg=noMlkit=true`, or noMlkit=true in
+// android/gradle.properties, which the script writes). They skip the script
+// models below and exclude every com.google.mlkit artifact, so a forgotten
+// ML Kit dependency fails the build instead of slipping into the APK.
+val noMlkit = (findProperty("noMlkit") as String?)?.toBoolean() == true
+
+if (noMlkit) {
+    configurations.configureEach {
+        exclude(group = "com.google.mlkit")
+    }
+}
+
+dependencies {
+    implementation("org.jetbrains.kotlin:kotlin-stdlib:2.3.21")
+}
+
+// BEGIN mlkit (tool/fdroid_prepare.sh deletes this block)
 // On-device OCR for camera translate (lib/image_translate). The
 // google_mlkit_text_recognition plugin bundles only the Latin model and
 // declares the other scripts as compileOnly, so picking Chinese, Devanagari,
@@ -134,10 +153,12 @@ flutter {
 // com.google.mlkit:text-recognition dependency (16.0.1 in plugin 0.17.1).
 val mlkitTextRecognitionVersion = "16.0.1"
 
-dependencies {
-    implementation("org.jetbrains.kotlin:kotlin-stdlib:2.3.21")
-    implementation("com.google.mlkit:text-recognition-chinese:$mlkitTextRecognitionVersion")
-    implementation("com.google.mlkit:text-recognition-devanagari:$mlkitTextRecognitionVersion")
-    implementation("com.google.mlkit:text-recognition-japanese:$mlkitTextRecognitionVersion")
-    implementation("com.google.mlkit:text-recognition-korean:$mlkitTextRecognitionVersion")
+if (!noMlkit) {
+    dependencies {
+        implementation("com.google.mlkit:text-recognition-chinese:$mlkitTextRecognitionVersion")
+        implementation("com.google.mlkit:text-recognition-devanagari:$mlkitTextRecognitionVersion")
+        implementation("com.google.mlkit:text-recognition-japanese:$mlkitTextRecognitionVersion")
+        implementation("com.google.mlkit:text-recognition-korean:$mlkitTextRecognitionVersion")
+    }
 }
+// END mlkit

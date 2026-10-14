@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/image_translate/data/mlkit_text_recognition_service.dart';
 import 'package:mozhi/image_translate/image_translate.dart';
 import 'package:translation_repository/translation_repository.dart';
 

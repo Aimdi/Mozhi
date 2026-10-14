@@ -38,6 +38,15 @@ void main() {
       expect(app.paragraphs.first.text, 'MIT License');
     });
 
+    test('leaves out ML Kit in builds without it', () async {
+      registerThirdPartyLicenses(includeMlKit: false);
+
+      final entries = await _entries();
+      final packages = {for (final e in entries) ...e.packages};
+      expect(packages, contains(appLicensePackage));
+      expect(packages, isNot(contains(mlKitLicensePackage)));
+    });
+
     test('registers only once', () async {
       registerThirdPartyLicenses();
       registerThirdPartyLicenses();

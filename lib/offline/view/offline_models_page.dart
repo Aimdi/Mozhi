@@ -2,11 +2,12 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:mlkit_translator/mlkit_translator.dart';
 import 'package:mozhi/core/key_value_store.dart';
+import 'package:mozhi/core/on_device_ml.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/cubit/offline_models_cubit.dart';
 import 'package:mozhi/offline/widgets/offline_language_tile.dart';
+import 'package:mozhi/platform/mlkit_bindings.dart' show createOfflineTranslator;
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -14,7 +15,7 @@ import 'package:translation_repository/translation_repository.dart';
 ///
 /// Uses [translator] and [store] when given, otherwise the
 /// [OfflineTranslator] and [KeyValueStore] provided above (falling back to
-/// a new [MlKitOfflineTranslator] and the platform preferences).
+/// [createOfflineTranslator] and the platform preferences).
 class OfflineModelsPage extends StatelessWidget {
   const new({super.key, this.translator, this.store});
 
@@ -29,7 +30,7 @@ class OfflineModelsPage extends StatelessWidget {
           translator:
               translator ??
               _maybeRead<OfflineTranslator>(context) ??
-              MlKitOfflineTranslator(),
+              createOfflineTranslator(),
           store:
               store ?? _maybeRead<KeyValueStore>(context) ?? PreferencesStore(),
         );
@@ -206,7 +207,11 @@ class _UnavailableBanner extends StatelessWidget {
         child: ListTile(
           leading: Icon(Icons.info_outline, color: colors.onSecondaryContainer),
           title: Text(
-            context.l10n.offlineUnavailable,
+            // Without ML Kit in the build (F-Droid) the platform is not
+            // the reason, so say what is missing instead.
+            mlKitIncluded
+                ? context.l10n.offlineUnavailable
+                : context.l10n.offlineNotIncluded,
             style: TextStyle(color: colors.onSecondaryContainer),
           ),
         ),

@@ -5,11 +5,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mlkit_translator/mlkit_translator.dart';
 import 'package:mozhi/app/app_dependencies.dart';
 import 'package:mozhi/app/fallback_key_value_store.dart';
 import 'package:mozhi/bootstrap.dart';
 import 'package:mozhi/core/key_value_store.dart';
+import 'package:mozhi/platform/mlkit_bindings.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/speech/speech_service.dart';
@@ -52,7 +52,10 @@ void main() {
       );
 
       expect(dependencies.preferences, same(prefs));
-      expect(dependencies.offlineTranslator, isA<MlKitOfflineTranslator>());
+      expect(
+        dependencies.offlineTranslator.runtimeType,
+        createOfflineTranslator().runtimeType,
+      );
       expect(dependencies.speechInputService, isNotNull);
 
       await dependencies.usageTracker.record('p', 4, 8);
