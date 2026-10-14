@@ -113,6 +113,8 @@ history anywhere.
 | ![AI translation with refinement chips](assets/screenshots/translate-ai.png) | ![Tapped phrase highlighted in source and translation](assets/screenshots/alignment.png) | ![More formal applied, with undo](assets/screenshots/refine.png) | ![Several engines side by side](assets/screenshots/compare-engines.png) |
 | **Word insights** | **Proofread** | **Quality modes** | **Dark mode** |
 | ![Word insights](assets/screenshots/word-insights.png) | ![Proofread options](assets/screenshots/proofread-options.png) | ![Fast and Best engines](assets/screenshots/quality-modes.png) | ![Dark mode](assets/screenshots/dark-mode.png) |
+| **Check meaning** | **Extra languages** | | |
+| ![Back-translation with a flagged difference](assets/screenshots/meaning-check.png) | ![Picking extra target languages](assets/screenshots/extra-languages.png) | | |
 
 ---
 
