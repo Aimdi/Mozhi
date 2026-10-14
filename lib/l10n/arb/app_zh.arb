@@ -1223,5 +1223,6 @@
   "settingsInstanceInsecureWarning": "此实例使用未加密的 HTTP：你翻译的文本可能被中间网络上的任何人读取。对于你网络之外的实例，请使用 https://。",
   "settingsInstanceInsecureConfirmTitle": "不加密添加？",
   "settingsInstanceInsecureConfirmBody": "{host} 使用未加密的 HTTP。你与此实例之间网络上的任何人都能读取你用它翻译的文本。",
-  "settingsInstanceInsecureConfirmAction": "不加密添加"
+  "settingsInstanceInsecureConfirmAction": "不加密添加",
+  "onboardingServiceOwnInsecure": "此实例使用未加密的 HTTP。请确认你要在不加密的情况下添加它。"
 }

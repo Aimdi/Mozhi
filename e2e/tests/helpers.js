@@ -1,7 +1,7 @@
 // Shared helpers for the Mozhi web E2E specs.
 const fs = require('node:fs');
 const path = require('node:path');
-const { expect } = require('@playwright/test');
+const { test: base, expect } = require('@playwright/test');
 
 const MOCK_PORT = Number(process.env.E2E_MOCK_PORT || 8787);
 const FIXTURES = path.join(__dirname, '..', 'fixtures');
@@ -30,6 +30,35 @@ async function seedSettings(page, name, overrides = {}) {
     sessionStorage.setItem('e2e.seeded', '1');
   }, settings);
 }
+
+/**
+ * The Playwright `test` with an automatic check that fails any test whose
+ * page logged a Content Security Policy violation (web/index.html sets a
+ * strict CSP; a blocked script, font or request shows up as a console
+ * error mentioning it). Specs import `test` from here.
+ */
+const test = base.extend({
+  cspViolations: [
+    async ({ page }, use) => {
+      const violations = [];
+      page.on('console', (message) => {
+        if (
+          message.type() === 'error' &&
+          message.text().includes('Content Security Policy')
+        ) {
+          violations.push(message.text());
+        }
+      });
+      await use(violations);
+      if (violations.length > 0) {
+        throw new Error(
+          `Content Security Policy violations:\n${violations.join('\n')}`,
+        );
+      }
+    },
+    { auto: true },
+  ],
+});
 
 /** Collects uncaught page errors, to assert on at the end of a test. */
 function collectPageErrors(page) {
@@ -178,5 +207,6 @@ module.exports = {
   seedSettings,
   sourceInput,
   takeMockDown,
+  test,
   typeSource,
 };

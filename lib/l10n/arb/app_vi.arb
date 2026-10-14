@@ -1223,5 +1223,6 @@
   "settingsInstanceInsecureWarning": "Máy chủ này dùng HTTP không mã hóa: bất kỳ ai trên mạng trung gian đều có thể đọc văn bản bạn dịch. Hãy dùng https:// cho máy chủ ngoài mạng của bạn.",
   "settingsInstanceInsecureConfirmTitle": "Thêm mà không mã hóa?",
   "settingsInstanceInsecureConfirmBody": "{host} dùng HTTP không mã hóa. Bất kỳ ai trên mạng giữa bạn và máy chủ này đều có thể đọc văn bản bạn dịch qua nó.",
-  "settingsInstanceInsecureConfirmAction": "Thêm mà không mã hóa"
+  "settingsInstanceInsecureConfirmAction": "Thêm mà không mã hóa",
+  "onboardingServiceOwnInsecure": "Máy chủ này dùng HTTP không mã hóa. Hãy xác nhận bạn muốn thêm mà không mã hóa."
 }

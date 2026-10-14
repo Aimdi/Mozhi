@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/onboarding/onboarding.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
+import 'package:mozhi/settings/view/widgets/insecure_http_warning.dart';
 
 import '../helpers.dart';
 
@@ -202,6 +203,82 @@ void main() {
         verify(() => cubit.addOwnInstance('mozhi.example.com')).called(1);
       });
 
+      group('plain http to a remote host', () {
+        const warning = Key('onboarding_insecure_warning');
+        const url = 'http://mozhi.example.com';
+
+        testWidgets('shows the warning banner live', (tester) async {
+          await pump(tester);
+          expect(find.byKey(warning), findsNothing);
+          await tester.enterText(find.byType(TextField), url);
+          await tester.pump();
+          expect(find.byKey(warning), findsOneWidget);
+          expect(find.text('Connection not encrypted'), findsOneWidget);
+          expect(
+            tester.widget(find.byKey(warning)),
+            isA<InsecureHttpWarning>(),
+          );
+
+          await tester.enterText(
+            find.byType(TextField),
+            'http://localhost:3000',
+          );
+          await tester.pump();
+          expect(find.byKey(warning), findsNothing);
+          await tester.enterText(find.byType(TextField), 'https://x.example');
+          await tester.pump();
+          expect(find.byKey(warning), findsNothing);
+        });
+
+        testWidgets('cancelling the confirmation adds nothing', (tester) async {
+          final cubit = await pump(tester);
+          await tester.enterText(find.byType(TextField), url);
+          await tester.tap(find.text('Test & add'));
+          await tester.pumpAndSettle();
+
+          expect(find.text('Add without encryption?'), findsOneWidget);
+          expect(find.textContaining('mozhi.example.com uses plain'), findsOne);
+          await tester.tap(find.text('Cancel'));
+          await tester.pumpAndSettle();
+
+          verifyNever(
+            () => cubit.addOwnInstance(
+              any(),
+              allowInsecure: any(named: 'allowInsecure'),
+            ),
+          );
+        });
+
+        testWidgets('adds after confirming, and asks once per url', (
+          tester,
+        ) async {
+          final cubit = await pump(tester);
+          await tester.enterText(find.byType(TextField), url);
+          await tester.tap(find.text('Test & add'));
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Add without encryption'));
+          await tester.pumpAndSettle();
+          verify(() => cubit.addOwnInstance(url, allowInsecure: true))
+              .called(1);
+
+          // Confirmed already: no second dialog for the same url.
+          await tester.tap(find.text('Test & add'));
+          await tester.pumpAndSettle();
+          expect(find.text('Add without encryption?'), findsNothing);
+          verify(() => cubit.addOwnInstance(url, allowInsecure: true))
+              .called(1);
+        });
+
+        testWidgets('local addresses are added without asking', (tester) async {
+          final cubit = await pump(tester);
+          await tester.enterText(find.byType(TextField), 'http://192.168.1.2');
+          await tester.tap(find.text('Test & add'));
+          await tester.pumpAndSettle();
+          expect(find.text('Add without encryption?'), findsNothing);
+          verify(() => cubit.addOwnInstance('http://192.168.1.2')).called(1);
+        });
+      });
+
       testWidgets('disables the button while testing', (tester) async {
         await pump(
           tester,
@@ -237,6 +314,11 @@ void main() {
         (
           OwnInstanceError.timedOut,
           'Could not reach this instance: it took too long to answer.',
+        ),
+        (
+          OwnInstanceError.insecure,
+          'This instance uses plain HTTP. Confirm that you want to add it '
+              'without encryption.',
         ),
       ]) {
         testWidgets('shows ${error.name} errors', (tester) async {

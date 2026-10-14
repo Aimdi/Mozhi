@@ -1,11 +1,12 @@
 // Translating with the (mock) AI provider: instant translation, a
 // refinement chip and the meaning check.
-const { test, expect } = require('@playwright/test');
+const { expect } = require('@playwright/test');
 const {
   copiedTranslation,
   openApp,
   recordAiRequests,
   seedSettings,
+  test,
   typeSource,
 } = require('./helpers');
 

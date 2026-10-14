@@ -55,8 +55,9 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
   host names), which get `http://` because self-hosted servers on a LAN
   usually have no certificate.
 - **Plain HTTP is allowed** (self-hosted servers), but the AI provider
-  editor warns about a non-local `http://` address and asks you to confirm
-  before saving a key for it.
+  editor, Settings > Mozhi instances and first-run setup warn about a
+  non-local `http://` address and ask you to confirm before saving a key
+  for it or adding the instance.
   Prefer HTTPS, a VPN or Tailscale for servers outside your home network.
 - **Certificates:** the app never disables certificate checks. Release
   builds on Android trust only the system certificate authorities; CAs
@@ -144,6 +145,12 @@ translations, for example with **Check meaning**.
   usage metrics to its vendor; see [Privacy](privacy.md#google-ml-kit).
 - Third-party licences, including ML Kit and native libraries, are listed
   under **Settings > About > Licences**.
+- **Release builds:** Android APKs and the app bundle are built with
+  `--obfuscate --split-debug-info`; the debug symbols are kept as a private
+  workflow artifact (90 days), not attached to the public release.
+- **CI supply chain:** third-party GitHub Actions and reusable workflows are
+  pinned to full commit SHAs (with the version in a comment, which
+  Dependabot updates), so a moved tag can't change what runs in CI.
 
 ## Known limitations
 
@@ -155,12 +162,22 @@ translations, for example with **Check meaning**.
   Translate clipboard button, like any widget button. Clipboard text is
   then handled like shared text: capped, no paid AI request on its own,
   but translated by a free engine and saved to history if those are on.
-- Plain `http://` Mozhi instances outside your network can still be added:
-  Mozhi shows a warning and asks you to confirm first, because your text
-  then travels unencrypted. Instances on this device or your local network
-  (`localhost`, private IP addresses, `.local`/`.lan` names and similar)
-  are added without a warning. Instances added before this check (or
-  through first-run setup) are not re-checked.
+- Plain `http://` Mozhi instances outside your network can still be added
+  (in Settings and in first-run setup): Mozhi shows a warning and asks you
+  to confirm first, because your text then travels unencrypted. Instances
+  on this device or your local network (`localhost`, private IP addresses,
+  `.local`/`.lan` names and similar) are added without a warning. Instances
+  added before this check are not re-checked.
+- **Web app Content Security Policy:** `index.html` allows scripts only from
+  the app's own origin (no inline scripts, `'wasm-unsafe-eval'` for
+  CanvasKit), but it must let the app connect to **any** `http(s)` server,
+  because you choose your own Mozhi instances and AI providers, including
+  ones on your LAN. Inline styles are allowed because the Flutter engine
+  needs them. A `<meta>` policy can't set `frame-ancestors`: if you host
+  the web app, send `Content-Security-Policy: frame-ancestors 'none'` (or
+  `X-Frame-Options: DENY`) as an HTTP header to stop other sites framing
+  it. Debug web runs (`flutter run` in debug mode) are blocked by the
+  policy; see [Contributing](contributing.md).
 - Android release builds made without a signing key (forks, local builds)
   are signed with the debug key. Official releases must use the release
   key.

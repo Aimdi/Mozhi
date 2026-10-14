@@ -5962,5 +5962,9 @@
   "settingsInstanceInsecureConfirmAction": "Add without encryption",
   "@settingsInstanceInsecureConfirmAction": {
     "description": "settingsInstanceInsecureConfirmAction"
+  },
+  "onboardingServiceOwnInsecure": "This instance uses plain HTTP. Confirm that you want to add it without encryption.",
+  "@onboardingServiceOwnInsecure": {
+    "description": "onboardingServiceOwnInsecure"
   }
 }

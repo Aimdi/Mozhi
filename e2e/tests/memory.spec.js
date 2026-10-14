@@ -1,11 +1,12 @@
 // Translation memory: text translated before is offered from the history
 // ("From your history"), and using it sends nothing to the AI provider.
-const { test, expect } = require('@playwright/test');
+const { expect } = require('@playwright/test');
 const {
   copiedTranslation,
   openApp,
   recordAiRequests,
   seedSettings,
+  test,
   typeSource,
 } = require('./helpers');
 

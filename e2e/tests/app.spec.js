@@ -1,7 +1,7 @@
 // Smoke tests: the app starts, the More tools menu opens and the main
 // (including deferred, separately downloaded) routes render.
-const { test, expect } = require('@playwright/test');
-const { collectPageErrors, openApp, seedSettings } = require('./helpers');
+const { expect } = require('@playwright/test');
+const { collectPageErrors, openApp, seedSettings, test } = require('./helpers');
 
 test.beforeEach(async ({ page }) => {
   await seedSettings(page, 'settings-ai');
@@ -102,4 +102,15 @@ test.describe('routes render', () => {
       page.getByRole('button', { name: 'Translate into French' }),
     ).toBeVisible();
   });
+});
+
+test('is served with a Content Security Policy', async ({ page }) => {
+  await openApp(page, '/translate');
+  const policy = await page
+    .locator('meta[http-equiv="Content-Security-Policy"]')
+    .getAttribute('content');
+  expect(policy).toContain("script-src 'self' 'wasm-unsafe-eval'");
+  expect(policy).not.toContain("'unsafe-eval'");
+  // No inline scripts: the strict script-src would block them.
+  expect(await page.locator('script:not([src])').count()).toBe(0);
 });

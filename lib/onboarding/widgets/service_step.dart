@@ -6,6 +6,7 @@ import 'package:mozhi/onboarding/widgets/instance_tile.dart';
 import 'package:mozhi/onboarding/widgets/onboarding_badge.dart';
 import 'package:mozhi/onboarding/widgets/step_layout.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/view/widgets/insecure_http_warning.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Step 2: find the fastest public Mozhi instance or add your own.
@@ -160,15 +161,61 @@ class OwnInstanceForm extends StatefulWidget {
 class _OwnInstanceFormState extends State<OwnInstanceForm> {
   final _controller = TextEditingController();
 
+  /// The plain-http URL the user agreed to add without encryption.
+  String? _insecureConfirmedFor;
+
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
   }
 
-  Future<void> _submit() {
+  Uri? get _insecureUri {
+    final uri = normalizeOwnInstanceUrl(_controller.text);
+    return isInsecureHttp(uri) ? uri : null;
+  }
+
+  Future<void> _submit() async {
     FocusScope.of(context).unfocus();
-    return context.read<OnboardingCubit>().addOwnInstance(_controller.text);
+    final cubit = context.read<OnboardingCubit>();
+    final insecure = _insecureUri;
+    if (insecure != null && !await _confirmInsecure(insecure)) return;
+    await cubit.addOwnInstance(
+      _controller.text,
+      allowInsecure: insecure != null,
+    );
+  }
+
+  /// Asks once per URL before a plain-http instance outside the local
+  /// network is added (same dialog as Settings); true when it may be added.
+  Future<bool> _confirmInsecure(Uri uri) async {
+    final url = uri.toString();
+    if (_insecureConfirmedFor == url) return true;
+    final l10n = context.l10n;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        icon: const Icon(Icons.no_encryption_outlined),
+        title: Text(l10n.settingsInstanceInsecureConfirmTitle),
+        content: Text(l10n.settingsInstanceInsecureConfirmBody(uri.host)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l10n.commonCancel),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(l10n.settingsInstanceInsecureConfirmAction),
+          ),
+        ],
+      ),
+    );
+    if (!(confirmed ?? false) || !mounted) return false;
+    _insecureConfirmedFor = url;
+    return true;
   }
 
   @override
@@ -197,6 +244,7 @@ class _OwnInstanceFormState extends State<OwnInstanceForm> {
         message ?? '',
       ),
       OwnInstanceError.timedOut => l10n.onboardingServiceOwnTimedOut,
+      OwnInstanceError.insecure => l10n.onboardingServiceOwnInsecure,
     };
     return OnboardingSection(
       title: l10n.onboardingServiceOwnTitle,
@@ -224,9 +272,21 @@ class _OwnInstanceFormState extends State<OwnInstanceForm> {
               errorText: errorText,
               errorMaxLines: 4,
             ),
-            onChanged: (_) => cubit.ownInstanceChanged(),
+            onChanged: (_) {
+              // Rebuild for the insecure-http banner.
+              setState(() {});
+              cubit.ownInstanceChanged();
+            },
             onSubmitted: testing ? null : (_) => _submit(),
           ),
+          if (_insecureUri != null) ...[
+            const SizedBox(height: 12),
+            InsecureHttpWarning(
+              key: const Key('onboarding_insecure_warning'),
+              title: l10n.settingsInstanceInsecureTitle,
+              text: l10n.settingsInstanceInsecureWarning,
+            ),
+          ],
           const SizedBox(height: 12),
           Align(
             alignment: AlignmentDirectional.centerEnd,

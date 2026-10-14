@@ -1223,5 +1223,6 @@
   "settingsInstanceInsecureWarning": "Instans ini memakai HTTP tanpa enkripsi: teks yang Anda terjemahkan bisa dibaca siapa pun di jaringan perantara. Gunakan https:// untuk instans di luar jaringan Anda.",
   "settingsInstanceInsecureConfirmTitle": "Tambahkan tanpa enkripsi?",
   "settingsInstanceInsecureConfirmBody": "{host} memakai HTTP tanpa enkripsi. Siapa pun di jaringan antara Anda dan instans ini dapat membaca teks yang Anda terjemahkan dengannya.",
-  "settingsInstanceInsecureConfirmAction": "Tambahkan tanpa enkripsi"
+  "settingsInstanceInsecureConfirmAction": "Tambahkan tanpa enkripsi",
+  "onboardingServiceOwnInsecure": "Instans ini memakai HTTP tanpa enkripsi. Konfirmasikan bahwa Anda ingin menambahkannya tanpa enkripsi."
 }

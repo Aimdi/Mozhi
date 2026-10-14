@@ -1223,5 +1223,6 @@
   "settingsInstanceInsecureWarning": "Ta instancja używa nieszyfrowanego HTTP: tłumaczony tekst mógłby odczytać każdy w sieci pośredniej. Dla instancji poza Twoją siecią używaj https://.",
   "settingsInstanceInsecureConfirmTitle": "Dodać bez szyfrowania?",
   "settingsInstanceInsecureConfirmBody": "{host} używa nieszyfrowanego HTTP. Każdy w sieci między Tobą a tą instancją może odczytać tłumaczony przez nią tekst.",
-  "settingsInstanceInsecureConfirmAction": "Dodaj bez szyfrowania"
+  "settingsInstanceInsecureConfirmAction": "Dodaj bez szyfrowania",
+  "onboardingServiceOwnInsecure": "Ta instancja używa nieszyfrowanego HTTP. Potwierdź, że chcesz ją dodać bez szyfrowania."
 }

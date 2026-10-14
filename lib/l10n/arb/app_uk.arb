@@ -1223,5 +1223,6 @@
   "settingsInstanceInsecureWarning": "Цей сервер використовує незашифрований HTTP: текст, який ви перекладаєте, зможе прочитати будь-хто в проміжній мережі. Для серверів поза вашою мережею використовуйте https://.",
   "settingsInstanceInsecureConfirmTitle": "Додати без шифрування?",
   "settingsInstanceInsecureConfirmBody": "{host} використовує незашифрований HTTP. Будь-хто в мережі між вами й цим сервером може прочитати текст, який ви через нього перекладаєте.",
-  "settingsInstanceInsecureConfirmAction": "Додати без шифрування"
+  "settingsInstanceInsecureConfirmAction": "Додати без шифрування",
+  "onboardingServiceOwnInsecure": "Цей сервер використовує незашифрований HTTP. Підтвердьте, що хочете додати його без шифрування."
 }

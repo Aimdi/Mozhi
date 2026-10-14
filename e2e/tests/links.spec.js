@@ -1,12 +1,13 @@
 // Kagi-style translate links (/translate?text=…&from=…&to=…) fill in the
 // translate screen but never send a (possibly paid) AI request on their own.
-const { test, expect } = require('@playwright/test');
+const { expect } = require('@playwright/test');
 const {
   copiedTranslation,
   openApp,
   recordAiRequests,
   seedSettings,
   sourceInput,
+  test,
 } = require('./helpers');
 
 test('a translate link prefills without an automatic AI request', async ({

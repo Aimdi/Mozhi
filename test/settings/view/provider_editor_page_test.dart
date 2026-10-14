@@ -368,7 +368,8 @@ void main() {
           findsOneWidget,
         );
         final colors = Theme.of(tester.element(banner)).colorScheme;
-        expect(tester.widget<Card>(banner).color, colors.errorContainer);
+        final card = find.descendant(of: banner, matching: find.byType(Card));
+        expect(tester.widget<Card>(card).color, colors.errorContainer);
         await tester.enterText(field('Base URL'), 'http://192.168.1.5:8080/v1');
         await tester.pump();
         expect(find.textContaining('Not encrypted'), findsNothing);

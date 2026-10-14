@@ -288,6 +288,16 @@ void main() {
     });
   });
 
+  group('normalizeOwnInstanceUrl', () {
+    test('normalizes valid input and rejects invalid input', () {
+      expect(
+        normalizeOwnInstanceUrl('mozhi.example.com/api/'),
+        Uri.parse('https://mozhi.example.com'),
+      );
+      expect(normalizeOwnInstanceUrl('not a url'), isNull);
+    });
+  });
+
   group('addOwnInstance', () {
     test('rejects empty input', () async {
       final cubit = build();
@@ -330,6 +340,39 @@ void main() {
       );
       expect(urlsOf(settings), [url, ...testInstances.map((i) => i.url)]);
       expect(settings.state.instances.first.isCustom, isTrue);
+    });
+
+    test('refuses plain http to a remote host without confirmation', () async {
+      final cubit = build();
+
+      await cubit.addOwnInstance('http://mozhi.example.com');
+
+      expect(cubit.state.ownInstanceStatus, OwnInstanceStatus.failure);
+      expect(cubit.state.ownInstanceError, OwnInstanceError.insecure);
+      verifyNever(() => repository.pingInstance(any()));
+      expect(urlsOf(settings), [for (final i in testInstances) i.url]);
+    });
+
+    test('adds confirmed plain http instances', () async {
+      const url = 'http://mozhi.example.com';
+      stubLatencies({url: 50});
+      final cubit = build();
+
+      await cubit.addOwnInstance(url, allowInsecure: true);
+
+      expect(cubit.state.ownInstanceStatus, OwnInstanceStatus.success);
+      expect(urlsOf(settings).first, url);
+    });
+
+    test('adds plain http on the local network without confirmation', () async {
+      const url = 'http://192.168.1.20:3000';
+      stubLatencies({url: 5});
+      final cubit = build();
+
+      await cubit.addOwnInstance(url);
+
+      expect(cubit.state.ownInstanceStatus, OwnInstanceStatus.success);
+      expect(urlsOf(settings).first, url);
     });
 
     test('does not duplicate an existing instance', () async {

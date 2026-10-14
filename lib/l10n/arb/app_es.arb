@@ -1223,5 +1223,6 @@
   "settingsInstanceInsecureWarning": "Esta instancia usa HTTP sin cifrar: el texto que traduces podría leerlo cualquiera en la red intermedia. Usa https:// para instancias fuera de tu red.",
   "settingsInstanceInsecureConfirmTitle": "¿Añadir sin cifrado?",
   "settingsInstanceInsecureConfirmBody": "{host} usa HTTP sin cifrar. Cualquiera en la red entre tú y esta instancia puede leer el texto que traduzcas con ella.",
-  "settingsInstanceInsecureConfirmAction": "Añadir sin cifrado"
+  "settingsInstanceInsecureConfirmAction": "Añadir sin cifrado",
+  "onboardingServiceOwnInsecure": "Esta instancia usa HTTP sin cifrar. Confirma que quieres añadirla sin cifrado."
 }

@@ -1223,5 +1223,6 @@
   "settingsInstanceInsecureWarning": "이 인스턴스는 암호화되지 않은 HTTP를 사용합니다. 번역하는 텍스트를 중간 네트워크의 누구나 읽을 수 있습니다. 내 네트워크 밖의 인스턴스에는 https://를 사용하세요.",
   "settingsInstanceInsecureConfirmTitle": "암호화 없이 추가할까요?",
   "settingsInstanceInsecureConfirmBody": "{host}은(는) 암호화되지 않은 HTTP를 사용합니다. 나와 이 인스턴스 사이 네트워크의 누구나 이를 통해 번역하는 텍스트를 읽을 수 있습니다.",
-  "settingsInstanceInsecureConfirmAction": "암호화 없이 추가"
+  "settingsInstanceInsecureConfirmAction": "암호화 없이 추가",
+  "onboardingServiceOwnInsecure": "이 인스턴스는 암호화되지 않은 HTTP를 사용합니다. 암호화 없이 추가할지 확인하세요."
 }

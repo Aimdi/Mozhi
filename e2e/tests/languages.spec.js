@@ -1,10 +1,11 @@
 // Language pairs: the swap button swaps; a long press on it (or the More
 // tools menu) lists the recently used pairs, which can be picked again.
-const { test, expect } = require('@playwright/test');
+const { expect } = require('@playwright/test');
 const {
   copiedTranslation,
   openApp,
   seedSettings,
+  test,
   typeSource,
 } = require('./helpers');
 

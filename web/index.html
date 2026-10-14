@@ -17,6 +17,15 @@
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
+  <!--
+    Content Security Policy (see docs/security.md). Scripts only from this
+    origin (no inline scripts: the bootstrap and splash code are files), plus
+    'wasm-unsafe-eval' for CanvasKit's WebAssembly. Inline styles are needed
+    by the Flutter engine. connect-src allows any http(s) host because the
+    user picks their own Mozhi instances and AI providers (including LAN
+    ones); fonts.gstatic.com serves Flutter's fallback fonts.
+  -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https: http: blob: data:; media-src 'self' blob: data:; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="A fast, private translator: use your own Mozhi instance or AI model (OpenAI, Anthropic, Gemini, Ollama, ...) with Kagi-style alternatives, insights and proofreading.">
   <meta name="theme-color" content="#3F51B5">
@@ -67,16 +76,8 @@
     <div class="spinner"></div>
     <div>Mozhi</div>
   </div>
-  <script>
-    window.addEventListener('flutter-first-frame', function () {
-      var splash = document.getElementById('splash');
-      if (!splash) return;
-      splash.classList.add('done');
-      setTimeout(function () { splash.remove(); }, 250);
-    }, { once: true });
-  </script>
-  <script>
-    {{flutter_bootstrap_js}}
-  </script>
+  <!-- Scripts are files, not inline, so the CSP needs no 'unsafe-inline'. -->
+  <script src="splash.js"></script>
+  <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

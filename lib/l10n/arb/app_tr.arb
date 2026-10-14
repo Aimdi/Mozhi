@@ -1223,5 +1223,6 @@
   "settingsInstanceInsecureWarning": "Bu sunucu şifrelenmemiş HTTP kullanıyor: çevirdiğiniz metni aradaki ağdaki herkes okuyabilir. Ağınızın dışındaki sunucular için https:// kullanın.",
   "settingsInstanceInsecureConfirmTitle": "Şifrelemeden eklensin mi?",
   "settingsInstanceInsecureConfirmBody": "{host} şifrelenmemiş HTTP kullanıyor. Sizinle bu sunucu arasındaki ağdaki herkes onunla çevirdiğiniz metni okuyabilir.",
-  "settingsInstanceInsecureConfirmAction": "Şifrelemeden ekle"
+  "settingsInstanceInsecureConfirmAction": "Şifrelemeden ekle",
+  "onboardingServiceOwnInsecure": "Bu sunucu şifrelenmemiş HTTP kullanıyor. Şifreleme olmadan eklemek istediğinizi onaylayın."
 }

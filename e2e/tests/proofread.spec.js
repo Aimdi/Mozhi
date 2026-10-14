@@ -1,13 +1,14 @@
 // Proofreading with the (mock) AI provider: the suggested edits can be
 // applied and reverted one by one or all at once, and the writing
 // statistics panel expands.
-const { test, expect } = require('@playwright/test');
+const { expect } = require('@playwright/test');
 const {
   collectPageErrors,
   copiedTranslation,
   fillField,
   openApp,
   seedSettings,
+  test,
 } = require('./helpers');
 
 const TEXT = 'I has a cat. It like to sleep.';

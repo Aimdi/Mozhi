@@ -1223,5 +1223,6 @@
   "settingsInstanceInsecureWarning": "Deze instantie gebruikt onversleuteld HTTP: de tekst die je vertaalt is leesbaar voor iedereen op het netwerk ertussen. Gebruik https:// voor instanties buiten je netwerk.",
   "settingsInstanceInsecureConfirmTitle": "Toevoegen zonder versleuteling?",
   "settingsInstanceInsecureConfirmBody": "{host} gebruikt onversleuteld HTTP. Iedereen op het netwerk tussen jou en deze instantie kan de tekst lezen die je ermee vertaalt.",
-  "settingsInstanceInsecureConfirmAction": "Toevoegen zonder versleuteling"
+  "settingsInstanceInsecureConfirmAction": "Toevoegen zonder versleuteling",
+  "onboardingServiceOwnInsecure": "Deze instantie gebruikt onversleuteld HTTP. Bevestig dat je haar zonder versleuteling wilt toevoegen."
 }

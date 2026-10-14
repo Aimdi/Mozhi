@@ -41,8 +41,9 @@ enum ServiceStatus { idle, pinging, done }
 /// Progress of "use my own instance".
 enum OwnInstanceStatus { idle, testing, success, failure }
 
-/// Why "use my own instance" failed.
-enum OwnInstanceError { empty, invalidUrl, unreachable, timedOut }
+/// Why "use my own instance" failed ([insecure]: plain http outside the
+/// local network that the user has not confirmed).
+enum OwnInstanceError { empty, invalidUrl, unreachable, timedOut, insecure }
 
 /// Inputs of the AI provider form.
 enum ProviderField { apiKey, baseUrl, model }

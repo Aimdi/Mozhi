@@ -1223,5 +1223,6 @@
   "settingsInstanceInsecureWarning": "Questa istanza usa HTTP non cifrato: il testo che traduci sarebbe leggibile da chiunque sulla rete intermedia. Usa https:// per le istanze fuori dalla tua rete.",
   "settingsInstanceInsecureConfirmTitle": "Aggiungere senza cifratura?",
   "settingsInstanceInsecureConfirmBody": "{host} usa HTTP non cifrato. Chiunque sulla rete tra te e questa istanza può leggere il testo che traduci con essa.",
-  "settingsInstanceInsecureConfirmAction": "Aggiungi senza cifratura"
+  "settingsInstanceInsecureConfirmAction": "Aggiungi senza cifratura",
+  "onboardingServiceOwnInsecure": "Questa istanza usa HTTP non cifrato. Conferma che vuoi aggiungerla senza cifratura."
 }

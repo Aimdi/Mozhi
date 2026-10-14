@@ -1223,5 +1223,6 @@
   "settingsInstanceInsecureWarning": "Cette instance utilise HTTP sans chiffrement : le texte que vous traduisez serait lisible par toute personne sur le réseau intermédiaire. Utilisez https:// pour les instances hors de votre réseau.",
   "settingsInstanceInsecureConfirmTitle": "Ajouter sans chiffrement ?",
   "settingsInstanceInsecureConfirmBody": "{host} utilise HTTP sans chiffrement. Toute personne sur le réseau entre vous et cette instance peut lire le texte que vous y traduisez.",
-  "settingsInstanceInsecureConfirmAction": "Ajouter sans chiffrement"
+  "settingsInstanceInsecureConfirmAction": "Ajouter sans chiffrement",
+  "onboardingServiceOwnInsecure": "Cette instance utilise HTTP sans chiffrement. Confirmez que vous voulez l’ajouter sans chiffrement."
 }

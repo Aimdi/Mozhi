@@ -54,13 +54,24 @@ The three install side by side on Android. iOS and macOS have matching
 
 ```sh
 flutter run --flavor staging -t lib/main_staging.dart
-flutter run -d chrome -t lib/main_development.dart   # web has no flavors
+flutter run -d chrome --profile --no-web-resources-cdn \
+  -t lib/main_development.dart                       # web has no flavors
 ```
+
+On the web, `web/index.html` sets a strict Content Security Policy (no
+inline scripts, no scripts from other origins). Debug web runs inject an
+inline debugger script and load CanvasKit from Google's CDN, so the policy
+blocks them: run the web app in `--profile` or `--release` mode with
+`--no-web-resources-cdn` (no hot reload), and debug UI on another target.
+For a one-off debug session you can remove the
+`Content-Security-Policy` meta tag locally; don't commit that.
 
 ## Building releases
 
 ```sh
-# Android: one APK per ABI, plus a universal APK
+# Android: one APK per ABI, plus a universal APK. The release workflow
+# also passes --obfuscate --split-debug-info=build/symbols/<build> and keeps
+# the symbols as a private workflow artifact (for `flutter symbolize`).
 flutter build apk --release --flavor production -t lib/main_production.dart --split-per-abi
 flutter build apk --release --flavor production -t lib/main_production.dart
 
@@ -225,6 +236,9 @@ listen on those ports are reused, so pick free ports if something else
 uses them.
 
 Writing tests:
+
+- Import `test` from `./helpers`, not from `@playwright/test`: it fails a
+  test whose page logs a Content Security Policy violation.
 
 - Flutter web renders to a canvas. The specs turn on its semantics tree
   (`enableSemantics` in `e2e/tests/helpers.js`), then use role and label

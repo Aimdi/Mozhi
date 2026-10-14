@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:bloc/bloc.dart';
 import 'package:mozhi/onboarding/cubit/onboarding_state.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/view/widgets/insecure_http_warning.dart';
 import 'package:mozhi_api/mozhi_api.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -16,6 +17,15 @@ String onboardingErrorMessage(Object error) => switch (error) {
   FormatException(:final message) => message,
   _ => error.toString(),
 };
+
+/// [input] as a normalized Mozhi base URL, or null when it is not valid.
+Uri? normalizeOwnInstanceUrl(String input) {
+  try {
+    return MozhiApiClient.normalizeBaseUrl(input);
+  } on FormatException {
+    return null;
+  }
+}
 
 /// Drives the first-run flow: step navigation, finding the fastest Mozhi
 /// instance, adding the user's own instance and setting up an optional AI
@@ -182,17 +192,28 @@ class OnboardingCubit extends Cubit<OnboardingState> {
 
   /// Validates [input] with `MozhiApiClient.normalizeBaseUrl`, pings it and
   /// on success adds it (unless already configured) and prefers it.
-  Future<void> addOwnInstance(String input) async {
+  ///
+  /// A plain `http://` address outside this device and the local network
+  /// ([isInsecureHttp]) is refused with [OwnInstanceError.insecure] unless
+  /// [allowInsecure]: the user must confirm first, because the translated
+  /// text would travel unencrypted.
+  Future<void> addOwnInstance(
+    String input, {
+    bool allowInsecure = false,
+  }) async {
     _ownRun++;
     if (input.trim().isEmpty) {
       _ownFailed(OwnInstanceError.empty);
       return;
     }
-    final String url;
-    try {
-      url = MozhiApiClient.normalizeBaseUrl(input).toString();
-    } on FormatException {
+    final uri = normalizeOwnInstanceUrl(input);
+    if (uri == null) {
       _ownFailed(OwnInstanceError.invalidUrl);
+      return;
+    }
+    final url = uri.toString();
+    if (!allowInsecure && isInsecureHttp(uri)) {
+      _ownFailed(OwnInstanceError.insecure);
       return;
     }
     final run = _ownRun;

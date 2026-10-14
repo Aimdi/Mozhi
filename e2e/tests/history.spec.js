@@ -1,6 +1,6 @@
 // History: translations are saved on the device and can be starred,
 // searched and deleted (with Undo).
-const { test, expect } = require('@playwright/test');
+const { expect } = require('@playwright/test');
 const {
   collectPageErrors,
   copiedTranslation,
@@ -8,6 +8,7 @@ const {
   openApp,
   seedSettings,
   sourceInput,
+  test,
   typeSource,
 } = require('./helpers');
 

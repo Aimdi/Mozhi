@@ -1,13 +1,14 @@
 // No network: with the AI provider and the Mozhi instance unreachable the
 // app shows a friendly error instead of crashing, and recovers once they
 // are back.
-const { test, expect } = require('@playwright/test');
+const { expect } = require('@playwright/test');
 const {
   collectPageErrors,
   copiedTranslation,
   openApp,
   seedSettings,
   takeMockDown,
+  test,
   typeSource,
 } = require('./helpers');
 

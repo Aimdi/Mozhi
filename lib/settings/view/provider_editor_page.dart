@@ -9,6 +9,7 @@ import 'package:mozhi/core/widgets/local_overlay.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/view/widgets/add_instance_dialog.dart';
+import 'package:mozhi/settings/view/widgets/insecure_http_warning.dart';
 import 'package:mozhi/settings/view/widgets/link_launcher.dart';
 import 'package:mozhi/settings/view/widgets/model_picker_sheet.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
@@ -242,11 +243,7 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
 
   bool get _showTemperature => _provider != LlmProvider.anthropic;
 
-  bool get _insecure {
-    final uri = Uri.tryParse(_baseUrl.text.trim());
-    if (uri == null || uri.scheme != 'http' || uri.host.isEmpty) return false;
-    return !AiProviderConfig.isLocalHost(uri.host);
-  }
+  bool get _insecure => isInsecureHttp(Uri.tryParse(_baseUrl.text.trim()));
 
   static String _hostOf(String url) =>
       (Uri.tryParse(url.trim())?.host ?? '').toLowerCase();
@@ -692,9 +689,13 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
           validator: _validateUrl,
         ),
         if (_insecure)
-          _InsecureWarning(
-            title: l10n.settingsProviderInsecureTitle,
-            text: l10n.settingsProviderInsecureWarning,
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: InsecureHttpWarning(
+              key: const Key('provider_insecure_warning'),
+              title: l10n.settingsProviderInsecureTitle,
+              text: l10n.settingsProviderInsecureWarning,
+            ),
           ),
         if (_presetHeadersDropped case final dropped when dropped.isNotEmpty)
           _Note(
@@ -908,67 +909,6 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
         'high' => l10n.settingsProviderEffortHigh,
         _ => l10n.settingsProviderEffortDefault,
       };
-}
-
-/// Prominent banner for plain http to a non-local host (security N5).
-class _InsecureWarning extends StatelessWidget {
-  const new({required this.title, required this.text});
-
-  final String title;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Card.filled(
-        key: const Key('provider_insecure_warning'),
-        margin: EdgeInsets.zero,
-        color: colors.errorContainer,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                Icons.no_encryption_outlined,
-                color: colors.onErrorContainer,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Semantics(
-                  container: true,
-                  liveRegion: true,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          color: colors.onErrorContainer,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        text,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: colors.onErrorContainer,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 /// A small informational line under a field.

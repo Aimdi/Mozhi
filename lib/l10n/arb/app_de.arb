@@ -1223,5 +1223,6 @@
   "settingsInstanceInsecureWarning": "Diese Instanz nutzt unverschlüsseltes HTTP: Der Text, den du übersetzt, wäre für alle im Netzwerk dazwischen lesbar. Nutze https:// für Instanzen außerhalb deines Netzwerks.",
   "settingsInstanceInsecureConfirmTitle": "Ohne Verschlüsselung hinzufügen?",
   "settingsInstanceInsecureConfirmBody": "{host} nutzt unverschlüsseltes HTTP. Alle im Netzwerk zwischen dir und dieser Instanz können den Text lesen, den du damit übersetzt.",
-  "settingsInstanceInsecureConfirmAction": "Ohne Verschlüsselung hinzufügen"
+  "settingsInstanceInsecureConfirmAction": "Ohne Verschlüsselung hinzufügen",
+  "onboardingServiceOwnInsecure": "Diese Instanz nutzt unverschlüsseltes HTTP. Bestätige, dass du sie ohne Verschlüsselung hinzufügen willst."
 }

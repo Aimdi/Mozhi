@@ -1223,5 +1223,6 @@
   "settingsInstanceInsecureWarning": "يستخدم هذا الخادم HTTP غير مشفّر: يمكن لأي شخص على الشبكة الوسيطة قراءة النص الذي تترجمه. استخدم https:// للخوادم خارج شبكتك.",
   "settingsInstanceInsecureConfirmTitle": "هل تريد الإضافة دون تشفير؟",
   "settingsInstanceInsecureConfirmBody": "يستخدم {host} بروتوكول HTTP غير مشفّر. يمكن لأي شخص على الشبكة بينك وبين هذا الخادم قراءة النص الذي تترجمه عبره.",
-  "settingsInstanceInsecureConfirmAction": "إضافة دون تشفير"
+  "settingsInstanceInsecureConfirmAction": "إضافة دون تشفير",
+  "onboardingServiceOwnInsecure": "يستخدم هذا الخادم HTTP غير مشفّر. أكّد أنك تريد إضافته دون تشفير."
 }

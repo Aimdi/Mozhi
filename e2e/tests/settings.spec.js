@@ -1,12 +1,13 @@
 // Settings round trips: turning history off and switching to the dark
 // theme (which must survive a reload).
-const { test, expect } = require('@playwright/test');
+const { expect } = require('@playwright/test');
 const {
   copiedTranslation,
   meanLuminance,
   openApp,
   scrollTo,
   seedSettings,
+  test,
   typeSource,
 } = require('./helpers');
 

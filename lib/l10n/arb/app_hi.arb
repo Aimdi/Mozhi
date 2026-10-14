@@ -1223,5 +1223,6 @@
   "settingsInstanceInsecureWarning": "यह इंस्टेंस बिना एन्क्रिप्शन वाला HTTP इस्तेमाल करता है: आपका अनुवादित टेक्स्ट बीच के नेटवर्क पर कोई भी पढ़ सकता है। अपने नेटवर्क से बाहर के इंस्टेंस के लिए https:// इस्तेमाल करें।",
   "settingsInstanceInsecureConfirmTitle": "बिना एन्क्रिप्शन के जोड़ें?",
   "settingsInstanceInsecureConfirmBody": "{host} बिना एन्क्रिप्शन वाला HTTP इस्तेमाल करता है। आपके और इस इंस्टेंस के बीच नेटवर्क पर कोई भी वह टेक्स्ट पढ़ सकता है जिसका आप इससे अनुवाद करते हैं।",
-  "settingsInstanceInsecureConfirmAction": "बिना एन्क्रिप्शन के जोड़ें"
+  "settingsInstanceInsecureConfirmAction": "बिना एन्क्रिप्शन के जोड़ें",
+  "onboardingServiceOwnInsecure": "यह इंस्टेंस बिना एन्क्रिप्शन वाला HTTP इस्तेमाल करता है। पुष्टि करें कि आप इसे बिना एन्क्रिप्शन के जोड़ना चाहते हैं।"
 }

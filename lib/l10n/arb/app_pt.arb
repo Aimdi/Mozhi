@@ -1223,5 +1223,6 @@
   "settingsInstanceInsecureWarning": "Esta instância usa HTTP sem criptografia: o texto que você traduz poderia ser lido por qualquer pessoa na rede intermediária. Use https:// para instâncias fora da sua rede.",
   "settingsInstanceInsecureConfirmTitle": "Adicionar sem criptografia?",
   "settingsInstanceInsecureConfirmBody": "{host} usa HTTP sem criptografia. Qualquer pessoa na rede entre você e esta instância pode ler o texto que você traduz com ela.",
-  "settingsInstanceInsecureConfirmAction": "Adicionar sem criptografia"
+  "settingsInstanceInsecureConfirmAction": "Adicionar sem criptografia",
+  "onboardingServiceOwnInsecure": "Esta instância usa HTTP sem criptografia. Confirme que deseja adicioná-la sem criptografia."
 }

@@ -57,7 +57,10 @@ MockOnboardingCubit createOnboardingCubit([
   final cubit = MockOnboardingCubit();
   when(() => cubit.state).thenReturn(state);
   when(cubit.findFastestInstance).thenAnswer((_) async {});
-  when(() => cubit.addOwnInstance(any())).thenAnswer((_) async {});
+  when(
+    () =>
+        cubit.addOwnInstance(any(), allowInsecure: any(named: 'allowInsecure')),
+  ).thenAnswer((_) async {});
   when(cubit.testProvider).thenAnswer((_) async {});
   when(cubit.loadModels).thenAnswer((_) async {});
   return cubit;
@@ -113,7 +116,7 @@ extension PumpOnboarding on WidgetTester {
             goRouter: router ?? MockGoRouter(),
             child: MaterialApp(
               theme: theme ?? ThemeData(useMaterial3: true),
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               builder: (context, child) => MediaQuery(
                 data: MediaQuery.of(context)
