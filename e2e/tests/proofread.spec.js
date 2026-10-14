@@ -5,6 +5,7 @@ const { test, expect } = require('@playwright/test');
 const {
   collectPageErrors,
   copiedTranslation,
+  fillField,
   openApp,
   seedSettings,
 } = require('./helpers');
@@ -20,11 +21,11 @@ test.beforeEach(async ({ page }) => {
 
 /** Enters [TEXT], presses Proofread and waits for the result. */
 async function proofread(page) {
+  // Labelled by its hint while empty, then by its character count.
   const input = page.getByRole('textbox', {
-    name: /^Type or paste text to check grammar/,
+    name: /^(Type or paste text to check grammar|\d+ characters?$)/,
   });
-  await input.click();
-  await input.fill(TEXT);
+  await fillField(input, TEXT);
   await page.getByRole('button', { name: 'Proofread', exact: true }).click();
   const result = page.getByRole('group', { name: /^Corrected text / });
   await expect(result).toBeVisible();

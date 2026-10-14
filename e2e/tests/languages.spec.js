@@ -5,7 +5,7 @@ const {
   copiedTranslation,
   openApp,
   seedSettings,
-  sourceInput,
+  typeSource,
 } = require('./helpers');
 
 // AI engine selected, "Instant translate with AI" off: every translation
@@ -71,8 +71,7 @@ test('recent pairs open with a long press and from the menu', async ({
   await expect(
     page.getByRole('button', { name: 'Source language: German' }),
   ).toBeVisible();
-  await sourceInput(page).click();
-  await sourceInput(page).fill('Gute Nacht');
+  await typeSource(page, 'Gute Nacht');
   await pressTranslate(page);
   await expect
     .poll(() => copiedTranslation(page))
@@ -91,7 +90,9 @@ test('recent pairs open with a long press and from the menu', async ({
   await expect(earlier).toBeVisible();
   const order = await sheet
     .getByRole('button', { name: /^From / })
-    .evaluateAll((nodes) => nodes.map((n) => n.getAttribute('aria-label') ?? n.textContent));
+    .evaluateAll((nodes) =>
+      nodes.map((n) => n.getAttribute('aria-label') ?? n.textContent),
+    );
   expect(order).toHaveLength(2);
   expect(order[0]).toMatch(/^From German to English/);
   await page.keyboard.press('Escape');

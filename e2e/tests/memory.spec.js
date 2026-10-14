@@ -20,7 +20,10 @@ test('an earlier translation is offered and can be used', async ({
   const requests = recordAiRequests(page);
   await openApp(page, '/translate');
 
-  const memory = page.getByRole('group', { name: 'From your history' });
+  const memory = page.getByRole('group', {
+    name: 'From your history',
+    exact: true,
+  });
   await typeSource(page, TEXT);
   // Nothing in the history yet.
   await expect(memory).toBeHidden();

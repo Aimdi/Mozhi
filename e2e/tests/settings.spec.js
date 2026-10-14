@@ -14,13 +14,23 @@ test.beforeEach(async ({ page }) => {
   await seedSettings(page, 'settings-ai');
 });
 
+/**
+ * Clicks [locator] on the settings screen. An empty, full-size semantics
+ * node lies over the settings list there, so Playwright's hit-target check
+ * fails; the click itself lands on the right widget (Flutter hit-tests the
+ * pointer position, not the DOM).
+ */
+async function tap(locator) {
+  await locator.click({ force: true });
+}
+
 test('with Save history off, translations are not saved', async ({
   page,
 }) => {
   await openApp(page, '/settings');
   const saveHistory = page.getByRole('switch', { name: /^Save history/ });
   await expect(saveHistory).toBeChecked();
-  await saveHistory.click();
+  await tap(saveHistory);
   await expect(saveHistory).not.toBeChecked();
 
   await page.getByRole('tab', { name: 'Translate' }).click();
@@ -30,9 +40,10 @@ test('with Save history off, translations are not saved', async ({
     .toBe('[AI→French (Français)] Good evening');
 
   await page.getByRole('tab', { name: 'History' }).click();
-  await expect(
-    page.getByText("History is off. New translations aren't saved."),
-  ).toBeVisible();
+  const banner = page.getByRole('group', {
+    name: "History is off. New translations aren't saved.",
+  });
+  await expect(banner).toBeVisible();
   await expect(page.getByRole('heading', { name: /^No history yet/ }))
     .toBeVisible();
   await expect(page.getByRole('group', { name: /Good evening/ })).toBeHidden();
@@ -43,6 +54,14 @@ test('with Save history off, translations are not saved', async ({
   await expect(
     page.getByRole('switch', { name: /^Save history/ }),
   ).not.toBeChecked();
+
+  // The banner turns it back on.
+  await page.getByRole('tab', { name: 'History' }).click();
+  await banner.getByRole('button', { name: 'Turn on' }).click();
+  await expect(banner).toBeHidden();
+  await page.getByRole('tab', { name: 'Settings' }).click();
+  await expect(page.getByRole('switch', { name: /^Save history/ }))
+    .toBeChecked();
 });
 
 test('the dark theme persists after a reload', async ({ page }) => {
@@ -56,7 +75,7 @@ test('the dark theme persists after a reload', async ({ page }) => {
   const light = await meanLuminance(page);
   expect(light).toBeGreaterThan(150);
 
-  await theme.getByRole('button', { name: 'Dark' }).click();
+  await tap(theme.getByRole('button', { name: 'Dark' }));
   await expect(pureBlack).toBeEnabled();
   await expect.poll(() => meanLuminance(page)).toBeLessThan(100);
 

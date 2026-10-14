@@ -94,11 +94,24 @@ async function copiedTranslation(page, scope = page) {
   return page.evaluate(() => navigator.clipboard.readText());
 }
 
+/**
+ * Focuses the text field [locator] and replaces its text with [text].
+ *
+ * Flutter creates the DOM input that receives the text only once the
+ * field has focus, so a fill right after the click can be lost: this
+ * retries until the field holds [text].
+ */
+async function fillField(locator, text) {
+  await expect(async () => {
+    await locator.click();
+    await locator.fill(text);
+    await expect(locator).toHaveValue(text, { timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+}
+
 /** Types [text] into the translate screen's input. */
 async function typeSource(page, text) {
-  const input = sourceInput(page);
-  await input.click();
-  await input.fill(text);
+  await fillField(sourceInput(page), text);
 }
 
 /**
@@ -156,6 +169,7 @@ module.exports = {
   collectPageErrors,
   copiedTranslation,
   enableSemantics,
+  fillField,
   loadSettings,
   meanLuminance,
   openApp,

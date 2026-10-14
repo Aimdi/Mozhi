@@ -4,6 +4,7 @@ const { test, expect } = require('@playwright/test');
 const {
   collectPageErrors,
   copiedTranslation,
+  fillField,
   openApp,
   seedSettings,
   sourceInput,
@@ -84,17 +85,16 @@ test('search filters the history', async ({ page }) => {
   await expect(entry(page, SECOND)).toBeVisible();
 
   const search = page.getByRole('searchbox', { name: 'Search history' });
-  await search.click();
-  await search.fill('tomorrow');
+  await fillField(search, 'tomorrow');
   await expect(entry(page, SECOND)).toBeVisible();
   await expect(entry(page, FIRST)).toBeHidden();
 
-  await search.fill('nothing like this');
+  await fillField(search, 'nothing like this');
   await expect(page.getByRole('heading', { name: /^No matches/ }))
     .toBeVisible();
   await expect(entry(page, SECOND)).toBeHidden();
 
-  await search.fill('');
+  await fillField(search, '');
   await expect(entry(page, FIRST)).toBeVisible();
   await expect(entry(page, SECOND)).toBeVisible();
 });

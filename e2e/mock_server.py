@@ -104,6 +104,13 @@ def llm_answer(messages, json_mode):
 class H(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     def log_message(self, *a): pass
+    def handle(self):
+        # The app cancels streams it no longer needs (e.g. a refinement
+        # replaces a translation): a dropped connection is not an error.
+        try:
+            super().handle()
+        except (BrokenPipeError, ConnectionResetError):
+            pass
     def cors(self):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Headers", "*")
