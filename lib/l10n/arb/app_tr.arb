@@ -1201,5 +1201,7 @@
   "translateListenTooltip": "{action}\nYavaş dinlemek için basılı tutun",
   "translateShortcutListenSlowly": "Yavaş dinle (“Dinle” düğmesi odaktayken)",
   "translateToolListenSlowly": "Çeviriyi yavaş dinle",
-  "translateExtraTargetsKept": "Bu motorda yok; sunan bir motor için saklanıyor"
+  "translateExtraTargetsKept": "Bu motorda yok; sunan bir motor için saklanıyor",
+  "appScreenLoading": "Yükleniyor…",
+  "appScreenLoadFailed": "Bu ekran yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin."
 }

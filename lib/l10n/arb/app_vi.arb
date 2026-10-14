@@ -1201,5 +1201,7 @@
   "translateListenTooltip": "{action}\nNhấn giữ để nghe chậm",
   "translateShortcutListenSlowly": "Nghe chậm (khi nút Nghe đang có tiêu điểm)",
   "translateToolListenSlowly": "Nghe chậm bản dịch",
-  "translateExtraTargetsKept": "Công cụ này không hỗ trợ; được giữ lại cho công cụ có hỗ trợ"
+  "translateExtraTargetsKept": "Công cụ này không hỗ trợ; được giữ lại cho công cụ có hỗ trợ",
+  "appScreenLoading": "Đang tải…",
+  "appScreenLoadFailed": "Không thể tải màn hình này. Hãy kiểm tra kết nối và thử lại."
 }

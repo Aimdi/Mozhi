@@ -1201,5 +1201,7 @@
   "translateListenTooltip": "{action}\nHoud ingedrukt om langzaam te beluisteren",
   "translateShortcutListenSlowly": "Langzaam beluisteren (met de focus op een knop Beluisteren)",
   "translateToolListenSlowly": "Vertaling langzaam beluisteren",
-  "translateExtraTargetsKept": "Niet aangeboden door deze engine; blijft bewaard voor een engine die deze wel aanbiedt"
+  "translateExtraTargetsKept": "Niet aangeboden door deze engine; blijft bewaard voor een engine die deze wel aanbiedt",
+  "appScreenLoading": "Laden…",
+  "appScreenLoadFailed": "Dit scherm kon niet worden geladen. Controleer je verbinding en probeer het opnieuw."
 }

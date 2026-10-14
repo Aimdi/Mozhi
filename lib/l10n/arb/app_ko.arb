@@ -1201,5 +1201,7 @@
   "translateListenTooltip": "{action}\n길게 누르면 천천히 듣기",
   "translateShortcutListenSlowly": "천천히 듣기(‘듣기’ 버튼에 포커스가 있을 때)",
   "translateToolListenSlowly": "번역 천천히 듣기",
-  "translateExtraTargetsKept": "이 엔진에서는 지원되지 않음. 지원하는 엔진에서 사용하도록 유지됨"
+  "translateExtraTargetsKept": "이 엔진에서는 지원되지 않음. 지원하는 엔진에서 사용하도록 유지됨",
+  "appScreenLoading": "불러오는 중…",
+  "appScreenLoadFailed": "이 화면을 불러올 수 없습니다. 연결을 확인하고 다시 시도하세요."
 }

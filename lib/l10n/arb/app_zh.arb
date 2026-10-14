@@ -1201,5 +1201,7 @@
   "translateListenTooltip": "{action}\n长按可慢速朗读",
   "translateShortcutListenSlowly": "慢速朗读（焦点位于“朗读”按钮时）",
   "translateToolListenSlowly": "慢速朗读译文",
-  "translateExtraTargetsKept": "此引擎不支持；已保留，供支持的引擎使用"
+  "translateExtraTargetsKept": "此引擎不支持；已保留，供支持的引擎使用",
+  "appScreenLoading": "正在加载…",
+  "appScreenLoadFailed": "无法加载此页面。请检查网络连接后重试。"
 }

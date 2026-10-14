@@ -1201,5 +1201,7 @@
   "translateListenTooltip": "{action}\nधीरे सुनने के लिए दबाकर रखें",
   "translateShortcutListenSlowly": "धीरे सुनें (जब “सुनें” बटन पर फ़ोकस हो)",
   "translateToolListenSlowly": "अनुवाद धीरे सुनें",
-  "translateExtraTargetsKept": "इस इंजन में उपलब्ध नहीं; जिस इंजन में उपलब्ध हो, उसके लिए रखी गई है"
+  "translateExtraTargetsKept": "इस इंजन में उपलब्ध नहीं; जिस इंजन में उपलब्ध हो, उसके लिए रखी गई है",
+  "appScreenLoading": "लोड हो रहा है…",
+  "appScreenLoadFailed": "यह स्क्रीन लोड नहीं हो सकी। अपना कनेक्शन जांचें और फिर से कोशिश करें।"
 }

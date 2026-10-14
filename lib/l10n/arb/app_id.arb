@@ -1201,5 +1201,7 @@
   "translateListenTooltip": "{action}\nTekan lama untuk mendengarkan perlahan",
   "translateShortcutListenSlowly": "Dengarkan perlahan (saat tombol Dengarkan difokuskan)",
   "translateToolListenSlowly": "Dengarkan terjemahan perlahan",
-  "translateExtraTargetsKept": "Tidak didukung mesin ini; tetap dipilih untuk mesin yang mendukungnya"
+  "translateExtraTargetsKept": "Tidak didukung mesin ini; tetap dipilih untuk mesin yang mendukungnya",
+  "appScreenLoading": "Memuat…",
+  "appScreenLoadFailed": "Layar ini tidak dapat dimuat. Periksa koneksi Anda dan coba lagi."
 }

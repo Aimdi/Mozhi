@@ -1201,5 +1201,7 @@
   "translateListenTooltip": "{action}\nMantén pulsado para escuchar despacio",
   "translateShortcutListenSlowly": "Escuchar despacio (con el foco en un botón Escuchar)",
   "translateToolListenSlowly": "Escuchar la traducción despacio",
-  "translateExtraTargetsKept": "Este motor no lo ofrece; se conserva para uno que sí lo ofrezca"
+  "translateExtraTargetsKept": "Este motor no lo ofrece; se conserva para uno que sí lo ofrezca",
+  "appScreenLoading": "Cargando…",
+  "appScreenLoadFailed": "No se pudo cargar esta pantalla. Comprueba tu conexión y vuelve a intentarlo."
 }

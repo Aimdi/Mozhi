@@ -1201,5 +1201,7 @@
   "translateListenTooltip": "{action}\nTieni premuto per ascoltare lentamente",
   "translateShortcutListenSlowly": "Ascolta lentamente (con lo stato attivo su un pulsante Ascolta)",
   "translateToolListenSlowly": "Ascolta lentamente la traduzione",
-  "translateExtraTargetsKept": "Non offerta da questo motore; mantenuta per un motore che la offre"
+  "translateExtraTargetsKept": "Non offerta da questo motore; mantenuta per un motore che la offre",
+  "appScreenLoading": "Caricamento…",
+  "appScreenLoadFailed": "Impossibile caricare questa schermata. Controlla la connessione e riprova."
 }

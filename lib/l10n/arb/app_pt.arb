@@ -1201,5 +1201,7 @@
   "translateListenTooltip": "{action}\nMantenha pressionado para ouvir devagar",
   "translateShortcutListenSlowly": "Ouvir devagar (com o foco em um botão Ouvir)",
   "translateToolListenSlowly": "Ouvir a tradução devagar",
-  "translateExtraTargetsKept": "Não oferecido por este mecanismo; mantido para um que o ofereça"
+  "translateExtraTargetsKept": "Não oferecido por este mecanismo; mantido para um que o ofereça",
+  "appScreenLoading": "Carregando…",
+  "appScreenLoadFailed": "Não foi possível carregar esta tela. Verifique sua conexão e tente novamente."
 }

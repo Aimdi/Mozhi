@@ -1201,5 +1201,7 @@
   "translateListenTooltip": "{action}\nУдерживайте, чтобы прослушать медленно",
   "translateShortcutListenSlowly": "Прослушать медленно (когда кнопка «Прослушать» в фокусе)",
   "translateToolListenSlowly": "Прослушать перевод медленно",
-  "translateExtraTargetsKept": "Недоступен в этом сервисе; сохранён для сервиса, который его поддерживает"
+  "translateExtraTargetsKept": "Недоступен в этом сервисе; сохранён для сервиса, который его поддерживает",
+  "appScreenLoading": "Загрузка…",
+  "appScreenLoadFailed": "Не удалось загрузить этот экран. Проверьте подключение и повторите попытку."
 }

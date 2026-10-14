@@ -1201,5 +1201,7 @@
   "translateListenTooltip": "{action}\nУтримуйте, щоб прослухати повільно",
   "translateShortcutListenSlowly": "Прослухати повільно (коли кнопка «Прослухати» у фокусі)",
   "translateToolListenSlowly": "Прослухати переклад повільно",
-  "translateExtraTargetsKept": "Недоступна в цьому сервісі; збережена для сервісу, який її підтримує"
+  "translateExtraTargetsKept": "Недоступна в цьому сервісі; збережена для сервісу, який її підтримує",
+  "appScreenLoading": "Завантаження…",
+  "appScreenLoadFailed": "Не вдалося завантажити цей екран. Перевірте підключення й спробуйте ще раз."
 }

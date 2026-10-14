@@ -1201,5 +1201,7 @@
   "translateListenTooltip": "{action}\nAppui long pour écouter lentement",
   "translateShortcutListenSlowly": "Écouter lentement (quand un bouton Écouter a le focus)",
   "translateToolListenSlowly": "Écouter lentement la traduction",
-  "translateExtraTargetsKept": "Non proposée par ce moteur ; conservée pour un moteur qui la propose"
+  "translateExtraTargetsKept": "Non proposée par ce moteur ; conservée pour un moteur qui la propose",
+  "appScreenLoading": "Chargement…",
+  "appScreenLoadFailed": "Impossible de charger cet écran. Vérifiez votre connexion et réessayez."
 }

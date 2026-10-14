@@ -1201,5 +1201,7 @@
   "translateListenTooltip": "{action}\nاضغط مطوّلًا للاستماع ببطء",
   "translateShortcutListenSlowly": "استماع ببطء (عند التركيز على زر «استماع»)",
   "translateToolListenSlowly": "استماع إلى الترجمة ببطء",
-  "translateExtraTargetsKept": "لا يوفّرها هذا المحرّك؛ محفوظة لمحرّك يوفّرها"
+  "translateExtraTargetsKept": "لا يوفّرها هذا المحرّك؛ محفوظة لمحرّك يوفّرها",
+  "appScreenLoading": "جارٍ التحميل…",
+  "appScreenLoadFailed": "تعذّر تحميل هذه الشاشة. تحقّق من الاتصال وحاول مرة أخرى."
 }

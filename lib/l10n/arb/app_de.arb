@@ -1201,5 +1201,7 @@
   "translateListenTooltip": "{action}\nGedrückt halten, um langsam anzuhören",
   "translateShortcutListenSlowly": "Langsam anhören (bei fokussierter „Anhören“-Schaltfläche)",
   "translateToolListenSlowly": "Übersetzung langsam anhören",
-  "translateExtraTargetsKept": "Bei dieser Engine nicht verfügbar; bleibt für eine Engine gewählt, die sie anbietet"
+  "translateExtraTargetsKept": "Bei dieser Engine nicht verfügbar; bleibt für eine Engine gewählt, die sie anbietet",
+  "appScreenLoading": "Wird geladen…",
+  "appScreenLoadFailed": "Dieser Bildschirm konnte nicht geladen werden. Prüfe deine Verbindung und versuche es erneut."
 }

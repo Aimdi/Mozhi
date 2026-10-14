@@ -1201,5 +1201,7 @@
   "translateListenTooltip": "{action}\nPrzytrzymaj, aby odsłuchać wolniej",
   "translateShortcutListenSlowly": "Odsłuchaj wolniej (gdy przycisk „Odsłuchaj” ma fokus)",
   "translateToolListenSlowly": "Odsłuchaj tłumaczenie wolniej",
-  "translateExtraTargetsKept": "Niedostępny w tym silniku; zachowany dla silnika, który go obsługuje"
+  "translateExtraTargetsKept": "Niedostępny w tym silniku; zachowany dla silnika, który go obsługuje",
+  "appScreenLoading": "Ładowanie…",
+  "appScreenLoadFailed": "Nie udało się wczytać tego ekranu. Sprawdź połączenie i spróbuj ponownie."
 }
