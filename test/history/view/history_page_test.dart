@@ -59,6 +59,10 @@ final _older = HistoryEntry(
   createdAt: _daysAgo(10),
 );
 
+/// A history language-pair label: both names are bidi-isolated.
+String _pair(String source, String target) =>
+    '\u2068$source\u2069 → \u2068$target\u2069';
+
 void main() {
   setUpAll(registerFallbacks);
 
@@ -108,8 +112,8 @@ void main() {
       expect(find.text('Yesterday'), findsOneWidget);
       expect(find.text('Good morning'), findsOneWidget);
       expect(find.text('Guten Morgen'), findsOneWidget);
-      expect(find.text('\u2068English\u2069 → \u2068German\u2069'), findsNWidgets(2));
-      expect(find.text('\u2068French (detected)\u2069 → \u2068English\u2069'), findsOneWidget);
+      expect(find.text(_pair('English', 'German')), findsNWidgets(2));
+      expect(find.text(_pair('French (detected)', 'English')), findsOneWidget);
       expect(find.textContaining('Claude · '), findsOneWidget);
       // The 10-day-old entry has a date header.
       final todayY = tester.getTopLeft(find.text('Today')).dy;
