@@ -309,8 +309,8 @@ void main() {
       verify(
         () => harness.repository.translateImage(
           claude,
-          jpegBytes,
-          mimeType: 'image/jpeg',
+          encodedPng,
+          mimeType: 'image/png',
           source: any(named: 'source'),
           target: any(named: 'target'),
           options: any(named: 'options'),

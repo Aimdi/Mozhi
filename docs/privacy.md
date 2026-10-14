@@ -36,12 +36,23 @@ the app clears them.
 
 Uninstalling the app removes all of it. In the web app, the same data lives
 in your browser's storage for the site, and clearing the site's data removes
-it; a browser protects API keys less strongly than a phone's secure storage.
+it. API keys in the web app are kept only for the current browser tab
+(session storage) and have to be entered again after the tab is closed; a
+browser protects them less strongly than a phone's secure storage.
 
-The app itself never uploads this data. If you use your platform's device
-backup (for example Android's backup to your Google account or an iCloud
-backup), the operating system may include app data in it, as it does for
-other apps.
+The app itself never uploads this data. Backups:
+
+- **Android:** the app opts out of backup to your Google account. When you
+  set up a new phone by copying data from the old one (device-to-device
+  transfer), settings and history move with you; API keys don't and have
+  to be entered again.
+- **iOS:** API keys are stored in the Keychain as "this device only": they
+  are not synced through iCloud Keychain and are not restored onto another
+  device. Settings and history can be part of an iCloud or computer backup,
+  as for other apps.
+
+See [Security](security.md) for how the app protects keys and handles text
+from other apps and links.
 
 ## What each back end sees
 
@@ -102,7 +113,9 @@ Some features send additional data to the same back ends:
   marked **Needs internet** are processed by that engine's online service.
   Voice previews in the settings use the device voices only.
 - **Image translation** sends the image to the AI model (with **Supports
-  images**) or to your Mozhi instance, which passes it to Google. On-device
+  images**) or to your Mozhi instance, which passes it to Google. The image
+  is re-encoded first, so photo metadata such as the GPS location is not
+  sent. On-device
   text recognition keeps the image on the phone.
 - **Dictation** uses your operating system's speech recognition (or, in the
   web app, the browser's). Depending on the device and its settings, the audio
@@ -134,7 +147,9 @@ Some features send additional data to the same back ends:
   its website, as a browser would (on Android, iOS and desktop it identifies
   as a desktop browser; in the web app, your browser makes the request). The
   website sees your IP address. The page's text then goes to the engine you
-  chose.
+  chose. A public website can't redirect the app to an address on your
+  device or local network (such as your router); you can still open such
+  an address by typing it.
 - Web pages you open from the app (source code, licences, provider key
   pages), in your browser.
 - Web app only: Google Fonts (`fonts.gstatic.com`), the first time the page

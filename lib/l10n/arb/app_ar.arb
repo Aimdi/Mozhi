@@ -1215,5 +1215,6 @@
   "translateMemoryCopy": "نسخ الترجمة من سجلّك",
   "translateMemoryDismiss": "إخفاء الترجمة من سجلّك",
   "translateMemoryBadge": "من السجلّ",
-  "translateMemoryBadgeTooltip": "مأخوذة من سجلّك: لم تُترجم مرة أخرى"
+  "translateMemoryBadgeTooltip": "مأخوذة من سجلّك: لم تُترجم مرة أخرى",
+  "webTranslateErrorBlockedRedirect": "حاول الموقع إعادة التوجيه إلى عنوان على جهازك أو شبكتك المحلية، لذلك لم يتم تحميل الصفحة. إذا كنت تثق بهذا العنوان، فأدخله مباشرة."
 }

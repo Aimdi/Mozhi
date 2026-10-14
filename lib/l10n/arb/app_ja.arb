@@ -1215,5 +1215,6 @@
   "translateMemoryCopy": "履歴の翻訳をコピー",
   "translateMemoryDismiss": "履歴の翻訳を非表示",
   "translateMemoryBadge": "履歴から",
-  "translateMemoryBadgeTooltip": "履歴から取得：再翻訳していません"
+  "translateMemoryBadgeTooltip": "履歴から取得：再翻訳していません",
+  "webTranslateErrorBlockedRedirect": "ウェブサイトがお使いのデバイスまたはローカルネットワーク上のアドレスへリダイレクトしようとしたため、ページを読み込みませんでした。そのアドレスを信頼できる場合は、直接入力してください。"
 }

@@ -1215,5 +1215,6 @@
   "translateMemoryCopy": "Copier la traduction de votre historique",
   "translateMemoryDismiss": "Masquer la traduction de votre historique",
   "translateMemoryBadge": "Depuis l’historique",
-  "translateMemoryBadgeTooltip": "Reprise de votre historique : pas retraduite"
+  "translateMemoryBadgeTooltip": "Reprise de votre historique : pas retraduite",
+  "webTranslateErrorBlockedRedirect": "Le site a tenté de rediriger vers une adresse de votre appareil ou de votre réseau local ; la page n’a donc pas été chargée. Si vous faites confiance à cette adresse, saisissez-la directement."
 }

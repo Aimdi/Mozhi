@@ -1215,5 +1215,6 @@
   "translateMemoryCopy": "Копировать перевод из истории",
   "translateMemoryDismiss": "Скрыть перевод из истории",
   "translateMemoryBadge": "Из истории",
-  "translateMemoryBadgeTooltip": "Взято из вашей истории: повторно не переводилось"
+  "translateMemoryBadgeTooltip": "Взято из вашей истории: повторно не переводилось",
+  "webTranslateErrorBlockedRedirect": "Сайт попытался перенаправить на адрес на вашем устройстве или в локальной сети, поэтому страница не загружена. Если вы доверяете этому адресу, введите его напрямую."
 }

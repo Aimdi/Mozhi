@@ -8,6 +8,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:mlkit_translator/mlkit_translator.dart';
 import 'package:mozhi/app/app_dependencies.dart';
 import 'package:mozhi/app/fallback_key_value_store.dart';
+import 'package:mozhi/app/third_party_licenses.dart';
 import 'package:mozhi/core/key_value_metadata_store.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/history/data/history_repository.dart';
@@ -33,7 +34,10 @@ class AppBlocObserver extends BlocObserver {
 
   /// The log line for [change] of [bloc]: type names only.
   @visibleForTesting
-  static String describeChange(BlocBase<dynamic> bloc, Change<dynamic> change) =>
+  static String describeChange(
+    BlocBase<dynamic> bloc,
+    Change<dynamic> change,
+  ) =>
       'onChange(${bloc.runtimeType}: '
       '${change.currentState.runtimeType} -> '
       '${change.nextState.runtimeType})';
@@ -68,6 +72,7 @@ Future<void> bootstrap(
   };
 
   if (kDebugMode) Bloc.observer = const AppBlocObserver();
+  registerThirdPartyLicenses();
 
   runApp(await builder(await dependencies()));
 }
@@ -129,7 +134,9 @@ Future<AppDependencies> createDependencies({
 const appSecureStorage = FlutterSecureStorage(
   // Keys stay on this device: not in iCloud Keychain, not restored from an
   // encrypted backup onto another phone (docs/security.md).
-  iOptions: IOSOptions(accessibility: KeychainAccessibility.unlocked_this_device),
+  iOptions: IOSOptions(
+    accessibility: KeychainAccessibility.unlocked_this_device,
+  ),
   // The data-protection keychain needs a provisioning profile
   // (keychain-access-groups); the legacy keychain works unsigned.
   mOptions: MacOsOptions(usesDataProtectionKeychain: false),

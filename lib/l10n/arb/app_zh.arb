@@ -1215,5 +1215,6 @@
   "translateMemoryCopy": "复制历史记录中的译文",
   "translateMemoryDismiss": "隐藏历史记录中的译文",
   "translateMemoryBadge": "来自历史记录",
-  "translateMemoryBadgeTooltip": "取自你的历史记录：未重新翻译"
+  "translateMemoryBadgeTooltip": "取自你的历史记录：未重新翻译",
+  "webTranslateErrorBlockedRedirect": "该网站试图重定向到你设备或本地网络上的地址，因此未加载页面。如果你信任该地址，请直接输入。"
 }

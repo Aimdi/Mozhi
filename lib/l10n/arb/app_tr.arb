@@ -1215,5 +1215,6 @@
   "translateMemoryCopy": "Geçmişinizdeki çeviriyi kopyala",
   "translateMemoryDismiss": "Geçmişinizdeki çeviriyi gizle",
   "translateMemoryBadge": "Geçmişten",
-  "translateMemoryBadgeTooltip": "Geçmişinizden alındı: yeniden çevrilmedi"
+  "translateMemoryBadgeTooltip": "Geçmişinizden alındı: yeniden çevrilmedi",
+  "webTranslateErrorBlockedRedirect": "Web sitesi cihazınızdaki veya yerel ağınızdaki bir adrese yönlendirmeye çalıştı, bu yüzden sayfa yüklenmedi. Bu adrese güveniyorsanız doğrudan girin."
 }

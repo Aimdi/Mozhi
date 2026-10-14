@@ -1215,5 +1215,6 @@
   "translateMemoryCopy": "Übersetzung aus deinem Verlauf kopieren",
   "translateMemoryDismiss": "Übersetzung aus deinem Verlauf ausblenden",
   "translateMemoryBadge": "Aus dem Verlauf",
-  "translateMemoryBadgeTooltip": "Aus deinem Verlauf übernommen: nicht erneut übersetzt"
+  "translateMemoryBadgeTooltip": "Aus deinem Verlauf übernommen: nicht erneut übersetzt",
+  "webTranslateErrorBlockedRedirect": "Die Website wollte auf eine Adresse auf deinem Gerät oder in deinem lokalen Netzwerk umleiten, daher wurde die Seite nicht geladen. Wenn du dieser Adresse vertraust, gib sie direkt ein."
 }

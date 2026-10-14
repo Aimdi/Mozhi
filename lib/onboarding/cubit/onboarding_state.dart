@@ -308,7 +308,10 @@ class OnboardingState extends Equatable {
   String toString() {
     final values = [
       for (final prop in props)
-        if (identical(prop, apiKey) && apiKey.isNotEmpty) '<redacted>' else prop,
+        if (identical(prop, apiKey) && apiKey.isNotEmpty)
+          '<redacted>'
+        else
+          prop,
     ];
     return 'OnboardingState(${values.join(', ')})';
   }

@@ -1215,5 +1215,6 @@
   "translateMemoryCopy": "Vertaling uit je geschiedenis kopiëren",
   "translateMemoryDismiss": "Vertaling uit je geschiedenis verbergen",
   "translateMemoryBadge": "Uit geschiedenis",
-  "translateMemoryBadgeTooltip": "Uit je geschiedenis gehaald: niet opnieuw vertaald"
+  "translateMemoryBadgeTooltip": "Uit je geschiedenis gehaald: niet opnieuw vertaald",
+  "webTranslateErrorBlockedRedirect": "De website probeerde door te sturen naar een adres op je apparaat of in je lokale netwerk, dus de pagina is niet geladen. Vertrouw je dat adres, voer het dan rechtstreeks in."
 }

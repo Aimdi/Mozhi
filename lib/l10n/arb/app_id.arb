@@ -1215,5 +1215,6 @@
   "translateMemoryCopy": "Salin terjemahan dari riwayat Anda",
   "translateMemoryDismiss": "Sembunyikan terjemahan dari riwayat Anda",
   "translateMemoryBadge": "Dari riwayat",
-  "translateMemoryBadgeTooltip": "Diambil dari riwayat Anda: tidak diterjemahkan ulang"
+  "translateMemoryBadgeTooltip": "Diambil dari riwayat Anda: tidak diterjemahkan ulang",
+  "webTranslateErrorBlockedRedirect": "Situs web mencoba mengalihkan ke alamat di perangkat atau jaringan lokal Anda, jadi halaman tidak dimuat. Jika Anda memercayai alamat itu, masukkan langsung."
 }

@@ -250,9 +250,6 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
     final engine = method.engine;
     final token = _start(switch (method.kind) {
       ImageTranslateMethodKind.onDevice => ImageTranslatePhase.recognizing,
-      ImageTranslateMethodKind.aiVision
-          when visionMimeTypes.contains(image.mimeType) =>
-        ImageTranslatePhase.uploading,
       _ => ImageTranslatePhase.preparing,
     });
     try {
@@ -348,15 +345,14 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
     PickedImage image,
     TranslationEngine engine,
   ) async {
-    var bytes = image.bytes;
-    var mimeType = image.mimeType;
-    if (!visionMimeTypes.contains(mimeType)) {
-      // E.g. HEIC/BMP: convert to something every vision API accepts.
-      bytes = await _encoder.encodePng(bytes);
-      mimeType = 'image/png';
-      if (!_isCurrent(token)) return null;
-      emit(state.copyWith(phase: ImageTranslatePhase.uploading));
-    }
+    // Always re-encode, also JPEG/PNG/WebP that vision APIs would accept as
+    // they are: decoding and encoding drops EXIF and other metadata (GPS
+    // location, time, device), which must not reach a third-party provider
+    // (docs/security.md). It also converts HEIC/BMP and caps the size.
+    const mimeType = 'image/png';
+    final bytes = await _encoder.encodePng(image.bytes);
+    if (!_isCurrent(token)) return null;
+    emit(state.copyWith(phase: ImageTranslatePhase.uploading));
     final source = state.source;
     final target = state.target;
     final options = state.options;

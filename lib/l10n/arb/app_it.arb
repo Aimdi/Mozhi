@@ -1215,5 +1215,6 @@
   "translateMemoryCopy": "Copia la traduzione dalla tua cronologia",
   "translateMemoryDismiss": "Nascondi la traduzione dalla tua cronologia",
   "translateMemoryBadge": "Dalla cronologia",
-  "translateMemoryBadgeTooltip": "Presa dalla tua cronologia: non tradotta di nuovo"
+  "translateMemoryBadgeTooltip": "Presa dalla tua cronologia: non tradotta di nuovo",
+  "webTranslateErrorBlockedRedirect": "Il sito ha tentato di reindirizzare a un indirizzo del tuo dispositivo o della tua rete locale, quindi la pagina non è stata caricata. Se ti fidi di quell’indirizzo, inseriscilo direttamente."
 }

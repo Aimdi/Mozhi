@@ -1215,5 +1215,6 @@
   "translateMemoryCopy": "Sao chép bản dịch từ lịch sử của bạn",
   "translateMemoryDismiss": "Ẩn bản dịch từ lịch sử của bạn",
   "translateMemoryBadge": "Từ lịch sử",
-  "translateMemoryBadgeTooltip": "Lấy từ lịch sử của bạn: không dịch lại"
+  "translateMemoryBadgeTooltip": "Lấy từ lịch sử của bạn: không dịch lại",
+  "webTranslateErrorBlockedRedirect": "Trang web đã cố chuyển hướng đến một địa chỉ trên thiết bị hoặc mạng cục bộ của bạn, nên trang không được tải. Nếu bạn tin tưởng địa chỉ đó, hãy nhập trực tiếp."
 }

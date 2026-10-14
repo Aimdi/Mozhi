@@ -1215,5 +1215,6 @@
   "translateMemoryCopy": "기록의 번역 복사",
   "translateMemoryDismiss": "기록의 번역 숨기기",
   "translateMemoryBadge": "기록에서",
-  "translateMemoryBadgeTooltip": "기록에서 가져옴: 다시 번역하지 않음"
+  "translateMemoryBadgeTooltip": "기록에서 가져옴: 다시 번역하지 않음",
+  "webTranslateErrorBlockedRedirect": "웹사이트가 기기 또는 로컬 네트워크의 주소로 리디렉션하려고 해서 페이지를 불러오지 않았습니다. 해당 주소를 신뢰한다면 직접 입력하세요."
 }

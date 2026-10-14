@@ -1215,5 +1215,6 @@
   "translateMemoryCopy": "Kopiuj tłumaczenie z historii",
   "translateMemoryDismiss": "Ukryj tłumaczenie z historii",
   "translateMemoryBadge": "Z historii",
-  "translateMemoryBadgeTooltip": "Pobrane z Twojej historii: nie przetłumaczono ponownie"
+  "translateMemoryBadgeTooltip": "Pobrane z Twojej historii: nie przetłumaczono ponownie",
+  "webTranslateErrorBlockedRedirect": "Strona próbowała przekierować na adres na Twoim urządzeniu lub w sieci lokalnej, więc nie została wczytana. Jeśli ufasz temu adresowi, wpisz go bezpośrednio."
 }

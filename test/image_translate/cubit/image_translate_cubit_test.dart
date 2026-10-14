@@ -371,7 +371,7 @@ void main() {
 
   group('AI vision', () {
     blocTest<ImageTranslateCubit, ImageTranslateState>(
-      'sends the original bytes, MIME type and options',
+      're-encodes the image (dropping EXIF metadata) and sends the options',
       setUp: () => stubImage(
         () async => const ImageTranslationResult(
           translatedText: ' Hello ',
@@ -393,6 +393,7 @@ void main() {
         );
         return [
           ready,
+          ready.copyWith(status: ImageTranslateStatus.working),
           ready.copyWith(
             status: ImageTranslateStatus.working,
             phase: ImageTranslatePhase.uploading,
@@ -408,12 +409,12 @@ void main() {
         ];
       },
       verify: (_) {
-        expect(encoder.inputs, isEmpty);
+        expect(encoder.inputs, [jpegBytes]);
         verify(
           () => repository.translateImage(
             claude,
-            jpegBytes,
-            mimeType: 'image/jpeg',
+            encodedPng,
+            mimeType: 'image/png',
             source: Language.auto,
             target: french,
             options: const TranslationOptions(context: 'Menu'),
@@ -722,6 +723,7 @@ void main() {
         );
         return [
           ready,
+          ready.copyWith(status: ImageTranslateStatus.working),
           ready.copyWith(
             status: ImageTranslateStatus.working,
             phase: ImageTranslatePhase.uploading,

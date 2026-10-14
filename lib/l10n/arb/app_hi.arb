@@ -1215,5 +1215,6 @@
   "translateMemoryCopy": "अपने इतिहास से अनुवाद कॉपी करें",
   "translateMemoryDismiss": "अपने इतिहास से अनुवाद छिपाएं",
   "translateMemoryBadge": "इतिहास से",
-  "translateMemoryBadgeTooltip": "आपके इतिहास से लिया गया: दोबारा अनुवाद नहीं किया गया"
+  "translateMemoryBadgeTooltip": "आपके इतिहास से लिया गया: दोबारा अनुवाद नहीं किया गया",
+  "webTranslateErrorBlockedRedirect": "वेबसाइट ने आपके डिवाइस या स्थानीय नेटवर्क के किसी पते पर रीडायरेक्ट करने की कोशिश की, इसलिए पेज लोड नहीं किया गया। अगर आपको उस पते पर भरोसा है, तो उसे सीधे दर्ज करें।"
 }
