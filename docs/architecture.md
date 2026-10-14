@@ -161,6 +161,20 @@ Details worth knowing:
   can't be parsed, the repository asks once more for valid JSON only. Explain
   streams Markdown. With a Mozhi main engine, extras go to the *assist engine*
   (`AppSettings.assistEngineId`, or the first enabled AI provider).
+- **Meaning check.** `TranslationRepository.checkMeaning` is a JSON extra
+  (never cached): the model back-translates the output and lists
+  `MeaningIssue`s, whose spans `ResponseParsers.parseMeaningCheck` maps to
+  character offsets in both texts. Engines without extras use
+  `backTranslateResult`, an ordinary translation that goes through the
+  translation cache.
+- **Extra targets.** `TranslateCubit` translates the input into up to four
+  extra target languages next to the main translation, one `translate`
+  call each with the same engine and options; the results are not written
+  to history.
+- **Speech.** `SpeechService` plays Mozhi `/api/tts` clips (split into
+  chunks, cached in memory) or uses the device engine (`DeviceTts`), and
+  owns its settings (`SpeechSettings`: rate and device voice per language)
+  in its own preferences entries.
 - **Compare.** `TranslationRepository.compare` runs engines concurrently and
   emits a `CompareEntry` per engine as soon as it finishes; Mozhi engines are
   batched into one `engine=a,b,c` request.

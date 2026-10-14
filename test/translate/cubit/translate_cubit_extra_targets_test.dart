@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/usage/usage.dart';
@@ -11,6 +13,8 @@ import 'package:translation_repository/translation_repository.dart';
 import 'translate_cubit_helpers.dart';
 
 class _MockUsageTracker extends Mock implements UsageTracker;
+
+class _MockSettingsRepository extends Mock implements SettingsRepository;
 
 void main() {
   setUpAll(registerTranslateFallbacks);
@@ -1086,6 +1090,330 @@ void main() {
           expect(cubit.state.input, 'Bonjour');
         },
       );
+    });
+  });
+
+  group('saved in settings', () {
+    /// The extra targets saved through `SettingsCubit.setExtraTargets`.
+    List<List<Language>> saved() => [
+      for (final call in verify(
+        () => mocks.settings.setExtraTargets(captureAny()),
+      ).captured)
+        call as List<Language>,
+    ];
+
+    /// DeepL also offers Japanese.
+    void deeplOffersJapanese() =>
+        when(() => mocks.repository.getTargetLanguages(deepl))
+            .thenAnswer((_) async => const [...targets, ja]);
+
+    test('are the extra targets at start', () async {
+      mocks.stubSettings(const AppSettings(extraTargets: [ja, fr, pirate]));
+      final cubit = mocks.build();
+      addTearDown(cubit.close);
+      expect(cubit.state.extraTargets, const [ja, fr, pirate]);
+    });
+
+    test('are cleaned up at start', () async {
+      mocks.stubSettings(
+        const AppSettings(extraTargets: [Language.auto, fr, fr, es, en, de]),
+      );
+      final cubit = mocks.build();
+      addTearDown(cubit.close);
+      expect(cubit.state.extraTargets, const [fr, es, en, de]);
+    });
+
+    test('none are saved by default (older settings)', () async {
+      final cubit = mocks.build();
+      addTearDown(cubit.close);
+      expect(cubit.state.extraTargets, isEmpty);
+      await cubit.loadEngines();
+      expect(cubit.state.extraTargets, isEmpty);
+    });
+
+    blocTest<TranslateCubit, TranslateState>(
+      'are used once the engine offers them; the others stay picked',
+      setUp: () {
+        mocks.stubSettings(const AppSettings(extraTargets: [ja, fr, pirate]));
+        deeplOffersJapanese();
+      },
+      build: () => mocks.build(),
+      act: (cubit) async {
+        await cubit.loadEngines();
+        expect(cubit.state.engine, google);
+        expect(cubit.state.activeExtraTargets, const [fr]);
+        expect(cubit.state.unavailableExtraTargets, const [ja, pirate]);
+        await cubit.selectEngine(deepl);
+        expect(cubit.state.activeExtraTargets, const [ja, fr]);
+        expect(cubit.state.unavailableExtraTargets, const [pirate]);
+        await cubit.selectEngine(claude);
+        expect(cubit.state.activeExtraTargets, const [fr, pirate]);
+        expect(cubit.state.unavailableExtraTargets, const [ja]);
+        await cubit.selectEngine(google);
+      },
+      verify: (cubit) {
+        expect(cubit.state.extraTargets, const [ja, fr, pirate]);
+        expect(cubit.state.activeExtraTargets, const [fr]);
+        verifyNever(() => mocks.settings.setExtraTargets(any()));
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'keep languages set otherwise across engines',
+      build: () => mocks.build(),
+      seed: () => ready(extraTargets: const [fr, ja]),
+      act: (cubit) async {
+        deeplOffersJapanese();
+        await cubit.selectEngine(deepl);
+        expect(cubit.state.activeExtraTargets, const [fr, ja]);
+        await cubit.selectEngine(google);
+      },
+      verify: (cubit) {
+        expect(cubit.state.extraTargets, const [fr, ja]);
+        expect(cubit.state.activeExtraTargets, const [fr]);
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'changes are saved',
+      build: () => mocks.build(),
+      seed: () => ready(extraTargets: const []),
+      act: (cubit) => cubit
+        ..toggleExtraTarget(fr)
+        ..toggleExtraTarget(es)
+        ..toggleExtraTarget(fr)
+        ..setExtraTargets(const [es])
+        ..setExtraTargets(const [Language.auto, de, de]),
+      verify: (_) => expect(saved(), const [
+        [fr],
+        [fr, es],
+        [es],
+        [de],
+      ]),
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'changes are saved with the picks the engine does not offer',
+      setUp: () =>
+          mocks.stubSettings(const AppSettings(extraTargets: [ja, fr])),
+      build: () => mocks.build(),
+      act: (cubit) async {
+        await cubit.loadEngines();
+        cubit.toggleExtraTarget(es);
+        expect(cubit.state.activeExtraTargets, const [fr, es]);
+        expect(cubit.state.unavailableExtraTargets, const [ja]);
+      },
+      verify: (_) => expect(saved(), const [
+        [ja, fr, es],
+      ]),
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'removing all also removes the picks the engine does not offer, so '
+      'another engine does not translate into them',
+      setUp: () {
+        mocks
+          ..stubSettings(const AppSettings(extraTargets: [ja, fr]))
+          ..stubTranslate();
+        deeplOffersJapanese();
+      },
+      build: () => mocks.build(),
+      act: (cubit) async {
+        await cubit.loadEngines();
+        cubit
+          ..setExtraTargets(const [])
+          ..setInput('Hello');
+        await cubit.selectEngine(deepl);
+      },
+      verify: (cubit) {
+        expect(saved(), const [<Language>[]]);
+        expect(cubit.state.extraTargets, isEmpty);
+        expect(cubit.state.unavailableExtraTargets, isEmpty);
+        expect(requestedTargets(), ['en']);
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'a pick the engine does not offer is removed by toggling it',
+      setUp: () =>
+          mocks.stubSettings(const AppSettings(extraTargets: [ja, fr, pirate])),
+      build: () => mocks.build(),
+      act: (cubit) async {
+        await cubit.loadEngines();
+        cubit
+          ..toggleExtraTarget(pirate)
+          ..toggleExtraTarget(ja);
+      },
+      verify: (cubit) {
+        expect(cubit.state.extraTargets, const [fr]);
+        expect(saved(), const [
+          [ja, fr],
+          [fr],
+        ]);
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'picks the engine does not offer count towards the limit (none is '
+      'dropped)',
+      setUp: () => mocks.stubSettings(
+        const AppSettings(extraTargets: [ja, pirate, fr, es]),
+      ),
+      build: () => mocks.build(),
+      act: (cubit) async {
+        await cubit.loadEngines();
+        expect(cubit.state.activeExtraTargets, const [fr, es]);
+        cubit.toggleExtraTarget(de);
+        expect(cubit.state.extraTargets, const [ja, pirate, fr, es]);
+        cubit
+          ..toggleExtraTarget(ja)
+          ..toggleExtraTarget(de);
+      },
+      verify: (cubit) {
+        expect(cubit.state.extraTargets, const [pirate, fr, es, de]);
+        expect(cubit.state.unavailableExtraTargets, const [pirate]);
+        expect(saved(), const [
+          [pirate, fr, es],
+          [pirate, fr, es, de],
+        ]);
+      },
+    );
+
+    group('changed elsewhere', () {
+      late StreamController<AppSettings> settings;
+
+      setUp(() {
+        settings = StreamController<AppSettings>();
+        addTearDown(settings.close);
+        whenListen(
+          mocks.settings,
+          settings.stream,
+          initialState: const AppSettings(extraTargets: [fr]),
+        );
+      });
+
+      Future<void> change(AppSettings value) async {
+        settings.add(value);
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      blocTest<TranslateCubit, TranslateState>(
+        'are applied (the ones the engine offers)',
+        build: () => mocks.build(),
+        act: (cubit) async {
+          await cubit.loadEngines();
+          expect(cubit.state.extraTargets, const [fr]);
+          await change(const AppSettings(extraTargets: [ja, es, de]));
+          expect(cubit.state.activeExtraTargets, const [es, de]);
+          // Other settings changes leave them alone.
+          await change(const AppSettings(extraTargets: [ja, es, de]));
+          await change(
+            const AppSettings(extraTargets: [ja, es, de], pureBlack: true),
+          );
+        },
+        verify: (cubit) {
+          expect(cubit.state.extraTargets, const [ja, es, de]);
+          expect(cubit.state.unavailableExtraTargets, const [ja]);
+          verifyNever(() => mocks.settings.setExtraTargets(any()));
+        },
+      );
+
+      blocTest<TranslateCubit, TranslateState>(
+        'are applied as they are while no engine is selected',
+        build: () => mocks.build(),
+        act: (cubit) => change(const AppSettings(extraTargets: [ja, es])),
+        verify: (cubit) => expect(cubit.state.extraTargets, const [ja, es]),
+      );
+
+      blocTest<TranslateCubit, TranslateState>(
+        'are translated right away when the input has a translation',
+        setUp: () => mocks.stubTranslate(),
+        build: () => mocks.build(),
+        seed: () =>
+            translated(extraTargets: const [fr])
+                .copyWith(extraTranslations: [done(fr)]),
+        act: (cubit) => change(const AppSettings(extraTargets: [fr, es])),
+        verify: (cubit) {
+          expect(requestedTargets(), ['es']);
+          expect(cubit.state.extraTranslationFor(es)?.output, 'Hello->es');
+        },
+      );
+
+      blocTest<TranslateCubit, TranslateState>(
+        'that equal the languages in use change nothing',
+        build: () => mocks.build(),
+        seed: () => ready(extraTargets: const [es]),
+        act: (cubit) async {
+          cubit.setExtraTargets(const [es, de]);
+          await change(const AppSettings(extraTargets: [es, de]));
+        },
+        expect: () => [
+          ready(extraTargets: const [es, de]),
+        ],
+      );
+    });
+
+    test('quick changes are not undone by the settings catching up', () async {
+      final repository = _MockSettingsRepository();
+      when(() => repository.save(any())).thenAnswer((_) async {});
+      final settings = SettingsCubit(
+        repository: repository,
+        initial: const AppSettings(extraTargets: [ja, fr]),
+      );
+      addTearDown(settings.close);
+      final cubit = TranslateCubit(
+        repository: mocks.repository,
+        settings: settings,
+        history: mocks.history,
+      );
+      addTearDown(cubit.close);
+      await cubit.loadEngines();
+      expect(cubit.state.activeExtraTargets, const [fr]);
+
+      cubit
+        ..toggleExtraTarget(es)
+        ..toggleExtraTarget(de)
+        ..toggleExtraTarget(fr);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(cubit.state.extraTargets, const [ja, es, de]);
+      expect(cubit.state.activeExtraTargets, const [es, de]);
+      expect(settings.state.extraTargets, const [ja, es, de]);
+    });
+
+    group('text shared at start', () {
+      /// The user's own DeepL API service (not an AI model).
+      const deeplApi = TranslationEngine(
+        id: 'mt:deepl',
+        kind: EngineKind.mt,
+        name: 'DeepL API',
+        providerId: 'deepl',
+      );
+
+      Future<TranslateCubit> share(TranslationEngine engine) async {
+        mocks
+          ..stubSettings(const AppSettings(extraTargets: [fr, es], target: de))
+          ..stubTranslate();
+        when(() => mocks.repository.getEngines(refresh: any(named: 'refresh')))
+            .thenAnswer((_) async => [engine]);
+        final cubit = mocks.build();
+        addTearDown(cubit.close);
+        cubit.setExternalInput('Hello');
+        await cubit.loadEngines();
+        await Future<void>.delayed(Duration.zero);
+        return cubit;
+      }
+
+      test('is translated into the saved extra targets where it is '
+          'translated on its own (not an AI model)', () async {
+        await share(deeplApi);
+        expect(requestedTargets(), ['de', 'fr', 'es']);
+      });
+
+      test('waits for Translate with an AI model', () async {
+        await share(claude);
+        verifyNever(() => mocks.repository.translate(any(), any()));
+      });
     });
   });
 }

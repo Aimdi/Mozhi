@@ -93,6 +93,8 @@ List<TranslateShortcutHelp> translateShortcutHelp(
       ].join(' '),
       description: l10n.translateShortcutPinnedTarget,
     ),
+    // Handled by the focused `ListenButton`.
+    row(['Shift', 'Enter'], l10n.translateShortcutListenSlowly),
     (
       keys: l10n.translateShortcutOr('?', help.keys),
       keysSemantics: l10n.translateShortcutOr('?', help.keysSemantics),

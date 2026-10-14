@@ -57,6 +57,8 @@
 <symbol id="i-dict" viewBox="0 0 24 24"><path d="M4.5 19.5v-15A2.5 2.5 0 0 1 7 2h12.5v20H7a2.5 2.5 0 0 1 0-5h12.5"/><path d="M8.5 7h7m-7 4h4"/></symbol>
 <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H12z"/></symbol>
 <symbol id="i-gauge" viewBox="0 0 24 24"><path d="M3.5 17a8.5 8.5 0 0 1 17 0"/><path d="m12 17 4-5"/><path d="M3 20.5h18"/></symbol>
+<symbol id="i-factcheck" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h4m-4 4h3m4-1 2 2 3.5-4"/></symbol>
+<symbol id="i-fanout" viewBox="0 0 24 24"><circle cx="5" cy="12" r="2"/><path d="M7 12h5m0 0 3-6h5m-8 6h8m-8 0 3 6h5"/></symbol>
 <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/></symbol>
 </svg>
 
@@ -170,6 +172,11 @@
           <p>Alternatives for the whole text or a selected phrase, word insights and <em>Explain this translation</em>. Tap a phrase to see its match in both texts, and read non-Latin scripts in romanization.</p>
         </li>
         <li class="feature">
+          <span class="feature-ic"><svg class="ic" aria-hidden="true"><use href="#i-factcheck"/></svg></span>
+          <h3>Check the meaning</h3>
+          <p>Tap <em>Check meaning</em> and an AI model translates the result back, lists what was left out, added or changed (a negation, a number, the tense) and highlights it in both texts. Without an AI model you get a back-translation to compare. Only when you ask.</p>
+        </li>
+        <li class="feature">
           <span class="feature-ic"><svg class="ic" aria-hidden="true"><use href="#i-dict"/></svg></span>
           <h3>A dictionary built in</h3>
           <p>Definitions, pronunciation, examples and related words in three levels of detail, with <em>Did you mean…?</em> for typos.</p>
@@ -178,6 +185,11 @@
           <span class="feature-ic"><svg class="ic" aria-hidden="true"><use href="#i-swap"/></svg></span>
           <h3>Smart about languages</h3>
           <p>Says when a short word could be in several languages, switches the target when your text is already in it (with an undo), and keeps your recent language pairs one tap away.</p>
+        </li>
+        <li class="feature">
+          <span class="feature-ic"><svg class="ic" aria-hidden="true"><use href="#i-fanout"/></svg></span>
+          <h3>Several languages at once</h3>
+          <p>Add up to four more target languages and get each translation on its own card, with copy and listen, from the same engine with the same options. Your picks are remembered.</p>
         </li>
         <li class="feature">
           <span class="feature-ic"><svg class="ic" aria-hidden="true"><use href="#i-columns"/></svg></span>
@@ -201,8 +213,13 @@
         </li>
         <li class="feature">
           <span class="feature-ic"><svg class="ic" aria-hidden="true"><use href="#i-mic"/></svg></span>
-          <h3>Voice in, voice out</h3>
-          <p>Dictate instead of typing, and listen to any translation read aloud.</p>
+          <h3>Speak instead of typing</h3>
+          <p>Dictate instead of typing (on the device where supported), or let two people talk across two languages in conversation mode.</p>
+        </li>
+        <li class="feature">
+          <span class="feature-ic"><svg class="ic" aria-hidden="true"><use href="#i-volume"/></svg></span>
+          <h3>Read aloud your way</h3>
+          <p>Listen with Mozhi’s voices or your device’s own. Set the speed from 0.5× to 1.5×, long-press <em>Listen</em> to hear a text again slowly, and pick a voice for each language; installed device voices work offline.</p>
         </li>
         <li class="feature">
           <span class="feature-ic"><svg class="ic" aria-hidden="true"><use href="#i-doc"/></svg></span>
@@ -351,7 +368,15 @@
         </details>
         <details>
           <summary>Can a link or shared text run up my AI bill?</summary>
-          <div class="faq-a"><p>Not on their own. Links and text shared to the app fill in the translator, but with an AI model you press <strong>Translate</strong> yourself (unless you turn on instant translation for AI); Mozhi engines translate them straight away. <strong>Settings › Usage &amp; costs</strong> shows how much each provider was used this month, with an optional budget warning.</p></div>
+          <div class="faq-a"><p>Not on their own. Links and text shared to the app fill in the translator, but with an AI model you press <strong>Translate</strong> yourself (unless you turn on instant translation for AI); Mozhi engines, the DeepL API and LibreTranslate translate them straight away, into your extra languages too. <strong>Settings › Usage &amp; costs</strong> shows how much each provider was used this month, with an optional budget warning.</p></div>
+        </details>
+        <details>
+          <summary>How do I know a translation says what I meant?</summary>
+          <div class="faq-a"><p>Press <strong>Check meaning</strong> under the translation. With an AI model, it translates the result back into your language and lists real differences in meaning, such as something left out or added, a lost negation, a wrong number or tense, with a verdict: <em>Same meaning</em>, <em>Minor differences</em> or <em>Meaning differs</em>. Tap a difference to see it highlighted in both texts. Without an AI model you get a back-translation from your engine to compare yourself. It only runs when you press the button.</p></div>
+        </details>
+        <details>
+          <summary>Can I translate into several languages at once?</summary>
+          <div class="faq-a"><p>Yes. <strong>Also translate into…</strong> under the translation adds up to four more languages, each translated with the same engine and options and shown on its own card. They follow the same rules as the main translation, so with an AI model they never start a request while you type unless you turned on instant translation for AI. The app remembers your picks (also ones the current engine doesn’t offer, listed in the picker until you remove them); history keeps only the main translation.</p></div>
         </details>
         <details>
           <summary>How do I use a model running on my computer from my phone?</summary>

@@ -204,8 +204,11 @@ void main() {
         'Ctrl + Shift + L',
         'Esc',
         'Alt + 1…9',
+        'Shift + Enter',
         '? or Ctrl + /',
       ]);
+      expect(rows[7].keysSemantics, 'Shift Enter');
+      expect(rows[7].description, 'Listen slowly (on a focused Listen button)');
       expect(rows[6].keysSemantics, 'Alt 1 to 9');
       expect(rows[6].description, 'Translate into pinned language 1 to 9');
       expect(rows.last.keysSemantics, '? or Control /');
@@ -534,6 +537,101 @@ void main() {
       expect(find.text('Recent language pairs'), findsNothing);
       expect(find.text('Dictionary'), findsOneWidget);
       expect(find.text('Keyboard shortcuts'), findsOneWidget);
+    });
+
+    group('Listen to the translation slowly', () {
+      const label = 'Listen to the translation slowly';
+
+      Future<void> openMenu(WidgetTester tester) async {
+        await tester.tap(find.byKey(const Key('translate_more_tools')));
+        await tester.pumpAndSettle();
+      }
+
+      void verifyNoSlowReading(TranslateHarness harness) => verifyNever(
+        () => harness.speech.speak(
+          id: any(named: 'id'),
+          text: any(named: 'text'),
+          languageCode: any(named: 'languageCode'),
+          slow: any(named: 'slow'),
+        ),
+      );
+
+      testWidgets('reads the translation slowly', (tester) async {
+        final harness = TranslateHarness(state: translatedState());
+        await harness.pump(tester);
+        await openTool(tester, label);
+        verify(
+          () => harness.speech.speak(
+            id: translateOutputSpeechId,
+            text: 'Bonjour le monde',
+            languageCode: 'fr',
+            slow: true,
+          ),
+        ).called(1);
+      });
+
+      testWidgets('shows the listen error when it fails', (tester) async {
+        final harness = TranslateHarness(state: translatedState());
+        when(
+          () => harness.speech.speak(
+            id: any(named: 'id'),
+            text: any(named: 'text'),
+            languageCode: any(named: 'languageCode'),
+            slow: any(named: 'slow'),
+          ),
+        ).thenThrow(Exception('offline'));
+        await harness.pump(tester);
+        await openTool(tester, label);
+        expect(find.text("Couldn't play audio."), findsOneWidget);
+      });
+
+      for (final (name, state) in [
+        ('without a translation', readyState(input: 'Hello')),
+        (
+          'into a custom language',
+          translatedState(engine: claude)
+              .copyWith(target: const Language.custom('Pirate speak')),
+        ),
+      ]) {
+        testWidgets('is disabled $name', (tester) async {
+          final harness = TranslateHarness(state: state);
+          await harness.pump(tester);
+          await openMenu(tester);
+          final item = tester.widget<PopupMenuItem<TranslateTool>>(
+            find.byKey(const ValueKey('translate_tool_listenSlowly')),
+          );
+          expect(item.enabled, isFalse);
+          await tester.tap(find.text(label), warnIfMissed: false);
+          await tester.pumpAndSettle();
+          verifyNoSlowReading(harness);
+        });
+      }
+
+      testWidgets('needs engines', (tester) async {
+        final harness = TranslateHarness(
+          state: const TranslateState(enginesStatus: EnginesStatus.failure),
+        );
+        await harness.pump(tester);
+        await openMenu(tester);
+        expect(find.text(label), findsNothing);
+      });
+
+      test('canListenToTranslation', () {
+        expect(canListenToTranslation(translatedState()), isTrue);
+        expect(canListenToTranslation(readyState(input: 'Hi')), isFalse);
+        expect(
+          canListenToTranslation(
+            translatedState(
+              result: const TranslationResult(
+                engineId: 'mozhi:deepl',
+                engineName: 'DeepL',
+                text: '  ',
+              ),
+            ),
+          ),
+          isFalse,
+        );
+      });
     });
 
     testWidgets('lists the keyboard shortcuts', (tester) async {

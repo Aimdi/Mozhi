@@ -252,6 +252,31 @@ void main() {
       });
     });
 
+    group('unavailableExtraTargets', () {
+      test('are the picks the engine does not offer, in pick order', () {
+        final onGoogle = readyState(target: de)
+            .copyWith(extraTargets: const [ja, fr, pirate, de]);
+        expect(onGoogle.unavailableExtraTargets, const [ja, pirate]);
+        // The main target is offered: it is skipped, not unavailable.
+        expect(
+          onGoogle.copyWith(engine: () => claude).unavailableExtraTargets,
+          const [ja],
+        );
+      });
+
+      test('are none before the engine and its languages are loaded', () {
+        final state = readyState().copyWith(extraTargets: const [ja, pirate]);
+        expect(
+          state.copyWith(engine: () => null).unavailableExtraTargets,
+          isEmpty,
+        );
+        expect(
+          state.copyWith(targetLanguages: const []).unavailableExtraTargets,
+          isEmpty,
+        );
+      });
+    });
+
     test('extraTranslationFor finds the translation into a language', () {
       const french = ExtraTranslation(target: fr);
       final state = const TranslateState().copyWith(

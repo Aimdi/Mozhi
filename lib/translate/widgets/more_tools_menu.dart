@@ -8,6 +8,9 @@ import 'package:mozhi/dictionary/view/dictionary_page.dart'
     show DictionaryLaunch;
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/translate/widgets/listen_button.dart';
+import 'package:mozhi/translate/widgets/output_card.dart'
+    show translateOutputSpeechId;
 import 'package:mozhi/translate/widgets/recent_pairs_sheet.dart';
 import 'package:mozhi/translate/widgets/shortcuts_help.dart';
 
@@ -19,13 +22,14 @@ enum TranslateTool {
   conversation('/conversation', Icons.forum_outlined),
   dictionary(AppRoutes.dictionary, Icons.menu_book_outlined),
   recentPairs(null, Icons.history),
+  listenSlowly(null, Icons.slow_motion_video),
   shortcuts(null, Icons.keyboard_outlined);
 
   new(this.route, this.icon);
 
   /// Route pushed on top of the translate screen (null: opens a sheet or a
-  /// dialog). The dictionary is opened with the input's word, see
-  /// [translateDictionaryLocation].
+  /// dialog, or reads the translation slowly). The dictionary is opened
+  /// with the input's word, see [translateDictionaryLocation].
   final String? route;
   final IconData icon;
 
@@ -36,6 +40,7 @@ enum TranslateTool {
     TranslateTool.conversation => l10n.translateToolConversation,
     TranslateTool.dictionary => l10n.translateToolDictionary,
     TranslateTool.recentPairs => l10n.translateRecentPairsTitle,
+    TranslateTool.listenSlowly => l10n.translateToolListenSlowly,
     TranslateTool.shortcuts => l10n.translateKeyboardShortcuts,
   };
 }
@@ -74,14 +79,22 @@ String translateDictionaryLocation(TranslateState state) {
   );
 }
 
+/// Whether the output card's Listen button can read the translation: there
+/// is one, in a language that is not a custom one.
+bool canListenToTranslation(TranslateState state) =>
+    state.output.trim().isNotEmpty && !state.target.isCustom;
+
 /// App bar overflow menu with the other translators (image, documents, web
 /// page, conversation), the dictionary, the recent language pairs (also
-/// on a long press of the swap button) and the keyboard shortcut cheat
-/// sheet.
+/// on a long press of the swap button), reading the translation slowly
+/// (also on a long press of its Listen button) and the keyboard shortcut
+/// cheat sheet.
 ///
 /// The dictionary opens with the input's word and looks it up right away
 /// ([DictionaryLaunch.lookUp]) when the input is a word or short phrase.
-/// Recent pairs are only offered while engines are available.
+/// Recent pairs and slow reading are only offered while engines are
+/// available; slow reading is disabled while there is no translation the
+/// output card's Listen button could read ([canListenToTranslation]).
 class MoreToolsButton extends StatelessWidget {
   const new({super.key});
 
@@ -98,6 +111,18 @@ class MoreToolsButton extends StatelessWidget {
         );
       case TranslateTool.recentPairs:
         unawaited(showRecentPairsSheet(context));
+      case TranslateTool.listenSlowly:
+        final state = context.read<TranslateCubit>().state;
+        if (!canListenToTranslation(state)) return;
+        unawaited(
+          readAloud(
+            context,
+            id: translateOutputSpeechId,
+            text: state.output,
+            languageCode: state.target.code,
+            slow: true,
+          ),
+        );
       case TranslateTool.shortcuts:
         unawaited(showTranslateShortcuts(context));
       case TranslateTool.image ||
@@ -117,20 +142,24 @@ class MoreToolsButton extends StatelessWidget {
       icon: const Icon(Icons.more_vert),
       onSelected: (tool) => _open(context, tool),
       itemBuilder: (context) {
-        final hasEngines = context
-            .read<TranslateCubit>()
-            .state
-            .engines
-            .isNotEmpty;
+        final state = context.read<TranslateCubit>().state;
+        final hasEngines = state.engines.isNotEmpty;
+        bool offered(TranslateTool tool) => switch (tool) {
+          TranslateTool.recentPairs || TranslateTool.listenSlowly => hasEngines,
+          _ => true,
+        };
         return [
           for (final tool in TranslateTool.values)
-            if (tool != TranslateTool.recentPairs || hasEngines) ...[
+            if (offered(tool)) ...[
               if (tool == TranslateTool.recentPairs ||
                   (tool == TranslateTool.shortcuts && !hasEngines))
                 const PopupMenuDivider(),
               PopupMenuItem(
                 key: ValueKey('translate_tool_${tool.name}'),
                 value: tool,
+                enabled:
+                    tool != TranslateTool.listenSlowly ||
+                    canListenToTranslation(state),
                 child: Row(
                   children: [
                     Icon(tool.icon),

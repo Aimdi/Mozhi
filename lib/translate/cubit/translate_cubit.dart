@@ -68,7 +68,10 @@ typedef _Languages = ({List<Language> sources, List<Language> targets});
 ///   the input (an AI check, or a back-translation with the main engine).
 /// * Extra targets ([setExtraTargets], "Also translate into…") are
 ///   translated with every translation of the input, each with a request
-///   of its own (same engine and options; never saved in history).
+///   of its own (same engine and options; never saved in history). They
+///   are loaded from and saved to `AppSettings.extraTargets`; picks the
+///   engine does not offer stay picked (and saved) but are not used
+///   ([TranslateState.unavailableExtraTargets]).
 ///
 /// The constructor does no async work: call [loadEngines] once after
 /// construction (and whenever instances/providers change). It listens to
@@ -87,11 +90,15 @@ class TranslateCubit extends Cubit<TranslateState> {
        _clock = clock ?? DateTime.now,
        _deviceLanguages = deviceLanguages ?? _platformLanguages,
        _qualityIds = (settings.state.fastEngineId, settings.state.bestEngineId),
+       _seenExtraTargets = settings.state.extraTargets,
        super(
          TranslateState(
            source: settings.state.source,
            target: settings.state.target,
            options: settings.state.options,
+           extraTargets: AppSettings.normalizeExtraTargets(
+             settings.state.extraTargets,
+           ),
          ),
        ) {
     _settingsSubscription = settings.stream.listen(_onSettings);
@@ -122,7 +129,7 @@ class TranslateCubit extends Cubit<TranslateState> {
   static const maxRefinementLength = 200;
 
   /// Most additional target languages ([setExtraTargets]).
-  static const maxExtraTargets = 4;
+  static const int maxExtraTargets = AppSettings.maxExtraTargets;
 
   /// Marks a model-generated suggestion instruction as a lower-trust
   /// refinement preference rather than a user instruction.
@@ -214,6 +221,10 @@ class TranslateCubit extends Cubit<TranslateState> {
   /// What the last [insertExtraTranslation] replaced, for
   /// [undoInsertExtraTranslation].
   ({String input, Language source, String inserted})? _lastInsert;
+
+  /// `AppSettings.extraTargets` when the settings were last looked at
+  /// ([_syncExtraTargets]).
+  List<Language> _seenExtraTargets;
 
   late final StreamSubscription<AppSettings> _settingsSubscription;
 
@@ -595,7 +606,11 @@ class TranslateCubit extends Cubit<TranslateState> {
   /// sync with the settings. When the engine of the active mode changes it
   /// is switched to (keeping the output); when it is removed the mode is
   /// turned off and the normal engine comes back.
+  ///
+  /// Extra targets saved by someone else are applied too
+  /// ([_syncExtraTargets]).
   void _onSettings(AppSettings settings) {
+    _syncExtraTargets();
     final ids = (settings.fastEngineId, settings.bestEngineId);
     if (ids == _qualityIds || isClosed) return;
     _qualityIds = ids;
@@ -740,6 +755,8 @@ class TranslateCubit extends Cubit<TranslateState> {
         LanguageMatcher.match(_english, targets) ??
         (targets.isEmpty ? _english : targets.first);
 
+    // The extra targets stay as picked: the ones this engine does not offer
+    // are not used (TranslateState.activeExtraTargets) until one does.
     return base.copyWith(
       sourceLanguages: sources,
       targetLanguages: targets,
@@ -2190,7 +2207,13 @@ class TranslateCubit extends Cubit<TranslateState> {
 
   /// Sets the additional target languages ("Also translate into…"): auto
   /// and duplicates are dropped, and at most [maxExtraTargets] are kept (in
-  /// the given order). They last for the session.
+  /// the given order). They replace every pick, also the ones the engine
+  /// does not offer ([TranslateState.unavailableExtraTargets]): `[]`
+  /// removes them all. They are saved (`SettingsCubit.setExtraTargets`).
+  ///
+  /// Picks the engine does not offer stay picked: they are not translated
+  /// (and get no card) until an engine that offers them is selected, and
+  /// they count towards [maxExtraTargets].
   ///
   /// The input is translated into each of
   /// [TranslateState.activeExtraTargets] with every translation of the
@@ -2206,12 +2229,25 @@ class TranslateCubit extends Cubit<TranslateState> {
   /// flight is not sent again, and a failed one waits for Retry (or the
   /// next translation).
   void setExtraTargets(List<Language> targets) {
-    final next = <Language>[];
-    for (final language in targets) {
-      if (language.isAuto || next.contains(language)) continue;
-      next.add(language);
-      if (next.length == maxExtraTargets) break;
-    }
+    final next = AppSettings.normalizeExtraTargets(targets);
+    if (_sameLanguages(next, state.extraTargets)) return;
+    _settings.setExtraTargets(next);
+    _applyExtraTargets(next);
+  }
+
+  /// Applies extra targets saved by someone else (`AppSettings.extraTargets`
+  /// changed and differs from [TranslateState.extraTargets]).
+  void _syncExtraTargets() {
+    final saved = _settings.state.extraTargets;
+    if (isClosed || _sameLanguages(saved, _seenExtraTargets)) return;
+    _seenExtraTargets = saved;
+    _applyExtraTargets(AppSettings.normalizeExtraTargets(saved));
+  }
+
+  /// Shows [next] as [TranslateState.extraTargets] and translates the
+  /// input into the new ones when it has a current translation (see
+  /// [setExtraTargets]).
+  void _applyExtraTargets(List<Language> next) {
     if (_sameLanguages(next, state.extraTargets)) return;
     emit(state.copyWith(extraTargets: List<Language>.unmodifiable(next)));
     _pruneExtraTranslations();
@@ -2235,8 +2271,9 @@ class TranslateCubit extends Cubit<TranslateState> {
 
   /// Adds [language] to the extra targets, or removes it when it is one
   /// ([TranslateState.isExtraTarget]: also a pick the engine lists as
-  /// [language]); see [setExtraTargets]. Nothing is added when
-  /// [maxExtraTargets] are set already.
+  /// [language], or one of [TranslateState.unavailableExtraTargets]); see
+  /// [setExtraTargets]. Nothing is added when [maxExtraTargets] are picked
+  /// already (also counting the ones the engine does not offer).
   void toggleExtraTarget(Language language) {
     final targets = state.extraTargets;
     bool picks(Language chosen) =>

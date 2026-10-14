@@ -62,6 +62,11 @@ const maxAnnouncedOutputLength = 400;
 /// (`TranslateState.isResultStale`).
 const staleOutputOpacity = 0.6;
 
+/// `SpeechService` clip id of the translation (the output card's Listen
+/// button; "More tools > Listen to the translation slowly" reads the same
+/// clip).
+const translateOutputSpeechId = 'target';
+
 /// Direction of the translated text: the target language's, or (custom
 /// targets) the direction of its characters.
 TextDirection? outputTextDirection(TranslateState state) =>
@@ -729,7 +734,7 @@ class _OutputCardState extends State<OutputCard> {
           ),
         ),
         ListenButton(
-          id: 'target',
+          id: translateOutputSpeechId,
           text: output,
           languageCode: target.isCustom ? null : target.code,
         ),

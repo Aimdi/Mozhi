@@ -23,6 +23,9 @@
 - [Why didn't the link translate automatically?](#why-didnt-the-link-translate-automatically)
 - [Why did the target language change by itself?](#why-did-the-target-language-change-by-itself)
 - [Why does it ask which language a word is in?](#why-does-it-ask-which-language-a-word-is-in)
+- [How do I check that a translation kept the meaning?](#how-do-i-check-that-a-translation-kept-the-meaning)
+- [Can I translate into several languages at once?](#can-i-translate-into-several-languages-at-once)
+- [How do I make text-to-speech slower or use another voice?](#how-do-i-make-text-to-speech-slower-or-use-another-voice)
 
 **Mozhi instances**
 
@@ -151,10 +154,11 @@ applies to translations in a non-Latin script. See
 ### How do I keep an eye on what AI costs me?
 
 **Settings > Usage & costs** counts requests, characters and estimated tokens
-per provider and month: translations, refinements, extras, proofreading,
-documents and the dictionary. Results the app already had in memory aren't
-counted, because they cost nothing. Set a **Monthly budget** on a provider to
-be warned at 80 % and at 100 %. The counts are estimates kept on your device;
+per provider and month: translations (also into extra target languages),
+refinements, extras, meaning checks, proofreading, documents and the
+dictionary. Results the app already had in memory aren't counted, because
+they cost nothing. Set a **Monthly budget** on a provider to be warned at
+80 % and at 100 %. The counts are estimates kept on your device;
 your provider's dashboard has the real bill.
 
 ## Translating
@@ -186,6 +190,57 @@ unsure about, gets **Detected: Dutch?** with chips for the other likely
 languages. Tap the right one, or set the source language yourself. With AI
 models, the languages you recently translated from are preferred for short
 texts.
+
+### How do I check that a translation kept the meaning?
+
+Press **Check meaning** (the checklist button under the translation). With an
+AI model for extras (the model you translate with, or the one under
+**Settings > AI assistant for insights**), the model translates the
+translation back into your language and lists the real differences in
+meaning: omissions, additions, a lost or added negation, wrong numbers or
+tense, and mistranslated words. Each difference is highlighted in both texts
+when you tap it, and a verdict sums it up: **Same meaning**, **Minor
+differences** or **Meaning differs**. Without an AI model you get a plain
+back-translation from the engine you translate with, to compare yourself.
+
+The check runs only when you press the button, and each check is a request
+(counted under **Settings > Usage & costs**). Of long texts, only the first
+4,000 characters of each text are compared. A meaning check is a good hint,
+not proof: a model can miss a difference or report one that isn't
+there. See [Meaning check](features.md#meaning-check).
+
+### Can I translate into several languages at once?
+
+Yes: **Also translate into…** under the translation adds up to four more
+languages. Each gets its own card with copy, listen and use-as-input
+buttons. They are translated with the same engine and options as the main
+translation, one request per language, and only when the main translation
+runs: instantly while you type with free engines (or with **Instant
+translate with AI** on), otherwise when you press **Translate**. That
+includes text shared into the app or opened from a link, which the DeepL API
+and LibreTranslate translate straight away: with a paid plan, each extra
+language is billed too. The app remembers your extra languages; one the
+selected engine doesn't offer stays picked (and listed in the sheet) for an
+engine that does, and **Remove all** clears them all. History keeps the main
+translation only. See
+[Extra target languages](features.md#extra-target-languages).
+
+### How do I make text-to-speech slower or use another voice?
+
+To hear one text slowly, long-press **Listen**: it reads the text again from
+the start at 0.6× your speech rate. **More tools > Listen to the translation
+slowly** does the same for the translation; with a mouse, right-click
+**Listen** and choose **Listen slowly**; with a keyboard, press Shift+Enter
+on a focused **Listen** button; screen readers offer a **Listen slowly**
+action.
+
+To change the speed for good, open **Settings > Read aloud**. **Speech
+rate** goes from 0.5× to 1.5×, with a preview button. Under **Voice per
+language** you can pick one of your device's voices for each language you
+use, and **Use device voice** reads everything with the device's voices
+first (they also work offline once installed). Mozhi's own voices follow the
+speech rate where the platform's audio player can change the speed. See
+[Text-to-speech](features.md#text-to-speech).
 
 ## Mozhi instances
 

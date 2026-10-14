@@ -145,7 +145,7 @@ void main() {
     ) async {
       final harness = TranslateHarness(state: translatedState());
       await harness.pump(tester, child: const InputCard());
-      await tester.tap(find.byTooltip('Listen'));
+      await tester.tap(findListenTooltip('Listen'));
       verify(
         () => harness.speech.toggle(
           id: 'source',
@@ -165,7 +165,7 @@ void main() {
         ),
       ).thenThrow(Exception('offline'));
       await harness.pump(tester, child: const InputCard());
-      await tester.tap(find.byTooltip('Listen'));
+      await tester.tap(findListenTooltip('Listen'));
       await tester.pump();
       expect(find.text("Couldn't play audio."), findsOneWidget);
     });
@@ -176,7 +176,7 @@ void main() {
       final harness = TranslateHarness(state: translatedState());
       when(() => harness.speech.current).thenReturn('source');
       await harness.pump(tester, child: const InputCard());
-      expect(find.byTooltip('Stop'), findsOneWidget);
+      expect(findListenTooltip('Stop'), findsOneWidget);
     });
 
     testWidgets('listen is disabled while the language is unknown', (

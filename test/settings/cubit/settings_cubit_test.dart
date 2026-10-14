@@ -669,6 +669,47 @@ void main() {
       );
     });
 
+    group('extra targets', () {
+      mutation(
+        'setExtraTargets saves the languages in order',
+        initial: const AppSettings(extraTargets: [_english]),
+        act: (cubit) => cubit.setExtraTargets(const [_german, _french]),
+        expected: const AppSettings(extraTargets: [_german, _french]),
+      );
+
+      mutation(
+        'setExtraTargets drops auto and duplicates and keeps at most four',
+        act: (cubit) => cubit.setExtraTargets([
+          Language.auto,
+          _german,
+          _german,
+          ..._languages(5),
+        ]),
+        expected: AppSettings(extraTargets: [_german, ..._languages(3)]),
+      );
+
+      mutation(
+        'setExtraTargets keeps custom languages',
+        act: (cubit) =>
+            cubit.setExtraTargets(const [Language.custom('Pirate')]),
+        expected: const AppSettings(extraTargets: [Language.custom('Pirate')]),
+      );
+
+      mutation(
+        'setExtraTargets clears the languages',
+        initial: const AppSettings(extraTargets: [_german, _french]),
+        act: (cubit) => cubit.setExtraTargets(const []),
+        expected: const AppSettings(),
+      );
+
+      noOp(
+        'setExtraTargets does nothing when the languages are the same',
+        initial: const AppSettings(extraTargets: [_german, _french]),
+        act: (cubit) =>
+            cubit.setExtraTargets(const [_german, Language.auto, _french]),
+      );
+    });
+
     group('pinned languages', () {
       mutation(
         'togglePinnedLanguage pins a language',

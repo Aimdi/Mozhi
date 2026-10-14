@@ -260,7 +260,7 @@ void main() {
     ) async {
       final harness = TranslateHarness(state: translatedState());
       await harness.pump(tester, child: const OutputCard());
-      await tester.tap(find.byTooltip('Listen'));
+      await tester.tap(findListenTooltip('Listen'));
       verify(
         () => harness.speech.toggle(
           id: 'target',

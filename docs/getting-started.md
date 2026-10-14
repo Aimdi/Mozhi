@@ -164,7 +164,8 @@ LibreTranslate and troubleshooting, is
 An AI provider unlocks the Kagi-style features: translation options
 (formality, reading level, context, glossary, ...), custom styles such as
 *Pirate speak*, refinement chips, alternatives, word insights, explanations,
-romanization and phrase alignment, the dictionary and the Proofread tab.
+romanization and phrase alignment, the meaning check, the dictionary and the
+Proofread tab.
 
 1. Open **Settings > AI providers** and tap **Add provider**.
 2. Choose a preset: OpenAI, Anthropic, Google Gemini, OpenRouter, Groq,
@@ -191,9 +192,9 @@ hardware.
 
 **Mozhi engines plus AI.** You do not have to give up Google or DeepL to get
 the AI extras: while a Mozhi engine translates, an AI model can still provide
-alternatives, word insights, explanations, romanization, alignment and the
-dictionary. Choose which model under **Settings > AI assistant for insights**
-(by default the first enabled provider).
+alternatives, word insights, explanations, romanization, alignment, the
+meaning check and the dictionary. Choose which model under **Settings > AI
+assistant for insights** (by default the first enabled provider).
 
 ## Translate from other apps (Android)
 

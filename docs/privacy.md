@@ -19,16 +19,20 @@ goes anywhere else.
 | Data | Where | Notes |
 | --- | --- | --- |
 | Settings (instances, provider settings, translation options, appearance) | App preferences | Never uploaded. |
-| Your languages: recent and pinned languages, recent language pairs | App preferences | Part of the settings. **Clear recent language pairs** (in **Settings** or the recent pairs sheet) forgets the pairs. |
+| Your languages: recent and pinned languages, recent language pairs, the extra target languages of **Also translate into…** | App preferences | Part of the settings (languages only, not the translations). **Clear recent language pairs** (in **Settings** or the recent pairs sheet) forgets the pairs. |
 | History and favourites | App preferences | Up to 1,000 entries plus favourites. **Settings > Delete history automatically** removes entries older than 1, 7 or 30 days (favourites are kept). Turn off **Settings > Save history** to stop saving; **Clear history** deletes them. |
 | Presets and glossaries | App preferences | Exported only when you export them. |
+| Read-aloud settings: speech rate, **Use device voice**, the device voice chosen per language | App preferences | The rate and each chosen voice's name, locale and engine details, never text. |
 | Usage counters and budgets | App preferences | Numbers only (requests, characters, estimated tokens per provider and month, for the last 13 months), never text. **Reset usage** deletes them; deleting a provider deletes its counts. |
 | API keys | Platform secure storage (Android Keystore, Apple Keychain, ...) | Kept apart from the settings and never included in exports. Deleting a provider deletes its key. |
 | Offline language packs | App storage (Android and iOS) | Downloaded once; delete them in the offline settings. |
 
 Recent translations are also kept in memory, never on disk, for up to a day
 while the app is running, so that translating the same text again doesn't
-send it again. Closing the app clears them.
+send it again. Memory also holds the last 20 read-aloud audio clips (so
+listening again usually needs no network), the translations into extra
+target languages and the meaning check of the current translation. Closing
+the app clears them.
 
 Uninstalling the app removes all of it. In the web app, the same data lives
 in your browser's storage for the site, and clearing the site's data removes
@@ -76,12 +80,27 @@ Some features send additional data to the same back ends:
   recently translated from (the languages only, not what you translated).
 - **Long texts** are sent to AI models in parts, each with the end of the
   part before it. Nothing goes anywhere else.
+- **Check meaning** sends your text and its translation (the first 4,000
+  characters of each) to the AI model for extras; when you translate with a
+  Mozhi engine, that is the model chosen under **Settings > AI assistant
+  for insights**. Without such a model, the translation is sent to the
+  engine you translate with, to be translated back. Only when you press
+  **Check meaning**.
+- **Also translate into…** sends your text to the same engine once for
+  each extra language, with the same options as the main translation. This
+  includes text shared into the app or opened from a link whenever it is
+  translated straight away (Mozhi engines, the DeepL API, LibreTranslate,
+  offline, or an AI model with **Instant translate with AI** on), also
+  right after the app starts, because your extra languages are remembered.
 - **Proofread** sends the text to the AI model you selected. The writing
   statistics are calculated on the device.
 - **Listen** (text-to-speech) sends the text to your Mozhi instance, which
-  fetches the audio from Google (or Reverso). Device voices, where used, are
-  provided by the operating system's text-to-speech engine and usually run on
-  the device.
+  fetches the audio from Google (or Reverso). Device voices (with **Use
+  device voice**, a voice chosen under **Settings > Read aloud**, or when
+  Mozhi can't read a language) are provided by the operating system's or
+  the browser's text-to-speech engine and usually run on the device; voices
+  marked **Needs internet** are processed by that engine's online service.
+  Voice previews in the settings use the device voices only.
 - **Image translation** sends the image to the AI model (with **Supports
   images**) or to your Mozhi instance, which passes it to Google. On-device
   text recognition keeps the image on the phone.

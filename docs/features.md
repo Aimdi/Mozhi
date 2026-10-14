@@ -6,6 +6,7 @@ alone.
 
 - [Translate](#translate)
 - [Languages and detection](#languages-and-detection)
+- [Extra target languages](#extra-target-languages)
 - [Engines and compare mode](#engines-and-compare-mode)
 - [Quality modes: Fast and Best](#quality-modes-fast-and-best)
 - [AI translation options](#ai-translation-options)
@@ -14,6 +15,7 @@ alone.
 - [Refining a translation](#refining-a-translation)
 - [Kagi-style extras](#kagi-style-extras)
 - [Romanization and alignment](#romanization-and-alignment)
+- [Meaning check](#meaning-check)
 - [Dictionary](#dictionary)
 - [Proofread](#proofread)
 - [Image translation](#image-translation)
@@ -36,9 +38,13 @@ alone.
   after you stop typing. For AI engines this is off by default because each
   request costs tokens; turn on **Settings > Instant translate with AI** if you
   want it. Otherwise press **Translate**.
-- **Output actions:** copy, share, listen, add to favourites, and the elapsed
-  time per engine. With an AI model available, the output also offers
-  **Insights**, **Show romanization** and **Show matching phrases** (see below).
+- **Output actions:** copy, share, listen, add to favourites,
+  [**Check meaning**](#meaning-check), and the elapsed time per engine. With
+  an AI model available, the output also offers **Insights**, **Show
+  romanization** and **Show matching phrases** (see below).
+- **More languages at once:** **Also translate into…** under the translation
+  adds up to four more target languages; see
+  [Extra target languages](#extra-target-languages).
 - **Definitions.** For single words, Google and Reverso results from Mozhi
   include definitions with examples and synonyms.
 - **Same language in and out** (AI): choose the same source and target
@@ -96,6 +102,58 @@ alone.
   under **Pinned** (on desktop the picker shows each one's shortcut). See
   [Keyboard shortcuts](#keyboard-shortcuts) for the Mac and browser
   variants.
+
+## Extra target languages
+
+Translate one text into several languages at once: **Also translate into…**
+under the translation adds up to four more target languages next to the
+main one.
+
+- **Picking them.** The sheet lists the engine's target languages; search by
+  English or native name, or by code. The languages you picked are listed
+  first, also the ones the selected engine doesn't offer (for example Thai,
+  picked with an AI model, while an engine without Thai is selected): they
+  stay checked, marked **Not offered by this engine; kept for one that
+  does**, and unchecking one removes it. **Remove all** clears every pick,
+  kept ones included, and **Done** closes the sheet. With four picked (kept
+  ones count), the others are greyed out: **Remove a language to pick
+  another one.** The button then names the picks this engine translates
+  into, for example **Also into: French, German**.
+- **Results.** Each language gets a card under the translation, with buttons
+  to copy it, listen to it and use it as the input (**Use the French
+  translation as input**), and one to remove the language. Using a
+  translation as the input replaces your text (and a source language you
+  chose) and offers **Undo**. A language that failed has its own **Retry**.
+- **Same engine, same rules.** The extra languages are translated with the
+  same engine and translation options as the main translation, one request
+  per language. They follow the main translation: instantly while you type
+  only where that is free (Mozhi engines, the DeepL API, LibreTranslate,
+  offline) or with **Instant translate with AI** on, otherwise when you press
+  **Translate**. A language you add while a translation is shown is
+  translated right away. Translations of text you have since edited are
+  dimmed until the new ones arrive.
+- **Skipped languages.** The main target language, your source language (the
+  one you chose, or the one detected) and languages the selected engine
+  doesn't offer get no card; they come back once they apply again, for
+  example with an engine that offers them (switching to such an engine
+  translates your text into them too). Custom languages and styles can't
+  be extra targets, and compare mode shows no extra targets.
+- **Remembered.** Your extra languages are saved with your settings and
+  come back the next time you open the app; one that the selected engine
+  doesn't offer stays picked for an engine that does (see **Picking them**).
+  The translations themselves are not kept: history saves the main
+  translation only. Each extra translation counts as a request in
+  [Usage and costs](#usage-and-costs) (unless the app already had it in
+  memory).
+- **Shared text and links too.** Text shared into the app or opened from a
+  [link](#links) is translated into your extra languages as well whenever
+  it is translated straight away: with Mozhi engines, the DeepL API,
+  LibreTranslate and offline (or an AI model with **Instant translate with
+  AI** on), also right after the app starts. With a paid DeepL API or
+  LibreTranslate plan, each shared text is then billed once per language;
+  remove the extra languages you don't need, or use **Remove all**.
+- Screen readers hear which languages arrived (**Also translated into
+  French, German.**) and which failed.
 
 ## Engines and compare mode
 
@@ -269,6 +327,59 @@ underlined phrase of the input highlights its translation. Only the first
 alignment. Alignment and insights are shown one at a time, and like insights
 the alignment reloads for each translation you start.
 
+## Meaning check
+
+**Check meaning** (the checklist button under a finished translation) tells
+you whether the translation still says what you wrote. It runs only when you
+press it, never by itself; press it again (**Hide meaning check**) or use the
+close button on the card to hide the result. Editing your text or getting a
+new translation clears it.
+
+**With an AI model for extras** (the AI model you translate with, or the one
+under **Settings > AI assistant for insights** while you translate with a
+Mozhi engine, the DeepL API, LibreTranslate or offline), the model translates
+the translation back into the language of your text, as literally as grammar
+allows, and compares its meaning with your original. The **Meaning check**
+card shows:
+
+- **A verdict**: **Same meaning**, **Minor differences** (a nuance or a small
+  detail) or **Meaning differs** (the translation says something else, leaves
+  out or adds something important, or could mislead). Each verdict has its
+  own icon, so it isn't told by colour alone.
+- **The back-translation**, in the language and writing direction of your
+  text.
+- **The differences**, each with its kind: **Omission**, **Addition**,
+  **Negation** (lost, added or misplaced), **Number** (numbers, amounts,
+  dates, times, units, singular or plural), **Tense** (also mood, or who does
+  what to whom), **Mistranslation** (a false friend, the wrong sense of a
+  word) or **Other difference**. Each one says what differs, in the app's
+  language, where it is (**In your text: …**, **In the translation: …**)
+  and often gives a **Suggested wording**. Tap a difference to highlight it
+  in both your text and the translation; tap it again to remove the
+  highlight.
+
+Only real differences in meaning are listed, not style, word order,
+punctuation, synonyms or idioms rendered with an equivalent. Suggested
+wordings are only shown, never applied for you. When the model reports
+differences that can't be pinpointed in the texts, the card says so; compare
+the back-translation with your text instead. Of long texts, the first 4,000
+characters of each text are checked, and the card says **Only the beginning
+of the text was checked.**
+
+**Without an AI model for extras** (no AI provider, or a translation-only
+model such as TranslateGemma or Hunyuan-MT as the engine), the card is
+called **Back-translation**: the translation is translated back into your
+text's language with the engine you are using (**Translated back with DeepL.
+Compare it with your text.**), and you compare the two yourself. This needs
+to know your text's language: choose the source language, or let it be
+detected.
+
+Each check is one request to the AI model, or one translation with your
+engine, and is counted in [Usage and costs](#usage-and-costs); a
+back-translation the app already had in memory is free and not counted.
+Screen readers hear the verdict and the number of differences (or
+**Back-translation ready**) when the result arrives.
+
 ## Dictionary
 
 **AI.** Look up words and short phrases in two places:
@@ -346,9 +457,10 @@ Large photos are scaled down before uploading (longest side 2048 px, under
   recognition** so the audio isn't sent to an online service.
 - **Conversation**: two people, two languages. Each person speaks in turn and
   hears or reads the other's words in their own language.
-- **Device voices**: besides your Mozhi instance's voices (see
-  [Text-to-speech](#text-to-speech)), the app can read text aloud with the
-  device's built-in text-to-speech voices.
+- **Device voices**: besides your Mozhi instance's voices, the app can read
+  text aloud with the device's built-in text-to-speech voices, with a speech
+  rate and a voice per language of your choice (see
+  [Text-to-speech](#text-to-speech)).
 
 ## Documents
 
@@ -396,7 +508,8 @@ desktop.
   **Settings > Save history**). When the same text is translated again into
   the same language with the same engine, for example after a refinement or
   after picking an alternative, the newest entry is updated instead of
-  duplicated.
+  duplicated. Only the main translation is saved, not the translations into
+  [extra target languages](#extra-target-languages).
 - **History** groups entries by day, with search across the text, the
   translation and the language names, and an **All / Favorites** filter. Tap
   an entry to open it in the translator; swipe it away to delete it (with
@@ -419,10 +532,11 @@ desktop.
 LibreTranslate service) you added, this month's and last month's requests,
 characters sent and received, and estimated tokens.
 
-- Counted: translations (also in compare mode and of documents),
+- Counted: translations (also in compare mode, into
+  [extra target languages](#extra-target-languages) and of documents),
   refinements, the AI extras (alternatives, insights, explanations,
-  suggestions, romanization, alignment and the dictionary) and
-  proofreading.
+  suggestions, romanization, alignment, [meaning checks](#meaning-check) and
+  the dictionary), back-translations and proofreading.
 - Not counted: results the app already had. Translating the same text again
   with the same engine, languages and options while the app is open is
   answered from memory, without a request.
@@ -436,9 +550,57 @@ characters sent and received, and estimated tokens.
 
 ## Text-to-speech
 
-**Listen** reads the source or the translation aloud. The audio comes from
-your Mozhi instance (Google's voices, with Reverso as a fallback), so it needs
-a reachable instance; see also [device voices](#voice). Tap again to stop.
+**Listen** (the speaker button) reads your text or the translation aloud; tap
+it again (**Stop**) to stop.
+
+**Listen slowly** reads the text again from the start at a slower speed
+(0.6× your speech rate), also while it plays. Any of these starts it:
+
+- **Long-press Listen.** On a touch screen this also shows the button's
+  tooltip, which names what it reads (for example **Listen to German**) and
+  says **Long-press to listen slowly**; with a mouse the tooltip appears
+  when you point at the button.
+- **More tools > Listen to the translation slowly** (for the translation).
+- **Right-click Listen** and choose **Listen slowly** (not in a browser that
+  shows its own menu).
+- **Shift+Enter** (or Shift+Space) while **Listen** has keyboard focus.
+- With a screen reader, the **Listen slowly** action of the button
+  (TalkBack also offers it as the button's long press).
+
+The sound comes from one of two places:
+
+- **Mozhi voices**: your Mozhi instance fetches the audio from Google (with
+  Reverso as a fallback), so it needs a reachable instance. Long texts are
+  read in parts, one after another.
+- **Device voices**: the text-to-speech voices of your phone, computer or
+  browser. They read a language when Mozhi can't (no instance, no Mozhi
+  voice for the language, or the instance fails), and they work offline
+  when the voice is installed. With **Use device voice** on, or a voice
+  chosen for the language (see below), they read first and Mozhi becomes the
+  fallback.
+
+**Settings > Read aloud** adjusts how text is read:
+
+- **Speech rate**: from 0.5× to 1.5× in steps of 0.1 (1.0× is normal
+  speed). The play button next to the slider (**Preview speech rate**)
+  reads a sample sentence at that speed. The rate applies to device voices,
+  and to Mozhi audio where the platform's audio player can change the speed
+  (elsewhere Mozhi audio plays at normal speed).
+- **Use device voice**: read aloud with the device's text-to-speech instead
+  of the Mozhi instance, with Mozhi as the fallback.
+- **Voice per language**: choose one of the device's voices for the
+  languages you used recently (your current target and source languages,
+  then recent ones: up to four, plus every language you already chose a
+  voice for). **French voice**, for example, lists the voices installed for
+  French with their locale and labels such as **High quality** or **Needs
+  internet**; play one to hear it before you choose, or keep **System
+  default**. A chosen voice reads its language instead of the Mozhi voice.
+  If a language has no voice, install one in your device's text-to-speech
+  settings.
+
+**Use device voice** and **Voice per language** appear only where the device
+has a text-to-speech engine (Android, iOS, macOS, Windows and most
+browsers). The settings are kept on the device.
 
 ## Android integration
 
@@ -497,6 +659,8 @@ Links come from outside the app, so they are limited:
   translated straight away only with engines that are not AI models (Mozhi,
   the DeepL API, LibreTranslate, offline), or with an AI model when you
   turned on **Instant translate with AI**; otherwise press **Translate**.
+  When it is translated straight away, it is also translated into your
+  [extra target languages](#extra-target-languages), one request each.
   Changing the quality mode or the options for a link doesn't translate
   anything either.
 
@@ -524,6 +688,7 @@ app, put the path after `#`, for example
 | Ctrl+L / Ctrl+Shift+L (⌘+L / ⌘+Shift+L) | Choose the target / source language (type to search, Enter picks the first match) |
 | Alt+1 … Alt+9 (⌥+1 … ⌥+9 on Apple devices) | Translate into pinned language 1 to 9; in a browser Ctrl+Alt+1 … 9 (⌘+⌥+1 … 9), because browsers use Alt+digit for tabs |
 | Esc | Clear the text (while typing) |
+| Shift+Enter (on a focused Listen button) | [Listen slowly](#text-to-speech) from the start |
 | ? or Ctrl+/ (⌘+/) | Show keyboard shortcuts |
 
 The same list is under **More tools > Keyboard shortcuts**.

@@ -396,6 +396,13 @@ class ExtraTargetCard extends StatelessWidget {
 /// `TranslateCubit.maxExtraTargets`. Changes apply at once
 /// (`TranslateCubit.toggleExtraTarget`).
 ///
+/// Picks the engine does not offer
+/// (`TranslateState.unavailableExtraTargets`, e.g. a language picked with
+/// another engine) are listed too, checked, after the other picks: the
+/// subtitle says they are kept for an engine that offers them, they count
+/// towards the limit, and unchecking one removes it. "Remove all" removes
+/// them as well.
+///
 /// The title, actions, hint and search field scroll with the list, so the
 /// languages stay reachable at any text size and on short screens; the
 /// title and actions share a line while they fit. Once the most languages
@@ -418,25 +425,29 @@ class _ExtraTargetsSheetState extends State<ExtraTargetsSheet> {
     super.dispose();
   }
 
-  /// The engine's target languages other than the main target, filtered by
-  /// [_query]; chosen ones first.
+  /// The engine's target languages other than the main target and the
+  /// picks it does not offer, filtered by [_query]: the engine's chosen
+  /// ones first, then the picks it does not offer, then the others.
   List<Language> _languages(TranslateState state) {
     final query = _query.trim().toLowerCase();
+    bool matches(Language language) =>
+        query.isEmpty ||
+        language.name.toLowerCase().contains(query) ||
+        (language.nativeName?.toLowerCase().contains(query) ?? false) ||
+        language.code.toLowerCase() == query;
     final main = LanguageMatcher.normalize(state.target.code);
-    final matches = [
+    final offered = [
       for (final language in state.targetLanguages)
         if (!language.isAuto &&
             !language.isCustom &&
             LanguageMatcher.normalize(language.code) != main &&
-            (query.isEmpty ||
-                language.name.toLowerCase().contains(query) ||
-                (language.nativeName?.toLowerCase().contains(query) ?? false) ||
-                language.code.toLowerCase() == query))
+            matches(language))
           language,
     ];
     return [
-      ...matches.where(state.isExtraTarget),
-      ...matches.where((language) => !state.isExtraTarget(language)),
+      ...offered.where(state.isExtraTarget),
+      ...state.unavailableExtraTargets.where(matches),
+      ...offered.where((language) => !state.isExtraTarget(language)),
     ];
   }
 
@@ -446,8 +457,10 @@ class _ExtraTargetsSheetState extends State<ExtraTargetsSheet> {
     final theme = Theme.of(context);
     final state = context.watch<TranslateCubit>().state;
     final cubit = context.read<TranslateCubit>();
+    // Picks the engine does not offer count too (they are listed).
     final full = state.extraTargets.length >= TranslateCubit.maxExtraTargets;
     final languages = _languages(state);
+    final unavailable = state.unavailableExtraTargets;
     final keyboard = MediaQuery.viewInsetsOf(context).bottom;
     final muted = theme.textTheme.bodyMedium?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
@@ -532,7 +545,8 @@ class _ExtraTargetsSheetState extends State<ExtraTargetsSheet> {
     );
 
     Widget row(Language language) {
-      final checked = state.isExtraTarget(language);
+      final kept = unavailable.contains(language);
+      final checked = kept || state.isExtraTarget(language);
       final enabled = checked || !full;
       final native = language.nativeName;
       return CheckboxListTile(
@@ -544,7 +558,9 @@ class _ExtraTargetsSheetState extends State<ExtraTargetsSheet> {
           hint: enabled ? null : l10n.translateExtraTargetsLimitReached,
           child: Text(language.name),
         ),
-        subtitle: native == null || native == language.name
+        subtitle: kept
+            ? Text(l10n.translateExtraTargetsKept)
+            : native == null || native == language.name
             ? null
             : Text(
                 native,

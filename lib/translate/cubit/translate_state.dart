@@ -361,8 +361,10 @@ class TranslateState extends Equatable {
   // Extra targets -----------------------------------------------------------
 
   /// Additional target languages ("Also translate into…", at most
-  /// `TranslateCubit.maxExtraTargets`), as the user picked them. Kept for
-  /// the session.
+  /// `TranslateCubit.maxExtraTargets`), as the user picked them, also the
+  /// ones the engine does not offer ([unavailableExtraTargets]; only
+  /// [activeExtraTargets] are translated). Loaded from
+  /// `AppSettings.extraTargets` (and saved there).
   final List<Language> extraTargets;
 
   /// The translations into [activeExtraTargets] (in no particular order;
@@ -626,6 +628,18 @@ class TranslateState extends Equatable {
       return null;
     }
     return detected;
+  }
+
+  /// The [extraTargets] the selected engine does not offer ([usableTarget]
+  /// is null), in pick order: they stay picked for an engine that offers
+  /// them, are not translated now and count towards the limit. Empty while
+  /// no engine (or no target language list) is loaded.
+  List<Language> get unavailableExtraTargets {
+    if (engine == null || targetLanguages.isEmpty) return const [];
+    return [
+      for (final language in extraTargets)
+        if (usableTarget(language) == null) language,
+    ];
   }
 
   /// Whether [language] (as the engine lists it) is one of the

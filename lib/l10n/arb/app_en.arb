@@ -5833,5 +5833,27 @@
   "translateExtraTargetsListSeparator": ", ",
   "@translateExtraTargetsListSeparator": {
     "description": "Separator between language names in a list such as 'Also into: French, German' (include any spaces; e.g. '、' in Japanese, '، ' in Arabic)."
+  },
+  "translateListenTooltip": "{action}\nLong-press to listen slowly",
+  "@translateListenTooltip": {
+    "description": "Tooltip of a read-aloud button: its action (Listen, Stop, Listen to German…) and how to replay the text slowly",
+    "placeholders": {
+      "action": {
+        "type": "String",
+        "example": "Listen"
+      }
+    }
+  },
+  "translateShortcutListenSlowly": "Listen slowly (on a focused Listen button)",
+  "@translateShortcutListenSlowly": {
+    "description": "Keyboard shortcut cheat sheet: Shift+Enter on a read-aloud button reads the text slowly"
+  },
+  "translateToolListenSlowly": "Listen to the translation slowly",
+  "@translateToolListenSlowly": {
+    "description": "More tools menu entry: reads the translation aloud slowly from the start (the same as a long press on its Listen button)"
+  },
+  "translateExtraTargetsKept": "Not offered by this engine; kept for one that does",
+  "@translateExtraTargetsKept": {
+    "description": "Subtitle of a picked extra target language that the selected engine does not offer: it stays picked (and is used again with an engine that offers it); unchecking it removes it"
   }
 }

@@ -33,12 +33,13 @@ running on your own computer.
 - Reasoning ("thinking") output of models that produce it is hidden; you only
   see the translation.
 - Extras (alternatives, insights, explanations, dictionary, refinement
-  chips and suggestions, romanization, alignment) are separate requests,
-  made only when you ask for them (a romanization also loads by itself when
-  the model runs locally, since that is free). **Instant translate with AI**
-  is off by default because every pause in typing would cost a request; turn
-  it on under **Settings** if you like. Links and text shared from other
-  apps never start an AI request on their own unless it is on.
+  chips and suggestions, romanization, alignment, meaning checks) are
+  separate requests, made only when you ask for them (a romanization also
+  loads by itself when the model runs locally, since that is free).
+  **Instant translate with AI** is off by default because every pause in
+  typing would cost a request; turn it on under **Settings** if you like.
+  Links and text shared from other apps never start an AI request on their
+  own unless it is on.
 - Texts longer than 6,000 characters (2,500 for providers on your device or
   network) are translated in parts, split at paragraph boundaries, each with
   the end of the part before it as context.
@@ -186,9 +187,12 @@ cheaper rows. What adds up:
 
 - **Instant translate with AI** sends a request every time you pause typing.
 - **Compare mode** runs all your engines at once.
+- **Also translate into…** sends one more translation request for each
+  extra target language, every time the main translation runs.
 - **Extras** (insights, alternatives, explain, dictionary, suggestions,
-  refinement chips, romanization, alignment) are one request each; Insights
-  and alignment, once switched on, reload for every translation you start.
+  refinement chips, romanization, alignment, **Check meaning**) are one
+  request each; Insights and alignment, once switched on, reload for every
+  translation you start.
   Short texts with **Detect language** get one extra, very small request to
   double-check the language.
 - Higher **reasoning effort** means more thinking tokens.

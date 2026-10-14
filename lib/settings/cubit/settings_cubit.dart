@@ -189,6 +189,14 @@ class SettingsCubit extends Cubit<AppSettings> {
     _apply(state.copyWith(pinnedLanguages: List.unmodifiable(pinned)));
   }
 
+  /// Saves the additional target languages of the translate screen ("Also
+  /// translate into…"): `auto` and duplicates are dropped and at most
+  /// [AppSettings.maxExtraTargets] are kept, in the given order
+  /// ([AppSettings.normalizeExtraTargets]).
+  void setExtraTargets(List<Language> targets) => _apply(
+    state.copyWith(extraTargets: AppSettings.normalizeExtraTargets(targets)),
+  );
+
   void setOptions(TranslationOptions options) =>
       _apply(state.copyWith(options: options));
 

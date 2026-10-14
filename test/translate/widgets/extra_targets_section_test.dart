@@ -414,7 +414,7 @@ void main() {
       await tester.pump();
       expect(clipboard.copied, 'Hallo Welt');
       await tester.tap(
-        _inCard(german, find.byTooltip('Listen to \u2068German\u2069')),
+        _inCard(german, findListenTooltip('Listen to \u2068German\u2069')),
       );
       verify(
         () => harness.speech.toggle(
@@ -425,7 +425,11 @@ void main() {
       ).called(1);
       // Nothing is called just "Copy" or "Listen" twice on the screen.
       expect(find.byTooltip('Copy'), findsNothing);
-      expect(find.byTooltip('Listen'), findsNothing);
+      expect(findListenTooltip('Listen'), findsNothing);
+      expect(
+        find.bySemanticsLabel('Listen to \u2068German\u2069'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('names the language while reading it aloud', (tester) async {
@@ -435,7 +439,7 @@ void main() {
       expect(
         _inCard(
           german,
-          find.byTooltip('Stop reading \u2068German\u2069 aloud'),
+          findListenTooltip('Stop reading \u2068German\u2069 aloud'),
         ),
         findsOneWidget,
       );
@@ -887,6 +891,121 @@ void main() {
       await tester.tap(find.byKey(const Key('translate_extra_targets_done')));
       await tester.pumpAndSettle();
       expect(find.byType(ExtraTargetsSheet), findsNothing);
+    });
+
+    group('picks the engine does not offer', () {
+      const thai = Language(code: 'th', name: 'Thai', nativeName: 'ไทย');
+      const pirate = Language.custom('Pirate speak');
+      const kept = 'Not offered by this engine; kept for one that does';
+
+      testWidgets('are listed checked after the others, as kept', (
+        tester,
+      ) async {
+        final harness = _harness(
+          _state(extraTargets: const [thai, german, pirate]),
+        );
+        await harness.pump(tester, child: const ExtraTargetsSection());
+        // Nothing to translate into with this engine but German.
+        expect(find.text('Also into: \u2068German\u2069'), findsOneWidget);
+        await _openSheet(tester);
+        // The rows built first (the list is built lazily).
+        final tiles = tester
+            .widgetList<CheckboxListTile>(find.byType(CheckboxListTile))
+            .take(4)
+            .toList();
+        expect(
+          [for (final tile in tiles) tile.key],
+          const [
+            ValueKey('translate_extra_targets_de'),
+            ValueKey('translate_extra_targets_th'),
+            ValueKey('translate_extra_targets_Pirate speak'),
+            ValueKey('translate_extra_targets_en'),
+          ],
+        );
+        expect(
+          [for (final tile in tiles) tile.value],
+          [true, true, true, false],
+        );
+        expect(find.text(kept), findsNWidgets(2));
+        // Unchecking one removes it.
+        await tester.tap(
+          find.byKey(const ValueKey('translate_extra_targets_th')),
+        );
+        verify(() => harness.translate.toggleExtraTarget(thai)).called(1);
+      });
+
+      testWidgets('are found by the search', (tester) async {
+        final harness = _harness(_state(extraTargets: const [thai]));
+        await harness.pump(tester, child: const ExtraTargetsSection());
+        await _openSheet(tester);
+        await tester.enterText(
+          find.byKey(const Key('translate_extra_targets_search')),
+          'ไท',
+        );
+        await tester.pump();
+        expect(find.byType(CheckboxListTile), findsOneWidget);
+        expect(find.text(kept), findsOneWidget);
+      });
+
+      testWidgets('are removed by "Remove all"', (tester) async {
+        final harness = _harness(_state(extraTargets: const [thai]));
+        await harness.pump(tester, child: const ExtraTargetsSection());
+        expect(find.text('Also translate into…'), findsOneWidget);
+        await _openSheet(tester);
+        await tester.tap(
+          find.byKey(const Key('translate_extra_targets_clear')),
+        );
+        verify(() => harness.translate.setExtraTargets(const [])).called(1);
+      });
+
+      testWidgets('count towards the limit', (tester) async {
+        final harness = _harness(
+          _state(extraTargets: const [thai, german, pirate, english]),
+        );
+        await harness.pump(tester, child: const ExtraTargetsSection());
+        await _openSheet(tester);
+        expect(
+          find.byKey(const Key('translate_extra_targets_limit')),
+          findsOneWidget,
+        );
+        await tester.scrollUntilVisible(
+          find.byKey(const ValueKey('translate_extra_targets_ja')),
+          100,
+          scrollable: _sheetScrollable(),
+        );
+        expect(
+          tester
+              .widget<CheckboxListTile>(
+                find.byKey(const ValueKey('translate_extra_targets_ja')),
+              )
+              .onChanged,
+          isNull,
+        );
+        expect(
+          tester
+              .widget<CheckboxListTile>(
+                find.byKey(const ValueKey('translate_extra_targets_th')),
+              )
+              .onChanged,
+          isNotNull,
+        );
+      });
+
+      testWidgets('meet the accessibility guidelines', (tester) async {
+        final handle = tester.ensureSemantics();
+        await _harness(_state(extraTargets: const [thai, german]))
+            .pump(tester, child: const ExtraTargetsSection());
+        await _openSheet(tester);
+        expect(
+          tester.getSemantics(
+            find.byKey(const ValueKey('translate_extra_targets_th')),
+          ),
+          isSemantics(label: 'Thai\n$kept', isChecked: true, isEnabled: true),
+        );
+        await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+        await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+        handle.dispose();
+      });
     });
 
     testWidgets('offers no "Remove all" without languages', (tester) async {

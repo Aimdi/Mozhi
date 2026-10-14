@@ -117,6 +117,8 @@ void registerTranslateFallbacks() {
   registerFallbackValue(en);
   registerFallbackValue(const TranslationOptions());
   registerFallbackValue(<TranslationEngine>[]);
+  registerFallbackValue(<Language>[]);
+  registerFallbackValue(const AppSettings());
   registerFallbackValue(DictionaryVerbosity.standard);
   registerFallbackValue(QualityMode.off);
   registerFallbackValue(

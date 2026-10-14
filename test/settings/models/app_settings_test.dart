@@ -15,6 +15,7 @@ const _provider = AiProviderConfig(
 );
 
 const _french = Language(code: 'fr', name: 'French', nativeName: 'Français');
+const _german = Language(code: 'de', name: 'German');
 const _pirate = Language.custom('Pirate speak');
 const _instance = MozhiInstance(url: 'https://mozhi.example.org');
 
@@ -50,6 +51,7 @@ const _custom = AppSettings(
     LanguagePair(source: Language.auto, target: _french),
     LanguagePair(source: _french, target: _pirate),
   ],
+  extraTargets: [_german, _pirate],
 );
 
 void main() {
@@ -81,6 +83,7 @@ void main() {
       expect(settings.bestEngineId, isNull);
       expect(settings.qualityMode, QualityMode.off);
       expect(settings.recentPairs, isEmpty);
+      expect(settings.extraTargets, isEmpty);
     });
 
     test('supports value equality', () {
@@ -99,6 +102,39 @@ void main() {
         labelled,
         isNot(equals(const AppSettings(instances: [_instance]))),
       );
+    });
+
+    group('normalizeExtraTargets', () {
+      test('keeps valid languages in order', () {
+        expect(
+          AppSettings.normalizeExtraTargets(const [_pirate, _german, _french]),
+          [_pirate, _german, _french],
+        );
+      });
+
+      test('drops auto, empty codes and duplicates', () {
+        expect(
+          AppSettings.normalizeExtraTargets(const [
+            Language.auto,
+            _german,
+            Language(code: '', name: 'Nothing'),
+            Language(code: 'de', name: 'Deutsch'),
+            _french,
+          ]),
+          [_german, _french],
+        );
+      });
+
+      test('keeps at most maxExtraTargets', () {
+        final languages = [
+          for (var i = 0; i < 6; i++) Language(code: 'l$i', name: 'L$i'),
+        ];
+        expect(
+          AppSettings.normalizeExtraTargets(languages),
+          languages.take(AppSettings.maxExtraTargets),
+        );
+        expect(AppSettings.maxExtraTargets, 4);
+      });
     });
 
     group(HistoryRetention, () {
@@ -141,6 +177,7 @@ void main() {
           bestEngineId: () => _custom.bestEngineId,
           qualityMode: _custom.qualityMode,
           recentPairs: _custom.recentPairs,
+          extraTargets: _custom.extraTargets,
         );
 
         expect(copy, equals(_custom));
@@ -212,6 +249,12 @@ void main() {
         expect(json['bestEngineId'], 'ai:p1');
       });
 
+      test('stores the extra targets in order', () {
+        final json = _custom.toJson();
+
+        expect(json['extraTargets'], [_german.toJson(), _pirate.toJson()]);
+      });
+
       test('stores the recent pairs in order', () {
         final json = _custom.toJson();
 
@@ -269,19 +312,21 @@ void main() {
           'bestEngineId': '',
           'qualityMode': true,
           'recentPairs': {'source': 'fr'},
+          'extraTargets': 'fr',
         });
 
         expect(settings, equals(const AppSettings()));
       });
 
-      test('loads settings stored before retention, quality modes and '
-          'recent pairs existed', () {
+      test('loads settings stored before retention, quality modes, '
+          'recent pairs and extra targets existed', () {
         final json = _custom.toJson()
           ..remove('historyRetention')
           ..remove('fastEngineId')
           ..remove('bestEngineId')
           ..remove('qualityMode')
-          ..remove('recentPairs');
+          ..remove('recentPairs')
+          ..remove('extraTargets');
 
         final settings = AppSettings.fromJson(json);
 
@@ -290,6 +335,7 @@ void main() {
         expect(settings.bestEngineId, isNull);
         expect(settings.qualityMode, QualityMode.off);
         expect(settings.recentPairs, isEmpty);
+        expect(settings.extraTargets, isEmpty);
         expect(settings.engineId, 'ai:p1');
       });
 
@@ -340,6 +386,34 @@ void main() {
         expect(settings.recentPairs, [
           const LanguagePair(source: _french, target: _pirate),
         ]);
+      });
+
+      test('reads at most four extra targets, without auto, invalid '
+          'elements and duplicates', () {
+        const languages = [
+          Language(code: 'es', name: 'Spanish'),
+          Language(code: 'it', name: 'Italian'),
+          Language(code: 'ja', name: 'Japanese'),
+        ];
+        final settings = AppSettings.fromJson({
+          'extraTargets': [
+            Language.auto.toJson(),
+            _german.toJson(),
+            const {'code': 'fr'},
+            const {'code': ' ', 'name': 'Blank'},
+            'es',
+            null,
+            _german.toJson(),
+            _pirate.toJson(),
+            for (final language in languages) language.toJson(),
+          ],
+        });
+
+        expect(settings.extraTargets, [_german, _pirate, ...languages.take(2)]);
+        expect(
+          () => settings.extraTargets.add(_german),
+          throwsUnsupportedError,
+        );
       });
 
       test('keeps an explicitly empty instance list', () {

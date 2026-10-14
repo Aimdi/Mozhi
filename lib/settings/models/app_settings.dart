@@ -62,6 +62,7 @@ class AppSettings extends Equatable {
     this.bestEngineId,
     this.qualityMode = QualityMode.off,
     this.recentPairs = const [],
+    this.extraTargets = const [],
   });
 
   /// Tolerant counterpart of [toJson]: missing or invalid fields fall back to
@@ -118,11 +119,34 @@ class AppSettings extends Equatable {
       recentPairs:
           _list(json['recentPairs'], LanguagePair.fromJson) ??
           defaults.recentPairs,
+      extraTargets: normalizeExtraTargets(
+        _list(json['extraTargets'], Language.fromJson) ?? defaults.extraTargets,
+      ),
     );
   }
 
   /// Version of the JSON layout written by [toJson].
   static const schemaVersion = 1;
+
+  /// Most [extraTargets].
+  static const maxExtraTargets = 4;
+
+  /// [languages] as valid [extraTargets]: without `auto`, languages with an
+  /// empty code and duplicates (the first one is kept), at most
+  /// [maxExtraTargets], in the given order.
+  static List<Language> normalizeExtraTargets(Iterable<Language> languages) {
+    final targets = <Language>[];
+    for (final language in languages) {
+      if (targets.length == maxExtraTargets) break;
+      if (language.isAuto ||
+          language.code.trim().isEmpty ||
+          targets.contains(language)) {
+        continue;
+      }
+      targets.add(language);
+    }
+    return List.unmodifiable(targets);
+  }
 
   final ThemeMode themeMode;
 
@@ -186,6 +210,13 @@ class AppSettings extends Equatable {
   /// (at most `SettingsCubit.maxRecentPairs`).
   final List<LanguagePair> recentPairs;
 
+  /// The additional target languages of the translate screen ("Also
+  /// translate into…"), as the user picked them: at most [maxExtraTargets],
+  /// never `auto`, without duplicates (see [normalizeExtraTargets]). Kept
+  /// when the engine in use does not offer some of them (they are used
+  /// again with an engine that does).
+  final List<Language> extraTargets;
+
   /// Returns a copy with the given fields replaced. The nullable
   /// [engineId] / [assistEngineId] / [fastEngineId] / [bestEngineId] take
   /// closures so they can be reset to null: `copyWith(engineId: () => null)`.
@@ -214,6 +245,7 @@ class AppSettings extends Equatable {
     String? Function()? bestEngineId,
     QualityMode? qualityMode,
     List<LanguagePair>? recentPairs,
+    List<Language>? extraTargets,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
@@ -242,6 +274,7 @@ class AppSettings extends Equatable {
       bestEngineId: bestEngineId != null ? bestEngineId() : this.bestEngineId,
       qualityMode: qualityMode ?? this.qualityMode,
       recentPairs: recentPairs ?? this.recentPairs,
+      extraTargets: extraTargets ?? this.extraTargets,
     );
   }
 
@@ -281,6 +314,7 @@ class AppSettings extends Equatable {
       'bestEngineId': bestEngineId,
       'qualityMode': qualityMode.name,
       'recentPairs': [for (final pair in recentPairs) pair.toJson()],
+      'extraTargets': [for (final language in extraTargets) language.toJson()],
     };
   }
 
@@ -311,6 +345,7 @@ class AppSettings extends Equatable {
     bestEngineId,
     qualityMode,
     recentPairs,
+    extraTargets,
   ];
 }
 

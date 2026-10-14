@@ -50,6 +50,11 @@ history anywhere.
 - **Alignment**: tap a phrase to highlight it in both the source and the
   translation. **Romanization** under non-Latin output (Hepburn, Pinyin,
   Revised Romanization, IAST, ...).
+- **Check meaning**: on demand, the model back-translates the translation
+  and lists real differences in meaning (omission, addition, negation,
+  number, tense, mistranslation), highlighted in both texts, with a verdict
+  (*Same meaning*, *Minor differences*, *Meaning differs*). Without an AI
+  model, a plain back-translation by your engine to compare.
 - Uncertain language detection for short input offers the likely
   alternatives; a free-form *source* style (e.g. *LinkedIn speak*) can be
   decoded into plain language.
@@ -64,7 +69,14 @@ history anywhere.
 **Everyday use**
 
 - Instant translation while typing (debounced; optional for AI engines),
-  detected source language with smart swap, transliteration, text-to-speech.
+  detected source language with smart swap, transliteration.
+- **Also translate into…** up to four more languages at once (remembered),
+  with the same engine and options, each with copy, listen and
+  use-as-input.
+- **Read aloud** with Mozhi or device voices: speech rate from 0.5× to 1.5×
+  with a preview, a device voice per language, or device voices for
+  everything (offline once installed). Long-press **Listen** (or More tools,
+  right click, Shift+Enter) to hear a text again slowly.
 - **History and favourites**, searchable, with JSON export and import and
   optional automatic deletion after 1, 7 or 30 days (favourites are kept).
 - Recent language pairs (long-press the swap button), Alt+1...9 for pinned

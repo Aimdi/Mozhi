@@ -236,6 +236,14 @@ class TranslateHarness {
         languageCode: any(named: 'languageCode'),
       ),
     ).thenAnswer((_) async {});
+    when(
+      () => speech.speak(
+        id: any(named: 'id'),
+        text: any(named: 'text'),
+        languageCode: any(named: 'languageCode'),
+        slow: any(named: 'slow'),
+      ),
+    ).thenAnswer((_) async {});
   }
 
   final translate = MockTranslateCubit();
@@ -324,6 +332,22 @@ class TranslateHarness {
     );
   }
 }
+
+/// The tooltip of a `ListenButton` whose action is [label] ("Listen",
+/// "Stop", "Listen to German"…): the label and how to listen slowly.
+String listenTooltip(String label) => '$label\nLong-press to listen slowly';
+
+/// Finds a [Tooltip] showing [message], also one excluded from semantics
+/// (`find.byTooltip` only finds those of `package:flutter/material.dart`
+/// or by their semantics).
+Finder findTooltipMessage(String message) => find.byWidgetPredicate(
+  (widget) => widget is Tooltip && widget.message == message,
+);
+
+/// Finds the tooltip of a `ListenButton` whose action is [label]
+/// ([listenTooltip]).
+Finder findListenTooltip(String label) =>
+    findTooltipMessage(listenTooltip(label));
 
 /// Captures clipboard writes and serves [pasteText] to reads.
 class FakeClipboard {
