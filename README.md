@@ -27,7 +27,14 @@ history anywhere.
 - **AI providers**: OpenAI, Anthropic (Claude), Google Gemini, OpenRouter,
   Groq, DeepSeek, Mistral, xAI, Together, and local runtimes (Ollama,
   LM Studio, llama.cpp server) or any OpenAI-compatible URL. Local engines
-  get a privacy badge.
+  get a privacy badge. Dedicated translation models (TranslateGemma,
+  Hunyuan-MT) get their own prompt format.
+- **DeepL API and LibreTranslate** with your own key or server, and
+  **offline** translation on Android and iOS (ML Kit).
+- **Quality modes**: a Fast and a Best engine you pick once, switched with
+  one tap and remembered (Kagi's Standard / Best).
+- Long texts are split at paragraph boundaries and translated in parallel
+  with context from the preceding part.
 
 **Kagi-style AI extras**
 
@@ -36,22 +43,41 @@ history anywhere.
 - Custom target "languages" such as *Pirate speak*, *Plain English* or
   *LinkedIn speak*.
 - Alternatives (for the whole text or a selected span), word insights with
-  variations, one-tap refinement suggestions, *Explain this translation*,
-  and a dictionary card for short inputs.
+  variations, *Explain this translation*.
+- Refinement chips (*More formal*, *More casual*, *Shorter*, ...) edit the
+  current translation instead of starting over; they stack, exclude each
+  other within a group and can be undone.
+- **Alignment**: tap a phrase to highlight it in both the source and the
+  translation. **Romanization** under non-Latin output (Hepburn, Pinyin,
+  Revised Romanization, IAST, ...).
+- Uncertain language detection for short input offers the likely
+  alternatives; a free-form *source* style (e.g. *LinkedIn speak*) can be
+  decoded into plain language.
+- **Dictionary** page and card: senses, pronunciation, examples, related
+  words, *Did you mean ...?*, three levels of detail.
 - AI engines can still assist while a Mozhi engine translates.
-- **Proofread** tab: corrections with explanations, writing style and
-  correction level.
+- **Proofread** tab: corrections with explanations, writing style,
+  correction level, target reading level, regional variety (keeps or
+  converts en-GB/en-US, pt-BR/pt-PT, ...) and local writing statistics
+  (Flesch reading ease for English).
 
 **Everyday use**
 
 - Instant translation while typing (debounced; optional for AI engines),
   detected source language with smart swap, transliteration, text-to-speech.
-- **History and favourites**, searchable, with JSON export and import.
+- **History and favourites**, searchable, with JSON export and import and
+  optional automatic deletion after 1, 7 or 30 days (favourites are kept).
+- Recent language pairs (long-press the swap button), Alt+1...9 for pinned
+  target languages, and an undo when the app swaps languages for you.
+- **Usage & costs**: characters and estimated tokens per AI provider per
+  month, with optional monthly budgets and warnings.
 - **Android**: *Translate with Mozhi* in the text-selection menu of any app
   opens a quick-translate sheet (with *Replace* for editable fields and
   *Open in app*), plus a share target for text.
 - Links like `/translate?text=hola&from=es&to=en` open pre-filled (same
-  parameters as Kagi Translate; `q`, `sl` and `tl` work too).
+  parameters as Kagi Translate, including style, formality, reading level,
+  context and `quality`; `q`, `sl` and `tl` work too), plus
+  `/proofread?text=...`, `/dictionary?word=...` and `mozhi://` deep links.
 - Material 3 with Material You colours, dark mode and pure-black mode;
   bottom navigation on phones and a navigation rail on tablets and desktops.
 
@@ -65,6 +91,14 @@ history anywhere.
   own.
 - Your text only goes to the Mozhi instance or AI provider you choose. Run both
   yourself and nothing leaves your network.
+
+### Screenshots
+
+| Translate with AI | Alignment | Refine | Compare engines |
+| --- | --- | --- | --- |
+| ![AI translation with refinement chips](assets/screenshots/translate-ai.png) | ![Tapped phrase highlighted in source and translation](assets/screenshots/alignment.png) | ![More formal applied, with undo](assets/screenshots/refine.png) | ![Several engines side by side](assets/screenshots/compare-engines.png) |
+| **Word insights** | **Proofread** | **Quality modes** | **Dark mode** |
+| ![Word insights](assets/screenshots/word-insights.png) | ![Proofread options](assets/screenshots/proofread-options.png) | ![Fast and Best engines](assets/screenshots/quality-modes.png) | ![Dark mode](assets/screenshots/dark-mode.png) |
 
 ---
 
