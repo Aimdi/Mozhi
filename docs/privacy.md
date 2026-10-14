@@ -18,10 +18,17 @@ goes anywhere else.
 
 | Data | Where | Notes |
 | --- | --- | --- |
-| Settings (instances, provider settings, languages, options, appearance) | App preferences | Never uploaded. |
-| History and favourites | App preferences | Up to 1,000 entries plus favourites. Turn off **Settings > Save history** to stop saving; **Clear history** deletes them. |
+| Settings (instances, provider settings, translation options, appearance) | App preferences | Never uploaded. |
+| Your languages: recent and pinned languages, recent language pairs | App preferences | Part of the settings. **Clear recent language pairs** (in **Settings** or the recent pairs sheet) forgets the pairs. |
+| History and favourites | App preferences | Up to 1,000 entries plus favourites. **Settings > Delete history automatically** removes entries older than 1, 7 or 30 days (favourites are kept). Turn off **Settings > Save history** to stop saving; **Clear history** deletes them. |
+| Presets and glossaries | App preferences | Exported only when you export them. |
+| Usage counters and budgets | App preferences | Numbers only (requests, characters, estimated tokens per provider and month, for the last 13 months), never text. **Reset usage** deletes them; deleting a provider deletes its counts. |
 | API keys | Platform secure storage (Android Keystore, Apple Keychain, ...) | Kept apart from the settings and never included in exports. Deleting a provider deletes its key. |
 | Offline language packs | App storage (Android and iOS) | Downloaded once; delete them in the offline settings. |
+
+Recent translations are also kept in memory, never on disk, for up to a day
+while the app is running, so that translating the same text again doesn't
+send it again. Closing the app clears them.
 
 Uninstalling the app removes all of it. In the web app, the same data lives
 in your browser's storage for the site, and clearing the site's data removes
@@ -43,6 +50,7 @@ and the network address of whoever sends the request.
 | **Your own Mozhi instance** | Your server, then the engine | The engine sees your server's IP address. |
 | **Your own Mozhi + LibreTranslate** | Only your server | No third party involved. |
 | **Cloud AI provider** | The provider | Along with your IP address and API key. Your translation options (context, glossary) are part of the request. Retention and training policies are the provider's; check their terms. |
+| **DeepL API, LibreTranslate** (your own key or server) | DeepL, or the LibreTranslate server you entered | Along with your IP address and key. DeepL also receives the formality and context of your translation options. |
 | **Local AI model** | Only your computer | Nothing leaves your network. |
 | **Offline (on-device)** | Nothing | Translation runs on the phone. Downloading a language pack contacts Google's servers. |
 
@@ -53,12 +61,23 @@ operator.
 
 Some features send additional data to the same back ends:
 
-- **Kagi-style extras** (alternatives, insights, explanations, dictionary,
-  suggestions) send the source text and its translation to the AI model that
-  provides them. When you translate with a Mozhi engine, that is the model
-  chosen under **Settings > AI assistant for insights**. Extras are only
-  requested when you open them.
-- **Proofread** sends the text to the AI model you selected.
+- **Kagi-style extras** (alternatives, insights, explanations, refinement
+  chips and suggestions, romanization, alignment, the dictionary) send the
+  source text, its translation or both (the dictionary: the word) to the AI
+  model that provides them. When you translate with a Mozhi engine, that is the
+  model chosen under **Settings > AI assistant for insights**. Extras are only
+  requested when you ask for them; insights, alignment and a romanization you
+  asked for then also load for the next translations you start. A
+  romanization loads on its own only when that model runs on your device or
+  network.
+- **Short texts** translated with a cloud AI model and **Detect language**
+  get a second, small request to the same provider to double-check the
+  language. For short texts, AI models are also told which languages you
+  recently translated from (the languages only, not what you translated).
+- **Long texts** are sent to AI models in parts, each with the end of the
+  part before it. Nothing goes anywhere else.
+- **Proofread** sends the text to the AI model you selected. The writing
+  statistics are calculated on the device.
 - **Listen** (text-to-speech) sends the text to your Mozhi instance, which
   fetches the audio from Google (or Reverso). Device voices, where used, are
   provided by the operating system's text-to-speech engine and usually run on
@@ -71,8 +90,12 @@ Some features send additional data to the same back ends:
   may be processed online by Google (Android, Chrome) or Apple (iOS, macOS)
   rather than on the device. On Android 12+, iOS and macOS, **Prefer
   on-device speech recognition** asks the system to keep it on the device.
-- **Text from other apps** (text selection, share sheet) is handled exactly
-  like typed text: it goes to the engine you have selected.
+- **Text from other apps** (text selection, share sheet) and **links**
+  (`/translate?text=...`, `mozhi://...`) are handled like typed text: they go
+  to the engine you have selected. They never start a paid AI request on
+  their own unless **Instant translate with AI** is on, and links to the
+  dictionary, Proofread or the web page translator send nothing until you
+  ask.
 
 ## Every connection the app makes
 
@@ -84,7 +107,14 @@ Some features send additional data to the same back ends:
   one.
 - The AI providers you added: translations, extras, proofreading, the model
   list (**Browse models**) and **Test connection**.
+- Your DeepL API and LibreTranslate services: translations and **Test
+  connection**.
 - Google's servers, through ML Kit, on Android and iOS only (see below).
+- Web pages you translate with **Web page**: the app downloads the page from
+  its website, as a browser would (on Android, iOS and desktop it identifies
+  as a desktop browser; in the web app, your browser makes the request). The
+  website sees your IP address. The page's text then goes to the engine you
+  chose.
 - Web pages you open from the app (source code, licences, provider key
   pages), in your browser.
 - Web app only: Google Fonts (`fonts.gstatic.com`), the first time the page

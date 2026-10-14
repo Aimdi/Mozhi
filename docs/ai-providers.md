@@ -33,9 +33,14 @@ running on your own computer.
 - Reasoning ("thinking") output of models that produce it is hidden; you only
   see the translation.
 - Extras (alternatives, insights, explanations, dictionary, refinement
-  suggestions) are separate requests, made only when you open them.
-  **Instant translate with AI** is off by default because every pause in
-  typing would cost a request; turn it on under **Settings** if you like.
+  chips and suggestions, romanization, alignment) are separate requests,
+  made only when you ask for them. **Instant translate with AI** is off by
+  default because every pause in typing would cost a request; turn it on
+  under **Settings** if you like. Links and text shared from other apps
+  never start an AI request on their own unless it is on.
+- Texts longer than 6,000 characters (2,500 for providers on your device or
+  network) are translated in parts, split at paragraph boundaries, each with
+  the end of the part before it as context.
 
 ## Adding a provider
 
@@ -180,9 +185,24 @@ cheaper rows. What adds up:
 
 - **Instant translate with AI** sends a request every time you pause typing.
 - **Compare mode** runs all your engines at once.
-- **Extras** (insights, alternatives, explain, dictionary, suggestions) are one
-  request each; Insights, once switched on, reloads for every translation.
+- **Extras** (insights, alternatives, explain, dictionary, suggestions,
+  refinement chips, romanization, alignment) are one request each; Insights
+  and alignment, once switched on, reload for every translation you start.
+  Short texts with **Detect language** get one extra, very small request to
+  double-check the language.
 - Higher **reasoning effort** means more thinking tokens.
+
+What helps:
+
+- **Quality modes** (**Settings > Quality modes**): translate everyday text
+  with a free Mozhi engine (**Fast**) and switch to your strongest model
+  (**Best**) with one tap when it matters.
+- Translating the same text again with the same settings while the app is
+  open costs nothing: the result comes from memory.
+- **Settings > Usage & costs** counts requests, characters and estimated
+  tokens per provider and month, and warns you when a provider nears the
+  **Monthly budget** you set for it. The counts are estimates; your
+  provider's dashboard has the actual bill.
 
 Mozhi engines, offline models and local AI cost nothing per request.
 
@@ -240,9 +260,11 @@ to the web app's origin (e.g. `https://translate.example.com`) or `*`, the
 same way as `OLLAMA_HOST`. The native apps don't need this.
 
 Tips: the first request after a model was unloaded takes a few seconds while
-it loads; `OLLAMA_KEEP_ALIVE=30m` keeps it in memory longer. Long texts need a
-larger context window than some Ollama versions use by default; set
-`OLLAMA_CONTEXT_LENGTH=8192` or more.
+it loads; `OLLAMA_KEEP_ALIVE=30m` keeps it in memory longer. The app sends
+long texts to local models in parts of at most 2,500 characters, but extras
+for long texts (insights, explanations) still need a larger context window
+than some Ollama versions use by default; set `OLLAMA_CONTEXT_LENGTH=8192` or
+more.
 
 ### LM Studio
 
@@ -337,14 +359,17 @@ Notes:
 Translation-specialised models expect their own prompt format. The provider
 editor's **Prompt style** picks it: **Automatic** (the default) recognises
 TranslateGemma and Hy-MT/Hunyuan-MT from the model name and otherwise uses
-the general chat prompt. Choose a style yourself if your server uses a
-custom model name. With a translation-only style the AI extras are hidden.
+the general chat prompt. Choose **General chat model**, **TranslateGemma** or
+**Hunyuan-MT** yourself if your server uses a custom model name. With a
+translation-only style the model only translates: options, custom styles and
+the AI extras are not available, and refinement chips translate the text
+again instead of editing the translation.
 
 ## DeepL and LibreTranslate
 
-Besides AI models, **Settings → AI providers → Add → Machine translation**
-lists two classic translation services that you use with your own account
-or server:
+Besides AI models, **Settings > AI providers > Add provider** lists, under
+**Machine translation**, two classic translation services that you use with
+your own account or server:
 
 - **DeepL API**: paste your DeepL API key (Free or Pro; keys ending in
   `:fx` use the free API). Leave the server URL empty to use DeepL directly,
@@ -353,8 +378,13 @@ or server:
   `http://192.168.1.20:5000`, or `https://libretranslate.com`, which needs a
   key). The API key is only needed if the server asks for one.
 
-They appear in the engine picker next to Mozhi and the AI providers and work
-in compare mode. The Kagi-style options and extras need an AI model.
+They appear in the engine list next to Mozhi and the AI providers, work in
+compare mode and can be your **Fast** or **Best** engine
+([quality modes](features.md#quality-modes-fast-and-best)). Links and shared
+text are translated with them straight away, as with Mozhi engines. DeepL
+also applies the formality and the context of your translation options; the
+other options and the Kagi-style extras need an AI model. Their usage is
+counted under **Settings > Usage & costs** too.
 
 ## Privacy: local vs cloud
 

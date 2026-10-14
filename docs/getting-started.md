@@ -125,7 +125,7 @@ Mozhi can use several kinds of back ends, and you can mix them:
 | Public Mozhi instance | None (a list is built in) | The instance operator, and the engine it forwards to (Google, DeepL, ...) | Free |
 | Your own Mozhi instance | A server or home machine with Docker | The engine your instance forwards to; nobody else | Free |
 | Your own Mozhi instance with LibreTranslate | As above, plus LibreTranslate | Nobody: everything stays on your server | Free |
-| DeepL API or your own LibreTranslate server | A DeepL API key, or a LibreTranslate server address | DeepL, or your server | DeepL: free allowance, then paid; LibreTranslate: free |
+| DeepL API or your own LibreTranslate server | A DeepL API key, or a LibreTranslate server address | DeepL, or nobody but your server | DeepL: Free plan with a monthly limit, or paid Pro; your own LibreTranslate: free |
 | Cloud AI provider | An API key | The AI provider | Pay per use (some have free tiers) |
 | Local AI model | Ollama, LM Studio or llama.cpp on a computer you own | Nobody: it runs on your hardware | Free |
 | Offline (Android and iOS) | Download language packs once | Nobody: it runs on the device | Free |
@@ -192,9 +192,8 @@ hardware.
 **Mozhi engines plus AI.** You do not have to give up Google or DeepL to get
 the AI extras: while a Mozhi engine translates, an AI model can still provide
 alternatives, word insights, explanations, romanization, alignment and the
-dictionary. Choose which
-model under **Settings > AI assistant for insights** (by default the first
-enabled provider).
+dictionary. Choose which model under **Settings > AI assistant for insights**
+(by default the first enabled provider).
 
 ## Translate from other apps (Android)
 

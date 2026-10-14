@@ -14,6 +14,15 @@
 - [Why are the translation options ignored?](#why-are-the-translation-options-ignored)
 - [Why is AI translation slow?](#why-is-ai-translation-slow)
 - [The model adds notes, answers questions in the text, or uses the wrong language](#the-model-adds-notes-answers-questions-in-the-text-or-uses-the-wrong-language)
+- [What do Fast and Best do?](#what-do-fast-and-best-do)
+- [Why is romanization not shown automatically?](#why-is-romanization-not-shown-automatically)
+- [How do I keep an eye on what AI costs me?](#how-do-i-keep-an-eye-on-what-ai-costs-me)
+
+**Translating**
+
+- [Why didn't the link translate automatically?](#why-didnt-the-link-translate-automatically)
+- [Why did the target language change by itself?](#why-did-the-target-language-change-by-itself)
+- [Why does it ask which language a word is in?](#why-does-it-ask-which-language-a-word-is-in)
 
 **Mozhi instances**
 
@@ -57,7 +66,9 @@ tiers); local models and offline translation are free. See
   LibreTranslate, or offline translation.
 
 You can combine them: for example DeepL through your own instance for quick
-translations, with a local model for insights and alternatives. See
+translations, with a local model for insights and alternatives, or a Fast
+and a Best engine you switch between with one tap
+([quality modes](features.md#quality-modes-fast-and-best)). See
 [Getting started](getting-started.md#choose-where-translations-come-from).
 
 ### How many languages are supported?
@@ -87,8 +98,10 @@ other providers have free API tiers.
 
 Formality, reading level, context, glossary, custom styles and the other
 options only work with AI engines. Mozhi engines (Google, DeepL, ...) don't
-support them. Translation-specialised local models such as Hy-MT2 and
-TranslateGemma also ignore most of them; use a general model for those
+support them; your own [DeepL API](ai-providers.md#deepl-and-libretranslate)
+service applies only the formality and the context. Translation-specialised
+local models such as Hy-MT2 and TranslateGemma also ignore most of them; use
+a general model for those
 ([details](ai-providers.md#which-local-model)).
 
 ### Why is AI translation slow?
@@ -110,6 +123,68 @@ and it removes common additions such as surrounding quotes, a
 "Translation:" label or a trailing "Note: ..." paragraph.
 Small models sometimes don't follow these instructions. A larger model (12B+
 for local models) fixes this in almost all cases.
+
+### What do Fast and Best do?
+
+They are Kagi Translate's quality modes. Under **Settings > Quality modes**
+you choose a **Fast engine** (quick and free or cheap, such as Google or
+DeepL through Mozhi) and a **Best engine** (your strongest model). The
+**Fast** / **Best** toggle next to the engine button then switches between
+them in one tap and translates the text again; tap the selected one again to
+go back to your usual engine. The app remembers the mode, and a link can ask
+for one with `quality=fast`, `quality=best` or `quality=standard`. See
+[Quality modes](features.md#quality-modes-fast-and-best).
+
+### Why is romanization not shown automatically?
+
+Because it would cost money. Romanization (the Latin-script line under, say,
+a Japanese translation) appears on its own only when it is free: when the
+Mozhi engine sends one with the translation (Google does) or when the AI
+model for extras runs locally. With a cloud AI model, every romanization is a
+separate request, so it waits until you press **Show romanization** (the
+*abc* button under the translation). Automatic romanization also needs
+**Settings > Show transliteration** on (the default), and romanization only
+applies to translations in a non-Latin script. See
+[Romanization and alignment](features.md#romanization-and-alignment).
+
+### How do I keep an eye on what AI costs me?
+
+**Settings > Usage & costs** counts requests, characters and estimated tokens
+per provider and month: translations, refinements, extras, proofreading,
+documents and the dictionary. Results the app already had in memory aren't
+counted, because they cost nothing. Set a **Monthly budget** on a provider to
+be warned at 80 % and at 100 %. The counts are estimates kept on your device;
+your provider's dashboard has the real bill.
+
+## Translating
+
+### Why didn't the link translate automatically?
+
+A link (like text shared from another app) never starts a paid AI request
+on its own, so that anyone who can send you a link can't spend your credit.
+It fills in the text and languages and applies its options; with an AI model
+you then press **Translate**. Mozhi engines, the DeepL API, LibreTranslate
+and offline translation translate straight away, and so does an AI model if
+you turned on **Settings > Instant translate with AI**. Links to the
+dictionary, Proofread and the web page translator only fill in the word,
+text or address. See [Links](features.md#links).
+
+### Why did the target language change by itself?
+
+That's the smart swap: the text was already in the target language (for
+example English while translating into English), so Mozhi translated it into
+another language you use instead and said **Translating into ... instead**.
+Tap **Undo** in that message to go back; Mozhi then leaves that target alone
+until you restart the app. Choosing the target yourself has the same effect.
+
+### Why does it ask which language a word is in?
+
+Short words often exist in several languages ("Gift" is English and German,
+"Hallo" German and Dutch), so a single short word, or a text the engine is
+unsure about, gets **Detected: Dutch?** with chips for the other likely
+languages. Tap the right one, or set the source language yourself. With AI
+models, the languages you recently translated from are preferred for short
+texts.
 
 ## Mozhi instances
 
@@ -150,8 +225,9 @@ Yes, with two browser rules to keep in mind:
    allows cross-origin requests by default.
 
 The native apps (Android, iOS, macOS, Windows) are not affected by either
-rule. Also note that the prebuilt web app expects to be served from a
-`/Mozhi/` sub-path.
+rule. Also note that the CI build of the web app expects to be served from
+`/Mozhi/app/`, and the release zip from the root of a web server (see
+[Getting started](getting-started.md#web)).
 
 ### "Translate with Mozhi" is missing from the selection menu
 
@@ -172,7 +248,8 @@ new APK and import the history again.
 
 **Settings > Export history** on the old device (copy the JSON or share it as
 a file), then **Settings > Import history** on the new one. Provider API keys
-are not exported; enter them again.
+are not exported; enter them again. If **Delete history automatically** is on
+on the new device, entries older than that setting are skipped.
 
 ### Where do I report bugs or ask for features?
 
