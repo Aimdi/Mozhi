@@ -87,8 +87,9 @@ history anywhere.
 - History and settings stay on the device; API keys are kept in the platform's
   secure storage (in the web app only for the browser session). Where secure
   storage is unavailable the app says so and keeps keys in memory.
-- Shared text, selections and links never start a paid AI request on their
-  own.
+- Shared text and links never start a paid AI request on their own. (Choosing
+  *Translate with Mozhi* on a text selection is an explicit request: it
+  translates right away with your current engine.)
 - Your text only goes to the Mozhi instance or AI provider you choose. Run both
   yourself and nothing leaves your network.
 
