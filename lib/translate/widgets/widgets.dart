@@ -1,5 +1,6 @@
 export 'active_options_bar.dart';
 export 'ai_generated_header.dart';
+export 'alignment_highlight.dart';
 export 'compare_panel.dart';
 export 'dictionary_card.dart';
 export 'engine_selector.dart';
@@ -16,8 +17,11 @@ export 'more_tools_menu.dart';
 export 'no_engines_view.dart';
 export 'options_sheet.dart';
 export 'output_card.dart';
+export 'quality_toggle.dart';
+export 'recent_pairs_sheet.dart';
 export 'shortcuts_help.dart';
 export 'skeleton.dart';
+export 'smart_swap_listener.dart';
 export 'status_announcer.dart';
 export 'translate_error.dart';
 export 'translate_layout.dart';

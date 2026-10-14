@@ -110,15 +110,19 @@ Future<void> showOptionsSheet(BuildContext context) {
   );
 }
 
-/// Preset, style, formality, reading level, genders, context, formatting
-/// and glossary (Kagi translation settings). Every change calls
-/// `TranslateCubit.setOptions`.
+/// Preset, style, formality (with free-text formality notes while a
+/// formality is chosen), reading level, genders, context, formatting and
+/// glossary (Kagi translation settings). Every change calls
+/// `TranslateCubit.setOptions`; the text fields are debounced.
 ///
 /// The preset picker ([PresetPicker]) is shown for AI engines when a
 /// [PresetsCubit] is provided above; choosing a preset replaces the
 /// settings (the glossary is kept).
 class TranslationOptionsSheet extends StatefulWidget {
   const new({super.key});
+
+  /// Longest formality notes (`TranslationOptions.formalityContext`).
+  static const formalityNotesMaxLength = 2000;
 
   @override
   State<TranslationOptionsSheet> createState() =>
@@ -130,14 +134,20 @@ class _TranslationOptionsSheetState extends State<TranslationOptionsSheet> {
   late final TextEditingController _context = TextEditingController(
     text: _cubit.state.options.context,
   );
+  late final TextEditingController _formalityNotes = TextEditingController(
+    text: _cubit.state.options.formalityContext,
+  );
   final _term = TextEditingController();
   final _termTarget = TextEditingController();
   Timer? _contextDebounce;
+  Timer? _formalityNotesDebounce;
 
   @override
   void dispose() {
     _flushContext();
+    _flushFormalityNotes();
     _context.dispose();
+    _formalityNotes.dispose();
     _term.dispose();
     _termTarget.dispose();
     super.dispose();
@@ -160,6 +170,24 @@ class _TranslationOptionsSheetState extends State<TranslationOptionsSheet> {
     if (value != _options.context) _set(_options.copyWith(context: value));
   }
 
+  void _onFormalityNotesChanged(String _) {
+    _formalityNotesDebounce?.cancel();
+    _formalityNotesDebounce = Timer(
+      const Duration(milliseconds: 800),
+      _flushFormalityNotes,
+    );
+  }
+
+  void _flushFormalityNotes() {
+    _formalityNotesDebounce?.cancel();
+    _formalityNotesDebounce = null;
+    if (_cubit.isClosed) return;
+    final value = _formalityNotes.text.trim();
+    if (value != _options.formalityContext) {
+      _set(_options.copyWith(formalityContext: value));
+    }
+  }
+
   void _addTerm() {
     final term = _term.text.trim();
     final target = _termTarget.text.trim();
@@ -175,17 +203,24 @@ class _TranslationOptionsSheetState extends State<TranslationOptionsSheet> {
 
   void _reset() {
     _contextDebounce?.cancel();
+    _formalityNotesDebounce?.cancel();
     _context.clear();
+    _formalityNotes.clear();
     _set(TranslationOptions(instructions: _options.instructions));
   }
 
-  /// A preset replaces every setting, including a context still being
-  /// typed.
+  /// A preset replaces every setting, including a context or formality
+  /// notes still being typed.
   void _applyPreset(TranslationOptions options) {
     _contextDebounce?.cancel();
     _contextDebounce = null;
+    _formalityNotesDebounce?.cancel();
+    _formalityNotesDebounce = null;
     if (_context.text.trim() != options.context) {
       _context.text = options.context;
+    }
+    if (_formalityNotes.text.trim() != options.formalityContext) {
+      _formalityNotes.text = options.formalityContext;
     }
     _set(options);
   }
@@ -277,6 +312,25 @@ class _TranslationOptionsSheetState extends State<TranslationOptionsSheet> {
                       onSelected: (value) =>
                           _set(options.copyWith(formality: value)),
                     ),
+                    if (options.formality != Formality.automatic) ...[
+                      const SizedBox(height: 12),
+                      TextField(
+                        key: const Key('translate_options_formality_notes'),
+                        controller: _formalityNotes,
+                        minLines: 1,
+                        maxLines: 3,
+                        maxLength:
+                            TranslationOptionsSheet.formalityNotesMaxLength,
+                        onChanged: _onFormalityNotesChanged,
+                        onSubmitted: (_) => _flushFormalityNotes(),
+                        onTapOutside: (_) => _flushFormalityNotes(),
+                        decoration: InputDecoration(
+                          labelText: l10n.translateOptionsFormalityNotes,
+                          hintText: l10n.translateOptionsFormalityNotesHint,
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+                    ],
                     _Label(l10n.translateOptionsReadingLevel),
                     MergeSemantics(
                       child: Semantics(

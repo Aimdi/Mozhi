@@ -16,8 +16,12 @@ typedef ActiveTranslationOption = ({
   TranslationOptions cleared,
 });
 
-/// Longest context excerpt shown on its chip.
+/// Longest context (and formality notes) excerpt shown on its chip.
 const _contextPreviewLength = 24;
+
+String _preview(String text) => text.characters.length <= _contextPreviewLength
+    ? text
+    : '${text.characters.take(_contextPreviewLength)}…';
 
 /// The user-chosen options that differ from the defaults, in the order of
 /// the options sheet.
@@ -26,6 +30,9 @@ List<ActiveTranslationOption> activeTranslationOptions(
   TranslationOptions options,
 ) {
   final context = options.context.trim();
+  final formalityNotes = options.formality == Formality.automatic
+      ? ''
+      : options.formalityContext.trim();
   return [
     if (options.style != TranslationStyle.natural)
       (
@@ -38,6 +45,15 @@ List<ActiveTranslationOption> activeTranslationOptions(
         label: translateFormalityLabel(l10n, options.formality),
         tooltip: null,
         cleared: options.copyWith(formality: Formality.automatic),
+      ),
+    // Formality notes only apply with a formality.
+    if (formalityNotes.isNotEmpty)
+      (
+        label: l10n.translateActiveOptionFormalityNotes(
+          _preview(formalityNotes),
+        ),
+        tooltip: formalityNotes,
+        cleared: options.copyWith(formalityContext: ''),
       ),
     if (options.readingLevel != ReadingLevel.standard)
       (
@@ -65,11 +81,7 @@ List<ActiveTranslationOption> activeTranslationOptions(
       ),
     if (context.isNotEmpty)
       (
-        label: l10n.translateActiveOptionContext(
-          context.characters.length <= _contextPreviewLength
-              ? context
-              : '${context.characters.take(_contextPreviewLength)}…',
-        ),
+        label: l10n.translateActiveOptionContext(_preview(context)),
         tooltip: context,
         cleared: options.copyWith(context: ''),
       ),

@@ -1,3 +1,4 @@
+import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
@@ -92,6 +93,64 @@ void main() {
       );
       await harness.pump(tester, child: const ComparePanel());
       expect(find.byType(SkeletonCard), findsNWidgets(2));
+    });
+
+    testWidgets('placeholders only count engines for custom languages', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(
+        state: _compareState(comparing: true)
+            .copyWith(target: const Language.custom('Pirate')),
+      );
+      await harness.pump(tester, child: const ComparePanel());
+      // Claude and Ollama.
+      expect(find.byType(SkeletonCard), findsNWidgets(2));
+    });
+
+    testWidgets('cards of a custom target follow their text', (tester) async {
+      final harness = TranslateHarness(
+        state: _compareState(entries: const [_googleEntry])
+            .copyWith(target: const Language.custom('Pirate')),
+      );
+      await harness.pump(tester, child: const ComparePanel());
+      final text = tester.widget<SelectableText>(
+        find.descendant(
+          of: find.byType(CompareEntryCard),
+          matching: find.byType(SelectableText),
+        ),
+      );
+      expect(text.textDirection, TextDirection.ltr);
+    });
+
+    testWidgets('Compare is enabled once there is input', (tester) async {
+      final initial = _compareState(input: '');
+      final harness = TranslateHarness(state: initial);
+      whenListen(
+        harness.translate,
+        Stream.value(initial.copyWith(input: 'Hello')),
+        initialState: initial,
+      );
+      await harness.pump(tester, child: const ComparePanel());
+      await tester.pump();
+      final button = tester.widget<ButtonStyleButton>(
+        find.byKey(const Key('translate_compare_button')),
+      );
+      expect(button.onPressed, isNotNull);
+    });
+
+    test('compareEngineCount picks engines like the cubit', () {
+      final state = _compareState();
+      expect(compareEngineCount(state, const []), 4);
+      expect(compareEngineCount(state, const ['mozhi:deepl']), 1);
+      // None of the configured engines is available: all of them.
+      expect(compareEngineCount(state, const ['gone']), 4);
+      expect(
+        compareEngineCount(
+          state.copyWith(source: const Language.custom('Klingon')),
+          const ['mozhi:deepl', 'ai:claude'],
+        ),
+        1,
+      );
     });
 
     testWidgets('failures show a readable error', (tester) async {

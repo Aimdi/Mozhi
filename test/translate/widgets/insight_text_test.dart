@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/translate/widgets/widgets.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -75,6 +76,33 @@ void main() {
       );
       await tester.tapOnText(find.textRange.ofSubstring('monde'));
       expect(tapped, [insight]);
+    });
+
+    testWidgets('sheet variations without a language follow their text', (
+      tester,
+    ) async {
+      final harness = TranslateHarness();
+      await harness.pump(
+        tester,
+        child: InsightSheet(
+          // No phrase to take the direction from either.
+          insight: const WordInsight(
+            sourceText: 'world',
+            targetText: '',
+            variations: [Alternative(text: 'תבל')],
+          ),
+          onVariation: (_) {},
+        ),
+      );
+      final variation = tester.widget<Text>(
+        find
+            .ancestor(
+              of: find.text('תבל', findRichText: true),
+              matching: find.byType(Text),
+            )
+            .first,
+      );
+      expect(variation.textDirection, TextDirection.rtl);
     });
 
     testWidgets('reports the offset of the tapped highlight', (tester) async {

@@ -10,7 +10,8 @@ import 'package:translation_repository/translation_repository.dart';
 
 /// Opens the searchable language picker; resolves to the chosen language
 /// (null when dismissed). [source] picks the source list (with "Detect
-/// language"), otherwise the target list (with custom styles for AI).
+/// language"), otherwise the target list (with custom styles for AI). Both
+/// offer a free-form custom language for AI engines that take them.
 /// [autofocusSearch] focuses the search field (keyboard users can type to
 /// filter right away).
 Future<Language?> showLanguagePicker(
@@ -40,6 +41,12 @@ Future<Language?> showLanguagePicker(
 
 /// Sections: Detect (source), Recent, Pinned, Styles (AI target) and All.
 /// Searching filters by English name, native name and code.
+///
+/// When the engine takes custom languages
+/// (`TranslateState.supportsCustomLanguages`, AI engines with the general
+/// prompt profile), a search without matches offers "Use “…” as custom
+/// language" (Enter picks it) in both lists, e.g. "Gen Z slang" as the
+/// source or "Pirate speak" as the target.
 class LanguagePickerSheet extends StatefulWidget {
   const new({required this.source, this.autofocusSearch = false, super.key});
 
@@ -73,8 +80,7 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
     final source = widget.source;
     final languages = source ? state.sourceLanguages : state.targetLanguages;
     final selected = source ? state.source : state.target;
-    final allowCustom =
-        !source && (state.engine?.supportsCustomLanguages ?? false);
+    final allowCustom = state.supportsCustomLanguages;
 
     final items = _buildItems(
       context,
@@ -222,7 +228,9 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
       onTap: () => _pick(language),
     );
 
-    final styles = allowCustom
+    // Style suggestions are target languages ("Translate into Pirate
+    // speak"); a custom source is typed.
+    final styles = allowCustom && !widget.source
         ? LanguageCatalog.customSuggestions
               .where(
                 (s) =>
@@ -242,7 +250,11 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
             contentPadding: const EdgeInsets.symmetric(horizontal: 24),
             leading: const Icon(Icons.auto_awesome),
             title: Text(l10n.translatePickerUseCustom(query)),
-            subtitle: Text(l10n.translatePickerCustomHint),
+            subtitle: Text(
+              widget.source
+                  ? l10n.translatePickerCustomSourceHint
+                  : l10n.translatePickerCustomHint,
+            ),
             onTap: () => _pick(Language.custom(query)),
           ),
         if (matches.isEmpty && !allowCustom)

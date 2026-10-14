@@ -71,6 +71,7 @@ class TranslateState extends Equatable {
     this.status = TranslateStatus.idle,
     this.result,
     this.resultInput,
+    this.instantResult = false,
     this.inputTruncated = false,
     this.error,
     this.compareMode = false,
@@ -137,6 +138,13 @@ class TranslateState extends Equatable {
   /// is no result). It differs from [input] after an edit until the next
   /// translation lands, see [isResultStale].
   final String? resultInput;
+
+  /// Whether [result] comes from an instant translation (started by a
+  /// typing pause, see `AppSettings.instantTranslate` /
+  /// `instantTranslateAi`) rather than one the user asked for (Translate,
+  /// a language or engine change, a refinement, ...). The UI does not start
+  /// paid AI extras for such results on its own. False without a result.
+  final bool instantResult;
 
   /// Whether [input] was cut to the maximum length (text from outside the
   /// app is cut to `TranslateCubit.maxExternalInputLength`, anything else to
@@ -371,7 +379,9 @@ class TranslateState extends Equatable {
       detectionUncertain ? result!.detectedAlternatives : const [];
 
   /// [detectedAlternatives] that are in [sourceLanguages] (as listed
-  /// there), for `TranslateCubit.useDetectedAlternative`.
+  /// there), for `TranslateCubit.useDetectedAlternative`. The target
+  /// language may be one of them: choosing it also switches the target
+  /// (see there).
   List<Language> get detectedAlternativeLanguages {
     final languages = <Language>[];
     for (final code in detectedAlternatives) {
@@ -381,6 +391,36 @@ class TranslateState extends Equatable {
       );
       if (match != null && !match.isAuto && !languages.contains(match)) {
         languages.add(match);
+      }
+    }
+    return languages;
+  }
+
+  // Pinned languages --------------------------------------------------------
+
+  /// [language] as this engine lists it among [targetLanguages] (matched
+  /// with `LanguageMatcher`), a custom language while
+  /// [supportsCustomLanguages]; null for auto and for languages the engine
+  /// does not offer.
+  Language? usableTarget(Language language) {
+    if (language.isAuto) return null;
+    if (language.isCustom) return supportsCustomLanguages ? language : null;
+    return LanguageMatcher.match(language, targetLanguages);
+  }
+
+  /// The [pinned] languages (`AppSettings.pinnedLanguages`) this engine
+  /// offers as targets, as it lists them ([usableTarget]), in pin order and
+  /// without duplicates.
+  ///
+  /// This is the "Pinned" section of the target language picker, and pin
+  /// `n` of it is what Alt+`n + 1` selects
+  /// (`TranslateCubit.selectPinnedTarget`).
+  List<Language> pinnedTargets(List<Language> pinned) {
+    final languages = <Language>[];
+    for (final pin in pinned) {
+      final language = usableTarget(pin);
+      if (language != null && !languages.contains(language)) {
+        languages.add(language);
       }
     }
     return languages;
@@ -422,6 +462,7 @@ class TranslateState extends Equatable {
     TranslateStatus? status,
     TranslationResult? Function()? result,
     String? Function()? resultInput,
+    bool? instantResult,
     bool? inputTruncated,
     Object? Function()? error,
     bool? compareMode,
@@ -477,6 +518,8 @@ class TranslateState extends Equatable {
           : nextResult == null
           ? null
           : this.resultInput,
+      instantResult:
+          instantResult ?? (nextResult != null && this.instantResult),
       inputTruncated: inputTruncated ?? this.inputTruncated,
       error: error != null ? error() : this.error,
       compareMode: compareMode ?? this.compareMode,
@@ -547,6 +590,7 @@ class TranslateState extends Equatable {
     status,
     result,
     resultInput,
+    instantResult,
     inputTruncated,
     error,
     compareMode,

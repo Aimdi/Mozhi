@@ -186,6 +186,102 @@ void main() {
     });
   });
 
+  group('formality notes', () {
+    final notes = find.byKey(const Key('translate_options_formality_notes'));
+
+    testWidgets('are hidden while the formality is automatic', (tester) async {
+      await _open(tester);
+      expect(notes, findsNothing);
+      expect(find.text('Formality notes'), findsNothing);
+    });
+
+    testWidgets('are shown with a formality and prefilled', (tester) async {
+      await _open(
+        tester,
+        const TranslationOptions(
+          formality: Formality.less,
+          formalityContext: 'my sister',
+        ),
+      );
+      expect(notes, findsOneWidget);
+      expect(find.text('Formality notes'), findsOneWidget);
+      final field = tester.widget<TextField>(notes);
+      expect(field.controller!.text, 'my sister');
+      expect(field.maxLength, TranslationOptionsSheet.formalityNotesMaxLength);
+      expect(TranslationOptionsSheet.formalityNotesMaxLength, 2000);
+    });
+
+    testWidgets('are applied after a pause', (tester) async {
+      final harness = await _open(
+        tester,
+        const TranslationOptions(formality: Formality.more),
+      );
+      await tester.enterText(notes, '  My boss, first-name terms ');
+      verifyNever(() => harness.translate.setOptions(any()));
+      await tester.pump(const Duration(seconds: 1));
+      final options = _captured(harness);
+      expect(options.formalityContext, 'My boss, first-name terms');
+      expect(options.formality, Formality.more);
+    });
+
+    testWidgets('are applied when the sheet closes', (tester) async {
+      final harness = await _open(
+        tester,
+        const TranslationOptions(formality: Formality.more),
+      );
+      await tester.enterText(notes, 'the landlord');
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
+      expect(_captured(harness).formalityContext, 'the landlord');
+    });
+
+    testWidgets('are applied when tapping elsewhere', (tester) async {
+      final harness = await _open(
+        tester,
+        const TranslationOptions(formality: Formality.more),
+      );
+      await tester.enterText(notes, 'a client');
+      // The focused field registers its tap region on the next frame.
+      await tester.pump();
+      await tester.tap(find.text('Reading level').first);
+      await tester.pump();
+      expect(_captured(harness).formalityContext, 'a client');
+    });
+
+    testWidgets('unchanged notes are not applied again', (tester) async {
+      final harness = await _open(
+        tester,
+        const TranslationOptions(
+          formality: Formality.more,
+          formalityContext: 'boss',
+        ),
+      );
+      await tester.enterText(notes, 'boss ');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pump(const Duration(seconds: 1));
+      verifyNever(() => harness.translate.setOptions(any()));
+    });
+
+    testWidgets('reset clears them', (tester) async {
+      final harness = await _open(
+        tester,
+        const TranslationOptions(
+          formality: Formality.more,
+          formalityContext: 'boss',
+        ),
+      );
+      await tester.enterText(notes, 'boss and friend');
+      await tester.tap(find.byKey(const Key('translate_options_reset')));
+      expect(tester.widget<TextField>(notes).controller!.text, isEmpty);
+      // The pending notes are dropped.
+      await tester.pump(const Duration(seconds: 1));
+      final options = verify(() => harness.translate.setOptions(captureAny()))
+          .captured
+          .cast<TranslationOptions>();
+      expect(options, [const TranslationOptions()]);
+    });
+  });
+
   group('presets', () {
     const work = Preset(
       id: 'work',
@@ -254,6 +350,35 @@ void main() {
           .captured
           .cast<TranslationOptions>();
       expect(options.map((o) => o.context), ['An email to a colleague.']);
+    });
+
+    testWidgets('a preset replaces formality notes being typed', (
+      tester,
+    ) async {
+      final harness = await _open(
+        tester,
+        const TranslationOptions(formality: Formality.less),
+        presetsCubit(),
+      );
+      await tester.enterText(
+        find.byKey(const Key('translate_options_formality_notes')),
+        'typing',
+      );
+      await tester.tap(find.byKey(const Key('preset_picker_work')));
+      await tester.pump(const Duration(seconds: 1));
+      final options = verify(() => harness.translate.setOptions(captureAny()))
+          .captured
+          .cast<TranslationOptions>();
+      expect(options.map((o) => o.formalityContext), ['']);
+      expect(
+        tester
+            .widget<TextField>(
+              find.byKey(const Key('translate_options_formality_notes')),
+            )
+            .controller!
+            .text,
+        isEmpty,
+      );
     });
 
     testWidgets('"Default" restores the standard settings', (tester) async {

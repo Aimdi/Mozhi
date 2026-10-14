@@ -66,6 +66,42 @@ void main() {
       expect(active[5].cleared.formality, Formality.more);
     });
 
+    test('lists formality notes after the formality', () {
+      const notes = 'My boss, but we are on first-name terms at work';
+      final active = activeTranslationOptions(
+        l10n,
+        const TranslationOptions(
+          formality: Formality.more,
+          formalityContext: notes,
+        ),
+      );
+      expect(active.map((o) => o.label), [
+        'More formal',
+        'Notes: My boss, but we are on f…',
+      ]);
+      expect(active[1].tooltip, notes);
+      expect(active[1].cleared.formalityContext, isEmpty);
+      expect(active[1].cleared.formality, Formality.more);
+    });
+
+    test('hides formality notes while the formality is automatic', () {
+      final active = activeTranslationOptions(
+        l10n,
+        const TranslationOptions(formalityContext: 'boss', context: 'x'),
+      );
+      expect(active.map((o) => o.label), ['Context: x']);
+      expect(
+        activeTranslationOptions(
+          l10n,
+          const TranslationOptions(
+            formality: Formality.less,
+            formalityContext: '  ',
+          ),
+        ).map((o) => o.label),
+        ['Less formal'],
+      );
+    });
+
     test('keeps a short context whole', () {
       final active = activeTranslationOptions(
         l10n,
@@ -122,6 +158,27 @@ void main() {
       verify(
         () => harness.translate.setOptions(
           const TranslationOptions(formality: Formality.more),
+        ),
+      ).called(1);
+    });
+
+    testWidgets('deleting the notes chip clears only the notes', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(
+        state: translatedState(engine: claude).copyWith(
+          options: const TranslationOptions(
+            formality: Formality.less,
+            formalityContext: 'my sister',
+          ),
+        ),
+      );
+      await harness.pump(tester, child: const ActiveOptionsBar());
+      expect(find.text('Notes: my sister'), findsOneWidget);
+      await tester.tap(find.byTooltip('Remove Notes: my sister'));
+      verify(
+        () => harness.translate.setOptions(
+          const TranslationOptions(formality: Formality.less),
         ),
       ).called(1);
     });

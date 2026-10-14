@@ -47,6 +47,28 @@ void main() {
       verify(harness.translate.swap).called(1);
     });
 
+    testWidgets('marks a custom source', (tester) async {
+      final harness = TranslateHarness(
+        state: readyState(
+          engine: claude,
+          source: const Language.custom('Gen Z slang'),
+        ),
+      );
+      await harness.pump(tester, child: const LanguageBar());
+      expect(find.text('Gen Z slang'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('translate_source_button')),
+          matching: find.byIcon(Icons.auto_awesome),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsLabel('Source language: Gen Z slang'),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('swap is disabled for a custom target', (tester) async {
       final harness = TranslateHarness(
         state: readyState(
@@ -244,6 +266,89 @@ void main() {
       await tester.tap(find.text('French').last);
       await tester.pumpAndSettle();
       verify(() => harness.translate.setSource(french)).called(1);
+    });
+
+    testWidgets('source picker offers a custom language for AI engines', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(state: readyState(engine: claude));
+      await harness.pump(tester, child: const LanguageBar());
+      await openSource(tester);
+      // Style suggestions stay in the target list.
+      expect(find.text('Styles'), findsNothing);
+      await tester.enterText(
+        find.byKey(const Key('translate_language_search')),
+        'Gen Z slang',
+      );
+      await tester.pump();
+      expect(find.text('Use “Gen Z slang” as custom language'), findsOneWidget);
+      expect(
+        find.text(
+          'AI models can translate from any dialect or style you describe.',
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const Key('translate_language_custom')));
+      await tester.pumpAndSettle();
+      verify(
+        () => harness.translate.setSource(const Language.custom('Gen Z slang')),
+      ).called(1);
+    });
+
+    testWidgets('submitting an unknown source query picks it as custom', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(state: readyState(engine: claude));
+      await harness.pump(tester, child: const LanguageBar());
+      await openSource(tester);
+      await tester.enterText(
+        find.byKey(const Key('translate_language_search')),
+        'Shakespearean English',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+      verify(
+        () => harness.translate.setSource(
+          const Language.custom('Shakespearean English'),
+        ),
+      ).called(1);
+    });
+
+    testWidgets('source picker has no custom language for Mozhi engines', (
+      tester,
+    ) async {
+      final harness = TranslateHarness();
+      await harness.pump(tester, child: const LanguageBar());
+      await openSource(tester);
+      await tester.enterText(
+        find.byKey(const Key('translate_language_search')),
+        'Gen Z slang',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pump();
+      expect(find.byKey(const Key('translate_language_custom')), findsNothing);
+      expect(find.text('No languages match “Gen Z slang”'), findsOneWidget);
+      verifyNever(() => harness.translate.setSource(any()));
+    });
+
+    testWidgets('source picker lists recent custom languages for AI', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(
+        state: readyState(
+          engine: claude,
+          source: const Language.custom('Gen Z slang'),
+        ),
+        settings: const AppSettings(
+          recentLanguages: [Language.custom('Gen Z slang')],
+        ),
+      );
+      await harness.pump(tester, child: const LanguageBar());
+      await openSource(tester);
+      expect(find.text('Recent'), findsOneWidget);
+      expect(find.text('Custom'), findsOneWidget);
+      // The current custom source is selected.
+      expect(find.byIcon(Icons.check), findsOneWidget);
     });
 
     testWidgets('dismissing does not change anything', (tester) async {

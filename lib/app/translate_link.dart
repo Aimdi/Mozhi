@@ -260,13 +260,23 @@ class TranslateLink extends Equatable {
       return false;
     }
     final input = state.input;
-    if (input.trim().isEmpty) {
+    // Only an engine switch translates again: a mode whose engine is the
+    // selected one only changes the mode, and the output is kept. (Turning
+    // a mode off goes back to the normal engine, which is another one.)
+    final switches =
+        mode == QualityMode.off ||
+        state.qualityEngine(mode)?.id != state.engine?.id;
+    if (input.trim().isEmpty || !switches) {
       await cubit.setQualityMode(mode);
       return false;
     }
     cubit.setInput('');
     await cubit.setQualityMode(mode);
-    if (hasText || cubit.isClosed) return true;
+    if (cubit.isClosed) return true;
+    // The user may have typed while the engine's languages loaded: keep
+    // that.
+    if (cubit.state.input.isNotEmpty) return false;
+    if (hasText) return true;
     cubit.setInput(input);
     return false;
   }

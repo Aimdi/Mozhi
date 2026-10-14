@@ -7,6 +7,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/offline/offline.dart' show OfflineEngineBadge;
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/translate.dart';
 import 'package:mozhi/translate/widgets/widgets.dart';
@@ -124,6 +125,20 @@ void main() {
       expect(find.text('Bonjour le monde'), findsOneWidget);
       expect(find.text('DeepL · 0.8 s'), findsOneWidget);
       expect(find.text('Detected: English'), findsOneWidget);
+    });
+
+    testWidgets('marks on-device translations', (tester) async {
+      final harness = TranslateHarness(
+        state: translatedState(
+          result: const TranslationResult(
+            engineId: 'offline:mlkit',
+            engineName: 'On-device',
+            text: 'Bonjour le monde',
+          ),
+        ),
+      );
+      await harness.pump(tester, child: const OutputCard());
+      expect(find.byType(OfflineEngineBadge), findsOneWidget);
     });
 
     testWidgets('hides the detected chip when the source is explicit', (
@@ -377,6 +392,56 @@ void main() {
         expect(find.text('Other ways to say it'), findsNothing);
       });
 
+      testWidgets('failures can be retried', (tester) async {
+        final harness = TranslateHarness(
+          state: translatedState(assistEngine: claude).copyWith(
+            insightsStatus: ExtraStatus.failure,
+            extraError: () => const LlmApiException('x', statusCode: 429),
+          ),
+        );
+        await harness.pump(tester, child: const OutputCard());
+        await tester.tap(find.byTooltip('Insights'));
+        await tester.pump();
+        verify(harness.translate.loadInsights).called(1);
+        expect(find.textContaining('Too many requests'), findsOneWidget);
+        await tester.tap(find.text('Retry'));
+        verify(harness.translate.loadInsights).called(1);
+      });
+
+      testWidgets('sheets read the source phrase in the chosen language', (
+        tester,
+      ) async {
+        final harness = TranslateHarness(
+          state:
+              readyState(
+                source: english,
+                input: 'Hello world',
+                result: helloResult,
+                assistEngine: claude,
+              ).copyWith(
+                insightsStatus: ExtraStatus.ready,
+                insights: const [_insight],
+              ),
+        );
+        await harness.pump(tester, child: const OutputCard());
+        await tester.tap(find.byTooltip('Insights'));
+        await tester.pump();
+        await tester.tapOnText(find.textRange.ofSubstring('le monde').first);
+        await tester.pumpAndSettle();
+        final source = tester.widget<Text>(
+          find
+              .ancestor(
+                of: find.descendant(
+                  of: find.byType(InsightSheet),
+                  matching: find.text('world', findRichText: true),
+                ),
+                matching: find.byType(Text),
+              )
+              .first,
+        );
+        expect((source.textSpan! as TextSpan).locale, const Locale('en'));
+      });
+
       testWidgets('underline the occurrence the insight refers to', (
         tester,
       ) async {
@@ -453,6 +518,26 @@ void main() {
         );
         await tester.pump();
         verifyNever(harness.translate.loadInsights);
+        controller.add(initial.copyWith(insightsStatus: ExtraStatus.idle));
+        await tester.pump();
+        verify(harness.translate.loadInsights).called(1);
+      });
+
+      testWidgets('reload when they are reset for the same translation', (
+        tester,
+      ) async {
+        final controller = StreamController<TranslateState>.broadcast();
+        addTearDown(controller.close);
+        final initial = translatedState(assistEngine: claude)
+            .copyWith(insightsStatus: ExtraStatus.loading);
+        final harness = TranslateHarness(state: initial);
+        when(() => harness.translate.stream)
+            .thenAnswer((_) => controller.stream);
+        await harness.pump(tester, child: const OutputCard());
+        await tester.tap(find.byTooltip('Insights'));
+        await tester.pump();
+        verifyNever(harness.translate.loadInsights);
+
         controller.add(initial.copyWith(insightsStatus: ExtraStatus.idle));
         await tester.pump();
         verify(harness.translate.loadInsights).called(1);

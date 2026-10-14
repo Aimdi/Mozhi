@@ -9,6 +9,7 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/translate/widgets/alignment_highlight.dart';
 import 'package:mozhi/translate/widgets/language_text.dart';
 import 'package:mozhi/translate/widgets/listen_button.dart';
 import 'package:mozhi/translate/widgets/status_announcer.dart';
@@ -44,6 +45,36 @@ int truncatedInputLimit(TranslateState state) =>
     ? TranslateCubit.maxInputLength
     : TranslateCubit.maxExternalInputLength;
 
+/// Whether the alignment in [state] is loaded for [text] (the field's
+/// current text).
+bool _alignmentFits(TranslateState state, String text) =>
+    state.alignmentStatus == ExtraStatus.ready &&
+    state.alignment.isNotEmpty &&
+    state.input == text;
+
+/// The source phrases of the loaded alignment when it is for [text] (the
+/// field's current text), else empty.
+List<TextRange> inputAlignmentPhrases(TranslateState state, String text) => [
+  if (_alignmentFits(state, text))
+    for (final span in state.alignment)
+      TextRange(start: span.sourceStart, end: span.sourceEnd),
+];
+
+/// The source range of the focused alignment pair
+/// (`TranslateState.focusedAlignment`) when the alignment is loaded for
+/// [text] (the field's current text), else null.
+TextRange? inputAlignmentHighlight(TranslateState state, String text) {
+  final span = state.focusedAlignment;
+  if (span == null || !_alignmentFits(state, text)) return null;
+  return TextRange(start: span.sourceStart, end: span.sourceEnd);
+}
+
+/// Index of the alignment pair whose source phrase holds the cursor at
+/// [offset] (the character after it, else the one before it), or null.
+int? inputAlignmentIndexAt(TranslateState state, int offset) =>
+    state.alignmentIndexAtSource(offset) ??
+    (offset > 0 ? state.alignmentIndexAtSource(offset - 1) : null);
+
 /// The app-wide [SpeechInputService], or null when none is provided (voice
 /// input is then not offered).
 SpeechInputService? _speechInputServiceOf(BuildContext context) {
@@ -65,6 +96,12 @@ SpeechInputService? _speechInputServiceOf(BuildContext context) {
 /// it (`TranslateState.inputTruncated`). Voice input is offered when a
 /// [SpeechInputService] is provided above; dictated text is appended to the
 /// input.
+///
+/// When a phrase alignment is loaded (`TranslateCubit.loadAlignment`), the
+/// aligned source phrases are underlined in the field and the phrase of the
+/// focused pair is highlighted ([HighlightTextEditingController]); moving
+/// the cursor into an aligned phrase focuses its pair
+/// (`TranslateCubit.focusAlignment`), and any edit clears the alignment.
 class InputCard extends StatefulWidget {
   const new({this.minLines = 4, super.key});
 
@@ -76,10 +113,13 @@ class InputCard extends StatefulWidget {
 
 class _InputCardState extends State<InputCard> {
   late final TranslateCubit _cubit = context.read<TranslateCubit>();
-  late final TextEditingController _controller = TextEditingController(
-    text: _cubit.state.input,
-  );
+  late final HighlightTextEditingController _controller =
+      HighlightTextEditingController(text: _cubit.state.input);
   final _focusNode = FocusNode(debugLabel: 'translate_input');
+
+  /// The field's value at the last controller notification (to tell cursor
+  /// moves from edits).
+  TextEditingValue _lastValue = TextEditingValue.empty;
 
   /// The whole text of the last field edit that the length limit cut (see
   /// [_LengthOverflowFormatter]); reset by every edit.
@@ -92,10 +132,57 @@ class _InputCardState extends State<InputCard> {
   String? _dictationBase;
 
   @override
+  void initState() {
+    super.initState();
+    _showAlignment(_cubit.state);
+    _lastValue = _controller.value;
+    _controller.addListener(_onValueChanged);
+  }
+
+  @override
   void dispose() {
-    _controller.dispose();
+    _controller
+      ..removeListener(_onValueChanged)
+      ..dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  /// A cursor move (no edit) into an aligned source phrase focuses its pair;
+  /// a move out of every phrase clears the focus.
+  void _onValueChanged() {
+    final value = _controller.value;
+    final previous = _lastValue;
+    _lastValue = value;
+    if (value.text != previous.text || value.selection == previous.selection) {
+      return;
+    }
+    final selection = value.selection;
+    final state = _cubit.state;
+    if (!selection.isValid ||
+        !selection.isCollapsed ||
+        state.alignment.isEmpty ||
+        state.alignmentStatus != ExtraStatus.ready ||
+        state.input != value.text) {
+      return;
+    }
+    final index = inputAlignmentIndexAt(state, selection.baseOffset);
+    if (index != state.alignmentFocus) _cubit.focusAlignment(index);
+  }
+
+  /// Mirrors the state into the field: external input changes, then the
+  /// alignment.
+  void _syncState(TranslateState state) {
+    _syncController(state.input);
+    _showAlignment(state);
+  }
+
+  void _showAlignment(TranslateState state) {
+    final text = _controller.text;
+    _controller.showAlignment(
+      phrases: inputAlignmentPhrases(state, text),
+      highlight: inputAlignmentHighlight(state, text),
+    );
   }
 
   /// Mirrors external input changes (share, history, swap, clear) into the
@@ -166,8 +253,12 @@ class _InputCardState extends State<InputCard> {
     final theme = Theme.of(context);
     final settings = context.watch<SettingsCubit>().state;
     return BlocConsumer<TranslateCubit, TranslateState>(
-      listenWhen: (previous, current) => previous.input != current.input,
-      listener: (context, state) => _syncController(state.input),
+      listenWhen: (previous, current) =>
+          previous.input != current.input ||
+          previous.alignment != current.alignment ||
+          previous.alignmentFocus != current.alignmentFocus ||
+          previous.alignmentStatus != current.alignmentStatus,
+      listener: (context, state) => _syncState(state),
       builder: (context, state) {
         final input = state.input;
         final empty = input.trim().isEmpty;

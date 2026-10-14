@@ -8,16 +8,24 @@ import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/offline.dart' show OfflineEngineBadge;
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/translate/widgets/aligned_text.dart';
+import 'package:mozhi/translate/widgets/detection_chips.dart';
 import 'package:mozhi/translate/widgets/extras_section.dart';
 import 'package:mozhi/translate/widgets/insight_sheet.dart';
-import 'package:mozhi/translate/widgets/language_bar.dart';
 import 'package:mozhi/translate/widgets/language_text.dart';
 import 'package:mozhi/translate/widgets/listen_button.dart';
+import 'package:mozhi/translate/widgets/romanization_line.dart';
 import 'package:mozhi/translate/widgets/status_announcer.dart';
 import 'package:mozhi/translate/widgets/translate_error.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:translation_repository/translation_repository.dart';
+
+export 'package:mozhi/translate/widgets/aligned_text.dart';
+export 'package:mozhi/translate/widgets/detection_chips.dart';
+export 'package:mozhi/translate/widgets/romanization_line.dart';
 
 /// Copies [text] and confirms with a snackbar.
 Future<void> copyToClipboard(BuildContext context, String text) async {
@@ -59,9 +67,10 @@ TextDirection? outputTextDirection(TranslateState state) =>
     textDirectionForLanguage(state.target) ??
     textDirectionForText(state.output);
 
-/// The translation: streaming text, progress, errors, transliteration,
-/// detected language, engine/latency footer and actions (copy, share,
-/// listen, favourite, insights).
+/// The translation: streaming text, progress, errors, romanization,
+/// detected language (with other likely languages when uncertain),
+/// engine/latency footer and actions (copy, share, listen, favourite,
+/// insights, romanization, alignment).
 ///
 /// A finished translation is announced to screen readers once (never per
 /// streamed token); errors are announced by [TranslateErrorView].
@@ -70,6 +79,22 @@ TextDirection? outputTextDirection(TranslateState state) =>
 /// as out of date to screen readers) and offers no AI extras. Selecting part
 /// of a finished translation offers "Alternatives" for that part when an AI
 /// engine is available (see [showSpanAlternativesSheet]).
+///
+/// "Show alignment" loads the phrase alignment of the input and the
+/// translation (`TranslateCubit.loadAlignment`); tapping or hovering a
+/// phrase of the translation then highlights it and focuses its pair
+/// (`TranslateCubit.focusAlignment`) so the input can highlight the
+/// matching source phrase. Insights and alignment are shown one at a time.
+/// Both stay on across translations (they reload once the next one is
+/// complete), and so does a romanization the user asked for, as long as
+/// that costs nothing (the assist engine runs locally, or Mozhi delivered
+/// the romanization) or the user asked for the translation. After an
+/// instant translation (`TranslateState.instantResult`) they are turned off
+/// instead, so typing never starts paid AI requests; the buttons load them
+/// again.
+///
+/// "Romanization ready" and the alignment hint are announced for the load
+/// the user asked for, not for the automatic reloads.
 class OutputCard extends StatefulWidget {
   const new({super.key});
 
@@ -79,15 +104,82 @@ class OutputCard extends StatefulWidget {
 
 class _OutputCardState extends State<OutputCard> {
   bool _showInsights = false;
+  bool _showAlignment = false;
+
+  /// Whether romanizations are shown: null follows
+  /// `AppSettings.showTransliteration` until the user toggles them.
+  bool? _romanize;
+
+  /// The results the user turned the romanization / alignment on for: only
+  /// their loads are announced (not the reloads for later results).
+  TranslationResult? _romanizationAskedFor;
+  TranslationResult? _alignmentAskedFor;
+
+  /// Whether the AI extras of [state] may be reloaded without a user
+  /// action: they cost nothing (a local assist engine), or the user asked
+  /// for the translation (not an instant one).
+  static bool _mayReload(TranslateState state) =>
+      !state.instantResult || (state.assistEngine?.isLocal ?? false);
+
+  /// The same for the romanization, which is also free when the result
+  /// has a transliteration of its own.
+  static bool _mayReloadRomanization(TranslateState state) =>
+      _mayReload(state) ||
+      (state.result?.targetTransliteration.trim().isNotEmpty ?? false);
 
   void _toggleInsights(TranslateState state) {
-    setState(() => _showInsights = !_showInsights);
-    if (_showInsights &&
-        (state.insightsStatus == ExtraStatus.idle ||
-            state.insightsStatus == ExtraStatus.failure)) {
-      unawaited(context.read<TranslateCubit>().loadInsights());
+    final cubit = context.read<TranslateCubit>();
+    setState(() {
+      _showInsights = !_showInsights;
+      // One kind of highlight in the translation at a time.
+      if (_showInsights) _showAlignment = false;
+    });
+    if (!_showInsights) return;
+    if (state.alignmentFocus != null) cubit.focusAlignment(null);
+    if (state.insightsStatus == ExtraStatus.idle ||
+        state.insightsStatus == ExtraStatus.failure) {
+      unawaited(cubit.loadInsights());
     }
   }
+
+  void _toggleAlignment(TranslateState state) {
+    final cubit = context.read<TranslateCubit>();
+    setState(() {
+      _showAlignment = !_showAlignment;
+      if (_showAlignment) {
+        _showInsights = false;
+        _alignmentAskedFor = state.result;
+      }
+    });
+    if (!_showAlignment) {
+      if (state.alignmentFocus != null) cubit.focusAlignment(null);
+      return;
+    }
+    if (state.alignmentStatus == ExtraStatus.idle ||
+        state.alignmentStatus == ExtraStatus.failure) {
+      unawaited(cubit.loadAlignment());
+    }
+  }
+
+  void _toggleRomanization(TranslateState state, {required bool shown}) {
+    setState(() {
+      _romanize = !shown;
+      if (!shown) _romanizationAskedFor = state.result;
+    });
+    if (!shown &&
+        romanizationOf(state) == null &&
+        (state.romanizationStatus == ExtraStatus.idle ||
+            state.romanizationStatus == ExtraStatus.failure)) {
+      unawaited(context.read<TranslateCubit>().loadRomanization());
+    }
+  }
+
+  /// Whether the romanization (or its progress or error) is on screen.
+  bool _romanizationShown(TranslateState state, AppSettings settings) =>
+      (_romanize ?? settings.showTransliteration) &&
+      (romanizationOf(state) != null ||
+          state.romanizationStatus == ExtraStatus.loading ||
+          state.romanizationStatus == ExtraStatus.failure);
 
   void _toggleFavorite(TranslateState state, HistoryEntry? entry) {
     final history = context.read<HistoryCubit>();
@@ -131,58 +223,106 @@ class _OutputCardState extends State<OutputCard> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return BlocConsumer<TranslateCubit, TranslateState>(
-      // Keep insights on across translations: reload once the next one is
-      // complete.
-      listenWhen: (previous, current) =>
-          _showInsights &&
-          current.status == TranslateStatus.success &&
-          current.insightsStatus == ExtraStatus.idle &&
-          current.hasExtras &&
-          (previous.status != current.status ||
-              previous.insightsStatus != current.insightsStatus),
-      listener: (context, state) =>
-          unawaited(context.read<TranslateCubit>().loadInsights()),
-      builder: (context, state) {
-        final translating = state.status == TranslateStatus.translating;
-        final (announcement, announcementDirection) = _announcement(
-          context,
-          state,
-        );
-        return StatusAnnouncer(
-          message: announcement,
-          textDirection: announcementDirection,
-          child: Card(
-            key: const Key('translate_output_card'),
-            margin: EdgeInsets.zero,
-            elevation: 0,
-            clipBehavior: Clip.antiAlias,
-            color: theme.colorScheme.surfaceContainer,
-            shape: const RoundedRectangleBorder(
-              borderRadius: TranslateLayout.cardBorderRadius,
+    return MultiBlocListener(
+      listeners: [
+        BlocListener<TranslateCubit, TranslateState>(
+          // Keep insights on across translations: reload once the next one
+          // is complete.
+          listenWhen: (previous, current) =>
+              _showInsights &&
+              current.status == TranslateStatus.success &&
+              current.insightsStatus == ExtraStatus.idle &&
+              current.hasExtras &&
+              (previous.status != current.status ||
+                  previous.insightsStatus != current.insightsStatus),
+          listener: (context, state) {
+            if (_mayReload(state)) {
+              unawaited(context.read<TranslateCubit>().loadInsights());
+            } else {
+              setState(() => _showInsights = false);
+            }
+          },
+        ),
+        BlocListener<TranslateCubit, TranslateState>(
+          // The same for the alignment.
+          listenWhen: (previous, current) =>
+              _showAlignment &&
+              current.canAlign &&
+              current.alignmentStatus == ExtraStatus.idle &&
+              (previous.status != current.status ||
+                  previous.result != current.result ||
+                  previous.alignmentStatus != current.alignmentStatus),
+          listener: (context, state) {
+            if (_mayReload(state)) {
+              unawaited(context.read<TranslateCubit>().loadAlignment());
+              return;
+            }
+            final cubit = context.read<TranslateCubit>();
+            setState(() => _showAlignment = false);
+            if (state.alignmentFocus != null) cubit.focusAlignment(null);
+          },
+        ),
+        BlocListener<TranslateCubit, TranslateState>(
+          // And for a romanization the user asked for.
+          listenWhen: (previous, current) =>
+              (_romanize ?? false) &&
+              current.canRomanize &&
+              current.romanizationStatus == ExtraStatus.idle &&
+              (previous.status != current.status ||
+                  previous.result != current.result ||
+                  previous.romanizationStatus != current.romanizationStatus),
+          listener: (context, state) {
+            if (_mayReloadRomanization(state)) {
+              unawaited(context.read<TranslateCubit>().loadRomanization());
+            } else {
+              // Back to the setting (free romanizations only).
+              setState(() => _romanize = null);
+            }
+          },
+        ),
+      ],
+      child: BlocBuilder<TranslateCubit, TranslateState>(
+        builder: (context, state) {
+          final translating = state.status == TranslateStatus.translating;
+          final (announcement, announcementDirection) = _announcement(
+            context,
+            state,
+          );
+          return StatusAnnouncer(
+            message: announcement,
+            textDirection: announcementDirection,
+            child: Card(
+              key: const Key('translate_output_card'),
+              margin: EdgeInsets.zero,
+              elevation: 0,
+              clipBehavior: Clip.antiAlias,
+              color: theme.colorScheme.surfaceContainer,
+              shape: const RoundedRectangleBorder(
+                borderRadius: TranslateLayout.cardBorderRadius,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(
+                    height: 3,
+                    child: translating
+                        ? LinearProgressIndicator(
+                            key: const Key('translate_output_progress'),
+                            minHeight: 3,
+                            semanticsLabel: context.l10n.translateTranslating,
+                          )
+                        : null,
+                  ),
+                  Padding(
+                    padding: const EdgeInsetsDirectional.fromSTEB(20, 13, 8, 8),
+                    child: _content(context, state),
+                  ),
+                ],
+              ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(
-                  height: 3,
-                  child: translating
-                      ? LinearProgressIndicator(
-                          key: const Key('translate_output_progress'),
-                          minHeight: 3,
-                          semanticsLabel: context.l10n.translateTranslating,
-                        )
-                      : null,
-                ),
-                Padding(
-                  padding: const EdgeInsetsDirectional.fromSTEB(20, 13, 8, 8),
-                  child: _content(context, state),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
@@ -249,14 +389,18 @@ class _OutputCardState extends State<OutputCard> {
         state.insightsStatus == ExtraStatus.ready &&
         state.insights.isNotEmpty &&
         complete;
-    final transliteration = result?.targetTransliteration.trim() ?? '';
+    final stale = state.isResultStale;
+    final alignmentReady =
+        _showAlignment &&
+        state.alignmentStatus == ExtraStatus.ready &&
+        state.alignment.isNotEmpty &&
+        complete &&
+        !stale;
     final detected = result?.detectedSource;
     final elapsed = result?.elapsed;
     final direction = outputTextDirection(state);
     final locale = localeForLanguage(state.target);
-    final uncertain = detectionIsUncertain(state);
     final offline = result != null && isOfflineEngineId(result.engineId);
-    final stale = state.isResultStale;
     final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
 
     return Column(
@@ -283,7 +427,18 @@ class _OutputCardState extends State<OutputCard> {
                   : const Duration(milliseconds: 150),
               child: SizedBox(
                 width: double.infinity,
-                child: insightsReady
+                child: alignmentReady
+                    ? AlignedText(
+                        text: output,
+                        alignment: state.alignment,
+                        focus: state.alignmentFocus,
+                        onFocus: context.read<TranslateCubit>().focusAlignment,
+                        other: state.input,
+                        style: style,
+                        textDirection: direction,
+                        locale: locale,
+                      )
+                    : insightsReady
                     ? InsightText(
                         text: output,
                         insights: state.insights,
@@ -313,16 +468,17 @@ class _OutputCardState extends State<OutputCard> {
             locale: locale,
             textDirection: direction,
           ),
-        if (settings.showTransliteration && transliteration.isNotEmpty)
-          Padding(
-            padding: const EdgeInsetsDirectional.only(top: 8, end: 12),
-            child: Text(
-              transliteration,
-              key: const Key('translate_output_transliteration'),
-              style: theme.textTheme.bodyMedium?.copyWith(color: muted),
-            ),
+        if (_romanize ?? settings.showTransliteration)
+          RomanizationLine(
+            key: const ValueKey('translate_romanization'),
+            state: state,
+            announce:
+                (_romanize ?? false) &&
+                result != null &&
+                result == _romanizationAskedFor,
           ),
         if (_showInsights && state.hasExtras) _insightsStatus(context, state),
+        if (_showAlignment && state.hasExtras) _alignmentStatus(context, state),
         if (complete && result != null)
           Padding(
             padding: const EdgeInsetsDirectional.only(top: 12, end: 12),
@@ -332,10 +488,7 @@ class _OutputCardState extends State<OutputCard> {
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 if (detected != null && state.source.isAuto)
-                  _DetectedChip(
-                    uncertain: uncertain,
-                    language: languageNameFor(detected, state.sourceLanguages),
-                  ),
+                  DetectedLanguageChips(state: state),
                 if (offline) const OfflineEngineBadge(),
                 Text(
                   elapsed == null
@@ -443,11 +596,60 @@ class _OutputCardState extends State<OutputCard> {
     );
   }
 
+  Widget _alignmentStatus(BuildContext context, TranslateState state) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final muted = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    // Announced once, when the alignment the user asked for arrives (not
+    // after every later translation).
+    final live = state.result != null && state.result == _alignmentAskedFor;
+    final child = switch (state.alignmentStatus) {
+      ExtraStatus.loading => LinearProgressIndicator(
+        key: const Key('translate_alignment_progress'),
+        semanticsLabel: l10n.translateAlignmentLoading,
+      ),
+      ExtraStatus.failure => TranslateErrorView(
+        key: const Key('translate_alignment_error'),
+        error: state.alignmentError,
+        dense: true,
+        onRetry: () =>
+            unawaited(context.read<TranslateCubit>().loadAlignment()),
+      ),
+      ExtraStatus.ready when state.alignment.isEmpty => Semantics(
+        liveRegion: live,
+        child: Text(
+          l10n.translateAlignmentEmpty,
+          key: const Key('translate_alignment_empty'),
+          style: muted,
+        ),
+      ),
+      ExtraStatus.ready => Semantics(
+        liveRegion: live,
+        child: Text(
+          l10n.translateAlignmentHint,
+          key: const Key('translate_alignment_hint'),
+          style: muted,
+        ),
+      ),
+      ExtraStatus.idle => const SizedBox.shrink(),
+    };
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(top: 12, end: 12),
+      child: child,
+    );
+  }
+
   Widget _actions(BuildContext context, TranslateState state) {
     final l10n = context.l10n;
     final output = state.output;
     final complete = state.result?.isComplete ?? true;
     final target = state.target;
+    final romanizationShown = _romanizationShown(
+      state,
+      context.watch<SettingsCubit>().state,
+    );
     return Wrap(
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
@@ -504,43 +706,27 @@ class _OutputCardState extends State<OutputCard> {
                 ? () => _toggleInsights(state)
                 : null,
           ),
+        if (complete && (romanizationShown || romanizationAvailable(state)))
+          RomanizationButton(
+            shown: romanizationShown,
+            onPressed: () =>
+                _toggleRomanization(state, shown: romanizationShown),
+          ),
+        if (state.assistEngine?.supportsExtras ?? false)
+          IconButton(
+            key: const Key('translate_alignment_button'),
+            tooltip: _showAlignment
+                ? l10n.translateAlignmentHide
+                : l10n.translateAlignmentShow,
+            isSelected: _showAlignment,
+            icon: const Icon(Icons.sync_alt),
+            // Can always be turned off; turned on for a finished, current
+            // translation.
+            onPressed: _showAlignment || state.canAlign
+                ? () => _toggleAlignment(state)
+                : null,
+          ),
       ],
-    );
-  }
-}
-
-/// "Detected: X" under the translation; tapping it opens the source
-/// language picker to correct a wrong detection. Marked with a question
-/// mark when the detection is uncertain (very short input).
-class _DetectedChip extends StatelessWidget {
-  const new({required this.language, required this.uncertain});
-
-  final String language;
-  final bool uncertain;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    final scheme = Theme.of(context).colorScheme;
-    final label = uncertain
-        ? l10n.translateDetectedLanguageUncertain(language)
-        : l10n.translateDetectedLanguage(language);
-    return ActionChip(
-      key: const Key('translate_detected_chip'),
-      avatar: Icon(
-        uncertain ? Icons.help_outline : Icons.auto_awesome_outlined,
-        color: scheme.onSecondaryContainer,
-      ),
-      label: Text(label),
-      tooltip: uncertain
-          ? l10n.translateDetectionUncertainHint
-          : l10n.translateChangeSourceLanguage,
-      backgroundColor: scheme.secondaryContainer,
-      labelStyle: Theme.of(context).textTheme.labelMedium
-          ?.copyWith(color: scheme.onSecondaryContainer),
-      side: BorderSide.none,
-      visualDensity: VisualDensity.compact,
-      onPressed: () => unawaited(pickTranslateLanguage(context, source: true)),
     );
   }
 }

@@ -44,9 +44,15 @@ typedef _Languages = ({List<Language> sources, List<Language> targets});
 /// * Changing text/engine/languages/options clears extras.
 /// * When the detected language equals the target (auto source), the target
 ///   switches to the most recent other language (Kagi/Google smart swap).
-///   AI engines stop as soon as a streaming snapshot reports that, and a
-///   one-shot [TranslateState.smartSwapNotice] tells the UI ([undoSmartSwap]
-///   goes back).
+///   AI engines stop as soon as a streaming snapshot reports that (except
+///   for short input, whose detection the repository double-checks: its
+///   final result decides), and a one-shot
+///   [TranslateState.smartSwapNotice] tells the UI ([undoSmartSwap] goes
+///   back). A detection the engine marks as uncertain never swaps.
+/// * When engines (re)load and the input has no translation, it is
+///   translated only when that may happen without a user action (the
+///   instant translation settings; see [setExternalInput] for external
+///   text).
 /// * With a `usageTracker`, every finished request to a bring-your-own-key
 ///   provider (an engine with a `providerId`: translations, compare
 ///   results, refinements and AI extras) is counted once; results served
@@ -185,6 +191,11 @@ class TranslateCubit extends Cubit<TranslateState> {
 
   /// The quality mode engine ids last seen in settings.
   (String?, String?) _qualityIds;
+
+  /// Id of the engine in use when a quality mode was turned on: what
+  /// [QualityMode.off] goes back to when `AppSettings.engineId` names no
+  /// available engine.
+  String? _engineBeforeQuality;
 
   /// Normalised code of the target the user picked explicitly; no smart
   /// swaps away from it this session.
@@ -349,13 +360,14 @@ class TranslateCubit extends Cubit<TranslateState> {
       ),
     );
 
-    // Text that arrived before engines were available (share intent).
+    // Text that arrived before engines were available (share intent), or
+    // whose result a new engine cleared: translated only when that may
+    // happen without a user action.
     if (state.input.trim().isNotEmpty &&
         state.result == null &&
         state.status != TranslateStatus.translating &&
-        !state.compareMode &&
-        (!_externalPending || _mayAutoTranslateExternal)) {
-      unawaited(_translate());
+        _mayAutoTranslate) {
+      unawaited(_translate(auto: !_externalPending));
     }
   }
 
@@ -445,8 +457,11 @@ class TranslateCubit extends Cubit<TranslateState> {
   ///   `AppSettings.fastEngineId` / `bestEngineId` when that engine is
   ///   configured and in [TranslateState.engines]; otherwise nothing
   ///   changes (see [TranslateState.availableQualityModes]).
-  /// * [QualityMode.off] returns to the normal engine
-  ///   (`AppSettings.engineId`, when available).
+  ///   Turning a mode on from [QualityMode.off] remembers the engine in use
+  ///   (and saves it as the normal engine when settings name none).
+  /// * [QualityMode.off] returns to the normal engine: `AppSettings.engineId`
+  ///   when available, else the engine in use before the mode was turned
+  ///   on, else the default (or first) engine other than the mode's.
   ///
   /// The mode is saved (`SettingsCubit.setQualityMode`). After an engine
   /// switch the input is translated again like after [selectEngine]
@@ -454,11 +469,20 @@ class TranslateCubit extends Cubit<TranslateState> {
   Future<void> setQualityMode(QualityMode mode) async {
     final TranslationEngine? engine;
     if (mode == QualityMode.off) {
-      engine = _engineIn(state.engines, _settings.state.engineId);
+      // Already on the normal engine: only the saved mode may differ.
+      engine = state.qualityMode == QualityMode.off ? null : _normalEngine();
     } else {
       engine = _engineIn(state.engines, _qualityEngineId(mode));
       if (engine == null) return;
+      final current = state.engine;
+      if (state.qualityMode == QualityMode.off && current != null) {
+        _engineBeforeQuality = current.id;
+        // A fallback engine (none was ever picked) becomes the one to go
+        // back to after a restart too.
+        if (_settings.state.engineId == null) _settings.setEngine(current.id);
+      }
     }
+    if (mode == QualityMode.off) _engineBeforeQuality = null;
     if (_settings.state.qualityMode != mode) _settings.setQualityMode(mode);
     if (state.qualityMode != mode) emit(state.copyWith(qualityMode: mode));
     if (engine == null ||
@@ -479,12 +503,31 @@ class TranslateCubit extends Cubit<TranslateState> {
   /// Turns quality mode off (state and settings) because the user chose an
   /// engine; returns whether it was on.
   bool _leaveQualityMode() {
+    _engineBeforeQuality = null;
     final wasOn = state.qualityMode != QualityMode.off;
     if (_settings.state.qualityMode != QualityMode.off) {
       _settings.setQualityMode(QualityMode.off);
     }
     if (wasOn) emit(state.copyWith(qualityMode: QualityMode.off));
     return wasOn;
+  }
+
+  /// The engine [QualityMode.off] switches to: the saved normal engine
+  /// (`AppSettings.engineId`), else the one in use before the quality mode
+  /// was turned on, else the default (or first) engine other than the
+  /// current one (the quality mode's), so that turning a mode off never
+  /// keeps translating with its engine while another one is available.
+  TranslationEngine? _normalEngine() {
+    final engines = state.engines;
+    final saved =
+        _engineIn(engines, _settings.state.engineId) ??
+        _engineIn(engines, _engineBeforeQuality);
+    if (saved != null) return saved;
+    final current = state.engine?.id;
+    for (final engine in [_engineIn(engines, _defaultEngineId), ...engines]) {
+      if (engine != null && engine.id != current) return engine;
+    }
+    return null;
   }
 
   /// The saved engine id of [mode] (null for [QualityMode.off]).
@@ -534,9 +577,10 @@ class TranslateCubit extends Cubit<TranslateState> {
     }
     var engine = mode == QualityMode.fast ? fast : best;
     if (engine == null) {
+      engine = _normalEngine();
+      _engineBeforeQuality = null;
       _settings.setQualityMode(QualityMode.off);
       emit(state.copyWith(qualityMode: QualityMode.off));
-      engine = _engineIn(state.engines, settings.engineId);
     }
     if (engine != null && engine.id != state.engine?.id) {
       unawaited(_switchEngine(engine, keepResult: true, persist: false));
@@ -722,6 +766,19 @@ class TranslateCubit extends Cubit<TranslateState> {
     if (_mayAutoTranslateExternal) unawaited(_translate());
   }
 
+  /// Whether the input may be translated without a user action: external
+  /// input as [_mayAutoTranslateExternal], typed input when instant
+  /// translation is on for the engine (`instantTranslate` /
+  /// `instantTranslateAi`). Never in compare mode.
+  bool get _mayAutoTranslate {
+    if (_externalPending) return _mayAutoTranslateExternal;
+    final engine = state.engine;
+    if (engine == null || state.compareMode) return false;
+    return engine.isAi
+        ? _settings.state.instantTranslateAi
+        : _settings.state.instantTranslate;
+  }
+
   /// Whether external input may be translated without a user action.
   bool get _mayAutoTranslateExternal {
     final engine = state.engine;
@@ -827,14 +884,15 @@ class TranslateCubit extends Cubit<TranslateState> {
     _retranslate();
   }
 
-  /// Selects the pinned language `AppSettings.pinnedLanguages[index]` as
-  /// the target (like [setTarget]) when it exists and the engine offers it;
-  /// otherwise nothing happens. For keyboard shortcuts / quick chips.
+  /// Selects pinned language [index] of the pins the engine offers
+  /// (`TranslateState.pinnedTargets` of `AppSettings.pinnedLanguages`, the
+  /// "Pinned" section of the target language picker) as the target, like
+  /// [setTarget]; nothing happens when there is no such pin. For keyboard
+  /// shortcuts (Alt+1 … Alt+9) and quick chips.
   void selectPinnedTarget(int index) {
-    final pinned = _settings.state.pinnedLanguages;
+    final pinned = state.pinnedTargets(_settings.state.pinnedLanguages);
     if (index < 0 || index >= pinned.length) return;
-    final target = _usableTarget(pinned[index]);
-    if (target != null) setTarget(target);
+    setTarget(pinned[index]);
   }
 
   /// [language] as listed in the engine's source languages (auto when the
@@ -854,13 +912,7 @@ class TranslateCubit extends Cubit<TranslateState> {
 
   /// [language] as listed in the engine's target languages (custom
   /// languages when it takes them), else null. Never auto.
-  Language? _usableTarget(Language language) {
-    if (language.isAuto) return null;
-    if (language.isCustom) {
-      return state.supportsCustomLanguages ? language : null;
-    }
-    return LanguageMatcher.match(language, state.targetLanguages);
-  }
+  Language? _usableTarget(Language language) => state.usableTarget(language);
 
   /// Validates and persists a source pick; returns whether it applies.
   bool _applySource(Language language) {
@@ -1039,10 +1091,13 @@ class TranslateCubit extends Cubit<TranslateState> {
       return done.future;
     }
     var counted = false;
+    // Short input gets a second detection whose verdict only comes with the
+    // final result: decide on that one.
+    final swapEarly = smartSwap && !_isShortInput(request.text);
     _translation = stream.listen(
       (result) {
         if (!_isCurrentTranslation(id)) return;
-        if (smartSwap && !result.isComplete) {
+        if (swapEarly && !result.isComplete) {
           // AI engines report the detected language before the text: stop
           // at once instead of waiting for a same-language "translation".
           final swapTo = _smartSwapTarget(request, result);
@@ -1092,7 +1147,11 @@ class TranslateCubit extends Cubit<TranslateState> {
   }) {
     if (!result.isComplete) {
       emit(
-        state.copyWith(result: () => result, resultInput: () => request.text),
+        state.copyWith(
+          result: () => result,
+          resultInput: () => request.text,
+          instantResult: auto,
+        ),
       );
       return;
     }
@@ -1105,6 +1164,7 @@ class TranslateCubit extends Cubit<TranslateState> {
       state.copyWith(
         result: () => result,
         resultInput: () => request.text,
+        instantResult: auto,
         status: TranslateStatus.success,
       ),
     );
@@ -1221,12 +1281,25 @@ class TranslateCubit extends Cubit<TranslateState> {
     return List.unmodifiable(codes);
   }
 
+  /// Most words of input whose detected language is only acted on (smart
+  /// swap) once its translation is complete: the repository checks such
+  /// input with a second detection, and its verdict
+  /// (`TranslationResult.detectionUncertain`) comes with the final result.
+  static const _shortInputMaxWords = 3;
+
+  /// Most characters of such input (scripts without spaces).
+  static const _shortInputMaxChars = 64;
+
+  static bool _isShortInput(String text) {
+    final trimmed = text.trim();
+    return trimmed.length <= _shortInputMaxChars &&
+        trimmed.split(RegExp(r'\s+')).length <= _shortInputMaxWords;
+  }
+
   /// The language to switch the target to when the detected source equals
-  /// the target, else null.
-  ///
-  /// Candidates: recent, then pinned languages, the device languages,
-  /// English (for non-English text), then a few widely used languages.
-  /// Never an arbitrary list entry.
+  /// the target, else null. Never for a detection the engine marks as
+  /// uncertain (`TranslationResult.detectionUncertain`): the UI offers the
+  /// other likely languages instead.
   Language? _smartSwapTarget(
     TranslationRequest request,
     TranslationResult result,
@@ -1234,6 +1307,7 @@ class TranslateCubit extends Cubit<TranslateState> {
     final detected = result.detectedSource;
     if (!request.source.isAuto ||
         request.target.isCustom ||
+        result.detectionUncertain ||
         detected == null ||
         detected.isEmpty) {
       return null;
@@ -1243,6 +1317,16 @@ class TranslateCubit extends Cubit<TranslateState> {
         detectedCode == _smartSwapDeclined) {
       return null;
     }
+    return _targetOtherThan(detectedCode);
+  }
+
+  /// A target language for text in [detectedCode] (normalised) other than
+  /// that language, or null.
+  ///
+  /// Candidates: recent, then pinned languages, the device languages,
+  /// English (for non-English text), then a few widely used languages.
+  /// Never an arbitrary list entry.
+  Language? _targetOtherThan(String detectedCode) {
     final targets = state.targetLanguages;
     bool differs(Language language) =>
         !language.isAuto &&
@@ -1523,6 +1607,7 @@ class TranslateCubit extends Cubit<TranslateState> {
         emit(
           _clearedOutputExtras(state).copyWith(
             result: () => result,
+            instantResult: false,
             status: TranslateStatus.success,
             error: () => null,
             appliedRefinements: List<AppliedRefinement>.unmodifiable([
@@ -1573,6 +1658,7 @@ class TranslateCubit extends Cubit<TranslateState> {
     emit(
       _clearedOutputExtras(state).copyWith(
         result: () => applied[index].previous,
+        instantResult: false,
         status: TranslateStatus.success,
         error: () => null,
         appliedRefinements: List<AppliedRefinement>.unmodifiable(
@@ -1660,6 +1746,7 @@ class TranslateCubit extends Cubit<TranslateState> {
     emit(
       _clearedResultExtras(state).copyWith(
         result: () => _withOutput(result, output, isComplete: true),
+        instantResult: false,
         status: TranslateStatus.success,
         insightsStatus: ExtraStatus.idle,
         insights: const [],
@@ -1724,6 +1811,7 @@ class TranslateCubit extends Cubit<TranslateState> {
     emit(
       _clearedResultExtras(state).copyWith(
         result: () => _withOutput(result, text),
+        instantResult: false,
         insights: state.insights
             .map((item) => identical(item, insight) ? updated : item)
             .toList(),
@@ -1957,6 +2045,7 @@ class TranslateCubit extends Cubit<TranslateState> {
         compareEntries: const [],
         comparing: false,
         result: () => result,
+        instantResult: false,
         resultInput: () => state.input,
         status: TranslateStatus.success,
         error: () => null,
@@ -2348,13 +2437,48 @@ class TranslateCubit extends Cubit<TranslateState> {
   /// of [TranslateState.detectedAlternatives]): selects that source
   /// language (as listed by the engine, saved like [setSource]) and
   /// translates again. Codes the engine does not list are ignored.
+  ///
+  /// When [code] is the target language, the target switches too (never a
+  /// same-language translation): back to the target from before the last
+  /// smart swap when that swap led here, else to the language a smart swap
+  /// would choose (saved and recorded as recent). Nothing happens when
+  /// there is no other target.
   void useDetectedAlternative(String code) {
     final language = LanguageMatcher.match(
       Language(code: code, name: code),
       state.sourceLanguages,
     );
     if (language == null || language.isAuto || language.isCustom) return;
-    setSource(language);
+    final normalized = LanguageMatcher.normalize(language.code);
+    final target = state.target;
+    if (target.isCustom ||
+        normalized != LanguageMatcher.normalize(target.code)) {
+      setSource(language);
+      return;
+    }
+    final newTarget =
+        _targetAfterSwapOf(normalized) ?? _targetOtherThan(normalized);
+    if (newTarget == null || !_applySource(language)) return;
+    _settings
+      ..setLanguages(target: newTarget)
+      ..addRecentLanguage(newTarget);
+    emit(_clearedExtras(state).copyWith(source: language, target: newTarget));
+    _retranslate();
+  }
+
+  /// The target from before the last smart swap when that swap set the
+  /// current target and the previous one is not [code] (normalised), as
+  /// the engine lists it; else null.
+  Language? _targetAfterSwapOf(String code) {
+    final swap = _lastSmartSwap;
+    if (swap == null || state.target != swap.newTarget) return null;
+    final previous = state.usableTarget(swap.previousTarget);
+    if (previous == null ||
+        previous.isCustom ||
+        LanguageMatcher.normalize(previous.code) == code) {
+      return null;
+    }
+    return previous;
   }
 
   void clearExtras() => emit(_clearedExtras(state));

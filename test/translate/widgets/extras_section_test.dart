@@ -193,6 +193,33 @@ void main() {
           .called(1);
     });
 
+    testWidgets('alternatives of a custom target follow their text', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(
+        state: _aiState().copyWith(
+          target: const Language.custom('Pirate'),
+          alternativesStatus: ExtraStatus.ready,
+          alternatives: () => const AlternativeTranslations(
+            description: '',
+            alternatives: [Alternative(text: 'مرحبا يا عالم')],
+          ),
+        ),
+      );
+      await harness.pump(tester, child: const ExtrasSection());
+      await tester.tap(find.text('Alternatives'));
+      await tester.pumpAndSettle();
+      final text = tester.widget<Text>(
+        find
+            .ancestor(
+              of: find.text('مرحبا يا عالم', findRichText: true),
+              matching: find.byType(Text),
+            )
+            .first,
+      );
+      expect(text.textDirection, TextDirection.rtl);
+    });
+
     testWidgets('alternatives show loading and errors', (tester) async {
       final harness = TranslateHarness(
         state: _aiState().copyWith(

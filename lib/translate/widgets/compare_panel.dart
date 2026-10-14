@@ -14,6 +14,27 @@ import 'package:mozhi/translate/widgets/translate_error.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
 import 'package:translation_repository/translation_repository.dart';
 
+/// How many engines a compare run of [state] uses with the configured
+/// [compareIds] (all engines when none are configured or none of them is
+/// available; only engines that support custom languages when the source
+/// or target is custom), as `TranslateCubit.runCompare` picks them.
+int compareEngineCount(TranslateState state, List<String> compareIds) {
+  var engines = compareIds.isEmpty
+      ? state.engines
+      : [
+          for (final engine in state.engines)
+            if (compareIds.contains(engine.id)) engine,
+        ];
+  if (engines.isEmpty) engines = state.engines;
+  if (state.source.isCustom || state.target.isCustom) {
+    engines = [
+      for (final engine in engines)
+        if (engine.supportsCustomLanguages) engine,
+    ];
+  }
+  return engines.length;
+}
+
 /// Compare mode: a card per engine result with copy and "Use this", plus
 /// placeholders for engines that are still running. When every engine has
 /// answered, screen readers hear how many succeeded.
@@ -32,12 +53,12 @@ class ComparePanel extends StatelessWidget {
           previous.compareEntries != current.compareEntries ||
           previous.comparing != current.comparing ||
           previous.engines != current.engines ||
+          previous.source != current.source ||
+          previous.target != current.target ||
           previous.input.trim().isEmpty != current.input.trim().isEmpty,
       builder: (context, state) {
         final cubit = context.read<TranslateCubit>();
-        final expected = compareIds.isEmpty
-            ? state.engines.length
-            : state.engines.where((e) => compareIds.contains(e.id)).length;
+        final expected = compareEngineCount(state, compareIds);
         final placeholders = state.comparing
             ? math.max(1, expected - state.compareEntries.length)
             : 0;

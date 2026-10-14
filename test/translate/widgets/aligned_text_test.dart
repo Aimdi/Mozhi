@@ -1,0 +1,608 @@
+import 'dart:async';
+
+import 'package:bloc_test/bloc_test.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/translate/translate.dart';
+import 'package:mozhi/translate/widgets/widgets.dart';
+import 'package:translation_repository/translation_repository.dart';
+
+import '../helpers/helpers.dart';
+import 'output_stubs.dart';
+
+const _source = 'Hello world';
+const _target = 'Bonjour le monde';
+
+/// "Hello" = "Bonjour", "world" = "le monde".
+const _alignment = [
+  AlignedSpan(sourceStart: 0, sourceEnd: 5, targetStart: 0, targetEnd: 7),
+  AlignedSpan(sourceStart: 6, sourceEnd: 11, targetStart: 8, targetEnd: 16),
+];
+
+Finder get _alignedText => find.byKey(const Key('translate_aligned_text'));
+
+/// Global centre of the characters [start, end) of the aligned text.
+Offset _centerOf(WidgetTester tester, int start, int end) {
+  final paragraph = tester.renderObject<RenderParagraph>(
+    find.descendant(of: _alignedText, matching: find.byType(RichText)),
+  );
+  final box = paragraph
+      .getBoxesForSelection(TextSelection(baseOffset: start, extentOffset: end))
+      .first;
+  return paragraph.localToGlobal(box.toRect().center);
+}
+
+/// The [TextSpan] of the aligned text that shows [text].
+TextSpan _span(WidgetTester tester, String text) {
+  final rich = tester.widget<RichText>(
+    find.descendant(of: _alignedText, matching: find.byType(RichText)),
+  );
+  late TextSpan found;
+  rich.text.visitChildren((span) {
+    if (span is TextSpan && span.text == text) found = span;
+    return true;
+  });
+  return found;
+}
+
+/// An [AlignedText] whose focus is kept in [focus]; every `onFocus` call
+/// is recorded in [calls].
+class _Host {
+  final focus = ValueNotifier<int?>(null);
+  final calls = <int?>[];
+
+  Widget build({AlignedSide side = AlignedSide.target}) =>
+      ValueListenableBuilder<int?>(
+        valueListenable: focus,
+        builder: (context, value, _) => AlignedText(
+          text: side == AlignedSide.target ? _target : _source,
+          other: side == AlignedSide.target ? _source : _target,
+          side: side,
+          alignment: _alignment,
+          focus: value,
+          onFocus: (index) {
+            calls.add(index);
+            focus.value = index;
+          },
+        ),
+      );
+}
+
+double _contrast(Color a, Color b) {
+  final la = a.computeLuminance();
+  final lb = b.computeLuminance();
+  final (hi, lo) = la > lb ? (la, lb) : (lb, la);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+void main() {
+  setUpAll(registerOutputFallbacks);
+
+  group('AlignedText.ranges', () {
+    test('lists target phrases in text order', () {
+      expect(AlignedText.ranges(_target, _alignment.reversed.toList()), [
+        (0, 7, 1),
+        (8, 16, 0),
+      ]);
+    });
+
+    test('uses source offsets for the source side', () {
+      expect(
+        AlignedText.ranges(_source, _alignment, side: AlignedSide.source),
+        [(0, 5, 0), (6, 11, 1)],
+      );
+    });
+
+    test('clips, and drops empty, blank and overlapping phrases', () {
+      expect(
+        AlignedText.ranges('Bonjour le monde', const [
+          // Past the end: clipped.
+          AlignedSpan(
+            sourceStart: 0,
+            sourceEnd: 1,
+            targetStart: 11,
+            targetEnd: 40,
+          ),
+          // Overlaps the first.
+          AlignedSpan(
+            sourceStart: 0,
+            sourceEnd: 1,
+            targetStart: 8,
+            targetEnd: 13,
+          ),
+          // Empty.
+          AlignedSpan(
+            sourceStart: 0,
+            sourceEnd: 1,
+            targetStart: 3,
+            targetEnd: 3,
+          ),
+          // Only a space.
+          AlignedSpan(
+            sourceStart: 0,
+            sourceEnd: 1,
+            targetStart: 7,
+            targetEnd: 8,
+          ),
+          // Entirely outside.
+          AlignedSpan(
+            sourceStart: 0,
+            sourceEnd: 1,
+            targetStart: 50,
+            targetEnd: 60,
+          ),
+        ]),
+        [(11, 16, 0)],
+      );
+    });
+
+    test('never splits a surrogate pair', () {
+      // "😀" is two UTF-16 code units (1 and 2).
+      const text = 'a😀b';
+      expect(
+        AlignedText.ranges(text, const [
+          AlignedSpan(
+            sourceStart: 0,
+            sourceEnd: 1,
+            targetStart: 2,
+            targetEnd: 2,
+          ),
+        ]),
+        isEmpty,
+      );
+      expect(
+        AlignedText.ranges(text, const [
+          AlignedSpan(
+            sourceStart: 0,
+            sourceEnd: 1,
+            targetStart: 0,
+            targetEnd: 2,
+          ),
+        ]),
+        [(0, 3, 0)],
+      );
+      expect(
+        AlignedText.ranges(text, const [
+          AlignedSpan(
+            sourceStart: 0,
+            sourceEnd: 1,
+            targetStart: 2,
+            targetEnd: 4,
+          ),
+        ]),
+        [(1, 4, 0)],
+      );
+    });
+
+    test('phrase returns the trimmed phrase or nothing', () {
+      expect(
+        AlignedText.phrase(_target, _alignment[1], AlignedSide.target),
+        'le monde',
+      );
+      expect(
+        AlignedText.phrase(_source, _alignment[1], AlignedSide.source),
+        'world',
+      );
+      expect(
+        AlignedText.phrase('Bonjour', _alignment[1], AlignedSide.target),
+        isEmpty,
+      );
+    });
+
+    test('bounds picks the side', () {
+      expect(AlignedText.bounds(_alignment[1], AlignedSide.source), (6, 11));
+      expect(AlignedText.bounds(_alignment[1], AlignedSide.target), (8, 16));
+    });
+  });
+
+  group('AlignedText', () {
+    testWidgets('marks aligned phrases and highlights the focused one', (
+      tester,
+    ) async {
+      final host = _Host()..focus.value = 1;
+      await TranslateHarness().pump(tester, child: host.build());
+      final context = tester.element(_alignedText);
+      final scheme = Theme.of(context).colorScheme;
+      final focused = _span(tester, 'le monde');
+      expect(focused.style?.backgroundColor, scheme.tertiaryContainer);
+      expect(focused.style?.color, scheme.onTertiaryContainer);
+      final other = _span(tester, 'Bonjour');
+      expect(other.style?.backgroundColor, isNull);
+      expect(other.style?.decorationStyle, TextDecorationStyle.dotted);
+      expect(other.style?.decorationColor, scheme.outline);
+    });
+
+    testWidgets('phrases name their counterpart for screen readers', (
+      tester,
+    ) async {
+      final host = _Host();
+      await TranslateHarness().pump(tester, child: host.build());
+      expect(
+        _span(tester, 'le monde').semanticsLabel,
+        'le monde, translates “world”',
+      );
+      expect(
+        _span(tester, 'Bonjour').semanticsLabel,
+        'Bonjour, translates “Hello”',
+      );
+    });
+
+    testWidgets('phrases are unlabelled without the other text', (
+      tester,
+    ) async {
+      await TranslateHarness().pump(
+        tester,
+        child: AlignedText(
+          text: _target,
+          alignment: _alignment,
+          focus: 0,
+          onFocus: (_) {},
+        ),
+      );
+      expect(_span(tester, 'le monde').semanticsLabel, isNull);
+    });
+
+    testWidgets('a tap focuses a phrase; a second tap clears it', (
+      tester,
+    ) async {
+      final host = _Host();
+      await TranslateHarness().pump(tester, child: host.build());
+      await tester.tapAt(_centerOf(tester, 8, 16));
+      await tester.pump();
+      expect(host.calls, [1]);
+      await tester.tapAt(_centerOf(tester, 0, 7));
+      await tester.pump();
+      expect(host.calls, [1, 0]);
+      await tester.tapAt(_centerOf(tester, 0, 7));
+      await tester.pump();
+      expect(host.calls, [1, 0, null]);
+    });
+
+    testWidgets('hovering focuses a phrase until the mouse leaves', (
+      tester,
+    ) async {
+      final host = _Host();
+      await TranslateHarness().pump(tester, child: host.build());
+      // Pinned by a tap.
+      await tester.tapAt(_centerOf(tester, 0, 7));
+      await tester.pump();
+      expect(host.calls, [0]);
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(location: const Offset(700, 500));
+      await mouse.moveTo(_centerOf(tester, 8, 16));
+      await tester.pump();
+      expect(host.calls, [0, 1]);
+      // A click while hovering pins it (no change), the exit keeps it.
+      await mouse.down(_centerOf(tester, 8, 16));
+      await mouse.up();
+      await tester.pump();
+      await mouse.moveTo(const Offset(700, 500));
+      await tester.pump();
+      expect(host.calls, [0, 1]);
+
+      // Hovering the other phrase and leaving goes back to the pinned one.
+      await mouse.moveTo(_centerOf(tester, 0, 7));
+      await tester.pump();
+      await mouse.moveTo(const Offset(700, 500));
+      await tester.pump();
+      expect(host.calls, [0, 1, 0, 1]);
+    });
+
+    testWidgets('hovering without a tap clears the focus on exit', (
+      tester,
+    ) async {
+      final host = _Host();
+      await TranslateHarness().pump(tester, child: host.build());
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(location: const Offset(700, 500));
+      await mouse.moveTo(_centerOf(tester, 0, 7));
+      await tester.pump();
+      await mouse.moveTo(const Offset(700, 500));
+      await tester.pump();
+      expect(host.calls, [0, null]);
+    });
+
+    testWidgets('a focus from the other side is kept after hovering', (
+      tester,
+    ) async {
+      final host = _Host();
+      await TranslateHarness().pump(tester, child: host.build());
+      host.focus.value = 0;
+      await tester.pump();
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(location: const Offset(700, 500));
+      await mouse.moveTo(_centerOf(tester, 8, 16));
+      await tester.pump();
+      await mouse.moveTo(const Offset(700, 500));
+      await tester.pump();
+      expect(host.calls, [1, 0]);
+    });
+
+    testWidgets('announces the focused pair', (tester) async {
+      final host = _Host();
+      await TranslateHarness().pump(
+        tester,
+        child: host.build(),
+        supportsAnnounce: true,
+      );
+      host.focus.value = 1;
+      await tester.pump();
+      expect(tester.takeAnnouncements(), [
+        isAccessibilityAnnouncement('“le monde” translates “world”'),
+      ]);
+    });
+
+    testWidgets('the source side announces the pair the same way', (
+      tester,
+    ) async {
+      final host = _Host();
+      await TranslateHarness().pump(
+        tester,
+        child: host.build(side: AlignedSide.source),
+        supportsAnnounce: true,
+      );
+      expect(
+        _span(tester, 'world').semanticsLabel,
+        'world, translates “le monde”',
+      );
+      host.focus.value = 1;
+      await tester.pump();
+      expect(tester.takeAnnouncements(), [
+        isAccessibilityAnnouncement('“le monde” translates “world”'),
+      ]);
+    });
+
+    testWidgets('an out of range focus is not announced', (tester) async {
+      final host = _Host();
+      await TranslateHarness().pump(
+        tester,
+        child: host.build(),
+        supportsAnnounce: true,
+      );
+      host.focus.value = 5;
+      await tester.pump();
+      expect(tester.takeAnnouncements(), isEmpty);
+    });
+
+    test('highlight colours keep their contrast in light and dark', () {
+      for (final brightness in Brightness.values) {
+        final scheme = ThemeData(brightness: brightness).colorScheme;
+        final style = AlignedText.focusStyle(scheme);
+        expect(
+          _contrast(style.color!, style.backgroundColor!),
+          greaterThanOrEqualTo(4.5),
+          reason: '$brightness',
+        );
+      }
+    });
+  });
+
+  group('OutputCard alignment', () {
+    TranslateState aligned({
+      ExtraStatus status = ExtraStatus.ready,
+      List<AlignedSpan> alignment = _alignment,
+      int? focus,
+    }) => translatedState(assistEngine: claude).copyWith(
+      alignmentStatus: status,
+      alignment: alignment,
+      alignmentFocus: () => focus,
+    );
+
+    Finder button() => find.byKey(const Key('translate_alignment_button'));
+
+    testWidgets('is offered with an AI engine and loads on demand', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(
+        state: translatedState(assistEngine: claude),
+      );
+      stubOutputExtras(harness);
+      await harness.pump(tester, child: const OutputCard());
+      expect(find.byTooltip('Show alignment'), findsOneWidget);
+      await tester.tap(button());
+      await tester.pump();
+      verify(harness.translate.loadAlignment).called(1);
+      expect(find.byTooltip('Hide alignment'), findsOneWidget);
+      expect(tester.widget<IconButton>(button()).isSelected, isTrue);
+    });
+
+    testWidgets('is not offered without an AI engine', (tester) async {
+      final harness = TranslateHarness(state: translatedState());
+      await harness.pump(tester, child: const OutputCard());
+      expect(button(), findsNothing);
+    });
+
+    testWidgets('is disabled for an out-of-date translation', (tester) async {
+      final harness = TranslateHarness(
+        state: translatedState(assistEngine: claude)
+            .copyWith(input: 'Hello there', resultInput: () => 'Hello world'),
+      );
+      await harness.pump(tester, child: const OutputCard());
+      expect(tester.widget<IconButton>(button()).onPressed, isNull);
+    });
+
+    testWidgets('shows progress while aligning', (tester) async {
+      final harness = TranslateHarness(
+        state: aligned(status: ExtraStatus.loading),
+      );
+      stubOutputExtras(harness);
+      await harness.pump(tester, child: const OutputCard());
+      await tester.tap(button());
+      await tester.pump();
+      verifyNever(harness.translate.loadAlignment);
+      final progress = tester.widget<LinearProgressIndicator>(
+        find.byKey(const Key('translate_alignment_progress')),
+      );
+      expect(progress.semanticsLabel, 'Aligning…');
+    });
+
+    testWidgets('shows errors with retry', (tester) async {
+      final harness = TranslateHarness(
+        state: aligned(status: ExtraStatus.failure).copyWith(
+          alignmentError: () => const LlmApiException('x', statusCode: 429),
+        ),
+      );
+      stubOutputExtras(harness);
+      await harness.pump(tester, child: const OutputCard());
+      await tester.tap(button());
+      await tester.pump();
+      verify(harness.translate.loadAlignment).called(1);
+      expect(
+        find.byKey(const Key('translate_alignment_error')),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Retry'));
+      verify(harness.translate.loadAlignment).called(1);
+    });
+
+    testWidgets('says when nothing could be aligned', (tester) async {
+      final harness = TranslateHarness(state: aligned(alignment: const []));
+      stubOutputExtras(harness);
+      await harness.pump(tester, child: const OutputCard());
+      await tester.tap(button());
+      await tester.pump();
+      expect(find.text('No matching phrases found.'), findsOneWidget);
+      expect(_alignedText, findsNothing);
+    });
+
+    testWidgets('tapping a phrase focuses its pair', (tester) async {
+      final harness = TranslateHarness(state: aligned());
+      stubOutputExtras(harness);
+      await harness.pump(tester, child: const OutputCard());
+      await tester.tap(button());
+      await tester.pump();
+      expect(_alignedText, findsOneWidget);
+      expect(find.byKey(const Key('translate_output_text')), findsNothing);
+      expect(
+        find.text('Tap a phrase to see which words it translates.'),
+        findsOneWidget,
+      );
+      await tester.tapAt(_centerOf(tester, 8, 16));
+      verify(() => harness.translate.focusAlignment(1)).called(1);
+    });
+
+    testWidgets('hiding clears the focus', (tester) async {
+      final harness = TranslateHarness(state: aligned(focus: 1));
+      stubOutputExtras(harness);
+      await harness.pump(tester, child: const OutputCard());
+      await tester.tap(button());
+      await tester.pump();
+      expect(_alignedText, findsOneWidget);
+      await tester.tap(button());
+      await tester.pump();
+      verify(() => harness.translate.focusAlignment(null)).called(1);
+      expect(_alignedText, findsNothing);
+      expect(find.byKey(const Key('translate_output_text')), findsOneWidget);
+    });
+
+    testWidgets('hiding without a focus leaves the focus alone', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(state: aligned());
+      stubOutputExtras(harness);
+      await harness.pump(tester, child: const OutputCard());
+      await tester.tap(button());
+      await tester.pump();
+      await tester.tap(button());
+      await tester.pump();
+      verifyNever(() => harness.translate.focusAlignment(any()));
+    });
+
+    testWidgets('insights and alignment take turns', (tester) async {
+      final harness = TranslateHarness(
+        state: aligned(focus: 0).copyWith(
+          insightsStatus: ExtraStatus.ready,
+          insights: const [
+            WordInsight(sourceText: 'world', targetText: 'monde'),
+          ],
+        ),
+      );
+      stubOutputExtras(harness);
+      await harness.pump(tester, child: const OutputCard());
+      await tester.tap(button());
+      await tester.pump();
+      expect(_alignedText, findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('translate_insights_button')));
+      await tester.pump();
+      verify(() => harness.translate.focusAlignment(null)).called(1);
+      expect(_alignedText, findsNothing);
+      expect(find.byKey(const Key('translate_insight_text')), findsOneWidget);
+      expect(tester.widget<IconButton>(button()).isSelected, isFalse);
+
+      await tester.tap(button());
+      await tester.pump();
+      expect(_alignedText, findsOneWidget);
+      expect(find.byKey(const Key('translate_insight_text')), findsNothing);
+    });
+
+    testWidgets('reloads for the next translation while shown', (tester) async {
+      final initial = translatedState(assistEngine: claude);
+      final harness = TranslateHarness(state: initial);
+      stubOutputExtras(harness);
+      final controller = StreamController<TranslateState>();
+      addTearDown(controller.close);
+      whenListen(harness.translate, controller.stream, initialState: initial);
+      await harness.pump(tester, child: const OutputCard());
+      await tester.tap(button());
+      await tester.pump();
+      verify(harness.translate.loadAlignment).called(1);
+
+      final next = translatedState(
+        assistEngine: claude,
+        input: 'Good night',
+        result: const TranslationResult(
+          engineId: 'mozhi:deepl',
+          engineName: 'DeepL',
+          text: 'Bonne nuit',
+        ),
+      );
+      when(() => harness.translate.state).thenReturn(next);
+      controller.add(next);
+      await tester.pump();
+      verify(harness.translate.loadAlignment).called(1);
+    });
+
+    testWidgets('loads once it is idle again while shown', (tester) async {
+      final initial = aligned(status: ExtraStatus.loading);
+      final harness = TranslateHarness(state: initial);
+      stubOutputExtras(harness);
+      final controller = StreamController<TranslateState>();
+      addTearDown(controller.close);
+      whenListen(harness.translate, controller.stream, initialState: initial);
+      await harness.pump(tester, child: const OutputCard());
+      await tester.tap(button());
+      await tester.pump();
+      verifyNever(harness.translate.loadAlignment);
+      final idle = initial.copyWith(
+        alignmentStatus: ExtraStatus.idle,
+        alignment: const [],
+      );
+      when(() => harness.translate.state).thenReturn(idle);
+      controller.add(idle);
+      await tester.pump();
+      verify(harness.translate.loadAlignment).called(1);
+    });
+
+    testWidgets('does not load on its own while hidden', (tester) async {
+      final initial = translatedState(assistEngine: claude);
+      final harness = TranslateHarness(state: initial);
+      stubOutputExtras(harness);
+      whenListen(
+        harness.translate,
+        Stream.value(initial.copyWith(input: 'Hello')),
+        initialState: initial,
+      );
+      await harness.pump(tester, child: const OutputCard());
+      await tester.pump();
+      verifyNever(harness.translate.loadAlignment);
+    });
+  });
+}

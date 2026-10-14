@@ -7,10 +7,13 @@ import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/dictionary_card.dart';
 import 'package:mozhi/translate/widgets/explain_sheet.dart';
 import 'package:mozhi/translate/widgets/language_text.dart';
+import 'package:mozhi/translate/widgets/refine_chips.dart';
 import 'package:mozhi/translate/widgets/status_announcer.dart';
 import 'package:mozhi/translate/widgets/translate_error.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
 import 'package:translation_repository/translation_repository.dart';
+
+export 'package:mozhi/translate/widgets/refine_chips.dart';
 
 /// AI extras under a finished translation: refinement chips (AI engines),
 /// alternatives, explain and (short inputs) a dictionary card. Hidden while
@@ -20,98 +23,52 @@ class ExtrasSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<TranslateCubit, TranslateState>(
-      builder: (context, state) {
-        if (!state.hasExtras ||
-            state.output.trim().isEmpty ||
-            state.status != TranslateStatus.success ||
-            state.isResultStale) {
-          return const SizedBox.shrink();
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (state.isAiEngine) ...[
+    return BlocListener<TranslateCubit, TranslateState>(
+      // A failed refinement keeps the translation; say why it did not
+      // change.
+      listenWhen: (previous, current) =>
+          current.refinementError != null &&
+          current.refinementError != previous.refinementError,
+      listener: _showRefinementError,
+      child: BlocBuilder<TranslateCubit, TranslateState>(
+        builder: (context, state) {
+          if (!state.hasExtras ||
+              state.output.trim().isEmpty ||
+              state.status != TranslateStatus.success ||
+              state.isResultStale) {
+            return const SizedBox.shrink();
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (state.isAiEngine) ...[
+                const SizedBox(height: TranslateLayout.gap),
+                RefinementChips(state: state),
+              ],
               const SizedBox(height: TranslateLayout.gap),
-              RefinementChips(state: state),
+              _ExtrasCard(state: state),
+              if (state.isShortInput) ...[
+                const SizedBox(height: TranslateLayout.gap),
+                const DictionaryCard(),
+              ],
             ],
-            const SizedBox(height: TranslateLayout.gap),
-            _ExtrasCard(state: state),
-            if (state.isShortInput) ...[
-              const SizedBox(height: TranslateLayout.gap),
-              const DictionaryCard(),
-            ],
-          ],
-        );
-      },
-    );
-  }
-}
-
-IconData _suggestionIcon(String name) => switch (name) {
-  'formal' => Icons.work_outline,
-  'casual' => Icons.emoji_emotions_outlined,
-  'shorter' => Icons.compress,
-  'longer' => Icons.notes,
-  'simplify' => Icons.auto_fix_high_outlined,
-  'fluent' => Icons.record_voice_over_outlined,
-  'literal' => Icons.format_quote_outlined,
-  _ => Icons.tune,
-};
-
-/// Horizontally scrolling refinement chips (Kagi translation suggestions).
-class RefinementChips extends StatelessWidget {
-  const new({required this.state, super.key});
-
-  final TranslateState state;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    final cubit = context.read<TranslateCubit>();
-    final loading = state.suggestionsStatus == ExtraStatus.loading;
-    final canLoadMore = state.suggestionsStatus != ExtraStatus.ready;
-    return Semantics(
-      container: true,
-      label: l10n.translateRefine,
-      child: SingleChildScrollView(
-        key: const Key('translate_refinement_chips'),
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            for (final suggestion in state.suggestions)
-              Padding(
-                padding: const EdgeInsetsDirectional.only(end: 8),
-                child: ActionChip(
-                  avatar: Icon(_suggestionIcon(suggestion.icon)),
-                  label: Text(suggestion.label),
-                  tooltip: suggestion.description.isEmpty
-                      ? null
-                      : suggestion.description,
-                  onPressed: () => unawaited(cubit.applySuggestion(suggestion)),
-                ),
-              ),
-            if (loading || canLoadMore)
-              ActionChip(
-                key: const Key('translate_more_suggestions'),
-                avatar: loading
-                    ? SizedBox.square(
-                        dimension: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          semanticsLabel: l10n.translateLoading,
-                        ),
-                      )
-                    : const Icon(Icons.auto_awesome),
-                label: Text(l10n.translateMoreSuggestions),
-                onPressed: loading
-                    ? null
-                    : () => unawaited(cubit.loadSuggestions()),
-              ),
-          ],
-        ),
+          );
+        },
       ),
     );
+  }
+
+  static void _showRefinementError(BuildContext context, TranslateState state) {
+    final l10n = context.l10n;
+    final reason = describeTranslateError(l10n, state.refinementError).message;
+    ScaffoldMessenger.maybeOf(context)
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          key: const Key('translate_refinement_error'),
+          content: Text(l10n.translateRefinementFailed(reason)),
+        ),
+      );
   }
 }
 

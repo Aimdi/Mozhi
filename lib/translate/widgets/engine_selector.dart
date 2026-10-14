@@ -97,8 +97,13 @@ Future<void> showEngineSheet(BuildContext context) {
   );
 }
 
+/// Location of the quality modes settings (Fast / Best engines).
+const translateQualityLocation = '/settings/quality';
+
 /// Engines grouped into "Mozhi engines (via host)" and "AI models", each
-/// with a privacy badge.
+/// with a privacy badge, followed by links to the provider, instance and
+/// quality mode settings. The quality modes entry explains how to get the
+/// Fast / Best toggle while no quality engine is configured.
 class EngineSheet extends StatelessWidget {
   const new({super.key});
 
@@ -190,6 +195,17 @@ class EngineSheet extends StatelessWidget {
             leading: const Icon(Icons.dns_outlined),
             title: Text(l10n.translateManageInstances),
             onTap: () => open('/settings/instances'),
+          ),
+          ListTile(
+            key: const Key('translate_quality_settings'),
+            leading: const Icon(Icons.bolt),
+            title: Text(l10n.translateQualityModesTitle),
+            subtitle: Text(
+              state.hasQualityModes
+                  ? l10n.translateQualityModesChange
+                  : l10n.translateQualityModesSetUp,
+            ),
+            onTap: () => open(translateQualityLocation),
           ),
         ],
       ),

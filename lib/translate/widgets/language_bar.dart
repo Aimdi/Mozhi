@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/translate/widgets/detection_chips.dart';
 import 'package:mozhi/translate/widgets/language_picker_sheet.dart';
+import 'package:mozhi/translate/widgets/recent_pairs_sheet.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
 
 /// Opens the language picker for the source ([source]) or target language
@@ -55,6 +59,14 @@ bool detectionIsUncertain(TranslateState state) {
 }
 
 /// Source button, swap button and target button.
+///
+/// A detection that may be wrong ([detectionLooksUncertain]: the engine
+/// says so, or a single short word) reads "Detected: Dutch?" with a help
+/// icon, like the chip under the translation.
+///
+/// Long-pressing the swap button opens the recent language pairs
+/// ([showRecentPairsSheet]; also in the "More tools" menu for keyboard and
+/// screen reader users).
 class LanguageBar extends StatelessWidget {
   const new({super.key});
 
@@ -66,12 +78,13 @@ class LanguageBar extends StatelessWidget {
           previous.source != current.source ||
           previous.target != current.target ||
           previous.result?.detectedSource != current.result?.detectedSource ||
-          detectionIsUncertain(previous) != detectionIsUncertain(current) ||
+          detectionLooksUncertain(previous) !=
+              detectionLooksUncertain(current) ||
           previous.sourceLanguages != current.sourceLanguages ||
           previous.canSwap != current.canSwap,
       builder: (context, state) {
         final detected = state.result?.detectedSource;
-        final uncertain = detectionIsUncertain(state);
+        final uncertain = detectionLooksUncertain(state);
         final String sourceLabel;
         final String sourceDescription;
         var sourceTooltip = '';
@@ -100,7 +113,9 @@ class LanguageBar extends StatelessWidget {
                 tooltip: sourceTooltip.isEmpty
                     ? sourceDescription
                     : sourceTooltip,
-                icon: !state.source.isAuto || detected == null
+                icon: state.source.isCustom
+                    ? Icons.auto_awesome
+                    : !state.source.isAuto || detected == null
                     ? null
                     : uncertain
                     ? Icons.help_outline
@@ -110,14 +125,7 @@ class LanguageBar extends StatelessWidget {
             ),
             SizedBox(
               width: TranslateLayout.paneGap,
-              child: IconButton(
-                key: const Key('translate_swap_button'),
-                tooltip: l10n.translateSwapLanguages,
-                icon: const Icon(Icons.swap_horiz),
-                onPressed: state.canSwap
-                    ? context.read<TranslateCubit>().swap
-                    : null,
-              ),
+              child: _SwapButton(enabled: state.canSwap),
             ),
             Expanded(
               child: _LanguageButton(
@@ -132,6 +140,43 @@ class LanguageBar extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+/// Swaps the languages; a long press opens the recent language pairs.
+class _SwapButton extends StatelessWidget {
+  const new({required this.enabled});
+
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    void showPairs() => unawaited(showRecentPairsSheet(context));
+    // The tooltip shows on hover and focus only: a long press opens the
+    // recent pairs instead.
+    final button = MergeSemantics(
+      child: Semantics(
+        onLongPressHint: l10n.translateRecentPairsShow,
+        child: Tooltip(
+          message: l10n.translateSwapLanguages,
+          triggerMode: TooltipTriggerMode.manual,
+          child: IconButton(
+            key: const Key('translate_swap_button'),
+            icon: const Icon(Icons.swap_horiz),
+            onPressed: enabled ? context.read<TranslateCubit>().swap : null,
+            onLongPress: showPairs,
+          ),
+        ),
+      ),
+    );
+    if (enabled) return button;
+    // A disabled button ignores long presses; the pairs stay reachable.
+    return GestureDetector(
+      excludeFromSemantics: true,
+      onLongPress: showPairs,
+      child: button,
     );
   }
 }

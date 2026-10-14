@@ -2,7 +2,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/dictionary/view/dictionary_page.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/translate.dart';
 import 'package:mozhi/translate/widgets/widgets.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -23,6 +25,12 @@ Future<void> _press(
   if (shift) await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
   if (meta) await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
   if (control) await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+}
+
+Future<void> _pressAlt(WidgetTester tester, LogicalKeyboardKey key) async {
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+  await tester.sendKeyEvent(key);
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
 }
 
 Future<void> _focusInput(WidgetTester tester) async {
@@ -195,11 +203,120 @@ void main() {
         'Ctrl + L',
         'Ctrl + Shift + L',
         'Esc',
+        'Alt + 1…9',
         '? or Ctrl + /',
       ]);
+      expect(rows[6].keysSemantics, 'Alt 1 to 9');
+      expect(rows[6].description, 'Translate into pinned language 1 to 9');
       expect(rows.last.keysSemantics, '? or Control /');
+      final apple = translateShortcutHelp(l10n, command: true);
+      expect(apple[6].keys, '⌥ + 1…9');
+      expect(apple[6].keysSemantics, 'Option 1 to 9');
       expect(shortcutUsesCommandKey(TargetPlatform.iOS), isTrue);
       expect(shortcutUsesCommandKey(TargetPlatform.android), isFalse);
+    });
+  });
+
+  group('pinned target shortcuts', () {
+    const pinned = AppSettings(pinnedLanguages: [german, japanese]);
+
+    testWidgets('Alt+1 and Alt+2 pick the pinned targets', (tester) async {
+      final harness = TranslateHarness(
+        state: translatedState(),
+        settings: pinned,
+      );
+      await harness.pump(tester);
+      await _focusInput(tester);
+      await _pressAlt(tester, LogicalKeyboardKey.digit1);
+      verify(() => harness.translate.selectPinnedTarget(0)).called(1);
+      await _pressAlt(tester, LogicalKeyboardKey.digit2);
+      verify(() => harness.translate.selectPinnedTarget(1)).called(1);
+    });
+
+    testWidgets('every digit up to 9 is bound', (tester) async {
+      final digits = [
+        LogicalKeyboardKey.digit1,
+        LogicalKeyboardKey.digit2,
+        LogicalKeyboardKey.digit3,
+        LogicalKeyboardKey.digit4,
+        LogicalKeyboardKey.digit5,
+        LogicalKeyboardKey.digit6,
+        LogicalKeyboardKey.digit7,
+        LogicalKeyboardKey.digit8,
+        LogicalKeyboardKey.digit9,
+      ];
+      for (final (index, digit) in digits.indexed) {
+        final bound = TranslateView.shortcuts.entries.where(
+          (entry) =>
+              entry.key is SingleActivator &&
+              (entry.key as SingleActivator).trigger == digit &&
+              (entry.key as SingleActivator).alt,
+        );
+        expect(
+          bound.single.value,
+          isA<SelectPinnedTargetIntent>().having(
+            (intent) => intent.index,
+            'index',
+            index,
+          ),
+        );
+      }
+      expect(translatePinnedShortcutCount, digits.length);
+    });
+
+    testWidgets('a missing pin lets the key through', (tester) async {
+      final harness = TranslateHarness(
+        state: translatedState(),
+        settings: pinned,
+      );
+      await harness.pump(tester);
+      await _focusInput(tester);
+      await _pressAlt(tester, LogicalKeyboardKey.digit3);
+      verifyNever(() => harness.translate.selectPinnedTarget(any()));
+    });
+
+    testWidgets('does nothing without engines', (tester) async {
+      final harness = TranslateHarness(
+        state: const TranslateState(enginesStatus: EnginesStatus.failure),
+        settings: pinned,
+      );
+      await harness.pump(tester);
+      await _pressAlt(tester, LogicalKeyboardKey.digit1);
+      verifyNever(() => harness.translate.selectPinnedTarget(any()));
+    });
+
+    testWidgets('Option+digit types in text fields on macOS', (tester) async {
+      final harness = TranslateHarness(
+        state: translatedState(),
+        settings: pinned,
+      );
+      await harness.pump(tester, platform: TargetPlatform.macOS);
+      // Outside text fields it picks the pin.
+      await tester.pump();
+      await _pressAlt(tester, LogicalKeyboardKey.digit1);
+      verify(() => harness.translate.selectPinnedTarget(0)).called(1);
+
+      await _focusInput(tester);
+      await _pressAlt(tester, LogicalKeyboardKey.digit1);
+      verifyNever(() => harness.translate.selectPinnedTarget(any()));
+    });
+
+    testWidgets('the cheat sheet lists them', (tester) async {
+      final harness = TranslateHarness(state: translatedState());
+      await harness.pump(tester);
+      await tester.tap(find.byKey(const Key('translate_more_tools')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Keyboard shortcuts'));
+      await tester.pumpAndSettle();
+      expect(find.text('Alt + 1…9'), findsOneWidget);
+      expect(
+        find.text('Translate into pinned language 1 to 9'),
+        findsOneWidget,
+      );
+      expect(
+        tester.widget<Text>(find.text('Alt + 1…9')).semanticsLabel,
+        'Alt 1 to 9',
+      );
     });
   });
 
@@ -220,6 +337,104 @@ void main() {
         verify(() => harness.router.push<void>(route)).called(1);
       });
     }
+
+    Future<void> openTool(WidgetTester tester, String label) async {
+      await tester.tap(find.byKey(const Key('translate_more_tools')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(label));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('Dictionary looks up a short input', (tester) async {
+      final harness = TranslateHarness(
+        state: translatedState(input: '  Hello world '),
+      );
+      await harness.pump(tester);
+      await openTool(tester, 'Dictionary');
+      verify(
+        () => harness.router.push<void>(
+          '/dictionary?word=Hello+world&from=en&to=fr',
+          extra: DictionaryLaunch.lookUp,
+        ),
+      ).called(1);
+    });
+
+    testWidgets('Dictionary opens empty for longer text', (tester) async {
+      final harness = TranslateHarness(
+        state: readyState(
+          input: 'One two three four',
+          source: german,
+          target: const Language.custom('Pirate speak'),
+          engine: claude,
+        ),
+      );
+      await harness.pump(tester);
+      await openTool(tester, 'Dictionary');
+      verify(() => harness.router.push<void>('/dictionary?from=de')).called(1);
+    });
+
+    test('translateDictionaryLocation', () {
+      expect(
+        translateDictionaryLocation(readyState(input: 'gato')),
+        '/dictionary?word=gato&from=auto&to=fr',
+      );
+      expect(
+        translateDictionaryLocation(translatedState(input: 'Hola')),
+        '/dictionary?word=Hola&from=en&to=fr',
+      );
+      // A stale detection is not used.
+      expect(
+        translateDictionaryLocation(
+          translatedState(input: 'Hola')
+              .copyWith(resultInput: () => 'Hello world'),
+        ),
+        '/dictionary?word=Hola&from=auto&to=fr',
+      );
+      expect(
+        translateDictionaryLocation(
+          readyState(
+            input: 'x',
+            engine: claude,
+            source: const Language.custom('Gen Z slang'),
+          ),
+        ),
+        '/dictionary?word=x&to=fr',
+      );
+      final long = 'a' * (TranslateCubit.maxDictionaryWordLength + 1);
+      expect(translateDictionaryWord(readyState(input: long)), isNull);
+      expect(translateDictionaryWord(readyState()), isNull);
+    });
+
+    testWidgets('Recent language pairs opens the pairs', (tester) async {
+      final harness = TranslateHarness(
+        state: translatedState(),
+        settings: const AppSettings(
+          recentPairs: [LanguagePair(source: german, target: english)],
+        ),
+      );
+      await harness.pump(tester);
+      await openTool(tester, 'Recent language pairs');
+      expect(find.byType(RecentPairsSheet), findsOneWidget);
+      await tester.tap(find.text('German → English'));
+      await tester.pumpAndSettle();
+      verify(
+        () => harness.translate.applyLanguagePair(
+          const LanguagePair(source: german, target: english),
+        ),
+      ).called(1);
+    });
+
+    testWidgets('Recent language pairs needs engines', (tester) async {
+      final harness = TranslateHarness(
+        state: const TranslateState(enginesStatus: EnginesStatus.failure),
+      );
+      await harness.pump(tester);
+      await tester.tap(find.byKey(const Key('translate_more_tools')));
+      await tester.pumpAndSettle();
+      expect(find.text('Recent language pairs'), findsNothing);
+      expect(find.text('Dictionary'), findsOneWidget);
+      expect(find.text('Keyboard shortcuts'), findsOneWidget);
+    });
 
     testWidgets('lists the keyboard shortcuts', (tester) async {
       final harness = TranslateHarness(state: translatedState());

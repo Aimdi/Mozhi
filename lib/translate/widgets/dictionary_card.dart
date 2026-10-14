@@ -1,7 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/router.dart';
+import 'package:mozhi/dictionary/view/dictionary_page.dart'
+    show DictionaryLaunch;
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/ai_generated_header.dart';
@@ -12,8 +16,45 @@ import 'package:mozhi/translate/widgets/translate_layout.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// AI dictionary entry for short (1-3 word) inputs, loaded on demand.
+///
+/// The detail level (concise, standard, detailed) can be picked before and
+/// after looking up; related words and "Did you mean …?" look that word up
+/// instead ([TranslateCubit.lookUpWord]). "Open dictionary" shows the word
+/// in the full-screen dictionary and looks it up there.
 class DictionaryCard extends StatelessWidget {
   const new({super.key});
+
+  /// The word "Open dictionary" opens: the shown (or loading) word, else
+  /// the input.
+  static String wordOf(TranslateState state) {
+    final query = state.dictionaryQuery?.trim() ?? '';
+    return query.isNotEmpty ? query : state.input.trim();
+  }
+
+  /// Opens the full-screen dictionary for [word] in the languages of
+  /// [state] (the detected source when it is auto) and looks it up.
+  static Future<void> openDictionary(
+    BuildContext context,
+    TranslateState state,
+    String word,
+  ) async {
+    final source = state.source;
+    final detected = state.result?.detectedSource?.trim() ?? '';
+    final from = source.isCustom
+        ? null
+        : source.isAuto
+        ? (detected.isEmpty ? null : detected)
+        : source.code;
+    final target = state.target;
+    await context.push<Object?>(
+      AppRoutes.dictionaryWord(
+        word: word,
+        from: from,
+        to: target.isCustom ? null : target.code,
+      ),
+      extra: DictionaryLaunch.lookUp,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -23,10 +64,16 @@ class DictionaryCard extends StatelessWidget {
       buildWhen: (previous, current) =>
           previous.dictionaryStatus != current.dictionaryStatus ||
           previous.dictionary != current.dictionary ||
-          previous.input != current.input,
+          previous.dictionaryVerbosity != current.dictionaryVerbosity ||
+          previous.dictionaryQuery != current.dictionaryQuery ||
+          previous.input != current.input ||
+          previous.source != current.source ||
+          previous.target != current.target ||
+          previous.result?.detectedSource != current.result?.detectedSource,
       builder: (context, state) {
         final cubit = context.read<TranslateCubit>();
         final entry = state.dictionary;
+        final word = wordOf(state);
         final body = switch (state.dictionaryStatus) {
           ExtraStatus.idle => Align(
             alignment: AlignmentDirectional.centerStart,
@@ -54,6 +101,8 @@ class DictionaryCard extends StatelessWidget {
                 ? _detected(state.result?.detectedSource)
                 : state.source,
             targetLanguage: state.target,
+            query: state.dictionaryQuery,
+            onWordTap: (word) => unawaited(cubit.lookUpWord(word)),
           ),
           ExtraStatus.ready => const SizedBox.shrink(),
         };
@@ -79,7 +128,24 @@ class DictionaryCard extends StatelessWidget {
                     title: l10n.translateDictionary,
                   ),
                   const SizedBox(height: 8),
+                  DictionaryVerbosityChips(
+                    value: state.dictionaryVerbosity,
+                    onChanged: (verbosity) =>
+                        unawaited(cubit.setDictionaryVerbosity(verbosity)),
+                  ),
+                  const SizedBox(height: 8),
                   body,
+                  if (word.isNotEmpty)
+                    Align(
+                      alignment: AlignmentDirectional.centerEnd,
+                      child: TextButton.icon(
+                        key: const Key('translate_dictionary_open'),
+                        onPressed: () =>
+                            unawaited(openDictionary(context, state, word)),
+                        icon: const Icon(Icons.open_in_new),
+                        label: Text(l10n.translateDictionaryOpen),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -93,16 +159,103 @@ class DictionaryCard extends StatelessWidget {
       code == null || code.isEmpty ? null : Language(code: code, name: code);
 }
 
-/// Word, IPA, senses, examples and synonyms of a [DictionaryEntry].
+/// Concise / Standard / Detailed: how much a dictionary look-up asks for
+/// (choice chips with a check mark, in a named group).
+class DictionaryVerbosityChips extends StatelessWidget {
+  const new({required this.value, this.onChanged, super.key});
+
+  final DictionaryVerbosity value;
+
+  /// Called with a newly chosen level; null disables the chips.
+  final ValueChanged<DictionaryVerbosity>? onChanged;
+
+  /// Name of [verbosity] in the UI.
+  static String label(AppLocalizations l10n, DictionaryVerbosity verbosity) =>
+      switch (verbosity) {
+        DictionaryVerbosity.concise => l10n.translateDictionaryConcise,
+        DictionaryVerbosity.standard => l10n.translateDictionaryStandard,
+        DictionaryVerbosity.comprehensive => l10n.translateDictionaryDetailed,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final onChanged = this.onChanged;
+    return Semantics(
+      key: const Key('translate_dictionary_verbosity'),
+      container: true,
+      explicitChildNodes: true,
+      label: l10n.translateDictionaryDetailLevel,
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 4,
+        children: [
+          for (final verbosity in DictionaryVerbosity.values)
+            ChoiceChip(
+              key: ValueKey('translate_dictionary_verbosity:${verbosity.name}'),
+              label: Text(label(l10n, verbosity)),
+              selected: verbosity == value,
+              onSelected: onChanged == null
+                  ? null
+                  : (_) {
+                      if (verbosity != value) onChanged(verbosity);
+                    },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "Did you mean “[word]”?" (`translateDictionaryDidYouMean`) as a span in
+/// which only [word] carries [wordLocale] (the language of the looked-up
+/// text): screen readers read the UI-language words with the UI voice and
+/// the word with its language's, and CJK glyphs are picked per part.
+TextSpan didYouMeanSpan(
+  AppLocalizations l10n,
+  String word, {
+  Locale? wordLocale,
+}) {
+  // A private-use character no translation contains.
+  const marker = '\u{E000}';
+  final template = l10n.translateDictionaryDidYouMean(marker);
+  final at = template.indexOf(marker);
+  if (wordLocale == null || at < 0) {
+    return TextSpan(text: l10n.translateDictionaryDidYouMean(word));
+  }
+  final before = template.substring(0, at);
+  final after = template.substring(at + marker.length);
+  return TextSpan(
+    children: [
+      if (before.isNotEmpty) TextSpan(text: before),
+      TextSpan(text: word, locale: wordLocale),
+      if (after.isNotEmpty) TextSpan(text: after),
+    ],
+  );
+}
+
+/// Word, IPA, senses, examples, synonyms and related words of a
+/// [DictionaryEntry], with "Did you mean …?" for a misspelled word.
+///
+/// With [onWordTap], related words are chips and "Did you mean …?" is a
+/// link that look the word up; without it they are plain text.
 class DictionaryEntryView extends StatelessWidget {
   const new({
     required this.entry,
     this.sourceLanguage,
     this.targetLanguage,
+    this.query,
+    this.onWordTap,
     super.key,
   });
 
   final DictionaryEntry entry;
+
+  /// The text that was looked up; "Did you mean …?" is not offered for it.
+  final String? query;
+
+  /// Looks a related word or the suggested spelling up.
+  final ValueChanged<String>? onWordTap;
 
   /// Language of the word and the example sentences.
   final Language? sourceLanguage;
@@ -130,10 +283,51 @@ class DictionaryEntryView extends StatelessWidget {
         : textDirectionForLanguage(target);
     Widget heading(String text) =>
         Semantics(header: true, child: Text(text, style: label));
+    final onWordTap = this.onWordTap;
+    final didYouMean = entry.didYouMean?.trim() ?? '';
+    final suggestSpelling =
+        didYouMean.isNotEmpty &&
+        didYouMean.toLowerCase() != query?.trim().toLowerCase();
+    final related = [
+      for (final word in entry.relatedWords)
+        if (word.trim().isNotEmpty) word.trim(),
+    ];
     return SelectionArea(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (suggestSpelling) ...[
+            SelectionContainer.disabled(
+              child: onWordTap == null
+                  ? Text.rich(
+                      didYouMeanSpan(
+                        l10n,
+                        didYouMean,
+                        wordLocale: sourceLocale,
+                      ),
+                      key: const Key('translate_dictionary_did_you_mean'),
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        fontStyle: FontStyle.italic,
+                      ),
+                    )
+                  : TextButton.icon(
+                      key: const Key('translate_dictionary_did_you_mean'),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                      ),
+                      onPressed: () => onWordTap(didYouMean),
+                      icon: const Icon(Icons.spellcheck),
+                      label: Text.rich(
+                        didYouMeanSpan(
+                          l10n,
+                          didYouMean,
+                          wordLocale: sourceLocale,
+                        ),
+                      ),
+                    ),
+            ),
+            const SizedBox(height: 4),
+          ],
           Wrap(
             spacing: 12,
             crossAxisAlignment: WrapCrossAlignment.end,
@@ -203,6 +397,36 @@ class DictionaryEntryView extends StatelessWidget {
             heading(l10n.translateDictionarySynonyms),
             const SizedBox(height: 4),
             Text(entry.synonyms.join(', ')),
+          ],
+          if (related.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            heading(l10n.translateDictionaryRelated),
+            const SizedBox(height: 4),
+            if (onWordTap == null)
+              Text.rich(
+                TextSpan(text: related.join(', '), locale: sourceLocale),
+                textDirection: sourceDirection,
+              )
+            else
+              SelectionContainer.disabled(
+                child: Wrap(
+                  key: const Key('translate_dictionary_related'),
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    for (final word in related)
+                      ActionChip(
+                        key: ValueKey('translate_dictionary_related:$word'),
+                        label: Text.rich(
+                          TextSpan(text: word, locale: sourceLocale),
+                          textDirection: sourceDirection,
+                        ),
+                        tooltip: l10n.translateDictionaryLookUp(word),
+                        onPressed: () => onWordTap(word),
+                      ),
+                  ],
+                ),
+              ),
           ],
           if (entry.etymology.isNotEmpty) ...[
             const SizedBox(height: 16),
