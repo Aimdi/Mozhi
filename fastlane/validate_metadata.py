@@ -9,6 +9,7 @@ The layout is the one shared by fastlane supply (Google Play) and F-Droid:
         full_description.txt   <= 4000 chars
         changelogs/<versionCode>.txt  <= 500 chars
         images/icon.png        512x512 PNG
+        images/featureGraphic.png  1024x500 PNG/JPEG, no alpha (Play requires it)
         images/phoneScreenshots/*.png|jpg
 
 Lengths are counted in Unicode code points after stripping surrounding
@@ -17,8 +18,9 @@ whitespace, the way both stores count them.
 Usage:  python3 fastlane/validate_metadata.py [--strict]
 
 Exits with status 1 if any error is found. Google Play image rules that
-F-Droid does not have (aspect ratio at most 2:1, at most 8 screenshots) are
-reported as warnings, or as errors with --strict.
+F-Droid does not have (aspect ratio at most 2:1, at most 8 screenshots, a
+1024x500 feature graphic without alpha in en-US) are reported as warnings,
+or as errors with --strict.
 """
 
 from __future__ import annotations
@@ -112,8 +114,29 @@ def current_version_code() -> int | None:
     return int(match.group(1)) if match else None
 
 
+def has_alpha(path: Path) -> bool:
+    # PNG colour types 4 (grey + alpha) and 6 (RGBA); JPEG has no alpha.
+    data = path.read_bytes()
+    return data[:8] == b"\x89PNG\r\n\x1a\n" and data[25] in (4, 6)
+
+
 def check_images(locale_dir: Path, strict: bool) -> None:
     images = locale_dir / "images"
+    play = errors if strict else warnings
+    graphics = [
+        images / f"featureGraphic.{ext}"
+        for ext in ("png", "jpg", "jpeg")
+        if (images / f"featureGraphic.{ext}").exists()
+    ]
+    if not graphics and locale_dir.name == "en-US":
+        play.append(f"{rel(images)}/featureGraphic.png: missing (Play requires it)")
+    for graphic in graphics:
+        size = image_size(graphic)
+        if size != (1024, 500):
+            errors.append(f"{rel(graphic)}: {size}, expected 1024x500")
+        if has_alpha(graphic):
+            play.append(f"{rel(graphic)}: has an alpha channel (Play rejects it)")
+        print(f"  images/{graphic.name:<17} {'ok' if size == (1024, 500) else size}")
     if not images.is_dir():
         return
     icon = images / "icon.png"
@@ -121,7 +144,6 @@ def check_images(locale_dir: Path, strict: bool) -> None:
         size = image_size(icon)
         if size != (512, 512):
             errors.append(f"{rel(icon)}: {size}, expected 512x512 PNG")
-    play = errors if strict else warnings
     for sub in SCREENSHOT_DIRS:
         folder = images / sub
         if not folder.is_dir():
@@ -135,7 +157,7 @@ def check_images(locale_dir: Path, strict: bool) -> None:
                 errors.append(f"{rel(shot)}: not a PNG or JPEG")
                 continue
             w, h = size
-            if shot.suffix.lower() == ".png" and shot.read_bytes()[25] in (4, 6):
+            if has_alpha(shot):
                 play.append(f"{rel(shot)}: has an alpha channel (Play wants 24-bit PNG)")
             if min(w, h) < 320 or max(w, h) > 3840:
                 errors.append(f"{rel(shot)}: {w}x{h}, sides must be 320-3840 px")

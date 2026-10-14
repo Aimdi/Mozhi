@@ -23,7 +23,8 @@ fastlane/metadata/android/
     full_description.txt      max 4000, plain text
     changelogs/<versionCode>.txt   max 500
     images/icon.png           512 x 512, from assets/branding/icon-512.png
-    images/phoneScreenshots/  01-…08-*.png, from assets/screenshots
+    images/featureGraphic.png 1024 x 500, made by assets/store/make_feature_graphic.py
+    images/phoneScreenshots/  01-…08-*.png, made by assets/store/make_screenshots.py
   de-DE/ fr-FR/ es-ES/ it-IT/ pt-BR/
     title.txt short_description.txt full_description.txt changelogs/
 ```
@@ -43,12 +44,41 @@ fastlane/metadata/android/
   type. Order: AI translation, alignment, refine, compare engines, word
   insights, check meaning, proofread, dark mode.
 
+**Store images are generated**, never edited by hand (both scripts need
+Pillow, `pip install pillow`, and give byte-identical output for the same
+inputs):
+
+```sh
+python3 assets/store/make_screenshots.py      # assets/screenshots -> phoneScreenshots/
+python3 assets/store/make_feature_graphic.py  # -> images/featureGraphic.png
+```
+
+- `make_screenshots.py` copies the 8 screenshots listed in its `SHOTS`
+  (in store order) and widens each one from 412 × 915 (1 : 2.22) to
+  458 × 915, the narrowest size within Play's 2:1 limit, by repeating each
+  row's edge pixel. The app bar, background and navigation bar just continue
+  to the new edge; nothing is cropped or scaled, and the output is 24-bit
+  (no alpha). F-Droid uses the same files. To change the selection or order,
+  edit `SHOTS`; new captures in `assets/screenshots` are picked up as they are.
+- `make_feature_graphic.py` draws the icon, the store title and a two-line
+  tagline on a light surface tinted with the app's seed colour (#3F51B5) and
+  the icon's teal. It uses Inter when installed (falls back to DejaVu Sans or
+  Liberation Sans, so the result can differ slightly between machines) and
+  stops if the text doesn't fit. Only `en-US` has a graphic; the other locales
+  fall back to it. For translated graphics add lines to `TAGLINES` and run it
+  with `--all`.
+
 **Validate** after every change:
 
 ```sh
 python3 fastlane/validate_metadata.py           # lengths, files, images
 python3 fastlane/validate_metadata.py --strict  # also fail on Play-only image rules
 ```
+
+`--strict` turns the Play-only rules into errors: at most 8 screenshots per
+device type, aspect ratio at most 2:1, no alpha, and an en-US
+`featureGraphic.png` of 1024 × 500 without alpha. It passes as of this
+change.
 
 It counts characters the way the stores do (Unicode code points, trimmed)
 and checks that a changelog exists for the `versionCode` in `pubspec.yaml`.
@@ -78,9 +108,10 @@ and checks that a changelog exists for the `versionCode` in `pubspec.yaml`.
 
 4. **Listing.** If features changed, update `full_description.txt` in every
    locale (README.md and docs/features.md are the source of truth) and,
-   if the UI changed, the screenshots in `assets/screenshots` and their
-   copies in `images/phoneScreenshots/`.
-5. **Validate**: `python3 fastlane/validate_metadata.py`.
+   if the UI changed, the screenshots in `assets/screenshots`; then run
+   `python3 assets/store/make_screenshots.py` (and
+   `make_feature_graphic.py` if the icon or tagline changed).
+5. **Validate**: `python3 fastlane/validate_metadata.py --strict`.
 6. **Signing secrets** (GitHub > Settings > Secrets and variables >
    Actions). Without them CI signs with a throwaway debug key, and such APKs
    can never update a properly signed install:
@@ -97,9 +128,11 @@ and checks that a changelog exists for the `versionCode` in `pubspec.yaml`.
    `ANDROID_KEYSTORE_PATH`/… environment variables do the same (see
    `android/app/build.gradle.kts`).
 7. **Tag and push**: `git tag v0.2.0 && git push origin v0.2.0`.
-   `.github/workflows/release.yaml` builds the split and universal APKs and
-   the web build and publishes a GitHub release with `SHA256SUMS.txt`. The
-   workflow warns if it fell back to the debug key.
+   `.github/workflows/release.yaml` builds the split and universal APKs, the
+   Android App Bundle (`mozhi-<tag>.aab`, for Play) and the web build and
+   publishes a GitHub release with `SHA256SUMS.txt`. The APKs and the bundle
+   are signed with the same key; the workflow warns if it fell back to the
+   debug key (a debug-signed bundle can't be uploaded to Play).
 8. **Check the release**: `apksigner verify --print-certs app-arm64-v8a-production-release.apk`
    shows your certificate (not `CN=Android Debug`), install it over the
    previous release, and spot-check translate, AI provider, offline and the
@@ -111,7 +144,9 @@ and checks that a changelog exists for the `versionCode` in `pubspec.yaml`.
 
 ## Google Play
 
-**Build an app bundle.** Play requires an AAB; CI currently builds APKs only:
+**App bundle.** Play requires an AAB. The release workflow attaches it to
+every GitHub release as `mozhi-<tag>.aab` (signed with the release key when
+the signing secrets are set). To build it locally:
 
 ```sh
 flutter build appbundle --release --flavor production -t lib/main_production.dart
@@ -131,28 +166,19 @@ the Play Console and keep its JSON key out of the repository:
 fastlane supply --package_name io.github.aimdi.mozhi \
   --json_key play-service-account.json \
   --metadata_path fastlane/metadata/android \
-  --aab build/app/outputs/bundle/productionRelease/app-production-release.aab \
+  --aab mozhi-v0.2.0.aab \
   --track internal
 ```
 
+`--aab` takes the bundle from the GitHub release or the local build path
+above.
 The first upload of a new app must be done by hand in the Play Console.
+
+The listing images are ready for Play: the screenshots are within 2:1 and
+the feature graphic exists (see [Listing files](#listing-files)).
 
 **Before the first Play upload (open items):**
 
-- [ ] **Screenshots are taller than 2:1.** The 412 × 915 images (1 : 2.22) are
-      fine for F-Droid, but Play rejects screenshots whose long side is more
-      than twice the short side. Either capture new ones at 2:1 or less (e.g.
-      1080 × 2160 or 1080 × 1920), or pad the copies to 458 × 915 with their
-      edge colour:
-
-      ```sh
-      for f in fastlane/metadata/android/en-US/images/phoneScreenshots/*.png; do
-        bg=$(convert "$f" -format '%[pixel:p{0,457}]' info:)
-        convert "$f" -background "$bg" -gravity center -extent 458x915 "$f"
-      done
-      ```
-- [ ] **Feature graphic** (`images/featureGraphic.png`, 1024 × 500, no
-      alpha) is required by Play and doesn't exist yet. F-Droid shows it too.
 - [ ] Optional: `sevenInchScreenshots/` and `tenInchScreenshots/` showing
       the side-by-side layout (≥ 840 dp).
 - [ ] **Generative AI policy.** Play's AI-Generated Content policy asks apps
