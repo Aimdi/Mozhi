@@ -5,17 +5,24 @@ Everything Mozhi can do, screen by screen. Features marked **AI** need an
 alone.
 
 - [Translate](#translate)
+- [Languages and detection](#languages-and-detection)
 - [Engines and compare mode](#engines-and-compare-mode)
+- [Quality modes: Fast and Best](#quality-modes-fast-and-best)
 - [AI translation options](#ai-translation-options)
 - [Presets](#presets)
 - [Custom languages and styles](#custom-languages-and-styles)
+- [Refining a translation](#refining-a-translation)
 - [Kagi-style extras](#kagi-style-extras)
+- [Romanization and alignment](#romanization-and-alignment)
+- [Dictionary](#dictionary)
 - [Proofread](#proofread)
 - [Image translation](#image-translation)
 - [Voice](#voice)
 - [Documents](#documents)
+- [Web pages](#web-pages)
 - [Offline translation](#offline-translation)
 - [History and favourites](#history-and-favourites)
+- [Usage and costs](#usage-and-costs)
 - [Text-to-speech](#text-to-speech)
 - [Android integration](#android-integration)
 - [Links](#links)
@@ -25,35 +32,81 @@ alone.
 
 ## Translate
 
-- **Languages.** Tap the source or target language to open the picker: search
-  by English or native name or by code, pick from **Recent** (your last eight
-  languages) or **Pinned** languages, or browse **All languages**. Mozhi
-  engines show the languages that engine supports; AI engines offer about 290
-  languages and variants, from Brazilian Portuguese and Cantonese to Latin and
-  Toki Pona.
-- **Detect language.** With the source set to *Detect language*, the
-  detected language is shown under the translation, and **Swap** uses it.
 - **Instant translate.** With Mozhi engines the translation updates shortly
   after you stop typing. For AI engines this is off by default because each
   request costs tokens; turn on **Settings > Instant translate with AI** if you
   want it. Otherwise press **Translate**.
 - **Output actions:** copy, share, listen, add to favourites, and the elapsed
-  time per engine.
-- **Transliteration.** For non-Latin scripts, a romanised version appears
-  under the text when the engine provides it (Google does). Turn it off under
-  **Settings > Show transliteration**.
+  time per engine. With an AI model available, the output also offers
+  **Insights**, **Show romanization** and **Show alignment** (see below).
 - **Definitions.** For single words, Google and Reverso results from Mozhi
   include definitions with examples and synonyms.
 - **Same language in and out** (AI): choose the same source and target
   language to have the text improved and rephrased instead of translated.
+- **Long texts** (AI): the input holds up to 20,000 characters. AI models
+  get texts longer than 6,000 characters in parts (2,500 characters for
+  local models, which usually have small context windows). Parts are cut at
+  paragraph boundaries where possible (else at line breaks or sentence
+  ends; code blocks are never cut), two are translated at a time, and each
+  part comes with the end of the part before it as context, so terms and
+  tone stay consistent. The translation fills in as the parts finish.
+
+## Languages and detection
+
+- **Picking languages.** Tap the source or target language to open the
+  picker: search by English or native name or by code, pick from **Recent**
+  (your last eight languages) or **Pinned** languages (use the pin button
+  next to a language), or browse **All languages**. Mozhi engines show the
+  languages that engine supports; AI engines offer about 290 languages and
+  variants, from Brazilian Portuguese and Cantonese to Latin and Toki Pona.
+- **Detect language.** With the source set to **Detect language**, the
+  detected language is shown under the translation (**Detected: Dutch**);
+  tap it to choose another source language.
+- **Uncertain detection.** Short texts are hard to detect: "Gift", "Bank" or
+  "Hallo" are words in several languages. For a single short word, or when
+  the engine says it isn't sure, the label reads **Detected: Dutch?** and
+  chips for the other likely languages (for example German or Afrikaans)
+  appear next to it; tap one to translate from that language instead. With a
+  cloud AI model, input of up to three words also gets a second, small
+  detection request, so that a doubtful guess is caught.
+- **Your languages count** (AI): for short texts the model is told which
+  languages you usually translate from (the sources of your recent language
+  pairs) and prefers them when a word could be in several languages.
+- **Swap** exchanges the languages and moves the translation into the input.
+  While detecting, it uses the detected language.
+- **Smart swap.** If the detected language is the target language (you
+  typed English while translating into English), Mozhi translates into
+  another language you use instead: a recent or pinned language, then your
+  device's languages, English, or another widely used language. A message
+  says **Translating into Spanish instead**; **Undo** goes back and
+  translates into the original target (an AI model then polishes the text in
+  its own language). Uncertain detections never swap, and a target you chose
+  yourself, or went back to with **Undo**, isn't swapped away again until
+  you restart the app.
+- **Recent language pairs.** Long-press the swap button (or choose **More
+  tools > Recent language pairs**) to see the last eight pairs you
+  translated with, such as *Spanish → English*, and pick one to set both
+  languages at once. Pairs with a custom style are greyed out while the
+  engine can't take one. **Clear recent language pairs** is in the sheet and
+  under **Settings**.
+- **Pinned target shortcuts.** On a keyboard, Alt+1 to Alt+9 translate into
+  your first nine pinned target languages, in the order the picker lists them
+  under **Pinned** (on desktop the picker shows each one's shortcut). See
+  [Keyboard shortcuts](#keyboard-shortcuts) for the Mac and browser
+  variants.
 
 ## Engines and compare mode
 
-The engine button lists two groups:
+The engine button lists:
 
+- **On this device**: [offline translation](#offline-translation), once you
+  downloaded a language.
 - **Mozhi engines** of your preferred instance: Google, DeepL, Reverso,
   Yandex, LibreTranslate, DuckDuckGo and MyMemory, whichever it offers.
 - **AI models**: every enabled AI provider, with its model name.
+
+Your own [DeepL API and LibreTranslate](ai-providers.md#deepl-and-libretranslate)
+services are listed too.
 
 A badge tells you where your text goes: **Local** (a model on your device or
 network), **Self-hosted** (a Mozhi engine, through your instance list) or
@@ -64,23 +117,46 @@ engines at once and shows the results side by side as they arrive, each with
 its time, a copy button and **Use this** to make it the translation. Mozhi
 engines are sent to the instance in a single request.
 
+## Quality modes: Fast and Best
+
+Like Kagi Translate's Standard and Best, you can keep two engines at hand: a
+quick, cheap one for everyday text and your strongest one for text that
+matters.
+
+1. Open **Settings > Quality modes** (or **Quality modes** at the bottom of
+   the engine list) and choose a **Fast engine** (for example Google or DeepL
+   through Mozhi) and a **Best engine** (for example your best AI model).
+2. A **Fast** / **Best** toggle appears next to the engine button. Choosing
+   one translates the current text again with that engine; tapping the
+   selected one again goes back to your **Usual engine**. On narrow screens
+   the toggle shrinks to icons or a menu.
+
+The translate screen remembers the mode you used last. Picking an engine from
+the engine button turns the mode off. Links can ask for a mode with
+`quality=fast`, `quality=best` or `quality=standard` (the usual engine); see
+[Links](#links).
+
 ## AI translation options
 
 Open **Translation options** (the tune icon) to shape AI translations. The
 icon changes when any option differs from the defaults, and **Reset to
-defaults** clears them. Options are remembered.
+defaults** clears them. Options are remembered, and the ones in use are shown
+as chips above the input; remove one with its chip, or all of them with
+**Reset options**.
 
 | Option | Choices |
 | --- | --- |
 | Style | **Natural** (idiomatic, as a native speaker would say it) or **Literal** (close to the original wording) |
 | Formality | Default, More formal, Less formal, Prefer formal, Prefer informal |
+| Formality notes | Shown once a formality is chosen: free text such as "my boss, but we're on first-name terms" |
 | Reading level | Standard, or a CEFR level from A1 (beginner) to C2 (proficient) to simplify the output for learners |
 | Speaker gender / Addressee gender | Not specified, Masculine, Feminine, Neutral: for languages where grammar depends on who speaks or is spoken to |
 | Context | Free text such as "a text message to my landlord" or "UI strings of a banking app" |
 | Preserve formatting | Keep line breaks, Markdown, HTML tags, links, `{placeholders}`, `%s` and emoji intact (on by default) |
 | Glossary | Term pairs that must always be translated the same way, e.g. product names |
 
-Mozhi engines ignore these options.
+Mozhi engines ignore these options. The DeepL API applies the formality and
+the context; translation-only models (TranslateGemma, Hy-MT) ignore them.
 
 ## Presets
 
@@ -107,6 +183,39 @@ five)*, *LinkedIn Speak*, *Corporate jargon*, *Formal business email*,
 *Emoji*, or a dialect such as *Bavarian* or *Scots*. Popular ones are listed
 under **Styles**. Custom targets appear in your recent languages.
 
+The source can be custom too: type a dialect, or a style such as *LinkedIn
+speak*, *Corporate jargon* or *Gen Z slang*, into the source language search
+and choose **Use "…" as custom language**. For a style, the model works out
+what the text really means (decoding the jargon, buzzwords and euphemisms)
+and says it plainly in your target language, rather than imitating the
+style.
+
+## Refining a translation
+
+**AI.** The chips under an AI translation, **More formal**, **More casual**,
+**Shorter**, **Simpler**, **More fluent** and **More literal**, edit the
+translation you are looking at instead of starting over:
+
+- **They stack.** Apply **Shorter**, then **More formal**, and the result is
+  both. Applied chips show a check mark.
+- **Opposites replace each other.** **More formal** and **More casual**
+  exclude each other, as do **Shorter** and suggestions that make the text
+  longer. Choosing one replaces the other (its tooltip says **Replaces
+  "More casual"**); chips applied after the replaced one are dropped too.
+- **Tap again to undo.** Tapping an applied chip brings back the translation
+  from before it, without a new request (chips applied after it are undone
+  as well).
+- While a chip is working it shows a spinner; tap it to cancel. If the
+  request fails, the translation stays as it was.
+- **More suggestions** asks the model for refinements that fit this
+  particular text; they behave the same way.
+
+Applied chips are cleared when you change the text, the languages, the
+options or the engine. With a translation-only model (prompt style
+TranslateGemma or Hunyuan-MT), a chip translates the text again with its
+instruction instead, with nothing to stack or undo. Each refinement is one
+request to the model.
+
 ## Kagi-style extras
 
 These appear under a finished translation. With an AI engine they use that
@@ -114,20 +223,71 @@ model; with a Mozhi engine they use the model chosen under **Settings > AI
 assistant for insights**, so you can translate with DeepL and still get the
 extras.
 
-- **Refine** chips (AI engines): one tap to retranslate *More formal*, *More
-  casual*, *Shorter*, *Simpler*, *More fluent* or *More literal*. **More
-  suggestions** asks the model for refinements that fit this particular text.
 - **Alternatives**: other ways to translate the text, each with a short note
-  on how it differs. Pick one to make it the translation.
+  on how it differs. Pick one to make it the translation. To get
+  alternatives for just a phrase, select it in the translation and choose
+  **Alternatives** in the selection menu.
 - **Insights**: underlines the phrases where the translation made a choice:
   idioms, nuances, wordplay, cultural references, grammar and ambiguities.
   Tap one to read why, and to swap in one of the **Other ways to say it**.
-  Once switched on, insights load for each new translation.
+  Once switched on, insights load for each translation you start; after an
+  instant translation with a cloud model they switch off instead, so typing
+  never starts paid requests.
 - **Explain**: a plain-language explanation of the translation, its grammar
   and its word choices. Ask follow-up questions in the same sheet.
-- **Dictionary**: for inputs of one to three words, **Look up** shows
-  definitions, examples, synonyms and etymology. Entries are AI-generated and
-  marked as such.
+- **Dictionary**: for inputs of one to three words; see
+  [Dictionary](#dictionary).
+
+## Romanization and alignment
+
+**Romanization.** For translations in a non-Latin script (Japanese, Chinese,
+Korean, Russian, Arabic, Hindi, Greek, Thai, ...), the output can be shown in
+the Latin alphabet underneath. **Show romanization** (the *abc* button)
+turns it on and off. AI models use the standard system for the language:
+modified Hepburn for Japanese, Hanyu Pinyin with tone marks for Chinese,
+Jyutping for Cantonese, the Revised Romanization for Korean, IAST for
+Sanskrit, ISO 15919 for other Indic scripts, ALA-LC for Cyrillic and Arabic
+scripts, RTGS for Thai, and so on.
+
+It appears on its own (with **Settings > Show transliteration** on, the
+default) when that costs nothing: the Mozhi engine returned a
+transliteration with the translation (Google does), or the AI model for
+extras runs locally. With a cloud AI model each romanization is a separate
+paid request, so it waits for you to press **Show romanization**. Once you
+have, it stays on for the next translations you start; after an instant
+translation it waits for you again.
+
+**Alignment** (AI). **Show alignment** (the ⇄ button) asks the model which
+phrases of the input and the translation correspond. Aligned phrases are
+underlined; tap a phrase of the translation (or point at it with a mouse) to
+highlight it and its counterpart in the input. Moving the cursor into an
+underlined phrase of the input highlights its translation. Only the first
+3,000 characters of long texts are aligned, and editing the input clears the
+alignment. Alignment and insights are shown one at a time, and like insights
+the alignment reloads for each translation you start.
+
+## Dictionary
+
+**AI.** Look up words and short phrases in two places:
+
+- **Under a translation** of one to three words, the **Dictionary** card:
+  **Look up "…"** shows the entry. Choose the **Detail level** (**Concise**,
+  **Standard** or **Detailed**) before or after looking up. **Open
+  dictionary** shows the word on the full dictionary page.
+- **The dictionary page** (**More tools > Dictionary**): type a word or
+  phrase, choose its language (or **Detect language**) and the language of
+  the translations, and press **Look up**. Opened from the translator with a
+  short input, it looks that word up straight away.
+
+Entries have the pronunciation (IPA), parts of speech, senses with
+translations, examples, synonyms, etymology, usage notes and **Related
+words** (tap one to look it up). For a misspelled word the entry offers
+**Did you mean "…"?**. Definitions are written in the app's language by the
+AI model (the one under **Settings > AI assistant for insights** when you
+translate with a Mozhi engine) and are marked **AI-generated**.
+
+A link such as `/dictionary?word=gato&from=es&to=en` opens the page with the
+word filled in, but never looks it up on its own: press **Look up**.
 
 ## Proofread
 
@@ -139,12 +299,24 @@ in any language.
   awkward or unclear phrasing; *Comprehensive*: a thorough polish of wording,
   flow and tone), **Formality**, the **Model**, and optionally add
   **Context** such as "cover letter for a job application".
+- **Reading level**: **As written** keeps the author's level; a CEFR level
+  from A1 to C2 rewords the text for readers at that level.
+- **Variety**: **As written** keeps the author's spelling and vocabulary; or
+  convert to a regional variety: English (UK, US, Australia, Canada),
+  Portuguese (Brazil, Portugal), Spanish (Spain, Latin America), French
+  (France, Canada) or German (Germany, Switzerland, Austria). It applies to
+  text in that language.
 - The result shows the **Corrected text**; **Show changes** highlights what
   changed. Each **suggested edit** has a category (grammar, spelling,
   punctuation, style, clarity, word choice, tone, repetition) and an
   explanation, and can be applied or reverted individually, or all at once.
+- **Writing statistics** compares the original and the corrected text:
+  words, characters, sentences, paragraphs, words per sentence and reading
+  time, plus the **Flesch reading ease** score (0 to 100, higher is easier)
+  for English text. They are calculated on the device.
 - **Use as input** continues from the corrected text. Ctrl+Enter runs the
-  check.
+  check. A link such as `/proofread?text=...` fills in the text without
+  checking it.
 
 ## Image translation
 
@@ -192,6 +364,18 @@ result. Supported formats:
 Documents are split into parts that are translated a couple at a time, with
 progress shown as they finish; failed parts are retried.
 
+## Web pages
+
+**More tools > Web page** translates an article or a blog post: enter its
+address and press **Translate page**. Mozhi downloads the page, keeps only
+the readable text and translates it part by part with the engine and
+languages you choose. Switch between **Translation**, **Original** and **Side
+by side**, **Copy all** of it, or **Open original page** in your browser.
+Very large pages are cut after their first part.
+
+In the web app this only works for sites that allow cross-origin requests
+(CORS), and most don't; use the Android, iOS or desktop app for those.
+
 ## Offline translation
 
 On Android and iOS, Mozhi can translate without any network using Google's ML
@@ -216,10 +400,36 @@ desktop.
   undo).
 - Star a translation to make it a **favourite**. Favourites are never removed
   automatically; the newest 1,000 other entries are kept.
+- **Settings > Delete history automatically** removes translations older
+  than 1, 7 or 30 days (**Never** by default); starred translations are
+  always kept. If older translations already exist, Mozhi asks first
+  (**Delete older translations now?**). While it is on, the History tab says
+  so, and **Import history** skips entries older than the setting.
 - **Clear history** can keep your favourites.
 - **Settings > Export history** copies your history as JSON or shares it as a
   file; **Import history** merges such JSON into your history, for example on
   a new phone.
+
+## Usage and costs
+
+**Settings > Usage & costs** shows, for each AI provider (and DeepL API or
+LibreTranslate service) you added, this month's and last month's requests,
+characters sent and received, and estimated tokens.
+
+- Counted: translations (also in compare mode and of documents),
+  refinements, the AI extras (alternatives, insights, explanations,
+  suggestions, romanization, alignment and the dictionary) and
+  proofreading.
+- Not counted: results the app already had. Translating the same text again
+  with the same engine, languages and options while the app is open is
+  answered from memory, without a request.
+- Tokens are estimates (about 4 characters per token, or 1 per Chinese,
+  Japanese or Korean character), so your provider's bill may differ.
+- Open a provider under **Settings > AI providers** to set a **Monthly
+  budget** in characters. You get a warning at 80 % of it and when it is
+  reached.
+- **Reset usage** deletes the counts; budgets stay. Only counts are kept,
+  never text, and only on the device.
 
 ## Text-to-speech
 
@@ -244,21 +454,62 @@ a reachable instance; see also [device voices](#voice). Tap again to stop.
 Mozhi understands Kagi Translate-style links. In the web app:
 
 ```text
-https://<host>/Mozhi/#/translate?text=hola&from=es&to=en
-https://<host>/Mozhi/?text=hola&from=es&to=en
+https://<host>/Mozhi/app/#/translate?text=hola&from=es&to=en
+https://<host>/Mozhi/app/?text=hola&from=es&to=en
 ```
+
+On Android and iOS the same links work with the `mozhi://` scheme:
+
+```text
+mozhi://translate?text=hola&from=es&to=en&formality=more&quality=best
+```
+
+`/translate` (and `/` in the web app) takes these parameters:
 
 | Parameter | Also accepted | Meaning |
 | --- | --- | --- |
-| `text` | `q` | Text to translate (optional: leave it out to only set languages) |
+| `text` | `q` | Text to translate (optional: leave it out to only set languages or options) |
 | `from` | `sl`, `source` | Source language: a code (`es`, `pt-BR`), an English or native name, or `auto` |
 | `to` | `tl`, `target` | Target language: a code or a name the selected engine supports |
+| `style` | `translation_style` | `natural` or `literal` |
+| `formality` | | `default`, `more` (or `formal`), `less` (or `informal`), `prefer_more`, `prefer_less` |
+| `formality_context` | `formalityContext` | Formality notes (free text) |
+| `language_complexity` | `readingLevel` | Reading level: `standard`, or `a1` to `c2` |
+| `speaker_gender`, `addressee_gender` | `speakerGender`, `addresseeGender` | `masculine` (or `male`), `feminine` (or `female`), `neutral` |
+| `context` | | Free-text context |
+| `preserve_formatting` | `preserveFormatting` | `true` or `false` |
+| `quality` | | `fast`, `best` or `standard` (your usual engine); see [Quality modes](#quality-modes-fast-and-best) |
 
-The app waits for the engines to load and selects the languages. Text from
-links, shares and other apps is limited to 5,000 characters. It is translated
-straight away only with engines that cost nothing (Mozhi, offline, local
-models); with a paid AI provider, press Translate yourself. Custom styles
-such as *Pirate speak* can't be set from a link; pick them in the app.
+The app waits for the engines to load, selects the languages and applies the
+options, which then stay your translation options like ones you set
+yourself. Unknown values are ignored.
+
+Links come from outside the app, so they are limited:
+
+- Text is cut to 5,000 characters, `context` and `formality_context` to
+  2,000. Language values must be in the engine's list: custom styles such as
+  *Pirate speak* (as target or source), glossaries and refinement
+  instructions can't be set from a link.
+- **A link never starts a paid AI request on its own.** The text is
+  translated straight away only with engines that are not AI models (Mozhi,
+  the DeepL API, LibreTranslate, offline), or with an AI model when you
+  turned on **Instant translate with AI**; otherwise press **Translate**.
+  Changing the quality mode or the options for a link doesn't translate
+  anything either.
+
+Other screens can be linked too, and never send anything until you ask:
+
+| Link | Opens |
+| --- | --- |
+| `/proofread?text=...` | The **Proofread** tab with the text filled in; press **Proofread** |
+| `/dictionary?word=gato&from=es&to=en` | The [dictionary](#dictionary) with the word filled in; press **Look up** |
+| `/web?url=...` | The [web page translator](#web-pages) with the address filled in; press **Translate page** |
+
+As `mozhi://` links: `mozhi://proofread?text=...`,
+`mozhi://dictionary?word=...` and `mozhi://web?url=...`; `mozhi://image`,
+`mozhi://documents` and `mozhi://conversation` open those screens. In the web
+app, put the path after `#`, for example
+`https://<host>/Mozhi/app/#/dictionary?word=gato`.
 
 ## Keyboard shortcuts
 
@@ -267,9 +518,12 @@ such as *Pirate speak* can't be set from a link; pick them in the app.
 | Ctrl+Enter (⌘+Enter on Apple devices) | Translate now (runs the comparison in compare mode); also runs Proofread |
 | Ctrl+Shift+S (⌘+Shift+S) | Swap languages |
 | Ctrl+Shift+C (⌘+Shift+C) | Copy the translation |
-| Ctrl+L / Ctrl+Shift+L (⌘+L / ⌘+Shift+L) | Choose the target / source language |
-| Esc | Clear the input |
-| ? or Ctrl+/ (⌘+/) | Show all shortcuts |
+| Ctrl+L / Ctrl+Shift+L (⌘+L / ⌘+Shift+L) | Choose the target / source language (type to search, Enter picks the first match) |
+| Alt+1 … Alt+9 (⌥+1 … ⌥+9 on Apple devices) | Translate into pinned language 1 to 9; in a browser Ctrl+Alt+1 … 9 (⌘+⌥+1 … 9), because browsers use Alt+digit for tabs |
+| Esc | Clear the text (while typing) |
+| ? or Ctrl+/ (⌘+/) | Show keyboard shortcuts |
+
+The same list is under **More tools > Keyboard shortcuts**.
 
 ## Appearance and layout
 
@@ -286,6 +540,7 @@ such as *Pirate speak* can't be set from a link; pick them in the app.
 | --- | --- | --- | --- | --- | --- |
 | Mozhi engines, AI providers, Proofread, history | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Text selection menu and share target | ✓ | | | | |
+| `mozhi://` links | ✓ | ✓ | | | |
 | Offline translation, on-device text recognition | ✓ | ✓ | | | |
 | Dynamic color from wallpaper | ✓ (12+) | | | | |
 
