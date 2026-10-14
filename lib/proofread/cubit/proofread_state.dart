@@ -12,6 +12,8 @@ class ProofreadState extends Equatable {
     this.writingStyle = WritingStyle.general,
     this.correctionLevel = CorrectionLevel.standard,
     this.formality = Formality.automatic,
+    this.readingLevel = ReadingLevel.standard,
+    this.variety,
     this.context = '',
     this.status = ProofreadStatus.idle,
     this.result,
@@ -31,6 +33,13 @@ class ProofreadState extends Equatable {
   final WritingStyle writingStyle;
   final CorrectionLevel correctionLevel;
   final Formality formality;
+
+  /// CEFR level to reword the text for; [ReadingLevel.standard] keeps the
+  /// author's level.
+  final ReadingLevel readingLevel;
+
+  /// Regional variety to convert to; null keeps the author's variety.
+  final ProofreadVariety? variety;
 
   /// Free-text context, e.g. "cover letter".
   final String context;
@@ -82,6 +91,14 @@ class ProofreadState extends Equatable {
   /// no longer matches the text in the input field.
   bool get isStale => result != null && input != proofreadInput;
 
+  /// Language of the proofread text for the writing statistics: the one
+  /// the model detected, else null.
+  ///
+  /// The chosen [variety] is no fallback: it only applies to text in its
+  /// language (text in other languages may be proofread with it set), and
+  /// it can change after the result arrived.
+  String? get textLanguage => result?.detectedLanguage;
+
   /// Whether the result found nothing to change.
   bool get isClean {
     final result = this.result;
@@ -98,6 +115,8 @@ class ProofreadState extends Equatable {
     WritingStyle? writingStyle,
     CorrectionLevel? correctionLevel,
     Formality? formality,
+    ReadingLevel? readingLevel,
+    ProofreadVariety? Function()? variety,
     String? context,
     ProofreadStatus? status,
     ProofreadResult? Function()? result,
@@ -112,6 +131,8 @@ class ProofreadState extends Equatable {
       writingStyle: writingStyle ?? this.writingStyle,
       correctionLevel: correctionLevel ?? this.correctionLevel,
       formality: formality ?? this.formality,
+      readingLevel: readingLevel ?? this.readingLevel,
+      variety: variety != null ? variety() : this.variety,
       context: context ?? this.context,
       status: status ?? this.status,
       result: result != null ? result() : this.result,
@@ -143,6 +164,8 @@ class ProofreadState extends Equatable {
     writingStyle,
     correctionLevel,
     formality,
+    readingLevel,
+    variety,
     context,
     status,
     result,

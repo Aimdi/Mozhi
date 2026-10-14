@@ -148,10 +148,12 @@ class ProofreadCategoryChip extends StatelessWidget {
               size: 14,
               color: scheme.onSecondaryContainer,
             ),
-            Text(
-              context.l10n.proofreadCategory(category),
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: scheme.onSecondaryContainer,
+            Flexible(
+              child: Text(
+                context.l10n.proofreadCategory(category),
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: scheme.onSecondaryContainer,
+                ),
               ),
             ),
           ],

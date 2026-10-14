@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/proofread/models/writing_stats.dart';
 import 'package:mozhi/proofread/widgets/proofread_labels.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -38,6 +39,55 @@ void main() {
         'Less formal',
         'Prefer formal',
         'Prefer informal',
+      ]);
+    });
+
+    test('labels and describes every reading level', () {
+      expect(ReadingLevel.values.map(l10n.proofreadReadingLevel), [
+        'As written',
+        'A1',
+        'A2',
+        'B1',
+        'B2',
+        'C1',
+        'C2',
+      ]);
+      expect(ReadingLevel.values.map(l10n.proofreadReadingLevelDescription), [
+        "Keep the author's reading level",
+        'Beginner',
+        'Elementary',
+        'Intermediate',
+        'Upper intermediate',
+        'Advanced',
+        'Proficient',
+      ]);
+    });
+
+    test('labels every regional variety and the default', () {
+      expect(l10n.proofreadVariety(null), 'As written');
+      expect(l10n.proofreadVariety(ProofreadVariety.enGb), 'English (UK)');
+      expect(
+        l10n.proofreadVariety(ProofreadVariety.es419),
+        'Spanish (Latin America)',
+      );
+      expect(
+        l10n.proofreadVariety(ProofreadVariety.deCh),
+        'German (Switzerland)',
+      );
+      final labels = ProofreadVariety.values.map(l10n.proofreadVariety);
+      expect(labels.toSet(), hasLength(ProofreadVariety.values.length));
+      expect(labels, isNot(contains('As written')));
+    });
+
+    test('labels every Flesch band', () {
+      expect(FleschBand.values.map(l10n.proofreadFleschBand), [
+        'Very easy',
+        'Easy',
+        'Fairly easy',
+        'Plain English',
+        'Fairly difficult',
+        'Difficult',
+        'Very difficult',
       ]);
     });
 

@@ -60,6 +60,8 @@ void main() {
           writingStyle: WritingStyle.email,
           correctionLevel: CorrectionLevel.light,
           formality: Formality.more,
+          readingLevel: ReadingLevel.c1,
+          variety: () => ProofreadVariety.frCa,
           context: 'ctx',
           status: ProofreadStatus.failure,
           result: () => result,
@@ -73,6 +75,8 @@ void main() {
         expect(state.writingStyle, WritingStyle.email);
         expect(state.correctionLevel, CorrectionLevel.light);
         expect(state.formality, Formality.more);
+        expect(state.readingLevel, ReadingLevel.c1);
+        expect(state.variety, ProofreadVariety.frCa);
         expect(state.context, 'ctx');
         expect(state.status, ProofreadStatus.failure);
         expect(state.result, same(result));
@@ -83,15 +87,73 @@ void main() {
 
       test('clears nullable fields', () {
         final state = _state('a', const [])
-            .copyWith(engine: () => _engine, error: () => 'e')
+            .copyWith(
+              engine: () => _engine,
+              error: () => 'e',
+              variety: () => ProofreadVariety.enUs,
+            )
             .copyWith(
               engine: () => null,
               result: () => null,
               error: () => null,
+              variety: () => null,
             );
+        expect(state.variety, isNull);
         expect(state.engine, isNull);
         expect(state.result, isNull);
         expect(state.error, isNull);
+      });
+    });
+
+    test("defaults keep the author's reading level and variety", () {
+      const state = ProofreadState();
+      expect(state.readingLevel, ReadingLevel.standard);
+      expect(state.variety, isNull);
+    });
+
+    test('compares the reading level and variety', () {
+      expect(
+        const ProofreadState(readingLevel: ReadingLevel.a1),
+        isNot(const ProofreadState()),
+      );
+      expect(
+        const ProofreadState(variety: ProofreadVariety.ptPt),
+        isNot(const ProofreadState(variety: ProofreadVariety.ptBr)),
+      );
+    });
+
+    group('textLanguage', () {
+      test('is the detected language of the result', () {
+        const state = ProofreadState(
+          variety: ProofreadVariety.deCh,
+          result: ProofreadResult(correctedText: 'x', detectedLanguage: 'en'),
+        );
+        expect(state.textLanguage, 'en');
+      });
+
+      test('ignores the chosen variety', () {
+        // The variety does not tell the language of the text: it only
+        // applies to text in its language, and may change after the result.
+        expect(
+          const ProofreadState(
+            variety: ProofreadVariety.enGb,
+            result: ProofreadResult(correctedText: 'Hola, ¿qué tal?'),
+          ).textLanguage,
+          isNull,
+        );
+        expect(
+          const ProofreadState(variety: ProofreadVariety.es419).textLanguage,
+          isNull,
+        );
+      });
+
+      test('is null when nothing tells', () {
+        expect(const ProofreadState().textLanguage, isNull);
+        expect(
+          const ProofreadState(result: ProofreadResult(correctedText: 'x'))
+              .textLanguage,
+          isNull,
+        );
       });
     });
 

@@ -312,6 +312,130 @@ enum WritingStyle { general, academic, business, casual, creative, email }
 
 enum CorrectionLevel { light, standard, comprehensive }
 
+/// A regional variety of a language (spelling, vocabulary and punctuation
+/// conventions) the user can ask a proofread text to follow.
+///
+/// Proofreading keeps the author's own variety by default (no variety); one
+/// of these only converts text in its [languageCode]. The list is plain
+/// data: adding a variety means adding a value here (and its UI label).
+enum ProofreadVariety {
+  enGb(
+    'en-GB',
+    'British English',
+    'British spelling (colour, centre, travelled, programme, -ise or -ize '
+        'used consistently) and vocabulary (flat, lorry, autumn)',
+  ),
+  enUs(
+    'en-US',
+    'American English',
+    'American spelling (color, center, traveled, program, -ize) and '
+        'vocabulary (apartment, truck, fall)',
+  ),
+  enAu(
+    'en-AU',
+    'Australian English',
+    'Australian spelling (colour, centre, organise, travelled, program) and '
+        'vocabulary',
+  ),
+  enCa(
+    'en-CA',
+    'Canadian English',
+    'Canadian spelling (colour, centre, travelled, but organize, tire and '
+        'program) and vocabulary',
+  ),
+  ptBr(
+    'pt-BR',
+    'Brazilian Portuguese',
+    'Brazilian spelling and usage (ônibus, fato, equipe, você, "estou '
+        'fazendo")',
+  ),
+  ptPt(
+    'pt-PT',
+    'European Portuguese',
+    'European spelling and usage (autocarro, facto, equipa, "estou a '
+        'fazer")',
+  ),
+  esEs(
+    'es-ES',
+    'European Spanish',
+    'vosotros for the informal plural and the vocabulary of Spain '
+        '(ordenador, coche, móvil)',
+  ),
+  es419(
+    'es-419',
+    'Latin American Spanish',
+    'ustedes instead of vosotros and Latin American vocabulary '
+        '(computadora, carro or auto, celular)',
+  ),
+  frFr(
+    'fr-FR',
+    'French (France)',
+    'the usage of France (week-end, e-mail, petit-déjeuner for breakfast)',
+  ),
+  frCa(
+    'fr-CA',
+    'Canadian French',
+    'Quebec and Canadian usage (courriel, fin de semaine, déjeuner for '
+        'breakfast)',
+  ),
+  deDe(
+    'de-DE',
+    'German (Germany)',
+    'ß where the standard spelling has it (Straße) and the vocabulary of '
+        'Germany (Januar)',
+  ),
+  deCh(
+    'de-CH',
+    'Swiss Standard German',
+    'always ss instead of ß (Strasse), Swiss vocabulary (Velo, parkieren) '
+        'and «guillemets» as quotation marks',
+  ),
+  deAt(
+    'de-AT',
+    'Austrian German',
+    'ß as in Germany and Austrian vocabulary (Jänner, Erdäpfel)',
+  );
+
+  new(this.code, this.englishName, this.conventions);
+
+  /// BCP-47 tag, e.g. `en-GB` or `es-419`.
+  final String code;
+
+  /// English name, used in prompts.
+  final String englishName;
+
+  /// What writing in this variety means, for the model (English).
+  final String conventions;
+
+  /// The ISO 639-1 code of the language, e.g. `en` for [enGb].
+  String get languageCode => code.split('-').first;
+
+  /// The variety whose [code] matches [code] (case-insensitive, `_` or
+  /// `-`), or null.
+  static ProofreadVariety? fromCode(String? code) {
+    final key = _key(code);
+    if (key.isEmpty) return null;
+    for (final variety in values) {
+      if (_key(variety.code) == key) return variety;
+    }
+    return null;
+  }
+
+  /// The varieties of the language of [code] (`en`, `en-GB`, `pt_br`, ...),
+  /// in declaration order; empty for other languages.
+  static List<ProofreadVariety> forLanguage(String? code) {
+    final language = _key(code).split('-').first;
+    if (language.isEmpty) return const [];
+    return [
+      for (final variety in values)
+        if (variety.languageCode == language) variety,
+    ];
+  }
+
+  static String _key(String? code) =>
+      (code ?? '').trim().toLowerCase().replaceAll('_', '-');
+}
+
 /// Kagi proofread result.
 @immutable
 class ProofreadResult {

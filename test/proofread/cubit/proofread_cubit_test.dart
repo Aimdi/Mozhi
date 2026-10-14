@@ -49,6 +49,8 @@ void main() {
     registerFallbackValue(WritingStyle.general);
     registerFallbackValue(CorrectionLevel.standard);
     registerFallbackValue(Formality.automatic);
+    registerFallbackValue(ReadingLevel.standard);
+    registerFallbackValue(ProofreadVariety.enGb);
   });
 
   setUp(() {
@@ -63,6 +65,8 @@ void main() {
         style: any(named: 'style'),
         level: any(named: 'level'),
         formality: any(named: 'formality'),
+        readingLevel: any(named: 'readingLevel'),
+        variety: any(named: 'variety'),
         context: any(named: 'context'),
         uiLanguage: any(named: 'uiLanguage'),
       ),
@@ -260,6 +264,35 @@ void main() {
           ),
         ],
       );
+
+      blocTest<ProofreadCubit, ProofreadState>(
+        'update the reading level and regional variety',
+        build: build,
+        act: (cubit) => cubit
+          ..setReadingLevel(ReadingLevel.b1)
+          ..setVariety(ProofreadVariety.enGb)
+          ..setVariety(null)
+          ..setReadingLevel(ReadingLevel.standard),
+        expect: () => const [
+          ProofreadState(
+            engine: _openAi,
+            availableEngines: [_openAi, _ollama],
+            readingLevel: ReadingLevel.b1,
+          ),
+          ProofreadState(
+            engine: _openAi,
+            availableEngines: [_openAi, _ollama],
+            readingLevel: ReadingLevel.b1,
+            variety: ProofreadVariety.enGb,
+          ),
+          ProofreadState(
+            engine: _openAi,
+            availableEngines: [_openAi, _ollama],
+            readingLevel: ReadingLevel.b1,
+          ),
+          ProofreadState(engine: _openAi, availableEngines: [_openAi, _ollama]),
+        ],
+      );
     });
 
     group('proofread', () {
@@ -302,6 +335,60 @@ void main() {
             uiLanguage: 'German',
           ),
         ).called(1),
+      );
+
+      blocTest<ProofreadCubit, ProofreadState>(
+        'sends the reading level and regional variety',
+        setUp: () => stubProofread(() async => _result),
+        build: build,
+        seed: () => ready.copyWith(
+          readingLevel: ReadingLevel.a2,
+          variety: () => ProofreadVariety.deCh,
+        ),
+        act: (cubit) => cubit.proofread(),
+        skip: 1,
+        expect: () => [
+          ready.copyWith(
+            readingLevel: ReadingLevel.a2,
+            variety: () => ProofreadVariety.deCh,
+            status: ProofreadStatus.success,
+            result: () => _result,
+            proofreadInput: _input,
+            acceptedEdits: {0, 1, 2},
+          ),
+        ],
+        verify: (_) => verify(
+          () => repository.proofread(
+            _openAi,
+            _input,
+            readingLevel: ReadingLevel.a2,
+            variety: ProofreadVariety.deCh,
+          ),
+        ).called(1),
+      );
+
+      blocTest<ProofreadCubit, ProofreadState>(
+        "keeps the author's reading level and variety by default",
+        setUp: () => stubProofread(() async => _result),
+        build: build,
+        seed: () => ready,
+        act: (cubit) => cubit.proofread(),
+        verify: (_) => expect(
+          verify(
+            () => repository.proofread(
+              _openAi,
+              _input,
+              style: any(named: 'style'),
+              level: any(named: 'level'),
+              formality: any(named: 'formality'),
+              readingLevel: captureAny(named: 'readingLevel'),
+              variety: captureAny(named: 'variety'),
+              context: any(named: 'context'),
+              uiLanguage: any(named: 'uiLanguage'),
+            ),
+          ).captured,
+          [ReadingLevel.standard, null],
+        ),
       );
 
       blocTest<ProofreadCubit, ProofreadState>(

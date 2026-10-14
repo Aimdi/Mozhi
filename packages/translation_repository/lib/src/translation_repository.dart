@@ -1346,12 +1346,19 @@ class TranslationRepository {
     );
   }
 
+  /// Proofreads [text] with the AI [engine] (see
+  /// [TranslationPrompts.proofread]): [readingLevel] other than
+  /// [ReadingLevel.standard] rewords for that CEFR level, and a [variety]
+  /// converts to that regional variety; by default the author's level and
+  /// variety are kept.
   Future<ProofreadResult> proofread(
     TranslationEngine engine,
     String text, {
     WritingStyle style = WritingStyle.general,
     CorrectionLevel level = CorrectionLevel.standard,
     Formality formality = Formality.automatic,
+    ReadingLevel readingLevel = ReadingLevel.standard,
+    ProofreadVariety? variety,
     String context = '',
     String uiLanguage = 'English',
   }) => _chatJson(
@@ -1361,6 +1368,8 @@ class TranslationRepository {
       style: style,
       level: level,
       formality: formality,
+      readingLevel: readingLevel,
+      variety: variety,
       context: context,
       uiLanguage: uiLanguage,
     ),

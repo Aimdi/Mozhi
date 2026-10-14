@@ -5,7 +5,8 @@ import 'package:mozhi/proofread/cubit/proofread_cubit.dart';
 import 'package:mozhi/proofread/widgets/proofread_labels.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-/// Correction level, writing style, formality, engine and context controls.
+/// Correction level, writing style, formality, reading level, regional
+/// variety, engine and context controls.
 class ProofreadControls extends StatefulWidget {
   const new({super.key});
 
@@ -67,6 +68,8 @@ class _ProofreadControlsState extends State<ProofreadControls> {
           previous.correctionLevel != current.correctionLevel ||
           previous.writingStyle != current.writingStyle ||
           previous.formality != current.formality ||
+          previous.readingLevel != current.readingLevel ||
+          previous.variety != current.variety ||
           // Engine equality ignores the model and locality badge.
           !identical(previous.engine, current.engine) ||
           !identical(previous.availableEngines, current.availableEngines),
@@ -150,6 +153,27 @@ class _ProofreadControlsState extends State<ProofreadControls> {
           values: Formality.values,
           labelOf: l10n.proofreadFormality,
           onSelected: cubit.setFormality,
+        ),
+        ProofreadMenuButton<ReadingLevel>(
+          key: const Key('proofread_reading_level_menu'),
+          icon: Icons.school_outlined,
+          label: l10n.proofreadReadingLevelLabel,
+          value: state.readingLevel,
+          values: ReadingLevel.values,
+          labelOf: l10n.proofreadReadingLevel,
+          subtitleOf: l10n.proofreadReadingLevelDescription,
+          onSelected: cubit.setReadingLevel,
+        ),
+        ProofreadMenuButton<ProofreadVariety?>(
+          key: const Key('proofread_variety_menu'),
+          icon: Icons.public,
+          label: l10n.proofreadVarietyLabel,
+          value: state.variety,
+          values: const [null, ...ProofreadVariety.values],
+          labelOf: l10n.proofreadVariety,
+          subtitleOf: (variety) =>
+              variety == null ? l10n.proofreadVarietyKeepDescription : null,
+          onSelected: cubit.setVariety,
         ),
         if (state.availableEngines.length > 1 && state.engine != null)
           ProofreadMenuButton<TranslationEngine>(

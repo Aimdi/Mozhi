@@ -117,6 +117,14 @@ class ProofreadCubit extends Cubit<ProofreadState> {
   void setFormality(Formality formality) =>
       emit(state.copyWith(formality: formality));
 
+  /// Rewords for a CEFR [level]; [ReadingLevel.standard] keeps the author's.
+  void setReadingLevel(ReadingLevel level) =>
+      emit(state.copyWith(readingLevel: level));
+
+  /// Converts to a regional [variety]; null keeps the author's.
+  void setVariety(ProofreadVariety? variety) =>
+      emit(state.copyWith(variety: () => variety));
+
   void setContext(String context) => emit(state.copyWith(context: context));
 
   /// Proofreads the current input with the selected engine. All returned
@@ -134,6 +142,8 @@ class ProofreadCubit extends Cubit<ProofreadState> {
         style: state.writingStyle,
         level: state.correctionLevel,
         formality: state.formality,
+        readingLevel: state.readingLevel,
+        variety: state.variety,
         context: state.context.trim(),
         uiLanguage: _uiLanguage,
       );

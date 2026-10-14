@@ -4839,5 +4839,559 @@
         "type": "int"
       }
     }
+  },
+  "translatePickerCustomSourceHint": "AI models can translate from any dialect or style you describe.",
+  "@translatePickerCustomSourceHint": {
+    "description": "Hint under a custom source language in the source language picker"
+  },
+  "translateQualityMode": "Quality mode",
+  "@translateQualityMode": {
+    "description": "Group label of the Fast / Best quality toggle next to the engine selector"
+  },
+  "translateQualityFast": "Fast",
+  "@translateQualityFast": {
+    "description": "Quality toggle segment: translate with the engine chosen as Fast"
+  },
+  "translateQualityBest": "Best",
+  "@translateQualityBest": {
+    "description": "Quality toggle segment: translate with the engine chosen as Best"
+  },
+  "translateQualityFastTooltip": "Fast: translate with {engine}",
+  "@translateQualityFastTooltip": {
+    "description": "Tooltip of the Fast quality segment",
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "translateQualityBestTooltip": "Best: translate with {engine}",
+  "@translateQualityBestTooltip": {
+    "description": "Tooltip of the Best quality segment",
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "translateQualityModesTitle": "Quality modes",
+  "@translateQualityModesTitle": {
+    "description": "Engine sheet entry that opens the quality modes settings"
+  },
+  "translateQualityModesSetUp": "Choose a Fast and a Best engine to switch between them here",
+  "@translateQualityModesSetUp": {
+    "description": "Engine sheet entry subtitle when no quality engines are configured"
+  },
+  "translateQualityModesChange": "Change the Fast and Best engines",
+  "@translateQualityModesChange": {
+    "description": "Engine sheet entry subtitle when quality engines are configured"
+  },
+  "translateRecentPairsTitle": "Recent language pairs",
+  "@translateRecentPairsTitle": {
+    "description": "Title of the sheet (and More tools entry) listing recently used language pairs"
+  },
+  "translateRecentPairsEmpty": "No recent language pairs yet. Pairs you translate with show up here.",
+  "@translateRecentPairsEmpty": {
+    "description": "Empty state of the recent language pairs sheet"
+  },
+  "translateRecentPairsShow": "show recent language pairs",
+  "@translateRecentPairsShow": {
+    "description": "Screen reader hint for the long press action of the swap button (read as: double tap and hold to ...)"
+  },
+  "translateRecentPairsClear": "Clear recent language pairs",
+  "@translateRecentPairsClear": {
+    "description": "Tooltip of the button that clears the recent language pairs"
+  },
+  "translateLanguagePair": "{source} → {target}",
+  "@translateLanguagePair": {
+    "description": "A source and target language pair",
+    "placeholders": {
+      "source": {
+        "type": "String"
+      },
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "translateLanguagePairSemantics": "From {source} to {target}",
+  "@translateLanguagePairSemantics": {
+    "description": "Screen reader label of a language pair",
+    "placeholders": {
+      "source": {
+        "type": "String"
+      },
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "translateLanguagePairCurrent": "{pair}, current",
+  "@translateLanguagePairCurrent": {
+    "description": "Screen reader label of the language pair that is in use",
+    "placeholders": {
+      "pair": {
+        "type": "String"
+      }
+    }
+  },
+  "translateShortcutPinnedTarget": "Translate into pinned language 1 to 9",
+  "@translateShortcutPinnedTarget": {
+    "description": "Keyboard cheat sheet: Alt+1..9 selects a pinned target language"
+  },
+  "translateShortcutKeyRange": "{first} to {last}",
+  "@translateShortcutKeyRange": {
+    "description": "Spoken form of a key range in the keyboard cheat sheet, e.g. 1 to 9",
+    "placeholders": {
+      "first": {
+        "type": "String"
+      },
+      "last": {
+        "type": "String"
+      }
+    }
+  },
+  "translateSmartSwapNotice": "Translating into {language} instead",
+  "@translateSmartSwapNotice": {
+    "description": "Snack bar after the target language was switched because the text already was in the target language",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "translateOptionsFormalityNotes": "Formality notes",
+  "@translateOptionsFormalityNotes": {
+    "description": "Label of the free text field describing the relationship / tone for the chosen formality"
+  },
+  "translateOptionsFormalityNotesHint": "e.g. my boss, but we’re on first-name terms",
+  "@translateOptionsFormalityNotesHint": {
+    "description": "Hint of the formality notes field"
+  },
+  "translateActiveOptionFormalityNotes": "Notes: {notes}",
+  "@translateActiveOptionFormalityNotes": {
+    "description": "Active option chip for formality notes",
+    "placeholders": {
+      "notes": {
+        "type": "String"
+      }
+    }
+  },
+  "translateToolDictionary": "Dictionary",
+  "@translateToolDictionary": {
+    "description": "More tools menu entry that opens the dictionary"
+  },
+  "translateRefineMoreFormal": "More formal",
+  "@translateRefineMoreFormal": {
+    "description": "translateRefineMoreFormal"
+  },
+  "translateRefineMoreCasual": "More casual",
+  "@translateRefineMoreCasual": {
+    "description": "translateRefineMoreCasual"
+  },
+  "translateRefineShorter": "Shorter",
+  "@translateRefineShorter": {
+    "description": "translateRefineShorter"
+  },
+  "translateRefineSimpler": "Simpler",
+  "@translateRefineSimpler": {
+    "description": "translateRefineSimpler"
+  },
+  "translateRefineMoreFluent": "More fluent",
+  "@translateRefineMoreFluent": {
+    "description": "translateRefineMoreFluent"
+  },
+  "translateRefineMoreLiteral": "More literal",
+  "@translateRefineMoreLiteral": {
+    "description": "translateRefineMoreLiteral"
+  },
+  "translateRefinementUndo": "Undo “{label}”",
+  "@translateRefinementUndo": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "translateRefinementReplaces": "Replaces “{label}”",
+  "@translateRefinementReplaces": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "translateRefinementCancel": "Cancel “{label}”",
+  "@translateRefinementCancel": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "translateRefinementFailed": "Couldn’t refine the translation. {reason}",
+  "@translateRefinementFailed": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "translateRomanizationShow": "Show romanization",
+  "@translateRomanizationShow": {
+    "description": "translateRomanizationShow"
+  },
+  "translateRomanizationHide": "Hide romanization",
+  "@translateRomanizationHide": {
+    "description": "translateRomanizationHide"
+  },
+  "translateRomanizationLabel": "Romanization",
+  "@translateRomanizationLabel": {
+    "description": "translateRomanizationLabel"
+  },
+  "translateRomanizationLoading": "Romanizing…",
+  "@translateRomanizationLoading": {
+    "description": "translateRomanizationLoading"
+  },
+  "translateRomanizationReady": "Romanization ready",
+  "@translateRomanizationReady": {
+    "description": "translateRomanizationReady"
+  },
+  "translateAlignmentShow": "Show alignment",
+  "@translateAlignmentShow": {
+    "description": "translateAlignmentShow"
+  },
+  "translateAlignmentHide": "Hide alignment",
+  "@translateAlignmentHide": {
+    "description": "translateAlignmentHide"
+  },
+  "translateAlignmentLoading": "Aligning…",
+  "@translateAlignmentLoading": {
+    "description": "translateAlignmentLoading"
+  },
+  "translateAlignmentHint": "Tap a phrase to see which words it translates.",
+  "@translateAlignmentHint": {
+    "description": "translateAlignmentHint"
+  },
+  "translateAlignmentEmpty": "No matching phrases found.",
+  "@translateAlignmentEmpty": {
+    "description": "translateAlignmentEmpty"
+  },
+  "translateAlignmentSpanSemantics": "{phrase}, translates “{source}”",
+  "@translateAlignmentSpanSemantics": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      },
+      "source": {
+        "type": "String"
+      }
+    }
+  },
+  "translateAlignmentFocused": "“{phrase}” translates “{source}”",
+  "@translateAlignmentFocused": {
+    "placeholders": {
+      "phrase": {
+        "type": "String"
+      },
+      "source": {
+        "type": "String"
+      }
+    }
+  },
+  "translateDetectedAlternativesLabel": "Other possible languages",
+  "@translateDetectedAlternativesLabel": {
+    "description": "translateDetectedAlternativesLabel"
+  },
+  "translateDetectedAlternativeHint": "Translate from {language} instead",
+  "@translateDetectedAlternativeHint": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "translateDictionaryDetailLevel": "Detail level",
+  "@translateDictionaryDetailLevel": {
+    "description": "translateDictionaryDetailLevel"
+  },
+  "translateDictionaryConcise": "Concise",
+  "@translateDictionaryConcise": {
+    "description": "translateDictionaryConcise"
+  },
+  "translateDictionaryStandard": "Standard",
+  "@translateDictionaryStandard": {
+    "description": "translateDictionaryStandard"
+  },
+  "translateDictionaryDetailed": "Detailed",
+  "@translateDictionaryDetailed": {
+    "description": "translateDictionaryDetailed"
+  },
+  "translateDictionaryRelated": "Related words",
+  "@translateDictionaryRelated": {
+    "description": "translateDictionaryRelated"
+  },
+  "translateDictionaryDidYouMean": "Did you mean “{word}”?",
+  "@translateDictionaryDidYouMean": {
+    "placeholders": {
+      "word": {
+        "type": "String"
+      }
+    }
+  },
+  "translateDictionaryOpen": "Open dictionary",
+  "@translateDictionaryOpen": {
+    "description": "translateDictionaryOpen"
+  },
+  "proofreadAsWritten": "As written",
+  "@proofreadAsWritten": {
+    "description": "Proofread option value that keeps the author's own reading level or regional variety"
+  },
+  "proofreadReadingLevelLabel": "Reading level",
+  "@proofreadReadingLevelLabel": {
+    "description": "Proofread option: CEFR reading level to adjust the wording to"
+  },
+  "proofreadReadingLevelKeepDescription": "Keep the author's reading level",
+  "@proofreadReadingLevelKeepDescription": {
+    "description": "Subtitle of the 'As written' reading-level option: proofreading keeps the author's own reading level instead of rewording for a CEFR level"
+  },
+  "proofreadReadingLevelA1Description": "Beginner",
+  "@proofreadReadingLevelA1Description": {
+    "description": "Subtitle of the CEFR A1 option of the proofread reading-level menu: the language level of a beginner learner"
+  },
+  "proofreadReadingLevelA2Description": "Elementary",
+  "@proofreadReadingLevelA2Description": {
+    "description": "Subtitle of the CEFR A2 option of the proofread reading-level menu: the language level of a elementary learner"
+  },
+  "proofreadReadingLevelB1Description": "Intermediate",
+  "@proofreadReadingLevelB1Description": {
+    "description": "Subtitle of the CEFR B1 option of the proofread reading-level menu: the language level of a intermediate learner"
+  },
+  "proofreadReadingLevelB2Description": "Upper intermediate",
+  "@proofreadReadingLevelB2Description": {
+    "description": "Subtitle of the CEFR B2 option of the proofread reading-level menu: the language level of a upper-intermediate learner"
+  },
+  "proofreadReadingLevelC1Description": "Advanced",
+  "@proofreadReadingLevelC1Description": {
+    "description": "Subtitle of the CEFR C1 option of the proofread reading-level menu: the language level of a advanced learner"
+  },
+  "proofreadReadingLevelC2Description": "Proficient",
+  "@proofreadReadingLevelC2Description": {
+    "description": "Subtitle of the CEFR C2 option of the proofread reading-level menu: the language level of a proficient, near-native reader"
+  },
+  "proofreadVarietyLabel": "Variety",
+  "@proofreadVarietyLabel": {
+    "description": "Label of the proofread option menu that picks the regional variety of the language (e.g. English (UK), Portuguese (Brazil)) whose spelling and vocabulary to use; 'variety' as in language variety, not assortment"
+  },
+  "proofreadVarietyKeepDescription": "Keep the author's spelling and vocabulary",
+  "@proofreadVarietyKeepDescription": {
+    "description": "Subtitle of the 'As written' regional-variety option: proofreading keeps the author's spelling and vocabulary (e.g. British or American English)"
+  },
+  "proofreadVarietyEnGb": "English (UK)",
+  "@proofreadVarietyEnGb": {
+    "description": "Regional-variety option: English as written in the United Kingdom (British spelling, e.g. colour)"
+  },
+  "proofreadVarietyEnUs": "English (US)",
+  "@proofreadVarietyEnUs": {
+    "description": "Regional-variety option: English as written in the United States (American spelling, e.g. color)"
+  },
+  "proofreadVarietyEnAu": "English (Australia)",
+  "@proofreadVarietyEnAu": {
+    "description": "Regional-variety option: English as written in Australia"
+  },
+  "proofreadVarietyEnCa": "English (Canada)",
+  "@proofreadVarietyEnCa": {
+    "description": "Regional-variety option: English as written in Canada"
+  },
+  "proofreadVarietyPtBr": "Portuguese (Brazil)",
+  "@proofreadVarietyPtBr": {
+    "description": "Regional-variety option: Portuguese as written in Brazil"
+  },
+  "proofreadVarietyPtPt": "Portuguese (Portugal)",
+  "@proofreadVarietyPtPt": {
+    "description": "Regional-variety option: Portuguese as written in Portugal"
+  },
+  "proofreadVarietyEsEs": "Spanish (Spain)",
+  "@proofreadVarietyEsEs": {
+    "description": "Regional-variety option: Spanish as written in Spain"
+  },
+  "proofreadVarietyEs419": "Spanish (Latin America)",
+  "@proofreadVarietyEs419": {
+    "description": "Regional-variety option: Spanish as written in Latin America"
+  },
+  "proofreadVarietyFrFr": "French (France)",
+  "@proofreadVarietyFrFr": {
+    "description": "Regional-variety option: French as written in France"
+  },
+  "proofreadVarietyFrCa": "French (Canada)",
+  "@proofreadVarietyFrCa": {
+    "description": "Regional-variety option: French as written in Canada (Quebec)"
+  },
+  "proofreadVarietyDeDe": "German (Germany)",
+  "@proofreadVarietyDeDe": {
+    "description": "Regional-variety option: German as written in Germany"
+  },
+  "proofreadVarietyDeCh": "German (Switzerland)",
+  "@proofreadVarietyDeCh": {
+    "description": "Regional-variety option: German as written in Switzerland (ss instead of ß)"
+  },
+  "proofreadVarietyDeAt": "German (Austria)",
+  "@proofreadVarietyDeAt": {
+    "description": "Regional-variety option: German as written in Austria"
+  },
+  "proofreadStatsTitle": "Writing statistics",
+  "@proofreadStatsTitle": {
+    "description": "Title of the collapsible panel with word, sentence and readability counts of the original and corrected text"
+  },
+  "proofreadStatsSummary": "{words} · {readingTime} read",
+  "@proofreadStatsSummary": {
+    "description": "Collapsed writing statistics, e.g. 120 words · 1 min read",
+    "placeholders": {
+      "words": {
+        "type": "String",
+        "example": "120 words"
+      },
+      "readingTime": {
+        "type": "String",
+        "example": "1 min"
+      }
+    }
+  },
+  "proofreadStatsWordCount": "{count, plural, =1{1 word} other{{formatted} words}}",
+  "@proofreadStatsWordCount": {
+    "description": "Word count in the collapsed writing statistics, e.g. \"120 words\"; formatted is count with the digit grouping of the locale",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "formatted": {
+        "type": "String",
+        "example": "1,200"
+      }
+    }
+  },
+  "proofreadStatsWords": "Words",
+  "@proofreadStatsWords": {
+    "description": "Row label in the writing statistics of the proofread text: number of words"
+  },
+  "proofreadStatsCharacters": "Characters",
+  "@proofreadStatsCharacters": {
+    "description": "Row label in the writing statistics of the proofread text: number of characters, spaces included"
+  },
+  "proofreadStatsSentences": "Sentences",
+  "@proofreadStatsSentences": {
+    "description": "Row label in the writing statistics of the proofread text: number of sentences"
+  },
+  "proofreadStatsParagraphs": "Paragraphs",
+  "@proofreadStatsParagraphs": {
+    "description": "Row label in the writing statistics of the proofread text: number of paragraphs"
+  },
+  "proofreadStatsWordsPerSentence": "Words per sentence",
+  "@proofreadStatsWordsPerSentence": {
+    "description": "Row label in the writing statistics of the proofread text: average number of words in a sentence"
+  },
+  "proofreadStatsReadingTime": "Reading time",
+  "@proofreadStatsReadingTime": {
+    "description": "Row label in the writing statistics of the proofread text: estimated time it takes to read the text"
+  },
+  "proofreadStatsMinutes": "{count, plural, =1{1 min} other{{count} min}}",
+  "@proofreadStatsMinutes": {
+    "description": "Estimated reading time in minutes (abbreviated)",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "proofreadStatsSeconds": "{count, plural, =1{1 sec} other{{count} sec}}",
+  "@proofreadStatsSeconds": {
+    "description": "Estimated reading time in seconds (abbreviated)",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "proofreadStatsFlesch": "Flesch reading ease",
+  "@proofreadStatsFlesch": {
+    "description": "Name of the Flesch reading-ease score (English texts only)"
+  },
+  "proofreadStatsFleschHint": "0–100, higher is easier to read",
+  "@proofreadStatsFleschHint": {
+    "description": "Explanation under the Flesch reading ease row: the range of the score, and that a higher score means easier to read"
+  },
+  "proofreadStatsFleschVeryEasy": "Very easy",
+  "@proofreadStatsFleschVeryEasy": {
+    "description": "Flesch reading-ease band (shown only for English texts) for scores 90–100"
+  },
+  "proofreadStatsFleschEasy": "Easy",
+  "@proofreadStatsFleschEasy": {
+    "description": "Flesch reading-ease band (shown only for English texts) for scores 80–90"
+  },
+  "proofreadStatsFleschFairlyEasy": "Fairly easy",
+  "@proofreadStatsFleschFairlyEasy": {
+    "description": "Flesch reading-ease band (shown only for English texts) for scores 70–80"
+  },
+  "proofreadStatsFleschStandard": "Plain English",
+  "@proofreadStatsFleschStandard": {
+    "description": "Flesch reading-ease band (shown only for English texts) for scores 60–70: Flesch's 'plain English', easily understood by 13- to 15-year-olds; it always rates an English text"
+  },
+  "proofreadStatsFleschFairlyDifficult": "Fairly difficult",
+  "@proofreadStatsFleschFairlyDifficult": {
+    "description": "Flesch reading-ease band (shown only for English texts) for scores 50–60"
+  },
+  "proofreadStatsFleschDifficult": "Difficult",
+  "@proofreadStatsFleschDifficult": {
+    "description": "Flesch reading-ease band (shown only for English texts) for scores 30–50"
+  },
+  "proofreadStatsFleschVeryDifficult": "Very difficult",
+  "@proofreadStatsFleschVeryDifficult": {
+    "description": "Flesch reading-ease band (shown only for English texts) for scores 0–30"
+  },
+  "proofreadStatsOriginal": "Original",
+  "@proofreadStatsOriginal": {
+    "description": "Legend of the 'before' values in the writing statistics: the text as it was before proofreading (original as in 'before changes', not 'authentic')"
+  },
+  "proofreadStatsCorrected": "Corrected",
+  "@proofreadStatsCorrected": {
+    "description": "Legend of the 'after' values in the writing statistics: the text with the accepted corrections applied"
+  },
+  "proofreadStatsChangeSemantics": "{before} originally, {after} after corrections",
+  "@proofreadStatsChangeSemantics": {
+    "description": "Screen reader text for a statistic that changed",
+    "placeholders": {
+      "before": {
+        "type": "String"
+      },
+      "after": {
+        "type": "String"
+      }
+    }
+  },
+  "translateQualityOff": "Usual engine",
+  "@translateQualityOff": {
+    "description": "Quality mode menu entry that turns Fast / Best off and goes back to the usual engine"
+  },
+  "translateQualityMenuTooltip": "Quality mode: {mode}",
+  "@translateQualityMenuTooltip": {
+    "description": "Tooltip of the quality mode menu button on narrow screens",
+    "placeholders": {
+      "mode": {
+        "type": "String"
+      }
+    }
+  },
+  "translatePinnedTargetSelected": "Translating into {language}",
+  "@translatePinnedTargetSelected": {
+    "description": "Announced when a keyboard shortcut (Alt+1 to Alt+9) picks a pinned target language.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "translateRecentPairsNeedsCustom": "Needs an AI model that takes custom languages",
+  "@translateRecentPairsNeedsCustom": {
+    "description": "Subtitle of a disabled recent language pair with a custom language while the engine cannot take custom languages."
   }
 }

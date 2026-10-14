@@ -507,11 +507,27 @@ abstract final class TranslationPrompts {
   /// "edits": [{"original": str, "replacement": str, "explanation": str,
   /// "category": str}]}` — `original` must be an exact substring of the
   /// input; keep the author's voice; follow [style] and [level].
+  ///
+  /// * [readingLevel]: [ReadingLevel.standard] (the default) adds no
+  ///   reading-level rule, so [style] and [level] alone decide how far the
+  ///   wording may change (a "keep the author's level" rule would hold back
+  ///   e.g. comprehensive academic proofreading); a CEFR level asks the
+  ///   model to reword the text for a reader at that level (the same CEFR
+  ///   descriptions as translation), keeping all of its content, at any
+  ///   correction level.
+  /// * [variety]: null (the default) keeps the author's regional variety
+  ///   and its spelling conventions (en-GB vs en-US, pt-BR vs pt-PT, Swiss
+  ///   German ss); a [ProofreadVariety] converts text in that variety's
+  ///   language to it and leaves text in other languages in the author's
+  ///   variety.
+  /// * [context] is the user's own note; it is rendered on a single line.
   static List<LlmMessage> proofread(
     String text, {
     WritingStyle style = WritingStyle.general,
     CorrectionLevel level = CorrectionLevel.standard,
     Formality formality = Formality.automatic,
+    ReadingLevel readingLevel = ReadingLevel.standard,
+    ProofreadVariety? variety,
     String context = '',
     String uiLanguage = 'English',
   }) {
@@ -527,8 +543,13 @@ abstract final class TranslationPrompts {
     if (formality != Formality.automatic) {
       prompt.line('Formality: ${_formalityRules[formality]}');
     }
-    if (context.trim().isNotEmpty) {
-      prompt.add('Context from the user: ${context.trim()}');
+    prompt.add(_proofreadVarietyRule(variety));
+    if (readingLevel != ReadingLevel.standard) {
+      prompt.add(_proofreadReadingLevelRule(readingLevel));
+    }
+    final note = PromptSanitizer.singleLine(context);
+    if (note.isNotEmpty) {
+      prompt.add('Context from the user: $note');
     }
     prompt
       ..add('Fields:')
@@ -1327,6 +1348,32 @@ abstract final class TranslationPrompts {
         'comprehensive: fix all errors and also improve clarity, flow, word '
         'choice, repetition and tone to fit the writing style.',
   };
+
+  /// Keeps the author's regional variety, or converts to [variety].
+  static String _proofreadVarietyRule(ProofreadVariety? variety) {
+    if (variety == null) {
+      return "Regional variety: keep the author's regional variety and its "
+          'spelling, vocabulary and punctuation conventions (e.g. British or '
+          'American English, Brazilian or European Portuguese, Swiss German '
+          'ss instead of ß). Never convert between varieties, and never '
+          'treat a consistent spelling of the variety as a mistake.';
+    }
+    final language = sanitizeCustomLanguage(
+      LanguageCatalog.nameOf(variety.languageCode),
+    );
+    return 'Regional variety: the user chose ${variety.englishName} '
+        '(${variety.code}). If the text is in $language, write it in '
+        '${variety.englishName}: ${variety.conventions}. Change spellings, '
+        'words and conventions of other varieties to match, as edits with '
+        'the category spelling or word_choice. If the text is in another '
+        "language, keep the author's regional variety.";
+  }
+
+  /// Rewords for a CEFR [level] (not [ReadingLevel.standard]).
+  static String _proofreadReadingLevelRule(ReadingLevel level) =>
+      '${_readingLevelSection(level)} Reword passages that are harder or '
+      'simpler than this level, even at a light correction level, and list '
+      'each rewording as an edit with the category clarity or word_choice.';
 
   static String _jsonOnly(String shape) =>
       'Respond with a single JSON object only (no code fences, no other '

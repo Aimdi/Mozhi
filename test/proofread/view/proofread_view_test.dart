@@ -24,6 +24,8 @@ void main() {
     registerFallbackValue(WritingStyle.general);
     registerFallbackValue(CorrectionLevel.standard);
     registerFallbackValue(Formality.automatic);
+    registerFallbackValue(ReadingLevel.standard);
+    registerFallbackValue(ProofreadVariety.enGb);
   });
 
   setUp(() {
@@ -312,6 +314,114 @@ void main() {
         await tester.tap(find.text('Less formal'));
         await tester.pumpAndSettle();
         verify(() => cubit.setFormality(Formality.less)).called(1);
+      });
+
+      testWidgets('changes the reading level', (tester) async {
+        await pumpView(tester, readyState);
+        expect(find.text('Reading level: As written'), findsOneWidget);
+        await tester.tap(find.byKey(const Key('proofread_reading_level_menu')));
+        await tester.pumpAndSettle();
+        // Each option shows its CEFR description.
+        expect(find.text("Keep the author's reading level"), findsOneWidget);
+        expect(find.text('Upper intermediate'), findsOneWidget);
+        await tester.tap(find.text('B1'));
+        await tester.pumpAndSettle();
+        verify(() => cubit.setReadingLevel(ReadingLevel.b1)).called(1);
+      });
+
+      testWidgets('changes the regional variety', (tester) async {
+        await pumpView(tester, readyState);
+        expect(find.text('Variety: As written'), findsOneWidget);
+        await tester.tap(find.byKey(const Key('proofread_variety_menu')));
+        await tester.pumpAndSettle();
+        expect(
+          find.text("Keep the author's spelling and vocabulary"),
+          findsOneWidget,
+        );
+        for (final label in [
+          'English (US)',
+          'English (Australia)',
+          'English (Canada)',
+          'Portuguese (Brazil)',
+          'Portuguese (Portugal)',
+          'Spanish (Spain)',
+          'Spanish (Latin America)',
+          'French (France)',
+          'French (Canada)',
+          'German (Germany)',
+          'German (Switzerland)',
+          'German (Austria)',
+        ]) {
+          expect(find.text(label), findsOneWidget, reason: label);
+        }
+        await tester.tap(find.text('English (UK)'));
+        await tester.pumpAndSettle();
+        verify(() => cubit.setVariety(ProofreadVariety.enGb)).called(1);
+      });
+
+      testWidgets("goes back to the author's variety", (tester) async {
+        await pumpView(
+          tester,
+          readyState.copyWith(variety: () => ProofreadVariety.deCh),
+        );
+        expect(find.text('Variety: German (Switzerland)'), findsOneWidget);
+        await tester.tap(find.byKey(const Key('proofread_variety_menu')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('As written'));
+        await tester.pumpAndSettle();
+        verify(() => cubit.setVariety(null)).called(1);
+      });
+
+      testWidgets('shows the chosen reading level', (tester) async {
+        await pumpView(
+          tester,
+          readyState.copyWith(readingLevel: ReadingLevel.c1),
+        );
+        expect(find.text('Reading level: C1'), findsOneWidget);
+      });
+
+      testWidgets('updates when the new options change', (tester) async {
+        await pumpView(
+          tester,
+          readyState,
+          stream: Stream.value(
+            readyState.copyWith(
+              readingLevel: ReadingLevel.a2,
+              variety: () => ProofreadVariety.ptBr,
+            ),
+          ),
+        );
+        await tester.pump();
+        expect(find.text('Reading level: A2'), findsOneWidget);
+        expect(find.text('Variety: Portuguese (Brazil)'), findsOneWidget);
+      });
+
+      testWidgets('fit a phone at 200% text', (tester) async {
+        tester.platformDispatcher.textScaleFactorTestValue = 2;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        await pumpView(
+          tester,
+          readyState.copyWith(availableEngines: [openAiEngine, ollamaEngine]),
+          size: const Size(320, 3200),
+        );
+        expect(tester.takeException(), isNull);
+        expect(
+          find.byKey(const Key('proofread_reading_level_menu')),
+          findsOneWidget,
+        );
+        expect(find.byKey(const Key('proofread_variety_menu')), findsOneWidget);
+        for (final key in [
+          'proofread_style_menu',
+          'proofread_formality_menu',
+          'proofread_reading_level_menu',
+          'proofread_variety_menu',
+        ]) {
+          expect(
+            tester.getSize(find.byKey(Key(key))).height,
+            greaterThanOrEqualTo(48),
+            reason: key,
+          );
+        }
       });
 
       testWidgets('menu button toggles its menu', (tester) async {
@@ -806,6 +916,157 @@ void main() {
           ),
         );
         expect(find.text('Clear and concise.'), findsOneWidget);
+      });
+
+      testWidgets('shows collapsible writing statistics', (tester) async {
+        await pumpView(tester, successState());
+        expect(find.text('Writing statistics'), findsOneWidget);
+        // "I have an apple and an orange." with every edit applied.
+        expect(find.text('7 words · 2 sec read'), findsOneWidget);
+        expect(find.text('Words per sentence'), findsNothing);
+        await tester.tap(find.text('Writing statistics'));
+        await tester.pumpAndSettle();
+        expect(find.text('Words per sentence'), findsOneWidget);
+        // The language is unknown: no Flesch score.
+        expect(find.text('Flesch reading ease'), findsNothing);
+      });
+
+      testWidgets('statistics follow the accepted edits', (tester) async {
+        await pumpView(tester, successState(accepted: {}));
+        // Nothing applied: the output is the input, 27 characters.
+        expect(find.text('7 words · 2 sec read'), findsOneWidget);
+        await tester.tap(find.text('Writing statistics'));
+        await tester.pumpAndSettle();
+        expect(find.text('27'), findsOneWidget);
+      });
+
+      testWidgets('shows the Flesch score for English results', (tester) async {
+        await pumpView(
+          tester,
+          successState().copyWith(
+            result: () => const ProofreadResult(
+              correctedText: 'I have an apple and an orange.',
+              edits: sampleEdits,
+              detectedLanguage: 'en',
+            ),
+          ),
+        );
+        await tester.tap(find.text('Writing statistics'));
+        await tester.pumpAndSettle();
+        expect(find.text('Flesch reading ease'), findsOneWidget);
+      });
+
+      testWidgets('needs a detected language, not just an English variety', (
+        tester,
+      ) async {
+        // e.g. Spanish text proofread with English (UK) chosen, by a model
+        // that echoed the "xx" placeholder as the language.
+        await pumpView(
+          tester,
+          successState().copyWith(variety: () => ProofreadVariety.enGb),
+        );
+        await tester.tap(find.text('Writing statistics'));
+        await tester.pumpAndSettle();
+        expect(find.text('Words'), findsOneWidget);
+        expect(find.text('Flesch reading ease'), findsNothing);
+      });
+
+      testWidgets('hides the Flesch score for other languages', (tester) async {
+        await pumpView(
+          tester,
+          successState().copyWith(
+            variety: () => ProofreadVariety.enGb,
+            result: () => const ProofreadResult(
+              correctedText: 'Ich habe einen Apfel.',
+              detectedLanguage: 'de',
+            ),
+            input: 'Ich hab einen Apfel.',
+            proofreadInput: 'Ich hab einen Apfel.',
+            acceptedEdits: {},
+          ),
+        );
+        await tester.tap(find.text('Writing statistics'));
+        await tester.pumpAndSettle();
+        expect(find.text('Words'), findsOneWidget);
+        expect(find.text('Flesch reading ease'), findsNothing);
+      });
+
+      testWidgets('shows writing statistics for a clean result', (
+        tester,
+      ) async {
+        await pumpView(
+          tester,
+          successState().copyWith(
+            result: () => const ProofreadResult(correctedText: sampleInput),
+            acceptedEdits: {},
+          ),
+        );
+        expect(find.text('Looks good!'), findsOneWidget);
+        expect(find.text('Writing statistics'), findsOneWidget);
+      });
+
+      testWidgets('has no statistics before the first result', (tester) async {
+        await pumpView(tester, readyState.copyWith(input: sampleInput));
+        expect(find.text('Writing statistics'), findsNothing);
+      });
+
+      testWidgets('edits header wraps on a phone at 200% text', (tester) async {
+        tester.platformDispatcher.textScaleFactorTestValue = 2;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        await pumpView(
+          tester,
+          successState(accepted: {0}),
+          size: const Size(320, 6000),
+        );
+        expect(tester.takeException(), isNull);
+        final title = tester.getRect(find.text('Suggested edits'));
+        final accept = tester.getRect(find.text('Accept all'));
+        expect(accept.top, greaterThan(title.bottom));
+        await tester.tap(find.text('Accept all'));
+        verify(() => cubit.acceptAll()).called(1);
+        await tester.tap(find.text('Reject all'));
+        verify(() => cubit.rejectAll()).called(1);
+      });
+
+      testWidgets('edits header keeps the buttons beside the title', (
+        tester,
+      ) async {
+        await pumpView(tester, successState(accepted: {0}));
+        final title = tester.getRect(find.text('Suggested edits'));
+        final accept = tester.getRect(find.text('Accept all'));
+        expect(accept.left, greaterThan(title.right));
+      });
+
+      testWidgets('lays out right to left', (tester) async {
+        setSurface(tester, const Size(800, 2400));
+        whenListen(
+          cubit,
+          const Stream<ProofreadState>.empty(),
+          initialState: successState(accepted: {0}),
+        );
+        whenListen(
+          translateCubit,
+          const Stream<TranslateState>.empty(),
+          initialState: readyTranslateState,
+        );
+        await tester.pumpProofread(
+          const Directionality(
+            textDirection: TextDirection.rtl,
+            child: ProofreadView(),
+          ),
+          translateCubit: translateCubit,
+          proofreadCubit: cubit,
+          router: router,
+        );
+        await tester.tap(find.text('Writing statistics'));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        final title = tester.getRect(find.text('Suggested edits'));
+        final accept = tester.getRect(find.text('Accept all'));
+        expect(accept.right, lessThan(title.left));
+        final label = tester.getRect(find.text('Words'));
+        final value = tester.getRect(find.text('7'));
+        expect(value.left, lessThan(label.left));
       });
 
       testWidgets('keeps the result visible while re-proofreading', (

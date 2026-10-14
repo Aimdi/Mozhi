@@ -550,9 +550,37 @@ abstract final class ResponseParsers {
       correctedText: corrected!,
       edits: edits,
       detectedLanguage: language.isEmpty ? null : language,
-      summary: _string(root, const ['summary', 'analysis', 'feedback']),
+      summary: _proofreadSummary(root),
     );
   }
+
+  /// The summary. Some models split it into a list, of sentences or of
+  /// bullet fragments: an item that ends a sentence is followed by a space
+  /// (nothing after a full-width `。`, `！` or `？`), a fragment by `; `,
+  /// so fragments do not run together.
+  static String _proofreadSummary(Map<dynamic, dynamic> root) {
+    const keys = ['summary', 'analysis', 'feedback'];
+    if (_get(root, keys) case final List<dynamic> list) {
+      final items = _strings(list);
+      final summary = StringBuffer();
+      for (final (index, item) in items.indexed) {
+        if (index > 0) summary.write(_separatorAfter(items[index - 1]));
+        summary.write(item);
+      }
+      return summary.toString();
+    }
+    return _string(root, keys);
+  }
+
+  /// What separates a summary [item] from the next one.
+  static String _separatorAfter(String item) {
+    if (_fullWidthSentenceEnd.hasMatch(item)) return '';
+    return _sentenceEnd.hasMatch(item) ? ' ' : '; ';
+  }
+
+  /// Sentence-final punctuation, then any closing quotes or brackets.
+  static final _sentenceEnd = RegExp(r'''[.!?…‽。！？؟।॥۔։။។።]["'”’»)\]」』）]*$''');
+  static final _fullWidthSentenceEnd = RegExp(r'[。！？][」』”’）]*$');
 
   static DetectedLanguage parseDetectedLanguage(String output) {
     Object? value;

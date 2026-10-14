@@ -11,11 +11,12 @@ import 'package:mozhi/proofread/widgets/proofread_diff_colors.dart';
 import 'package:mozhi/proofread/widgets/proofread_diff_text.dart';
 import 'package:mozhi/proofread/widgets/proofread_edit_tile.dart';
 import 'package:mozhi/proofread/widgets/proofread_labels.dart';
+import 'package:mozhi/proofread/widgets/proofread_stats_panel.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Result area: loading/error states, the corrected text with an inline
-/// diff, the summary and the list of edits.
+/// diff, the summary, the writing statistics and the list of edits.
 class ProofreadResultSection extends StatelessWidget {
   const new({this.showPlaceholder = false, super.key});
 
@@ -64,7 +65,9 @@ class ProofreadResultSection extends StatelessWidget {
           previous.proofreadInput != current.proofreadInput ||
           previous.error != current.error ||
           previous.engine != current.engine ||
-          previous.input != current.input,
+          previous.input != current.input ||
+          // The statistics fall back to the variety's language.
+          previous.variety != current.variety,
       builder: (context, state) {
         final result = state.result;
         return Column(
@@ -84,10 +87,15 @@ class ProofreadResultSection extends StatelessWidget {
                 _StaleNotice(canProofread: state.canProofread),
               if (state.isClean)
                 _NoIssuesCard(summary: result.summary)
-              else ...[
+              else
                 ProofreadResultCard(state: state),
-                if (result.edits.isNotEmpty) ProofreadEditsList(state: state),
-              ],
+              ProofreadStatsPanel(
+                original: state.proofreadInput,
+                corrected: state.outputText,
+                languageCode: state.textLanguage,
+              ),
+              if (!state.isClean && result.edits.isNotEmpty)
+                ProofreadEditsList(state: state),
             ],
           ],
         );
@@ -236,23 +244,31 @@ class _ProofreadResultCardState extends State<ProofreadResultCard> {
                   ],
                 ),
               ),
-            Row(
+            // "Use as input" moves below the icons when it does not fit
+            // beside them (narrow screens, large text).
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                IconButton(
-                  tooltip: l10n.commonCopy,
-                  onPressed: output.isEmpty ? null : () => _copy(output),
-                  icon: const Icon(Icons.copy_outlined),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: l10n.commonCopy,
+                      onPressed: output.isEmpty ? null : () => _copy(output),
+                      icon: const Icon(Icons.copy_outlined),
+                    ),
+                    Builder(
+                      builder: (buttonContext) => IconButton(
+                        tooltip: l10n.commonShare,
+                        onPressed: output.isEmpty
+                            ? null
+                            : () => unawaited(_share(buttonContext, output)),
+                        icon: const Icon(Icons.share_outlined),
+                      ),
+                    ),
+                  ],
                 ),
-                Builder(
-                  builder: (buttonContext) => IconButton(
-                    tooltip: l10n.commonShare,
-                    onPressed: output.isEmpty
-                        ? null
-                        : () => unawaited(_share(buttonContext, output)),
-                    icon: const Icon(Icons.share_outlined),
-                  ),
-                ),
-                const Spacer(),
                 TextButton.icon(
                   // Replacing newer input with an older result would silently
                   // discard what the user typed since.
@@ -370,32 +386,43 @@ class ProofreadEditsList extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: 8,
       children: [
-        Row(
+        // The buttons move below the title when they do not fit beside it
+        // (narrow screens, large text).
+        Wrap(
+          key: const Key('proofread_edits_header'),
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          runSpacing: 4,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    l10n.proofreadEditsTitle,
-                    style: theme.textTheme.titleMedium,
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.proofreadEditsTitle,
+                  style: theme.textTheme.titleMedium,
+                ),
+                Text(
+                  l10n.proofreadEditsApplied(accepted, edits.length),
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
-                  Text(
-                    l10n.proofreadEditsApplied(accepted, edits.length),
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-            TextButton(
-              onPressed: accepted == edits.length ? null : cubit.acceptAll,
-              child: Text(l10n.proofreadAcceptAll),
-            ),
-            TextButton(
-              onPressed: accepted == 0 ? null : cubit.rejectAll,
-              child: Text(l10n.proofreadRejectAll),
+            Wrap(
+              spacing: 8,
+              children: [
+                TextButton(
+                  onPressed: accepted == edits.length ? null : cubit.acceptAll,
+                  child: Text(l10n.proofreadAcceptAll),
+                ),
+                TextButton(
+                  onPressed: accepted == 0 ? null : cubit.rejectAll,
+                  child: Text(l10n.proofreadRejectAll),
+                ),
+              ],
             ),
           ],
         ),

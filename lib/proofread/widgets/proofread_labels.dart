@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/proofread/models/writing_stats.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Localized labels for proofreading enums and edit categories.
@@ -31,6 +32,51 @@ extension ProofreadLabels on AppLocalizations {
     Formality.less => proofreadFormalityLess,
     Formality.preferMore => proofreadFormalityPreferMore,
     Formality.preferLess => proofreadFormalityPreferLess,
+  };
+
+  /// Short label of a reading level: "As written" or the CEFR level.
+  String proofreadReadingLevel(ReadingLevel level) => switch (level) {
+    ReadingLevel.standard => proofreadAsWritten,
+    _ => level.name.toUpperCase(),
+  };
+
+  String proofreadReadingLevelDescription(ReadingLevel level) =>
+      switch (level) {
+        ReadingLevel.standard => proofreadReadingLevelKeepDescription,
+        ReadingLevel.a1 => proofreadReadingLevelA1Description,
+        ReadingLevel.a2 => proofreadReadingLevelA2Description,
+        ReadingLevel.b1 => proofreadReadingLevelB1Description,
+        ReadingLevel.b2 => proofreadReadingLevelB2Description,
+        ReadingLevel.c1 => proofreadReadingLevelC1Description,
+        ReadingLevel.c2 => proofreadReadingLevelC2Description,
+      };
+
+  /// "English (UK)", or "As written" for no variety.
+  String proofreadVariety(ProofreadVariety? variety) => switch (variety) {
+    null => proofreadAsWritten,
+    ProofreadVariety.enGb => proofreadVarietyEnGb,
+    ProofreadVariety.enUs => proofreadVarietyEnUs,
+    ProofreadVariety.enAu => proofreadVarietyEnAu,
+    ProofreadVariety.enCa => proofreadVarietyEnCa,
+    ProofreadVariety.ptBr => proofreadVarietyPtBr,
+    ProofreadVariety.ptPt => proofreadVarietyPtPt,
+    ProofreadVariety.esEs => proofreadVarietyEsEs,
+    ProofreadVariety.es419 => proofreadVarietyEs419,
+    ProofreadVariety.frFr => proofreadVarietyFrFr,
+    ProofreadVariety.frCa => proofreadVarietyFrCa,
+    ProofreadVariety.deDe => proofreadVarietyDeDe,
+    ProofreadVariety.deCh => proofreadVarietyDeCh,
+    ProofreadVariety.deAt => proofreadVarietyDeAt,
+  };
+
+  String proofreadFleschBand(FleschBand band) => switch (band) {
+    FleschBand.veryEasy => proofreadStatsFleschVeryEasy,
+    FleschBand.easy => proofreadStatsFleschEasy,
+    FleschBand.fairlyEasy => proofreadStatsFleschFairlyEasy,
+    FleschBand.standard => proofreadStatsFleschStandard,
+    FleschBand.fairlyDifficult => proofreadStatsFleschFairlyDifficult,
+    FleschBand.difficult => proofreadStatsFleschDifficult,
+    FleschBand.veryDifficult => proofreadStatsFleschVeryDifficult,
   };
 
   /// Category label; unknown categories are shown humanized
