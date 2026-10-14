@@ -397,6 +397,80 @@ void main() {
       });
     });
 
+    group('long histories', () {
+      final many = [
+        for (var i = 0; i < 300; i++)
+          HistoryEntry(
+            id: 'm$i',
+            text: 'Entry $i',
+            translation: 'Eintrag $i',
+            source: _english,
+            target: _german,
+            engineId: 'mozhi:google',
+            engineName: 'Google',
+            createdAt: _daysAgo(i ~/ 10, hour: 12 - i % 10),
+          ),
+      ];
+
+      testWidgets('only builds the entries on screen', (tester) async {
+        await pump(
+          tester,
+          state: HistoryState(status: HistoryStatus.ready, entries: many),
+        );
+
+        final built = find
+            .byType(HistoryEntryTile, skipOffstage: false)
+            .evaluate()
+            .length;
+        expect(built, greaterThan(0));
+        expect(built, lessThan(40));
+        expect(find.text('Entry 0'), findsOneWidget);
+        expect(find.text('Entry 299', skipOffstage: false), findsNothing);
+
+        await tester.scrollUntilVisible(
+          find.text('Entry 120'),
+          2000,
+          scrollable: find.byType(Scrollable).first,
+        );
+        expect(find.text('Entry 120'), findsOneWidget);
+        expect(find.text('Entry 0', skipOffstage: false), findsNothing);
+      });
+
+      testWidgets('keeps unchanged tiles when the state changes', (
+        tester,
+      ) async {
+        final controller = StreamController<HistoryState>();
+        addTearDown(controller.close);
+        whenListen(
+          history,
+          controller.stream,
+          initialState: HistoryState(
+            status: HistoryStatus.ready,
+            entries: many,
+          ),
+        );
+        await pump(tester);
+
+        HistoryEntryTile tile(String id) =>
+            tester.widget<HistoryEntryTile>(find.byKey(ValueKey(id)));
+        final first = tile('m0');
+        final second = tile('m1');
+
+        final starred = many.first.copyWith(isFavorite: true);
+        controller.add(
+          HistoryState(
+            status: HistoryStatus.ready,
+            entries: [starred, ...many.skip(1)],
+          ),
+        );
+        await tester.pump();
+
+        expect(tile('m0'), isNot(same(first)));
+        expect(tile('m0').entry.isFavorite, isTrue);
+        expect(tile('m1'), same(second));
+      });
+    });
+
     testWidgets('shows swiped entries again once they are re-added', (
       tester,
     ) async {

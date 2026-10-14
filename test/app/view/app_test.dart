@@ -129,6 +129,19 @@ void main() {
       expect(translate.state.engine, testEngines.first);
     });
 
+    testWidgets('reads the history only after the first frame', (tester) async {
+      bool? shellBuilt;
+      when(env.historyRepository.load).thenAnswer((_) async {
+        shellBuilt = find.byType(AppShell).evaluate().isNotEmpty;
+        return const [];
+      });
+
+      await pumpApp(tester);
+
+      expect(shellBuilt, isTrue);
+      verify(env.historyRepository.load).called(1);
+    });
+
     testWidgets('follows appearance settings', (tester) async {
       await pumpApp(
         tester,

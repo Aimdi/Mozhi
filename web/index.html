@@ -33,8 +33,48 @@
 
   <title>Mozhi</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- Splash shown until Flutter draws its first frame (no external
+       resources; follows the system light/dark preference). -->
+  <style>
+    :root { --splash-bg: #fbf8ff; --splash-fg: #1b1b21; --splash-accent: #3f51b5; --splash-track: #e0e0f0; }
+    @media (prefers-color-scheme: dark) {
+      :root { --splash-bg: #121318; --splash-fg: #e4e1e9; --splash-accent: #bac3ff; --splash-track: #2e3040; }
+    }
+    html, body { margin: 0; height: 100%; background: var(--splash-bg); }
+    #splash {
+      position: fixed; inset: 0; z-index: 1;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px;
+      background: var(--splash-bg); color: var(--splash-fg);
+      font: 500 20px/1.2 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      transition: opacity 200ms ease-out;
+    }
+    #splash.done { opacity: 0; pointer-events: none; }
+    #splash .spinner {
+      width: 40px; height: 40px; box-sizing: border-box; border-radius: 50%;
+      border: 4px solid var(--splash-track); border-top-color: var(--splash-accent);
+      animation: splash-spin 900ms linear infinite;
+    }
+    @keyframes splash-spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) {
+      #splash .spinner { animation-duration: 3s; }
+      #splash { transition: none; }
+    }
+  </style>
 </head>
 <body>
+  <div id="splash" role="progressbar" aria-busy="true" aria-label="Loading Mozhi">
+    <div class="spinner"></div>
+    <div>Mozhi</div>
+  </div>
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      var splash = document.getElementById('splash');
+      if (!splash) return;
+      splash.classList.add('done');
+      setTimeout(function () { splash.remove(); }, 250);
+    }, { once: true });
+  </script>
   <script>
     {{flutter_bootstrap_js}}
   </script>

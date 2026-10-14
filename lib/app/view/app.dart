@@ -64,15 +64,14 @@ class _AppState extends State<App> {
       repository: _deps.historyRepository,
       maxAge: _settingsCubit.state.historyRetention.maxAge,
     );
-    unawaited(_historyCubit.load());
     _translateCubit = TranslateCubit(
       repository: _deps.translationRepository,
       settings: _settingsCubit,
       history: _historyCubit,
       usageTracker: _deps.usageTracker,
     );
+    // The engines are needed by the first screen: start right away.
     unawaited(_translateCubit.loadEngines());
-    unawaited(_deps.usageTracker.load().then<void>((_) {}, onError: (_) {}));
 
     // `https://host/Mozhi/app/?text=…` (query before the `#/` fragment).
     final webLink = kIsWeb
@@ -95,7 +94,21 @@ class _AppState extends State<App> {
       onQuickTranslate: (request) => unawaited(_showQuickTranslate(request)),
     );
     unawaited(_sharedText.start());
-    WidgetsBinding.instance.addPostFrameCallback((_) => _warnSecretsInMemory());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadAfterFirstFrame();
+      _warnSecretsInMemory();
+    });
+  }
+
+  /// Reads what the first screen does not need once it is on screen: the
+  /// history (decoding up to 1000 entries, tens of milliseconds) and the
+  /// usage counters (they also load on first use). Both would otherwise
+  /// compete with the first frame whenever the store answers quickly (web,
+  /// cached preferences).
+  void _loadAfterFirstFrame() {
+    if (!mounted) return;
+    unawaited(_historyCubit.load());
+    unawaited(_deps.usageTracker.load().then<void>((_) {}, onError: (_) {}));
   }
 
   @override
