@@ -63,7 +63,8 @@ class TranslationCache {
 
   /// The cached final result for [request] on [engine], or null when there is
   /// none or it has expired (expired entries are removed). A hit becomes the
-  /// most recently used entry.
+  /// most recently used entry. The result is returned as it was stored
+  /// ([cachedTranslate] marks hits with `TranslationResult.fromCache`).
   TranslationResult? lookup(
     TranslationEngine engine,
     TranslationRequest request,
@@ -110,7 +111,8 @@ class TranslationCache {
   /// Serves [request] on [engine] from the cache when possible.
   ///
   /// The lookup happens when the returned stream is listened to. On a hit the
-  /// stream emits the cached result and closes, and [fetch] is never called.
+  /// stream emits the cached result marked with
+  /// `TranslationResult.fromCache` and closes, and [fetch] is never called.
   /// On a miss it calls [fetch] and forwards its events, errors and
   /// completion unchanged (pause, resume and cancel are forwarded too, so
   /// cancelling still cancels the underlying request). Every complete result
@@ -132,7 +134,7 @@ class TranslationCache {
       final key = _CacheKey.of(engine, request);
       final hit = _lookup(key);
       if (hit != null) {
-        controller.add(hit);
+        controller.add(hit.fromCache ? hit : hit.copyWith(fromCache: true));
         unawaited(controller.close());
         return;
       }

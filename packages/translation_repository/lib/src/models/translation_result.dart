@@ -52,6 +52,8 @@ class TranslationResult {
     this.targetSynonyms = const [],
     this.elapsed,
     this.fromCache = false,
+    this.detectionUncertain = false,
+    this.detectedAlternatives = const [],
   });
 
   final String engineId;
@@ -77,12 +79,24 @@ class TranslationResult {
   /// than by a new request to the engine (nothing was sent or billed).
   final bool fromCache;
 
+  /// Whether the detected source language of a short input (source auto)
+  /// may be wrong: a second detection was unsure or disagreed with
+  /// [detectedSource]. False when nothing was checked.
+  final bool detectionUncertain;
+
+  /// When [detectionUncertain]: up to 3 other languages the input may be
+  /// in (codes, most likely first; the user's recent source languages are
+  /// preferred). Never contains [detectedSource].
+  final List<String> detectedAlternatives;
+
   TranslationResult copyWith({
     String? text,
     bool? isComplete,
     String? detectedSource,
     Duration? elapsed,
     bool? fromCache,
+    bool? detectionUncertain,
+    List<String>? detectedAlternatives,
   }) => TranslationResult(
     engineId: engineId,
     engineName: engineName,
@@ -96,6 +110,8 @@ class TranslationResult {
     targetSynonyms: targetSynonyms,
     elapsed: elapsed ?? this.elapsed,
     fromCache: fromCache ?? this.fromCache,
+    detectionUncertain: detectionUncertain ?? this.detectionUncertain,
+    detectedAlternatives: detectedAlternatives ?? this.detectedAlternatives,
   );
 
   @override
@@ -113,7 +129,9 @@ class TranslationResult {
           _list.equals(other.sourceSynonyms, sourceSynonyms) &&
           _list.equals(other.targetSynonyms, targetSynonyms) &&
           other.elapsed == elapsed &&
-          other.fromCache == fromCache;
+          other.fromCache == fromCache &&
+          other.detectionUncertain == detectionUncertain &&
+          _list.equals(other.detectedAlternatives, detectedAlternatives);
 
   @override
   int get hashCode => Object.hash(
@@ -129,12 +147,16 @@ class TranslationResult {
     _list.hash(targetSynonyms),
     elapsed,
     fromCache,
+    detectionUncertain,
+    _list.hash(detectedAlternatives),
   );
 
   @override
   String toString() =>
       'TranslationResult($engineId, complete: $isComplete, '
-      'detected: $detectedSource, text: $text)';
+      'detected: $detectedSource'
+      '${detectionUncertain ? ' (uncertain: $detectedAlternatives)' : ''}'
+      '${fromCache ? ', cached' : ''}, text: $text)';
 }
 
 /// A result (or failure) from compare mode.

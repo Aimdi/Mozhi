@@ -41,6 +41,44 @@ abstract final class LanguageCatalog {
   /// English name for [code], or [code] itself when unknown.
   static String nameOf(String code) => byCode(code)?.name ?? code;
 
+  /// Whether the language [code] is normally written in a script other
+  /// than Latin (Cyrillic, Arabic, Han, kana, Hangul, Devanagari, Thai,
+  /// ...), i.e. whether offering a romanization makes sense.
+  ///
+  /// An explicit script subtag decides (`sr-Latn`, `ber-Latn` -> false;
+  /// `ms-Arab`, `uz-Cyrl`, `zh-Hant` -> true). Otherwise the script of the
+  /// catalogue's native name decides, for the language itself or, for an
+  /// unknown regional variant, its base language (`ja`, `ru-UA`, `ar-EG`,
+  /// `sr` -> true; `en`, `vi`, `tr` -> false). `auto`, unknown codes and
+  /// anything that is not a language code are false; check
+  /// [Language.isCustom] first, since a custom name is not a code.
+  static bool usesNonLatinScript(String code) {
+    final parts = code.trim().replaceAll('_', '-').split('-');
+    if (!_primarySubtag.hasMatch(parts.first)) return false;
+    for (final part in parts.skip(1)) {
+      if (_scriptSubtag.hasMatch(part)) return part.toLowerCase() != 'latn';
+    }
+    final native = (byCode(code) ?? byCode(parts.first))?.nativeName;
+    if (native == null) return false;
+    return _nonLatinLetter.allMatches(native).length >
+        _latinLetter.allMatches(native).length;
+  }
+
+  /// Whether [text] contains a letter of a script other than Latin (so it
+  /// can be romanized). Digits, punctuation, symbols and emoji do not
+  /// count.
+  static bool hasNonLatinLetters(String text) => _nonLatinLetter.hasMatch(text);
+
+  static final _primarySubtag = RegExp(r'^[A-Za-z]{2,3}$');
+  static final _scriptSubtag = RegExp(r'^[A-Za-z]{4}$');
+  static final _latinLetter = RegExp(r'\p{Script=Latin}', unicode: true);
+
+  /// A letter that is not in the Latin script.
+  static final _nonLatinLetter = RegExp(
+    r'[^\p{Script=Latin}\P{L}]',
+    unicode: true,
+  );
+
   /// Popular suggestions for custom AI targets, e.g. "Pirate speak",
   /// "LinkedIn Speak", "Gen Z slang", "Shakespearean English",
   /// "Plain English (ELI5)", "Corporate jargon", "Emoji".

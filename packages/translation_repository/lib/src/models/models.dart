@@ -1,5 +1,6 @@
 export 'ai_features.dart';
 export 'ai_provider_config.dart';
+export 'aligned_span.dart';
 export 'language.dart';
 export 'mozhi_instance.dart';
 export 'prompt_profile.dart';

@@ -95,7 +95,16 @@ class RefinementSuggestion {
     required this.instruction,
     this.description = '',
     this.icon = 'tune',
+    this.exclusiveGroup,
   });
+
+  /// The [exclusiveGroup] of suggestions that change the formality or
+  /// politeness ("More formal", "More casual").
+  static const formalityGroup = 'formality';
+
+  /// The [exclusiveGroup] of suggestions that change the length
+  /// ("Shorter", "Longer").
+  static const lengthGroup = 'length';
 
   /// Short label in the UI language, e.g. "More formal".
   final String label;
@@ -108,22 +117,34 @@ class RefinementSuggestion {
   /// simplify | fluent | literal.
   final String icon;
 
+  /// Suggestions sharing a non-null group pull in opposite directions
+  /// (e.g. [formalityGroup]: "More formal" and "More casual"), so the UI
+  /// should let at most one chip of a group be selected at a time. Null
+  /// when the suggestion combines with any other.
+  ///
+  /// Parsed from model output as `exclusive_group` (or `exclusiveGroup`);
+  /// see `ResponseParsers.parseSuggestions`.
+  final String? exclusiveGroup;
+
   /// Built-in chips always available for AI engines.
   static const defaults = <RefinementSuggestion>[
     RefinementSuggestion(
       label: 'More formal',
       instruction: 'Make the translation more formal.',
       icon: 'formal',
+      exclusiveGroup: formalityGroup,
     ),
     RefinementSuggestion(
       label: 'More casual',
       instruction: 'Make the translation more casual and conversational.',
       icon: 'casual',
+      exclusiveGroup: formalityGroup,
     ),
     RefinementSuggestion(
       label: 'Shorter',
       instruction: 'Make the translation more concise without losing meaning.',
       icon: 'shorter',
+      exclusiveGroup: lengthGroup,
     ),
     RefinementSuggestion(
       label: 'Simpler',
@@ -151,10 +172,25 @@ class RefinementSuggestion {
           other.label == label &&
           other.instruction == instruction &&
           other.description == description &&
-          other.icon == icon;
+          other.icon == icon &&
+          other.exclusiveGroup == exclusiveGroup;
 
   @override
-  int get hashCode => Object.hash(label, instruction, description, icon);
+  int get hashCode =>
+      Object.hash(label, instruction, description, icon, exclusiveGroup);
+}
+
+/// How much a dictionary look-up asks for (senses, examples, notes).
+enum DictionaryVerbosity {
+  /// The few most common senses, one example, minimal notes.
+  concise,
+
+  /// The main senses with a couple of examples (the default).
+  standard,
+
+  /// Many senses including rare, technical and idiomatic ones, several
+  /// examples, detailed etymology and usage notes.
+  comprehensive,
 }
 
 /// Kagi dictionary entry (LLM generated).
@@ -169,6 +205,8 @@ class DictionaryEntry {
     this.synonyms = const [],
     this.etymology = '',
     this.notes = '',
+    this.relatedWords = const [],
+    this.didYouMean,
   });
 
   final String word;
@@ -182,6 +220,14 @@ class DictionaryEntry {
   final String etymology;
   final String notes;
 
+  /// Words of the same family or closely related to [word] (derived forms,
+  /// compounds, antonyms), in the language of the word.
+  final List<String> relatedWords;
+
+  /// The correct spelling when the looked-up text looks misspelled (the
+  /// entry then describes that word); null otherwise.
+  final String? didYouMean;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -193,7 +239,9 @@ class DictionaryEntry {
           _list.equals(other.examples, examples) &&
           _list.equals(other.synonyms, synonyms) &&
           other.etymology == etymology &&
-          other.notes == notes;
+          other.notes == notes &&
+          _list.equals(other.relatedWords, relatedWords) &&
+          other.didYouMean == didYouMean;
 
   @override
   int get hashCode => Object.hash(
@@ -205,6 +253,8 @@ class DictionaryEntry {
     _list.hash(synonyms),
     etymology,
     notes,
+    _list.hash(relatedWords),
+    didYouMean,
   );
 }
 

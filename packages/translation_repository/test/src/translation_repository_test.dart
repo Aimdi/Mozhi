@@ -986,7 +986,8 @@ void main() {
       final second = await repository
           .translate(googleEngine, autoToGerman)
           .single;
-      expect(second, first);
+      expect(first.fromCache, isFalse);
+      expect(second, first.copyWith(fromCache: true));
       verify(
         () => a().translate(
           engine: any(named: 'engine'),
@@ -1007,7 +1008,7 @@ void main() {
       final cached = await repository
           .translate(claude, englishToGerman)
           .toList();
-      expect(cached.single, streamed.last);
+      expect(cached.single, streamed.last.copyWith(fromCache: true));
       verify(() => llmOf(claudeConfig).streamChat(any())).called(1);
     });
 

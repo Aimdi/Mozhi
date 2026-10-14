@@ -769,12 +769,14 @@ void main() {
           instruction: 'Address the reader with vous.',
           description: 'Use vous.',
           icon: 'formal',
+          exclusiveGroup: RefinementSuggestion.formalityGroup,
         ),
         RefinementSuggestion(
           label: 'Shorter',
           instruction: 'Trim it.',
           description: 'Trim it.',
           icon: 'shorter',
+          exclusiveGroup: RefinementSuggestion.lengthGroup,
         ),
         RefinementSuggestion(
           label: 'Regional',

@@ -40,6 +40,9 @@ TranslationResult result(
   elapsed: const Duration(milliseconds: 420),
 );
 
+/// [result] as `cachedTranslate` serves it from the cache.
+TranslationResult hit(String text) => result(text).copyWith(fromCache: true);
+
 void main() {
   group(TranslationCache, () {
     late DateTime now;
@@ -458,18 +461,45 @@ void main() {
         cache.store(claude, request, result('Hallo Welt'));
         await expectLater(
           cache.cachedTranslate(claude, request, fetch),
-          emitsInOrder([result('Hallo Welt'), emitsDone]),
+          emitsInOrder([hit('Hallo Welt'), emitsDone]),
         );
         expect(fetches, 0);
+      });
+
+      test('marks cache hits with fromCache', () async {
+        cache.store(claude, request, result('Hallo Welt'));
+        final served = await cache
+            .cachedTranslate(claude, request, fetch)
+            .single;
+        expect(served.fromCache, isTrue);
+        expect(served.copyWith(fromCache: false), result('Hallo Welt'));
+        // The stored entry itself is unchanged.
+        expect(cache.lookup(claude, request)?.fromCache, isFalse);
+      });
+
+      test('keeps a stored fromCache result as it is', () async {
+        final stored = hit('Hallo Welt');
+        cache.store(claude, request, stored);
+        expect(
+          await cache.cachedTranslate(claude, request, fetch).single,
+          same(stored),
+        );
+      });
+
+      test('does not mark fetched results', () async {
+        final stream = cache.cachedTranslate(claude, request, fetch);
+        source
+          ..add(result('Hal', isComplete: false))
+          ..add(result('Hallo Welt'));
+        unawaited(source.close());
+        final results = await stream.toList();
+        expect(results.map((r) => r.fromCache), [false, false]);
       });
 
       test('looks the cache up when listened to', () async {
         final stream = cache.cachedTranslate(claude, request, fetch);
         cache.store(claude, request, result('Hallo Welt'));
-        await expectLater(
-          stream,
-          emitsInOrder([result('Hallo Welt'), emitsDone]),
-        );
+        await expectLater(stream, emitsInOrder([hit('Hallo Welt'), emitsDone]));
         expect(fetches, 0);
       });
 
@@ -489,7 +519,7 @@ void main() {
 
         await expectLater(
           cache.cachedTranslate(claude, request, fetch),
-          emitsInOrder([result('Hallo Welt'), emitsDone]),
+          emitsInOrder([hit('Hallo Welt'), emitsDone]),
         );
         expect(fetches, 1);
       });
@@ -651,7 +681,7 @@ void main() {
               ..resume();
         await pumpEventQueue();
         await subscription.cancel();
-        expect(received, [result('Hallo Welt')]);
+        expect(received, [hit('Hallo Welt')]);
         expect(fetches, 0);
       });
 

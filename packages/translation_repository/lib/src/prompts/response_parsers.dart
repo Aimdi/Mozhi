@@ -218,6 +218,13 @@ abstract final class ResponseParsers {
   /// hostile) source text, so every `instruction` is sanitised: a single
   /// line without control characters or `<`/`>`, at most
   /// [maxSuggestionInstructionLength] characters.
+  ///
+  /// `exclusive_group` (or `exclusiveGroup`, `group`) becomes
+  /// [RefinementSuggestion.exclusiveGroup]: lower-case letters, digits,
+  /// `_` and `-` only, at most 30 characters; `null`, `none` and empty
+  /// values mean no group. Without a group, the `formal`/`casual` icons
+  /// imply [RefinementSuggestion.formalityGroup] and `shorter`/`longer`
+  /// imply [RefinementSuggestion.lengthGroup].
   static List<RefinementSuggestion> parseSuggestions(String output) {
     final value = _extractJson(output);
     final items = value is List
@@ -247,6 +254,7 @@ abstract final class ResponseParsers {
         ]),
       );
       final fallback = _instruction(description);
+      final icon = _icon(_string(item, const ['icon', 'category', 'type']));
       suggestions.add(
         RefinementSuggestion(
           label: label,
@@ -256,14 +264,32 @@ abstract final class ResponseParsers {
               ? fallback
               : _instruction(label),
           description: description,
-          icon: _icon(_string(item, const ['icon', 'category', 'type'])),
+          icon: icon,
+          exclusiveGroup:
+              _group(
+                _string(item, const [
+                  'exclusive_group',
+                  'exclusiveGroup',
+                  'group',
+                ]),
+              ) ??
+              _groupOfIcon(icon),
         ),
       );
     }
     return suggestions;
   }
 
-  static DictionaryEntry parseDictionary(String output) {
+  /// Longest [DictionaryEntry.didYouMean] kept by [parseDictionary].
+  static const maxDidYouMeanLength = 100;
+
+  /// A dictionary entry. [query] is the looked-up text: a `did_you_mean`
+  /// that merely repeats it (ignoring case and surrounding space) is
+  /// dropped, as are `null`, `none` and empty values. `didYouMean` is
+  /// reduced to one line of at most [maxDidYouMeanLength] characters
+  /// without quotes or `<`/`>`. `related_words` (or `related`, `see_also`,
+  /// `word_family`) are de-duplicated ignoring case.
+  static DictionaryEntry parseDictionary(String output, {String query = ''}) {
     final value = _extractJson(output);
     final root = _rootObject(value);
 
@@ -307,7 +333,127 @@ abstract final class ResponseParsers {
       synonyms: _strings(_get(root, const ['synonyms'])),
       etymology: _string(root, const ['etymology', 'origin']),
       notes: _string(root, const ['notes', 'note', 'usage_notes']),
+      relatedWords: _distinct(
+        _strings(
+          _get(root, const [
+            'related_words',
+            'related',
+            'see_also',
+            'word_family',
+          ]),
+        ),
+      ),
+      didYouMean: _didYouMean(
+        _get(root, const [
+          'did_you_mean',
+          'spelling_suggestion',
+          'corrected_spelling',
+          'suggestion',
+        ]),
+        query: query,
+      ),
     );
+  }
+
+  /// Maps each `{"source": str, "target": str}` pair of the model's
+  /// alignment (`pairs`, `alignment`, `alignments`, `spans`; or a bare
+  /// list, also of `[source, target]` lists) to character offsets in
+  /// [source] and [translation].
+  ///
+  /// Each phrase is searched for after the end of the previous match on
+  /// its side (so repeated phrases map to successive occurrences), falling
+  /// back to its first occurrence; a phrase that is not found exactly is
+  /// tried again without surrounding quotes and punctuation, then ignoring
+  /// case. Pairs with a phrase not found on either side are dropped, as
+  /// are duplicates. The result is sorted by source position.
+  static List<AlignedSpan> parseAlignment(
+    String output, {
+    required String source,
+    required String translation,
+  }) {
+    final value = _extractJson(output);
+    final items = value is List
+        ? value
+        : _findList(value as Map, const [
+            'pairs',
+            'alignment',
+            'alignments',
+            'spans',
+            'items',
+          ]);
+    final spans = <AlignedSpan>[];
+    final seen = <AlignedSpan>{};
+    var sourceFrom = 0;
+    var targetFrom = 0;
+    for (final item in items) {
+      final (rawSource, rawTarget) = switch (item) {
+        final Map<dynamic, dynamic> map => (
+          _rawString(map, const [
+            'source',
+            'src',
+            'source_text',
+            'original',
+            'from',
+          ]),
+          _rawString(map, const [
+            'target',
+            'tgt',
+            'target_text',
+            'translation',
+            'to',
+          ]),
+        ),
+        [final String s, final String t, ...] => (s, t),
+        _ => (null, null),
+      };
+      if (rawSource == null || rawTarget == null) continue;
+      final inSource = _find(
+        PromptSanitizer.restoreTags(rawSource, original: source),
+        source,
+        from: sourceFrom,
+      );
+      final inTarget = _find(
+        PromptSanitizer.restoreTags(rawTarget, original: translation),
+        translation,
+        from: targetFrom,
+      );
+      if (inSource == null || inTarget == null) continue;
+      sourceFrom = inSource.end;
+      targetFrom = inTarget.end;
+      final span = AlignedSpan(
+        sourceStart: inSource.start,
+        sourceEnd: inSource.end,
+        targetStart: inTarget.start,
+        targetEnd: inTarget.end,
+      );
+      if (seen.add(span)) spans.add(span);
+    }
+    return spans..sort(
+      (a, b) => a.sourceStart != b.sourceStart
+          ? a.sourceStart.compareTo(b.sourceStart)
+          : a.targetStart.compareTo(b.targetStart),
+    );
+  }
+
+  static final _romanizationLabel = RegExp(
+    r'^\s*(?:(?:sure|okay|ok|certainly|of course)[!,.]?\s*)?'
+    r'(?:\*\*|__)?'
+    "(?:here(?:'s| is) (?:the |your )?)?"
+    '(?:romani[sz]ation|romani[sz]ed(?: text| version)?|transliteration'
+    '|transliterated text|r[oō]maji|pinyin|jyutping)'
+    r'(?: \([^\n)]{1,40}\))?'
+    r'\s*(?:\*\*|__)?\s*[:：]\s*(?:\*\*|__)?[ \t]*(?:\r?\n)?',
+    caseSensitive: false,
+  );
+
+  /// [cleanTranslation] for a romanization of [source], which also drops a
+  /// leading "Romanization:" / "Romaji:" / "Pinyin:" (...) label.
+  static String cleanRomanization(String output, {required String source}) {
+    final text = cleanTranslation(output, source: source);
+    final match = _romanizationLabel.firstMatch(text);
+    if (match == null) return text;
+    final rest = text.substring(match.end).trim();
+    return rest.isEmpty ? text : cleanTranslation(rest, source: source);
   }
 
   /// Drops edits whose `original` does not occur in [input].
@@ -1106,6 +1252,79 @@ abstract final class ResponseParsers {
   static final _edgePunctuation = RegExp(
     '^["\'“”„«»‘’「」『』*]+|["\'“”„«»‘’「」『』*]+\$',
   );
+
+  /// The range of [needle] in [haystack]: its first occurrence at or after
+  /// [from], else its first occurrence. Tries [needle] trimmed, then
+  /// without edge quotes/punctuation, then ignoring case (only when
+  /// lower-casing keeps [haystack]'s length, so offsets stay valid).
+  static ({int start, int end})? _find(
+    String needle,
+    String haystack, {
+    required int from,
+  }) {
+    ({int start, int end})? search(String n, String h) {
+      if (n.isEmpty) return null;
+      var index = from <= h.length ? h.indexOf(n, from) : -1;
+      if (index < 0) index = h.indexOf(n);
+      return index < 0 ? null : (start: index, end: index + n.length);
+    }
+
+    final trimmed = needle.trim();
+    final bare = trimmed.replaceAll(_edgePunctuation, '').trim();
+    final lower = haystack.toLowerCase();
+    return search(trimmed, haystack) ??
+        search(bare, haystack) ??
+        (lower.length == haystack.length
+            ? search(bare.toLowerCase(), lower)
+            : null);
+  }
+
+  static List<String> _distinct(List<String> values) {
+    final seen = <String>{};
+    return [
+      for (final value in values)
+        if (seen.add(value.toLowerCase())) value,
+    ];
+  }
+
+  static String? _didYouMean(Object? value, {required String query}) {
+    final raw = switch (value) {
+      final String s => s,
+      final List<dynamic> l => _strings(l).firstOrNull ?? '',
+      _ => '',
+    };
+    final text = PromptSanitizer.singleLine(
+      raw,
+      maxLength: maxDidYouMeanLength,
+      stripQuotes: true,
+      stripAngleBrackets: true,
+    );
+    final key = text.toLowerCase();
+    if (key.isEmpty ||
+        const {'null', 'none', 'n/a', '-', 'false'}.contains(key) ||
+        key == query.trim().toLowerCase()) {
+      return null;
+    }
+    return text;
+  }
+
+  static final _groupChars = RegExp('[^a-z0-9_-]');
+
+  /// A sanitised [RefinementSuggestion.exclusiveGroup], or null.
+  static String? _group(String raw) {
+    final key = raw.trim().toLowerCase().replaceAll(RegExp(r'\s+'), '_');
+    final group = key.replaceAll(_groupChars, '');
+    if (group.isEmpty || const {'null', 'none', 'false'}.contains(group)) {
+      return null;
+    }
+    return group.length > 30 ? group.substring(0, 30) : group;
+  }
+
+  static String? _groupOfIcon(String icon) => switch (icon) {
+    'formal' || 'casual' => RefinementSuggestion.formalityGroup,
+    'shorter' || 'longer' => RefinementSuggestion.lengthGroup,
+    _ => null,
+  };
 
   /// A sanitised [RefinementSuggestion.instruction] (see [parseSuggestions]).
   static String _instruction(String raw) => PromptSanitizer.singleLine(
