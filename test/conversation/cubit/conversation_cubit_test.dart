@@ -568,6 +568,49 @@ void main() {
       await cubit.close();
     });
 
+    test('speak slow reads a turn slowly from the start', () async {
+      stubTranslate(() => Stream.value(resultOf('Hola')));
+      final cubit = build();
+      await cubit.submit(ConversationSide.a, 'Hello');
+
+      await cubit.speak(0, slow: true);
+      await cubit.speak(9, slow: true);
+      verify(
+        () => speech.speak(
+          id: cubit.speechIdOf(0),
+          text: 'Hola',
+          languageCode: 'es',
+          slow: true,
+        ),
+      ).called(1);
+      verifyNever(
+        () => speech.toggle(
+          id: any(named: 'id'),
+          text: any(named: 'text'),
+          languageCode: any(named: 'languageCode'),
+        ),
+      );
+      expect(cubit.state.speechFailures, 0);
+      await cubit.close();
+    });
+
+    test('a failing slow speak counts as a speech failure', () async {
+      when(
+        () => speech.speak(
+          id: any(named: 'id'),
+          text: any(named: 'text'),
+          languageCode: any(named: 'languageCode'),
+          slow: any(named: 'slow'),
+        ),
+      ).thenThrow(const MozhiApiException('no tts'));
+      stubTranslate(() => Stream.value(resultOf('Hola')));
+      final cubit = build();
+      await cubit.submit(ConversationSide.a, 'Hello');
+      await cubit.speak(0, slow: true);
+      expect(cubit.state.speechFailures, 1);
+      await cubit.close();
+    });
+
     test('tracks which turn is being read aloud', () async {
       final cubit = build();
       speaking.add(cubit.speechIdOf(3));

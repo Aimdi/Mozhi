@@ -565,7 +565,7 @@ void main() {
       testWidgets('reads the translation aloud and stops', (tester) async {
         stub(done);
         await tester.pumpQuick(quickView(cubit, speech: speech));
-        expect(find.byTooltip('Listen'), findsOneWidget);
+        expect(findTooltipMessage(listenTooltip('Listen')), findsOneWidget);
 
         await tester.tap(byKey('quick_translate_listen'));
         await tester.pump();
@@ -580,12 +580,12 @@ void main() {
         speaking.add(QuickListenButton.defaultId);
         await tester.pump();
         await tester.pump();
-        expect(find.byTooltip('Stop'), findsOneWidget);
+        expect(findTooltipMessage(listenTooltip('Stop')), findsOneWidget);
 
         speaking.add('other');
         await tester.pump();
         await tester.pump();
-        expect(find.byTooltip('Listen'), findsOneWidget);
+        expect(findTooltipMessage(listenTooltip('Listen')), findsOneWidget);
       });
 
       testWidgets('stops playback when closed', (tester) async {
@@ -621,6 +621,34 @@ void main() {
         expect(find.text("Couldn't play audio."), findsOneWidget);
         await tester.pumpAndSettle(const Duration(seconds: 5));
         expect(find.text("Couldn't play audio."), findsNothing);
+      });
+
+      testWidgets('a long press reads slowly; failures show a notice', (
+        tester,
+      ) async {
+        when(
+          () => speech.speak(
+            id: any(named: 'id'),
+            text: any(named: 'text'),
+            languageCode: any(named: 'languageCode'),
+            slow: any(named: 'slow'),
+          ),
+        ).thenThrow(Exception('no audio'));
+        stub(done);
+        await tester.pumpQuick(quickView(cubit, speech: speech));
+
+        await tester.longPress(byKey('quick_translate_listen'));
+        await tester.pump();
+        verify(
+          () => speech.speak(
+            id: QuickListenButton.defaultId,
+            text: 'Bonjour le monde',
+            languageCode: 'fr',
+            slow: true,
+          ),
+        ).called(1);
+        expect(find.text("Couldn't play audio."), findsOneWidget);
+        await tester.pumpAndSettle(const Duration(seconds: 5));
       });
 
       testWidgets('is disabled for custom targets', (tester) async {

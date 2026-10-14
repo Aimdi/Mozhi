@@ -2,6 +2,7 @@ export 'conversation_actions.dart';
 export 'conversation_composer.dart';
 export 'conversation_language_button.dart';
 export 'conversation_language_picker.dart';
+export 'conversation_listen_button.dart';
 export 'conversation_orientation.dart';
 export 'conversation_panel.dart';
 export 'conversation_transcript_list.dart';

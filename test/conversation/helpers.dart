@@ -124,6 +124,14 @@ StreamController<String?> stubSpeech(MockSpeechService speech) {
       languageCode: any(named: 'languageCode'),
     ),
   ).thenAnswer((_) async {});
+  when(
+    () => speech.speak(
+      id: any(named: 'id'),
+      text: any(named: 'text'),
+      languageCode: any(named: 'languageCode'),
+      slow: any(named: 'slow'),
+    ),
+  ).thenAnswer((_) async {});
   when(speech.stop).thenAnswer((_) async {});
   return speaking;
 }
@@ -172,7 +180,7 @@ extension PumpConversation on WidgetTester {
           ],
           child: MaterialApp(
             theme: theme ?? ThemeData(useMaterial3: true),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: content,
           ),
@@ -181,3 +189,11 @@ extension PumpConversation on WidgetTester {
     );
   }
 }
+
+/// The tooltip of a listen button that offers the slow replay.
+String listenTooltip(String label) => '$label\nLong-press to listen slowly';
+
+/// Finds a [Tooltip] showing [message], also one excluded from semantics.
+Finder findTooltipMessage(String message) => find.byWidgetPredicate(
+  (widget) => widget is Tooltip && widget.message == message,
+);

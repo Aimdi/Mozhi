@@ -131,7 +131,7 @@ extension QuickPumpApp on WidgetTester {
     await pumpWidget(
       MaterialApp(
         theme: theme ?? ThemeData(useMaterial3: true),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(body: child),
       ),
@@ -165,3 +165,11 @@ Widget quickView(
   }
   return Align(alignment: Alignment.topCenter, child: child);
 }
+
+/// The tooltip of a listen button that offers the slow replay.
+String listenTooltip(String label) => '$label\nLong-press to listen slowly';
+
+/// Finds a [Tooltip] showing [message], also one excluded from semantics.
+Finder findTooltipMessage(String message) => find.byWidgetPredicate(
+  (widget) => widget is Tooltip && widget.message == message,
+);

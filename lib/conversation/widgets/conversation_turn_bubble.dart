@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/conversation/cubit/conversation_cubit.dart';
 import 'package:mozhi/conversation/models/conversation_turn.dart';
+import 'package:mozhi/conversation/widgets/conversation_listen_button.dart';
 import 'package:mozhi/conversation/widgets/conversation_orientation.dart';
 import 'package:mozhi/conversation/widgets/side_colors.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -193,19 +194,22 @@ class ConversationTurnBubble extends StatelessWidget {
                             ),
                           ),
                         ),
-                        IconButton(
-                          key: Key('conversation_listen_${turn.id}'),
-                          tooltip: speaking
-                              ? l10n.commonStop
-                              : l10n.commonListen,
-                          isSelected: speaking,
+                        ConversationListenButton(
+                          buttonKey: Key('conversation_listen_${turn.id}'),
+                          playing: speaking,
                           color: colors.onContainer,
-                          icon: const Icon(Icons.volume_up_outlined),
-                          selectedIcon: const Icon(Icons.stop_circle_outlined),
-                          onPressed: hasTranslation
+                          onListen: hasTranslation
                               ? () => unawaited(
                                   context.read<ConversationCubit>().speak(
                                     turn.id,
+                                  ),
+                                )
+                              : null,
+                          onListenSlowly: hasTranslation
+                              ? () => unawaited(
+                                  context.read<ConversationCubit>().speak(
+                                    turn.id,
+                                    slow: true,
                                   ),
                                 )
                               : null,

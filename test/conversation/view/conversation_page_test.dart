@@ -591,11 +591,48 @@ void main() {
       speaking.add(id);
       await tester.pump();
       expect(find.byIcon(Icons.stop_circle_outlined), findsOneWidget);
-      expect(find.byTooltip('Stop'), findsOneWidget);
+      expect(findTooltipMessage(listenTooltip('Stop')), findsOneWidget);
 
       speaking.add(null);
       await tester.pump();
       expect(find.byIcon(Icons.stop_circle_outlined), findsNothing);
+    });
+
+    testWidgets('a long press on listen reads slowly; failures show', (
+      tester,
+    ) async {
+      await pumpPage(tester);
+      await send(tester, ConversationSide.a, 'Hello');
+      await tester.longPress(find.byKey(const Key('conversation_listen_0')));
+      await tester.pump();
+      verify(
+        () => speech.speak(
+          id: any(named: 'id'),
+          text: 'Hola',
+          languageCode: 'es',
+          slow: true,
+        ),
+      ).called(1);
+      verifyNever(
+        () => speech.toggle(
+          id: any(named: 'id'),
+          text: any(named: 'text'),
+          languageCode: any(named: 'languageCode'),
+        ),
+      );
+
+      when(
+        () => speech.speak(
+          id: any(named: 'id'),
+          text: any(named: 'text'),
+          languageCode: any(named: 'languageCode'),
+          slow: any(named: 'slow'),
+        ),
+      ).thenThrow(const MozhiApiException('no audio'));
+      await tester.pumpAndSettle(const Duration(seconds: 3));
+      await tester.longPress(find.byKey(const Key('conversation_listen_0')));
+      await tester.pump();
+      expect(find.text("Couldn't play audio."), findsOneWidget);
     });
 
     testWidgets('auto-speak reads new translations and reports failures', (

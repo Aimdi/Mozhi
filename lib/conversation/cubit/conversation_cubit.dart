@@ -323,17 +323,27 @@ class ConversationCubit extends Cubit<ConversationState> {
   }
 
   /// Reads [turnId]'s translation aloud in its target language, or stops it
-  /// when it is already playing. Failures increment
+  /// when it is already playing. With [slow] it is read slowly from the
+  /// start instead, also while it plays. Failures increment
   /// [ConversationState.speechFailures].
-  Future<void> speak(int turnId) async {
+  Future<void> speak(int turnId, {bool slow = false}) async {
     final turn = state.turnById(turnId);
     if (turn == null || turn.translation.trim().isEmpty || isClosed) return;
     try {
-      await _speech.toggle(
-        id: speechIdOf(turnId),
-        text: turn.translation,
-        languageCode: turn.target.code,
-      );
+      if (slow) {
+        await _speech.speak(
+          id: speechIdOf(turnId),
+          text: turn.translation,
+          languageCode: turn.target.code,
+          slow: true,
+        );
+      } else {
+        await _speech.toggle(
+          id: speechIdOf(turnId),
+          text: turn.translation,
+          languageCode: turn.target.code,
+        );
+      }
     } on Object {
       if (!isClosed) {
         emit(state.copyWith(speechFailures: state.speechFailures + 1));
