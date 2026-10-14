@@ -1203,5 +1203,17 @@
   "translateToolListenSlowly": "慢速朗读译文",
   "translateExtraTargetsKept": "此引擎不支持；已保留，供支持的引擎使用",
   "appScreenLoading": "正在加载…",
-  "appScreenLoadFailed": "无法加载此页面。请检查网络连接后重试。"
+  "appScreenLoadFailed": "无法加载此页面。请检查网络连接后重试。",
+  "translateMemoryExactTitle": "来自你的历史记录",
+  "translateMemorySimilarTitle": "历史记录中的相似文本",
+  "translateMemorySimilarity": "{percent}% 匹配",
+  "translateMemoryMeta": "{engine} · {date}",
+  "translateMemoryEarlierText": "之前的文本：{text}",
+  "translateMemoryDiffHint": "带删除线的词只出现在之前的文本中；带下划线的词是你的文本中新增的。",
+  "translateMemoryUse": "使用",
+  "translateMemoryUseLabel": "使用历史记录中的译文",
+  "translateMemoryCopy": "复制历史记录中的译文",
+  "translateMemoryDismiss": "隐藏历史记录中的译文",
+  "translateMemoryBadge": "来自历史记录",
+  "translateMemoryBadgeTooltip": "取自你的历史记录：未重新翻译"
 }

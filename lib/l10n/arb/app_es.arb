@@ -1203,5 +1203,17 @@
   "translateToolListenSlowly": "Escuchar la traducción despacio",
   "translateExtraTargetsKept": "Este motor no lo ofrece; se conserva para uno que sí lo ofrezca",
   "appScreenLoading": "Cargando…",
-  "appScreenLoadFailed": "No se pudo cargar esta pantalla. Comprueba tu conexión y vuelve a intentarlo."
+  "appScreenLoadFailed": "No se pudo cargar esta pantalla. Comprueba tu conexión y vuelve a intentarlo.",
+  "translateMemoryExactTitle": "De tu historial",
+  "translateMemorySimilarTitle": "Texto similar en tu historial",
+  "translateMemorySimilarity": "{percent} % de coincidencia",
+  "translateMemoryMeta": "{engine} · {date}",
+  "translateMemoryEarlierText": "Texto anterior: {text}",
+  "translateMemoryDiffHint": "Las palabras tachadas solo estaban en el texto anterior; las subrayadas son nuevas en el tuyo.",
+  "translateMemoryUse": "Usar",
+  "translateMemoryUseLabel": "Usar la traducción de tu historial",
+  "translateMemoryCopy": "Copiar la traducción de tu historial",
+  "translateMemoryDismiss": "Ocultar la traducción de tu historial",
+  "translateMemoryBadge": "Del historial",
+  "translateMemoryBadgeTooltip": "Tomada de tu historial: no se ha vuelto a traducir"
 }

@@ -1203,5 +1203,17 @@
   "translateToolListenSlowly": "Ascolta lentamente la traduzione",
   "translateExtraTargetsKept": "Non offerta da questo motore; mantenuta per un motore che la offre",
   "appScreenLoading": "Caricamento…",
-  "appScreenLoadFailed": "Impossibile caricare questa schermata. Controlla la connessione e riprova."
+  "appScreenLoadFailed": "Impossibile caricare questa schermata. Controlla la connessione e riprova.",
+  "translateMemoryExactTitle": "Dalla tua cronologia",
+  "translateMemorySimilarTitle": "Testo simile nella tua cronologia",
+  "translateMemorySimilarity": "Corrispondenza del {percent}%",
+  "translateMemoryMeta": "{engine} · {date}",
+  "translateMemoryEarlierText": "Testo precedente: {text}",
+  "translateMemoryDiffHint": "Le parole barrate erano solo nel testo precedente; quelle sottolineate sono nuove nel tuo.",
+  "translateMemoryUse": "Usa",
+  "translateMemoryUseLabel": "Usa la traduzione dalla tua cronologia",
+  "translateMemoryCopy": "Copia la traduzione dalla tua cronologia",
+  "translateMemoryDismiss": "Nascondi la traduzione dalla tua cronologia",
+  "translateMemoryBadge": "Dalla cronologia",
+  "translateMemoryBadgeTooltip": "Presa dalla tua cronologia: non tradotta di nuovo"
 }

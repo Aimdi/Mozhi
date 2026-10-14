@@ -1203,5 +1203,17 @@
   "translateToolListenSlowly": "번역 천천히 듣기",
   "translateExtraTargetsKept": "이 엔진에서는 지원되지 않음. 지원하는 엔진에서 사용하도록 유지됨",
   "appScreenLoading": "불러오는 중…",
-  "appScreenLoadFailed": "이 화면을 불러올 수 없습니다. 연결을 확인하고 다시 시도하세요."
+  "appScreenLoadFailed": "이 화면을 불러올 수 없습니다. 연결을 확인하고 다시 시도하세요.",
+  "translateMemoryExactTitle": "내 기록에서",
+  "translateMemorySimilarTitle": "기록에 있는 비슷한 텍스트",
+  "translateMemorySimilarity": "{percent}% 일치",
+  "translateMemoryMeta": "{engine} · {date}",
+  "translateMemoryEarlierText": "이전 텍스트: {text}",
+  "translateMemoryDiffHint": "취소선이 그어진 단어는 이전 텍스트에만 있었고, 밑줄 친 단어는 현재 텍스트에 새로 추가된 것입니다.",
+  "translateMemoryUse": "사용",
+  "translateMemoryUseLabel": "기록의 번역 사용",
+  "translateMemoryCopy": "기록의 번역 복사",
+  "translateMemoryDismiss": "기록의 번역 숨기기",
+  "translateMemoryBadge": "기록에서",
+  "translateMemoryBadgeTooltip": "기록에서 가져옴: 다시 번역하지 않음"
 }

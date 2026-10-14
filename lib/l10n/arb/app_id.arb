@@ -1203,5 +1203,17 @@
   "translateToolListenSlowly": "Dengarkan terjemahan perlahan",
   "translateExtraTargetsKept": "Tidak didukung mesin ini; tetap dipilih untuk mesin yang mendukungnya",
   "appScreenLoading": "Memuat…",
-  "appScreenLoadFailed": "Layar ini tidak dapat dimuat. Periksa koneksi Anda dan coba lagi."
+  "appScreenLoadFailed": "Layar ini tidak dapat dimuat. Periksa koneksi Anda dan coba lagi.",
+  "translateMemoryExactTitle": "Dari riwayat Anda",
+  "translateMemorySimilarTitle": "Teks serupa di riwayat Anda",
+  "translateMemorySimilarity": "{percent}% cocok",
+  "translateMemoryMeta": "{engine} · {date}",
+  "translateMemoryEarlierText": "Teks sebelumnya: {text}",
+  "translateMemoryDiffHint": "Kata yang dicoret hanya ada di teks sebelumnya; kata yang digarisbawahi baru di teks Anda.",
+  "translateMemoryUse": "Gunakan",
+  "translateMemoryUseLabel": "Gunakan terjemahan dari riwayat Anda",
+  "translateMemoryCopy": "Salin terjemahan dari riwayat Anda",
+  "translateMemoryDismiss": "Sembunyikan terjemahan dari riwayat Anda",
+  "translateMemoryBadge": "Dari riwayat",
+  "translateMemoryBadgeTooltip": "Diambil dari riwayat Anda: tidak diterjemahkan ulang"
 }

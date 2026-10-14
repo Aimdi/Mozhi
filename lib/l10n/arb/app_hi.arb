@@ -1203,5 +1203,17 @@
   "translateToolListenSlowly": "अनुवाद धीरे सुनें",
   "translateExtraTargetsKept": "इस इंजन में उपलब्ध नहीं; जिस इंजन में उपलब्ध हो, उसके लिए रखी गई है",
   "appScreenLoading": "लोड हो रहा है…",
-  "appScreenLoadFailed": "यह स्क्रीन लोड नहीं हो सकी। अपना कनेक्शन जांचें और फिर से कोशिश करें।"
+  "appScreenLoadFailed": "यह स्क्रीन लोड नहीं हो सकी। अपना कनेक्शन जांचें और फिर से कोशिश करें।",
+  "translateMemoryExactTitle": "आपके इतिहास से",
+  "translateMemorySimilarTitle": "आपके इतिहास में मिलता-जुलता टेक्स्ट",
+  "translateMemorySimilarity": "{percent}% मेल",
+  "translateMemoryMeta": "{engine} · {date}",
+  "translateMemoryEarlierText": "पिछला टेक्स्ट: {text}",
+  "translateMemoryDiffHint": "कटे हुए शब्द केवल पिछले टेक्स्ट में थे; रेखांकित शब्द आपके टेक्स्ट में नए हैं।",
+  "translateMemoryUse": "इस्तेमाल करें",
+  "translateMemoryUseLabel": "अपने इतिहास से अनुवाद इस्तेमाल करें",
+  "translateMemoryCopy": "अपने इतिहास से अनुवाद कॉपी करें",
+  "translateMemoryDismiss": "अपने इतिहास से अनुवाद छिपाएं",
+  "translateMemoryBadge": "इतिहास से",
+  "translateMemoryBadgeTooltip": "आपके इतिहास से लिया गया: दोबारा अनुवाद नहीं किया गया"
 }

@@ -1203,5 +1203,17 @@
   "translateToolListenSlowly": "Прослушать перевод медленно",
   "translateExtraTargetsKept": "Недоступен в этом сервисе; сохранён для сервиса, который его поддерживает",
   "appScreenLoading": "Загрузка…",
-  "appScreenLoadFailed": "Не удалось загрузить этот экран. Проверьте подключение и повторите попытку."
+  "appScreenLoadFailed": "Не удалось загрузить этот экран. Проверьте подключение и повторите попытку.",
+  "translateMemoryExactTitle": "Из вашей истории",
+  "translateMemorySimilarTitle": "Похожий текст в вашей истории",
+  "translateMemorySimilarity": "Совпадение {percent} %",
+  "translateMemoryMeta": "{engine} · {date}",
+  "translateMemoryEarlierText": "Прежний текст: {text}",
+  "translateMemoryDiffHint": "Зачёркнутые слова были только в прежнем тексте, подчёркнутые — новые в вашем.",
+  "translateMemoryUse": "Использовать",
+  "translateMemoryUseLabel": "Использовать перевод из истории",
+  "translateMemoryCopy": "Копировать перевод из истории",
+  "translateMemoryDismiss": "Скрыть перевод из истории",
+  "translateMemoryBadge": "Из истории",
+  "translateMemoryBadgeTooltip": "Взято из вашей истории: повторно не переводилось"
 }

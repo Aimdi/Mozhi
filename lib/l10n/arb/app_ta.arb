@@ -1203,5 +1203,17 @@
   "translateToolListenSlowly": "மொழிபெயர்ப்பை மெதுவாகக் கேள்",
   "translateExtraTargetsKept": "இந்த இன்ஜினில் இல்லை; இதை ஆதரிக்கும் இன்ஜினுக்காகத் தேர்வில் வைக்கப்பட்டுள்ளது",
   "appScreenLoading": "ஏற்றுகிறது…",
-  "appScreenLoadFailed": "இந்தத் திரையை ஏற்ற முடியவில்லை. இணைப்பைச் சரிபார்த்து மீண்டும் முயலவும்."
+  "appScreenLoadFailed": "இந்தத் திரையை ஏற்ற முடியவில்லை. இணைப்பைச் சரிபார்த்து மீண்டும் முயலவும்.",
+  "translateMemoryExactTitle": "உங்கள் வரலாற்றிலிருந்து",
+  "translateMemorySimilarTitle": "உங்கள் வரலாற்றில் உள்ள ஒத்த உரை",
+  "translateMemorySimilarity": "{percent}% பொருத்தம்",
+  "translateMemoryMeta": "{engine} · {date}",
+  "translateMemoryEarlierText": "முந்தைய உரை: {text}",
+  "translateMemoryDiffHint": "அடித்த சொற்கள் முந்தைய உரையில் மட்டும் இருந்தன; அடிக்கோடிட்ட சொற்கள் உங்கள் உரையில் புதியவை.",
+  "translateMemoryUse": "பயன்படுத்து",
+  "translateMemoryUseLabel": "உங்கள் வரலாற்றிலிருந்து மொழிபெயர்ப்பைப் பயன்படுத்து",
+  "translateMemoryCopy": "உங்கள் வரலாற்றிலிருந்து மொழிபெயர்ப்பை நகலெடு",
+  "translateMemoryDismiss": "உங்கள் வரலாற்றிலிருந்து மொழிபெயர்ப்பை மறை",
+  "translateMemoryBadge": "வரலாற்றிலிருந்து",
+  "translateMemoryBadgeTooltip": "உங்கள் வரலாற்றிலிருந்து எடுக்கப்பட்டது: மீண்டும் மொழிபெயர்க்கப்படவில்லை"
 }

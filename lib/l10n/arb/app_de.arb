@@ -1203,5 +1203,17 @@
   "translateToolListenSlowly": "Übersetzung langsam anhören",
   "translateExtraTargetsKept": "Bei dieser Engine nicht verfügbar; bleibt für eine Engine gewählt, die sie anbietet",
   "appScreenLoading": "Wird geladen…",
-  "appScreenLoadFailed": "Dieser Bildschirm konnte nicht geladen werden. Prüfe deine Verbindung und versuche es erneut."
+  "appScreenLoadFailed": "Dieser Bildschirm konnte nicht geladen werden. Prüfe deine Verbindung und versuche es erneut.",
+  "translateMemoryExactTitle": "Aus deinem Verlauf",
+  "translateMemorySimilarTitle": "Ähnlicher Text in deinem Verlauf",
+  "translateMemorySimilarity": "{percent} % Übereinstimmung",
+  "translateMemoryMeta": "{engine} · {date}",
+  "translateMemoryEarlierText": "Früherer Text: {text}",
+  "translateMemoryDiffHint": "Durchgestrichene Wörter standen nur im früheren Text, unterstrichene sind neu in deinem.",
+  "translateMemoryUse": "Übernehmen",
+  "translateMemoryUseLabel": "Übersetzung aus deinem Verlauf übernehmen",
+  "translateMemoryCopy": "Übersetzung aus deinem Verlauf kopieren",
+  "translateMemoryDismiss": "Übersetzung aus deinem Verlauf ausblenden",
+  "translateMemoryBadge": "Aus dem Verlauf",
+  "translateMemoryBadgeTooltip": "Aus deinem Verlauf übernommen: nicht erneut übersetzt"
 }

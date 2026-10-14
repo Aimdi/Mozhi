@@ -1203,5 +1203,17 @@
   "translateToolListenSlowly": "استماع إلى الترجمة ببطء",
   "translateExtraTargetsKept": "لا يوفّرها هذا المحرّك؛ محفوظة لمحرّك يوفّرها",
   "appScreenLoading": "جارٍ التحميل…",
-  "appScreenLoadFailed": "تعذّر تحميل هذه الشاشة. تحقّق من الاتصال وحاول مرة أخرى."
+  "appScreenLoadFailed": "تعذّر تحميل هذه الشاشة. تحقّق من الاتصال وحاول مرة أخرى.",
+  "translateMemoryExactTitle": "من سجلّك",
+  "translateMemorySimilarTitle": "نص مشابه في سجلّك",
+  "translateMemorySimilarity": "تطابق بنسبة {percent}%",
+  "translateMemoryMeta": "{engine} · {date}",
+  "translateMemoryEarlierText": "النص السابق: {text}",
+  "translateMemoryDiffHint": "الكلمات المشطوبة كانت في النص السابق فقط، والكلمات المسطّرة جديدة في نصك.",
+  "translateMemoryUse": "استخدام",
+  "translateMemoryUseLabel": "استخدام الترجمة من سجلّك",
+  "translateMemoryCopy": "نسخ الترجمة من سجلّك",
+  "translateMemoryDismiss": "إخفاء الترجمة من سجلّك",
+  "translateMemoryBadge": "من السجلّ",
+  "translateMemoryBadgeTooltip": "مأخوذة من سجلّك: لم تُترجم مرة أخرى"
 }

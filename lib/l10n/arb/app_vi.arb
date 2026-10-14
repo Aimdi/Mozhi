@@ -1203,5 +1203,17 @@
   "translateToolListenSlowly": "Nghe chậm bản dịch",
   "translateExtraTargetsKept": "Công cụ này không hỗ trợ; được giữ lại cho công cụ có hỗ trợ",
   "appScreenLoading": "Đang tải…",
-  "appScreenLoadFailed": "Không thể tải màn hình này. Hãy kiểm tra kết nối và thử lại."
+  "appScreenLoadFailed": "Không thể tải màn hình này. Hãy kiểm tra kết nối và thử lại.",
+  "translateMemoryExactTitle": "Từ lịch sử của bạn",
+  "translateMemorySimilarTitle": "Văn bản tương tự trong lịch sử của bạn",
+  "translateMemorySimilarity": "Khớp {percent}%",
+  "translateMemoryMeta": "{engine} · {date}",
+  "translateMemoryEarlierText": "Văn bản trước: {text}",
+  "translateMemoryDiffHint": "Từ bị gạch ngang chỉ có trong văn bản trước; từ được gạch chân là từ mới trong văn bản của bạn.",
+  "translateMemoryUse": "Dùng",
+  "translateMemoryUseLabel": "Dùng bản dịch từ lịch sử của bạn",
+  "translateMemoryCopy": "Sao chép bản dịch từ lịch sử của bạn",
+  "translateMemoryDismiss": "Ẩn bản dịch từ lịch sử của bạn",
+  "translateMemoryBadge": "Từ lịch sử",
+  "translateMemoryBadgeTooltip": "Lấy từ lịch sử của bạn: không dịch lại"
 }

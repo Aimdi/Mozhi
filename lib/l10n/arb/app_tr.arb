@@ -1203,5 +1203,17 @@
   "translateToolListenSlowly": "Çeviriyi yavaş dinle",
   "translateExtraTargetsKept": "Bu motorda yok; sunan bir motor için saklanıyor",
   "appScreenLoading": "Yükleniyor…",
-  "appScreenLoadFailed": "Bu ekran yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin."
+  "appScreenLoadFailed": "Bu ekran yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin.",
+  "translateMemoryExactTitle": "Geçmişinizden",
+  "translateMemorySimilarTitle": "Geçmişinizde benzer metin",
+  "translateMemorySimilarity": "%{percent} eşleşme",
+  "translateMemoryMeta": "{engine} · {date}",
+  "translateMemoryEarlierText": "Önceki metin: {text}",
+  "translateMemoryDiffHint": "Üstü çizili sözcükler yalnızca önceki metinde vardı; altı çizili sözcükler sizin metninizde yeni.",
+  "translateMemoryUse": "Kullan",
+  "translateMemoryUseLabel": "Geçmişinizdeki çeviriyi kullan",
+  "translateMemoryCopy": "Geçmişinizdeki çeviriyi kopyala",
+  "translateMemoryDismiss": "Geçmişinizdeki çeviriyi gizle",
+  "translateMemoryBadge": "Geçmişten",
+  "translateMemoryBadgeTooltip": "Geçmişinizden alındı: yeniden çevrilmedi"
 }

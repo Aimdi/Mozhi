@@ -1203,5 +1203,17 @@
   "translateToolListenSlowly": "Odsłuchaj tłumaczenie wolniej",
   "translateExtraTargetsKept": "Niedostępny w tym silniku; zachowany dla silnika, który go obsługuje",
   "appScreenLoading": "Ładowanie…",
-  "appScreenLoadFailed": "Nie udało się wczytać tego ekranu. Sprawdź połączenie i spróbuj ponownie."
+  "appScreenLoadFailed": "Nie udało się wczytać tego ekranu. Sprawdź połączenie i spróbuj ponownie.",
+  "translateMemoryExactTitle": "Z Twojej historii",
+  "translateMemorySimilarTitle": "Podobny tekst w Twojej historii",
+  "translateMemorySimilarity": "Zgodność: {percent}%",
+  "translateMemoryMeta": "{engine} · {date}",
+  "translateMemoryEarlierText": "Wcześniejszy tekst: {text}",
+  "translateMemoryDiffHint": "Przekreślone słowa były tylko we wcześniejszym tekście; podkreślone są nowe w Twoim.",
+  "translateMemoryUse": "Użyj",
+  "translateMemoryUseLabel": "Użyj tłumaczenia z historii",
+  "translateMemoryCopy": "Kopiuj tłumaczenie z historii",
+  "translateMemoryDismiss": "Ukryj tłumaczenie z historii",
+  "translateMemoryBadge": "Z historii",
+  "translateMemoryBadgeTooltip": "Pobrane z Twojej historii: nie przetłumaczono ponownie"
 }

@@ -1203,5 +1203,17 @@
   "translateToolListenSlowly": "Vertaling langzaam beluisteren",
   "translateExtraTargetsKept": "Niet aangeboden door deze engine; blijft bewaard voor een engine die deze wel aanbiedt",
   "appScreenLoading": "Laden…",
-  "appScreenLoadFailed": "Dit scherm kon niet worden geladen. Controleer je verbinding en probeer het opnieuw."
+  "appScreenLoadFailed": "Dit scherm kon niet worden geladen. Controleer je verbinding en probeer het opnieuw.",
+  "translateMemoryExactTitle": "Uit je geschiedenis",
+  "translateMemorySimilarTitle": "Vergelijkbare tekst in je geschiedenis",
+  "translateMemorySimilarity": "{percent}% overeenkomst",
+  "translateMemoryMeta": "{engine} · {date}",
+  "translateMemoryEarlierText": "Eerdere tekst: {text}",
+  "translateMemoryDiffHint": "Doorgehaalde woorden stonden alleen in de eerdere tekst; onderstreepte woorden zijn nieuw in die van jou.",
+  "translateMemoryUse": "Gebruiken",
+  "translateMemoryUseLabel": "Vertaling uit je geschiedenis gebruiken",
+  "translateMemoryCopy": "Vertaling uit je geschiedenis kopiëren",
+  "translateMemoryDismiss": "Vertaling uit je geschiedenis verbergen",
+  "translateMemoryBadge": "Uit geschiedenis",
+  "translateMemoryBadgeTooltip": "Uit je geschiedenis gehaald: niet opnieuw vertaald"
 }

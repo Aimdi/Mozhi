@@ -157,9 +157,8 @@ class TranslateMocks {
       when(() => settings.state).thenReturn(value);
 
   /// The history the translation memory searches (newest first).
-  void stubHistory(List<HistoryEntry> entries) => when(
-    () => history.state,
-  ).thenReturn(HistoryState(status: HistoryStatus.ready, entries: entries));
+  void stubHistory(List<HistoryEntry> entries) => when(() => history.state)
+      .thenReturn(HistoryState(status: HistoryStatus.ready, entries: entries));
 
   /// Every translate call emits [result] (or a result per request when
   /// [result] is null: `<text>-><target>`).

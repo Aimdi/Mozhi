@@ -1203,5 +1203,17 @@
   "translateToolListenSlowly": "Прослухати переклад повільно",
   "translateExtraTargetsKept": "Недоступна в цьому сервісі; збережена для сервісу, який її підтримує",
   "appScreenLoading": "Завантаження…",
-  "appScreenLoadFailed": "Не вдалося завантажити цей екран. Перевірте підключення й спробуйте ще раз."
+  "appScreenLoadFailed": "Не вдалося завантажити цей екран. Перевірте підключення й спробуйте ще раз.",
+  "translateMemoryExactTitle": "З вашої історії",
+  "translateMemorySimilarTitle": "Схожий текст у вашій історії",
+  "translateMemorySimilarity": "Збіг {percent} %",
+  "translateMemoryMeta": "{engine} · {date}",
+  "translateMemoryEarlierText": "Попередній текст: {text}",
+  "translateMemoryDiffHint": "Закреслені слова були лише в попередньому тексті, підкреслені — нові у вашому.",
+  "translateMemoryUse": "Використати",
+  "translateMemoryUseLabel": "Використати переклад з історії",
+  "translateMemoryCopy": "Копіювати переклад з історії",
+  "translateMemoryDismiss": "Сховати переклад з історії",
+  "translateMemoryBadge": "З історії",
+  "translateMemoryBadgeTooltip": "Взято з вашої історії: повторно не перекладалося"
 }

@@ -1203,5 +1203,17 @@
   "translateToolListenSlowly": "Écouter lentement la traduction",
   "translateExtraTargetsKept": "Non proposée par ce moteur ; conservée pour un moteur qui la propose",
   "appScreenLoading": "Chargement…",
-  "appScreenLoadFailed": "Impossible de charger cet écran. Vérifiez votre connexion et réessayez."
+  "appScreenLoadFailed": "Impossible de charger cet écran. Vérifiez votre connexion et réessayez.",
+  "translateMemoryExactTitle": "Depuis votre historique",
+  "translateMemorySimilarTitle": "Texte similaire dans votre historique",
+  "translateMemorySimilarity": "Correspondance à {percent} %",
+  "translateMemoryMeta": "{engine} · {date}",
+  "translateMemoryEarlierText": "Texte précédent : {text}",
+  "translateMemoryDiffHint": "Les mots barrés ne figuraient que dans le texte précédent ; les mots soulignés sont nouveaux dans le vôtre.",
+  "translateMemoryUse": "Utiliser",
+  "translateMemoryUseLabel": "Utiliser la traduction de votre historique",
+  "translateMemoryCopy": "Copier la traduction de votre historique",
+  "translateMemoryDismiss": "Masquer la traduction de votre historique",
+  "translateMemoryBadge": "Depuis l’historique",
+  "translateMemoryBadgeTooltip": "Reprise de votre historique : pas retraduite"
 }
