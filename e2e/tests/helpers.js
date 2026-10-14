@@ -85,7 +85,11 @@ function sourceInput(page) {
  */
 async function copiedTranslation(page) {
   await page.evaluate(() => navigator.clipboard.writeText(''));
-  await page.getByRole('button', { name: 'Copy', exact: true }).click();
+  // While the pointer rests on the button its tooltip ("Copy") is merged
+  // into the label; move the pointer away afterwards so the next call
+  // finds the plain label again.
+  await page.getByRole('button', { name: /^Copy( Copy)?$/ }).click();
+  await page.mouse.move(0, 0);
   return page.evaluate(() => navigator.clipboard.readText());
 }
 
