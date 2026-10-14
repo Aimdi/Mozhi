@@ -8,6 +8,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:mlkit_translator/mlkit_translator.dart';
 import 'package:mozhi/app/app_dependencies.dart';
 import 'package:mozhi/app/fallback_key_value_store.dart';
+import 'package:mozhi/core/key_value_metadata_store.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
@@ -82,11 +83,15 @@ Future<AppDependencies> createDependencies({
   final settings = await settingsRepository.load();
 
   final offline = offlineTranslator ?? MlKitOfflineTranslator();
-  final translationRepository = TranslationRepository(offline: offline)
-    ..updateConfiguration(
-      instances: settings.instances,
-      providers: settings.providers,
-    );
+  final translationRepository =
+      TranslationRepository(
+        offline: offline,
+        // Engine and language lists survive restarts: instant start, offline.
+        metadataStore: KeyValueMetadataStore(preferences),
+      )..updateConfiguration(
+        instances: settings.instances,
+        providers: settings.providers,
+      );
 
   return AppDependencies(
     translationRepository: translationRepository,

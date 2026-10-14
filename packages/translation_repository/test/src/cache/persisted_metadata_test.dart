@@ -5,7 +5,7 @@ import 'package:test/test.dart';
 import 'package:translation_repository/src/cache/persisted_metadata.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-class _MockMetadataStore extends Mock implements MetadataStore {}
+class _MockMetadataStore extends Mock implements MetadataStore;
 
 void main() {
   const url = 'https://a.example';
@@ -138,9 +138,10 @@ void main() {
 
     test('swallows asynchronous store failures', () async {
       final failing = _MockMetadataStore();
-      when(() => failing.read(any())).thenAnswer((_) async => throw 'read');
+      when(() => failing.read(any()))
+          .thenAnswer((_) async => throw StateError('read'));
       when(() => failing.write(any(), any()))
-          .thenAnswer((_) async => throw 'write');
+          .thenAnswer((_) async => throw StateError('write'));
       final persisted = PersistedMetadata(
         failing,
         maxAge: const Duration(days: 7),

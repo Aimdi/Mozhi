@@ -425,12 +425,11 @@ class TranslationRepository {
     final generation = _metadataGeneration;
     late final Future<T> future;
 
-    Future<(String url, Object? json, T value)> load() => _mozhi.run(
-      (client, instance) async {
-        final json = await fetch(client);
-        return (instance.url, json, build(json, instance));
-      },
-    );
+    Future<(String url, Object? json, T value)> load() =>
+        _mozhi.run((client, instance) async {
+          final json = await fetch(client);
+          return (instance.url, json, build(json, instance));
+        });
 
     Future<void> revalidate(StoredMetadata stored) async {
       try {

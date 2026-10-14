@@ -228,6 +228,11 @@ class TranslateCubit extends Cubit<TranslateState> {
 
   late final StreamSubscription<AppSettings> _settingsSubscription;
 
+  /// [TranslationRepository.metadataChanged], listened to from the first
+  /// [loadEngines] on (null for repository test doubles without it).
+  StreamSubscription<void>? _metadataSubscription;
+  bool _metadataListened = false;
+
   /// The quality mode engine ids last seen in settings.
   (String?, String?) _qualityIds;
 
@@ -282,17 +287,27 @@ class TranslateCubit extends Cubit<TranslateState> {
   /// selected one ([QualityMode.off] otherwise; the saved mode is kept).
   /// [TranslateState.fastEngine] / [TranslateState.bestEngine] are resolved
   /// against the new list.
-  Future<void> loadEngines({bool refresh = false}) async {
+  Future<void> loadEngines({bool refresh = false}) =>
+      _loadEngines(refresh: refresh);
+
+  /// [loadEngines]; [quiet] neither shows the loading state nor reports a
+  /// failure to list the engines (the lists shown stay).
+  Future<void> _loadEngines({bool refresh = false, bool quiet = false}) async {
+    if (!_metadataListened) {
+      _metadataListened = true;
+      _metadataSubscription = _listenToMetadata();
+    }
     final request = ++_enginesRequest;
     final switches = _switches;
     _listPending = true;
-    emit(state.copyWith(enginesStatus: EnginesStatus.loading));
+    if (!quiet) emit(state.copyWith(enginesStatus: EnginesStatus.loading));
     final List<TranslationEngine> engines;
     try {
       engines = await _repository.getEngines(refresh: refresh);
     } on Object catch (error) {
       if (!_isCurrentEngines(request)) return;
       _listPending = false;
+      if (quiet) return;
       emit(
         state.copyWith(
           enginesStatus: EnginesStatus.failure,
@@ -634,6 +649,20 @@ class TranslateCubit extends Cubit<TranslateState> {
     if (engine != null && engine.id != state.engine?.id) {
       unawaited(_switchEngine(engine, keepResult: true, persist: false));
     }
+  }
+
+  /// Persisted engine or language lists were served at start and the
+  /// repository has since loaded different ones: reload the lists
+  /// (from memory, without the loading state).
+  StreamSubscription<void>? _listenToMetadata() {
+    final Stream<void> changes;
+    try {
+      changes = _repository.metadataChanged;
+    } on Object {
+      // A repository test double without the stream.
+      return null;
+    }
+    return changes.listen((_) => unawaited(_loadEngines(quiet: true)));
   }
 
   bool _isCurrentEngines(int request) =>
@@ -3493,6 +3522,7 @@ class TranslateCubit extends Cubit<TranslateState> {
     _cancelRefinement();
     _withoutExtraTranslations(state);
     unawaited(_settingsSubscription.cancel());
+    unawaited(_metadataSubscription?.cancel());
     return super.close();
   }
 }
