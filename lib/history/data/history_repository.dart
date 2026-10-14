@@ -26,10 +26,18 @@ import 'package:mozhi/history/models/history_entry.dart';
 ///   [refinementWindow] and one trimmed text is a prefix of the other
 ///   (typing refinements of instant translate).
 ///
-/// [toggleFavorite], [delete], [clear] and [restore] apply no caps, so an
-/// un-starred or restored entry survives until the next [add] / [load].
+/// Retention (history auto-delete): [load], [add] and [importJson] take an
+/// optional `maxAge` and then also drop non-favourite entries created more
+/// than `maxAge` ago; [prune] applies a (new) `maxAge` right away.
+/// Favourites are always kept. [load] writes the pruned history back when
+/// it dropped expired entries.
 ///
-/// [store] defaults to [PreferencesStore]. Operations are serialised and
+/// [toggleFavorite], [delete], [clear] and [restore] apply no caps (and no
+/// retention), so an un-starred or restored entry survives until the next
+/// [add] / [load].
+///
+/// [store] defaults to [PreferencesStore] and `clock` (the current time for
+/// retention) to [DateTime.now]. Operations are serialised and
 /// every mutation is written through; the returned lists are unmodifiable.
 /// Invalid stored entries are skipped, unreadable JSON loads as empty.
 class HistoryRepository {
@@ -39,8 +47,10 @@ class HistoryRepository {
     this.maxStoredLength = 1000000,
     this.maxTextLength = 20000,
     this.refinementWindow = const Duration(seconds: 30),
+    DateTime Function()? clock,
   }) : assert(maxTextLength > 0, 'maxTextLength must be positive'),
-       store = store ?? PreferencesStore();
+       store = store ?? PreferencesStore(),
+       _clock = clock ?? DateTime.now;
 
   /// Key of the history JSON in [store].
   static const storageKey = 'history.v1';
@@ -63,6 +73,8 @@ class HistoryRepository {
   /// treated as a typing refinement of it (see [add]).
   final Duration refinementWindow;
 
+  final DateTime Function() _clock;
+
   List<HistoryEntry>? _entries;
   Future<void> _lock = Future.value();
 
@@ -70,19 +82,43 @@ class HistoryRepository {
   final Expando<String> _encoded = Expando();
 
   /// Reads the history from [store] (refreshing the in-memory copy).
-  Future<List<HistoryEntry>> load() => _synchronized(() async {
-    final raw = await store.read(storageKey);
-    final entries = raw == null ? <HistoryEntry>[] : _decodeLenient(raw);
-    _entries = _capped(entries);
-    return _entries!;
-  });
+  ///
+  /// With [maxAge], non-favourites created more than [maxAge] ago are
+  /// dropped and, if there were any, the result is written back (a failing
+  /// write is ignored: the next mutation writes again).
+  Future<List<HistoryEntry>> load({Duration? maxAge}) =>
+      _synchronized(() async {
+        final raw = await store.read(storageKey);
+        final entries = raw == null ? <HistoryEntry>[] : _decodeLenient(raw);
+        final kept = _withoutExpired(entries, maxAge);
+        var next = _capped(kept);
+        if (kept.length != entries.length) {
+          try {
+            next = await _write(next);
+          } on Object {
+            // Keep the pruned list in memory; the next mutation writes it.
+          }
+        }
+        return _entries = next;
+      });
+
+  /// Deletes non-favourite entries created more than [maxAge] ago (none
+  /// when [maxAge] is null) and returns the history. Writes only when
+  /// something was deleted.
+  Future<List<HistoryEntry>> prune(Duration? maxAge) =>
+      _synchronized(() async {
+        final entries = await _current();
+        final kept = _withoutExpired(entries, maxAge);
+        if (kept.length == entries.length) return entries;
+        return _entries = await _write(List.unmodifiable(kept));
+      });
 
   /// Inserts [entry] as the newest entry (see the class docs for merging
-  /// with the newest entry, truncation and caps). An existing entry with
-  /// the same id is removed.
-  Future<List<HistoryEntry>> add(HistoryEntry entry) {
+  /// with the newest entry, truncation, caps and [maxAge]). An existing
+  /// entry with the same id is removed.
+  Future<List<HistoryEntry>> add(HistoryEntry entry, {Duration? maxAge}) {
     final added = _limited(entry);
-    return _mutate((entries) {
+    return _mutate(maxAge: maxAge, (entries) {
       final newest = entries.firstOrNull;
       if (newest != null && _replaces(newest, added)) {
         return [
@@ -141,12 +177,13 @@ class HistoryRepository {
   /// Throws [FormatException] on invalid input.
   ///
   /// Existing entries win over imported ones with the same id; the merged
-  /// list is sorted newest first, truncated and capped like [add]. Invalid
-  /// elements are skipped as long as the input is a JSON array with at
-  /// least one valid entry (or is empty).
-  Future<List<HistoryEntry>> importJson(String json) async {
+  /// list is sorted newest first, truncated and capped like [add] (with
+  /// [maxAge], expired non-favourites are dropped too). Invalid elements
+  /// are skipped as long as the input is a JSON array with at least one
+  /// valid entry (or is empty).
+  Future<List<HistoryEntry>> importJson(String json, {Duration? maxAge}) async {
     final imported = _decodeStrict(json).map(_limited).toList();
-    return await _mutate((entries) {
+    return await _mutate(maxAge: maxAge, (entries) {
       final ids = {for (final entry in entries) entry.id};
       return [...entries, ...imported.where((e) => ids.add(e.id))]
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -194,6 +231,19 @@ class HistoryRepository {
 
   static bool _isHighSurrogate(int codeUnit) =>
       codeUnit >= 0xD800 && codeUnit <= 0xDBFF;
+
+  /// [entries] without the non-favourites created more than [maxAge] ago.
+  List<HistoryEntry> _withoutExpired(
+    List<HistoryEntry> entries,
+    Duration? maxAge,
+  ) {
+    if (maxAge == null) return entries;
+    final cutoff = _clock().subtract(maxAge);
+    return [
+      for (final entry in entries)
+        if (entry.isFavorite || !entry.createdAt.isBefore(cutoff)) entry,
+    ];
+  }
 
   /// Keeps every favourite and the newest non-favourites within
   /// [maxEntries] and [maxStoredLength].
@@ -250,16 +300,24 @@ class HistoryRepository {
   Future<List<HistoryEntry>> _mutate(
     List<HistoryEntry> Function(List<HistoryEntry> entries) change, {
     bool cap = true,
+    Duration? maxAge,
   }) => _synchronized(() async {
     final changed = change([...await _current()]);
-    var next = cap
-        ? _capped(changed)
+    final next = cap
+        ? _capped(_withoutExpired(changed, maxAge))
         : List<HistoryEntry>.unmodifiable(changed);
+    return _entries = await _write(next);
+  });
+
+  /// Writes [entries] and returns what was written: on a full quota, older
+  /// non-favourites are evicted and the write is retried.
+  Future<List<HistoryEntry>> _write(List<HistoryEntry> entries) async {
+    var next = entries;
     for (var attempt = 0; ; attempt++) {
       final encoded = _encode(next);
       try {
         await store.write(storageKey, encoded);
-        break;
+        return next;
       } on Object catch (error) {
         if (attempt >= _quotaRetries || !_isQuotaError(error)) rethrow;
         final smaller = _withoutOlderHalf(next);
@@ -267,9 +325,7 @@ class HistoryRepository {
         next = smaller;
       }
     }
-    _entries = next;
-    return next;
-  });
+  }
 
   /// Whether [error] reports a full storage quota (e.g. the browser's
   /// `QuotaExceededError` from `localStorage`).

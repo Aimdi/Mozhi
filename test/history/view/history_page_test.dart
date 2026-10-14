@@ -441,6 +441,45 @@ void main() {
       verify(() => history.clear(keepFavorites: true)).called(1);
     });
 
+    group('retention note', () {
+      testWidgets('says how long translations are kept', (tester) async {
+        await pump(
+          tester,
+          appSettings: const AppSettings(
+            historyRetention: HistoryRetention.week,
+          ),
+        );
+        expect(
+          find.text(
+            'Translations older than 7 days are deleted automatically. '
+            'Starred ones are kept.',
+          ),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('uses the singular for one day', (tester) async {
+        await pump(
+          tester,
+          appSettings: const AppSettings(
+            historyRetention: HistoryRetention.day,
+          ),
+        );
+        expect(
+          find.text(
+            'Translations older than 1 day are deleted automatically. '
+            'Starred ones are kept.',
+          ),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('is hidden when history is kept forever', (tester) async {
+        await pump(tester);
+        expect(find.textContaining('deleted automatically'), findsNothing);
+      });
+    });
+
     group('empty states', () {
       testWidgets('no history', (tester) async {
         await pump(

@@ -16,6 +16,7 @@ const _d = MozhiInstance(url: 'https://d.example');
 
 const _french = Language(code: 'fr', name: 'French');
 const _german = Language(code: 'de', name: 'German');
+const _english = Language(code: 'en', name: 'English');
 
 AiProviderConfig _provider(String id, {bool enabled = true}) =>
     AiProviderConfig(
@@ -340,17 +341,48 @@ void main() {
       );
 
       mutation(
+        'removeProvider clears the quality engines pointing at it',
+        initial: AppSettings(
+          providers: [_provider('a'), _provider('b')],
+          fastEngineId: 'mt:a',
+          bestEngineId: 'ai:a',
+          qualityMode: QualityMode.best,
+        ),
+        act: (cubit) => cubit.removeProvider('a'),
+        expected: AppSettings(
+          providers: [_provider('b')],
+          qualityMode: QualityMode.best,
+        ),
+      );
+
+      mutation(
+        'removeProvider clears selections of its machine translation engine',
+        initial: AppSettings(
+          providers: [_provider('a')],
+          engineId: 'mt:a',
+          assistEngineId: 'ai:a',
+          compareEngineIds: const ['mt:a', 'mozhi:google'],
+        ),
+        act: (cubit) => cubit.removeProvider('a'),
+        expected: const AppSettings(compareEngineIds: ['mozhi:google']),
+      );
+
+      mutation(
         'removeProvider keeps selections of other engines',
         initial: AppSettings(
           providers: [_provider('a'), _provider('b')],
           engineId: 'mozhi:google',
           assistEngineId: 'ai:b',
+          fastEngineId: 'mozhi:google',
+          bestEngineId: 'ai:b',
         ),
         act: (cubit) => cubit.removeProvider('a'),
         expected: AppSettings(
           providers: [_provider('b')],
           engineId: 'mozhi:google',
           assistEngineId: 'ai:b',
+          fastEngineId: 'mozhi:google',
+          bestEngineId: 'ai:b',
         ),
       );
 
@@ -476,6 +508,164 @@ void main() {
         'addRecentLanguage ignores the current most recent language',
         initial: const AppSettings(recentLanguages: [_french, _german]),
         act: (cubit) => cubit.addRecentLanguage(_french),
+      );
+    });
+
+    group('history retention', () {
+      mutation(
+        'setHistoryRetention stores the retention',
+        act: (cubit) => cubit.setHistoryRetention(HistoryRetention.week),
+        expected: const AppSettings(historyRetention: HistoryRetention.week),
+      );
+
+      noOp(
+        'setHistoryRetention ignores the current retention',
+        act: (cubit) => cubit.setHistoryRetention(HistoryRetention.forever),
+      );
+    });
+
+    group('quality modes', () {
+      mutation(
+        'setQualityEngines sets both engines',
+        act: (cubit) =>
+            cubit.setQualityEngines(fast: 'mozhi:google', best: 'ai:a'),
+        expected: const AppSettings(
+          fastEngineId: 'mozhi:google',
+          bestEngineId: 'ai:a',
+        ),
+      );
+
+      mutation(
+        'setQualityEngines clears the engines that are not given',
+        initial: const AppSettings(
+          fastEngineId: 'mozhi:google',
+          bestEngineId: 'ai:a',
+        ),
+        act: (cubit) => cubit.setQualityEngines(best: 'ai:a'),
+        expected: const AppSettings(bestEngineId: 'ai:a'),
+      );
+
+      mutation(
+        'setQualityEngines() clears both engines',
+        initial: const AppSettings(
+          fastEngineId: 'mozhi:google',
+          bestEngineId: 'ai:a',
+        ),
+        act: (cubit) => cubit.setQualityEngines(),
+        expected: const AppSettings(),
+      );
+
+      mutation(
+        'setQualityMode remembers the mode',
+        act: (cubit) => cubit.setQualityMode(QualityMode.best),
+        expected: const AppSettings(qualityMode: QualityMode.best),
+      );
+
+      noOp(
+        'setQualityMode ignores the current mode',
+        initial: const AppSettings(qualityMode: QualityMode.fast),
+        act: (cubit) => cubit.setQualityMode(QualityMode.fast),
+      );
+    });
+
+    group('recent language pairs', () {
+      const autoToEnglish = LanguagePair(
+        source: Language.auto,
+        target: _english,
+      );
+      const frenchToGerman = LanguagePair(source: _french, target: _german);
+
+      List<LanguagePair> pairs(int count) => [
+        for (final language in _languages(count))
+          LanguagePair(source: _french, target: language),
+      ];
+
+      mutation(
+        'recordPair pushes the pair to the front',
+        initial: const AppSettings(recentPairs: [autoToEnglish]),
+        act: (cubit) => cubit.recordPair(_french, _german),
+        expected: const AppSettings(
+          recentPairs: [frenchToGerman, autoToEnglish],
+        ),
+      );
+
+      mutation(
+        'recordPair keeps an auto source',
+        act: (cubit) => cubit.recordPair(Language.auto, _english),
+        expected: const AppSettings(recentPairs: [autoToEnglish]),
+      );
+
+      mutation(
+        'recordPair moves an existing pair to the front',
+        initial: const AppSettings(
+          recentPairs: [autoToEnglish, frenchToGerman],
+        ),
+        act: (cubit) => cubit.recordPair(_french, _german),
+        expected: const AppSettings(
+          recentPairs: [frenchToGerman, autoToEnglish],
+        ),
+      );
+
+      mutation(
+        'recordPair treats reversed pairs as different pairs',
+        initial: const AppSettings(recentPairs: [frenchToGerman]),
+        act: (cubit) => cubit.recordPair(_german, _french),
+        expected: const AppSettings(
+          recentPairs: [
+            LanguagePair(source: _german, target: _french),
+            frenchToGerman,
+          ],
+        ),
+      );
+
+      mutation(
+        'recordPair keeps at most eight pairs',
+        initial: AppSettings(recentPairs: pairs(8)),
+        act: (cubit) => cubit.recordPair(Language.auto, _english),
+        expected: AppSettings(recentPairs: [autoToEnglish, ...pairs(7)]),
+      );
+
+      mutation(
+        'recordPair stores custom targets',
+        act: (cubit) =>
+            cubit.recordPair(_english, const Language.custom('Pirate')),
+        expected: const AppSettings(
+          recentPairs: [
+            LanguagePair(source: _english, target: Language.custom('Pirate')),
+          ],
+        ),
+      );
+
+      noOp(
+        'recordPair ignores an auto target',
+        act: (cubit) => cubit.recordPair(_french, Language.auto),
+      );
+
+      noOp(
+        'recordPair ignores a pair of the same language',
+        act: (cubit) => cubit.recordPair(_french, _french),
+      );
+
+      noOp(
+        'recordPair ignores the current most recent pair',
+        initial: const AppSettings(
+          recentPairs: [frenchToGerman, autoToEnglish],
+        ),
+        act: (cubit) => cubit.recordPair(_french, _german),
+      );
+
+      mutation(
+        'clearRecentPairs forgets every pair',
+        initial: const AppSettings(
+          recentPairs: [frenchToGerman, autoToEnglish],
+        ),
+        act: (cubit) => cubit.clearRecentPairs(),
+        expected: const AppSettings(),
+      );
+
+      noOp(
+        'clearRecentPairs does nothing without pairs',
+        act: (cubit) => cubit.clearRecentPairs(),
       );
     });
 

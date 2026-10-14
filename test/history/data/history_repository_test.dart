@@ -44,6 +44,17 @@ class _FailingWriteStore extends MemoryStore {
   }
 }
 
+/// A [MemoryStore] that counts writes.
+class _CountingStore extends MemoryStore {
+  int writes = 0;
+
+  @override
+  Future<void> write(String key, String value) {
+    writes++;
+    return super.write(key, value);
+  }
+}
+
 class _QuotaExceeded implements Exception {
   @override
   String toString() =>
@@ -830,6 +841,222 @@ void main() {
           throwsFormatException,
         );
         expect(store.values, isEmpty);
+      });
+    });
+
+    group('retention', () {
+      final now = DateTime(2026, 10, 14, 12);
+      const day = Duration(days: 1);
+
+      HistoryEntry aged(String id, Duration age, {bool isFavorite = false}) =>
+          HistoryEntry(
+            id: id,
+            text: 'text $id',
+            translation: 'translation $id',
+            source: Language.auto,
+            target: _french,
+            engineId: 'mozhi:google',
+            engineName: 'Engine',
+            createdAt: now.subtract(age),
+            isFavorite: isFavorite,
+          );
+
+      late _CountingStore store;
+      late HistoryRepository repository;
+
+      void stored(List<HistoryEntry> entries) =>
+          store.values[HistoryRepository.storageKey] = jsonEncode([
+            for (final entry in entries) entry.toJson(),
+          ]);
+
+      List<String> storedIds() => [
+        for (final json in jsonDecode(
+          store.values[HistoryRepository.storageKey]!,
+        ) as List<dynamic>)
+          (json as Map<String, dynamic>)['id'] as String,
+      ];
+
+      setUp(() {
+        store = _CountingStore();
+        repository = HistoryRepository(store: store, clock: () => now);
+      });
+
+      group('load', () {
+        test('drops expired non-favourites and writes the result', () async {
+          stored([
+            aged('new', const Duration(hours: 2)),
+            aged('old', const Duration(days: 2)),
+            aged('starred', const Duration(days: 40), isFavorite: true),
+          ]);
+
+          final entries = await repository.load(maxAge: day);
+
+          expect(entries.map((e) => e.id), ['new', 'starred']);
+          expect(storedIds(), ['new', 'starred']);
+          expect(store.writes, 1);
+        });
+
+        test('keeps everything without maxAge', () async {
+          stored([aged('old', const Duration(days: 400))]);
+
+          final entries = await repository.load();
+
+          expect(entries.map((e) => e.id), ['old']);
+          expect(store.writes, 0);
+        });
+
+        test('does not write when nothing expired', () async {
+          stored([aged('new', const Duration(hours: 23))]);
+
+          final entries = await repository.load(maxAge: day);
+
+          expect(entries.map((e) => e.id), ['new']);
+          expect(store.writes, 0);
+        });
+
+        test('keeps an entry created exactly maxAge ago', () async {
+          stored([aged('edge', day)]);
+
+          final entries = await repository.load(maxAge: day);
+
+          expect(entries.map((e) => e.id), ['edge']);
+        });
+
+        test('keeps the pruned list when writing it back fails', () async {
+          final failing = _FailingWriteStore();
+          failing.values[HistoryRepository.storageKey] = jsonEncode([
+            aged('new', Duration.zero).toJson(),
+            aged('old', const Duration(days: 3)).toJson(),
+          ]);
+          final repository = HistoryRepository(
+            store: failing,
+            clock: () => now,
+          );
+
+          final entries = await repository.load(maxAge: day);
+
+          expect(entries.map((e) => e.id), ['new']);
+          expect(failing.attempts, 1);
+          expect((await repository.exportJson()).contains('"old"'), isFalse);
+        });
+      });
+
+      group('add', () {
+        test('drops expired non-favourites', () async {
+          stored([
+            aged('old', const Duration(days: 8)),
+            aged('week', const Duration(days: 6)),
+            aged('starred', const Duration(days: 8), isFavorite: true),
+          ]);
+
+          final entries = await repository.add(
+            aged('new', Duration.zero),
+            maxAge: const Duration(days: 7),
+          );
+
+          expect(entries.map((e) => e.id), ['new', 'week', 'starred']);
+          expect(storedIds(), ['new', 'week', 'starred']);
+        });
+
+        test('keeps everything without maxAge', () async {
+          stored([aged('old', const Duration(days: 400))]);
+
+          final entries = await repository.add(aged('new', Duration.zero));
+
+          expect(entries.map((e) => e.id), ['new', 'old']);
+        });
+      });
+
+      test('importJson drops expired non-favourites', () async {
+        final json = jsonEncode([
+          aged('new', const Duration(hours: 1)).toJson(),
+          aged('old', const Duration(days: 2)).toJson(),
+          aged('starred', const Duration(days: 2), isFavorite: true).toJson(),
+        ]);
+
+        final entries = await repository.importJson(json, maxAge: day);
+
+        expect(entries.map((e) => e.id), ['new', 'starred']);
+      });
+
+      group('prune', () {
+        test('deletes expired non-favourites and persists', () async {
+          stored([
+            aged('new', const Duration(days: 29)),
+            aged('old', const Duration(days: 31)),
+            aged('starred', const Duration(days: 365), isFavorite: true),
+          ]);
+
+          final entries = await repository.prune(const Duration(days: 30));
+
+          expect(entries.map((e) => e.id), ['new', 'starred']);
+          expect(storedIds(), ['new', 'starred']);
+          expect(await repository.load(), entries);
+        });
+
+        test('keeps everything for null and does not write', () async {
+          stored([aged('old', const Duration(days: 400))]);
+
+          final entries = await repository.prune(null);
+
+          expect(entries.map((e) => e.id), ['old']);
+          expect(store.writes, 0);
+        });
+
+        test('does not write when nothing expired', () async {
+          await repository.add(aged('new', Duration.zero));
+
+          final entries = await repository.prune(day);
+
+          expect(entries.map((e) => e.id), ['new']);
+          expect(store.writes, 1);
+        });
+
+        test('returns an unmodifiable list', () async {
+          stored([aged('old', const Duration(days: 2))]);
+
+          final entries = await repository.prune(day);
+
+          expect(entries, isEmpty);
+          expect(() => entries.add(aged('x', day)), throwsUnsupportedError);
+        });
+
+        test('propagates storage errors and keeps the history', () async {
+          final failing = _FailingWriteStore();
+          failing.values[HistoryRepository.storageKey] = jsonEncode([
+            aged('old', const Duration(days: 2)).toJson(),
+          ]);
+          final repository = HistoryRepository(
+            store: failing,
+            clock: () => now,
+          );
+
+          await expectLater(repository.prune(day), throwsStateError);
+          expect((await repository.load()).map((e) => e.id), ['old']);
+        });
+      });
+
+      test('uses the current time by default', () async {
+        final repository = HistoryRepository(store: MemoryStore());
+        final entry = aged('x', Duration.zero);
+
+        final entries = await repository.add(
+          HistoryEntry(
+            id: 'recent',
+            text: entry.text,
+            translation: entry.translation,
+            source: entry.source,
+            target: entry.target,
+            engineId: entry.engineId,
+            engineName: entry.engineName,
+            createdAt: DateTime.now().subtract(const Duration(minutes: 1)),
+          ),
+          maxAge: day,
+        );
+        final pruned = await repository.prune(const Duration(seconds: 30));
+
+        expect(entries.map((e) => e.id), ['recent']);
+        expect(pruned, isEmpty);
       });
     });
   });

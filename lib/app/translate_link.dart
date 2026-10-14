@@ -4,11 +4,29 @@ import 'package:equatable/equatable.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:translation_repository/translation_repository.dart';
 
+/// Speed/quality preference a link asks for (Kagi's `quality` parameter).
+///
+/// Only recorded on [TranslateLink.quality] for now; nothing applies it yet.
+enum TranslateLinkQuality {
+  fast,
+  standard,
+  best;
+
+  /// The quality named [value] (case-insensitive), or null when unknown.
+  static TranslateLinkQuality? tryParse(String? value) {
+    final key = value?.trim().toLowerCase();
+    for (final quality in values) {
+      if (quality.name == key) return quality;
+    }
+    return null;
+  }
+}
+
 /// A request to translate something, coming from outside the translate
 /// screen: a Kagi-style URL (`/translate?text=…&from=…&to=…`), a share
 /// intent or text selected in another app.
 class TranslateLink extends Equatable {
-  const new({this.text, this.from, this.to});
+  const new({this.text, this.from, this.to, this.options, this.quality});
 
   /// Longest text a link may carry; longer text is cut (links come from
   /// outside the app and are not trusted).
@@ -18,12 +36,24 @@ class TranslateLink extends Equatable {
   /// ignored.
   static const maxLanguageLength = 64;
 
+  /// Longest `context` / `formality_context` a link may carry; longer text
+  /// is cut.
+  static const maxContextLength = 2000;
+
   /// Parses Kagi/Google style query parameters from [uri].
   ///
   /// Accepted names: `text` (or `q`), `from` (or `sl`, `source`) and `to`
   /// (or `tl`, `target`). The text is cut to [maxTextLength]; languages
-  /// longer than [maxLanguageLength] are dropped. Returns null when none of
-  /// them is present.
+  /// longer than [maxLanguageLength] are dropped.
+  ///
+  /// Translation options are read with [TranslationOptions.fromJson], which
+  /// accepts Kagi's names and values (`translation_style`, `formality`,
+  /// `language_complexity`, `speaker_gender=male`, `context`,
+  /// `formality_context`, `preserveFormatting`, ...); see [sanitizeOptions]
+  /// for what a link may not set. `quality` is `fast`, `standard` or
+  /// `best`. Unknown values are ignored.
+  ///
+  /// Returns null when none of them is present.
   static TranslateLink? fromUri(Uri uri) {
     final params = uri.queryParameters;
     String? pick(List<String> names) {
@@ -42,15 +72,50 @@ class TranslateLink extends Equatable {
     final text = pick(const ['text', 'q']);
     final from = language(const ['from', 'sl', 'source']);
     final to = language(const ['to', 'tl', 'target']);
-    if (text == null && from == null && to == null) return null;
-    return TranslateLink(text: capText(text), from: from, to: to);
+    final options = sanitizeOptions(TranslationOptions.fromJson(params));
+    final quality = TranslateLinkQuality.tryParse(params['quality']);
+    if (text == null &&
+        from == null &&
+        to == null &&
+        options == null &&
+        quality == null) {
+      return null;
+    }
+    return TranslateLink(
+      text: capText(text),
+      from: from,
+      to: to,
+      options: options,
+      quality: quality,
+    );
+  }
+
+  /// What a link may set of [options]: no glossary and no refinement
+  /// instructions (a link must not smuggle instructions into a prompt),
+  /// `context` and `formality_context` trimmed and cut to
+  /// [maxContextLength]. Null when nothing differs from the defaults.
+  static TranslationOptions? sanitizeOptions(TranslationOptions options) {
+    final safe = TranslationOptions(
+      style: options.style,
+      formality: options.formality,
+      readingLevel: options.readingLevel,
+      speakerGender: options.speakerGender,
+      addresseeGender: options.addresseeGender,
+      context: _cut(options.context.trim(), maxContextLength),
+      preserveFormatting: options.preserveFormatting,
+      formalityContext: _cut(options.formalityContext.trim(), maxContextLength),
+    );
+    return safe.isDefault ? null : safe;
   }
 
   /// [text] cut to [maxTextLength] UTF-16 units without splitting a
   /// surrogate pair.
-  static String? capText(String? text) {
-    if (text == null || text.length <= maxTextLength) return text;
-    var end = maxTextLength;
+  static String? capText(String? text) =>
+      text == null ? null : _cut(text, maxTextLength);
+
+  static String _cut(String text, int length) {
+    if (text.length <= length) return text;
+    var end = length;
     final last = text.codeUnitAt(end - 1);
     if (last >= 0xD800 && last <= 0xDBFF) end--;
     return text.substring(0, end);
@@ -66,7 +131,48 @@ class TranslateLink extends Equatable {
   /// are applied: free-form AI targets such as `Pirate speak` are ignored.
   final String? to;
 
+  /// Translation options the link asks for (already sanitized, see
+  /// [sanitizeOptions]); only the values that differ from the defaults are
+  /// applied ([mergeOptions]). Null when the link sets none.
+  final TranslationOptions? options;
+
+  /// Speed/quality preference (`quality=fast|standard|best`), kept for the
+  /// translate screen to honour; null when absent or unknown.
+  final TranslateLinkQuality? quality;
+
   bool get hasText => text != null && text!.trim().isNotEmpty;
+
+  /// [current] with every option this link sets to a non-default value
+  /// replaced by the link's value. The user's glossary and anything the
+  /// link leaves at its default are kept; refinement instructions are
+  /// dropped. Returns [current] (without instructions) when the link has no
+  /// [options].
+  TranslationOptions mergeOptions(TranslationOptions current) {
+    final linked = options;
+    final base = current.copyWith(instructions: '');
+    if (linked == null) return base;
+    const defaults = TranslationOptions();
+    T? changed<T>(T value, T fallback) => value == fallback ? null : value;
+    return base.copyWith(
+      style: changed(linked.style, defaults.style),
+      formality: changed(linked.formality, defaults.formality),
+      readingLevel: changed(linked.readingLevel, defaults.readingLevel),
+      speakerGender: changed(linked.speakerGender, defaults.speakerGender),
+      addresseeGender: changed(
+        linked.addresseeGender,
+        defaults.addresseeGender,
+      ),
+      context: changed(linked.context, defaults.context),
+      preserveFormatting: changed(
+        linked.preserveFormatting,
+        defaults.preserveFormatting,
+      ),
+      formalityContext: changed(
+        linked.formalityContext,
+        defaults.formalityContext,
+      ),
+    );
+  }
 
   /// Applies this link to [cubit]: waits (up to [timeout]) for the engines
   /// to finish loading, then hands the text and the matching languages to
@@ -77,13 +183,21 @@ class TranslateLink extends Equatable {
   /// unknown values (including free-form AI targets such as
   /// `Pirate speak`) are ignored, so a link cannot smuggle instructions
   /// into a prompt. The text is cut to [maxTextLength].
+  ///
+  /// [options] that change the current ones are applied first with
+  /// [TranslateCubit.setOptions]. That re-translates the input right away
+  /// on AI engines, so the input is taken out meanwhile (and put back
+  /// afterwards when the link has no text of its own): changing options
+  /// never starts a paid request either.
   Future<void> applyTo(
     TranslateCubit cubit, {
     Duration timeout = const Duration(seconds: 20),
   }) async {
-    final state = await waitForEngines(cubit, timeout: timeout);
-    if (state == null || cubit.isClosed) return;
+    final loaded = await waitForEngines(cubit, timeout: timeout);
+    if (loaded == null || cubit.isClosed) return;
 
+    final cleared = _applyOptions(cubit);
+    final state = cubit.state;
     final from = this.from;
     final source = from == null
         ? null
@@ -96,11 +210,15 @@ class TranslateLink extends Equatable {
     final usableSource = source == null || source.isCustom ? null : source;
 
     if (hasText) {
+      final text = capText(this.text)!;
       cubit.setExternalInput(
-        capText(text)!,
+        text,
         source: usableSource == state.source ? null : usableSource,
         target: usableTarget == state.target ? null : usableTarget,
       );
+      // The same text arrived from outside moments ago and was ignored as
+      // a repeat: put it back instead of leaving the input empty.
+      if (cleared && cubit.state.input.isEmpty) cubit.setInput(text);
       return;
     }
     // Languages only: select them. Like any external input, the current
@@ -115,8 +233,28 @@ class TranslateLink extends Equatable {
     }
   }
 
+  /// Applies [options] (see [applyTo]); returns whether the input was
+  /// cleared and still is (a link with text puts its own text in).
+  bool _applyOptions(TranslateCubit cubit) {
+    if (options == null) return false;
+    final state = cubit.state;
+    final merged = mergeOptions(state.options);
+    if (merged == state.options) return false;
+    final input = state.input;
+    if (!state.isAiEngine || input.trim().isEmpty) {
+      cubit.setOptions(merged);
+      return false;
+    }
+    cubit
+      ..setInput('')
+      ..setOptions(merged);
+    if (hasText) return true;
+    cubit.setInput(input);
+    return false;
+  }
+
   @override
-  List<Object?> get props => [text, from, to];
+  List<Object?> get props => [text, from, to, options, quality];
 }
 
 /// Completes with the first state of [cubit] whose engines finished loading

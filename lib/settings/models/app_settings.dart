@@ -1,6 +1,38 @@
 import 'package:equatable/equatable.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/settings/models/language_pair.dart';
 import 'package:translation_repository/translation_repository.dart';
+
+export 'language_pair.dart';
+
+/// How long non-favourite history entries are kept before they are
+/// deleted automatically. Favourites are always kept.
+enum HistoryRetention {
+  forever(null),
+  day(Duration(days: 1)),
+  week(Duration(days: 7)),
+  month(Duration(days: 30));
+
+  new(this.maxAge);
+
+  /// Maximum age of a non-favourite history entry; null keeps entries
+  /// forever.
+  final Duration? maxAge;
+}
+
+/// Which engine translates: the normal selection ([off]), the engine
+/// picked as "Fast" ([AppSettings.fastEngineId]) or the one picked as
+/// "Best" ([AppSettings.bestEngineId]), like Kagi's Standard / Best modes.
+enum QualityMode {
+  /// Quality modes are not used: [AppSettings.engineId] translates.
+  off,
+
+  /// The quick (cheap) engine, e.g. a Mozhi engine.
+  fast,
+
+  /// The strongest engine, e.g. the best AI model.
+  best,
+}
 
 /// Everything the user can configure. Persisted as JSON by
 /// `SettingsRepository` (API keys are stored separately, see there).
@@ -25,6 +57,11 @@ class AppSettings extends Equatable {
     this.pinnedLanguages = const [],
     this.compareEngineIds = const [],
     this.onboardingComplete = false,
+    this.historyRetention = HistoryRetention.forever,
+    this.fastEngineId,
+    this.bestEngineId,
+    this.qualityMode = QualityMode.off,
+    this.recentPairs = const [],
   });
 
   /// Tolerant counterpart of [toJson]: missing or invalid fields fall back to
@@ -70,6 +107,17 @@ class AppSettings extends Equatable {
       },
       onboardingComplete:
           _bool(json['onboardingComplete']) ?? defaults.onboardingComplete,
+      historyRetention:
+          HistoryRetention.values.asNameMap()[json['historyRetention']] ??
+          defaults.historyRetention,
+      fastEngineId: _string(json['fastEngineId']),
+      bestEngineId: _string(json['bestEngineId']),
+      qualityMode:
+          QualityMode.values.asNameMap()[json['qualityMode']] ??
+          defaults.qualityMode,
+      recentPairs:
+          _list(json['recentPairs'], LanguagePair.fromJson) ??
+          defaults.recentPairs,
     );
   }
 
@@ -122,9 +170,25 @@ class AppSettings extends Equatable {
   final List<String> compareEngineIds;
   final bool onboardingComplete;
 
+  /// How long non-favourite history entries are kept.
+  final HistoryRetention historyRetention;
+
+  /// Engine id used in [QualityMode.fast]; null = not chosen yet.
+  final String? fastEngineId;
+
+  /// Engine id used in [QualityMode.best]; null = not chosen yet.
+  final String? bestEngineId;
+
+  /// The remembered quality mode of the translate screen.
+  final QualityMode qualityMode;
+
+  /// Recently used language pairs, most recent first, without duplicates
+  /// (at most `SettingsCubit.maxRecentPairs`).
+  final List<LanguagePair> recentPairs;
+
   /// Returns a copy with the given fields replaced. The nullable
-  /// [engineId] / [assistEngineId] take closures so they can be reset to
-  /// null: `copyWith(engineId: () => null)`.
+  /// [engineId] / [assistEngineId] / [fastEngineId] / [bestEngineId] take
+  /// closures so they can be reset to null: `copyWith(engineId: () => null)`.
   AppSettings copyWith({
     ThemeMode? themeMode,
     bool? dynamicColor,
@@ -145,6 +209,11 @@ class AppSettings extends Equatable {
     List<Language>? pinnedLanguages,
     List<String>? compareEngineIds,
     bool? onboardingComplete,
+    HistoryRetention? historyRetention,
+    String? Function()? fastEngineId,
+    String? Function()? bestEngineId,
+    QualityMode? qualityMode,
+    List<LanguagePair>? recentPairs,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
@@ -168,6 +237,11 @@ class AppSettings extends Equatable {
       pinnedLanguages: pinnedLanguages ?? this.pinnedLanguages,
       compareEngineIds: compareEngineIds ?? this.compareEngineIds,
       onboardingComplete: onboardingComplete ?? this.onboardingComplete,
+      historyRetention: historyRetention ?? this.historyRetention,
+      fastEngineId: fastEngineId != null ? fastEngineId() : this.fastEngineId,
+      bestEngineId: bestEngineId != null ? bestEngineId() : this.bestEngineId,
+      qualityMode: qualityMode ?? this.qualityMode,
+      recentPairs: recentPairs ?? this.recentPairs,
     );
   }
 
@@ -202,6 +276,11 @@ class AppSettings extends Equatable {
       ],
       'compareEngineIds': compareEngineIds,
       'onboardingComplete': onboardingComplete,
+      'historyRetention': historyRetention.name,
+      'fastEngineId': fastEngineId,
+      'bestEngineId': bestEngineId,
+      'qualityMode': qualityMode.name,
+      'recentPairs': [for (final pair in recentPairs) pair.toJson()],
     };
   }
 
@@ -227,6 +306,11 @@ class AppSettings extends Equatable {
     pinnedLanguages,
     compareEngineIds,
     onboardingComplete,
+    historyRetention,
+    fastEngineId,
+    bestEngineId,
+    qualityMode,
+    recentPairs,
   ];
 }
 

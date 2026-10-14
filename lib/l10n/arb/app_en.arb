@@ -4592,5 +4592,229 @@
         "type": "String"
       }
     }
+  },
+  "settingsHistoryRetention": "Delete history automatically",
+  "@settingsHistoryRetention": {
+    "description": "settingsHistoryRetention"
+  },
+  "settingsHistoryRetentionNever": "Never",
+  "@settingsHistoryRetentionNever": {
+    "description": "settingsHistoryRetentionNever"
+  },
+  "settingsHistoryRetentionDays": "{days, plural, =1{After 1 day} other{After {days} days}}",
+  "@settingsHistoryRetentionDays": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsHistoryRetentionDialogBody": "Translations older than this are deleted from this device. Starred translations are always kept.",
+  "@settingsHistoryRetentionDialogBody": {
+    "description": "settingsHistoryRetentionDialogBody"
+  },
+  "historyRetentionNote": "{days, plural, =1{Translations older than 1 day are deleted automatically. Starred ones are kept.} other{Translations older than {days} days are deleted automatically. Starred ones are kept.}}",
+  "@historyRetentionNote": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsQualityTitle": "Quality modes",
+  "@settingsQualityTitle": {
+    "description": "settingsQualityTitle"
+  },
+  "settingsQualitySubtitle": "Choose a fast engine and a best engine",
+  "@settingsQualitySubtitle": {
+    "description": "settingsQualitySubtitle"
+  },
+  "settingsQualityIntro": "Switch between a quick engine for everyday text and your strongest engine when quality matters. The translate screen remembers the mode you used last.",
+  "@settingsQualityIntro": {
+    "description": "settingsQualityIntro"
+  },
+  "settingsQualityFast": "Fast",
+  "@settingsQualityFast": {
+    "description": "settingsQualityFast"
+  },
+  "settingsQualityFastDescription": "Quick and free or cheap, such as a Mozhi engine like Google or DeepL.",
+  "@settingsQualityFastDescription": {
+    "description": "settingsQualityFastDescription"
+  },
+  "settingsQualityBest": "Best",
+  "@settingsQualityBest": {
+    "description": "settingsQualityBest"
+  },
+  "settingsQualityBestDescription": "The most capable engine for nuanced or important text, such as your strongest AI model.",
+  "@settingsQualityBestDescription": {
+    "description": "settingsQualityBestDescription"
+  },
+  "settingsQualityPickFast": "Fast engine",
+  "@settingsQualityPickFast": {
+    "description": "settingsQualityPickFast"
+  },
+  "settingsQualityPickBest": "Best engine",
+  "@settingsQualityPickBest": {
+    "description": "settingsQualityPickBest"
+  },
+  "settingsQualityNotSet": "Not set",
+  "@settingsQualityNotSet": {
+    "description": "settingsQualityNotSet"
+  },
+  "settingsQualityChoose": "Tap to choose an engine",
+  "@settingsQualityChoose": {
+    "description": "settingsQualityChoose"
+  },
+  "settingsQualityNone": "None",
+  "@settingsQualityNone": {
+    "description": "settingsQualityNone"
+  },
+  "settingsQualityUnavailable": "Not available right now",
+  "@settingsQualityUnavailable": {
+    "description": "settingsQualityUnavailable"
+  },
+  "settingsQualityLoading": "Loading engines",
+  "@settingsQualityLoading": {
+    "description": "settingsQualityLoading"
+  },
+  "settingsQualityLoadFailed": "Couldn’t load the engines. Check your Mozhi instances and AI providers.",
+  "@settingsQualityLoadFailed": {
+    "description": "settingsQualityLoadFailed"
+  },
+  "settingsQualityNoEngines": "No engines available. Add a Mozhi instance or an AI provider first.",
+  "@settingsQualityNoEngines": {
+    "description": "settingsQualityNoEngines"
+  },
+  "settingsQualityBestNoAi": "Add an AI provider to use your strongest model as Best.",
+  "@settingsQualityBestNoAi": {
+    "description": "settingsQualityBestNoAi"
+  },
+  "settingsClearRecentPairs": "Clear recent language pairs",
+  "@settingsClearRecentPairs": {
+    "description": "settingsClearRecentPairs"
+  },
+  "settingsRecentPairsSummary": "{count, plural, =0{No recent language pairs} =1{1 recent language pair} other{{count} recent language pairs}}",
+  "@settingsRecentPairsSummary": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsRecentPairsCleared": "Recent language pairs cleared",
+  "@settingsRecentPairsCleared": {
+    "description": "settingsRecentPairsCleared"
+  },
+  "settingsProvidersWebNote": "In the browser, API keys are kept only for this session: they are forgotten when you close the tab.",
+  "@settingsProvidersWebNote": {
+    "description": "settingsProvidersWebNote"
+  },
+  "dictionaryTitle": "Dictionary",
+  "@dictionaryTitle": {
+    "description": "dictionaryTitle"
+  },
+  "dictionarySearchHint": "Look up a word or phrase",
+  "@dictionarySearchHint": {
+    "description": "dictionarySearchHint"
+  },
+  "dictionaryLookUp": "Look up",
+  "@dictionaryLookUp": {
+    "description": "dictionaryLookUp"
+  },
+  "dictionarySourceLanguage": "Language of the word: {language}",
+  "@dictionarySourceLanguage": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "dictionaryTargetLanguage": "Translations in: {language}",
+  "@dictionaryTargetLanguage": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "dictionarySwapLanguages": "Swap languages",
+  "@dictionarySwapLanguages": {
+    "description": "dictionarySwapLanguages"
+  },
+  "dictionaryDetectLanguage": "Detect language",
+  "@dictionaryDetectLanguage": {
+    "description": "dictionaryDetectLanguage"
+  },
+  "dictionaryPickSourceTitle": "Language of the word",
+  "@dictionaryPickSourceTitle": {
+    "description": "dictionaryPickSourceTitle"
+  },
+  "dictionaryPickTargetTitle": "Translations in",
+  "@dictionaryPickTargetTitle": {
+    "description": "dictionaryPickTargetTitle"
+  },
+  "dictionaryPickerSearchHint": "Search languages",
+  "@dictionaryPickerSearchHint": {
+    "description": "dictionaryPickerSearchHint"
+  },
+  "dictionaryPickerNoMatches": "No languages found",
+  "@dictionaryPickerNoMatches": {
+    "description": "dictionaryPickerNoMatches"
+  },
+  "dictionaryEmptyTitle": "Look up any word",
+  "@dictionaryEmptyTitle": {
+    "description": "dictionaryEmptyTitle"
+  },
+  "dictionaryEmptyBody": "See definitions, pronunciation, examples and translations, written by your AI provider.",
+  "@dictionaryEmptyBody": {
+    "description": "dictionaryEmptyBody"
+  },
+  "dictionaryNoEngineTitle": "The dictionary needs an AI provider",
+  "@dictionaryNoEngineTitle": {
+    "description": "dictionaryNoEngineTitle"
+  },
+  "dictionaryNoEngineBody": "Add an OpenAI-compatible, Anthropic, Gemini or Ollama provider, including a local model, to look up words.",
+  "@dictionaryNoEngineBody": {
+    "description": "dictionaryNoEngineBody"
+  },
+  "dictionaryNoEngineAction": "Set up AI providers",
+  "@dictionaryNoEngineAction": {
+    "description": "dictionaryNoEngineAction"
+  },
+  "dictionaryEnginesErrorTitle": "Couldn't load your AI providers",
+  "@dictionaryEnginesErrorTitle": {
+    "description": "dictionaryEnginesErrorTitle"
+  },
+  "dictionaryEnginesErrorBody": "Check your connection and try again.",
+  "@dictionaryEnginesErrorBody": {
+    "description": "dictionaryEnginesErrorBody"
+  },
+  "dictionaryLoading": "Looking up…",
+  "@dictionaryLoading": {
+    "description": "dictionaryLoading"
+  },
+  "dictionaryNotFound": "No dictionary entry found for “{word}”.",
+  "@dictionaryNotFound": {
+    "placeholders": {
+      "word": {
+        "type": "String"
+      }
+    }
+  },
+  "dictionaryEngine": "Answers by {engine}",
+  "@dictionaryEngine": {
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "dictionaryReady": "Dictionary entry ready",
+  "@dictionaryReady": {
+    "description": "dictionaryReady"
+  },
+  "dictionaryBack": "Back to Translate",
+  "@dictionaryBack": {
+    "description": "dictionaryBack"
   }
 }

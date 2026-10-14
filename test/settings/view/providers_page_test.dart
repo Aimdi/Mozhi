@@ -61,11 +61,12 @@ void main() {
       AppSettings? state,
       Size size = const Size(800, 1400),
       double textScale = 1,
+      bool isWeb = false,
     }) async {
       if (state != null) when(() => settings.state).thenReturn(state);
       tester.setScreenSize(size);
       await tester.pumpView(
-        const ProvidersPage(),
+        ProvidersPage(isWeb: isWeb),
         settings: settings,
         router: router,
         textScale: textScale,
@@ -233,6 +234,42 @@ void main() {
       verifyNever(
         () => router.push<Object?>(any(), extra: any(named: 'extra')),
       );
+    });
+
+    group('web', () {
+      const webNote =
+          'In the browser, API keys are kept only for this session: they are '
+          'forgotten when you close the tab.';
+      const footer =
+          'API keys are kept in secure storage on this device and are only '
+          'sent to the provider you configure.';
+
+      testWidgets('says that API keys are session-only', (tester) async {
+        await pump(tester, isWeb: true);
+        expect(find.text(webNote), findsOneWidget);
+        expect(find.text(footer), findsNothing);
+      });
+
+      testWidgets('says it in the empty state too', (tester) async {
+        await pump(tester, state: const AppSettings(), isWeb: true);
+        expect(find.text(webNote), findsOneWidget);
+      });
+
+      testWidgets('keeps the secure storage footer elsewhere', (tester) async {
+        await pump(tester);
+        expect(find.text(webNote), findsNothing);
+        expect(find.text(footer), findsOneWidget);
+      });
+
+      testWidgets('shows no note in the empty state elsewhere', (tester) async {
+        await pump(tester, state: const AppSettings());
+        expect(find.text(webNote), findsNothing);
+      });
+
+      test('defaults to the platform', () {
+        expect(const ProvidersPage().isWeb, isFalse);
+        expect(const ProvidersView().isWeb, isFalse);
+      });
     });
 
     group('empty state', () {

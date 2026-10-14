@@ -76,7 +76,8 @@
                 <data android:mimeType="text/plain"/>
             </intent-filter>
             <!-- Deep links: mozhi://<screen>[/<path>][?<query>] opens /<screen>…,
-                 e.g. mozhi://translate?text=hola&from=es&to=en or mozhi://image.
+                 e.g. mozhi://translate?text=hola&from=es&to=en, mozhi://image,
+                 mozhi://proofread?text=… or mozhi://dictionary?word=gato&from=es.
                  The <data> elements of one filter combine, so this matches
                  scheme "mozhi" with any of the listed hosts. -->
             <intent-filter>
@@ -90,6 +91,7 @@
                 <data android:host="proofread"/>
                 <data android:host="documents"/>
                 <data android:host="web"/>
+                <data android:host="dictionary"/>
             </intent-filter>
         </activity>
         <!-- Quick Settings tile "Translate": opens Mozhi and translates the

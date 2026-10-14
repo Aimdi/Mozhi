@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -8,11 +9,16 @@ import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Lists the configured AI providers and machine translation services.
+///
+/// On the web ([isWeb]) it says that API keys only last for the browser
+/// session (they are kept in `sessionStorage`).
 class ProvidersPage extends StatelessWidget {
-  const new({super.key});
+  const new({super.key, this.isWeb = kIsWeb});
+
+  final bool isWeb;
 
   @override
-  Widget build(BuildContext context) => const ProvidersView();
+  Widget build(BuildContext context) => ProvidersView(isWeb: isWeb);
 }
 
 /// Location of the provider editor for [providerId] or [presetId].
@@ -22,7 +28,10 @@ String providerEditorLocation({String? providerId, String? presetId}) => Uri(
 ).toString();
 
 class ProvidersView extends StatelessWidget {
-  const new({super.key});
+  const new({super.key, this.isWeb = kIsWeb});
+
+  /// Whether the app runs in a browser, where API keys are session-only.
+  final bool isWeb;
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +54,16 @@ class ProvidersView extends StatelessWidget {
           if (providers.isEmpty) {
             return SingleChildScrollView(
               padding: padding,
-              child: const _EmptyState(),
+              child: Column(
+                children: [
+                  const _EmptyState(),
+                  if (isWeb)
+                    _FooterNote(
+                      icon: Icons.schedule_outlined,
+                      text: l10n.settingsProvidersWebNote,
+                    ),
+                ],
+              ),
             );
           }
           return ListView(
@@ -53,31 +71,49 @@ class ProvidersView extends StatelessWidget {
             children: [
               for (final provider in providers)
                 _ProviderTile(key: ValueKey(provider.id), provider: provider),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      Icons.lock_outline,
-                      size: 18,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        l10n.settingsProvidersFooter,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                  ],
+              if (isWeb)
+                _FooterNote(
+                  icon: Icons.schedule_outlined,
+                  text: l10n.settingsProvidersWebNote,
+                )
+              else
+                _FooterNote(
+                  icon: Icons.lock_outline,
+                  text: l10n.settingsProvidersFooter,
                 ),
-              ),
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+/// A small note below the providers.
+class _FooterNote extends StatelessWidget {
+  const new({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.onSurfaceVariant;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              text,
+              style: theme.textTheme.bodySmall?.copyWith(color: color),
+            ),
+          ),
+        ],
       ),
     );
   }

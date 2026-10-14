@@ -28,6 +28,7 @@ void main() {
 
   setUpAll(() {
     registerFallbackValue(_entry('fallback'));
+    registerFallbackValue(Duration.zero);
   });
 
   setUp(() {
@@ -214,6 +215,101 @@ void main() {
           await add;
         },
         expect: () => <HistoryState>[],
+      );
+    });
+
+    group('retention', () {
+      const week = Duration(days: 7);
+
+      HistoryCubit buildRetaining() =>
+          HistoryCubit(repository: repository, maxAge: week);
+
+      blocTest<HistoryCubit, HistoryState>(
+        'load applies the initial maxAge',
+        setUp: () =>
+            when(() => repository.load(maxAge: week))
+                .thenAnswer((_) async => [one]),
+        build: buildRetaining,
+        act: (cubit) => cubit.load(),
+        expect: () => [
+          const HistoryState(status: HistoryStatus.loading),
+          ready([one]),
+        ],
+      );
+
+      blocTest<HistoryCubit, HistoryState>(
+        'add applies the maxAge',
+        setUp: () =>
+            when(() => repository.add(two, maxAge: week))
+                .thenAnswer((_) async => [two]),
+        build: buildRetaining,
+        seed: () => ready([one]),
+        act: (cubit) => cubit.add(two),
+        expect: () => [
+          ready([two]),
+        ],
+      );
+
+      blocTest<HistoryCubit, HistoryState>(
+        'importJson applies the maxAge',
+        setUp: () =>
+            when(() => repository.importJson('json', maxAge: week))
+                .thenAnswer((_) async => [two]),
+        build: buildRetaining,
+        act: (cubit) => cubit.importJson('json'),
+        expect: () => [
+          ready([two]),
+        ],
+      );
+
+      blocTest<HistoryCubit, HistoryState>(
+        'applyRetention prunes right away and applies to later additions',
+        setUp: () {
+          when(() => repository.prune(week)).thenAnswer((_) async => [two]);
+          when(() => repository.add(one, maxAge: week))
+              .thenAnswer((_) async => [one, two]);
+        },
+        build: buildCubit,
+        seed: () => ready([two, _entry('old')]),
+        act: (cubit) async {
+          await cubit.applyRetention(week);
+          await cubit.add(one);
+        },
+        expect: () => [
+          ready([two]),
+          ready([one, two]),
+        ],
+      );
+
+      blocTest<HistoryCubit, HistoryState>(
+        'applyRetention(null) keeps everything without touching storage',
+        setUp: () =>
+            when(() => repository.add(two)).thenAnswer((_) async => [two, one]),
+        build: buildRetaining,
+        seed: () => ready([one]),
+        act: (cubit) async {
+          await cubit.applyRetention(null);
+          await cubit.add(two);
+        },
+        expect: () => [
+          ready([two, one]),
+        ],
+        verify: (_) {
+          verifyNever(() => repository.prune(any()));
+          verify(() => repository.add(two)).called(1);
+        },
+      );
+
+      blocTest<HistoryCubit, HistoryState>(
+        'applyRetention reports storage errors and keeps the state',
+        setUp: () =>
+            when(() => repository.prune(week))
+                .thenThrow(StateError('disk full')),
+        build: buildCubit,
+        seed: () => ready([one]),
+        act: (cubit) => cubit.applyRetention(week),
+        expect: () => const <HistoryState>[],
+        errors: () => [isA<StateError>()],
       );
     });
 

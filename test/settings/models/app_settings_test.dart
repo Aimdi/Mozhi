@@ -42,6 +42,14 @@ const _custom = AppSettings(
   pinnedLanguages: [_french],
   compareEngineIds: ['mozhi:google', 'ai:p1'],
   onboardingComplete: true,
+  historyRetention: HistoryRetention.week,
+  fastEngineId: 'mozhi:google',
+  bestEngineId: 'ai:p1',
+  qualityMode: QualityMode.best,
+  recentPairs: [
+    LanguagePair(source: Language.auto, target: _french),
+    LanguagePair(source: _french, target: _pirate),
+  ],
 );
 
 void main() {
@@ -68,6 +76,11 @@ void main() {
       expect(settings.pinnedLanguages, isEmpty);
       expect(settings.compareEngineIds, isEmpty);
       expect(settings.onboardingComplete, isFalse);
+      expect(settings.historyRetention, HistoryRetention.forever);
+      expect(settings.fastEngineId, isNull);
+      expect(settings.bestEngineId, isNull);
+      expect(settings.qualityMode, QualityMode.off);
+      expect(settings.recentPairs, isEmpty);
     });
 
     test('supports value equality', () {
@@ -86,6 +99,15 @@ void main() {
         labelled,
         isNot(equals(const AppSettings(instances: [_instance]))),
       );
+    });
+
+    group(HistoryRetention, () {
+      test('maps to the maximum age of history entries', () {
+        expect(HistoryRetention.forever.maxAge, isNull);
+        expect(HistoryRetention.day.maxAge, const Duration(days: 1));
+        expect(HistoryRetention.week.maxAge, const Duration(days: 7));
+        expect(HistoryRetention.month.maxAge, const Duration(days: 30));
+      });
     });
 
     group('copyWith', () {
@@ -114,6 +136,11 @@ void main() {
           pinnedLanguages: _custom.pinnedLanguages,
           compareEngineIds: _custom.compareEngineIds,
           onboardingComplete: _custom.onboardingComplete,
+          historyRetention: _custom.historyRetention,
+          fastEngineId: () => _custom.fastEngineId,
+          bestEngineId: () => _custom.bestEngineId,
+          qualityMode: _custom.qualityMode,
+          recentPairs: _custom.recentPairs,
         );
 
         expect(copy, equals(_custom));
@@ -123,10 +150,21 @@ void main() {
         final copy = _custom.copyWith(
           engineId: () => null,
           assistEngineId: () => null,
+          fastEngineId: () => null,
+          bestEngineId: () => null,
         );
 
         expect(copy.engineId, isNull);
         expect(copy.assistEngineId, isNull);
+        expect(copy.fastEngineId, isNull);
+        expect(copy.bestEngineId, isNull);
+      });
+
+      test('keeps the quality engine ids when not given', () {
+        final copy = _custom.copyWith(engineId: () => null);
+
+        expect(copy.fastEngineId, 'mozhi:google');
+        expect(copy.bestEngineId, 'ai:p1');
       });
     });
 
@@ -161,6 +199,26 @@ void main() {
 
         expect(json['engineId'], isNull);
         expect(json['assistEngineId'], isNull);
+        expect(json['fastEngineId'], isNull);
+        expect(json['bestEngineId'], isNull);
+      });
+
+      test('stores the retention and quality mode by name', () {
+        final json = _custom.toJson();
+
+        expect(json['historyRetention'], 'week');
+        expect(json['qualityMode'], 'best');
+        expect(json['fastEngineId'], 'mozhi:google');
+        expect(json['bestEngineId'], 'ai:p1');
+      });
+
+      test('stores the recent pairs in order', () {
+        final json = _custom.toJson();
+
+        expect(json['recentPairs'], [
+          {'source': Language.auto.toJson(), 'target': _french.toJson()},
+          {'source': _french.toJson(), 'target': _pirate.toJson()},
+        ]);
       });
     });
 
@@ -206,9 +264,46 @@ void main() {
           'pinnedLanguages': false,
           'compareEngineIds': 'all',
           'onboardingComplete': 'done',
+          'historyRetention': 'year',
+          'fastEngineId': 7,
+          'bestEngineId': '',
+          'qualityMode': true,
+          'recentPairs': {'source': 'fr'},
         });
 
         expect(settings, equals(const AppSettings()));
+      });
+
+      test('loads settings stored before retention, quality modes and '
+          'recent pairs existed', () {
+        final json = _custom.toJson()
+          ..remove('historyRetention')
+          ..remove('fastEngineId')
+          ..remove('bestEngineId')
+          ..remove('qualityMode')
+          ..remove('recentPairs');
+
+        final settings = AppSettings.fromJson(json);
+
+        expect(settings.historyRetention, HistoryRetention.forever);
+        expect(settings.fastEngineId, isNull);
+        expect(settings.bestEngineId, isNull);
+        expect(settings.qualityMode, QualityMode.off);
+        expect(settings.recentPairs, isEmpty);
+        expect(settings.engineId, 'ai:p1');
+      });
+
+      test('reads every retention and quality mode by name', () {
+        for (final retention in HistoryRetention.values) {
+          final settings = AppSettings.fromJson({
+            'historyRetention': retention.name,
+          });
+          expect(settings.historyRetention, retention);
+        }
+        for (final mode in QualityMode.values) {
+          final settings = AppSettings.fromJson({'qualityMode': mode.name});
+          expect(settings.qualityMode, mode);
+        }
       });
 
       test('skips invalid list elements', () {
@@ -229,6 +324,12 @@ void main() {
           ],
           'pinnedLanguages': [_pirate.toJson(), 7],
           'compareEngineIds': const ['mozhi:google', 3, null, 'ai:p1'],
+          'recentPairs': [
+            {'source': _french.toJson()},
+            const {'source': 'fr', 'target': 'de'},
+            const LanguagePair(source: _french, target: _pirate).toJson(),
+            'fr-de',
+          ],
         });
 
         expect(settings.instances, [_instance]);
@@ -236,6 +337,9 @@ void main() {
         expect(settings.recentLanguages, [_french]);
         expect(settings.pinnedLanguages, [_pirate]);
         expect(settings.compareEngineIds, ['mozhi:google', 'ai:p1']);
+        expect(settings.recentPairs, [
+          const LanguagePair(source: _french, target: _pirate),
+        ]);
       });
 
       test('keeps an explicitly empty instance list', () {

@@ -90,6 +90,9 @@ class _HistoryViewState extends State<HistoryView> {
     final saveHistory = context.select<SettingsCubit, bool>(
       (cubit) => cubit.state.saveHistory,
     );
+    final maxAge = context.select<SettingsCubit, Duration?>(
+      (cubit) => cubit.state.historyRetention.maxAge,
+    );
     final visible =
         state.visible.where((e) => !_dismissed.contains(e.id)).toList()
           ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -170,6 +173,7 @@ class _HistoryViewState extends State<HistoryView> {
                           ),
                         ],
                       ),
+                      if (maxAge != null) _RetentionNote(days: maxAge.inDays),
                     ],
                   ),
                 ),
@@ -311,6 +315,35 @@ class _HistoryViewState extends State<HistoryView> {
         ? DateFormat.MMMMEEEEd(l10n.localeName)
         : DateFormat.yMMMMEEEEd(l10n.localeName);
     return format.format(day);
+  }
+}
+
+/// Says that old entries are deleted automatically (history retention).
+class _RetentionNote extends StatelessWidget {
+  const new({required this.days});
+
+  final int days;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.onSurfaceVariant;
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(4, 12, 4, 0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.auto_delete_outlined, size: 18, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              context.l10n.historyRetentionNote(days),
+              style: theme.textTheme.bodySmall?.copyWith(color: color),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

@@ -560,6 +560,156 @@ void main() {
       });
     });
 
+    group('quality modes', () {
+      testWidgets('opens the quality modes page', (tester) async {
+        await pump(tester);
+        await tester.ensureVisible(find.text('Quality modes'));
+        await tester.tap(find.text('Quality modes'));
+        verify(
+          () => router.push<Object?>(
+            '/settings/quality',
+            extra: any(named: 'extra'),
+          ),
+        ).called(1);
+      });
+
+      testWidgets('lives in the translation section', (tester) async {
+        await pump(tester);
+        expect(
+          find.descendant(
+            of: find.ancestor(
+              of: find.text('Translation'),
+              matching: find.byType(SettingsSection),
+            ),
+            matching: find.text('Quality modes'),
+          ),
+          findsOne,
+        );
+      });
+    });
+
+    group('history retention', () {
+      Future<void> openPicker(WidgetTester tester) async {
+        await tester.ensureVisible(find.text('Delete history automatically'));
+        await tester.tap(find.text('Delete history automatically'));
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets('lives in the data section and shows the retention', (
+        tester,
+      ) async {
+        await pump(
+          tester,
+          state: const AppSettings(historyRetention: HistoryRetention.week),
+        );
+        expect(
+          find.descendant(
+            of: find.ancestor(
+              of: find.text('Data'),
+              matching: find.byType(SettingsSection),
+            ),
+            matching: find.text('Delete history automatically'),
+          ),
+          findsOne,
+        );
+        expect(find.text('After 7 days'), findsOneWidget);
+      });
+
+      testWidgets('shows "Never" by default', (tester) async {
+        await pump(tester);
+        expect(find.text('Never'), findsOneWidget);
+      });
+
+      testWidgets('picks a retention', (tester) async {
+        await pump(tester);
+        await openPicker(tester);
+        expect(find.byType(AlertDialog), findsOneWidget);
+        expect(
+          find.text(
+            'Translations older than this are deleted from this device. '
+            'Starred translations are always kept.',
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('After 1 day'), findsOneWidget);
+        expect(find.text('After 7 days'), findsOneWidget);
+        await tester.tap(find.text('After 30 days'));
+        await tester.pumpAndSettle();
+        expect(find.byType(AlertDialog), findsNothing);
+        verify(() => settings.setHistoryRetention(HistoryRetention.month))
+            .called(1);
+      });
+
+      testWidgets('picking the current retention changes nothing', (
+        tester,
+      ) async {
+        await pump(
+          tester,
+          state: const AppSettings(historyRetention: HistoryRetention.day),
+        );
+        await openPicker(tester);
+        await tester.tap(find.text('After 1 day').last);
+        await tester.pumpAndSettle();
+        verifyNever(() => settings.setHistoryRetention(any()));
+      });
+
+      testWidgets('cancel keeps the retention', (tester) async {
+        await pump(tester);
+        await openPicker(tester);
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+        verifyNever(() => settings.setHistoryRetention(any()));
+      });
+    });
+
+    group('recent language pairs', () {
+      const pairs = [
+        LanguagePair(
+          source: Language.auto,
+          target: Language(code: 'en', name: 'English'),
+        ),
+        LanguagePair(
+          source: Language(code: 'fr', name: 'French'),
+          target: Language(code: 'de', name: 'German'),
+        ),
+      ];
+
+      testWidgets('is disabled without recent pairs', (tester) async {
+        await pump(tester);
+        expect(find.text('No recent language pairs'), findsOneWidget);
+        await tester.ensureVisible(find.text('Clear recent language pairs'));
+        await tester.tap(find.text('Clear recent language pairs'));
+        await tester.pump();
+        verifyNever(settings.clearRecentPairs);
+      });
+
+      testWidgets('clears the recent pairs and can undo it', (tester) async {
+        await pump(tester, state: const AppSettings(recentPairs: pairs));
+        expect(find.text('2 recent language pairs'), findsOneWidget);
+        await tester.ensureVisible(find.text('Clear recent language pairs'));
+        await tester.tap(find.text('Clear recent language pairs'));
+        await tester.pump();
+        verify(settings.clearRecentPairs).called(1);
+        expect(find.text('Recent language pairs cleared'), findsOneWidget);
+
+        await tester.tap(find.text('Undo'));
+        await tester.pump();
+        final change =
+            verify(() => settings.update(captureAny())).captured.single
+                as AppSettings Function(AppSettings);
+        expect(change(const AppSettings()).recentPairs, pairs);
+        // Pairs recorded in the meantime stay first.
+        const newer = LanguagePair(
+          source: Language(code: 'es', name: 'Spanish'),
+          target: Language(code: 'en', name: 'English'),
+        );
+        expect(
+          change(AppSettings(recentPairs: [newer, pairs.first])).recentPairs,
+          [newer, ...pairs],
+        );
+      });
+    });
+
     group('layout', () {
       testWidgets('uses two columns on wide screens', (tester) async {
         await pump(tester, size: const Size(1400, 1600));

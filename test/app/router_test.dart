@@ -8,6 +8,7 @@ import 'package:mozhi/app/router.dart';
 import 'package:mozhi/app/translate_link.dart';
 import 'package:mozhi/app/view/app_shell.dart';
 import 'package:mozhi/conversation/view/conversation_page.dart';
+import 'package:mozhi/dictionary/view/dictionary_page.dart';
 import 'package:mozhi/documents/view/document_translate_page.dart';
 import 'package:mozhi/history/view/history_page.dart';
 import 'package:mozhi/image_translate/models/picked_image.dart';
@@ -72,6 +73,19 @@ void main() {
       );
     });
 
+    test('proofreadText and dictionaryWord build their links', () {
+      expect(AppRoutes.proofreadText(), '/proofread');
+      expect(
+        AppRoutes.proofreadText(text: 'I has a cat'),
+        '/proofread?text=I+has+a+cat',
+      );
+      expect(AppRoutes.dictionaryWord(), '/dictionary');
+      expect(
+        AppRoutes.dictionaryWord(word: 'gato', from: 'es', to: 'en'),
+        '/dictionary?word=gato&from=es&to=en',
+      );
+    });
+
     test('onboarding is outside the settings', () {
       expect(AppRoutes.onboarding, '/onboarding');
     });
@@ -91,6 +105,53 @@ void main() {
       expect(isLaunchLocation(Uri.parse('/history')), isFalse);
       expect(isLaunchLocation(Uri.parse('/image')), isFalse);
       expect(isLaunchLocation(Uri.parse('/onboarding')), isFalse);
+      expect(isLaunchLocation(Uri.parse('mozhi://image')), isFalse);
+      expect(isLaunchLocation(Uri.parse('mozhi://translate/')), isFalse);
+      expect(isLaunchLocation(Uri.parse('mozhi:///translate')), isFalse);
+    });
+  });
+
+  group('deepLinkLocation', () {
+    test('maps the host to the first path segment', () {
+      expect(
+        deepLinkLocation(Uri.parse('mozhi://dictionary?word=gato&from=es')),
+        '/dictionary?word=gato&from=es',
+      );
+      expect(deepLinkLocation(Uri.parse('mozhi://image')), '/image');
+      expect(deepLinkLocation(Uri.parse('mozhi://image/')), '/image');
+      expect(
+        deepLinkLocation(Uri.parse('mozhi://settings/providers/edit?id=p1')),
+        '/settings/providers/edit?id=p1',
+      );
+    });
+
+    test('keeps the percent-encoding of the query', () {
+      expect(
+        deepLinkLocation(Uri.parse('mozhi://proofread?text=I%20has%26a')),
+        '/proofread?text=I%20has%26a',
+      );
+    });
+
+    test('ignores case in the scheme and the screen', () {
+      expect(
+        deepLinkLocation(Uri.parse('MOZHI://Translate?text=Hola')),
+        '/translate?text=Hola',
+      );
+    });
+
+    test('handles links without a host or an empty query', () {
+      expect(
+        deepLinkLocation(Uri.parse('mozhi:///settings/about')),
+        '/settings/about',
+      );
+      expect(deepLinkLocation(Uri.parse('mozhi:')), '/');
+      expect(deepLinkLocation(Uri.parse('mozhi://web?')), '/web');
+    });
+
+    test('ignores other locations', () {
+      expect(deepLinkLocation(Uri.parse('/translate?text=hi')), isNull);
+      expect(deepLinkLocation(Uri.parse('https://mozhi.test/image')), isNull);
+      expect(deepLinkLocation(Uri.parse('intent://translate')), isNull);
     });
   });
 
@@ -135,6 +196,34 @@ void main() {
         redirect('/translate/web?url=https%3A%2F%2Fa.test'),
         '/web?url=https%3A%2F%2Fa.test',
       );
+      expect(links, isEmpty);
+    });
+
+    test('sends deep links to their location first', () {
+      expect(
+        redirect('mozhi://translate?text=hi&to=fr'),
+        '/translate?text=hi&to=fr',
+      );
+      expect(redirect('mozhi://dictionary?word=x'), '/dictionary?word=x');
+      expect(links, isEmpty);
+    });
+
+    test('reports translate links with options', () {
+      expect(
+        redirect('/translate?formality=formal&quality=best'),
+        AppRoutes.translate,
+      );
+      expect(links, const [
+        TranslateLink(
+          options: TranslationOptions(formality: Formality.more),
+          quality: TranslateLinkQuality.best,
+        ),
+      ]);
+    });
+
+    test('leaves proofread and dictionary links alone', () {
+      expect(redirect('/proofread?text=hi'), isNull);
+      expect(redirect('/dictionary?word=hi'), isNull);
       expect(links, isEmpty);
     });
 
@@ -239,6 +328,7 @@ void main() {
       '/documents': DocumentTranslatePage,
       '/web': WebTranslatePage,
       '/conversation': ConversationPage,
+      '/dictionary': DictionaryPage,
     };
     for (final MapEntry(key: path, value: page) in fullScreenPages.entries) {
       testWidgets('builds $path full screen', (tester) async {
@@ -291,6 +381,96 @@ void main() {
         find.byType(WebTranslatePage),
       );
       expect(page.initialUrl, 'https://example.test');
+    });
+
+    testWidgets('passes the dictionary word and languages', (tester) async {
+      await pumpRouter(tester);
+      await go(tester, '/dictionary?word=gato&from=es&to=en');
+
+      final page = tester.widget<DictionaryPage>(find.byType(DictionaryPage));
+      expect(page.word, 'gato');
+      expect(page.from, 'es');
+      expect(page.to, 'en');
+      expect(page.autoLookUp, isFalse);
+    });
+
+    testWidgets('looks up right away only when the app asks', (tester) async {
+      await pumpRouter(tester);
+
+      unawaited(
+        router.push<void>(
+          AppRoutes.dictionaryWord(word: 'gato'),
+          extra: DictionaryLaunch.lookUp,
+        ),
+      );
+      await tester.pump();
+      await tester.pump(_transition);
+
+      var page = tester.widget<DictionaryPage>(find.byType(DictionaryPage));
+      expect(page.word, 'gato');
+      expect(page.autoLookUp, isTrue);
+      expect(find.byType(AppShell, skipOffstage: false), findsOneWidget);
+
+      await go(tester, '/dictionary?word=perro');
+      page = tester.widget<DictionaryPage>(find.byType(DictionaryPage));
+      expect(page.word, 'perro');
+      expect(page.autoLookUp, isFalse);
+    });
+
+    testWidgets('passes proofread link text', (tester) async {
+      await pumpRouter(tester);
+      await go(tester, AppRoutes.proofreadText(text: 'I has a cat'));
+
+      final page = tester.widget<ProofreadPage>(find.byType(ProofreadPage));
+      expect(page.initialText, 'I has a cat');
+      expect(find.byType(AppShell), findsOneWidget);
+    });
+
+    group('deep links', () {
+      testWidgets('open the dictionary', (tester) async {
+        await pumpRouter(tester);
+        await go(tester, 'mozhi://dictionary?word=gato&from=es');
+
+        expect(location(), '/dictionary?word=gato&from=es');
+        final page = tester.widget<DictionaryPage>(find.byType(DictionaryPage));
+        expect(page.word, 'gato');
+        expect(page.from, 'es');
+        expect(page.autoLookUp, isFalse);
+      });
+
+      testWidgets('open proofreading with text', (tester) async {
+        await pumpRouter(tester);
+        await go(tester, 'mozhi://proofread?text=I%20has%20a%20cat');
+
+        expect(Uri.parse(location()).path, AppRoutes.proofread);
+        final page = tester.widget<ProofreadPage>(find.byType(ProofreadPage));
+        expect(page.initialText, 'I has a cat');
+      });
+
+      testWidgets('hand translate links to the callback', (tester) async {
+        await pumpRouter(tester);
+        await go(tester, 'mozhi://translate?text=hola&to=en');
+
+        expect(location(), AppRoutes.translate);
+        expect(links, const [TranslateLink(text: 'hola', to: 'en')]);
+      });
+
+      testWidgets('open other screens', (tester) async {
+        await pumpRouter(tester);
+        await go(tester, 'mozhi://image');
+
+        expect(location(), AppRoutes.image);
+        expect(find.byType(ImageTranslatePage), findsOneWidget);
+      });
+
+      testWidgets('are never sent to the onboarding', (tester) async {
+        onboardingRouter(initialLocation: 'mozhi://image');
+        await pumpRouter(tester);
+        await tester.pump(_transition);
+
+        expect(location(), AppRoutes.image);
+        expect(launches, isEmpty);
+      });
     });
 
     testWidgets('presets open the glossaries', (tester) async {

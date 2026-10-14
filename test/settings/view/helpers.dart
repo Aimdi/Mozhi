@@ -92,7 +92,7 @@ extension PumpView on WidgetTester {
             goRouter: router ?? createRouter(),
             child: MaterialApp(
               theme: theme ?? ThemeData(useMaterial3: true),
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               builder: (context, child) => MediaQuery(
                 data: MediaQuery.of(context)
@@ -122,6 +122,9 @@ void registerFallbacks() {
     ),
   );
   registerFallbackValue(Language.auto);
+  registerFallbackValue(HistoryRetention.forever);
+  registerFallbackValue(QualityMode.off);
+  registerFallbackValue((AppSettings settings) => settings);
   registerFallbackValue(
     HistoryEntry(
       id: 'fallback',

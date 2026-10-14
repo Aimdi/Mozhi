@@ -20,6 +20,9 @@ class SettingsCubit extends Cubit<AppSettings> {
   /// Maximum number of [AppSettings.recentLanguages].
   static const maxRecentLanguages = 8;
 
+  /// Maximum number of [AppSettings.recentPairs].
+  static const maxRecentPairs = 8;
+
   final SettingsRepository _repository;
 
   /// Reloads from storage.
@@ -106,17 +109,22 @@ class SettingsCubit extends Cubit<AppSettings> {
   }
 
   /// Removes the provider and clears every selection that points at its
-  /// engine (`ai:<id>`): [AppSettings.engineId],
-  /// [AppSettings.assistEngineId] and [AppSettings.compareEngineIds].
+  /// engine (`ai:<id>` or `mt:<id>`): [AppSettings.engineId],
+  /// [AppSettings.assistEngineId], [AppSettings.fastEngineId],
+  /// [AppSettings.bestEngineId] and [AppSettings.compareEngineIds].
   void removeProvider(String id) {
-    final engineId = 'ai:$id';
+    final engineIds = {'ai:$id', 'mt:$id'};
+    String? Function()? cleared(String? current) =>
+        engineIds.contains(current) ? () => null : null;
     _apply(
       state.copyWith(
         providers: List.unmodifiable(state.providers.where((p) => p.id != id)),
-        engineId: state.engineId == engineId ? () => null : null,
-        assistEngineId: state.assistEngineId == engineId ? () => null : null,
+        engineId: cleared(state.engineId),
+        assistEngineId: cleared(state.assistEngineId),
+        fastEngineId: cleared(state.fastEngineId),
+        bestEngineId: cleared(state.bestEngineId),
         compareEngineIds: List.unmodifiable(
-          state.compareEngineIds.where((e) => e != engineId),
+          state.compareEngineIds.where((e) => !engineIds.contains(e)),
         ),
       ),
     );
@@ -156,6 +164,23 @@ class SettingsCubit extends Cubit<AppSettings> {
     _apply(state.copyWith(recentLanguages: List.unmodifiable(recents)));
   }
 
+  /// Pushes the pair [source] → [target] to the front of
+  /// [AppSettings.recentPairs] (dedupe, max [maxRecentPairs]). An `auto`
+  /// source is a valid pair; an `auto` target, or a target equal to the
+  /// source, is ignored.
+  void recordPair(Language source, Language target) {
+    if (target.isAuto || source == target) return;
+    final pair = LanguagePair(source: source, target: target);
+    final pairs = [
+      pair,
+      ...state.recentPairs.where((p) => p != pair),
+    ].take(maxRecentPairs);
+    _apply(state.copyWith(recentPairs: List.unmodifiable(pairs)));
+  }
+
+  /// Forgets every recent language pair.
+  void clearRecentPairs() => _apply(state.copyWith(recentPairs: const []));
+
   /// Unpins [language] when pinned, otherwise appends it to the pins.
   void togglePinnedLanguage(Language language) {
     final pinned = state.pinnedLanguages.contains(language)
@@ -178,6 +203,25 @@ class SettingsCubit extends Cubit<AppSettings> {
 
   void setShowTransliteration({required bool enabled}) =>
       _apply(state.copyWith(showTransliteration: enabled));
+
+  /// How long non-favourite history entries are kept. Applying it to the
+  /// stored history is up to whoever listens (see
+  /// `HistoryRetentionListener`).
+  void setHistoryRetention(HistoryRetention retention) =>
+      _apply(state.copyWith(historyRetention: retention));
+
+  // Quality modes (Kagi-style Fast / Best)
+
+  /// Sets the engines of [QualityMode.fast] and [QualityMode.best]. Both are
+  /// replaced: null means "not chosen". Use `state.fastEngineId` /
+  /// `state.bestEngineId` to keep the other one.
+  void setQualityEngines({String? fast, String? best}) => _apply(
+    state.copyWith(fastEngineId: () => fast, bestEngineId: () => best),
+  );
+
+  /// Remembers the quality mode of the translate screen.
+  void setQualityMode(QualityMode mode) =>
+      _apply(state.copyWith(qualityMode: mode));
 
   void setCompareEngines(List<String> engineIds) =>
       _apply(state.copyWith(compareEngineIds: List.unmodifiable(engineIds)));

@@ -7,6 +7,7 @@ import 'package:mozhi/app/translate_link.dart';
 import 'package:mozhi/app/view/app_shell.dart';
 import 'package:mozhi/conversation/view/conversation_page.dart';
 import 'package:mozhi/conversation/widgets/conversation_voice_mic.dart';
+import 'package:mozhi/dictionary/view/dictionary_page.dart';
 import 'package:mozhi/documents/view/document_translate_page.dart';
 import 'package:mozhi/history/view/history_page.dart';
 import 'package:mozhi/image_translate/models/picked_image.dart';
@@ -61,6 +62,13 @@ abstract final class AppRoutes {
   static const web = '/web';
   static const conversation = '/conversation';
 
+  /// The AI dictionary (full screen).
+  static const dictionary = '/dictionary';
+
+  /// Scheme of the app's deep links, `mozhi://<screen>[/<path>][?<query>]`
+  /// (see [deepLinkLocation]).
+  static const deepLinkScheme = 'mozhi';
+
   /// Location of the provider editor: edit [id], or create a new provider
   /// (prefilled from [preset] when given).
   static String editProvider({String? id, String? preset}) =>
@@ -69,6 +77,20 @@ abstract final class AppRoutes {
   /// Kagi-style translate link, e.g. `/translate?text=hola&from=es&to=en`.
   static String translateText({String? text, String? from, String? to}) =>
       _location(translate, {'text': ?text, 'from': ?from, 'to': ?to});
+
+  /// The proofreading tab with [text] in its input (nothing is sent until
+  /// the user asks), e.g. `/proofread?text=I%20has%20a%20cat`.
+  static String proofreadText({String? text}) =>
+      _location(proofread, {'text': ?text});
+
+  /// The dictionary showing [word] (`from`: the word's language, `to`: the
+  /// language of the translations), e.g. `/dictionary?word=gato&from=es`.
+  ///
+  /// Pass [DictionaryLaunch.lookUp] as the navigation's `extra` to look the
+  /// word up right away; links from outside the app never do that on
+  /// their own (see [DictionaryPage]).
+  static String dictionaryWord({String? word, String? from, String? to}) =>
+      _location(dictionary, {'word': ?word, 'from': ?from, 'to': ?to});
 
   /// The image translator, opening the picker for [source] on arrival.
   static String imageTranslate({ImagePickSource? source}) =>
@@ -103,13 +125,18 @@ typedef LaunchRedirect = String? Function(String location);
 ///
 /// Four tabs are kept alive in a [StatefulShellRoute.indexedStack] with an
 /// adaptive [AppShell]. The settings sub-pages stay inside the settings
-/// tab; the onboarding and the image, document, web page and conversation
-/// translators are full-screen routes on the root navigator
-/// ([navigatorKey]) above the tabs.
+/// tab; the onboarding, the image, document, web page and conversation
+/// translators and the dictionary are full-screen routes on the root
+/// navigator ([navigatorKey]) above the tabs.
 ///
 /// Translate links (`/translate?text=…&from=…&to=…` or the same query on
-/// `/`) are handed to [onTranslateLink] and the URL is cleaned up to
-/// `/translate`.
+/// `/`, including Kagi's option parameters, see [TranslateLink.fromUri])
+/// are handed to [onTranslateLink] and the URL is cleaned up to
+/// `/translate`. `/proofread?text=…` fills the proofreading input and
+/// `/dictionary?word=…&from=…&to=…` opens the dictionary; neither sends
+/// anything to an AI provider on its own. Deep links
+/// (`mozhi://translate?…`, `mozhi://dictionary?…`, ...) open the same
+/// locations ([deepLinkLocation]).
 ///
 /// [launchRedirect] is consulted once, for the location the app starts at,
 /// and only when that is a plain start location (`/` or `/translate`
@@ -170,6 +197,17 @@ GoRouter createAppRouter({
         (context, state) =>
             const ConversationPage(micBuilder: conversationVoiceMicBuilder),
       ),
+      fullScreen(AppRoutes.dictionary, (context, state) {
+        final query = state.uri.queryParameters;
+        return DictionaryPage(
+          // A new word (another link while the page is open) starts afresh.
+          key: ValueKey(state.uri.query),
+          word: query['word'],
+          from: query['from'],
+          to: query['to'],
+          autoLookUp: state.extra == DictionaryLaunch.lookUp,
+        );
+      }),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) => AppShell(
           selectedIndex: navigationShell.currentIndex,
@@ -193,7 +231,9 @@ GoRouter createAppRouter({
             routes: [
               GoRoute(
                 path: AppRoutes.proofread,
-                builder: (context, state) => const ProofreadPage(),
+                builder: (context, state) => ProofreadPage(
+                  initialText: state.uri.queryParameters['text'],
+                ),
               ),
             ],
           ),
@@ -262,18 +302,23 @@ GoRouter createAppRouter({
 }
 
 /// Whether [uri] is a plain start location: `/` (or empty) or `/translate`
-/// without a query. Only these may be replaced by a [LaunchRedirect].
+/// without a query. Only these may be replaced by a [LaunchRedirect]; deep
+/// links (`mozhi://…`) never are.
 bool isLaunchLocation(Uri uri) {
-  if (uri.hasQuery) return false;
+  if (uri.hasQuery || uri.hasScheme || uri.host.isNotEmpty) return false;
   final path = uri.path;
   return path.isEmpty || path == '/' || path == AppRoutes.translate;
 }
 
-/// Top-level redirect: `/` goes to `/translate`; translate links are
-/// reported to [onTranslateLink] and stripped from the location so that
-/// returning to the tab does not translate again; [AppRoutes.aliases] are
-/// sent to their current location (keeping the query).
+/// Top-level redirect: deep links (`mozhi://<screen>…`) go to their
+/// location ([deepLinkLocation]); `/` goes to `/translate`; translate links
+/// are reported to [onTranslateLink] and stripped from the location so
+/// that returning to the tab does not translate again; [AppRoutes.aliases]
+/// are sent to their current location (keeping the query).
 String? appRedirect(Uri uri, TranslateLinkCallback? onTranslateLink) {
+  final deepLink = deepLinkLocation(uri);
+  if (deepLink != null) return deepLink;
+
   final path = uri.path;
   final alias = AppRoutes.aliases[path];
   if (alias != null) return uri.replace(path: alias).toString();
@@ -284,6 +329,24 @@ String? appRedirect(Uri uri, TranslateLinkCallback? onTranslateLink) {
   final link = uri.hasQuery ? TranslateLink.fromUri(uri) : null;
   if (link != null) onTranslateLink?.call(link);
   return (isRoot || link != null) ? AppRoutes.translate : null;
+}
+
+/// The location a deep link `mozhi://<screen>[/<path>][?<query>]` opens:
+/// `/<screen>[/<path>][?<query>]`, e.g. `mozhi://dictionary?word=gato` ->
+/// `/dictionary?word=gato` (`mozhi:///<path>` opens `/<path>`). Null for
+/// anything else.
+///
+/// Android rewrites these links before Flutter sees them (MainActivity),
+/// but iOS hands the whole URL to the router, with the screen as the host.
+String? deepLinkLocation(Uri uri) {
+  if (!uri.isScheme(AppRoutes.deepLinkScheme)) return null;
+  final host = uri.host.toLowerCase();
+  final segments = uri.pathSegments.where((s) => s.isNotEmpty);
+  final path = Uri(pathSegments: [if (host.isNotEmpty) host, ...segments]);
+  return Uri(
+    path: '/${path.path}',
+    query: uri.hasQuery && uri.query.isNotEmpty ? uri.query : null,
+  ).toString();
 }
 
 /// [UsageSummaryPage] for the configured providers; tapping a provider

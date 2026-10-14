@@ -10,8 +10,20 @@ import 'package:translation_repository/translation_repository.dart';
 
 /// Kagi-style proofreading. Uses the AI engines known to [TranslateCubit]
 /// (defaulting to its assist engine).
+///
+/// [initialText] (from a link such as `/proofread?text=…`) is put into the
+/// input, cut to [maxLinkTextLength]; it is never proofread without the
+/// user asking. A different [initialText] later (another link while the
+/// tab is alive) replaces the input again.
 class ProofreadPage extends StatelessWidget {
-  const new({super.key});
+  const new({this.initialText, super.key});
+
+  /// Text handed over by a link; null or blank leaves the input alone.
+  final String? initialText;
+
+  /// Longest text a link may put into the input (the limit for text from
+  /// outside the app, [TranslateCubit.maxExternalInputLength]).
+  static const int maxLinkTextLength = TranslateCubit.maxExternalInputLength;
 
   @override
   Widget build(BuildContext context) {
@@ -26,9 +38,55 @@ class ProofreadPage extends StatelessWidget {
           uiLanguage: uiLanguage,
         );
       },
-      child: const ProofreadView(),
+      child: _LinkedText(text: initialText, child: const ProofreadView()),
     );
   }
+}
+
+/// Puts link text into the [ProofreadCubit]'s input when it first arrives
+/// and whenever it changes.
+class _LinkedText extends StatefulWidget {
+  const new({required this.text, required this.child});
+
+  final String? text;
+  final Widget child;
+
+  @override
+  State<_LinkedText> createState() => _LinkedTextState();
+}
+
+class _LinkedTextState extends State<_LinkedText> {
+  @override
+  void initState() {
+    super.initState();
+    _apply(widget.text);
+  }
+
+  @override
+  void didUpdateWidget(_LinkedText oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.text != oldWidget.text) _apply(widget.text);
+  }
+
+  void _apply(String? text) {
+    if (text == null || text.trim().isEmpty) return;
+    context.read<ProofreadCubit>().setInput(
+      _cut(text, ProofreadPage.maxLinkTextLength),
+    );
+  }
+
+  /// [text] cut to [length] UTF-16 units without splitting a surrogate
+  /// pair.
+  static String _cut(String text, int length) {
+    if (text.length <= length) return text;
+    var end = length;
+    final last = text.codeUnitAt(end - 1);
+    if (last >= 0xD800 && last <= 0xDBFF) end--;
+    return text.substring(0, end);
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 /// English name of the UI language, used for edit explanations.

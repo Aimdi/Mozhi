@@ -8,21 +8,29 @@ export 'history_state.dart';
 /// Exposes the local translation history. `repository` defaults to a
 /// [HistoryRepository] backed by the platform preferences.
 ///
+/// Retention (history auto-delete): `maxAge` is the initial maximum age of
+/// non-favourite entries (null keeps them forever). It is applied by
+/// [load], [add] and [importJson]; [applyRetention] changes it and deletes
+/// expired entries right away. Favourites are always kept.
+///
 /// Storage errors of [load] switch to [HistoryStatus.failure]; errors of the
 /// other mutations keep the current state. All of them are reported via
 /// `addError` and never thrown, except [exportJson] / [importJson] whose
 /// callers need to show the outcome.
 class HistoryCubit extends Cubit<HistoryState> {
-  new({HistoryRepository? repository})
+  new({HistoryRepository? repository, this._maxAge})
     : _repository = repository ?? HistoryRepository(),
       super(const HistoryState());
 
   final HistoryRepository _repository;
 
+  /// Maximum age of non-favourite entries; null keeps them forever.
+  Duration? _maxAge;
+
   Future<void> load() async {
     emit(state.copyWith(status: HistoryStatus.loading));
     try {
-      final entries = await _repository.load();
+      final entries = await _repository.load(maxAge: _maxAge);
       _emitEntries(entries);
     } on Object catch (error, stackTrace) {
       if (!isClosed) emit(state.copyWith(status: HistoryStatus.failure));
@@ -30,7 +38,16 @@ class HistoryCubit extends Cubit<HistoryState> {
     }
   }
 
-  Future<void> add(HistoryEntry entry) => _run(() => _repository.add(entry));
+  Future<void> add(HistoryEntry entry) =>
+      _run(() => _repository.add(entry, maxAge: _maxAge));
+
+  /// Keeps non-favourite entries for at most [maxAge] (null: forever) from
+  /// now on, and deletes the ones that are already older.
+  Future<void> applyRetention(Duration? maxAge) async {
+    _maxAge = maxAge;
+    if (maxAge == null) return;
+    await _run(() => _repository.prune(maxAge));
+  }
 
   /// Puts a deleted [entry] back at its original position (use this to
   /// undo [delete]; see [HistoryRepository.restore]).
@@ -59,7 +76,7 @@ class HistoryCubit extends Cubit<HistoryState> {
   /// Merges [json] into the history. Throws [FormatException] on invalid
   /// input (the state is left unchanged).
   Future<void> importJson(String json) async {
-    final entries = await _repository.importJson(json);
+    final entries = await _repository.importJson(json, maxAge: _maxAge);
     _emitEntries(entries);
   }
 

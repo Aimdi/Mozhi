@@ -40,7 +40,7 @@ class SettingsView extends StatelessWidget {
     ];
     final secondary = [
       _AppearanceSection(settings: settings),
-      const _DataSection(),
+      _DataSection(settings: settings),
       const _AboutSection(),
     ];
     // Each column is its own focus traversal group and semantics container,
@@ -184,6 +184,13 @@ class _TranslationSection extends StatelessWidget {
           onChanged: (value) => cubit.setShowTransliteration(enabled: value),
         ),
         _AssistEngineTile(settings: settings),
+        ListTile(
+          leading: const Icon(Icons.speed_outlined),
+          title: Text(l10n.settingsQualityTitle),
+          subtitle: Text(l10n.settingsQualitySubtitle),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => context.push('/settings/quality'),
+        ),
         ListTile(
           leading: const Icon(Icons.tune),
           title: Text(l10n.presetsTitle),
@@ -453,15 +460,27 @@ class _ThemeModePicker extends StatelessWidget {
 }
 
 class _DataSection extends StatelessWidget {
-  const new();
+  const new({required this.settings});
+
+  final AppSettings settings;
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final error = Theme.of(context).colorScheme.error;
+    final pairs = settings.recentPairs.length;
     return SettingsSection(
       title: l10n.settingsSectionData,
       children: [
+        ListTile(
+          leading: const Icon(Icons.auto_delete_outlined),
+          title: Text(l10n.settingsHistoryRetention),
+          subtitle: Text(
+            historyRetentionLabel(l10n, settings.historyRetention),
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _pickRetention(context),
+        ),
         ListTile(
           leading: const Icon(Icons.upload_outlined),
           title: Text(l10n.settingsExportHistory),
@@ -475,6 +494,13 @@ class _DataSection extends StatelessWidget {
           onTap: () => showImportHistoryDialog(context),
         ),
         ListTile(
+          leading: const Icon(Icons.swap_horiz),
+          title: Text(l10n.settingsClearRecentPairs),
+          subtitle: Text(l10n.settingsRecentPairsSummary(pairs)),
+          enabled: pairs > 0,
+          onTap: () => _clearRecentPairs(context),
+        ),
+        ListTile(
           leading: Icon(Icons.delete_sweep_outlined, color: error),
           title: Text(l10n.historyClearMenu, style: TextStyle(color: error)),
           subtitle: Text(l10n.settingsClearHistorySubtitle),
@@ -483,7 +509,84 @@ class _DataSection extends StatelessWidget {
       ],
     );
   }
+
+  Future<void> _pickRetention(BuildContext context) async {
+    final l10n = context.l10n;
+    final cubit = context.read<SettingsCubit>();
+    final current = settings.historyRetention;
+    final choice = await showDialog<HistoryRetention>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.settingsHistoryRetention),
+        scrollable: true,
+        contentPadding: const EdgeInsets.fromLTRB(0, 16, 0, 0),
+        content: RadioGroup<HistoryRetention>(
+          groupValue: current,
+          onChanged: (value) => Navigator.of(context).pop(value),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+                child: Text(l10n.settingsHistoryRetentionDialogBody),
+              ),
+              for (final retention in HistoryRetention.values)
+                RadioListTile<HistoryRetention>(
+                  value: retention,
+                  title: Text(historyRetentionLabel(l10n, retention)),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(l10n.commonCancel),
+          ),
+        ],
+      ),
+    );
+    if (choice == null || choice == current) return;
+    cubit.setHistoryRetention(choice);
+  }
+
+  void _clearRecentPairs(BuildContext context) {
+    final l10n = context.l10n;
+    final cubit = context.read<SettingsCubit>();
+    final previous = cubit.state.recentPairs;
+    cubit.clearRecentPairs();
+    ScaffoldMessenger.maybeOf(context)
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(l10n.settingsRecentPairsCleared),
+          action: SnackBarAction(
+            label: l10n.commonUndo,
+            onPressed: () => cubit.update(
+              (current) => current.copyWith(
+                recentPairs: List.unmodifiable(
+                  [
+                    ...current.recentPairs,
+                    ...previous.where((p) => !current.recentPairs.contains(p)),
+                  ].take(SettingsCubit.maxRecentPairs),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+  }
 }
+
+/// "Never" / "After N days" for [retention].
+String historyRetentionLabel(
+  AppLocalizations l10n,
+  HistoryRetention retention,
+) => switch (retention.maxAge) {
+  null => l10n.settingsHistoryRetentionNever,
+  final maxAge => l10n.settingsHistoryRetentionDays(maxAge.inDays),
+};
 
 class _AboutSection extends StatelessWidget {
   const new();
