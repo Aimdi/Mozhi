@@ -87,6 +87,12 @@ Some features send additional data to the same back ends:
 - Google's servers, through ML Kit, on Android and iOS only (see below).
 - Web pages you open from the app (source code, licences, provider key
   pages), in your browser.
+- Web app only: Google Fonts (`fonts.gstatic.com`), the first time the page
+  has to display a script its bundled font doesn't cover (for example
+  Chinese, Arabic or Devanagari). Flutter's web engine then downloads the
+  matching Noto font. The request names the font file, not your text, and
+  the browser caches it. The Android, iOS and desktop apps use the fonts
+  installed on the device instead.
 
 Nothing else: no update checks, no analytics, no remote configuration.
 
