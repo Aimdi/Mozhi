@@ -5412,5 +5412,426 @@
   "translateAlignmentKeyboardHint": "With a keyboard: focus the translation and use the arrow keys, or move the cursor in your text.",
   "@translateAlignmentKeyboardHint": {
     "description": "Alignment view: how to see which words a phrase translates without a mouse or touch (arrow keys in the translation, or the cursor in the input)."
+  },
+  "translateMeaningCheck": "Check meaning",
+  "@translateMeaningCheck": {
+    "description": "Tooltip of the output-card button that checks whether the translation means the same as the input (an AI check or a back-translation)."
+  },
+  "translateMeaningCheckHide": "Hide meaning check",
+  "@translateMeaningCheckHide": {
+    "description": "Tooltip of the buttons that hide the meaning-check panel."
+  },
+  "translateMeaningTitle": "Meaning check",
+  "@translateMeaningTitle": {
+    "description": "Title of the meaning-check panel under the translation."
+  },
+  "translateMeaningBackTranslationTitle": "Back-translation",
+  "@translateMeaningBackTranslationTitle": {
+    "description": "Heading of the back-translation: the translation translated back into the input's language."
+  },
+  "translateMeaningChecking": "Checking meaning…",
+  "@translateMeaningChecking": {
+    "description": "Progress label while the meaning check runs."
+  },
+  "translateMeaningVerdictSame": "Same meaning",
+  "@translateMeaningVerdictSame": {
+    "description": "Meaning-check verdict: the translation means the same as the input."
+  },
+  "translateMeaningVerdictMinor": "Minor differences",
+  "@translateMeaningVerdictMinor": {
+    "description": "Meaning-check verdict: small differences in meaning (nuance, emphasis)."
+  },
+  "translateMeaningVerdictMajor": "Meaning differs",
+  "@translateMeaningVerdictMajor": {
+    "description": "Meaning-check verdict: the translation says something different from the input."
+  },
+  "translateMeaningAnnounce": "{verdict}. {count, plural, =0{No differences listed.} =1{1 difference.} other{{count} differences.}}",
+  "@translateMeaningAnnounce": {
+    "description": "Screen-reader announcement of a finished meaning check: {verdict} is one of the translateMeaningVerdict* texts, {count} the number of differences listed.",
+    "placeholders": {
+      "verdict": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "translateMeaningPartial": "Only the beginning of the text was checked.",
+  "@translateMeaningPartial": {
+    "description": "Meaning check note: the texts were too long, so only their beginnings were compared."
+  },
+  "translateMeaningIssuesTitle": "Differences",
+  "@translateMeaningIssuesTitle": {
+    "description": "Heading of the list of differences in meaning the check found."
+  },
+  "translateMeaningNoIssues": "No differences in meaning found.",
+  "@translateMeaningNoIssues": {
+    "description": "Meaning check: shown when the translation means the same as the input."
+  },
+  "translateMeaningTypeOmission": "Omission",
+  "@translateMeaningTypeOmission": {
+    "description": "Meaning-check difference type: something in the input is missing from the translation."
+  },
+  "translateMeaningTypeAddition": "Addition",
+  "@translateMeaningTypeAddition": {
+    "description": "Meaning-check difference type: the translation adds something that is not in the input."
+  },
+  "translateMeaningTypeNegation": "Negation",
+  "@translateMeaningTypeNegation": {
+    "description": "Meaning-check difference type: a negation was lost or added (yes/no reversed)."
+  },
+  "translateMeaningTypeNumber": "Number",
+  "@translateMeaningTypeNumber": {
+    "description": "Meaning-check difference type: a wrong number, amount, date or unit."
+  },
+  "translateMeaningTypeTense": "Tense",
+  "@translateMeaningTypeTense": {
+    "description": "Meaning-check difference type: wrong grammatical tense or time (past/present/future)."
+  },
+  "translateMeaningTypeMistranslation": "Mistranslation",
+  "@translateMeaningTypeMistranslation": {
+    "description": "Meaning-check difference type: a word or phrase was translated with a wrong meaning."
+  },
+  "translateMeaningTypeOther": "Other difference",
+  "@translateMeaningTypeOther": {
+    "description": "Meaning-check difference type: any other difference in meaning."
+  },
+  "translateMeaningInOriginal": "In your text: {text}",
+  "@translateMeaningInOriginal": {
+    "description": "Meaning-check difference: the part of the user's input it concerns ({text}, quoted from the input).",
+    "placeholders": {
+      "text": {
+        "type": "String"
+      }
+    }
+  },
+  "translateMeaningInTranslation": "In the translation: {text}",
+  "@translateMeaningInTranslation": {
+    "description": "Meaning-check difference: the part of the translation it concerns ({text}, quoted from the translation).",
+    "placeholders": {
+      "text": {
+        "type": "String"
+      }
+    }
+  },
+  "translateMeaningSuggestion": "Suggested wording: {text}",
+  "@translateMeaningSuggestion": {
+    "description": "Meaning-check difference: a better wording for the translation ({text}, in the target language).",
+    "placeholders": {
+      "text": {
+        "type": "String"
+      }
+    }
+  },
+  "translateMeaningIssueHighlight": "highlight in both texts",
+  "@translateMeaningIssueHighlight": {
+    "description": "Screen-reader tap hint of a meaning-check difference found in both the input and the translation. Lower case: read after 'Double-tap to'."
+  },
+  "translateMeaningIssueUnhighlight": "remove the highlight",
+  "@translateMeaningIssueUnhighlight": {
+    "description": "Screen-reader tap hint of the highlighted meaning-check difference. Lower case: read after 'Double-tap to'."
+  },
+  "translateMeaningBackTranslationNote": "Translated back with {engine}. Compare it with your text.",
+  "@translateMeaningBackTranslationNote": {
+    "description": "Note above a back-translation made with a non-AI engine; {engine} is the engine name (e.g. DeepL).",
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "translateMeaningBackTranslationReady": "Back-translation ready",
+  "@translateMeaningBackTranslationReady": {
+    "description": "Screen-reader announcement when the back-translation arrived."
+  },
+  "translateExtraTargetsAdd": "Also translate into…",
+  "@translateExtraTargetsAdd": {
+    "description": "Button under the translation that opens the picker of additional target languages."
+  },
+  "translateExtraTargetsSelected": "Also into: {languages}",
+  "@translateExtraTargetsSelected": {
+    "description": "Button under the translation listing the additional target languages; {languages} is a list of language names joined with translateExtraTargetsListSeparator.",
+    "placeholders": {
+      "languages": {
+        "type": "String"
+      }
+    }
+  },
+  "translateExtraTargetsTitle": "Also translate into",
+  "@translateExtraTargetsTitle": {
+    "description": "Title of the sheet that picks additional target languages."
+  },
+  "translateExtraTargetsHint": "{count, plural, =1{Pick 1 more language.} other{Pick up to {count} more languages.}} Each one is a separate request with the same engine and options.",
+  "@translateExtraTargetsHint": {
+    "description": "Hint in the additional-languages sheet; {count} is the most languages that can be picked.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "translateExtraTargetsLimitReached": "Remove a language to pick another one.",
+  "@translateExtraTargetsLimitReached": {
+    "description": "Shown in the additional-languages sheet when the most languages are picked; the other languages are disabled."
+  },
+  "translateExtraTargetsDone": "Done",
+  "@translateExtraTargetsDone": {
+    "description": "Button that closes the additional-languages sheet."
+  },
+  "translateExtraTargetsClearAll": "Remove all",
+  "@translateExtraTargetsClearAll": {
+    "description": "Button in the additional-languages sheet that removes every picked language."
+  },
+  "translateExtraTargetRemove": "Remove {language}",
+  "@translateExtraTargetRemove": {
+    "description": "Tooltip of the button that removes the additional language {language} (a language name).",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "translateExtraTargetInsert": "Insert into input",
+  "@translateExtraTargetInsert": {
+    "description": "Unused (replaced by translateExtraTargetUseAsInput)."
+  },
+  "translateExtraTargetPending": "Not translated yet",
+  "@translateExtraTargetPending": {
+    "description": "Shown on the card of an additional language that has not been translated into yet (the user has not pressed Translate)."
+  },
+  "translateExtraTargetLabel": "Translation into {language}",
+  "@translateExtraTargetLabel": {
+    "description": "Screen-reader label of the card with the translation into the additional language {language} (a language name).",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "speechSettingsTitle": "Read aloud",
+  "@speechSettingsTitle": {
+    "description": "Settings section title for text-to-speech options"
+  },
+  "speechRate": "Speech rate",
+  "@speechRate": {
+    "description": "Settings: how fast text is read aloud (slider label)"
+  },
+  "speechRateValue": "{rate}×",
+  "@speechRateValue": {
+    "description": "Speech rate multiplier, e.g. 1.2×",
+    "placeholders": {
+      "rate": {
+        "type": "double",
+        "format": "decimalPatternDigits",
+        "optionalParameters": {
+          "decimalDigits": 1
+        }
+      }
+    }
+  },
+  "speechRatePreview": "Preview speech rate",
+  "@speechRatePreview": {
+    "description": "Tooltip of the button that reads a sample sentence at the chosen rate"
+  },
+  "speechRatePreviewText": "This is how fast translations will be read aloud.",
+  "@speechRatePreviewText": {
+    "description": "Sample sentence read aloud to preview the speech rate (in the app language)"
+  },
+  "speechVoicesTitle": "Voice per language",
+  "@speechVoicesTitle": {
+    "description": "Settings sub-heading above the device voice choices"
+  },
+  "speechVoicesDescription": "Choose a device voice for languages you used recently. A chosen voice reads its language instead of the Mozhi voice.",
+  "@speechVoicesDescription": {
+    "description": "Explanation under the voice-per-language heading"
+  },
+  "speechVoiceForLanguage": "{language} voice",
+  "@speechVoiceForLanguage": {
+    "description": "Title of the voice choice for a language, e.g. French voice",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "speechVoiceSystemDefault": "System default",
+  "@speechVoiceSystemDefault": {
+    "description": "Voice choice: the device default voice for the language"
+  },
+  "speechVoiceDialogBody": "Voices installed on this device for {language}. Play one to hear it before you choose.",
+  "@speechVoiceDialogBody": {
+    "description": "Body of the voice picker dialog",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "speechVoiceNone": "This device has no voices for {language}. You can install one in your device’s text-to-speech settings.",
+  "@speechVoiceNone": {
+    "description": "Body of the voice picker dialog when the device lists no voice for the language",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "speechVoicePreview": "Play {voice}",
+  "@speechVoicePreview": {
+    "description": "Tooltip of the button that plays a sample with a voice",
+    "placeholders": {
+      "voice": {
+        "type": "String"
+      }
+    }
+  },
+  "speechVoiceHighQuality": "High quality",
+  "@speechVoiceHighQuality": {
+    "description": "Label of a device voice the engine rates as high quality"
+  },
+  "speechVoiceNeedsInternet": "Needs internet",
+  "@speechVoiceNeedsInternet": {
+    "description": "Label of a device voice that is synthesised online"
+  },
+  "speechRateSubtitle": "How fast text is read aloud.",
+  "@speechRateSubtitle": {
+    "description": "Subtitle of the speech rate setting"
+  },
+  "speechVoiceNumbered": "Voice {number}",
+  "@speechVoiceNumbered": {
+    "description": "Name shown for a device voice that only has a technical engine name, numbered within its locale, e.g. Voice 3",
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "speechVoiceVariant": "Voice {variant}",
+  "@speechVoiceVariant": {
+    "description": "Name shown for a device voice with a technical engine name when its number is unknown; variant is a short engine code such as FRD",
+    "placeholders": {
+      "variant": {
+        "type": "String"
+      }
+    }
+  },
+  "speechVoicePreviewError": "This voice could not be played. Check that it is installed in your device’s text-to-speech settings.",
+  "@speechVoicePreviewError": {
+    "description": "Shown in the voice picker when a voice preview fails"
+  },
+  "speechVoicesLoading": "Loading voices…",
+  "@speechVoicesLoading": {
+    "description": "Screen reader label of the progress indicator while the device voices of a language are listed"
+  },
+  "translateMeaningIssuesUnlocated": "The differences could not be pinpointed in the texts. Compare the back-translation with your text.",
+  "@translateMeaningIssuesUnlocated": {
+    "description": "Meaning check: shown instead of the list of differences when the check says the meaning differs but none of the differences it named could be found in the texts."
+  },
+  "translateMeaningIssueHighlightSource": "highlight in your text",
+  "@translateMeaningIssueHighlightSource": {
+    "description": "Screen-reader tap hint of a meaning-check difference that can only be highlighted in the user's own text (the input). Lower case: read after 'Double-tap to'."
+  },
+  "translateMeaningIssueHighlightTranslation": "highlight in the translation",
+  "@translateMeaningIssueHighlightTranslation": {
+    "description": "Screen-reader tap hint of a meaning-check difference that can only be highlighted in the translation. Lower case: read after 'Double-tap to'."
+  },
+  "translateExtraTargetUseAsInput": "Use the {language} translation as input",
+  "@translateExtraTargetUseAsInput": {
+    "description": "Tooltip of the button on an 'Also translate into' card that replaces the input text with that card's translation (and makes its language the source language). {language} is a language name.",
+    "placeholders": {
+      "language": {
+        "type": "String",
+        "example": "German"
+      }
+    }
+  },
+  "translateExtraTargetUsedAsInput": "Input replaced with the {language} translation",
+  "@translateExtraTargetUsedAsInput": {
+    "description": "Snack bar (with Undo) after the user used an extra translation as the input text. {language} is a language name.",
+    "placeholders": {
+      "language": {
+        "type": "String",
+        "example": "German"
+      }
+    }
+  },
+  "translateExtraTargetUsedAsInputSource": "Input replaced with the {language} translation. Translating from {source} now.",
+  "@translateExtraTargetUsedAsInputSource": {
+    "description": "Snack bar (with Undo) after the user used an extra translation as the input text and the source language changed to {source}. {language} and {source} are language names (usually the same language).",
+    "placeholders": {
+      "language": {
+        "type": "String",
+        "example": "German"
+      },
+      "source": {
+        "type": "String",
+        "example": "German"
+      }
+    }
+  },
+  "translateExtraTargetCopy": "Copy {language}",
+  "@translateExtraTargetCopy": {
+    "description": "Tooltip/screen-reader label of the copy button on the card with the translation into {language} (a language name), e.g. 'Copy German'.",
+    "placeholders": {
+      "language": {
+        "type": "String",
+        "example": "German"
+      }
+    }
+  },
+  "translateExtraTargetListen": "Listen to {language}",
+  "@translateExtraTargetListen": {
+    "description": "Tooltip/screen-reader label of the read-aloud button on the card with the translation into {language} (a language name).",
+    "placeholders": {
+      "language": {
+        "type": "String",
+        "example": "German"
+      }
+    }
+  },
+  "translateExtraTargetStopListening": "Stop reading {language} aloud",
+  "@translateExtraTargetStopListening": {
+    "description": "Tooltip of the read-aloud button on the card with the translation into {language} while it is being read aloud.",
+    "placeholders": {
+      "language": {
+        "type": "String",
+        "example": "German"
+      }
+    }
+  },
+  "translateExtraTargetRetry": "Retry {language}",
+  "@translateExtraTargetRetry": {
+    "description": "Screen-reader label of the Retry button on the card whose translation into {language} failed (the button shows 'Retry').",
+    "placeholders": {
+      "language": {
+        "type": "String",
+        "example": "German"
+      }
+    }
+  },
+  "translateExtraTargetsAnnounceReady": "Also translated into {languages}.",
+  "@translateExtraTargetsAnnounceReady": {
+    "description": "Screen-reader announcement once the translations into the additional languages are done. {languages} is a list of language names joined with translateExtraTargetsListSeparator.",
+    "placeholders": {
+      "languages": {
+        "type": "String",
+        "example": "French, Japanese"
+      }
+    }
+  },
+  "translateExtraTargetsAnnounceFailed": "Could not translate into {languages}.",
+  "@translateExtraTargetsAnnounceFailed": {
+    "description": "Screen-reader announcement when translations into additional languages failed. {languages} is a list of language names joined with translateExtraTargetsListSeparator.",
+    "placeholders": {
+      "languages": {
+        "type": "String",
+        "example": "German"
+      }
+    }
+  },
+  "translateExtraTargetsListSeparator": ", ",
+  "@translateExtraTargetsListSeparator": {
+    "description": "Separator between language names in a list such as 'Also into: French, German' (include any spaces; e.g. '、' in Japanese, '، ' in Arabic)."
   }
 }

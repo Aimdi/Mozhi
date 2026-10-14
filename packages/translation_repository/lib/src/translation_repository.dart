@@ -1346,6 +1346,112 @@ class TranslationRepository {
     );
   }
 
+  /// Checks whether [translation] (in [targetLanguage]) means the same as
+  /// [source] (in [sourceLanguage], which may be auto): the model
+  /// translates the translation back into the source language and compares
+  /// its meaning with the original (see `TranslationPrompts.meaningCheck`).
+  ///
+  /// The result has the back-translation, a [MeaningVerdict] and the real
+  /// differences in meaning (omissions, additions, wrong negation, numbers
+  /// or tense, mistranslated terms; never style) as [MeaningIssue]s located
+  /// in both texts by `ResponseParsers.parseMeaningCheck` (issues it cannot
+  /// locate are dropped but still count toward the verdict, which is never
+  /// `same` when the model listed differences; at most
+  /// `TranslationPrompts.maxMeaningIssues`).
+  /// Problems are written in [uiLanguage] (an English language name).
+  ///
+  /// Only the first `TranslationPrompts.maxMeaningCheckChars` (4000)
+  /// characters of each text are compared ([MeaningCheck.isPartial] is then
+  /// true). Every call is a new (possibly paid) request: results are not
+  /// cached. Requires an AI engine with [TranslationEngine.supportsExtras]
+  /// ([ArgumentError] otherwise; other engines can [backTranslate]); blank
+  /// texts are an [ArgumentError] too, without a request. Invalid JSON is
+  /// retried once, like the other JSON extras.
+  Future<MeaningCheck> checkMeaning(
+    TranslationEngine engine, {
+    required String source,
+    required String translation,
+    required Language sourceLanguage,
+    required Language targetLanguage,
+    String uiLanguage = 'English',
+  }) async {
+    _extrasProviderFor(engine);
+    if (source.trim().isEmpty) {
+      throw ArgumentError.value(source, 'source', 'Is empty');
+    }
+    if (translation.trim().isEmpty) {
+      throw ArgumentError.value(translation, 'translation', 'Is empty');
+    }
+    return await _chatJson(
+      engine,
+      () => TranslationPrompts.meaningCheck(
+        source: source,
+        translation: translation,
+        sourceLanguage: sourceLanguage,
+        targetLanguage: targetLanguage,
+        uiLanguage: uiLanguage,
+      ),
+      (output) => ResponseParsers.parseMeaningCheck(
+        output,
+        source: source,
+        translation: translation,
+      ),
+    );
+  }
+
+  /// [translation] (in [from]) translated back into [to] (the language of
+  /// the original text) with [engine]: the meaning check for engines
+  /// without AI extras (Mozhi, DeepL, LibreTranslate, offline, and
+  /// translation-specialised AI models), which the user compares with the
+  /// original themselves. See [backTranslateResult].
+  Future<String> backTranslate(
+    TranslationEngine engine, {
+    required String translation,
+    required Language from,
+    required Language to,
+    bool refresh = false,
+  }) async => (await backTranslateResult(
+    engine,
+    translation: translation,
+    from: from,
+    to: to,
+    refresh: refresh,
+  )).text;
+
+  /// [backTranslate] with the whole final [TranslationResult]: it is
+  /// [translate] of a plain request (default options) for [translation]
+  /// from [from] into [to], so it works with every engine, honours the
+  /// translation cache (a cached result has `fromCache: true`: nothing was
+  /// sent, so usage counters should skip it; `refresh: true` skips the
+  /// lookup) and fails like [translate] (e.g. an [ArgumentError] for a
+  /// custom language on a Mozhi engine).
+  ///
+  /// [to] must not be auto and [translation] must not be blank
+  /// ([ArgumentError] without a request).
+  Future<TranslationResult> backTranslateResult(
+    TranslationEngine engine, {
+    required String translation,
+    required Language from,
+    required Language to,
+    bool refresh = false,
+  }) async {
+    if (to.isAuto) {
+      throw ArgumentError.value(
+        to.code,
+        'to',
+        'Back-translation needs the language of the original text',
+      );
+    }
+    if (translation.trim().isEmpty) {
+      throw ArgumentError.value(translation, 'translation', 'Is empty');
+    }
+    return await translate(
+      engine,
+      TranslationRequest(text: translation, source: from, target: to),
+      refresh: refresh,
+    ).lastWhere((result) => result.isComplete);
+  }
+
   /// Proofreads [text] with the AI [engine] (see
   /// [TranslationPrompts.proofread]): [readingLevel] other than
   /// [ReadingLevel.standard] rewords for that CEFR level, and a [variety]

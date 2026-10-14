@@ -1,5 +1,6 @@
 export 'cubit/engine_list_cubit.dart';
 export 'cubit/settings_cubit.dart';
+export 'cubit/speech_settings_cubit.dart';
 export 'data/settings_repository.dart';
 export 'models/app_settings.dart';
 export 'view/about_page.dart';

@@ -56,6 +56,70 @@ class SmartSwapNotice extends Equatable {
   List<Object?> get props => [id, previousTarget, newTarget];
 }
 
+/// The translation of the input into one of the additional target
+/// languages (`TranslateState.extraTargets`, "Also translate into…").
+///
+/// Each extra target is a request of its own with the main engine and
+/// options; only the main result is saved in history.
+class ExtraTranslation extends Equatable {
+  const new({
+    required this.target,
+    this.status = TranslateStatus.idle,
+    this.result,
+    this.request,
+    this.engineId,
+    this.error,
+  });
+
+  /// The language translated into (as the engine lists it).
+  final Language target;
+
+  final TranslateStatus status;
+
+  /// Latest (possibly streaming) translation, or null.
+  final TranslationResult? result;
+
+  /// The request [result] (or the request in flight) was made for: its text
+  /// is the input the translation belongs to.
+  final TranslationRequest? request;
+
+  /// Id of the engine of [request].
+  final String? engineId;
+
+  /// Why the last request failed (the old [result] is dropped).
+  final Object? error;
+
+  String get output => result?.text ?? '';
+
+  /// The input text [result] was produced for, or null.
+  String? get resultInput => result == null ? null : request?.text;
+
+  /// Whether [result] belongs to text other than [input] (the user edited
+  /// it since); show it dimmed.
+  bool isStaleFor(String input) {
+    final made = resultInput;
+    return made != null && made != input;
+  }
+
+  ExtraTranslation copyWith({
+    TranslateStatus? status,
+    TranslationResult? Function()? result,
+    TranslationRequest? Function()? request,
+    String? Function()? engineId,
+    Object? Function()? error,
+  }) => ExtraTranslation(
+    target: target,
+    status: status ?? this.status,
+    result: result != null ? result() : this.result,
+    request: request != null ? request() : this.request,
+    engineId: engineId != null ? engineId() : this.engineId,
+    error: error != null ? error() : this.error,
+  );
+
+  @override
+  List<Object?> get props => [target, status, result, request, engineId, error];
+}
+
 class TranslateState extends Equatable {
   const new({
     this.enginesStatus = EnginesStatus.initial,
@@ -106,6 +170,13 @@ class TranslateState extends Equatable {
     this.qualityMode = QualityMode.off,
     this.fastEngine,
     this.bestEngine,
+    this.meaningStatus = ExtraStatus.idle,
+    this.meaningCheck,
+    this.backTranslation,
+    this.meaningFocus,
+    this.meaningError,
+    this.extraTargets = const [],
+    this.extraTranslations = const [],
   });
 
   final EnginesStatus enginesStatus;
@@ -265,6 +336,38 @@ class TranslateState extends Equatable {
 
   /// The engine of [QualityMode.best] when one is configured and available.
   final TranslationEngine? bestEngine;
+
+  // Meaning check ------------------------------------------------------------
+
+  /// See `TranslateCubit.checkMeaning`. Reset whenever the input or the
+  /// result changes.
+  final ExtraStatus meaningStatus;
+
+  /// The AI meaning check (verdict, back-translation and differences) when
+  /// [meaningUsesAi]; null otherwise.
+  final MeaningCheck? meaningCheck;
+
+  /// The back-translation of the output with the main engine (engines
+  /// without AI extras: the user compares it with the input); null for an
+  /// AI check.
+  final String? backTranslation;
+
+  /// Index into the [meaningCheck] issues of the highlighted one, or null.
+  final int? meaningFocus;
+
+  /// Why the last meaning check failed.
+  final Object? meaningError;
+
+  // Extra targets -----------------------------------------------------------
+
+  /// Additional target languages ("Also translate into…", at most
+  /// `TranslateCubit.maxExtraTargets`), as the user picked them. Kept for
+  /// the session.
+  final List<Language> extraTargets;
+
+  /// The translations into [activeExtraTargets] (in no particular order;
+  /// look one up with [extraTranslationFor]).
+  final List<ExtraTranslation> extraTranslations;
 
   String get output => result?.text ?? '';
   bool get isAiEngine => engine?.isAi ?? false;
@@ -451,6 +554,96 @@ class TranslateState extends Equatable {
     QualityMode.best => bestEngine,
   };
 
+  // Meaning check ------------------------------------------------------------
+
+  /// Whether the meaning check asks the AI [assistEngine]
+  /// (`TranslationRepository.checkMeaning`: verdict, back-translation and
+  /// differences); otherwise the output is translated back with [engine].
+  bool get meaningUsesAi => assistEngine?.supportsExtras ?? false;
+
+  /// Whether the meaning of the output can be checked: a finished, current
+  /// output, and an AI [assistEngine] with extras, or (back-translation) an
+  /// [engine] and a known source language (chosen or detected).
+  bool get canCheckMeaning {
+    if (_finishedOutput == null || status == TranslateStatus.translating) {
+      return false;
+    }
+    if (meaningUsesAi) return true;
+    if (engine == null) return false;
+    return !source.isAuto ||
+        (result?.detectedSource?.trim().isNotEmpty ?? false);
+  }
+
+  /// The meaning check issue at [meaningFocus], or null.
+  MeaningIssue? get focusedMeaningIssue {
+    final issues = meaningCheck?.issues ?? const <MeaningIssue>[];
+    final index = meaningFocus;
+    if (index == null || index < 0 || index >= issues.length) return null;
+    return issues[index];
+  }
+
+  // Extra targets -----------------------------------------------------------
+
+  /// The [extraTargets] translated now: each as the engine lists it
+  /// ([usableTarget]), without the main [target], the [source] (a chosen
+  /// one, or with auto the language [detectedInputLanguage] names) and
+  /// duplicates; languages the engine does not offer are left out (and
+  /// come back with an engine that offers them).
+  List<Language> get activeExtraTargets {
+    String key(Language language) => language.isCustom
+        ? 'custom:${language.code}'
+        : LanguageMatcher.normalize(language.code);
+    final detected = detectedInputLanguage;
+    final skip = {
+      key(target),
+      if (!source.isAuto) key(source),
+      if (detected != null) LanguageMatcher.normalize(detected),
+    };
+    final languages = <Language>[];
+    for (final language in extraTargets) {
+      final usable = usableTarget(language);
+      if (usable == null || !skip.add(key(usable))) continue;
+      languages.add(usable);
+    }
+    return languages;
+  }
+
+  /// With an auto [source]: the language code the engine detected in the
+  /// shown [result] when that detection is final (a complete result) and
+  /// not marked as uncertain; else null. The result may belong to an
+  /// earlier version of the input, which is usually in the same language
+  /// (`TranslateCubit` translates an extra target left out for it once a
+  /// new result says otherwise).
+  String? get detectedInputLanguage {
+    final result = this.result;
+    final detected = result?.detectedSource?.trim();
+    if (!source.isAuto ||
+        result == null ||
+        !result.isComplete ||
+        result.detectionUncertain ||
+        detected == null ||
+        detected.isEmpty) {
+      return null;
+    }
+    return detected;
+  }
+
+  /// Whether [language] (as the engine lists it) is one of the
+  /// [extraTargets]: picked as it is, or a pick the engine lists as
+  /// [language] ([usableTarget]).
+  bool isExtraTarget(Language language) => extraTargets.any(
+    (chosen) => chosen == language || usableTarget(chosen) == language,
+  );
+
+  /// The translation into [language] (one of [activeExtraTargets]), or
+  /// null when it has not been requested.
+  ExtraTranslation? extraTranslationFor(Language language) {
+    for (final translation in extraTranslations) {
+      if (translation.target == language) return translation;
+    }
+    return null;
+  }
+
   TranslateState copyWith({
     EnginesStatus? enginesStatus,
     List<TranslationEngine>? engines,
@@ -500,6 +693,13 @@ class TranslateState extends Equatable {
     QualityMode? qualityMode,
     TranslationEngine? Function()? fastEngine,
     TranslationEngine? Function()? bestEngine,
+    ExtraStatus? meaningStatus,
+    MeaningCheck? Function()? meaningCheck,
+    String? Function()? backTranslation,
+    int? Function()? meaningFocus,
+    Object? Function()? meaningError,
+    List<Language>? extraTargets,
+    List<ExtraTranslation>? extraTranslations,
   }) {
     final nextResult = result != null ? result() : this.result;
     return TranslateState(
@@ -575,6 +775,15 @@ class TranslateState extends Equatable {
       qualityMode: qualityMode ?? this.qualityMode,
       fastEngine: fastEngine != null ? fastEngine() : this.fastEngine,
       bestEngine: bestEngine != null ? bestEngine() : this.bestEngine,
+      meaningStatus: meaningStatus ?? this.meaningStatus,
+      meaningCheck: meaningCheck != null ? meaningCheck() : this.meaningCheck,
+      backTranslation: backTranslation != null
+          ? backTranslation()
+          : this.backTranslation,
+      meaningFocus: meaningFocus != null ? meaningFocus() : this.meaningFocus,
+      meaningError: meaningError != null ? meaningError() : this.meaningError,
+      extraTargets: extraTargets ?? this.extraTargets,
+      extraTranslations: extraTranslations ?? this.extraTranslations,
     );
   }
 
@@ -628,5 +837,12 @@ class TranslateState extends Equatable {
     qualityMode,
     fastEngine,
     bestEngine,
+    meaningStatus,
+    meaningCheck,
+    backTranslation,
+    meaningFocus,
+    meaningError,
+    extraTargets,
+    extraTranslations,
   ];
 }

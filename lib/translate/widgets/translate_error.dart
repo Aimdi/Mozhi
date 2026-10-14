@@ -221,10 +221,20 @@ String _redactUrl(String url) {
 /// The message is a live region, so screen readers announce it when it
 /// appears.
 class TranslateErrorView extends StatelessWidget {
-  const new({required this.error, this.onRetry, this.dense = false, super.key});
+  const new({
+    required this.error,
+    this.onRetry,
+    this.dense = false,
+    this.retrySemanticsLabel,
+    super.key,
+  });
 
   final Object? error;
   final VoidCallback? onRetry;
+
+  /// What screen readers call the Retry button (it shows "Retry"), e.g.
+  /// "Retry German" when several can fail on one screen.
+  final String? retrySemanticsLabel;
 
   /// Compact variant for compare cards (no settings shortcut).
   final bool dense;
@@ -291,7 +301,10 @@ class TranslateErrorView extends StatelessWidget {
                 FilledButton.tonalIcon(
                   onPressed: onRetry,
                   icon: const Icon(Icons.refresh),
-                  label: Text(l10n.commonRetry),
+                  label: Text(
+                    l10n.commonRetry,
+                    semanticsLabel: retrySemanticsLabel,
+                  ),
                 ),
               if (showFix)
                 TextButton(

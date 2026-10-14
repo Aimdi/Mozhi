@@ -115,4 +115,31 @@ void main() {
       expect(PromptSanitizer.cap('😀😀', 2), '😀😀');
     });
   });
+
+  group('PromptSanitizer.multiLine', () {
+    test('keeps lines and tabs, normalises line breaks', () {
+      expect(
+        PromptSanitizer.multiLine(
+          '  one\r\ntwo\rthree\u2028four\u2029five\n\n\tsix  ',
+        ),
+        'one\ntwo\nthree\nfour\nfive\n\n\tsix',
+      );
+    });
+
+    test('removes control and invisible format characters', () {
+      expect(
+        PromptSanitizer.multiLine(
+          'a\x00b\x07c\x1Bd\x7Fe\x85f\u202Eg\u200Bh\u2066i\uFEFFj\u200Dk',
+        ),
+        'abcdefghij\u200Dk',
+      );
+    });
+
+    test('caps the result when asked', () {
+      expect(PromptSanitizer.multiLine('abcdef', maxLength: 3), 'abc');
+      expect(PromptSanitizer.multiLine('ab\n\ncd', maxLength: 3), 'ab');
+      expect(PromptSanitizer.multiLine('😀😀😀', maxLength: 2), '😀😀');
+      expect(PromptSanitizer.multiLine('abc', maxLength: 5), 'abc');
+    });
+  });
 }

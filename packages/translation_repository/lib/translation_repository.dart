@@ -1,7 +1,8 @@
 /// Unifies Mozhi engines and AI (LLM) providers behind one translation
 /// interface, with Kagi-style extras: style/formality/reading-level/gender
 /// controls, free-form context and target "languages", alternatives, word
-/// insights, refinement suggestions, dictionary and proofreading.
+/// insights, refinement suggestions, dictionary, proofreading and meaning
+/// checks (back-translation).
 library;
 
 export 'package:llm_api/llm_api.dart'

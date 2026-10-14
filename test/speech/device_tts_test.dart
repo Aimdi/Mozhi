@@ -14,6 +14,10 @@ class _FakeFlutterTts extends Fake implements FlutterTts {
   Object? Function(String tag) available = (_) => true;
   Object? Function(String tag) installed = (_) => false;
   Object? languages = const <String>[];
+
+  /// `getVoices` answers, one per call (the last one repeats).
+  List<Object?> voices = const [<Object?>[]];
+  Object? setVoiceResult = 1;
   Object? setLanguageResult = 1;
   Object? speakResult = 1;
   Exception? audioCategoryError;
@@ -48,6 +52,20 @@ class _FakeFlutterTts extends Fake implements FlutterTts {
   Future<dynamic> get getLanguages async {
     calls.add('getLanguages');
     return _answer(languages);
+  }
+
+  @override
+  Future<dynamic> get getVoices async {
+    calls.add('getVoices');
+    final answer = voices.first;
+    if (voices.length > 1) voices = voices.skip(1).toList();
+    return _answer(answer);
+  }
+
+  @override
+  Future<dynamic> setVoice(Map<String, String> voice) async {
+    calls.add('setVoice ${voice['name']} ${voice['locale']}');
+    return _answer(setVoiceResult);
   }
 
   @override
@@ -150,9 +168,53 @@ void main() {
         }
       });
 
-      test('uses 1.0 / 0.7 for speechSynthesis on the web', () {
+      test('uses 1.0 / 0.6 for speechSynthesis on the web', () {
         expect(rate(TargetPlatform.iOS, isWeb: true), 1.0);
-        expect(rate(TargetPlatform.android, isWeb: true, slow: true), 0.7);
+        expect(rate(TargetPlatform.android, isWeb: true, slow: true), 0.6);
+      });
+
+      double scaled(
+        TargetPlatform platform,
+        double speed, {
+        bool isWeb = false,
+        bool slow = false,
+      }) => FlutterTtsDeviceTts.speechRate(
+        platform: platform,
+        isWeb: isWeb,
+        slow: slow,
+        rate: speed,
+      );
+
+      test('scales linearly with the rate on Android and Windows', () {
+        for (final platform in [
+          TargetPlatform.android,
+          TargetPlatform.windows,
+        ]) {
+          expect(scaled(platform, 0.5), 0.25);
+          expect(scaled(platform, 1.5), 0.75);
+          expect(scaled(platform, 0.5, slow: true), 0.15);
+        }
+      });
+
+      test('maps the rate gently around 0.5 on iOS and macOS', () {
+        for (final platform in [TargetPlatform.iOS, TargetPlatform.macOS]) {
+          expect(scaled(platform, 0.5), 0.375);
+          expect(scaled(platform, 1.5), 0.6);
+          expect(scaled(platform, 1.5, slow: true), 0.475);
+          expect(scaled(platform, 0.5, slow: true), 0.325);
+        }
+      });
+
+      test('passes the rate through on the web', () {
+        expect(scaled(TargetPlatform.android, 1.3, isWeb: true), 1.3);
+        expect(scaled(TargetPlatform.iOS, 0.5, isWeb: true, slow: true), 0.3);
+      });
+
+      test('clamps rates the engines do not accept', () {
+        expect(scaled(TargetPlatform.android, 4), 1);
+        expect(scaled(TargetPlatform.android, 0), 0.05);
+        expect(scaled(TargetPlatform.iOS, 0, isWeb: true), 0.1);
+        expect(scaled(TargetPlatform.iOS, 20, isWeb: true), 10);
       });
     });
 
@@ -376,14 +438,148 @@ void main() {
       });
     });
 
+    group('setLanguage with a voice', () {
+      const amelie = DeviceVoice(
+        name: 'Amélie',
+        locale: 'fr-CA',
+        identifier: 'com.apple.voice.Amelie',
+      );
+      const thomas = DeviceVoice(name: 'Thomas', locale: 'fr-FR');
+
+      late FlutterTtsDeviceTts device;
+
+      setUp(() => device = deviceTts(platform: TargetPlatform.iOS));
+
+      test('selects the voice after the language', () async {
+        await device.setLanguage('fr', voice: amelie);
+
+        expect(tts.calls, [
+          'isLanguageAvailable fr',
+          'setLanguage fr',
+          'setVoice Amélie fr-CA',
+        ]);
+      });
+
+      test('keeps the voice until it changes', () async {
+        await device.setLanguage('fr', voice: amelie);
+        tts.calls.clear();
+
+        await device.setLanguage('fr', voice: amelie);
+        expect(tts.calls, isEmpty);
+
+        await device.setLanguage('fr', voice: thomas);
+        expect(tts.calls, ['setVoice Thomas fr-FR']);
+      });
+
+      test('re-selects the language to restore the default voice', () async {
+        await device.setLanguage('fr', voice: amelie);
+        tts.calls.clear();
+
+        await device.setLanguage('fr');
+        await device.setLanguage('fr');
+
+        expect(tts.calls, ['setLanguage fr']);
+      });
+
+      test('re-applies the voice after another language', () async {
+        await device.setLanguage('fr', voice: amelie);
+        await device.setLanguage('de');
+        tts.calls.clear();
+
+        await device.setLanguage('fr', voice: amelie);
+
+        expect(tts.calls, ['setLanguage fr', 'setVoice Amélie fr-CA']);
+      });
+
+      test('falls back to the default voice when one is rejected', () async {
+        await device.setLanguage('fr', voice: amelie);
+        tts
+          ..setVoiceResult = 0
+          ..calls.clear();
+
+        await device.setLanguage('fr', voice: thomas);
+        expect(tts.calls, ['setVoice Thomas fr-FR', 'setLanguage fr']);
+
+        // The default voice is selected, so the next attempt tries again.
+        tts
+          ..setVoiceResult = Exception('gone')
+          ..calls.clear();
+        await device.setLanguage('fr', voice: thomas);
+        expect(tts.calls, ['setVoice Thomas fr-FR']);
+      });
+    });
+
+    group('voices', () {
+      test('lists the installed voices of the language, best first', () async {
+        tts.voices = [
+          [
+            {'name': 'Thomas', 'locale': 'fr-FR'},
+            {'name': 'Amélie', 'locale': 'fr-CA', 'quality': 'enhanced'},
+            {'name': 'Anna', 'locale': 'de-DE'},
+            {
+              'name': 'fr-fr-x-new',
+              'locale': 'fr-FR',
+              'features': 'networkTimeoutMs\tnotInstalled',
+            },
+            {'name': 'Aurélie', 'locale': 'fr_FR'},
+            {'locale': 'fr-FR'},
+            'junk',
+          ],
+        ];
+        final device = deviceTts();
+
+        final voices = await device.voices('fr-FR');
+
+        expect(voices.map((v) => v.name), ['Aurélie', 'Thomas', 'Amélie']);
+        expect(voices.last.isHighQuality, isTrue);
+      });
+
+      test('is empty when the engine has no list or fails', () async {
+        final device = deviceTts();
+
+        tts.voices = [null];
+        expect(await device.voices('fr'), isEmpty);
+
+        tts.voices = [Exception('engine not ready')];
+        expect(await device.voices('fr'), isEmpty);
+      });
+
+      test('is empty without a speech engine', () async {
+        final device = deviceTts(platform: TargetPlatform.linux);
+
+        expect(await device.voices('fr'), isEmpty);
+        expect(created, 0);
+      });
+
+      test('waits once for the browser to load its voices', () async {
+        tts.voices = [
+          <Object?>[],
+          [
+            {'name': 'Google français', 'locale': 'fr-FR'},
+          ],
+        ];
+        final device = deviceTts(isWeb: true);
+
+        final voices = await device.voices('fr');
+
+        expect(voices.single.name, 'Google français');
+        expect(tts.calls, ['getVoices', 'getVoices']);
+      });
+    });
+
     test('setSpeechRate applies the platform rate once per change', () async {
       final device = deviceTts();
 
       await device.setSpeechRate(slow: false);
       await device.setSpeechRate(slow: false);
       await device.setSpeechRate(slow: true);
+      await device.setSpeechRate(slow: false, rate: 1.2);
 
-      expect(tts.calls, ['setSpeechRate 0.5', 'setSpeechRate 0.3']);
+      expect(tts.calls, [
+        'setSpeechRate 0.5',
+        'setSpeechRate 0.3',
+        'setSpeechRate 0.6',
+      ]);
     });
 
     group('speak', () {

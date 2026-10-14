@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -20,6 +21,7 @@ class _FakeAudioOutput implements AudioOutput {
   int stops = 0;
   bool disposed = false;
   Error? playError;
+  Error? rateError;
   Completer<void>? playGate;
 
   void complete() => completions.add(null);
@@ -35,7 +37,10 @@ class _FakeAudioOutput implements AudioOutput {
   }
 
   @override
-  Future<void> setPlaybackRate(double rate) async => rates.add(rate);
+  Future<void> setPlaybackRate(double rate) async {
+    if (rateError case final error?) throw error;
+    rates.add(rate);
+  }
 
   @override
   Future<void> stop() async => stops++;
@@ -52,6 +57,8 @@ class _FakeAudioOutput implements AudioOutput {
 class _FakeDeviceTts implements DeviceTts {
   bool supported = true;
   Set<String> languages = {'fr', 'en', 'he'};
+  Map<String, List<DeviceVoice>> voicesByTag = {};
+  Error? voicesError;
   final List<String> calls = [];
   final Map<String, Completer<void>> gates = {};
   final StreamController<void> completions = StreamController.broadcast();
@@ -76,12 +83,29 @@ class _FakeDeviceTts implements DeviceTts {
   }
 
   @override
-  Future<void> setLanguage(String languageTag) =>
-      _step('language', 'language $languageTag');
+  Future<void> setLanguage(String languageTag, {DeviceVoice? voice}) => _step(
+    'language',
+    [
+      'language $languageTag',
+      if (voice != null) 'voice ${voice.name}',
+    ].join(' '),
+  );
 
   @override
-  Future<void> setSpeechRate({required bool slow}) =>
-      _step('rate', slow ? 'rate slow' : 'rate normal');
+  Future<void> setSpeechRate({required bool slow, double rate = 1}) => _step(
+    'rate',
+    [
+      if (slow) 'rate slow' else 'rate normal',
+      if (rate != 1) 'x$rate',
+    ].join(' '),
+  );
+
+  @override
+  Future<List<DeviceVoice>> voices(String languageTag) async {
+    calls.add('voices $languageTag');
+    if (voicesError case final error?) throw error;
+    return voicesByTag[languageTag] ?? const [];
+  }
 
   @override
   Future<void> speak(String text) async {
@@ -193,7 +217,7 @@ void main() {
         ).called(1);
       });
 
-      test('plays slow clips at the slow playback rate', () async {
+      test('plays slow clips at the slow playback speed', () async {
         await service.toggle(
           id: 'target',
           text: 'Bonjour',
@@ -1301,6 +1325,494 @@ void main() {
             expect(service.current, 'target');
           },
         );
+      });
+    });
+
+    group('settings', () {
+      const amelie = DeviceVoice(name: 'Amélie', locale: 'fr-CA');
+
+      test('are the defaults until loaded', () async {
+        await store.write(
+          SpeechService.settingsKey,
+          '{"rate": 1.3, "voices": {"fr": {"name": "Amélie", '
+          '"locale": "fr-CA"}}}',
+        );
+
+        expect(service.settings, const SpeechSettings());
+        final loaded = await service.loadSettings();
+        expect(loaded.rate, 1.3);
+        expect(loaded.voiceFor('fr'), amelie);
+        expect(service.settings, loaded);
+      });
+
+      test('read the store once', () async {
+        final store = _MockKeyValueStore();
+        when(() => store.read(any())).thenAnswer((_) async => null);
+        final service = SpeechService(
+          repository: repository,
+          output: output,
+          deviceTts: device,
+          store: store,
+        );
+
+        await service.loadSettings();
+        await service.loadSettings();
+
+        verify(() => store.read(SpeechService.settingsKey)).called(1);
+      });
+
+      test('read as defaults when invalid, failing or missing', () async {
+        await store.write(SpeechService.settingsKey, '[1, 2]');
+        expect(await service.loadSettings(), const SpeechSettings());
+
+        final broken = SpeechService(
+          repository: repository,
+          output: output,
+          deviceTts: device,
+          store: MemoryStore({SpeechService.settingsKey: '{oops'}),
+        );
+        expect(await broken.loadSettings(), const SpeechSettings());
+
+        final failingStore = _MockKeyValueStore();
+        when(() => failingStore.read(any())).thenThrow(Exception('locked'));
+        final failing = SpeechService(
+          repository: repository,
+          output: output,
+          deviceTts: device,
+          store: failingStore,
+        );
+        expect(await failing.loadSettings(), const SpeechSettings());
+
+        final storeless = SpeechService(
+          repository: repository,
+          output: output,
+          deviceTts: device,
+        );
+        expect(await storeless.loadSettings(), const SpeechSettings());
+      });
+
+      test('setSpeechRate normalises, applies and persists', () async {
+        await service.setSpeechRate(1.27);
+
+        expect(service.settings.rate, 1.3);
+        final stored = SpeechSettings.fromJson(
+          jsonDecode(store.values[SpeechService.settingsKey]!)
+              as Map<String, dynamic>,
+        );
+        expect(stored.rate, 1.3);
+      });
+
+      test('setVoice keeps the other stored settings', () async {
+        await store.write(
+          SpeechService.settingsKey,
+          jsonEncode(const SpeechSettings(rate: 0.8).toJson()),
+        );
+
+        await service.setVoice('fr', amelie);
+
+        expect(service.settings, isA<SpeechSettings>());
+        expect(service.settings.rate, 0.8);
+        expect(service.settings.voiceFor('fr'), amelie);
+        expect(
+          store.values[SpeechService.settingsKey],
+          jsonEncode(service.settings.toJson()),
+        );
+
+        await service.setVoice('fr', null);
+        expect(service.settings.voices, isEmpty);
+      });
+
+      test('skips writing unchanged settings', () async {
+        final store = _MockKeyValueStore();
+        when(() => store.read(any())).thenAnswer((_) async => null);
+        final service = SpeechService(
+          repository: repository,
+          output: output,
+          deviceTts: device,
+          store: store,
+        );
+
+        await service.setSpeechRate(1);
+        await service.setVoice('Pirate', amelie);
+
+        verifyNever(() => store.write(any(), any()));
+      });
+
+      test('apply changes even when they cannot be saved', () async {
+        final store = _MockKeyValueStore();
+        when(() => store.read(any())).thenAnswer((_) async => null);
+        when(() => store.write(any(), any())).thenThrow(Exception('full'));
+        final service = SpeechService(
+          repository: repository,
+          output: output,
+          deviceTts: device,
+          store: store,
+        );
+
+        await expectLater(service.setSpeechRate(0.7), throwsException);
+
+        expect(service.settings.rate, 0.7);
+        expect(await service.loadSettings(), service.settings);
+      });
+
+      test('Mozhi clips play at the chosen rate', () async {
+        await service.setSpeechRate(1.2);
+
+        await service.toggle(id: 'target', text: 'Bonjour', languageCode: 'fr');
+
+        expect(output.rates, [1.2]);
+      });
+
+      test('slow Mozhi clips play at a fraction of the rate', () async {
+        await service.setSpeechRate(0.5);
+
+        await service.toggle(
+          id: 'target',
+          text: 'Bonjour',
+          languageCode: 'fr',
+          slow: true,
+        );
+
+        expect(output.rates.single, closeTo(0.3, 1e-9));
+      });
+
+      test('Mozhi still plays when the player cannot change speed', () async {
+        output.rateError = UnsupportedError('no rate');
+        await service.setSpeechRate(1.2);
+
+        await service.toggle(id: 'target', text: 'Bonjour', languageCode: 'fr');
+
+        expect(output.played, [_clip(1)]);
+        expect(device.calls, isEmpty);
+      });
+
+      test('the device speaks at the chosen rate', () async {
+        when(() => repository.instances).thenReturn(const []);
+        await service.setSpeechRate(1.4);
+
+        await service.toggle(
+          id: 'target',
+          text: 'Bonjour',
+          languageCode: 'fr',
+          slow: true,
+        );
+
+        expect(device.calls, contains('rate slow x1.4'));
+      });
+
+      test('a chosen voice reads its language on the device first', () async {
+        await service.setVoice('fr', amelie);
+
+        await service.toggle(id: 'target', text: 'Bonjour', languageCode: 'fr');
+
+        expect(device.calls, [
+          'available fr',
+          'language fr voice Amélie',
+          'rate normal',
+          'speak Bonjour',
+        ]);
+        verifyNever(
+          () => repository.textToSpeech(
+            text: any(named: 'text'),
+            languageCode: any(named: 'languageCode'),
+          ),
+        );
+      });
+
+      test('voices are looked up by the device tag', () async {
+        await service.setVoice('he', amelie);
+
+        await service.toggle(id: 'target', text: 'שלום', languageCode: 'iw');
+
+        expect(device.calls, contains('language he voice Amélie'));
+      });
+
+      test('other languages keep Mozhi and the default voice', () async {
+        await service.setVoice('fr', amelie);
+        when(() => repository.instances).thenReturn(const []);
+
+        await service.toggle(id: 'target', text: 'Hello', languageCode: 'en');
+
+        expect(device.calls, contains('language en'));
+      });
+
+      test('Mozhi reads the language when the voice is unavailable', () async {
+        await service.setVoice('de', amelie);
+
+        await service.toggle(id: 'target', text: 'Hallo', languageCode: 'de');
+
+        expect(device.calls, ['available de']);
+        expect(output.played, [_clip(1)]);
+      });
+
+      test('the device takeover of a failed chunk uses the voice', () async {
+        final sentences = ['${'un ' * 60}fin.', '${'deux ' * 30}fin.'];
+        final fetch = Completer<Uint8List>();
+        stubTts(text: sentences[0], answer: _clip(1));
+        stubTts(text: sentences[1], answer: () => fetch.future);
+        // Without a device voice yet, Mozhi starts reading.
+        device.languages = {};
+        await service.setVoice('fr', amelie);
+
+        await service.toggle(
+          id: 'target',
+          text: sentences.join(' '),
+          languageCode: 'fr',
+        );
+        device.languages = {'fr'};
+        fetch.completeError(StateError('offline'));
+        await flush();
+
+        expect(output.played, [_clip(1)]);
+        expect(device.calls.last, 'speak ${sentences.join(' ')}');
+        expect(device.calls, contains('language fr voice Amélie'));
+      });
+    });
+
+    group('deviceVoices', () {
+      const voice = DeviceVoice(name: 'Amélie', locale: 'fr-CA');
+
+      test('lists the device voices by device tag', () async {
+        device.voicesByTag = {
+          'he': [voice],
+        };
+
+        expect(await service.deviceVoices('iw'), [voice]);
+        expect(device.calls, ['voices he']);
+      });
+
+      test('is empty for unspeakable codes or without an engine', () async {
+        expect(await service.deviceVoices('Pirate'), isEmpty);
+
+        device.supported = false;
+        expect(await service.deviceVoices('fr'), isEmpty);
+        expect(device.calls, isEmpty);
+      });
+
+      test('is empty when the engine fails', () async {
+        device.voicesError = StateError('engine');
+
+        expect(await service.deviceVoices('fr'), isEmpty);
+      });
+    });
+
+    group('speak', () {
+      test('restarts the playing id instead of stopping it', () async {
+        await service.toggle(id: 'target', text: 'Bonjour', languageCode: 'fr');
+
+        await service.speak(
+          id: 'target',
+          text: 'Bonjour',
+          languageCode: 'fr',
+          slow: true,
+        );
+
+        expect(output.stops, 1);
+        expect(output.played, [_clip(1), _clip(1)]);
+        expect(output.rates, [1, SpeechService.slowPlaybackRate]);
+        expect(service.current, 'target');
+        expect(emitted, ['target']);
+      });
+
+      test('only stops for empty text', () async {
+        await service.toggle(id: 'target', text: 'Bonjour', languageCode: 'fr');
+
+        await service.speak(id: 'target', text: ' ', languageCode: 'fr');
+
+        expect(service.current, isNull);
+        expect(service.lastUtterance?.text, 'Bonjour');
+      });
+    });
+
+    group('replaySlowly', () {
+      test('does nothing before anything was read aloud', () async {
+        expect(service.lastUtterance, isNull);
+        expect(await service.replaySlowly(), isFalse);
+        expect(output.played, isEmpty);
+      });
+
+      test('replays the last utterance slowly from the cache', () async {
+        await service.toggle(
+          id: 'target',
+          text: ' Bonjour ',
+          languageCode: 'fr',
+        );
+        output.complete();
+        await flush();
+        expect(service.current, isNull);
+
+        expect(await service.replaySlowly(), isTrue);
+
+        expect(
+          service.lastUtterance,
+          const SpeechUtterance(
+            id: 'target',
+            text: 'Bonjour',
+            languageCode: 'fr',
+          ),
+        );
+        expect(service.current, 'target');
+        expect(output.rates, [1, SpeechService.slowPlaybackRate]);
+        verify(
+          () => repository.textToSpeech(text: 'Bonjour', languageCode: 'fr'),
+        ).called(1);
+      });
+
+      test('replays while the utterance is still playing', () async {
+        await service.toggle(id: 'source', text: 'Hola', languageCode: 'es');
+
+        await service.replaySlowly();
+
+        expect(service.current, 'source');
+        expect(output.played, hasLength(2));
+      });
+
+      test('throws when nothing can read the text anymore', () async {
+        await service.toggle(id: 'target', text: 'Hallo', languageCode: 'de');
+        when(() => repository.instances).thenReturn(const []);
+        device.languages = {};
+
+        await expectLater(service.replaySlowly(), throwsA(unavailable('de')));
+        expect(service.current, isNull);
+      });
+    });
+
+    group('lastUtterance', () {
+      const bonjour = SpeechUtterance(
+        id: 'target',
+        text: 'Bonjour',
+        languageCode: 'fr',
+      );
+
+      test('is set once the device engine has started', () async {
+        when(() => repository.instances).thenReturn(const []);
+
+        await service.speak(id: 'target', text: 'Bonjour', languageCode: 'fr');
+
+        expect(service.lastUtterance, bonjour);
+      });
+
+      test('ignores reads that are not remembered', () async {
+        await service.toggle(id: 'target', text: 'Bonjour', languageCode: 'fr');
+        output.complete();
+        await flush();
+
+        await service.toggle(
+          id: 'settings.speech.rate',
+          text: 'Sample sentence',
+          languageCode: 'en',
+          remember: false,
+        );
+        await service.speak(
+          id: 'settings.speech.rate',
+          text: 'Sample sentence',
+          languageCode: 'en',
+          remember: false,
+        );
+
+        expect(service.lastUtterance, bonjour);
+        await service.replaySlowly();
+        verify(
+          () => repository.textToSpeech(text: 'Bonjour', languageCode: 'fr'),
+        ).called(1);
+      });
+
+      test('ignores reads that fail', () async {
+        await service.toggle(id: 'target', text: 'Bonjour', languageCode: 'fr');
+        when(() => repository.instances).thenReturn(const []);
+        device.languages = {};
+
+        await expectLater(
+          service.toggle(id: 'source', text: 'Hallo', languageCode: 'de'),
+          throwsA(unavailable('de')),
+        );
+
+        expect(service.lastUtterance, bonjour);
+      });
+
+      test('ignores reads stopped before they started', () async {
+        final clip = Completer<Uint8List>();
+        stubTts(answer: () => clip.future);
+
+        final reading = service.toggle(
+          id: 'target',
+          text: 'Bonjour',
+          languageCode: 'fr',
+        );
+        await flush();
+        await service.stop();
+        clip.complete(_clip(1));
+        await reading;
+
+        expect(service.lastUtterance, isNull);
+        expect(await service.replaySlowly(), isFalse);
+      });
+    });
+
+    group('previewVoice', () {
+      const amelie = DeviceVoice(name: 'Amélie', locale: 'fr-CA');
+
+      test('reads with the given voice on the device only', () async {
+        await service.previewVoice(
+          id: 'preview',
+          text: 'Français',
+          languageCode: 'fr',
+          voice: amelie,
+        );
+
+        expect(device.calls, [
+          'available fr',
+          'language fr voice Amélie',
+          'rate normal',
+          'speak Français',
+        ]);
+        expect(service.current, 'preview');
+        expect(service.lastUtterance, isNull);
+        verifyNever(
+          () => repository.textToSpeech(
+            text: any(named: 'text'),
+            languageCode: any(named: 'languageCode'),
+          ),
+        );
+      });
+
+      test('uses the default voice when none is given', () async {
+        await service.setVoice('fr', amelie);
+
+        await service.previewVoice(
+          id: 'preview',
+          text: 'Français',
+          languageCode: 'fr',
+        );
+
+        expect(device.calls, contains('language fr'));
+      });
+
+      test('toggles off when previewed again', () async {
+        await service.previewVoice(
+          id: 'preview',
+          text: 'Français',
+          languageCode: 'fr',
+        );
+        await service.previewVoice(
+          id: 'preview',
+          text: 'Français',
+          languageCode: 'fr',
+        );
+
+        expect(service.current, isNull);
+      });
+
+      test('throws without a device voice for the language', () async {
+        await expectLater(
+          service.previewVoice(
+            id: 'preview',
+            text: 'Deutsch',
+            languageCode: 'de',
+          ),
+          throwsA(unavailable('de')),
+        );
+        expect(output.played, isEmpty);
       });
     });
 

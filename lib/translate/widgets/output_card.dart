@@ -16,6 +16,7 @@ import 'package:mozhi/translate/widgets/extras_section.dart';
 import 'package:mozhi/translate/widgets/insight_sheet.dart';
 import 'package:mozhi/translate/widgets/language_text.dart';
 import 'package:mozhi/translate/widgets/listen_button.dart';
+import 'package:mozhi/translate/widgets/meaning_check_panel.dart';
 import 'package:mozhi/translate/widgets/romanization_line.dart';
 import 'package:mozhi/translate/widgets/status_announcer.dart';
 import 'package:mozhi/translate/widgets/translate_error.dart';
@@ -96,8 +97,18 @@ TextDirection? outputTextDirection(TranslateState state) =>
 ///
 /// "Romanization ready" and the alignment hint are announced for the load
 /// the user asked for, not for the automatic reloads.
+///
+/// "Check meaning" starts a meaning check of the finished translation on
+/// demand (`TranslateCubit.checkMeaning`, shown by [MeaningCheckPanel]);
+/// pressed again it hides the check. The difference highlighted there
+/// (`TranslateState.focusedMeaningIssue`) is highlighted in the
+/// translation too, over the alignment and insights.
 class OutputCard extends StatefulWidget {
-  const new({super.key});
+  const new({this.meaningButtonFocusNode, super.key});
+
+  /// Focus node of the "Check meaning" button, e.g. for
+  /// [MeaningCheckPanel.returnFocusNode].
+  final FocusNode? meaningButtonFocusNode;
 
   @override
   State<OutputCard> createState() => _OutputCardState();
@@ -404,6 +415,7 @@ class _OutputCardState extends State<OutputCard> {
     final locale = localeForLanguage(state.target);
     final offline = result != null && isOfflineEngineId(result.engineId);
     final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    final meaningHighlight = outputMeaningHighlight(state);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -429,7 +441,21 @@ class _OutputCardState extends State<OutputCard> {
                   : const Duration(milliseconds: 150),
               child: SizedBox(
                 width: double.infinity,
-                child: alignmentReady
+                child: meaningHighlight != null
+                    ? SelectableText.rich(
+                        highlightedTextSpan(
+                          output,
+                          meaningHighlight,
+                          theme.colorScheme,
+                          locale: locale,
+                        ),
+                        key: const Key('translate_output_text'),
+                        style: style,
+                        textDirection: direction,
+                        contextMenuBuilder: (context, editable) =>
+                            _contextMenu(context, editable, state),
+                      )
+                    : alignmentReady
                     ? AlignedText(
                         text: output,
                         alignment: state.alignment,
@@ -654,6 +680,28 @@ class _OutputCardState extends State<OutputCard> {
     );
   }
 
+  /// "Check meaning" (on demand only), or "Hide meaning check" while a
+  /// check is shown.
+  Widget _meaningButton(BuildContext context, TranslateState state) {
+    final l10n = context.l10n;
+    final shown = state.meaningStatus != ExtraStatus.idle;
+    return IconButton(
+      key: const Key('translate_meaning_button'),
+      focusNode: widget.meaningButtonFocusNode,
+      tooltip: shown
+          ? l10n.translateMeaningCheckHide
+          : l10n.translateMeaningCheck,
+      isSelected: shown,
+      icon: const Icon(Icons.fact_check_outlined),
+      selectedIcon: const Icon(Icons.fact_check),
+      onPressed: shown
+          ? context.read<TranslateCubit>().clearMeaningCheck
+          : state.canCheckMeaning
+          ? () => unawaited(checkMeaningIn(context))
+          : null,
+    );
+  }
+
   Widget _actions(BuildContext context, TranslateState state) {
     final l10n = context.l10n;
     final output = state.output;
@@ -705,6 +753,7 @@ class _OutputCardState extends State<OutputCard> {
             );
           },
         ),
+        _meaningButton(context, state),
         if (state.hasExtras)
           IconButton(
             key: const Key('translate_insights_button'),

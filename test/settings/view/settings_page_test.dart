@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
@@ -10,6 +13,8 @@ import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/settings_page.dart';
 import 'package:mozhi/settings/view/widgets/history_data_actions.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
+import 'package:mozhi/settings/view/widgets/speech_settings_section.dart';
+import 'package:mozhi/speech/speech_service.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 import 'helpers.dart';
@@ -21,6 +26,8 @@ const _claude = AiProviderConfig(
   baseUrl: 'https://api.anthropic.com/v1',
   model: 'claude-opus-5-5',
 );
+
+class _MockSpeechService extends Mock implements SpeechService;
 
 const _local = AiProviderConfig(
   id: 'p2',
@@ -631,6 +638,73 @@ void main() {
         await tester.pumpAndSettle();
         verifyNever(
           () => history.clear(keepFavorites: any(named: 'keepFavorites')),
+        );
+      });
+    });
+
+    group('read aloud', () {
+      late _MockSpeechService speech;
+
+      setUp(() {
+        speech = _MockSpeechService();
+        when(() => speech.speaking).thenAnswer((_) => const Stream.empty());
+        when(() => speech.current).thenReturn(null);
+        when(() => speech.deviceVoiceSupported).thenReturn(true);
+        when(() => speech.preferDeviceVoice).thenReturn(false);
+        when(speech.loadPreferDeviceVoice).thenAnswer((_) async => false);
+        when(speech.loadSettings)
+            .thenAnswer((_) async => const SpeechSettings());
+        when(speech.stop).thenAnswer((_) async {});
+      });
+
+      testWidgets('is hidden without a speech service', (tester) async {
+        await pump(tester);
+
+        expect(find.byType(SpeechSettingsSection), findsNothing);
+      });
+
+      testWidgets('offers voices for the languages in use', (tester) async {
+        when(() => settings.state).thenReturn(
+          const AppSettings(
+            source: Language(code: 'de', name: 'German'),
+            target: Language(code: 'fr', name: 'French'),
+            recentLanguages: [
+              Language(code: 'fr', name: 'French'),
+              Language(code: 'es', name: 'Spanish'),
+            ],
+          ),
+        );
+        tester.setScreenSize(const Size(800, 4000));
+        await tester.pumpView(
+          RepositoryProvider<SpeechService>.value(
+            value: speech,
+            child: const SettingsPage(),
+          ),
+          settings: settings,
+          history: history,
+          router: router,
+        );
+        await tester.pump();
+
+        expect(find.text('Read aloud'), findsOneWidget);
+        expect(find.text('Speech rate'), findsOneWidget);
+        expect(
+          [
+            for (final text in tester.widgetList<Text>(
+              find.textContaining(RegExp(r'^\w+ voice$')),
+            ))
+              text.data,
+          ],
+          ['French voice', 'German voice', 'Spanish voice'],
+        );
+        // In the first column, after the translation settings.
+        expect(
+          tester.getTopLeft(find.text('Read aloud')).dy,
+          greaterThan(tester.getTopLeft(find.text('Translation')).dy),
+        );
+        expect(
+          tester.getTopLeft(find.text('Read aloud')).dy,
+          lessThan(tester.getTopLeft(find.text('Appearance')).dy),
         );
       });
     });

@@ -12,6 +12,7 @@ import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/alignment_highlight.dart';
 import 'package:mozhi/translate/widgets/language_text.dart';
 import 'package:mozhi/translate/widgets/listen_button.dart';
+import 'package:mozhi/translate/widgets/meaning_check_panel.dart';
 import 'package:mozhi/translate/widgets/status_announcer.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
 import 'package:mozhi/usage/usage.dart' show TokenEstimateLabel;
@@ -102,6 +103,8 @@ SpeechInputService? _speechInputServiceOf(BuildContext context) {
 /// focused pair is highlighted ([HighlightTextEditingController]); moving
 /// the cursor into an aligned phrase focuses its pair
 /// (`TranslateCubit.focusAlignment`), and any edit clears the alignment.
+/// The difference highlighted in the meaning check
+/// (`TranslateState.focusedMeaningIssue`) is highlighted the same way.
 class InputCard extends StatefulWidget {
   const new({this.minLines = 4, super.key});
 
@@ -181,7 +184,9 @@ class _InputCardState extends State<InputCard> {
     final text = _controller.text;
     _controller.showAlignment(
       phrases: inputAlignmentPhrases(state, text),
-      highlight: inputAlignmentHighlight(state, text),
+      highlight:
+          inputMeaningHighlight(state, text) ??
+          inputAlignmentHighlight(state, text),
     );
   }
 
@@ -257,7 +262,9 @@ class _InputCardState extends State<InputCard> {
           previous.input != current.input ||
           previous.alignment != current.alignment ||
           previous.alignmentFocus != current.alignmentFocus ||
-          previous.alignmentStatus != current.alignmentStatus,
+          previous.alignmentStatus != current.alignmentStatus ||
+          previous.meaningFocus != current.meaningFocus ||
+          previous.meaningStatus != current.meaningStatus,
       listener: (context, state) => _syncState(state),
       builder: (context, state) {
         final input = state.input;

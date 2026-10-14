@@ -439,10 +439,7 @@ abstract final class ResponseParsers {
       final inSource = _find(
         sourceText.restoreTags(rawSource),
         sourceText,
-        // The next occurrence at or after the cursor, else the nearest one
-        // before it.
-        distance: (r) =>
-            r.start >= from ? r.start - from : sourceLength + from - r.start,
+        distance: _forwardDistance(from, sourceLength),
         increasingFrom: from,
         forwardFirst: true,
       );
@@ -450,14 +447,7 @@ abstract final class ResponseParsers {
       final inTarget = _find(
         targetText.restoreTags(rawTarget),
         targetText,
-        // The occurrence nearest to the previous pair's (after it on a tie).
-        distance: (r) => near == null
-            ? r.start
-            : r.start >= near.end
-            ? 2 * (r.start - near.end)
-            : r.end <= near.start
-            ? 2 * (near.start - r.end) + 1
-            : 0,
+        distance: _nearDistance(near),
         increasingFrom: near?.end ?? 0,
       );
       if (inSource == null || inTarget == null) continue;
@@ -480,6 +470,551 @@ abstract final class ResponseParsers {
           : a.targetStart.compareTo(b.targetStart),
     );
   }
+
+  /// Longest [MeaningIssue.problem] kept by [parseMeaningCheck].
+  static const maxMeaningProblemLength = 300;
+
+  /// Longest [MeaningIssue.suggestion] kept by [parseMeaningCheck].
+  static const maxMeaningSuggestionLength = 500;
+
+  /// Longest [MeaningCheck.backTranslation] kept by [parseMeaningCheck].
+  static const maxBackTranslationLength = 8000;
+
+  /// Most items of the issue list [parseMeaningCheck] reads (some may be
+  /// dropped, so a few more than it keeps).
+  static const _maxMeaningItems = 100;
+
+  /// The model's meaning check of [translation] against [source] (see
+  /// `TranslationPrompts.meaningCheck`).
+  ///
+  /// * `back_translation` keeps its lines; control and invisible format
+  ///   characters are removed and it is capped at
+  ///   [maxBackTranslationLength] characters.
+  /// * `verdict` is `same`, `minor` or `major` (also common synonyms such
+  ///   as `identical`, `slight`, `significant`). An unknown or missing
+  ///   verdict, and `same` when the model listed differences, is
+  ///   [MeaningVerdict.fallback] for the types of the listed differences:
+  ///   `same` without any, `major` when one is a negation, a number or an
+  ///   omission (also an inferred one), else `minor`. A difference counts
+  ///   whether or not it can be located, so a reply that lists differences
+  ///   is never `same`: an item with a `problem` (without a verdict also a
+  ///   plain-text item that is not a note such as `none`); against an
+  ///   explicit `same`, only an item with a span (not the prompt's example
+  ///   copied with its `...` placeholders, nor a "no differences" note).
+  ///   An explicit `minor` or `major` is kept.
+  /// * Each issue's `source_span` and `translation_span` are located in
+  ///   [source] and [translation] like the phrases of [parseAlignment]
+  ///   (exactly, else without edge quotes and punctuation, else ignoring
+  ///   case; occurrences at word boundaries first, then occurrences no
+  ///   earlier issue took, so repeated spans map to successive
+  ///   occurrences; on the source side the next occurrence after the
+  ///   previous issue's span, on the translation side the nearest one).
+  ///   A blank span (or a note such as `(none)` or `[omitted]` that is not
+  ///   in the text) leaves that side unlocated; an issue is dropped when a
+  ///   span cannot be located, when neither side is located, when its
+  ///   `problem` is blank, or when it repeats an earlier issue (same
+  ///   ranges and problem). Issues keep the model's order.
+  /// * `problem` and `suggestion` become single lines of at most
+  ///   [maxMeaningProblemLength] and [maxMeaningSuggestionLength]
+  ///   characters; a suggestion equal to the translation span is dropped.
+  ///   `type` is a [MeaningIssueType] (synonyms accepted); an unknown type
+  ///   is an omission when only the source side is located, an addition
+  ///   when only the translation side is, else `other`.
+  /// * At most `TranslationPrompts.maxMeaningIssues` issues are kept, from
+  ///   the first [_maxMeaningItems] items, and only the beginnings of the
+  ///   texts the prompt sent (`TranslationPrompts.maxMeaningCheckChars`
+  ///   characters each) are searched; [MeaningCheck.isPartial] tells
+  ///   whether either text was longer.
+  ///
+  /// The issues may also come as a bare list, and the check wrapped in an
+  /// object of its own (`{"result": {...}}`) or in an array
+  /// (`[{"verdict": ..., "issues": [...]}]`). An array item is a check
+  /// when it has an issue list, or a verdict or back-translation but no
+  /// spans and no type; other items are issues. Several checks in an array
+  /// are merged: the most severe verdict, the back-translations one per
+  /// line, and all issues in array order. Throws a [FormatException] when
+  /// the output holds no JSON, or an object with none of the verdict,
+  /// back-translation and issue fields.
+  static MeaningCheck parseMeaningCheck(
+    String output, {
+    required String source,
+    required String translation,
+  }) {
+    final value = _extractJson(output);
+    final verdicts = <MeaningVerdict>[];
+    final backTranslations = <String>[];
+    final items = <dynamic>[];
+    void addCheck(Map<dynamic, dynamic> check) {
+      final (rawVerdict, rawBack, rawIssues) = _meaningFields(check);
+      if (_meaningVerdict(rawVerdict) case final verdict?) {
+        verdicts.add(verdict);
+      }
+      final back = switch (rawBack) {
+        final String text => text,
+        final List<dynamic> lines => _strings(lines).join('\n'),
+        _ => '',
+      };
+      if (back.trim().isNotEmpty) backTranslations.add(back);
+      items.addAll(switch (rawIssues) {
+        final List<dynamic> list => list,
+        final Map<dynamic, dynamic> map => [map],
+        _ => const <dynamic>[],
+      });
+    }
+
+    if (value is Map) {
+      addCheck(
+        _meaningRoot(value) ??
+            (throw FormatException('No meaning check found', output)),
+      );
+    } else {
+      // A bare list of issues, or a check (or several) wrapped in an array.
+      for (final item in value as List<dynamic>) {
+        if (_arrayCheck(item) case final check?) {
+          addCheck(check);
+        } else {
+          items.add(item);
+        }
+      }
+    }
+    final (:issues, :listed) = _meaningIssues(
+      items,
+      source: source,
+      translation: translation,
+    );
+    // The most severe verdict (the values are ordered by severity).
+    final verdict = verdicts.isEmpty
+        ? null
+        : verdicts.reduce((a, b) => b.index > a.index ? b : a);
+    // Against an explicit `same`, only differences with a span count.
+    final differences = [
+      for (final (:type, :hasSpan) in listed)
+        if (verdict == null || hasSpan) type,
+    ];
+    return MeaningCheck(
+      verdict: verdict == null || verdict == MeaningVerdict.same
+          ? MeaningVerdict.fallback(
+              hasIssues: differences.isNotEmpty,
+              issueTypes: differences,
+            )
+          : verdict,
+      backTranslation: PromptSanitizer.multiLine(
+        backTranslations.join('\n'),
+        maxLength: maxBackTranslationLength,
+      ),
+      issues: List.unmodifiable(issues),
+      isPartial:
+          source.length > TranslationPrompts.maxMeaningCheckChars ||
+          translation.length > TranslationPrompts.maxMeaningCheckChars,
+    );
+  }
+
+  /// [map], or the check it wraps as its only value (`{"result": {...}}`);
+  /// null when neither has a verdict, back-translation or issue field.
+  static Map<dynamic, dynamic>? _meaningRoot(Map<dynamic, dynamic> map) {
+    bool isCheck(Map<dynamic, dynamic> m) =>
+        _meaningFields(m) != (null, null, null);
+    final single = map.length == 1 ? map.values.single : null;
+    if (single case final Map<dynamic, dynamic> inner when isCheck(inner)) {
+      return inner;
+    }
+    return isCheck(map) ? map : null;
+  }
+
+  /// The check an [item] of an array holds (see [parseMeaningCheck]), or
+  /// null when it is an issue (or neither). An issue may carry a severity
+  /// or a back-translation of its own, but it has spans or a type and never
+  /// an issue list.
+  static Map<dynamic, dynamic>? _arrayCheck(Object? item) {
+    if (item is! Map) return null;
+    final check = _meaningRoot(item);
+    if (check == null) return null;
+    final (_, _, rawIssues) = _meaningFields(check);
+    if (rawIssues is List || rawIssues is Map) return check;
+    final issueKeys = _get(check, const [
+      ..._sourceSpanKeys,
+      ..._translationSpanKeys,
+      ..._issueTypeKeys,
+    ]);
+    return issueKeys == null ? check : null;
+  }
+
+  /// The verdict, back-translation and issues of a meaning check [map]
+  /// (null when absent).
+  static (Object?, Object?, Object?) _meaningFields(
+    Map<dynamic, dynamic> map,
+  ) => (
+    _get(map, const ['verdict', 'result', 'assessment', 'severity', 'rating']),
+    _get(map, const [
+      'back_translation',
+      'backtranslation',
+      'reverse_translation',
+      'retranslation',
+      'round_trip',
+    ]),
+    _get(map, const [
+      'issues',
+      'differences',
+      'problems',
+      'errors',
+      'discrepancies',
+    ]),
+  );
+
+  /// Keys of a meaning issue's fields.
+  static const _problemKeys = [
+    'problem',
+    'explanation',
+    'description',
+    'issue',
+    'reason',
+    'note',
+  ];
+  static const _sourceSpanKeys = [
+    'source_span',
+    'source',
+    'source_text',
+    'original',
+    'original_span',
+  ];
+  static const _translationSpanKeys = [
+    'translation_span',
+    'translation',
+    'target_span',
+    'target',
+    'translated',
+  ];
+  static const _issueTypeKeys = ['type', 'category', 'kind'];
+  static const _suggestionKeys = [
+    'suggestion',
+    'suggested_translation',
+    'correction',
+    'corrected',
+    'fix',
+  ];
+
+  /// The issues of [parseMeaningCheck] that can be located, and every
+  /// difference the model listed in [items] (located or not): its type and
+  /// whether it has a span (found in its text or not).
+  static ({
+    List<MeaningIssue> issues,
+    List<({MeaningIssueType type, bool hasSpan})> listed,
+  })
+  _meaningIssues(
+    List<dynamic> items, {
+    required String source,
+    required String translation,
+  }) {
+    // The model saw only these beginnings; offsets into a prefix are
+    // offsets into the whole text.
+    final sourceText = _AlignmentText(
+      PromptSanitizer.prefix(source, TranslationPrompts.maxMeaningCheckChars),
+    );
+    final targetText = _AlignmentText(
+      PromptSanitizer.prefix(
+        translation,
+        TranslationPrompts.maxMeaningCheckChars,
+      ),
+    );
+    final sourceLength = sourceText.text.length;
+    var sourceFrom = 0;
+    _Range? previousTarget;
+    final issues = <MeaningIssue>[];
+    final listed = <({MeaningIssueType type, bool hasSpan})>[];
+    final seen = <(_Range?, _Range?, String)>{};
+    for (final item in items.take(_maxMeaningItems)) {
+      if (issues.length >= TranslationPrompts.maxMeaningIssues) break;
+      if (item is String) {
+        // A difference told in prose, without spans.
+        if (!_isSpanNote(item)) {
+          listed.add((type: MeaningIssueType.other, hasSpan: false));
+        }
+        continue;
+      }
+      if (item is! Map) continue;
+      final problem = PromptSanitizer.singleLine(
+        _string(item, _problemKeys),
+        maxLength: maxMeaningProblemLength,
+        atWordBoundary: true,
+      );
+      if (problem.isEmpty) continue;
+      final from = sourceFrom;
+      final (inSource, sourceMissing) = _spanIn(
+        _rawString(item, _sourceSpanKeys),
+        sourceText,
+        distance: _forwardDistance(from, sourceLength),
+        increasingFrom: from,
+        forwardFirst: true,
+      );
+      final near = previousTarget;
+      final (inTarget, targetMissing) = _spanIn(
+        _rawString(item, _translationSpanKeys),
+        targetText,
+        distance: _nearDistance(near),
+        increasingFrom: near?.end ?? 0,
+      );
+      // The sides the model gave a span for, found or not.
+      final hasSource = inSource != null || sourceMissing;
+      final hasTarget = inTarget != null || targetMissing;
+      final type = _meaningIssueType(
+        _string(item, _issueTypeKeys),
+        inSource: hasSource,
+        inTranslation: hasTarget,
+      );
+      listed.add((type: type, hasSpan: hasSource || hasTarget));
+      if (sourceMissing ||
+          targetMissing ||
+          (inSource == null && inTarget == null)) {
+        continue;
+      }
+      if (inSource != null) {
+        // Never move back after falling back to an earlier occurrence.
+        if (inSource.end > sourceFrom) sourceFrom = inSource.end;
+        sourceText.markUsed(inSource);
+      }
+      if (inTarget != null) {
+        previousTarget = inTarget;
+        targetText.markUsed(inTarget);
+      }
+      if (!seen.add((inSource, inTarget, problem.toLowerCase()))) continue;
+      final translationSpan = inTarget == null
+          ? ''
+          : targetText.text.substring(inTarget.start, inTarget.end);
+      final suggestion = _noValue(
+        PromptSanitizer.singleLine(
+          _string(item, _suggestionKeys),
+          maxLength: maxMeaningSuggestionLength,
+          atWordBoundary: true,
+        ),
+      );
+      issues.add(
+        MeaningIssue(
+          problem: problem,
+          type: type,
+          sourceSpan: inSource == null
+              ? ''
+              : sourceText.text.substring(inSource.start, inSource.end),
+          translationSpan: translationSpan,
+          suggestion: suggestion == translationSpan ? '' : suggestion,
+          sourceStart: inSource?.start,
+          sourceEnd: inSource?.end,
+          translationStart: inTarget?.start,
+          translationEnd: inTarget?.end,
+        ),
+      );
+    }
+    return (issues: issues, listed: listed);
+  }
+
+  /// Locates the span [raw] of a meaning issue in [text] (see [_find]):
+  /// the range, or null with `missing` false when [raw] is blank or a note
+  /// such as `(none)` that is not in [text], or null with `missing` true
+  /// when a real span cannot be found.
+  static (_Range?, bool missing) _spanIn(
+    String? raw,
+    _AlignmentText text, {
+    required int Function(_Range range) distance,
+    required int increasingFrom,
+    bool forwardFirst = false,
+  }) {
+    if (raw == null || raw.trim().isEmpty) return (null, false);
+    final range = _find(
+      text.restoreTags(raw),
+      text,
+      distance: distance,
+      increasingFrom: increasingFrom,
+      forwardFirst: forwardFirst,
+    );
+    if (range != null) return (range, false);
+    return (null, !_isSpanNote(raw));
+  }
+
+  /// Text in brackets as a whole, e.g. `(not translated)`.
+  static final _bracketed = RegExp(r'^\s*[(\[{<（【].*[)\]}>）】]\s*$');
+
+  /// Edge characters ignored when a span is compared with [_spanNotes].
+  static final _noteEdges = RegExp(
+    r'''^[\s"'“”‘’«»*_.…:-]+|[\s"'“”‘’«»*_.…:-]+$''',
+  );
+
+  /// What models write instead of a span (lower case).
+  static const _spanNotes = {
+    'none',
+    'null',
+    'n/a',
+    'na',
+    'nothing',
+    'empty',
+    'missing',
+    'omitted',
+    'not present',
+    'not translated',
+    'untranslated',
+    'no translation',
+    'not applicable',
+    '—',
+    '–',
+  };
+
+  /// Whether [raw] (a span not found in its text) is a note standing for
+  /// no span: bracketed, only punctuation, or one of [_spanNotes].
+  static bool _isSpanNote(String raw) {
+    if (_bracketed.hasMatch(raw)) return true;
+    final key = raw.replaceAll(_noteEdges, '').toLowerCase();
+    return key.isEmpty || _spanNotes.contains(key);
+  }
+
+  /// [value], or empty when it says there is none (`none`, `null`, `n/a`,
+  /// `-`).
+  static String _noValue(String value) =>
+      const {'none', 'null', 'n/a', '-', '—'}.contains(value.toLowerCase())
+      ? ''
+      : value;
+
+  /// A verdict or issue type as a lower-case key: spaces and hyphens become
+  /// `_`, other characters at the ends are dropped.
+  static String _meaningKey(String raw) => raw
+      .trim()
+      .toLowerCase()
+      .replaceAll(RegExp(r'[\s-]+'), '_')
+      .replaceAll(RegExp(r'^[^a-z]+|[^a-z]+$'), '');
+
+  /// A [MeaningVerdict] from a model's verdict (see [parseMeaningCheck]),
+  /// or null.
+  static MeaningVerdict? _meaningVerdict(Object? raw) {
+    if (raw is! String) return null;
+    final key = _meaningKey(raw);
+    return MeaningVerdict.byName(key) ?? _verdictSynonyms[key];
+  }
+
+  static const _verdictSynonyms = <String, MeaningVerdict>{
+    'identical': MeaningVerdict.same,
+    'equivalent': MeaningVerdict.same,
+    'equal': MeaningVerdict.same,
+    'ok': MeaningVerdict.same,
+    'okay': MeaningVerdict.same,
+    'match': MeaningVerdict.same,
+    'matches': MeaningVerdict.same,
+    'faithful': MeaningVerdict.same,
+    'accurate': MeaningVerdict.same,
+    'correct': MeaningVerdict.same,
+    'preserved': MeaningVerdict.same,
+    'same_meaning': MeaningVerdict.same,
+    'no_issues': MeaningVerdict.same,
+    'no_difference': MeaningVerdict.same,
+    'no_differences': MeaningVerdict.same,
+    'pass': MeaningVerdict.same,
+    'small': MeaningVerdict.minor,
+    'slight': MeaningVerdict.minor,
+    'partial': MeaningVerdict.minor,
+    'nuance': MeaningVerdict.minor,
+    'mostly_same': MeaningVerdict.minor,
+    'mostly_preserved': MeaningVerdict.minor,
+    'minor_difference': MeaningVerdict.minor,
+    'minor_differences': MeaningVerdict.minor,
+    'minor_issues': MeaningVerdict.minor,
+    'slightly_different': MeaningVerdict.minor,
+    'mostly_equivalent': MeaningVerdict.minor,
+    'significant': MeaningVerdict.major,
+    'substantial': MeaningVerdict.major,
+    'changed': MeaningVerdict.major,
+    'meaning_changed': MeaningVerdict.major,
+    'different': MeaningVerdict.major,
+    'wrong': MeaningVerdict.major,
+    'incorrect': MeaningVerdict.major,
+    'serious': MeaningVerdict.major,
+    'severe': MeaningVerdict.major,
+    'critical': MeaningVerdict.major,
+    'fail': MeaningVerdict.major,
+    'mistranslation': MeaningVerdict.major,
+    'major_difference': MeaningVerdict.major,
+    'major_differences': MeaningVerdict.major,
+    'major_issues': MeaningVerdict.major,
+  };
+
+  /// A [MeaningIssueType] from a model's type (see [parseMeaningCheck]).
+  static MeaningIssueType _meaningIssueType(
+    String raw, {
+    required bool inSource,
+    required bool inTranslation,
+  }) {
+    final key = _meaningKey(raw);
+    final type = MeaningIssueType.byName(key) ?? _issueTypeSynonyms[key];
+    if (type != null) return type;
+    if (inSource && !inTranslation) return MeaningIssueType.omission;
+    if (inTranslation && !inSource) return MeaningIssueType.addition;
+    return MeaningIssueType.other;
+  }
+
+  static const _issueTypeSynonyms = <String, MeaningIssueType>{
+    'omitted': MeaningIssueType.omission,
+    'omissions': MeaningIssueType.omission,
+    'missing': MeaningIssueType.omission,
+    'missing_information': MeaningIssueType.omission,
+    'dropped': MeaningIssueType.omission,
+    'untranslated': MeaningIssueType.omission,
+    'not_translated': MeaningIssueType.omission,
+    'deletion': MeaningIssueType.omission,
+    'added': MeaningIssueType.addition,
+    'additions': MeaningIssueType.addition,
+    'extra': MeaningIssueType.addition,
+    'insertion': MeaningIssueType.addition,
+    'inserted': MeaningIssueType.addition,
+    'added_information': MeaningIssueType.addition,
+    'negative': MeaningIssueType.negation,
+    'negations': MeaningIssueType.negation,
+    'negated': MeaningIssueType.negation,
+    'polarity': MeaningIssueType.negation,
+    'wrong_negation': MeaningIssueType.negation,
+    'missing_negation': MeaningIssueType.negation,
+    'numbers': MeaningIssueType.number,
+    'numeral': MeaningIssueType.number,
+    'numeric': MeaningIssueType.number,
+    'quantity': MeaningIssueType.number,
+    'amount': MeaningIssueType.number,
+    'date': MeaningIssueType.number,
+    'time': MeaningIssueType.number,
+    'unit': MeaningIssueType.number,
+    'units': MeaningIssueType.number,
+    'plural': MeaningIssueType.number,
+    'singular': MeaningIssueType.number,
+    'grammatical_number': MeaningIssueType.number,
+    'wrong_number': MeaningIssueType.number,
+    'tenses': MeaningIssueType.tense,
+    'aspect': MeaningIssueType.tense,
+    'mood': MeaningIssueType.tense,
+    'person': MeaningIssueType.tense,
+    'verb_tense': MeaningIssueType.tense,
+    'wrong_tense': MeaningIssueType.tense,
+    'mistranslated': MeaningIssueType.mistranslation,
+    'wrong_meaning': MeaningIssueType.mistranslation,
+    'meaning': MeaningIssueType.mistranslation,
+    'terminology': MeaningIssueType.mistranslation,
+    'term': MeaningIssueType.mistranslation,
+    'wrong_term': MeaningIssueType.mistranslation,
+    'wrong_word': MeaningIssueType.mistranslation,
+    'false_friend': MeaningIssueType.mistranslation,
+    'sense': MeaningIssueType.mistranslation,
+  };
+
+  /// The distance of an occurrence from the cursor [from] of a text of
+  /// [length] characters, for [_find] with `forwardFirst`: the next
+  /// occurrence at or after the cursor is nearest, then the nearest one
+  /// before it.
+  static int Function(_Range range) _forwardDistance(int from, int length) =>
+      (r) => r.start >= from ? r.start - from : length + from - r.start;
+
+  /// The distance of an occurrence from [near] (the previous phrase's
+  /// range; none: from the start), for [_find]: the occurrence nearest to
+  /// it, after it on a tie.
+  static int Function(_Range range) _nearDistance(_Range? near) =>
+      (r) => near == null
+      ? r.start
+      : r.start >= near.end
+      ? 2 * (r.start - near.end)
+      : r.end <= near.start
+      ? 2 * (near.start - r.end) + 1
+      : 0;
 
   static final _romanizationLabel = RegExp(
     r'^\s*(?:(?:sure|okay|ok|certainly|of course)[!,.]?\s*)?'

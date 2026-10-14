@@ -24,6 +24,7 @@ enum _Extra {
   refinement,
   romanization,
   alignment,
+  meaning,
 }
 
 typedef _Languages = ({List<Language> sources, List<Language> targets});
@@ -63,6 +64,11 @@ typedef _Languages = ({List<Language> sources, List<Language> targets});
 ///   (`SettingsCubit.recordPair`); [applyLanguagePair] picks one again.
 /// * Quality modes ([setQualityMode]) translate with the engines chosen as
 ///   "Fast" / "Best" in settings without changing the normal engine.
+/// * [checkMeaning] checks, on demand, whether the output means the same as
+///   the input (an AI check, or a back-translation with the main engine).
+/// * Extra targets ([setExtraTargets], "Also translate into…") are
+///   translated with every translation of the input, each with a request
+///   of its own (same engine and options; never saved in history).
 ///
 /// The constructor does no async work: call [loadEngines] once after
 /// construction (and whenever instances/providers change). It listens to
@@ -114,6 +120,9 @@ class TranslateCubit extends Cubit<TranslateState> {
 
   /// Longest model-generated refinement instruction passed on.
   static const maxRefinementLength = 200;
+
+  /// Most additional target languages ([setExtraTargets]).
+  static const maxExtraTargets = 4;
 
   /// Marks a model-generated suggestion instruction as a lower-trust
   /// refinement preference rather than a user instruction.
@@ -186,6 +195,25 @@ class TranslateCubit extends Cubit<TranslateState> {
 
   StreamSubscription<TranslationResult>? _refinement;
   Completer<void>? _refinementDone;
+
+  /// Extra target translations in flight, by target.
+  final _extraTargetSubscriptions =
+      <Language, StreamSubscription<TranslationResult>>{};
+
+  /// Completes the future of each extra target translation in flight.
+  final _extraTargetDone = <Language, Completer<void>>{};
+
+  /// The current request token of each extra target.
+  final _extraTargetTokens = <Language, int>{};
+  int _extraTargetRequests = 0;
+
+  /// The engine id and request of each extra target translation in flight
+  /// (one in flight for the wanted request is never sent again).
+  final _extraTargetsInFlight = <Language, (String, TranslationRequest)>{};
+
+  /// What the last [insertExtraTranslation] replaced, for
+  /// [undoInsertExtraTranslation].
+  ({String input, Language source, String inserted})? _lastInsert;
 
   late final StreamSubscription<AppSettings> _settingsSubscription;
 
@@ -268,7 +296,7 @@ class TranslateCubit extends Cubit<TranslateState> {
       _languagesRequest++;
       _cancelTranslation();
       emit(
-        _clearedExtras(state).copyWith(
+        _clearedExtras(_withoutExtraTranslations(state)).copyWith(
           enginesStatus: EnginesStatus.ready,
           engines: const [],
           engine: () => null,
@@ -322,7 +350,7 @@ class TranslateCubit extends Cubit<TranslateState> {
     final changed = engine.id != state.engine?.id;
     if (changed) _cancelTranslation();
     final base = changed
-        ? _clearedExtras(state)
+        ? _clearedExtras(_withoutExtraTranslations(state))
               .copyWith(status: TranslateStatus.idle, result: () => null)
         : state;
     final languages = loaded.languages;
@@ -413,7 +441,7 @@ class TranslateCubit extends Cubit<TranslateState> {
       assistEngine: () => _pickAssistEngine(engine, state.engines),
     );
     if (!keepResult) {
-      next = next.copyWith(
+      next = _withoutExtraTranslations(next).copyWith(
         status: TranslateStatus.idle,
         result: () => null,
         error: () => null,
@@ -810,7 +838,7 @@ class TranslateCubit extends Cubit<TranslateState> {
     if (text.trim().isEmpty) {
       _cancelTranslation();
       emit(
-        _clearedExtras(state).copyWith(
+        _clearedExtras(_withoutExtraTranslations(state)).copyWith(
           input: text,
           inputTruncated: truncated,
           result: () => null,
@@ -1015,7 +1043,7 @@ class TranslateCubit extends Cubit<TranslateState> {
     _cancelCompare();
     _externalPending = false;
     emit(
-      _clearedExtras(state).copyWith(
+      _clearedExtras(_withoutExtraTranslations(state)).copyWith(
         input: '',
         inputTruncated: false,
         result: () => null,
@@ -1053,7 +1081,59 @@ class TranslateCubit extends Cubit<TranslateState> {
   /// provisional), [external] one of text from outside the app that
   /// nobody asked for (links, shared text); both make the result
   /// [TranslateState.instantResult]. [text] defaults to the input.
+  ///
+  /// With [extraTargets] the input is also translated into the extra
+  /// targets that have no up-to-date translation (see
+  /// [_translateExtraTargets]); the future then completes when they are
+  /// done too. One-off translations of the main output (refinements) and
+  /// the re-translation after a smart swap pass false.
+  ///
+  /// An extra target left out because it is the language detected in the
+  /// shown result ([TranslateState.activeExtraTargets]) is translated once
+  /// the main translation finished when the input turns out to be in
+  /// another language.
   Future<void> _translate({
+    TranslationEngine? engine,
+    TranslationOptions? options,
+    String? text,
+    bool smartSwap = true,
+    bool auto = false,
+    bool external = false,
+    bool extraTargets = true,
+  }) {
+    final main = _translateMain(
+      engine: engine,
+      options: options,
+      text: text,
+      smartSwap: smartSwap,
+      auto: auto,
+      external: external,
+    );
+    final selected = engine ?? state.engine;
+    final input = text ?? state.input;
+    if (!extraTargets ||
+        selected == null ||
+        input.trim().isEmpty ||
+        (state.extraTargets.isEmpty && state.extraTranslations.isEmpty)) {
+      return main;
+    }
+    final base = TranslationRequest(
+      text: input,
+      source: state.source,
+      target: state.target,
+      options: options ?? state.options,
+      recentSourceLanguages: _recentSourceCodes(),
+    );
+    final asked = state.activeExtraTargets.toSet();
+    final extras = _translateExtraTargets(selected, base);
+    final held = main.then(
+      (_) => _translateHeldExtraTargets(selected, base, asked),
+    );
+    return Future.wait([main, ?extras, held]).then((_) {});
+  }
+
+  /// The main translation of [_translate].
+  Future<void> _translateMain({
     TranslationEngine? engine,
     TranslationOptions? options,
     String? text,
@@ -1191,6 +1271,9 @@ class TranslateCubit extends Cubit<TranslateState> {
         status: TranslateStatus.success,
       ),
     );
+    // An extra target in the detected language of the input is dropped
+    // (cancelled when in flight).
+    _pruneExtraTranslations();
     _record(
       request,
       result,
@@ -1233,6 +1316,8 @@ class TranslateCubit extends Cubit<TranslateState> {
         smartSwapNotice: () => notice,
       ),
     );
+    // An extra target that is the new target is not translated twice.
+    _pruneExtraTranslations();
     final next = _translate(
       engine: engine,
       options: request.options,
@@ -1240,6 +1325,7 @@ class TranslateCubit extends Cubit<TranslateState> {
       smartSwap: false,
       auto: auto,
       external: external,
+      extraTargets: false,
     );
     if (done != null && !done.isCompleted) done.complete(next);
   }
@@ -1554,6 +1640,7 @@ class TranslateCubit extends Cubit<TranslateState> {
     return _translate(
       engine: translator,
       options: state.options.copyWith(instructions: instruction),
+      extraTargets: false,
     );
   }
 
@@ -1661,6 +1748,7 @@ class TranslateCubit extends Cubit<TranslateState> {
           _translate(
             engine: engine,
             options: state.options.copyWith(instructions: instruction),
+            extraTargets: false,
           ),
         );
       },
@@ -2097,6 +2185,448 @@ class TranslateCubit extends Cubit<TranslateState> {
   }
 
   // ---------------------------------------------------------------------
+  // Extra targets
+  // ---------------------------------------------------------------------
+
+  /// Sets the additional target languages ("Also translate into…"): auto
+  /// and duplicates are dropped, and at most [maxExtraTargets] are kept (in
+  /// the given order). They last for the session.
+  ///
+  /// The input is translated into each of
+  /// [TranslateState.activeExtraTargets] with every translation of the
+  /// input: same engine and options, one request per language, only where
+  /// the main translation runs (instant translation where it is free or the
+  /// user opted in, otherwise on Translate). Results are never saved in
+  /// history; each finished request is counted as provider usage (unless
+  /// served from the cache).
+  ///
+  /// A language added while the input has a current translation (or one in
+  /// flight) is translated right away; translations of removed languages
+  /// are cancelled and dropped. The other languages are left alone: one in
+  /// flight is not sent again, and a failed one waits for Retry (or the
+  /// next translation).
+  void setExtraTargets(List<Language> targets) {
+    final next = <Language>[];
+    for (final language in targets) {
+      if (language.isAuto || next.contains(language)) continue;
+      next.add(language);
+      if (next.length == maxExtraTargets) break;
+    }
+    if (_sameLanguages(next, state.extraTargets)) return;
+    emit(state.copyWith(extraTargets: List<Language>.unmodifiable(next)));
+    _pruneExtraTranslations();
+    final engine = state.engine;
+    final requested =
+        state.status == TranslateStatus.translating ||
+        (state.result != null && !state.isResultStale);
+    if (engine == null ||
+        state.compareMode ||
+        state.input.trim().isEmpty ||
+        !requested) {
+      return;
+    }
+    final extras = _translateExtraTargets(
+      engine,
+      _extraTargetsRequest(),
+      retryFailed: false,
+    );
+    if (extras != null) unawaited(extras);
+  }
+
+  /// Adds [language] to the extra targets, or removes it when it is one
+  /// ([TranslateState.isExtraTarget]: also a pick the engine lists as
+  /// [language]); see [setExtraTargets]. Nothing is added when
+  /// [maxExtraTargets] are set already.
+  void toggleExtraTarget(Language language) {
+    final targets = state.extraTargets;
+    bool picks(Language chosen) =>
+        chosen == language || state.usableTarget(chosen) == language;
+    if (targets.any(picks)) {
+      setExtraTargets([
+        for (final target in targets)
+          if (!picks(target)) target,
+      ]);
+    } else if (targets.length < maxExtraTargets) {
+      setExtraTargets([...targets, language]);
+    }
+  }
+
+  /// Translates the input into the extra target [target] (one of
+  /// [TranslateState.activeExtraTargets]) again, e.g. after a failure.
+  /// Completes when it is done.
+  Future<void> retryExtraTarget(Language target) {
+    final engine = state.engine;
+    if (engine == null ||
+        state.input.trim().isEmpty ||
+        !state.activeExtraTargets.contains(target)) {
+      return Future.value();
+    }
+    return _startExtraTargets(engine, _extraTargetsRequest(), [target]);
+  }
+
+  /// Uses the finished translation into the extra target [target] as the
+  /// input: it replaces the input (like pasting it). A chosen source
+  /// language becomes [target] (as the engine lists it among its source
+  /// languages; detection when it does not); the input is then translated
+  /// like typed text (instant translation only where it is free or the user
+  /// opted in). [undoInsertExtraTranslation] brings the previous input and
+  /// source language back.
+  void insertExtraTranslation(Language target) {
+    final translation = state.extraTranslationFor(target);
+    final result = translation?.result;
+    if (result == null || !result.isComplete || result.text.trim().isEmpty) {
+      return;
+    }
+    final previous = state;
+    if (!state.source.isAuto) {
+      final source = _usableSource(target) ?? _usableSource(Language.auto);
+      if (source != null && _applySource(source)) {
+        emit(_clearedExtras(state).copyWith(source: source));
+      }
+    }
+    setInput(result.text);
+    if (state.input == previous.input && state.source == previous.source) {
+      return;
+    }
+    _lastInsert = (
+      input: previous.input,
+      source: previous.source,
+      inserted: state.input,
+    );
+  }
+
+  /// Undoes the last [insertExtraTranslation] while the input is still the
+  /// text it inserted: the previous input and source language (saved again)
+  /// come back. The input is translated again like typed text only when
+  /// its translation is no longer the shown result. Does nothing otherwise.
+  void undoInsertExtraTranslation() {
+    final last = _lastInsert;
+    _lastInsert = null;
+    if (last == null || state.input != last.inserted) return;
+    final source = _usableSource(last.source);
+    if (source != null && _applySource(source)) {
+      emit(_clearedExtras(state).copyWith(source: source));
+    }
+    final shown = state.result != null && state.resultInput == last.input;
+    _externalPending = false;
+    _applyInput(last.input, maxLength: maxInputLength, instant: !shown);
+  }
+
+  /// A request of the input with the current languages and options.
+  TranslationRequest _extraTargetsRequest() => TranslationRequest(
+    text: state.input,
+    source: state.source,
+    target: state.target,
+    options: state.options,
+    recentSourceLanguages: _recentSourceCodes(),
+  );
+
+  /// Translates [base] (its text, source and options) with [engine] into
+  /// each of [TranslateState.activeExtraTargets] (other than [except]) that
+  /// has no up-to-date translation (a finished one of the same request and
+  /// engine). A target whose translation of that request is in flight is
+  /// not sent again (its future is waited for); one whose last request for
+  /// it ended without a translation (failed) is sent again only with
+  /// [retryFailed]. Returns null when there is nothing to wait for.
+  Future<void>? _translateExtraTargets(
+    TranslationEngine engine,
+    TranslationRequest base, {
+    bool retryFailed = true,
+    Set<Language> except = const {},
+  }) {
+    _pruneExtraTranslations();
+    final targets = <Language>[];
+    final waiting = <Future<void>>[];
+    for (final target in state.activeExtraTargets) {
+      if (except.contains(target)) continue;
+      final request = base.copyWith(target: target);
+      final translation = state.extraTranslationFor(target);
+      if (_isUpToDate(translation, engine, request)) continue;
+      final inFlight = _extraTargetsInFlight[target];
+      if (inFlight != null &&
+          inFlight.$1 == engine.id &&
+          inFlight.$2 == request) {
+        if (_extraTargetDone[target] case final done?) waiting.add(done.future);
+        continue;
+      }
+      if (!retryFailed && _endedWithout(translation, engine, request)) {
+        continue;
+      }
+      targets.add(target);
+    }
+    if (targets.isEmpty && waiting.isEmpty) return null;
+    return Future.wait([
+      ...waiting,
+      if (targets.isNotEmpty) _startExtraTargets(engine, base, targets),
+    ]).then((_) {});
+  }
+
+  /// After the main translation of [base] by [_translate]: translates the
+  /// extra targets that were left out of [asked] because they were the
+  /// language detected in the previous result, now that the new result
+  /// says the input is in another language. Nothing happens when the main
+  /// translation failed or something changed meanwhile (a newer
+  /// translation handles its own extra targets).
+  Future<void> _translateHeldExtraTargets(
+    TranslationEngine engine,
+    TranslationRequest base,
+    Set<Language> asked,
+  ) {
+    if (isClosed ||
+        state.compareMode ||
+        state.engine?.id != engine.id ||
+        state.status != TranslateStatus.success ||
+        state.resultInput != base.text ||
+        state.input != base.text ||
+        state.source != base.source ||
+        state.options != base.options) {
+      return Future.value();
+    }
+    return _translateExtraTargets(
+          engine,
+          base,
+          retryFailed: false,
+          except: asked,
+        ) ??
+        Future.value();
+  }
+
+  /// Whether the last request into [translation]'s target was [request] on
+  /// [engine] and it ended without a translation (failed, or the stream
+  /// closed without a result).
+  static bool _endedWithout(
+    ExtraTranslation? translation,
+    TranslationEngine engine,
+    TranslationRequest request,
+  ) =>
+      translation != null &&
+      translation.status != TranslateStatus.translating &&
+      translation.result == null &&
+      translation.engineId == engine.id &&
+      translation.request == request;
+
+  static bool _isUpToDate(
+    ExtraTranslation? translation,
+    TranslationEngine engine,
+    TranslationRequest request,
+  ) =>
+      translation != null &&
+      translation.status == TranslateStatus.success &&
+      (translation.result?.isComplete ?? false) &&
+      translation.engineId == engine.id &&
+      translation.request == request;
+
+  /// Starts the translations of [base] into [targets] (cancelling ones in
+  /// flight for them); completes when all are done.
+  Future<void> _startExtraTargets(
+    TranslationEngine engine,
+    TranslationRequest base,
+    List<Language> targets,
+  ) {
+    final starts = <(Language, TranslationRequest, int)>[];
+    var translations = state.extraTranslations;
+    for (final target in targets) {
+      _cancelExtraTarget(target);
+      final token = _extraTargetTokens[target] = ++_extraTargetRequests;
+      final request = base.copyWith(target: target);
+      _extraTargetsInFlight[target] = (engine.id, request);
+      starts.add((target, request, token));
+      final previous = _extraTranslationIn(translations, target);
+      // The previous translation stays (dimmed when stale) until the new
+      // one arrives, like the main result.
+      final next = (previous ?? ExtraTranslation(target: target)).copyWith(
+        status: TranslateStatus.translating,
+        request: () => previous?.result == null ? request : previous!.request,
+        engineId: () =>
+            previous?.result == null ? engine.id : previous!.engineId,
+        error: () => null,
+      );
+      translations = _replaceExtraTranslation(translations, next);
+    }
+    emit(state.copyWith(extraTranslations: translations));
+    return Future.wait([
+      for (final (target, request, token) in starts)
+        _listenExtraTarget(engine, target, request, token),
+    ]).then((_) {});
+  }
+
+  Future<void> _listenExtraTarget(
+    TranslationEngine engine,
+    Language target,
+    TranslationRequest request,
+    int token,
+  ) {
+    final done = _extraTargetDone[target] = Completer<void>();
+    bool current() => !isClosed && _extraTargetTokens[target] == token;
+
+    void finish() {
+      _extraTargetSubscriptions.remove(target);
+      if (identical(_extraTargetDone[target], done)) {
+        _extraTargetDone.remove(target);
+        _extraTargetsInFlight.remove(target);
+      }
+      _complete(done);
+    }
+
+    void fail(Object error) {
+      finish();
+      _updateExtraTranslation(
+        target,
+        (translation) => translation.copyWith(
+          status: TranslateStatus.failure,
+          result: () => null,
+          request: () => request,
+          engineId: () => engine.id,
+          error: () => error,
+        ),
+      );
+    }
+
+    final Stream<TranslationResult> stream;
+    try {
+      stream = _repository.translate(engine, request);
+    } on Object catch (error) {
+      fail(error);
+      return done.future;
+    }
+    var counted = false;
+    _extraTargetSubscriptions[target] = stream.listen(
+      (result) {
+        if (!current()) return;
+        if (result.isComplete && !counted) {
+          counted = true;
+          if (!result.fromCache) {
+            _recordUsage(engine, input: request.text, output: result.text);
+          }
+        }
+        _updateExtraTranslation(
+          target,
+          (translation) => translation.copyWith(
+            status: result.isComplete
+                ? TranslateStatus.success
+                : TranslateStatus.translating,
+            result: () => result,
+            request: () => request,
+            engineId: () => engine.id,
+          ),
+        );
+      },
+      onError: (Object error) {
+        if (current()) fail(error);
+      },
+      onDone: () {
+        if (!current()) return;
+        finish();
+        _updateExtraTranslation(
+          target,
+          (translation) => translation.status == TranslateStatus.translating
+              ? translation.copyWith(
+                  status: translation.result == null
+                      ? TranslateStatus.idle
+                      : TranslateStatus.success,
+                )
+              : translation,
+        );
+      },
+      cancelOnError: true,
+    );
+    return done.future;
+  }
+
+  /// Applies [change] to the translation into [target] (when there is
+  /// one) and emits.
+  void _updateExtraTranslation(
+    Language target,
+    ExtraTranslation Function(ExtraTranslation translation) change,
+  ) {
+    final translations = state.extraTranslations;
+    final translation = _extraTranslationIn(translations, target);
+    if (translation == null) return;
+    final next = change(translation);
+    if (next == translation) return;
+    emit(
+      state.copyWith(
+        extraTranslations: _replaceExtraTranslation(translations, next),
+      ),
+    );
+  }
+
+  static ExtraTranslation? _extraTranslationIn(
+    List<ExtraTranslation> translations,
+    Language target,
+  ) {
+    for (final translation in translations) {
+      if (translation.target == target) return translation;
+    }
+    return null;
+  }
+
+  /// [translations] with [translation] in place of the one into its target
+  /// (appended when there is none).
+  static List<ExtraTranslation> _replaceExtraTranslation(
+    List<ExtraTranslation> translations,
+    ExtraTranslation translation,
+  ) {
+    final index = translations.indexWhere(
+      (item) => item.target == translation.target,
+    );
+    final next = [...translations];
+    if (index < 0) {
+      next.add(translation);
+    } else {
+      next[index] = translation;
+    }
+    return List<ExtraTranslation>.unmodifiable(next);
+  }
+
+  /// Cancels and drops the translations into languages that are no longer
+  /// [TranslateState.activeExtraTargets].
+  void _pruneExtraTranslations() {
+    final active = state.activeExtraTargets;
+    final translations = state.extraTranslations;
+    final kept = <ExtraTranslation>[];
+    for (final translation in translations) {
+      if (active.contains(translation.target)) {
+        kept.add(translation);
+      } else {
+        _cancelExtraTarget(translation.target);
+      }
+    }
+    if (kept.length != translations.length) {
+      emit(
+        state.copyWith(
+          extraTranslations: List<ExtraTranslation>.unmodifiable(kept),
+        ),
+      );
+    }
+  }
+
+  /// Cancels the translation into [target] in flight (its future
+  /// completes).
+  void _cancelExtraTarget(Language target) {
+    _extraTargetTokens.remove(target);
+    _extraTargetsInFlight.remove(target);
+    unawaited(_extraTargetSubscriptions.remove(target)?.cancel());
+    final done = _extraTargetDone.remove(target);
+    if (done != null) _complete(done);
+  }
+
+  /// Cancels every extra target translation in flight and returns [base]
+  /// without extra translations (the main result was dropped).
+  TranslateState _withoutExtraTranslations(TranslateState base) {
+    [..._extraTargetTokens.keys].forEach(_cancelExtraTarget);
+    return base.copyWith(extraTranslations: const []);
+  }
+
+  static bool _sameLanguages(List<Language> a, List<Language> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  // ---------------------------------------------------------------------
   // Extras (AI)
   // ---------------------------------------------------------------------
 
@@ -2454,8 +2984,161 @@ class TranslateCubit extends Cubit<TranslateState> {
       return;
     }
     if (index == state.alignmentFocus) return;
-    emit(state.copyWith(alignmentFocus: () => index));
+    emit(
+      state.copyWith(
+        alignmentFocus: () => index,
+        // One highlight in the texts at a time.
+        meaningFocus: index == null ? null : () => null,
+      ),
+    );
   }
+
+  // ---------------------------------------------------------------------
+  // Meaning check
+  // ---------------------------------------------------------------------
+
+  /// Checks, on demand, whether the output means the same as the input
+  /// (needs [TranslateState.canCheckMeaning]; does nothing while a check is
+  /// loading or loaded):
+  ///
+  /// * With an AI [TranslateState.assistEngine] that has extras
+  ///   ([TranslateState.meaningUsesAi]), `TranslationRepository
+  ///   .checkMeaning` translates the output back, compares the meanings and
+  ///   lists the differences ([TranslateState.meaningCheck]); problems are
+  ///   written in [uiLanguage] (an English language name, e.g. "German").
+  /// * Otherwise the output is translated back into the source language
+  ///   (the chosen one, or the detected one) with the main engine
+  ///   (`TranslationRepository.backTranslateResult`), and only the
+  ///   back-translation is shown ([TranslateState.backTranslation]).
+  ///
+  /// Every finished request is counted as provider usage (a back-translation
+  /// served from the cache is not). Errors end up in
+  /// [TranslateState.meaningError]; nothing is thrown. The check is reset
+  /// whenever the input or the result changes, and never reloaded on its
+  /// own.
+  Future<void> checkMeaning({String uiLanguage = 'English'}) async {
+    if (!state.canCheckMeaning ||
+        state.meaningStatus == ExtraStatus.loading ||
+        state.meaningStatus == ExtraStatus.ready) {
+      return;
+    }
+    final result = state.result!;
+    final source = state.input;
+    final translation = result.text;
+    final useAi = state.meaningUsesAi;
+    final token = _invalidateExtra(_Extra.meaning);
+    emit(_clearedMeaning(state).copyWith(meaningStatus: ExtraStatus.loading));
+    try {
+      final TranslateState ready;
+      if (useAi) {
+        final engine = state.assistEngine!;
+        final check = await _repository.checkMeaning(
+          engine,
+          source: source,
+          translation: translation,
+          sourceLanguage: _effectiveSource(),
+          targetLanguage: state.target,
+          uiLanguage: uiLanguage,
+        );
+        _recordUsage(
+          engine,
+          input: '$source\n$translation',
+          output: _meaningText(check),
+        );
+        ready = state.copyWith(
+          meaningStatus: ExtraStatus.ready,
+          meaningCheck: () => check,
+        );
+      } else {
+        final engine = state.engine!;
+        final back = await _repository.backTranslateResult(
+          engine,
+          translation: translation,
+          from: _backTranslationSource(),
+          to: _backTranslationTarget(),
+        );
+        if (!back.fromCache) {
+          _recordUsage(engine, input: translation, output: back.text);
+        }
+        ready = state.copyWith(
+          meaningStatus: ExtraStatus.ready,
+          backTranslation: () => back.text,
+        );
+      }
+      if (!_isCurrentResultExtra(_Extra.meaning, token, result)) return;
+      emit(ready);
+    } on Object catch (error) {
+      if (!_isCurrentResultExtra(_Extra.meaning, token, result)) return;
+      emit(
+        state.copyWith(
+          meaningStatus: ExtraStatus.failure,
+          meaningError: () => error,
+        ),
+      );
+    }
+  }
+
+  /// Highlights the meaning check issue at [index] in the input and the
+  /// output (null clears the highlight; an index out of range is ignored).
+  /// Clears the alignment highlight.
+  void focusMeaningIssue(int? index) {
+    final issues = state.meaningCheck?.issues ?? const <MeaningIssue>[];
+    if (index != null && (index < 0 || index >= issues.length)) return;
+    if (index == state.meaningFocus) return;
+    emit(
+      state.copyWith(
+        meaningFocus: () => index,
+        alignmentFocus: index == null ? null : () => null,
+      ),
+    );
+  }
+
+  /// Hides the meaning check (a check in flight is dropped).
+  void clearMeaningCheck() {
+    _invalidateExtra(_Extra.meaning);
+    if (state.meaningStatus == ExtraStatus.idle) return;
+    emit(_clearedMeaning(state));
+  }
+
+  /// The target language as the source of the back-translation (as the
+  /// engine lists it among its source languages when it does).
+  Language _backTranslationSource() =>
+      LanguageMatcher.match(state.target, state.sourceLanguages) ??
+      state.target;
+
+  /// The language of the input as the target of the back-translation: the
+  /// chosen source, or the detected one (as the engine lists it among its
+  /// target languages when it does).
+  Language _backTranslationTarget() {
+    final source = state.source;
+    final detected = state.result?.detectedSource?.trim() ?? '';
+    final wanted = source.isAuto
+        ? LanguageCatalog.byCode(detected) ??
+              Language(code: detected, name: detected)
+        : source;
+    return LanguageMatcher.match(wanted, state.targetLanguages) ?? wanted;
+  }
+
+  /// What a meaning check returned, for usage counting.
+  static String _meaningText(MeaningCheck check) => [
+    check.verdict.name,
+    check.backTranslation,
+    for (final issue in check.issues) ...[
+      issue.sourceSpan,
+      issue.translationSpan,
+      issue.problem,
+      issue.suggestion,
+    ],
+  ].join('\n');
+
+  /// [base] without a meaning check.
+  static TranslateState _clearedMeaning(TranslateState base) => base.copyWith(
+    meaningStatus: ExtraStatus.idle,
+    meaningCheck: () => null,
+    backTranslation: () => null,
+    meaningFocus: () => null,
+    meaningError: () => null,
+  );
 
   /// The detected source language was uncertain
   /// ([TranslateState.detectionUncertain]) and the user picked [code] (one
@@ -2733,12 +3416,13 @@ class TranslateCubit extends Cubit<TranslateState> {
     );
   }
 
-  /// Invalidates and resets the romanization and the alignment (they
-  /// belong to the current result).
+  /// Invalidates and resets the romanization, the alignment and the
+  /// meaning check (they belong to the current result).
   TranslateState _clearedResultExtras(TranslateState base) {
     _invalidateExtra(_Extra.romanization);
     _invalidateExtra(_Extra.alignment);
-    return base.copyWith(
+    _invalidateExtra(_Extra.meaning);
+    return _clearedMeaning(base).copyWith(
       romanizationStatus: ExtraStatus.idle,
       romanization: () => null,
       romanizationError: () => null,
@@ -2770,6 +3454,7 @@ class TranslateCubit extends Cubit<TranslateState> {
     _cancelCompare();
     _cancelExplanation();
     _cancelRefinement();
+    _withoutExtraTranslations(state);
     unawaited(_settingsSubscription.cancel());
     return super.close();
   }

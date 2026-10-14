@@ -450,9 +450,26 @@ class _CompareToggle extends StatelessWidget {
   }
 }
 
-/// Output card or compare cards, followed by definitions and AI extras.
-class _OutputSection extends StatelessWidget {
+/// Output card or compare cards; then the meaning check, the translations
+/// into the extra target languages, definitions and AI extras.
+///
+/// Hiding the meaning check from its panel hands the focus back to the
+/// output card's "Check meaning" button.
+class _OutputSection extends StatefulWidget {
   const new();
+
+  @override
+  State<_OutputSection> createState() => _OutputSectionState();
+}
+
+class _OutputSectionState extends State<_OutputSection> {
+  final _meaningButton = FocusNode(debugLabel: 'translate_meaning_button');
+
+  @override
+  void dispose() {
+    _meaningButton.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -460,9 +477,15 @@ class _OutputSection extends StatelessWidget {
       (cubit) => cubit.state.compareMode,
     );
     if (compareMode) return const ComparePanel();
-    return const Column(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [OutputCard(), WordChoicesPanel(), ExtrasSection()],
+      children: [
+        OutputCard(meaningButtonFocusNode: _meaningButton),
+        MeaningCheckPanel(returnFocusNode: _meaningButton),
+        const ExtraTargetsSection(),
+        const WordChoicesPanel(),
+        const ExtrasSection(),
+      ],
     );
   }
 }

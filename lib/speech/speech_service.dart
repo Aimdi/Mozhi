@@ -1,17 +1,21 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:equatable/equatable.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/speech/audio_output.dart';
 import 'package:mozhi/speech/device_tts.dart';
 import 'package:mozhi/speech/speech_chunker.dart';
 import 'package:mozhi/speech/speech_language.dart';
+import 'package:mozhi/speech/speech_settings.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 export 'audio_output.dart';
 export 'device_tts.dart';
 export 'speech_language.dart';
+export 'speech_settings.dart';
 
 /// Thrown by [SpeechService.toggle] when no backend can read the text aloud:
 /// Mozhi is not configured or failed, and the device has no voice for
@@ -26,6 +30,21 @@ class SpeechUnavailableException implements Exception {
   String toString() =>
       'SpeechUnavailableException($languageCode'
       '${cause == null ? '' : ', cause: $cause'})';
+}
+
+/// Something [SpeechService] read aloud (see [SpeechService.lastUtterance]).
+class SpeechUtterance extends Equatable {
+  const new({required this.id, required this.text, required this.languageCode});
+
+  /// The id it was played under (e.g. `source` / `target`).
+  final String id;
+
+  /// The (trimmed) text.
+  final String text;
+  final String languageCode;
+
+  @override
+  List<Object?> get props => [id, text, languageCode];
 }
 
 enum _Backend { mozhi, device }
@@ -74,8 +93,16 @@ class _MozhiPlayback {
 /// and the last 20 clips are cached in memory. On any fetch/playback
 /// failure, or without instances, the device engine ([DeviceTts]) speaks the
 /// whole text if it has a voice for the language. Otherwise [toggle] throws
-/// [SpeechUnavailableException]. With [preferDeviceVoice] the device engine
-/// is tried first and Mozhi is only the fallback.
+/// [SpeechUnavailableException]. With [preferDeviceVoice], or when a
+/// device voice was chosen for the language ([SpeechSettings.voices]), the
+/// device engine is tried first and Mozhi is only the fallback.
+///
+/// [settings] hold the speech rate (applied to the Mozhi clips through
+/// [AudioOutput.setPlaybackRate] when the player supports it, and to the
+/// device engine) and the device voice per language. `slow` playback ("listen
+/// slowly", [replaySlowly]) runs at [slowPlaybackRate] times that rate.
+/// [speak] always starts from the beginning (e.g. to replay at another
+/// speed), [toggle] stops when the same id is playing.
 ///
 /// A later chunk failing does not make [toggle] throw (it has already
 /// returned): the device engine reads the whole text from the start instead,
@@ -89,9 +116,10 @@ class _MozhiPlayback {
 ///
 /// `output` defaults to [AudioPlayersOutput] and `deviceTts` to
 /// [FlutterTtsDeviceTts]; the service owns both and disposes them in
-/// [dispose]. `store` persists [preferDeviceVoice] under [preferDeviceKey].
-/// `mozhiSupportsLanguage` decides which codes are sent to Mozhi (default
-/// [isSpeakableLanguageCode]).
+/// [dispose]. `store` persists [preferDeviceVoice] under [preferDeviceKey]
+/// and the [settings] (JSON) under [settingsKey]; without it they only last
+/// for the session. `mozhiSupportsLanguage` decides which codes are sent to
+/// Mozhi (default [isSpeakableLanguageCode]).
 class SpeechService {
   new({
     required this._repository,
@@ -113,11 +141,15 @@ class SpeechService {
   /// Number of clips (chunks) kept in the in-memory LRU cache.
   static const cacheSize = 20;
 
-  /// [AudioOutput] playback rate for `slow` Mozhi clips.
-  static const slowPlaybackRate = 0.7;
+  /// Speed factor of `slow` playback relative to [SpeechSettings.rate]
+  /// (0.6x at the default rate), for Mozhi clips and the device engine.
+  static const double slowPlaybackRate = SpeechSettings.slowFactor;
 
   /// [KeyValueStore] key of [preferDeviceVoice] (`'true'` / `'false'`).
   static const preferDeviceKey = 'speech.preferDevice';
+
+  /// [KeyValueStore] key of the [settings] ([SpeechSettings.toJson]).
+  static const settingsKey = 'speech.settings';
 
   final TranslationRepository _repository;
   final AudioOutput _output;
@@ -148,6 +180,11 @@ class SpeechService {
 
   bool? _preferDevice;
   Future<bool>? _preferDeviceLoad;
+
+  SpeechSettings? _settings;
+  Future<SpeechSettings>? _settingsLoad;
+
+  SpeechUtterance? _last;
 
   /// Broadcast stream of the speaking id (null = idle); emits on change.
   Stream<String?> get speaking => _speaking.stream;
@@ -183,19 +220,160 @@ class SpeechService {
     await _store?.write(preferDeviceKey, '$enabled');
   }
 
+  /// The speech rate and device voices. Defaults until [loadSettings] has
+  /// read the stored value.
+  SpeechSettings get settings => _settings ?? const SpeechSettings();
+
+  /// Reads [settings] from the store (once; later calls reuse the result).
+  /// Missing, invalid or unreadable settings read as the defaults.
+  Future<SpeechSettings> loadSettings() => _settingsLoad ??= _readSettings();
+
+  Future<SpeechSettings> _readSettings() async {
+    try {
+      final stored = await _store?.read(settingsKey);
+      final json = stored == null ? null : jsonDecode(stored);
+      return _settings ??= json is Map<String, dynamic>
+          ? SpeechSettings.fromJson(json)
+          : const SpeechSettings();
+    } on Object {
+      return _settings ??= const SpeechSettings();
+    }
+  }
+
+  /// Sets the speech rate ([SpeechSettings.normalizeRate]: 0.5x to 1.5x in
+  /// 0.1 steps) for the next playback and persists it; throws when the
+  /// store fails (the new rate still applies until restart).
+  Future<void> setSpeechRate(double rate) =>
+      _updateSettings((settings) => settings.copyWith(rate: rate));
+
+  /// Chooses the device [voice] for [languageCode] (null: the engine's
+  /// default voice) for the next playback and persists it; throws when the
+  /// store fails (the choice still applies until restart). A chosen voice
+  /// makes the device engine read the language before Mozhi.
+  Future<void> setVoice(String languageCode, DeviceVoice? voice) =>
+      _updateSettings((settings) => settings.withVoice(languageCode, voice));
+
+  Future<void> _updateSettings(
+    SpeechSettings Function(SpeechSettings settings) update,
+  ) async {
+    // Load first so the change does not drop the stored values.
+    await loadSettings();
+    final updated = update(settings);
+    if (updated == settings) return;
+    _settings = updated;
+    _settingsLoad = Future.value(updated);
+    await _store?.write(settingsKey, jsonEncode(updated.toJson()));
+  }
+
+  /// The device voices for [languageCode], best match first; empty when
+  /// the device has no speech engine or no voice for it. Never throws.
+  Future<List<DeviceVoice>> deviceVoices(String languageCode) async {
+    final tag = speechLanguageTag(languageCode);
+    if (tag == null || !_device.isSupported) return const [];
+    try {
+      return await _device.voices(tag);
+    } on Object {
+      return const [];
+    }
+  }
+
+  /// The last text [toggle] or [speak] started reading (null before the
+  /// first one), for [replaySlowly]. Attempts that fail or are stopped
+  /// before any audio starts, previews ([previewVoice]) and calls with
+  /// `remember: false` leave it unchanged.
+  SpeechUtterance? get lastUtterance => _last;
+
   /// Plays [text] in [languageCode]; [id] identifies the button (e.g.
   /// `source` / `target`). Calling with the id that is playing stops it.
-  /// [slow] plays Mozhi clips at [slowPlaybackRate] and uses the device
-  /// engine's slow rate. Throws [SpeechUnavailableException] when neither
-  /// Mozhi nor the device can speak it (caller shows a snackbar).
+  /// [slow] plays at [slowPlaybackRate] times the [settings] rate. Throws
+  /// [SpeechUnavailableException] when neither Mozhi nor the device can
+  /// speak it (caller shows a snackbar).
+  ///
+  /// Once playback has started, [text] becomes the [lastUtterance] unless
+  /// [remember] is false (e.g. a sample read by a settings preview).
   Future<void> toggle({
     required String id,
     required String text,
     required String languageCode,
     bool slow = false,
+    bool remember = true,
+  }) => _start(
+    id: id,
+    text: text,
+    languageCode: languageCode,
+    slow: slow,
+    toggles: true,
+    remember: remember,
+  );
+
+  /// Like [toggle], but always (re)starts reading [text] from the beginning,
+  /// even when [id] is playing: e.g. a long press on a listen button
+  /// replaying the text with `slow: true`.
+  Future<void> speak({
+    required String id,
+    required String text,
+    required String languageCode,
+    bool slow = false,
+    bool remember = true,
+  }) => _start(
+    id: id,
+    text: text,
+    languageCode: languageCode,
+    slow: slow,
+    toggles: false,
+    remember: remember,
+  );
+
+  /// Reads the [lastUtterance] again, slowly ([slowPlaybackRate]) and from
+  /// the start, under its id. Mozhi clips come from the in-memory cache, so
+  /// this usually needs no network. False when nothing was read aloud yet;
+  /// throws like [speak].
+  Future<bool> replaySlowly() async {
+    final last = _last;
+    if (last == null) return false;
+    await speak(
+      id: last.id,
+      text: last.text,
+      languageCode: last.languageCode,
+      slow: true,
+    );
+    return true;
+  }
+
+  /// Reads [text] with the device [voice] (null: the language's default
+  /// device voice) at the [settings] rate, so a voice can be heard before it
+  /// is chosen. Toggles like [toggle] for [id]; never uses Mozhi and does not
+  /// change [lastUtterance]. Throws [SpeechUnavailableException] when the
+  /// device cannot speak [languageCode].
+  Future<void> previewVoice({
+    required String id,
+    required String text,
+    required String languageCode,
+    DeviceVoice? voice,
+  }) => _start(
+    id: id,
+    text: text,
+    languageCode: languageCode,
+    slow: false,
+    toggles: true,
+    remember: false,
+    preview: (voice: voice),
+  );
+
+  /// Starts reading [text] under [id]. [toggles]: stop instead when [id] is
+  /// playing. [remember]: make it the [lastUtterance] once a backend has
+  /// started. [preview]: device only, with that voice.
+  Future<void> _start({
+    required String id,
+    required String text,
+    required String languageCode,
+    required bool slow,
+    required bool toggles,
+    required bool remember,
+    ({DeviceVoice? voice})? preview,
   }) async {
     final trimmed = text.trim();
-    if (_current == id || trimmed.isEmpty) {
+    if ((toggles && _current == id) || trimmed.isEmpty) {
       await stop();
       return;
     }
@@ -208,11 +386,16 @@ class SpeechService {
     try {
       if (previous != null) await _stopOutputs();
       final preferDevice = await loadPreferDeviceVoice();
+      final settings = await loadSettings();
+      final voice = preview != null
+          ? preview.voice
+          : settings.voiceFor(languageCode);
+      final deviceFirst = preview != null || preferDevice || voice != null;
       Object? cause;
       for (final backend in [
-        if (!preferDevice) _Backend.mozhi,
+        if (!deviceFirst) _Backend.mozhi,
         _Backend.device,
-        if (preferDevice) _Backend.mozhi,
+        if (deviceFirst && preview == null) _Backend.mozhi,
       ]) {
         if (generation != _generation) return;
         try {
@@ -228,8 +411,16 @@ class SpeechService {
               languageCode,
               slow: slow,
               generation: generation,
+              voice: voice,
             ),
           };
+          if (outcome == _Outcome.started && remember) {
+            _last = SpeechUtterance(
+              id: id,
+              text: trimmed,
+              languageCode: languageCode,
+            );
+          }
           if (outcome != _Outcome.skipped) return;
         } on Object catch (error) {
           cause ??= error;
@@ -262,12 +453,22 @@ class SpeechService {
       slow: slow,
       chunks: splitTextForSpeech(text),
     );
-    await _output.setPlaybackRate(slow ? slowPlaybackRate : 1);
+    await _setPlaybackRate(settings.speed(slow: slow));
     final bytes = await _fetch(playback.chunks.first, languageCode);
     if (generation != _generation) return _Outcome.superseded;
     _mozhi = playback;
     if (!await _startChunk(playback, bytes)) return _Outcome.superseded;
     return _Outcome.started;
+  }
+
+  /// Applies [rate] to the audio output; a player that cannot change its
+  /// speed plays at normal speed.
+  Future<void> _setPlaybackRate(double rate) async {
+    try {
+      await _output.setPlaybackRate(rate);
+    } on Object {
+      // Best effort.
+    }
   }
 
   /// Plays [bytes] as [playback]'s current chunk and prefetches the next
@@ -359,6 +560,7 @@ class SpeechService {
         playback.languageCode,
         slow: playback.slow,
         generation: generation,
+        voice: settings.voiceFor(playback.languageCode),
         tag: tag,
       );
       if (outcome != _Outcome.skipped) return;
@@ -380,20 +582,22 @@ class SpeechService {
     return tag;
   }
 
-  /// Speaks [text] on the device; [tag] skips the voice lookup.
+  /// Speaks [text] on the device with [voice] (null: the default voice);
+  /// [tag] skips the availability check.
   Future<_Outcome> _speakOnDevice(
     String text,
     String languageCode, {
     required bool slow,
     required int generation,
+    required DeviceVoice? voice,
     String? tag,
   }) async {
     final resolved = tag ?? await _deviceTag(languageCode);
     if (resolved == null) return _Outcome.skipped;
     if (generation != _generation) return _Outcome.superseded;
-    await _device.setLanguage(resolved);
+    await _device.setLanguage(resolved, voice: voice);
     if (generation != _generation) return _Outcome.superseded;
-    await _device.setSpeechRate(slow: slow);
+    await _device.setSpeechRate(slow: slow, rate: settings.rate);
     if (generation != _generation) return _Outcome.superseded;
     _deviceOwner = generation;
     // Utterances can end before speak() returns; interrupted ones never

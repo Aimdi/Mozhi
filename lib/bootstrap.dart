@@ -92,7 +92,10 @@ Future<AppDependencies> createDependencies({
     translationRepository: translationRepository,
     settingsRepository: settingsRepository,
     historyRepository: HistoryRepository(store: preferences),
-    speechService: SpeechService(repository: translationRepository),
+    speechService: SpeechService(
+      repository: translationRepository,
+      store: preferences,
+    ),
     sharedTextService: SharedTextService(),
     settings: settings,
     preferences: preferences,

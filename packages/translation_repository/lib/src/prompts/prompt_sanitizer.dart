@@ -72,6 +72,26 @@ abstract final class PromptSanitizer {
     return cap(s, maxLength, atWordBoundary: atWordBoundary);
   }
 
+  /// Line breaks (`\r\n`, `\r`, and the Unicode line and paragraph
+  /// separators).
+  static final _lineBreaks = RegExp('\r\n?|[\u2028\u2029]');
+
+  /// Control characters other than tabs and line feeds.
+  static final _controlsButLines = RegExp(r'[\x00-\x08\x0B-\x1F\x7F-\x9F]');
+
+  /// [text] (model output shown to the user) with its lines kept: line
+  /// breaks are normalised to `\n`, other control characters (except tabs)
+  /// and invisible format characters (see [singleLine]) are removed and the
+  /// ends are trimmed. [maxLength] caps the result like [cap].
+  static String multiLine(String text, {int? maxLength}) {
+    final s = text
+        .replaceAll(_lineBreaks, '\n')
+        .replaceAll(_controlsButLines, '')
+        .replaceAll(_invisible, '')
+        .trim();
+    return maxLength == null ? s : cap(s, maxLength);
+  }
+
   /// [text] cut to at most [maxLength] Unicode code points (never splitting
   /// a surrogate pair), trimmed at the end. See [singleLine] for
   /// [atWordBoundary].

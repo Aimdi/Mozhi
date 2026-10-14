@@ -12,6 +12,8 @@ import 'package:mozhi/settings/view/widgets/accent_color_picker.dart';
 import 'package:mozhi/settings/view/widgets/choice_dialog.dart';
 import 'package:mozhi/settings/view/widgets/history_data_actions.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
+import 'package:mozhi/settings/view/widgets/speech_settings_section.dart';
+import 'package:mozhi/speech/speech_service.dart';
 
 /// App settings. Reads [SettingsCubit] (and `HistoryCubit` for the data
 /// actions) from the app-wide providers.
@@ -40,6 +42,14 @@ class SettingsView extends StatelessWidget {
     final primary = [
       _ServicesSection(settings: settings),
       _TranslationSection(settings: settings),
+      if (_hasSpeechService(context))
+        SpeechSettingsSection(
+          languages: [
+            settings.target,
+            settings.source,
+            ...settings.recentLanguages,
+          ],
+        ),
     ];
     final secondary = [
       _AppearanceSection(settings: settings),
@@ -79,6 +89,16 @@ class SettingsView extends StatelessWidget {
         },
       ),
     );
+  }
+}
+
+/// Whether a [SpeechService] is provided (the read-aloud settings need it).
+bool _hasSpeechService(BuildContext context) {
+  try {
+    context.read<SpeechService>();
+    return true;
+  } on ProviderNotFoundException {
+    return false;
   }
 }
 

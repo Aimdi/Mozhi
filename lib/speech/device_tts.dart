@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:mozhi/speech/speech_language.dart';
+import 'package:mozhi/speech/speech_settings.dart';
+
+export 'device_voice.dart';
 
 /// Thrown when the device speech engine rejects a request (e.g. no voice
 /// for the language, or the engine refused the text).
@@ -27,12 +30,21 @@ abstract interface class DeviceTts {
   /// Never throws; false when unknown.
   Future<bool> isLanguageAvailable(String languageTag);
 
-  /// Selects the voice language for later [speak] calls. Throws
-  /// [DeviceTtsException] when the engine rejects it.
-  Future<void> setLanguage(String languageTag);
+  /// Selects the voice language for later [speak] calls, and [voice] (one
+  /// of [voices] for this language) or, when null, the engine's default
+  /// voice for the language. Throws [DeviceTtsException] when the engine
+  /// rejects the language; a voice the engine rejects (e.g. uninstalled
+  /// since it was chosen) is skipped and the default voice speaks.
+  Future<void> setLanguage(String languageTag, {DeviceVoice? voice});
 
-  /// Normal or slowed-down speech for later [speak] calls.
-  Future<void> setSpeechRate({required bool slow});
+  /// Speech speed for later [speak] calls: [rate] times the engine's normal
+  /// speed (see [SpeechSettings.rate]), slowed down by
+  /// [SpeechSettings.slowFactor] when [slow].
+  Future<void> setSpeechRate({required bool slow, double rate = 1});
+
+  /// The installed voices that speak [languageTag] (BCP-47), best match
+  /// first ([DeviceVoice.sortFor]). Never throws; empty when unknown.
+  Future<List<DeviceVoice>> voices(String languageTag);
 
   /// Starts speaking [text]. Completes once the engine accepted it; throws
   /// when it was rejected. Call [stop] first to replace current speech.
@@ -58,10 +70,19 @@ abstract interface class DeviceTts {
 /// recently created [FlutterTts].
 ///
 /// Platform notes (from the `flutter_tts` 4.2.5 sources):
-/// * Rates: Android multiplies by 2 (0.5 = 1.0x) and Windows maps 0.5 to its
-///   default, so normal/slow are 0.5/0.3 there. iOS/macOS pass the value to
-///   `AVSpeechUtterance.rate` (default 0.5, non-linear), so slow is 0.4. The
-///   web uses `SpeechSynthesisUtterance.rate` (1.0 = normal), slow is 0.7.
+/// * Rates ([speechRate]): Android multiplies by 2 (0.5 = 1.0x) and Windows
+///   maps 0.5 to its default, so a speed of x is 0.5·x there (slow at the
+///   default rate: 0.3). iOS/macOS pass the value to
+///   `AVSpeechUtterance.rate` (default 0.5, non-linear: small steps change
+///   the speed a lot), so speeds are mapped gently around 0.5 (0.6 at 1.5x,
+///   0.4 for slow at 1.0x). The web uses `SpeechSynthesisUtterance.rate`
+///   (1.0 = normal) as is.
+/// * Voices: every engine lists them (`getVoices`) and selects them by name
+///   and locale (`setVoice`, Apple also by identifier). Selecting a
+///   language resets the voice to the language's default, so [setLanguage]
+///   applies the voice after the language, and re-selects the language to
+///   go back to the default voice. Android voices that are not downloaded
+///   are not listed.
 /// * Availability: Android prefers `isLanguageInstalled` (voice data on the
 ///   device, usable offline); it needs an exact locale (`fr-FR`), so a bare
 ///   `fr` falls back to `isLanguageAvailable`. Windows has no availability
@@ -99,6 +120,7 @@ class FlutterTtsDeviceTts implements DeviceTts {
 
   FlutterTts? _tts;
   String? _language;
+  DeviceVoice? _voice;
   double? _rate;
 
   /// Whether the browser has reported any voice yet (web only).
@@ -111,17 +133,28 @@ class FlutterTtsDeviceTts implements DeviceTts {
   int _stopped = 0;
   Completer<void>? _settled;
 
-  /// The `flutter_tts` speech rate for [platform] (see class docs).
+  /// The `flutter_tts` speech rate on [platform] for [rate] times the
+  /// normal speed, slowed down by [SpeechSettings.slowFactor] when [slow]
+  /// (see class docs). Rounded to three decimals.
   static double speechRate({
     required TargetPlatform platform,
     required bool isWeb,
     required bool slow,
+    double rate = 1,
   }) {
-    if (isWeb) return slow ? 0.7 : 1.0;
-    return switch (platform) {
-      TargetPlatform.iOS || TargetPlatform.macOS => slow ? 0.4 : 0.5,
-      _ => slow ? 0.3 : 0.5,
-    };
+    final speed = slow ? rate * SpeechSettings.slowFactor : rate;
+    final double value;
+    if (isWeb) {
+      value = speed.clamp(0.1, 10).toDouble();
+    } else {
+      final mapped = switch (platform) {
+        TargetPlatform.iOS || TargetPlatform.macOS =>
+          speed <= 1 ? 0.5 - (1 - speed) * 0.25 : 0.5 + (speed - 1) * 0.2,
+        _ => 0.5 * speed,
+      };
+      value = mapped.clamp(0.05, 1).toDouble();
+    }
+    return (value * 1000).round() / 1000;
   }
 
   @override
@@ -210,23 +243,76 @@ class FlutterTtsDeviceTts implements DeviceTts {
   }
 
   @override
-  Future<void> setLanguage(String languageTag) async {
+  Future<void> setLanguage(String languageTag, {DeviceVoice? voice}) async {
     final tts = _engine;
     final language = await _resolve(languageTag) ?? languageTag;
-    if (language == _language) return;
-    if (await tts.setLanguage(language) == 0) {
-      throw DeviceTtsException('No voice for "$languageTag".');
+    if (language != _language) {
+      if (await tts.setLanguage(language) == 0) {
+        throw DeviceTtsException('No voice for "$languageTag".');
+      }
+      _language = language;
+      _voice = null; // The engine picked the language's default voice.
     }
-    _language = language;
+    if (voice?.id == _voice?.id) return;
+    if (voice != null && await _selectVoice(tts, voice)) {
+      _voice = voice;
+      return;
+    }
+    if (_voice != null) {
+      // Selecting the language again restores its default voice.
+      await tts.setLanguage(language);
+      _voice = null;
+    }
+  }
+
+  /// Whether the engine accepted [voice].
+  Future<bool> _selectVoice(FlutterTts tts, DeviceVoice voice) async {
+    try {
+      return await tts.setVoice(voice.toEngine()) != 0;
+    } on Object {
+      return false;
+    }
   }
 
   @override
-  Future<void> setSpeechRate({required bool slow}) async {
+  Future<void> setSpeechRate({required bool slow, double rate = 1}) async {
     final tts = _engine;
-    final rate = speechRate(platform: _platform, isWeb: _isWeb, slow: slow);
-    if (rate == _rate) return;
-    await tts.setSpeechRate(rate);
-    _rate = rate;
+    final value = speechRate(
+      platform: _platform,
+      isWeb: _isWeb,
+      slow: slow,
+      rate: rate,
+    );
+    if (value == _rate) return;
+    await tts.setSpeechRate(value);
+    _rate = value;
+  }
+
+  @override
+  Future<List<DeviceVoice>> voices(String languageTag) async {
+    if (!isSupported) return const [];
+    try {
+      var all = await _engineVoices();
+      if (all.isEmpty && _isWeb) {
+        // Browsers load their voices lazily.
+        await Future<void>.delayed(webVoicesDelay);
+        all = await _engineVoices();
+      }
+      return DeviceVoice.sortFor(
+        languageTag,
+        all.where((voice) => voice.speaks(languageTag)),
+      );
+    } on Object {
+      return const [];
+    }
+  }
+
+  Future<List<DeviceVoice>> _engineVoices() async {
+    final voices = await _engine.getVoices;
+    return [
+      if (voices is List)
+        for (final voice in voices) ?DeviceVoice.fromEngine(voice),
+    ];
   }
 
   @override

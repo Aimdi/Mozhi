@@ -11,6 +11,7 @@ import 'package:mozhi/bootstrap.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
+import 'package:mozhi/speech/speech_service.dart';
 import 'package:mozhi/usage/data/usage_tracker.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -57,6 +58,31 @@ void main() {
       expect(prefs.values.keys, contains(UsageTracker.storageKey));
       await dependencies.usageTracker.dispose();
       await dependencies.speechInputService.dispose();
+    });
+
+    test('keeps the read-aloud settings across restarts', () async {
+      final prefs = MemoryStore();
+      const voice = DeviceVoice(name: 'Amélie', locale: 'fr-CA');
+      final first = await createDependencies(
+        prefs: prefs,
+        secrets: MemoryStore(),
+      );
+      await first.speechService.setSpeechRate(0.7);
+      await first.speechService.setVoice('fr', voice);
+      await first.speechService.setPreferDeviceVoice(enabled: true);
+
+      final restarted = await createDependencies(
+        prefs: prefs,
+        secrets: MemoryStore(),
+      );
+      final speech = restarted.speechService;
+
+      expect(
+        await speech.loadSettings(),
+        const SpeechSettings(rate: 0.7, voices: {'fr': voice}),
+      );
+      expect(await speech.loadPreferDeviceVoice(), isTrue);
+      expect(prefs.values.keys, contains(SpeechService.settingsKey));
     });
 
     test('hands the offline translator to the repository', () async {

@@ -12,6 +12,8 @@ class ListenButton extends StatefulWidget {
     required this.id,
     required this.text,
     required this.languageCode,
+    this.tooltip,
+    this.stopTooltip,
     super.key,
   });
 
@@ -21,6 +23,13 @@ class ListenButton extends StatefulWidget {
 
   /// Null disables the button (e.g. undetected or custom language).
   final String? languageCode;
+
+  /// Tooltip (and screen-reader label) while nothing plays; "Listen" by
+  /// default. Several buttons on one screen should say what they read.
+  final String? tooltip;
+
+  /// Tooltip while the clip plays; "Stop" by default.
+  final String? stopTooltip;
 
   @override
   State<ListenButton> createState() => _ListenButtonState();
@@ -57,7 +66,9 @@ class _ListenButtonState extends State<ListenButton> {
       builder: (context, snapshot) {
         final playing = snapshot.data == widget.id;
         return IconButton(
-          tooltip: playing ? l10n.commonStop : l10n.commonListen,
+          tooltip: playing
+              ? widget.stopTooltip ?? l10n.commonStop
+              : widget.tooltip ?? l10n.commonListen,
           isSelected: playing,
           icon: const Icon(Icons.volume_up_outlined),
           selectedIcon: const Icon(Icons.stop_circle_outlined),
