@@ -610,6 +610,21 @@ browsers). The settings are kept on the device.
   **Open in app** continues in the full translator.
 - **Quick Settings tile** and the **Translate clipboard** app shortcut open
   the translator with the clipboard text.
+- **Home-screen widget**: long-press the home screen, choose **Widgets**
+  and add **Mozhi**. It has three buttons:
+  - **Clipboard** opens the translator with the clipboard text, like the
+    Quick Settings tile. The widget never reads the clipboard itself; Mozhi
+    reads it once it is open (Android 10 and later only let the app in front
+    read the clipboard).
+  - **Type** opens the translator (`mozhi://translate`).
+  - **Camera** opens camera translate with the camera ready
+    (`mozhi://image?source=camera`).
+
+  The widget is resizable. When it is narrow the labels are hidden (screen
+  readers still announce each button), and at about two cells wide the
+  Camera button is left out. On Android 12 and later it uses your
+  wallpaper colours (Material You) and the launcher's corner radius; it
+  follows light and dark mode on all versions.
 - **Share** text from any app to Mozhi to translate it.
 - **Material You**: with **Dynamic color** on (Android 12 and later), the app
   takes its colours from your wallpaper.

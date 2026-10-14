@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home-screen widget "Mozhi" (MozhiWidgetProvider): Translate clipboard,
+     Type and Camera. The provider hides the labels, and then the Camera
+     button, when the widget is resized too small for them. Also the widget
+     picker preview on Android 12+ (android:previewLayout).
+     @android:id/background + clipToOutline let Android 12+ clip the widget to
+     the launcher's corner radius. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:clipToOutline="true"
+    android:gravity="center"
+    android:orientation="horizontal"
+    android:padding="@dimen/widget_padding">
+
+    <LinearLayout
+        android:id="@+id/widget_clipboard"
+        style="@style/Widget.Mozhi.Button"
+        android:contentDescription="@string/widget_clipboard_description">
+
+        <ImageView
+            style="@style/Widget.Mozhi.Icon"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_widget_clipboard" />
+
+        <TextView
+            android:id="@+id/widget_clipboard_label"
+            style="@style/Widget.Mozhi.Label"
+            android:text="@string/widget_clipboard_label" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/widget_type"
+        style="@style/Widget.Mozhi.Button"
+        android:layout_marginStart="@dimen/widget_button_gap"
+        android:contentDescription="@string/widget_type_description">
+
+        <ImageView
+            style="@style/Widget.Mozhi.Icon"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_widget_type" />
+
+        <TextView
+            android:id="@+id/widget_type_label"
+            style="@style/Widget.Mozhi.Label"
+            android:text="@string/widget_type_label" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/widget_camera"
+        style="@style/Widget.Mozhi.Button"
+        android:layout_marginStart="@dimen/widget_button_gap"
+        android:contentDescription="@string/widget_camera_description">
+
+        <ImageView
+            style="@style/Widget.Mozhi.Icon"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_widget_camera" />
+
+        <TextView
+            android:id="@+id/widget_camera_label"
+            style="@style/Widget.Mozhi.Label"
+            android:text="@string/widget_camera_label" />
+    </LinearLayout>
+</LinearLayout>

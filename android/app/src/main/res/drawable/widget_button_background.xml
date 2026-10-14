@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home-screen widget button: tonal container with a touch ripple. -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="@color/widget_ripple">
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="@dimen/widget_inner_radius" />
+            <solid android:color="@color/widget_button" />
+        </shape>
+    </item>
+</ripple>

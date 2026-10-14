@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home-screen widget colours, dark theme, before Android 12. -->
+<resources>
+    <color name="widget_background">#FF1F1F25</color>
+    <color name="widget_button">#FF3A4380</color>
+    <color name="widget_on_button">#FFDEE0FF</color>
+    <color name="widget_ripple">#1FDEE0FF</color>
+</resources>

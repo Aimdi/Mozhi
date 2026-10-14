@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Widget picker preview before Android 12 (android:previewImage); Android
+     12+ renders layout/widget_mozhi.xml instead (android:previewLayout).
+     250 x 64 dp: background plus three buttons with their icons. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:width="250dp"
+        android:height="64dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="@dimen/widget_corner_radius" />
+            <solid android:color="@color/widget_background" />
+        </shape>
+    </item>
+    <item
+        android:left="8dp"
+        android:top="8dp"
+        android:width="74dp"
+        android:height="48dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="@dimen/widget_inner_radius" />
+            <solid android:color="@color/widget_button" />
+        </shape>
+    </item>
+    <item
+        android:left="88dp"
+        android:top="8dp"
+        android:width="74dp"
+        android:height="48dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="@dimen/widget_inner_radius" />
+            <solid android:color="@color/widget_button" />
+        </shape>
+    </item>
+    <item
+        android:left="168dp"
+        android:top="8dp"
+        android:width="74dp"
+        android:height="48dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="@dimen/widget_inner_radius" />
+            <solid android:color="@color/widget_button" />
+        </shape>
+    </item>
+    <item
+        android:left="33dp"
+        android:top="20dp"
+        android:width="24dp"
+        android:height="24dp"
+        android:drawable="@drawable/ic_widget_clipboard" />
+    <item
+        android:left="113dp"
+        android:top="20dp"
+        android:width="24dp"
+        android:height="24dp"
+        android:drawable="@drawable/ic_widget_type" />
+    <item
+        android:left="193dp"
+        android:top="20dp"
+        android:width="24dp"
+        android:height="24dp"
+        android:drawable="@drawable/ic_widget_camera" />
+</layer-list>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home-screen widget dimensions. values-v31/ uses the launcher's own
+     widget corner radii (Android 12+). -->
+<resources>
+    <dimen name="widget_corner_radius">16dp</dimen>
+    <dimen name="widget_inner_radius">8dp</dimen>
+    <dimen name="widget_padding">8dp</dimen>
+    <dimen name="widget_button_gap">8dp</dimen>
+    <dimen name="widget_button_min_height">48dp</dimen>
+    <dimen name="widget_icon_size">24dp</dimen>
+</resources>

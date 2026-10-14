@@ -17,4 +17,16 @@
     <string name="shortcut_conversation_long">Conversation</string>
     <string name="shortcut_proofread_short">Proofread</string>
     <string name="shortcut_proofread_long">Proofread</string>
+
+    <!-- Home-screen widget (MozhiWidgetProvider, xml/mozhi_widget_info.xml).
+         Button labels are short (they share one row); the descriptions are
+         read by screen readers. -->
+    <string name="widget_label">Mozhi</string>
+    <string name="widget_description">Translate the clipboard, type text or translate with the camera</string>
+    <string name="widget_clipboard_label">Clipboard</string>
+    <string name="widget_clipboard_description">Translate clipboard</string>
+    <string name="widget_type_label">Type</string>
+    <string name="widget_type_description">Type text to translate</string>
+    <string name="widget_camera_label">Camera</string>
+    <string name="widget_camera_description">Camera translate</string>
 </resources>
