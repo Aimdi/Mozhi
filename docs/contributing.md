@@ -62,8 +62,10 @@ flutter run -d chrome -t lib/main_development.dart   # web has no flavors
 flutter build apk --release --flavor production -t lib/main_production.dart --split-per-abi
 flutter build apk --release --flavor production -t lib/main_production.dart
 
-# Web (served from /Mozhi/; change --base-href for another path)
-flutter build web --release -t lib/main_production.dart --base-href /Mozhi/
+# Web (served from /Mozhi/app/ like the CI build; change --base-href for
+# another path, e.g. / for the root of a web server)
+flutter build web --release -t lib/main_production.dart \
+  --base-href /Mozhi/app/ --no-web-resources-cdn
 
 # Desktop
 flutter build macos --release --flavor production -t lib/main_production.dart

@@ -70,10 +70,12 @@ alone.
   cloud AI model, input of up to three words also gets a second, small
   detection request, so that a doubtful guess is caught.
 - **Your languages count** (AI): for short texts the model is told which
-  languages you usually translate from (the sources of your recent language
-  pairs) and prefers them when a word could be in several languages.
-- **Swap** exchanges the languages and moves the translation into the input.
-  While detecting, it uses the detected language.
+  languages you recently translated from (the sources of your recent
+  language pairs) and prefers them when a word could be in several
+  languages.
+- **Swap languages** (the arrows between the two languages) exchanges them
+  and moves the translation into the input. While detecting, it uses the
+  detected language.
 - **Smart swap.** If the detected language is the target language (you
   typed English while translating into English), Mozhi translates into
   another language you use instead: a recent or pinned language, then your
