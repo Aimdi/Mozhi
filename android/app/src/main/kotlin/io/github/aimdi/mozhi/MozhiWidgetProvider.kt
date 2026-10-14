@@ -15,7 +15,8 @@ import android.widget.RemoteViews
  * `res/layout/widget_mozhi.xml`) with three buttons that open the app through
  * the same intents as the Quick Settings tile and the launcher shortcuts:
  *
- * - **Translate clipboard**: [MainActivity.ACTION_TRANSLATE_CLIPBOARD]. The
+ * - **Translate clipboard**: [MainActivity.ACTION_TRANSLATE_CLIPBOARD] (to the
+ *   non-exported alias [MainActivity.TRANSLATE_CLIPBOARD_ALIAS]). The
  *   widget never reads the clipboard itself (Android 10+ only lets the
  *   focused app do that); [MainActivity] reads it once its window has focus.
  * - **Type**: the deep link `mozhi://translate` (the translator).

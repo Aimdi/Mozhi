@@ -548,6 +548,154 @@ void main() {
         await tester.pumpAndSettle();
         verifyNever(() => settings.addInstance(any()));
       });
+
+      group('plain http', () {
+        const warning = Key('instance_insecure_warning');
+        const confirmAction = 'Add without encryption';
+
+        testWidgets('warns about a remote http instance as it is typed', (
+          tester,
+        ) async {
+          await openDialog(tester);
+          expect(find.byKey(warning), findsNothing);
+          await tester.enterText(
+            field('Instance URL'),
+            'http://mozhi.example.com',
+          );
+          await tester.pump();
+          expect(find.byKey(warning), findsOneWidget);
+          expect(find.text('Connection not encrypted'), findsOneWidget);
+          expect(find.textContaining('travel unencrypted'), findsOneWidget);
+          expect(
+            tester.getSemantics(find.text('Connection not encrypted')),
+            isSemantics(isLiveRegion: true),
+          );
+
+          await tester.enterText(
+            field('Instance URL'),
+            'https://mozhi.example.com',
+          );
+          await tester.pump();
+          expect(find.byKey(warning), findsNothing);
+        });
+
+        for (final url in [
+          'http://localhost:3000',
+          'http://192.168.1.20:3000',
+          'http://10.0.0.5',
+          'http://mozhi.lan',
+          'http://nas.local:3000',
+          'http://[fd00::1]:3000',
+          'http://mozhibox',
+          '192.168.1.20:3000',
+        ]) {
+          testWidgets('adds local $url without a warning', (tester) async {
+            await openDialog(tester);
+            await tester.enterText(field('Instance URL'), url);
+            await tester.pump();
+            expect(find.byKey(warning), findsNothing);
+            await tester.tap(find.text('Add'));
+            await tester.pumpAndSettle();
+            expect(find.text(confirmAction), findsNothing);
+            final added =
+                verify(() => settings.addInstance(captureAny())).captured.single
+                    as MozhiInstance;
+            expect(added.url, startsWith('http://'));
+          });
+        }
+
+        testWidgets('adds a remote http instance only after confirmation', (
+          tester,
+        ) async {
+          await openDialog(tester);
+          await tester.enterText(
+            field('Instance URL'),
+            'http://mozhi.example.com/api',
+          );
+          await tester.tap(find.text('Add'));
+          await tester.pumpAndSettle();
+          expect(find.text('Add without encryption?'), findsOneWidget);
+          expect(
+            find.text(
+              'mozhi.example.com uses plain HTTP. Anyone on the network '
+              'between you and this instance can read the text you '
+              'translate with it.',
+            ),
+            findsOneWidget,
+          );
+          verifyNever(() => settings.addInstance(any()));
+
+          await tester.tap(find.text(confirmAction));
+          await tester.pumpAndSettle();
+          final added =
+              verify(() => settings.addInstance(captureAny())).captured.single
+                  as MozhiInstance;
+          expect(added.url, 'http://mozhi.example.com');
+          expect(find.text('Instance added'), findsOneWidget);
+        });
+
+        testWidgets('cancelling the confirmation keeps the dialog open', (
+          tester,
+        ) async {
+          await openDialog(tester);
+          await tester.enterText(
+            field('Instance URL'),
+            'http://mozhi.example.com',
+          );
+          await tester.tap(find.text('Add'));
+          await tester.pumpAndSettle();
+          // The confirmation's Cancel is the last one (on top).
+          await tester.tap(find.text('Cancel').last);
+          await tester.pumpAndSettle();
+          expect(find.text('Add without encryption?'), findsNothing);
+          expect(find.byKey(warning), findsOneWidget);
+          verifyNever(() => settings.addInstance(any()));
+
+          // Submitting the label field asks again.
+          await tester.enterText(field('Label (optional)'), 'Remote');
+          await tester.testTextInput.receiveAction(TextInputAction.done);
+          await tester.pumpAndSettle();
+          expect(find.text('Add without encryption?'), findsOneWidget);
+          await tester.tap(find.text(confirmAction));
+          await tester.pumpAndSettle();
+          final added =
+              verify(() => settings.addInstance(captureAny())).captured.single
+                  as MozhiInstance;
+          expect(added.label, 'Remote');
+        });
+
+        testWidgets('dismissing the confirmation adds nothing', (tester) async {
+          await openDialog(tester);
+          await tester.enterText(
+            field('Instance URL'),
+            'http://mozhi.example.com',
+          );
+          await tester.tap(find.text('Add'));
+          await tester.pumpAndSettle();
+          await tester.tapAt(const Offset(4, 4));
+          await tester.pumpAndSettle();
+          expect(find.text('Add without encryption?'), findsNothing);
+          verifyNever(() => settings.addInstance(any()));
+        });
+
+        testWidgets('testing a remote http instance needs no confirmation', (
+          tester,
+        ) async {
+          const instance = MozhiInstance(url: 'http://mozhi.example.com');
+          when(() => repository.pingInstance(instance))
+              .thenAnswer((_) async => const Duration(milliseconds: 5));
+          await openDialog(tester);
+          await tester.enterText(
+            field('Instance URL'),
+            'http://mozhi.example.com',
+          );
+          await tester.tap(find.text('Test'));
+          await tester.pumpAndSettle();
+          expect(find.text('Add without encryption?'), findsNothing);
+          expect(find.text('Reachable in 5 ms'), findsOneWidget);
+          expect(find.byKey(warning), findsOneWidget);
+        });
+      });
     });
 
     testWidgets('fits 320dp with large text', (tester) async {

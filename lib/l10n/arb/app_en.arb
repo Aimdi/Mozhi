@@ -5930,5 +5930,37 @@
   "webTranslateErrorBlockedRedirect": "The website tried to redirect to an address on your device or local network, so the page was not loaded. If you trust that address, enter it directly.",
   "@webTranslateErrorBlockedRedirect": {
     "description": "Shown when a public page redirects to localhost or a private network address"
+  },
+  "settingsOfflineNotIncluded": "Not included in this build: it needs Google ML Kit, which is not free software",
+  "@settingsOfflineNotIncluded": {
+    "description": "settingsOfflineNotIncluded"
+  },
+  "offlineNotIncluded": "This build has no offline translation: it needs Google ML Kit, which is not free software",
+  "@offlineNotIncluded": {
+    "description": "offlineNotIncluded"
+  },
+  "settingsInstanceInsecureTitle": "Connection not encrypted",
+  "@settingsInstanceInsecureTitle": {
+    "description": "settingsInstanceInsecureTitle"
+  },
+  "settingsInstanceInsecureWarning": "This instance uses plain HTTP: the text you translate would travel unencrypted, readable by anyone on the network in between. Use https:// for instances outside your network.",
+  "@settingsInstanceInsecureWarning": {
+    "description": "settingsInstanceInsecureWarning"
+  },
+  "settingsInstanceInsecureConfirmTitle": "Add without encryption?",
+  "@settingsInstanceInsecureConfirmTitle": {
+    "description": "settingsInstanceInsecureConfirmTitle"
+  },
+  "settingsInstanceInsecureConfirmBody": "{host} uses plain HTTP. Anyone on the network between you and this instance can read the text you translate with it.",
+  "@settingsInstanceInsecureConfirmBody": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsInstanceInsecureConfirmAction": "Add without encryption",
+  "@settingsInstanceInsecureConfirmAction": {
+    "description": "settingsInstanceInsecureConfirmAction"
   }
 }

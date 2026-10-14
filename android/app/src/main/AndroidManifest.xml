@@ -94,8 +94,31 @@
                 <data android:host="dictionary"/>
             </intent-filter>
         </activity>
+        <!-- "Translate clipboard" entry point (MainActivity action
+             TRANSLATE_CLIPBOARD). Not exported, so only Mozhi's own
+             components can start it: the Quick Settings tile, the widget's
+             PendingIntent and the static launcher shortcut (shortcuts are
+             launched with the publishing app's identity, see
+             LauncherAppsService.startShortcut: "the target activity doesn't
+             have to be exported"). MainActivity ignores the action when it
+             arrives through any other component, because MainActivity itself
+             is exported. Aliases don't inherit the target's meta-data
+             (FlutterActivity reads it for the started component), so the
+             Flutter ones are repeated here. -->
+        <activity-alias
+            android:name=".TranslateClipboardActivity"
+            android:targetActivity=".MainActivity"
+            android:exported="false">
+            <meta-data
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/NormalTheme"
+                />
+            <meta-data
+                android:name="flutter_deeplinking_enabled"
+                android:value="true" />
+        </activity-alias>
         <!-- Quick Settings tile "Translate": opens Mozhi and translates the
-             clipboard (MainActivity action TRANSLATE_CLIPBOARD). -->
+             clipboard (through .TranslateClipboardActivity). -->
         <service
             android:name=".TranslateTileService"
             android:exported="true"
@@ -107,7 +130,8 @@
             </intent-filter>
         </service>
         <!-- Home-screen widget "Mozhi": Translate clipboard / Type / Camera
-             buttons that open MainActivity with the tile's and shortcuts'
+             buttons that open MainActivity (the clipboard button through
+             .TranslateClipboardActivity) with the tile's and shortcuts'
              intents. Not exported: only the system (AppWidgetManager) sends
              it broadcasts. -->
         <receiver

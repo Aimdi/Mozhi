@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/settings/view/widgets/insecure_http_warning.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:mozhi_api/mozhi_api.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -35,6 +38,10 @@ enum UrlSecretProblem { credentials, query }
 /// Asks for an instance URL (+ optional label) and returns the new
 /// [MozhiInstance], or null when cancelled. [existingUrls] are rejected as
 /// duplicates.
+///
+/// A plain `http://` URL to a host outside the device and the local network
+/// ([isInsecureHttp]) shows a warning banner, and adding it needs an
+/// explicit confirmation (the translated text would travel unencrypted).
 class AddInstanceDialog extends StatefulWidget {
   const new({required this.existingUrls, super.key});
 
@@ -68,6 +75,9 @@ class _AddInstanceDialogState extends State<AddInstanceDialog> {
   final _labelController = TextEditingController();
   final _urlFocus = FocusNode();
   _TestState? _test;
+
+  /// The plain-http URL the user agreed to add without encryption.
+  String? _insecureConfirmedFor;
 
   @override
   void dispose() {
@@ -135,9 +145,47 @@ class _AddInstanceDialogState extends State<AddInstanceDialog> {
     if (mounted) setState(() => _test = result);
   }
 
-  void _save() {
+  bool get _insecure => isInsecureHttp(_normalized());
+
+  /// Asks once per URL before a plain-http instance outside the local
+  /// network is added; true when it may be added.
+  Future<bool> _confirmInsecure(MozhiInstance instance) async {
+    final uri = Uri.parse(instance.url);
+    if (!isInsecureHttp(uri) || _insecureConfirmedFor == instance.url) {
+      return true;
+    }
+    final l10n = context.l10n;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        icon: const Icon(Icons.no_encryption_outlined),
+        title: Text(l10n.settingsInstanceInsecureConfirmTitle),
+        content: Text(l10n.settingsInstanceInsecureConfirmBody(uri.host)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l10n.commonCancel),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(l10n.settingsInstanceInsecureConfirmAction),
+          ),
+        ],
+      ),
+    );
+    if (!(confirmed ?? false)) return false;
+    _insecureConfirmedFor = instance.url;
+    return true;
+  }
+
+  Future<void> _save() async {
     final instance = _buildInstance();
-    if (instance != null) Navigator.of(context).pop(instance);
+    if (instance == null) return;
+    if (!await _confirmInsecure(instance) || !mounted) return;
+    Navigator.of(context).pop(instance);
   }
 
   @override
@@ -169,10 +217,18 @@ class _AddInstanceDialogState extends State<AddInstanceDialog> {
                 errorMaxLines: 4,
               ),
               validator: _validateUrl,
-              onChanged: (_) {
-                if (_test != null) setState(() => _test = null);
-              },
+              // Rebuild for the insecure-http banner, and drop a stale
+              // test result.
+              onChanged: (_) => setState(() => _test = null),
             ),
+            if (_insecure) ...[
+              const SizedBox(height: 12),
+              InsecureHttpWarning(
+                key: const Key('instance_insecure_warning'),
+                title: l10n.settingsInstanceInsecureTitle,
+                text: l10n.settingsInstanceInsecureWarning,
+              ),
+            ],
             const SizedBox(height: 16),
             TextFormField(
               controller: _labelController,
@@ -182,7 +238,7 @@ class _AddInstanceDialogState extends State<AddInstanceDialog> {
                 prefixIcon: const Icon(Icons.label_outline),
                 border: const OutlineInputBorder(),
               ),
-              onFieldSubmitted: (_) => _save(),
+              onFieldSubmitted: (_) => unawaited(_save()),
             ),
             if (test != null) ...[
               const SizedBox(height: 16),
@@ -214,7 +270,10 @@ class _AddInstanceDialogState extends State<AddInstanceDialog> {
           onPressed: test is _Testing ? null : _runTest,
           child: Text(l10n.settingsInstanceTest),
         ),
-        FilledButton(onPressed: _save, child: Text(l10n.commonAdd)),
+        FilledButton(
+          onPressed: () => unawaited(_save()),
+          child: Text(l10n.commonAdd),
+        ),
       ],
     );
   }

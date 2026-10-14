@@ -1,7 +1,8 @@
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/on_device_ml.dart';
 import 'package:mozhi/core/undo_snack_bar.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/view/widgets/clear_history_dialog.dart';
@@ -30,11 +31,9 @@ class SettingsView extends StatelessWidget {
   /// Width from which the sections are laid out in two columns.
   static const twoPaneBreakpoint = 840.0;
 
-  /// Whether on-device (ML Kit) offline translation exists on this platform.
-  static bool get offlineSupported =>
-      !kIsWeb &&
-      (defaultTargetPlatform == TargetPlatform.android ||
-          defaultTargetPlatform == TargetPlatform.iOS);
+  /// Whether on-device (ML Kit) offline translation exists on this platform
+  /// and in this build (the F-Droid build has no ML Kit).
+  static bool get offlineSupported => onDeviceMlSupported;
 
   @override
   Widget build(BuildContext context) {
@@ -148,6 +147,14 @@ class _ServicesSection extends StatelessWidget {
             subtitle: Text(l10n.settingsOfflineSubtitle),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/settings/offline'),
+          )
+        else if (onDeviceMlPlatform)
+          // A phone build without ML Kit (F-Droid): say why it is missing.
+          ListTile(
+            enabled: false,
+            leading: const Icon(Icons.download_for_offline_outlined),
+            title: Text(l10n.offlineTitle),
+            subtitle: Text(l10n.settingsOfflineNotIncluded),
           ),
         ListTile(
           leading: const Icon(Icons.insights_outlined),

@@ -2,7 +2,10 @@
 <!-- Static launcher shortcuts (long-press the app icon), referenced from
      MainActivity's android.app.shortcuts meta-data. MainActivity turns
      mozhi://<screen> into the route /<screen> and forwards the
-     TRANSLATE_CLIPBOARD action to Dart as {action: "translateClipboard"}.
+     TRANSLATE_CLIPBOARD action to Dart as {action: "translateClipboard"}
+     when it arrives through the non-exported alias TranslateClipboardActivity
+     (shortcuts are started with Mozhi's own identity, so the alias works;
+     other apps can't reach it).
      Keep all three copies (main, staging, development) in sync.
      staging override of src/main/res/xml/shortcuts.xml: identical except
      android:targetPackage, which must be the literal applicationId
@@ -17,7 +20,7 @@
         <intent
             android:action="io.github.aimdi.mozhi.action.TRANSLATE_CLIPBOARD"
             android:targetPackage="io.github.aimdi.mozhi.stg"
-            android:targetClass="io.github.aimdi.mozhi.MainActivity" />
+            android:targetClass="io.github.aimdi.mozhi.TranslateClipboardActivity" />
     </shortcut>
     <shortcut
         android:shortcutId="camera_translate"

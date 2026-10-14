@@ -23,7 +23,11 @@ import java.util.Locale
  *   refused unless the current intent is that writable request and the
  *   activity was started for a result.
  * - [ACTION_TRANSLATE_CLIPBOARD] from the Quick Settings tile
- *   ([TranslateTileService]) and the "Translate clipboard" launcher shortcut.
+ *   ([TranslateTileService]), the home-screen widget ([MozhiWidgetProvider])
+ *   and the "Translate clipboard" launcher shortcut. It is only honoured when
+ *   it arrives through the non-exported alias [TRANSLATE_CLIPBOARD_ALIAS]
+ *   (see [isTranslateClipboard]): this activity is exported, so any app could
+ *   otherwise make Mozhi read, translate and save the clipboard.
  *
  * Payloads are maps `{text: String, readOnly: Boolean, processText: Boolean}`.
  * Clipboard requests are always sent on the event channel, once the window
@@ -240,8 +244,19 @@ class MainActivity : FlutterActivity() {
     private fun payload(text: String, readOnly: Boolean, processText: Boolean): Map<String, Any> =
         mapOf("text" to text, "readOnly" to readOnly, "processText" to processText)
 
+    /**
+     * Whether [intent] is a clipboard request from Mozhi itself: the action
+     * [ACTION_TRANSLATE_CLIPBOARD] sent to the non-exported alias
+     * [TRANSLATE_CLIPBOARD_ALIAS]. Other apps can only reach the exported
+     * MainActivity component (the system refuses them the alias), so the
+     * same action sent there is ignored and the app just opens.
+     */
     private fun isTranslateClipboard(intent: Intent?): Boolean =
-        intent?.action == ACTION_TRANSLATE_CLIPBOARD
+        intent != null &&
+            intent.action == ACTION_TRANSLATE_CLIPBOARD &&
+            intent.component?.let {
+                it.packageName == packageName && it.className == TRANSLATE_CLIPBOARD_ALIAS
+            } == true
 
     /**
      * The `readOnly` flag sent to Dart for a PROCESS_TEXT [intent]. A missing
@@ -265,9 +280,18 @@ class MainActivity : FlutterActivity() {
     companion object {
         /**
          * Opens Mozhi and translates the clipboard. Used by the Quick Settings
-         * tile and the static launcher shortcut (res/xml/shortcuts.xml).
+         * tile, the widget and the static launcher shortcut
+         * (res/xml/shortcuts.xml), always through [TRANSLATE_CLIPBOARD_ALIAS].
          */
         const val ACTION_TRANSLATE_CLIPBOARD = "io.github.aimdi.mozhi.action.TRANSLATE_CLIPBOARD"
+
+        /**
+         * Class name of the non-exported `<activity-alias>` of this activity
+         * (AndroidManifest.xml) that [ACTION_TRANSLATE_CLIPBOARD] must be sent
+         * to. Class names follow the namespace, not the flavour's
+         * applicationId, so this is the same for every flavour.
+         */
+        const val TRANSLATE_CLIPBOARD_ALIAS = "io.github.aimdi.mozhi.TranslateClipboardActivity"
 
         /** Scheme of the deep links handled by [deepLinkRoute]. */
         const val DEEP_LINK_SCHEME = "mozhi"
@@ -278,9 +302,13 @@ class MainActivity : FlutterActivity() {
         private const val ACTION_VALUE_TRANSLATE_CLIPBOARD = "translateClipboard"
         private const val DEFAULT_ROUTE = "/"
 
-        /** Intent that brings Mozhi to the front to translate the clipboard. */
+        /**
+         * Intent that brings Mozhi to the front to translate the clipboard
+         * (explicit, to [TRANSLATE_CLIPBOARD_ALIAS] in this app's package).
+         */
         fun translateClipboardIntent(context: Context): Intent =
-            Intent(context, MainActivity::class.java)
+            Intent()
+                .setClassName(context, TRANSLATE_CLIPBOARD_ALIAS)
                 .setAction(ACTION_TRANSLATE_CLIPBOARD)
                 .addFlags(
                     Intent.FLAG_ACTIVITY_NEW_TASK or

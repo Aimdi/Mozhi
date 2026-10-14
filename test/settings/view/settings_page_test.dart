@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/core/on_device_ml.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/history/models/history_entry.dart';
@@ -187,6 +188,32 @@ void main() {
           debugDefaultTargetPlatformOverride = null;
         });
       }
+
+      testWidgets('explains offline languages missing from the build', (
+        tester,
+      ) async {
+        debugDefaultTargetPlatformOverride = TargetPlatform.android;
+        debugMlKitIncludedOverride = false;
+        await pump(tester);
+        expect(SettingsView.offlineSupported, isFalse);
+        final tile = tester.widget<ListTile>(
+          find.ancestor(
+            of: find.text('Offline languages'),
+            matching: find.byType(ListTile),
+          ),
+        );
+        expect(tile.enabled, isFalse);
+        expect(tile.onTap, isNull);
+        expect(
+          find.text(
+            'Not included in this build: it needs Google ML Kit, which is '
+            'not free software',
+          ),
+          findsOneWidget,
+        );
+        debugMlKitIncludedOverride = null;
+        debugDefaultTargetPlatformOverride = null;
+      });
 
       for (final platform in [
         TargetPlatform.linux,

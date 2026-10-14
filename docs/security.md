@@ -147,13 +147,20 @@ translations, for example with **Check meaning**.
 
 ## Known limitations
 
-- Any app on an Android device can open Mozhi's "translate clipboard"
-  action. The app then reads the clipboard (it is in the foreground) and
-  handles the text like shared text: capped, no paid AI request on its own,
+- Android's "translate clipboard" entry point (Quick Settings tile,
+  home-screen widget, launcher shortcut) goes through a non-exported
+  component, so other apps can no longer make Mozhi read the clipboard;
+  the same request sent to Mozhi's main screen only opens the app. The app
+  that hosts the widget (your launcher) can still press the widget's
+  Translate clipboard button, like any widget button. Clipboard text is
+  then handled like shared text: capped, no paid AI request on its own,
   but translated by a free engine and saved to history if those are on.
-  The calling app can't read the result.
-- Plain `http://` Mozhi instances outside your network are accepted without
-  a warning; your text then travels unencrypted.
+- Plain `http://` Mozhi instances outside your network can still be added:
+  Mozhi shows a warning and asks you to confirm first, because your text
+  then travels unencrypted. Instances on this device or your local network
+  (`localhost`, private IP addresses, `.local`/`.lan` names and similar)
+  are added without a warning. Instances added before this check (or
+  through first-run setup) are not re-checked.
 - Android release builds made without a signing key (forks, local builds)
   are signed with the debug key. Official releases must use the release
   key.

@@ -7,7 +7,8 @@ import android.service.quicksettings.TileService
 
 /**
  * Quick Settings tile "Translate": collapses the shade and opens Mozhi to
- * translate the clipboard ([MainActivity.ACTION_TRANSLATE_CLIPBOARD]).
+ * translate the clipboard ([MainActivity.ACTION_TRANSLATE_CLIPBOARD], sent to
+ * the non-exported alias [MainActivity.TRANSLATE_CLIPBOARD_ALIAS]).
  *
  * It is a plain action tile (always inactive, nothing to toggle). The
  * clipboard is read by [MainActivity] once its window has focus, because
