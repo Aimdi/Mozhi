@@ -116,9 +116,14 @@ Conventions:
 a release web build in Chromium. It covers start-up, the More tools menu,
 the Settings, Quality modes, Usage, Dictionary and Documents routes
 (several of them deferred, i.e. separate downloads), typing a translation
-with an AI provider, a refinement chip, the meaning check, and translate
+with an AI provider, a refinement chip, the meaning check, translate
 links (`/translate?text=…&from=…&to=…` fills in the screen but sends no AI
-request on its own). CI runs it in the `Web end-to-end tests` job; on
+request on its own), proofreading (applying and reverting edits, the
+writing statistics), History (favourites, search, delete with Undo),
+settings round trips (Save history off, the dark theme after a reload),
+swapping languages and the recent language pairs, translation memory
+("From your history") and friendly errors when the servers are
+unreachable. CI runs it in the `Web end-to-end tests` job; on
 failure the HTML report, screenshots, videos and traces are uploaded as the
 `e2e-report` artifact.
 
@@ -161,6 +166,14 @@ Writing tests:
 - A read-only text, such as the translation, is not in the DOM: the
   `copiedTranslation` helper presses Copy and reads the clipboard. An
   editable field exposes its value only while focused.
+- Type with `fillField` / `typeSource`: Flutter creates the DOM input
+  only once the field has focus, so a plain `fill` right after a click can
+  be lost.
+- Flutter only builds semantics for what is on screen: scroll a long list
+  with `scrollTo` before looking for an item further down.
+- The theme is drawn, not styled: `meanLuminance` reads it from a
+  screenshot. `takeMockDown` makes the mock server unreachable for one
+  page (no-network tests).
 - Wait for a label, a role or a polled value (`expect.poll`), not for a
   fixed time. The only fixed wait proves that no request is sent.
 - New AI features need a deterministic answer in `llm_answer` in the mock
