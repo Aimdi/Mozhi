@@ -92,10 +92,11 @@ Some features send additional data to the same back ends:
   on-device speech recognition** asks the system to keep it on the device.
 - **Text from other apps** (text selection, share sheet) and **links**
   (`/translate?text=...`, `mozhi://...`) are handled like typed text: they go
-  to the engine you have selected. They never start a paid AI request on
-  their own unless **Instant translate with AI** is on, and links to the
-  dictionary, Proofread or the web page translator send nothing until you
-  ask.
+  to the engine you have selected. Shared text and links never start a paid
+  AI request on their own unless **Instant translate with AI** is on (the
+  quick-translate sheet of the selection menu translates right away, since
+  you asked for it). Links to the dictionary, Proofread or the web page
+  translator send nothing until you ask.
 
 ## Every connection the app makes
 

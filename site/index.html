@@ -53,6 +53,11 @@
 <symbol id="i-user-x" viewBox="0 0 24 24"><circle cx="10" cy="8" r="4"/><path d="M3 21a7 7 0 0 1 12.5-4.3M17 15l4 4m0-4-4 4"/></symbol>
 <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="m3 3 18 18M10.6 5.1Q11.3 5 12 5c5.5 0 9 5 10 7-.5 1-1.4 2.4-2.7 3.7M6.6 6.6C4.3 8.1 2.8 10.3 2 12c1 2 4.5 7 10 7 1.8 0 3.4-.5 4.8-1.3M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol>
 <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="19" r="2.5"/><circle cx="18" cy="5" r="2.5"/><path d="M8.5 19H17a3.5 3.5 0 0 0 0-7H7a3.5 3.5 0 0 1 0-7h8.5"/></symbol>
+<symbol id="i-tune" viewBox="0 0 24 24"><path d="M4 7h9m4 0h3M4 17h3m4 0h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></symbol>
+<symbol id="i-dict" viewBox="0 0 24 24"><path d="M5 19.5V5.5A2.5 2.5 0 0 1 7.5 3H19v15H7.5A2.5 2.5 0 0 0 5 20.5 2.5 2.5 0 0 0 7.5 23H19v-5"/><path d="M9 8h6m-6 4h4"/></symbol>
+<symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H12z"/></symbol>
+<symbol id="i-gauge" viewBox="0 0 24 24"><path d="M3.5 17a8.5 8.5 0 0 1 17 0"/><path d="m12 17 4-5"/><path d="M3 20.5h18"/></symbol>
+<symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/></symbol>
 </svg>
 
 <a class="skip" href="#main">Skip to content</a>
@@ -144,20 +149,35 @@
         <li class="feature">
           <span class="feature-ic"><svg class="ic" aria-hidden="true"><use href="#i-server"/></svg></span>
           <h3>Every Mozhi engine</h3>
-          <p>Google, DeepL, Yandex, Reverso, LibreTranslate, MyMemory and DuckDuckGo through any Mozhi instance, with automatic failover across your list.</p>
+          <p>Google, DeepL, Yandex, Reverso, LibreTranslate, MyMemory and DuckDuckGo through any Mozhi instance, with automatic failover across your list. Or bring your own DeepL API key or LibreTranslate server.</p>
         </li>
         <li class="feature">
           <span class="feature-ic"><svg class="ic" aria-hidden="true"><use href="#i-sparkle"/></svg></span>
           <h3>The AI of your choice</h3>
           <p>OpenAI-compatible APIs, Anthropic, Gemini and Ollama. Tune every translation the way Kagi Translate does:</p>
           <ul class="mini">
-            <li>Natural or literal</li><li>Formality</li><li>Reading level</li><li>Context</li><li>Glossary</li>
+            <li>Natural or literal</li><li>Formality</li><li>Reading level</li><li>Context</li><li>Glossary</li><li>Custom styles</li>
           </ul>
+        </li>
+        <li class="feature">
+          <span class="feature-ic"><svg class="ic" aria-hidden="true"><use href="#i-tune"/></svg></span>
+          <h3>Refine, don’t start over</h3>
+          <p>Tap <em>More formal</em>, <em>Shorter</em> or <em>Simpler</em> to edit the translation you have. Changes stack, opposites replace each other, and a second tap undoes one.</p>
         </li>
         <li class="feature">
           <span class="feature-ic"><svg class="ic" aria-hidden="true"><use href="#i-book"/></svg></span>
           <h3>Understand, not just translate</h3>
-          <p>Alternatives for the whole text or a selected phrase, word insights, <em>Explain this translation</em> and a dictionary card for single words.</p>
+          <p>Alternatives for the whole text or a selected phrase, word insights and <em>Explain this translation</em>. Tap a phrase to see its match in both texts, and read non-Latin scripts in romanization.</p>
+        </li>
+        <li class="feature">
+          <span class="feature-ic"><svg class="ic" aria-hidden="true"><use href="#i-dict"/></svg></span>
+          <h3>A dictionary built in</h3>
+          <p>Definitions, pronunciation, examples and related words in three levels of detail, with <em>Did you mean…?</em> for typos.</p>
+        </li>
+        <li class="feature">
+          <span class="feature-ic"><svg class="ic" aria-hidden="true"><use href="#i-swap"/></svg></span>
+          <h3>Smart about languages</h3>
+          <p>Says when a short word could be in several languages, switches the target when your text is already in it (with an undo), and keeps your recent language pairs one tap away.</p>
         </li>
         <li class="feature">
           <span class="feature-ic"><svg class="ic" aria-hidden="true"><use href="#i-columns"/></svg></span>
@@ -165,9 +185,14 @@
           <p>Run several engines side by side and keep the result that reads best.</p>
         </li>
         <li class="feature">
+          <span class="feature-ic"><svg class="ic" aria-hidden="true"><use href="#i-bolt"/></svg></span>
+          <h3>Fast or Best</h3>
+          <p>Pick a quick everyday engine and your strongest model once, then switch between them with one tap, just like Kagi’s quality modes.</p>
+        </li>
+        <li class="feature">
           <span class="feature-ic"><svg class="ic" aria-hidden="true"><use href="#i-proof"/></svg></span>
           <h3>Proofread</h3>
-          <p>Fix spelling and grammar with clear explanations, in the writing style and correction level you choose.</p>
+          <p>Fix spelling and grammar with clear explanations, in the style, correction level, reading level and regional variety you choose, with writing statistics before and after.</p>
         </li>
         <li class="feature">
           <span class="feature-ic"><svg class="ic" aria-hidden="true"><use href="#i-camera"/></svg></span>
@@ -182,7 +207,7 @@
         <li class="feature">
           <span class="feature-ic"><svg class="ic" aria-hidden="true"><use href="#i-doc"/></svg></span>
           <h3>Documents and web pages</h3>
-          <p>Translate whole documents, or open a web page and read it in your language.</p>
+          <p>Translate whole documents, or open a web page and read it in your language. Long texts are split at paragraph boundaries and keep their context.</p>
         </li>
         <li class="feature">
           <span class="feature-ic"><svg class="ic" aria-hidden="true"><use href="#i-offline"/></svg></span>
@@ -192,12 +217,22 @@
         <li class="feature">
           <span class="feature-ic"><svg class="ic" aria-hidden="true"><use href="#i-history"/></svg></span>
           <h3>History and favourites</h3>
-          <p>Search everything you have translated, star the keepers, and export or import it all as JSON.</p>
+          <p>Search everything you have translated, star the keepers, export or import it all as JSON, or let older entries delete themselves after 1, 7 or 30 days.</p>
+        </li>
+        <li class="feature">
+          <span class="feature-ic"><svg class="ic" aria-hidden="true"><use href="#i-gauge"/></svg></span>
+          <h3>Know what AI costs</h3>
+          <p>Requests, characters and estimated tokens per provider each month, with an optional budget that warns you before a big bill.</p>
         </li>
         <li class="feature">
           <span class="feature-ic"><svg class="ic" aria-hidden="true"><use href="#i-select"/></svg></span>
           <h3>Translate from any app</h3>
           <p>On Android, select text anywhere and tap <em>Translate with Mozhi</em>, even replacing it in place, or share text straight to the app.</p>
+        </li>
+        <li class="feature">
+          <span class="feature-ic"><svg class="ic" aria-hidden="true"><use href="#i-link"/></svg></span>
+          <h3>Links and shortcuts</h3>
+          <p>Kagi Translate-style links and <code>mozhi://</code> links open pre-filled but never start a paid request on their own. Keyboard shortcuts include Alt+1…9 for pinned languages.</p>
         </li>
         <li class="feature">
           <span class="feature-ic"><svg class="ic" aria-hidden="true"><use href="#i-palette"/></svg></span>
@@ -308,7 +343,15 @@
         </details>
         <details>
           <summary>Which AI providers can I use?</summary>
-          <div class="faq-a"><p>OpenAI, Anthropic, Google Gemini, OpenRouter, Groq, DeepSeek, Mistral, xAI, Together, any OpenAI-compatible endpoint, and local runtimes: Ollama, LM Studio and the llama.cpp server. Use <strong>Test</strong> in the provider editor to try a tiny translation before saving.</p></div>
+          <div class="faq-a"><p>OpenAI, Anthropic, Google Gemini, OpenRouter, Groq, DeepSeek, Mistral, xAI, Together, any OpenAI-compatible endpoint, and local runtimes: Ollama, LM Studio and the llama.cpp server. Use <strong>Test connection</strong> in the provider editor to try a tiny translation before saving. The DeepL API and your own LibreTranslate server can be added in the same place.</p></div>
+        </details>
+        <details>
+          <summary>What do Fast and Best do?</summary>
+          <div class="faq-a"><p>They work like Kagi Translate’s quality modes. In <strong>Settings › Quality modes</strong>, pick a quick, cheap engine (say Google through Mozhi) as Fast and your strongest AI model as Best. A Fast / Best toggle next to the engine button then switches between them in one tap, and links can ask for one with <code>quality=fast</code> or <code>quality=best</code>.</p></div>
+        </details>
+        <details>
+          <summary>Can a link or shared text run up my AI bill?</summary>
+          <div class="faq-a"><p>Not on their own. Links and text shared to the app fill in the translator, but with an AI model you press <strong>Translate</strong> yourself (unless you turn on instant translation for AI); Mozhi engines translate them straight away. <strong>Settings › Usage &amp; costs</strong> shows how much each provider was used this month, with an optional budget warning.</p></div>
         </details>
         <details>
           <summary>How do I use a model running on my computer from my phone?</summary>
