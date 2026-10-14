@@ -4,6 +4,7 @@ import 'dart:ui' show PlatformDispatcher;
 
 import 'package:bloc/bloc.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
+import 'package:mozhi/history/data/translation_memory.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
@@ -72,6 +73,14 @@ typedef _Languages = ({List<Language> sources, List<Language> targets});
 ///   are loaded from and saved to `AppSettings.extraTargets`; picks the
 ///   engine does not offer stay picked (and saved) but are not used
 ///   ([TranslateState.unavailableExtraTargets]).
+/// * Translation memory: whenever the input or the languages change, the
+///   history (`history`, when `saveHistory` is on, within the retention)
+///   is searched for an earlier translation of the same or very similar
+///   text into the same language (`memory`, see [TranslationMemory]);
+///   [TranslateState.memoryMatch] offers it right away, before and while
+///   the engine translates. It only becomes the output when the user picks
+///   it ([useMemoryMatch]); it never replaces an engine translation by
+///   itself, and an engine translation started later replaces it.
 ///
 /// The constructor does no async work: call [loadEngines] once after
 /// construction (and whenever instances/providers change). It listens to
@@ -86,7 +95,9 @@ class TranslateCubit extends Cubit<TranslateState> {
     DateTime Function()? clock,
     List<String> Function()? deviceLanguages,
     this._usageTracker,
+    TranslationMemory? memory,
   }) : _settings = settings,
+       _memory = memory ?? TranslationMemory(),
        _clock = clock ?? DateTime.now,
        _deviceLanguages = deviceLanguages ?? _platformLanguages,
        _qualityIds = (settings.state.fastEngineId, settings.state.bestEngineId),
@@ -162,6 +173,14 @@ class TranslateCubit extends Cubit<TranslateState> {
 
   /// Counts provider usage (characters and estimated tokens); optional.
   final UsageTracker? _usageTracker;
+
+  /// Finds earlier translations of the input in the history.
+  final TranslationMemory _memory;
+
+  /// Ids of the history entries recorded since the input was last empty or
+  /// replaced as a whole: they are translations of earlier versions of the
+  /// text being typed, so they are not offered as similar text.
+  final _typingEntryIds = <String>{};
 
   /// Instant-translate delay for Mozhi engines.
   // Immutable configuration passed to the constructor, not state.
@@ -626,6 +645,9 @@ class TranslateCubit extends Cubit<TranslateState> {
   /// ([_syncExtraTargets]).
   void _onSettings(AppSettings settings) {
     _syncExtraTargets();
+    if (!settings.saveHistory && state.memoryMatch != null && !isClosed) {
+      emit(state.copyWith(memoryMatch: () => null));
+    }
     final ids = (settings.fastEngineId, settings.bestEngineId);
     if (ids == _qualityIds || isClosed) return;
     _qualityIds = ids;
@@ -810,6 +832,7 @@ class TranslateCubit extends Cubit<TranslateState> {
   /// monitors) this is [setExternalInput], which may not translate.
   void setInputAndTranslate(String text, {bool external = false}) {
     if (external) return setExternalInput(text);
+    _typingEntryIds.clear();
     setInput(text);
     unawaited(translate());
   }
@@ -834,6 +857,7 @@ class TranslateCubit extends Cubit<TranslateState> {
       return;
     }
     _lastExternal = (text: text, at: now);
+    _typingEntryIds.clear();
     if (source != null && _applySource(source)) {
       emit(_clearedExtras(state).copyWith(source: source));
     }
@@ -1564,6 +1588,7 @@ class TranslateCubit extends Cubit<TranslateState> {
       _lastEntryMicros = micros;
       id = micros.toString();
     }
+    _typingEntryIds.add(id);
     _provisionalEntry = auto
         ? (
             id: id,
@@ -3509,6 +3534,85 @@ class TranslateCubit extends Cubit<TranslateState> {
 
   static void _complete(Completer<void> completer) {
     if (!completer.isCompleted) completer.complete();
+  }
+
+  // ---------------------------------------------------------------------
+  // Translation memory
+  // ---------------------------------------------------------------------
+
+  /// Looks the input up in the history ([TranslateState.memoryMatch])
+  /// whenever the input or the languages change, in the same emission.
+  @override
+  void emit(TranslateState state) {
+    final previous = this.state;
+    var next = state;
+    if (next.input.trim().isEmpty) _typingEntryIds.clear();
+    if (next.input != previous.input ||
+        next.source != previous.source ||
+        next.target != previous.target) {
+      final match = _lookUpMemory(next);
+      if (match != next.memoryMatch) {
+        next = next.copyWith(memoryMatch: () => match);
+      }
+    }
+    super.emit(next);
+  }
+
+  /// The best earlier translation of [state]'s input into its target in
+  /// the history, or null (also when history is off or not readable).
+  MemoryMatch? _lookUpMemory(TranslateState state) {
+    final settings = _settings.state;
+    if (!settings.saveHistory || state.input.trim().isEmpty) return null;
+    return _memory.lookup(
+      state.input,
+      source: state.source,
+      target: state.target,
+      entries: _history.state.entries,
+      maxAge: settings.historyRetention.maxAge,
+      now: _clock(),
+      excludeFuzzy: _typingEntryIds,
+    );
+  }
+
+  /// Shows the translation of [TranslateState.memoryMatch] as the output
+  /// (marked [TranslateState.resultFromMemory]): a pending or running
+  /// translation of the input is cancelled, nothing is sent to an engine,
+  /// counted as usage or recorded in history again. Extras are reset. A
+  /// similar (not exact) match is shown as the translation of its own
+  /// text, so the output reads as not quite current
+  /// ([TranslateState.isResultStale]). Translate again for a fresh one.
+  void useMemoryMatch() {
+    final match = state.memoryMatch;
+    if (match == null || state.compareMode) return;
+    final entry = match.entry;
+    _debounceTimer?.cancel();
+    _cancelTranslation();
+    _externalPending = false;
+    emit(
+      _clearedExtras(state).copyWith(
+        result: () => TranslationResult(
+          engineId: entry.engineId,
+          engineName: entry.engineName,
+          text: entry.translation,
+          detectedSource: entry.detectedSource,
+          fromCache: true,
+        ),
+        resultInput: () => match.isExact ? state.input : entry.text,
+        resultFromMemory: true,
+        // Not asked of an engine: paid extras are not started on their own.
+        instantResult: true,
+        status: TranslateStatus.success,
+        error: () => null,
+      ),
+    );
+    _autoRomanize();
+  }
+
+  /// Hides [TranslateState.memoryMatch] until the input or the languages
+  /// change.
+  void dismissMemoryMatch() {
+    if (state.memoryMatch == null) return;
+    emit(state.copyWith(memoryMatch: () => null));
   }
 
   @override

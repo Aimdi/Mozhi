@@ -21,6 +21,8 @@ import 'package:mozhi/translate/widgets/romanization_line.dart';
 import 'package:mozhi/translate/widgets/status_announcer.dart';
 import 'package:mozhi/translate/widgets/translate_error.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
+import 'package:mozhi/translate/widgets/translation_memory_card.dart'
+    show MemoryResultBadge;
 import 'package:share_plus/share_plus.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -523,6 +525,7 @@ class _OutputCardState extends State<OutputCard> {
                 if (detected != null && state.source.isAuto)
                   DetectedLanguageChips(state: state),
                 if (offline) const OfflineEngineBadge(),
+                if (state.resultFromMemory) const MemoryResultBadge(),
                 Text(
                   elapsed == null
                       ? result.engineName

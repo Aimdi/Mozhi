@@ -140,6 +140,7 @@ class TranslateMocks {
   new() {
     when(() => settings.state).thenReturn(const AppSettings());
     when(() => history.add(any())).thenAnswer((_) async {});
+    when(() => history.state).thenReturn(const HistoryState());
     when(() => repository.getEngines(refresh: any(named: 'refresh')))
         .thenAnswer((_) async => allEngines);
     when(() => repository.getSourceLanguages(any()))
@@ -154,6 +155,11 @@ class TranslateMocks {
 
   void stubSettings(AppSettings value) =>
       when(() => settings.state).thenReturn(value);
+
+  /// The history the translation memory searches (newest first).
+  void stubHistory(List<HistoryEntry> entries) => when(
+    () => history.state,
+  ).thenReturn(HistoryState(status: HistoryStatus.ready, entries: entries));
 
   /// Every translate call emits [result] (or a result per request when
   /// [result] is null: `<text>-><target>`).

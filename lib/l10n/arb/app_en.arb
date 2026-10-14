@@ -5863,5 +5863,68 @@
   "appScreenLoadFailed": "This screen couldn't be loaded. Check your connection and try again.",
   "@appScreenLoadFailed": {
     "description": "A screen failed to download (web)."
+  },
+  "translateMemoryExactTitle": "From your history",
+  "@translateMemoryExactTitle": {
+    "description": "translateMemoryExactTitle"
+  },
+  "translateMemorySimilarTitle": "Similar text in your history",
+  "@translateMemorySimilarTitle": {
+    "description": "translateMemorySimilarTitle"
+  },
+  "translateMemorySimilarity": "{percent}% match",
+  "@translateMemorySimilarity": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "translateMemoryMeta": "{engine} · {date}",
+  "@translateMemoryMeta": {
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "translateMemoryEarlierText": "Earlier text: {text}",
+  "@translateMemoryEarlierText": {
+    "placeholders": {
+      "text": {
+        "type": "String"
+      }
+    }
+  },
+  "translateMemoryDiffHint": "Struck-through words were only in the earlier text; underlined words are new in yours.",
+  "@translateMemoryDiffHint": {
+    "description": "translateMemoryDiffHint"
+  },
+  "translateMemoryUse": "Use",
+  "@translateMemoryUse": {
+    "description": "translateMemoryUse"
+  },
+  "translateMemoryUseLabel": "Use the translation from your history",
+  "@translateMemoryUseLabel": {
+    "description": "translateMemoryUseLabel"
+  },
+  "translateMemoryCopy": "Copy the translation from your history",
+  "@translateMemoryCopy": {
+    "description": "translateMemoryCopy"
+  },
+  "translateMemoryDismiss": "Hide the translation from your history",
+  "@translateMemoryDismiss": {
+    "description": "translateMemoryDismiss"
+  },
+  "translateMemoryBadge": "From history",
+  "@translateMemoryBadge": {
+    "description": "translateMemoryBadge"
+  },
+  "translateMemoryBadgeTooltip": "Taken from your history: not translated again",
+  "@translateMemoryBadgeTooltip": {
+    "description": "translateMemoryBadgeTooltip"
   }
 }

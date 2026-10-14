@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:mozhi/history/data/translation_memory.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -177,6 +178,8 @@ class TranslateState extends Equatable {
     this.meaningError,
     this.extraTargets = const [],
     this.extraTranslations = const [],
+    this.memoryMatch,
+    this.resultFromMemory = false,
   });
 
   final EnginesStatus enginesStatus;
@@ -370,6 +373,36 @@ class TranslateState extends Equatable {
   /// The translations into [activeExtraTargets] (in no particular order;
   /// look one up with [extraTranslationFor]).
   final List<ExtraTranslation> extraTranslations;
+
+  // Translation memory ------------------------------------------------------
+
+  /// An earlier translation of the same (or very similar) text into the
+  /// same language from the local history (see `TranslationMemory`), found
+  /// when the input or the languages changed; null when there is none,
+  /// history is off (`AppSettings.saveHistory`) or it was dismissed. Show
+  /// it with [visibleMemoryMatch].
+  final MemoryMatch? memoryMatch;
+
+  /// Whether [result] is the translation of [memoryMatch] the user chose
+  /// with `TranslateCubit.useMemoryMatch` (no engine was asked). False
+  /// once another result replaces it.
+  final bool resultFromMemory;
+
+  /// [memoryMatch] when it is worth showing: not in compare mode, and its
+  /// translation is not what the output shows already (as the current
+  /// translation, or because it was used).
+  MemoryMatch? get visibleMemoryMatch {
+    final match = memoryMatch;
+    if (match == null || compareMode) return null;
+    final shown = result;
+    if (shown != null &&
+        (resultFromMemory || !isResultStale) &&
+        TranslationMemory.normalize(shown.text) ==
+            TranslationMemory.normalize(match.entry.translation)) {
+      return null;
+    }
+    return match;
+  }
 
   String get output => result?.text ?? '';
   bool get isAiEngine => engine?.isAi ?? false;
@@ -714,6 +747,8 @@ class TranslateState extends Equatable {
     Object? Function()? meaningError,
     List<Language>? extraTargets,
     List<ExtraTranslation>? extraTranslations,
+    MemoryMatch? Function()? memoryMatch,
+    bool? resultFromMemory,
   }) {
     final nextResult = result != null ? result() : this.result;
     return TranslateState(
@@ -798,6 +833,10 @@ class TranslateState extends Equatable {
       meaningError: meaningError != null ? meaningError() : this.meaningError,
       extraTargets: extraTargets ?? this.extraTargets,
       extraTranslations: extraTranslations ?? this.extraTranslations,
+      memoryMatch: memoryMatch != null ? memoryMatch() : this.memoryMatch,
+      // Any other result is not the one from history.
+      resultFromMemory:
+          resultFromMemory ?? (result == null && this.resultFromMemory),
     );
   }
 
@@ -858,5 +897,7 @@ class TranslateState extends Equatable {
     meaningError,
     extraTargets,
     extraTranslations,
+    memoryMatch,
+    resultFromMemory,
   ];
 }

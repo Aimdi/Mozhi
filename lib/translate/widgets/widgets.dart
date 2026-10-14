@@ -27,4 +27,5 @@ export 'smart_swap_listener.dart';
 export 'status_announcer.dart';
 export 'translate_error.dart';
 export 'translate_layout.dart';
+export 'translation_memory_card.dart';
 export 'word_choices_panel.dart';

@@ -480,6 +480,7 @@ class _OutputSectionState extends State<_OutputSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        const TranslationMemoryCard(),
         OutputCard(meaningButtonFocusNode: _meaningButton),
         MeaningCheckPanel(returnFocusNode: _meaningButton),
         const ExtraTargetsSection(),
