@@ -14,13 +14,16 @@ import 'package:material_ui/material_ui.dart';
 ///
 /// A null [message] (e.g. while a translation is still streaming) announces
 /// nothing, so streamed tokens are never read out one by one. The first
-/// build announces only when [announceInitial] is true.
+/// build announces only when [announceInitial] is true. A change of
+/// [announcementId] announces the [message] again even when its text is
+/// the same (e.g. a shortcut pressed twice).
 class StatusAnnouncer extends StatefulWidget {
   const new({
     required this.message,
     required this.child,
     this.textDirection,
     this.announceInitial = false,
+    this.announcementId,
     super.key,
   });
 
@@ -32,6 +35,9 @@ class StatusAnnouncer extends StatefulWidget {
 
   /// Announce a non-null [message] on the first build too.
   final bool announceInitial;
+
+  /// Identifies the announcement: a new value announces [message] again.
+  final Object? announcementId;
 
   final Widget child;
 
@@ -63,7 +69,9 @@ class _StatusAnnouncerState extends State<StatusAnnouncer> {
   void didUpdateWidget(StatusAnnouncer oldWidget) {
     super.didUpdateWidget(oldWidget);
     final message = widget.message;
-    if (_hasMessage(message) && message != oldWidget.message) {
+    if (_hasMessage(message) &&
+        (message != oldWidget.message ||
+            widget.announcementId != oldWidget.announcementId)) {
       _announce(message!);
     } else if (!_hasMessage(message)) {
       _live = null;
