@@ -10,6 +10,7 @@ first.
 - [Flavors](#flavors)
 - [Building releases](#building-releases)
 - [Tests and checks](#tests-and-checks)
+- [Web end-to-end tests](#web-end-to-end-tests)
 - [Code style](#code-style)
 - [Localisation](#localisation)
 - [Adding a UI language](#adding-a-ui-language)
@@ -108,6 +109,62 @@ Conventions:
 - Widget tests use the shared `pumpApp` helper in `test/helpers/`.
 - Aim for full coverage of logic. Prompt builders are tested by asserting on
   the text they produce, parsers on real-world model output.
+
+## Web end-to-end tests
+
+`e2e/` holds a small [Playwright](https://playwright.dev) suite that drives
+a release web build in Chromium. It covers start-up, the More tools menu,
+the Settings, Quality modes, Usage, Dictionary and Documents routes
+(several of them deferred, i.e. separate downloads), typing a translation
+with an AI provider, a refinement chip, the meaning check, and translate
+links (`/translate?text=…&from=…&to=…` fills in the screen but sends no AI
+request on its own). CI runs it in the `Web end-to-end tests` job; on
+failure the HTML report, screenshots, videos and traces are uploaded as the
+`e2e-report` artifact.
+
+Nothing real is contacted: `e2e/mock_server.py` (Python standard library
+only) answers as a Mozhi instance (`/api/*`) and an OpenAI-compatible
+provider (`/v1/*`) with deterministic replies (for example `[AI→French
+(Français)] <text>` and `[refined] …`). The settings in `e2e/fixtures/` are
+seeded into `localStorage` before the app starts.
+
+Requirements: Node.js 18 or newer and Python 3.
+
+```sh
+# 1. Build the development flavor, served from /
+flutter build web --release -t lib/main_development.dart \
+  --no-web-resources-cdn --base-href / -o build/web-e2e
+
+# 2. Install Playwright and its Chromium (once)
+cd e2e
+npm ci
+npx playwright install --with-deps chromium
+
+# 3. Run (Playwright starts the web server and the mock server itself)
+E2E_WEB_DIR=../build/web-e2e npx playwright test
+npx playwright show-report        # after a failure: screenshots and traces
+```
+
+Environment variables: `E2E_WEB_DIR` (the build to serve, default
+`../build/web`), `E2E_APP_PORT` (default 8080) and `E2E_MOCK_PORT` (default
+8787; the fixtures are rewritten to it). Outside CI, servers that already
+listen on those ports are reused, so pick free ports if something else
+uses them.
+
+Writing tests:
+
+- Flutter web renders to a canvas. The specs turn on its semantics tree
+  (`enableSemantics` in `e2e/tests/helpers.js`), then use role and label
+  selectors (`getByRole('button', { name: 'More tools' })`), i.e. the
+  widgets' semantic labels and localised (English) strings. Avoid
+  coordinates.
+- A read-only text, such as the translation, is not in the DOM: the
+  `copiedTranslation` helper presses Copy and reads the clipboard. An
+  editable field exposes its value only while focused.
+- Wait for a label, a role or a polled value (`expect.poll`), not for a
+  fixed time. The only fixed wait proves that no request is sent.
+- New AI features need a deterministic answer in `llm_answer` in the mock
+  server (matched on words in the prompt).
 
 ## Code style
 

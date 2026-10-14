@@ -222,6 +222,64 @@ jobs:
           path: build/web
           if-no-files-found: error
 
+  # Browser end-to-end tests (e2e/, Playwright + Chromium) against a web
+  # build of the development flavor served from /, with e2e/mock_server.py
+  # standing in for a Mozhi instance and an AI provider. Playwright starts
+  # both servers itself (python3 -m http.server and the mock; see
+  # e2e/playwright.config.js). Not a dependency of the Pages deploy.
+  e2e-web:
+    name: Web end-to-end tests
+    needs: analyze-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      E2E_WEB_DIR: ../build/web-e2e
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: |
+          flutter pub get
+          flutter gen-l10n
+
+      - name: Build web (development flavor)
+        run: |
+          flutter build web --release -t lib/main_development.dart \
+            --no-web-resources-cdn --base-href / -o build/web-e2e
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Install Playwright
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run end-to-end tests
+        working-directory: e2e
+        run: npx playwright test
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+          retention-days: 14
+          if-no-files-found: ignore
+
   # Publishes site/ (landing page) at the root and the web app under app/.
   # Requires Settings > Pages > Source: "GitHub Actions".
   pages:

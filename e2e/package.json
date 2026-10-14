@@ -1,0 +1,12 @@
+{
+  "name": "mozhi-e2e",
+  "private": true,
+  "description": "Playwright end-to-end tests for the Mozhi web build (against e2e/mock_server.py).",
+  "scripts": {
+    "test": "playwright test",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1"
+  }
+}

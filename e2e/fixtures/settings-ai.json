@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "themeMode": "light",
+  "dynamicColor": false,
+  "pureBlack": false,
+  "seedColor": 4282339765,
+  "instances": [
+    {
+      "url": "http://127.0.0.1:8787",
+      "label": "Local test instance",
+      "isCustom": true
+    }
+  ],
+  "providers": [
+    {
+      "id": "pmock",
+      "name": "Local AI (mock)",
+      "provider": "openAiCompatible",
+      "baseUrl": "http://127.0.0.1:8787/v1",
+      "model": "mock-translator-8b",
+      "enabled": true,
+      "supportsVision": true
+    }
+  ],
+  "engineId": "ai:pmock",
+  "assistEngineId": null,
+  "source": {
+    "code": "auto",
+    "name": "Detect language"
+  },
+  "target": {
+    "code": "fr",
+    "name": "French"
+  },
+  "options": {},
+  "instantTranslate": true,
+  "instantTranslateAi": true,
+  "saveHistory": true,
+  "showTransliteration": true,
+  "recentLanguages": [
+    {
+      "code": "fr",
+      "name": "French"
+    },
+    {
+      "code": "de",
+      "name": "German"
+    }
+  ],
+  "pinnedLanguages": [],
+  "compareEngineIds": [],
+  "onboardingComplete": true
+}
