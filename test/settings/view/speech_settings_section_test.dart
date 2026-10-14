@@ -741,6 +741,29 @@ void main() {
         semantics.dispose();
       });
 
+      testWidgets('adds no empty semantics node over the screen', (
+        tester,
+      ) async {
+        final semantics = tester.ensureSemantics();
+        await pump(tester);
+
+        // The slider's value indicator lives in the overlay; when it is
+        // built it adds an empty, screen-sized node that covers (and on the
+        // web blocks pointer events to) everything below it.
+        final screen = tester.view.physicalSize / tester.view.devicePixelRatio;
+        final covering = find.semantics.byPredicate((node) {
+          final data = node.getSemanticsData();
+          return !node.isMergedIntoParent &&
+              !node.hasChildren &&
+              data.label.isEmpty &&
+              data.actions == 0 &&
+              node.rect.width >= screen.width &&
+              node.rect.height >= screen.height;
+        });
+        expect(covering, findsNothing);
+        semantics.dispose();
+      });
+
       for (final brightness in Brightness.values) {
         testWidgets('has readable text in $brightness', (tester) async {
           await pump(

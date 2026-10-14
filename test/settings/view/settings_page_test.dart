@@ -707,6 +707,45 @@ void main() {
           lessThan(tester.getTopLeft(find.text('Appearance')).dy),
         );
       });
+
+      testWidgets('leaves no empty semantics node over the settings list', (
+        tester,
+      ) async {
+        final handle = tester.ensureSemantics();
+        const size = Size(412, 915);
+        tester.setScreenSize(size);
+        await tester.pumpView(
+          RepositoryProvider<SpeechService>.value(
+            value: speech,
+            child: const SettingsPage(),
+          ),
+          settings: settings,
+          history: history,
+          router: router,
+        );
+        await tester.pump();
+        // The list builds lazily: bring the rate slider in.
+        await tester.scrollUntilVisible(
+          find.byType(Slider),
+          200,
+          scrollable: find.byType(Scrollable).first,
+        );
+        expect(find.byType(Slider), findsOneWidget);
+
+        // The rate slider's overlay used to add a screen-sized leaf without
+        // a label or actions above the list (on the web it blocked clicks).
+        final covering = find.semantics.byPredicate((node) {
+          final data = node.getSemanticsData();
+          return !node.isMergedIntoParent &&
+              !node.hasChildren &&
+              data.label.isEmpty &&
+              data.actions == 0 &&
+              node.rect.width >= size.width &&
+              node.rect.height >= size.height / 2;
+        });
+        expect(covering, findsNothing);
+        handle.dispose();
+      });
     });
 
     group('quality modes', () {

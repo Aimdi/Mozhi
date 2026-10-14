@@ -21,11 +21,10 @@ test.beforeEach(async ({ page }) => {
 
 /** Enters [TEXT], presses Proofread and waits for the result. */
 async function proofread(page) {
-  // Labelled by its hint while empty, then by its character count.
-  const input = page.getByRole('textbox', {
-    name: /^(Type or paste text to check grammar|\d+ characters?$)/,
-  });
+  const input = page.getByRole('textbox', { name: 'Text to proofread' });
   await fillField(input, TEXT);
+  // The field keeps its name once it holds text (not the character count).
+  await expect(input).toHaveAccessibleName(/^Text to proofread/);
   await page.getByRole('button', { name: 'Proofread', exact: true }).click();
   const result = page.getByRole('group', { name: /^Corrected text / });
   await expect(result).toBeVisible();

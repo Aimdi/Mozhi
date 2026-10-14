@@ -158,6 +158,30 @@ void main() {
         verify(() => cubit.setInput('Hello wrold')).called(1);
       });
 
+      testWidgets('keeps the field label once text is entered', (tester) async {
+        final semantics = tester.ensureSemantics();
+        await pumpView(tester, readyState.copyWith(input: 'I has a cat.'));
+        final field = tester.getSemantics(
+          find.byKey(const Key('proofread_input')),
+        );
+        expect(
+          field,
+          isSemantics(
+            label: 'Text to proofread',
+            value: 'I has a cat.',
+            isTextField: true,
+            isMultiline: true,
+          ),
+        );
+        // The character count is announced separately, not as the name.
+        expect(field.label, isNot(contains('character')));
+        expect(
+          tester.getSemantics(find.text('12 characters')),
+          isSemantics(label: '12 characters'),
+        );
+        semantics.dispose();
+      });
+
       testWidgets('follows external input changes', (tester) async {
         final controller = StreamController<ProofreadState>();
         addTearDown(controller.close);

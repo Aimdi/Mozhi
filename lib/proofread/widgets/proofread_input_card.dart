@@ -89,22 +89,30 @@ class _ProofreadInputCardState extends State<ProofreadInputCard> {
                 const SingleActivator(LogicalKeyboardKey.enter, meta: true):
                     _proofread,
               },
-              child: TextField(
-                key: const Key('proofread_input'),
-                controller: _controller,
-                onChanged: context.read<ProofreadCubit>().setInput,
-                minLines: 6,
-                maxLines: null,
-                keyboardType: TextInputType.multiline,
-                textCapitalization: TextCapitalization.sentences,
-                style: theme.textTheme.bodyLarge,
-                decoration: InputDecoration(
-                  hintText: l10n.proofreadInputHint,
-                  border: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  filled: false,
-                  contentPadding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              // The hint disappears once there is text, so name the field
+              // explicitly. As its own container the field's node does not
+              // merge into the card's, which would also absorb the
+              // character count below and make it part of the field's name.
+              child: Semantics(
+                container: true,
+                label: l10n.proofreadInputLabel,
+                child: TextField(
+                  key: const Key('proofread_input'),
+                  controller: _controller,
+                  onChanged: context.read<ProofreadCubit>().setInput,
+                  minLines: 6,
+                  maxLines: null,
+                  keyboardType: TextInputType.multiline,
+                  textCapitalization: TextCapitalization.sentences,
+                  style: theme.textTheme.bodyLarge,
+                  decoration: InputDecoration(
+                    hintText: l10n.proofreadInputHint,
+                    border: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    filled: false,
+                    contentPadding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  ),
                 ),
               ),
             ),

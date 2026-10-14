@@ -14,23 +14,13 @@ test.beforeEach(async ({ page }) => {
   await seedSettings(page, 'settings-ai');
 });
 
-/**
- * Clicks [locator] on the settings screen. An empty, full-size semantics
- * node lies over the settings list there, so Playwright's hit-target check
- * fails; the click itself lands on the right widget (Flutter hit-tests the
- * pointer position, not the DOM).
- */
-async function tap(locator) {
-  await locator.click({ force: true });
-}
-
 test('with Save history off, translations are not saved', async ({
   page,
 }) => {
   await openApp(page, '/settings');
   const saveHistory = page.getByRole('switch', { name: /^Save history/ });
   await expect(saveHistory).toBeChecked();
-  await tap(saveHistory);
+  await saveHistory.click();
   await expect(saveHistory).not.toBeChecked();
 
   await page.getByRole('tab', { name: 'Translate' }).click();
@@ -75,7 +65,7 @@ test('the dark theme persists after a reload', async ({ page }) => {
   const light = await meanLuminance(page);
   expect(light).toBeGreaterThan(150);
 
-  await tap(theme.getByRole('button', { name: 'Dark' }));
+  await theme.getByRole('button', { name: 'Dark' }).click();
   await expect(pureBlack).toBeEnabled();
   await expect.poll(() => meanLuminance(page)).toBeLessThan(100);
 
