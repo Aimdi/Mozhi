@@ -9,9 +9,12 @@ import 'package:mozhi/conversation/widgets/widgets.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/no_engines_view.dart';
+import 'package:mozhi/usage/usage.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 import '../helpers.dart';
+
+class _MockUsageTracker extends Mock implements UsageTracker;
 
 void main() {
   setUpAll(registerConversationFallbacks);
@@ -57,6 +60,7 @@ void main() {
     ConversationShareCallback? share,
     Size size = const Size(400, 800),
     ThemeData? theme,
+    UsageTracker? usageTracker,
   }) => tester.pumpConversation(
     share == null
         ? ConversationPage(micBuilder: micBuilder)
@@ -65,6 +69,7 @@ void main() {
     settings: settings,
     repository: repository,
     speech: speech,
+    usageTracker: usageTracker,
     size: size,
     theme: theme,
   );
@@ -513,6 +518,37 @@ void main() {
       expect(find.text('Hola'), findsOneWidget);
       expect(find.byType(LinearProgressIndicator), findsNothing);
       expect(find.textContaining('Claude'), findsWidgets);
+    });
+
+    testWidgets("counts AI requests with the app's usage tracker", (
+      tester,
+    ) async {
+      when(() => translate.state).thenReturn(translateState(engine: claude));
+      when(() => repository.translate(any(), any()))
+          .thenAnswer((_) => Stream.value(resultOf('Hola', engine: claude)));
+      final tracker = _MockUsageTracker();
+      when(
+        () => tracker.recordText(
+          any(),
+          input: any(named: 'input'),
+          output: any(named: 'output'),
+        ),
+      ).thenAnswer((_) async => const UsageStats(requests: 1));
+      await pumpPage(tester, usageTracker: tracker);
+
+      await send(tester, ConversationSide.a, 'Hello');
+
+      expect(find.text('Hola'), findsOneWidget);
+      final input =
+          verify(
+                () => tracker.recordText(
+                  'claude',
+                  input: captureAny(named: 'input'),
+                  output: 'Hola',
+                ),
+              ).captured.single
+              as String;
+      expect(input, startsWith('Hello\n'));
     });
 
     testWidgets('a failed turn explains the error and can be retried', (

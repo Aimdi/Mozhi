@@ -1125,5 +1125,6 @@
   "translateQualityOff": "Zwykły silnik",
   "translateQualityMenuTooltip": "Tryb jakości: {mode}",
   "translatePinnedTargetSelected": "Tłumaczenie na: {language}",
-  "translateRecentPairsNeedsCustom": "Wymaga modelu AI obsługującego własne języki"
+  "translateRecentPairsNeedsCustom": "Wymaga modelu AI obsługującego własne języki",
+  "translateMtServicesHeader": "Usługi tłumaczeniowe"
 }

@@ -11,6 +11,7 @@ import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/speech/speech_service.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/usage/usage.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 class MockTranslationRepository extends Mock implements TranslationRepository;
@@ -136,6 +137,7 @@ extension PumpConversation on WidgetTester {
     required SettingsCubit settings,
     TranslationRepository? repository,
     SpeechService? speech,
+    UsageTracker? usageTracker,
     ConversationCubit? conversation,
     Size size = const Size(400, 800),
     ThemeData? theme,
@@ -160,6 +162,8 @@ extension PumpConversation on WidgetTester {
           RepositoryProvider<SpeechService>.value(
             value: speech ?? MockSpeechService(),
           ),
+          if (usageTracker != null)
+            RepositoryProvider<UsageTracker>.value(value: usageTracker),
         ],
         child: MultiBlocProvider(
           providers: [

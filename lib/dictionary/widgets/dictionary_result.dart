@@ -13,6 +13,9 @@ import 'package:mozhi/translate/widgets/translate_error.dart';
 
 /// What the dictionary shows below the search: the entry, or the loading,
 /// error, empty and "no AI provider" states.
+///
+/// The entry's related words (chips) and "Did you mean …?" (a link) look
+/// that word up ([DictionaryCubit.lookUpWord]).
 class DictionaryResult extends StatelessWidget {
   const new({super.key});
 
@@ -135,6 +138,9 @@ class _EntryCard extends StatelessWidget {
               entry: state.entry!,
               sourceLanguage: state.source.isAuto ? null : state.source,
               targetLanguage: state.target,
+              query: state.lookedUp,
+              onWordTap: (word) =>
+                  unawaited(context.read<DictionaryCubit>().lookUpWord(word)),
             ),
           ],
         ),

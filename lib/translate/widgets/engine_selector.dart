@@ -6,7 +6,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/offline.dart' show OfflineEngineBadge;
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
-import 'package:mozhi/translate/widgets/translate_layout.dart';
+import 'package:mozhi/translate/widgets/translate_layout.dart'
+    show isOfflineEngineId;
 import 'package:translation_repository/translation_repository.dart';
 
 /// Above this text scale the selector drops its subtitle so the two lines
@@ -100,10 +101,12 @@ Future<void> showEngineSheet(BuildContext context) {
 /// Location of the quality modes settings (Fast / Best engines).
 const translateQualityLocation = '/settings/quality';
 
-/// Engines grouped into "Mozhi engines (via host)" and "AI models", each
-/// with a privacy badge, followed by links to the provider, instance and
-/// quality mode settings. The quality modes entry explains how to get the
-/// Fast / Best toggle while no quality engine is configured.
+/// Engines grouped by kind: "On this device" (offline engines, with the
+/// offline badge), "Mozhi engines (via host)", "Translation services"
+/// (DeepL API, LibreTranslate) and "AI models" (each with a privacy badge),
+/// followed by links to the provider, instance and quality mode settings.
+/// The quality modes entry explains how to get the Fast / Best toggle while
+/// no quality engine is configured.
 class EngineSheet extends StatelessWidget {
   const new({super.key});
 
@@ -113,12 +116,13 @@ class EngineSheet extends StatelessWidget {
     final theme = Theme.of(context);
     final state = context.watch<TranslateCubit>().state;
     final offline = state.engines.where(isOnDeviceEngine).toList();
-    final mozhi = state.engines
-        .where((e) => e.isMozhi && !isOnDeviceEngine(e))
-        .toList();
-    final ai = state.engines
-        .where((e) => e.isAi && !isOnDeviceEngine(e))
-        .toList();
+    List<TranslationEngine> ofKind(EngineKind kind) => [
+      for (final engine in state.engines)
+        if (engine.kind == kind && !isOnDeviceEngine(engine)) engine,
+    ];
+    final mozhi = ofKind(EngineKind.mozhi);
+    final mt = ofKind(EngineKind.mt);
+    final ai = ofKind(EngineKind.ai);
     final host = _instanceHost(mozhi);
 
     void select(TranslationEngine engine) {
@@ -172,6 +176,16 @@ class EngineSheet extends StatelessWidget {
                 engine: engine,
                 selected: engine.id == state.engine?.id,
                 showSubtitle: false,
+                onTap: () => select(engine),
+              ),
+          ],
+          if (mt.isNotEmpty) ...[
+            _SectionHeader(l10n.translateMtServicesHeader),
+            for (final engine in mt)
+              _EngineTile(
+                engine: engine,
+                selected: engine.id == state.engine?.id,
+                showSubtitle: true,
                 onTap: () => select(engine),
               ),
           ],
@@ -289,12 +303,15 @@ class _EngineTile extends StatelessWidget {
   }
 }
 
-/// Whether [engine] translates on this device (offline engines, ids
-/// `offline:<backend>`), neither through Mozhi nor an AI provider.
+/// Whether [engine] translates on this device: only offline engines
+/// ([EngineKind.offline], ids `offline:<backend>`). Mozhi engines, AI
+/// providers and machine translation services ([EngineKind.mt]: DeepL API,
+/// LibreTranslate) are servers, even on the LAN.
 bool isOnDeviceEngine(TranslationEngine engine) =>
-    isOfflineEngineId(engine.id) || (!engine.isMozhi && !engine.isAi);
+    engine.isOffline || isOfflineEngineId(engine.id);
 
-/// Icon for an engine kind (offline, local AI, cloud AI, Mozhi).
+/// Icon for an engine kind (offline, local AI, cloud AI, Mozhi engine or
+/// machine translation service).
 class EngineIcon extends StatelessWidget {
   const new({required this.engine, this.size, super.key});
 
@@ -307,6 +324,7 @@ class EngineIcon extends StatelessWidget {
       _ when isOnDeviceEngine(engine) => OfflineEngineBadge.icon,
       TranslationEngine(isAi: true, isLocal: true) => Icons.memory,
       TranslationEngine(isAi: true) => Icons.auto_awesome_outlined,
+      // Mozhi engines and machine translation services.
       _ => Icons.translate,
     };
     return Icon(icon, size: size);
@@ -314,7 +332,7 @@ class EngineIcon extends StatelessWidget {
 }
 
 /// Where the text goes: Local (on device/LAN), Self-hosted (Mozhi proxy) or
-/// Cloud (third-party AI provider).
+/// Cloud (third-party AI provider or machine translation service).
 class PrivacyBadge extends StatelessWidget {
   const new({required this.engine, super.key});
 

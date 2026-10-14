@@ -13,6 +13,7 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/usage/usage.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 class MockTranslationRepository extends Mock implements TranslationRepository;
@@ -26,6 +27,8 @@ class MockImageTranslateCubit extends MockCubit<ImageTranslateState>
     implements ImageTranslateCubit;
 
 class MockGoRouter extends Mock implements GoRouter;
+
+class MockUsageTracker extends Mock implements UsageTracker;
 
 /// A valid 1x1 PNG.
 final Uint8List pngBytes = base64Decode(
@@ -245,6 +248,9 @@ class ImageTranslateHarness {
   final encoder = FakeImageEncoder();
   final recognizer = FakeTextRecognitionService(isSupported: false);
 
+  /// Provided app-wide when set (the app's usage meter).
+  UsageTracker? usageTracker;
+
   /// Pumps [child] inside the app-wide providers.
   Future<void> pump(
     WidgetTester tester,
@@ -259,8 +265,12 @@ class ImageTranslateHarness {
     await tester.pumpWidget(
       InheritedGoRouter(
         goRouter: router,
-        child: RepositoryProvider<TranslationRepository>.value(
-          value: repository,
+        child: MultiRepositoryProvider(
+          providers: [
+            RepositoryProvider<TranslationRepository>.value(value: repository),
+            if (usageTracker case final tracker?)
+              RepositoryProvider<UsageTracker>.value(value: tracker),
+          ],
           child: MultiBlocProvider(
             providers: [
               BlocProvider<TranslateCubit>.value(value: translate),

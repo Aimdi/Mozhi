@@ -1125,5 +1125,6 @@
   "translateQualityOff": "Обычный сервис",
   "translateQualityMenuTooltip": "Режим качества: {mode}",
   "translatePinnedTargetSelected": "Перевод на язык «{language}»",
-  "translateRecentPairsNeedsCustom": "Нужна ИИ-модель, поддерживающая свои языки"
+  "translateRecentPairsNeedsCustom": "Нужна ИИ-модель, поддерживающая свои языки",
+  "translateMtServicesHeader": "Сервисы перевода"
 }

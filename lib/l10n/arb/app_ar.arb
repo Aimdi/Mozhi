@@ -1125,5 +1125,6 @@
   "translateQualityOff": "المحرّك المعتاد",
   "translateQualityMenuTooltip": "وضع الجودة: {mode}",
   "translatePinnedTargetSelected": "تتم الترجمة إلى {language}",
-  "translateRecentPairsNeedsCustom": "يتطلّب نموذج ذكاء اصطناعي يدعم اللغات المخصّصة"
+  "translateRecentPairsNeedsCustom": "يتطلّب نموذج ذكاء اصطناعي يدعم اللغات المخصّصة",
+  "translateMtServicesHeader": "خدمات الترجمة"
 }

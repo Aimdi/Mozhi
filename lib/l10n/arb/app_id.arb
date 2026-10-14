@@ -1125,5 +1125,6 @@
   "translateQualityOff": "Mesin biasa",
   "translateQualityMenuTooltip": "Mode kualitas: {mode}",
   "translatePinnedTargetSelected": "Menerjemahkan ke {language}",
-  "translateRecentPairsNeedsCustom": "Memerlukan model AI yang mendukung bahasa kustom"
+  "translateRecentPairsNeedsCustom": "Memerlukan model AI yang mendukung bahasa kustom",
+  "translateMtServicesHeader": "Layanan terjemahan"
 }

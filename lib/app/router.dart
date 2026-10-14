@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -28,10 +27,6 @@ import 'package:mozhi/settings/view/quality_modes_page.dart';
 import 'package:mozhi/settings/view/settings_page.dart';
 import 'package:mozhi/translate/view/translate_page.dart';
 import 'package:mozhi/usage/view/usage_summary_page.dart';
-import 'package:mozhi/web_translate/core/readable_extractor.dart';
-import 'package:mozhi/web_translate/cubit/web_translate_cubit.dart';
-import 'package:mozhi/web_translate/data/page_extraction.dart';
-import 'package:mozhi/web_translate/data/web_page_fetcher.dart';
 import 'package:mozhi/web_translate/view/web_translate_page.dart';
 import 'package:mozhi/web_translate/view/web_translate_route.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -215,7 +210,11 @@ GoRouter createAppRouter({
         }
         // A link only fills in the address; a new address (another link
         // while the page is open) starts afresh.
-        return _WebAddressPage(key: ValueKey(url), url: url);
+        return WebTranslatePage(
+          key: ValueKey(url),
+          initialUrl: url,
+          autoLoad: false,
+        );
       }),
       fullScreen(
         AppRoutes.conversation,
@@ -377,32 +376,6 @@ String? deepLinkLocation(Uri uri) {
     query: uri.hasQuery && uri.query.isNotEmpty ? uri.query : null,
   ).toString();
 }
-
-/// The web page translator ([WebTranslatePage]) with [url] in its address
-/// field, loaded only when the user presses Translate.
-class _WebAddressPage extends StatelessWidget {
-  const new({required this.url, super.key});
-
-  final String url;
-
-  @override
-  Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (context) => WebTranslateCubit(
-        repository: context.read<TranslationRepository>(),
-        fetcher: WebPageFetcher(),
-        extract: _extractInBackground,
-        initialUrl: url,
-      ),
-      child: const WebTranslateView(isWeb: kIsWeb),
-    );
-  }
-}
-
-// coverage:ignore-start
-Future<ReadablePage> _extractInBackground(FetchedWebPage page) =>
-    compute(extractFetchedPage, page);
-// coverage:ignore-end
 
 /// [UsageSummaryPage] for the configured providers; tapping a provider
 /// opens its editor.

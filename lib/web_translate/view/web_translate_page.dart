@@ -8,6 +8,7 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/engine_selector.dart';
 import 'package:mozhi/translate/widgets/language_bar.dart';
+import 'package:mozhi/usage/data/usage_tracker.dart';
 import 'package:mozhi/web_translate/core/readable_extractor.dart';
 import 'package:mozhi/web_translate/cubit/web_translate_cubit.dart';
 import 'package:mozhi/web_translate/data/page_extraction.dart';
@@ -39,18 +40,25 @@ Future<ReadablePage> _extractInBackground(FetchedWebPage page) =>
 /// translated with the engine and languages of the text translator
 /// ([TranslateCubit]), as translation, original or side by side.
 ///
-/// Needs [TranslationRepository] and [TranslateCubit] above it.
+/// Needs [TranslationRepository] and [TranslateCubit] above it; a
+/// [UsageTracker] above it (optional) counts AI requests.
 class WebTranslatePage extends StatelessWidget {
   const new({
     this.initialUrl,
+    this.autoLoad = true,
     this.fetcher,
     this.extract,
     this.isWeb = kIsWeb,
     super.key,
   });
 
-  /// Address to load (and translate) right away.
+  /// Address to load (and translate) right away, or with [autoLoad] off
+  /// only to put in the address field.
   final String? initialUrl;
+
+  /// Whether a non-empty [initialUrl] is loaded right away (otherwise only
+  /// when the user presses Translate).
+  final bool autoLoad;
 
   /// Downloads pages; a default [WebPageFetcher] when null.
   final WebPageFetcher? fetcher;
@@ -70,9 +78,22 @@ class WebTranslatePage extends StatelessWidget {
         fetcher: fetcher ?? WebPageFetcher(),
         extract: extract ?? _extractInBackground,
         initialUrl: url,
+        usageTracker: _usageTracker(context),
       ),
-      child: WebTranslateView(autoLoad: url.isNotEmpty, isWeb: isWeb),
+      child: WebTranslateView(
+        autoLoad: autoLoad && url.isNotEmpty,
+        isWeb: isWeb,
+      ),
     );
+  }
+}
+
+/// The app's usage tracker, or null when none is provided (e.g. in tests).
+UsageTracker? _usageTracker(BuildContext context) {
+  try {
+    return context.read<UsageTracker>();
+  } on ProviderNotFoundException {
+    return null;
   }
 }
 

@@ -1125,5 +1125,6 @@
   "translateQualityOff": "Gebruikelijke engine",
   "translateQualityMenuTooltip": "Kwaliteitsmodus: {mode}",
   "translatePinnedTargetSelected": "Vertalen naar het {language}",
-  "translateRecentPairsNeedsCustom": "Vereist een AI-model dat eigen talen ondersteunt"
+  "translateRecentPairsNeedsCustom": "Vereist een AI-model dat eigen talen ondersteunt",
+  "translateMtServicesHeader": "Vertaaldiensten"
 }

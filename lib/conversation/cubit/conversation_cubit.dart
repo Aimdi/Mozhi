@@ -9,6 +9,7 @@ import 'package:mozhi/conversation/cubit/conversation_state.dart';
 import 'package:mozhi/conversation/models/conversation_turn.dart';
 import 'package:mozhi/speech/speech_service.dart';
 import 'package:mozhi/translate/cubit/translate_state.dart';
+import 'package:mozhi/usage/data/usage_tracker.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 export 'conversation_state.dart';
@@ -30,10 +31,17 @@ class ConversationNoEngineException implements Exception {
 ///   [TranslationRepository.translate]; AI engines stream, so the turn's
 ///   translation grows until it is complete. Several turns may translate at
 ///   the same time.
-/// * For AI engines the last [contextTurns] completed turns are passed as
+/// * For AI engines that take options (not translation-only models such as
+///   TranslateGemma) the last [contextTurns] completed turns are passed as
 ///   context so pronouns and tone carry over between messages.
 /// * With [ConversationState.autoSpeak] on, each completed translation is
 ///   read aloud with [SpeechService] in the target language.
+/// * With a `usageTracker`, every answered translation by a
+///   bring-your-own-key provider (engines with a `providerId`) is counted
+///   once: the message and, for AI engines that take options (not
+///   translation-only models), the conversation context sent with it as
+///   input, the translation as output. Results served from the translation
+///   cache and failed or cancelled translations are not counted.
 class ConversationCubit extends Cubit<ConversationState> {
   new({
     required this._repository,
@@ -46,6 +54,7 @@ class ConversationCubit extends Cubit<ConversationState> {
     bool autoSpeak = false,
     this.contextTurns = 4,
     DateTime Function()? clock,
+    this._usageTracker,
   }) : _clock = clock ?? DateTime.now,
        _session = ++_sessions,
        super(
@@ -70,6 +79,10 @@ class ConversationCubit extends Cubit<ConversationState> {
   final List<Language> Function()? _availableLanguages;
   final DateTime Function() _clock;
   final int _session;
+
+  /// Counts what answered translations send to and receive from a
+  /// bring-your-own-key provider; optional.
+  final UsageTracker? _usageTracker;
 
   /// Number of previous turns given to AI engines as context (0 = none).
   // Immutable configuration passed to the constructor, not state.
@@ -196,16 +209,20 @@ class ConversationCubit extends Cubit<ConversationState> {
     );
     final job = _TranslationJob();
     _jobs[turn.id] = job;
+    TranslationResult? last;
     job.subscription = _repository
         .translate(engine, request)
         .listen(
-          (result) => _updateTurn(
-            turn.id,
-            (current) => current.copyWith(
-              translation: result.text,
-              engineName: () => result.engineName,
-            ),
-          ),
+          (result) {
+            last = result;
+            _updateTurn(
+              turn.id,
+              (current) => current.copyWith(
+                translation: result.text,
+                engineName: () => result.engineName,
+              ),
+            );
+          },
           onError: (Object error) {
             _jobs.remove(turn.id);
             _updateTurn(
@@ -219,6 +236,8 @@ class ConversationCubit extends Cubit<ConversationState> {
           },
           onDone: () {
             _jobs.remove(turn.id);
+            final answer = last;
+            if (answer != null) _recordUsage(engine, request, answer);
             final done = _updateTurn(
               turn.id,
               (current) =>
@@ -230,6 +249,40 @@ class ConversationCubit extends Cubit<ConversationState> {
           cancelOnError: true,
         );
     return job.done;
+  }
+
+  /// Counts the answered [request] to [engine]'s provider (engines with a
+  /// `providerId`) when a usage tracker is set, unless [result] is
+  /// incomplete or came from the cache. AI engines that take options also
+  /// receive the conversation context, which is counted as input
+  /// (translation-only models get the message alone). Never throws; tracker
+  /// errors are ignored.
+  void _recordUsage(
+    TranslationEngine engine,
+    TranslationRequest request,
+    TranslationResult result,
+  ) {
+    final tracker = _usageTracker;
+    final providerId = engine.providerId;
+    if (tracker == null || providerId == null || providerId.isEmpty) return;
+    if (!result.isComplete || result.fromCache) return;
+    final context = engine.supportsOptions
+        ? request.options.context.trim()
+        : '';
+    final input = [request.text, context].where((part) => part.isNotEmpty);
+    try {
+      unawaited(
+        tracker
+            .recordText(
+              providerId,
+              input: input.join('\n'),
+              output: result.text,
+            )
+            .then((_) {}, onError: (Object _) {}),
+      );
+    } on Object {
+      // Usage counting must never break the conversation.
+    }
   }
 
   /// Maps [language] onto the current engine's language list so codes stay
@@ -247,7 +300,9 @@ class ConversationCubit extends Cubit<ConversationState> {
     final base = (_options?.call() ?? const TranslationOptions()).copyWith(
       instructions: '',
     );
-    if (!engine.isAi || contextTurns <= 0) return base;
+    // Translation-only AI models (TranslateGemma, Hy-MT) get the message
+    // alone, so no context is built for them.
+    if (!engine.supportsOptions || contextTurns <= 0) return base;
     final previous = [
       for (final other in state.turns)
         if (other.id < turn.id && other.isComplete) other,

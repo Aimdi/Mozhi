@@ -9,6 +9,7 @@ import 'package:mozhi/speech/speech_service.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/engine_selector.dart';
 import 'package:mozhi/translate/widgets/no_engines_view.dart';
+import 'package:mozhi/usage/data/usage_tracker.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Conversation mode. Creates a [ConversationCubit] for the page's
@@ -17,7 +18,8 @@ import 'package:translation_repository/translation_repository.dart';
 /// its current engine and options.
 ///
 /// Requires [TranslationRepository], [SpeechService], [TranslateCubit] and
-/// `SettingsCubit` above it (all provided app-wide by `App`). Best pushed as
+/// `SettingsCubit` above it (all provided app-wide by `App`); a
+/// [UsageTracker] above it (optional) counts AI requests. Best pushed as
 /// a full-screen route (outside the tab shell) so face-to-face mode gets
 /// the whole screen.
 class ConversationPage extends StatelessWidget {
@@ -50,6 +52,7 @@ class ConversationPage extends StatelessWidget {
           availableLanguages: () => translate.state.targetLanguages,
           languageA: languages.a,
           languageB: languages.b,
+          usageTracker: _usageTracker(context),
         );
       },
       child: ConversationView(micBuilder: micBuilder, share: share),
@@ -247,5 +250,14 @@ class _FaceToFaceLayout extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// The app's usage tracker, or null when none is provided (e.g. in tests).
+UsageTracker? _usageTracker(BuildContext context) {
+  try {
+    return context.read<UsageTracker>();
+  } on ProviderNotFoundException {
+    return null;
   }
 }

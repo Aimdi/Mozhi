@@ -33,6 +33,7 @@ void main() {
     String word = '',
     Language source = Language.auto,
     Language target = english,
+    DictionaryVerbosity verbosity = DictionaryVerbosity.standard,
     UsageTracker? usageTracker,
   }) => DictionaryCubit(
     repository: repository,
@@ -40,6 +41,7 @@ void main() {
     word: word,
     source: source,
     target: target,
+    verbosity: verbosity,
     uiLanguage: 'German',
     usageTracker: usageTracker,
   );
@@ -48,6 +50,7 @@ void main() {
     String word, {
     Language source = Language.auto,
     Language target = english,
+    DictionaryVerbosity verbosity = DictionaryVerbosity.standard,
     int times = 1,
   }) => verify(
     () => repository.lookUp(
@@ -56,8 +59,20 @@ void main() {
       source: source,
       target: target,
       uiLanguage: 'German',
+      verbosity: verbosity,
     ),
   ).called(times);
+
+  void verifyNoLookUp() => verifyNever(
+    () => repository.lookUp(
+      any(),
+      any(),
+      source: any(named: 'source'),
+      target: any(named: 'target'),
+      uiLanguage: any(named: 'uiLanguage'),
+      verbosity: any(named: 'verbosity'),
+    ),
+  );
 
   group('DictionaryCubit', () {
     test('starts with the given word, languages and engine', () {
@@ -73,6 +88,14 @@ void main() {
       );
       expect(cubit.state.canLookUp, isTrue);
       expect(cubit.state.canSwap, isTrue);
+    });
+
+    test('starts with the standard or the given detail level', () {
+      expect(build().state.verbosity, DictionaryVerbosity.standard);
+      expect(
+        build(verbosity: DictionaryVerbosity.concise).state.verbosity,
+        DictionaryVerbosity.concise,
+      );
     });
 
     test('cuts a long word without splitting a surrogate pair', () {
@@ -418,6 +441,255 @@ void main() {
       );
     });
 
+    group('verbosity', () {
+      blocTest<DictionaryCubit, DictionaryState>(
+        'is passed to the repository',
+        build: () =>
+            build(word: 'gato', verbosity: DictionaryVerbosity.comprehensive),
+        act: (cubit) => cubit.lookUp(),
+        verify: (_) =>
+            verifyLookUp('gato', verbosity: DictionaryVerbosity.comprehensive),
+      );
+
+      blocTest<DictionaryCubit, DictionaryState>(
+        'never starts a look-up on its own',
+        build: () => build(word: 'gato'),
+        act: (cubit) async {
+          await cubit.setVerbosity(DictionaryVerbosity.concise);
+          await cubit.setVerbosity(DictionaryVerbosity.concise);
+        },
+        expect: () => const [
+          DictionaryState(
+            word: 'gato',
+            engine: claudeEngine,
+            verbosity: DictionaryVerbosity.concise,
+          ),
+        ],
+        verify: (_) => verifyNoLookUp(),
+      );
+
+      blocTest<DictionaryCubit, DictionaryState>(
+        'is used by the next look-up',
+        build: () => build(word: 'gato'),
+        act: (cubit) async {
+          await cubit.setVerbosity(DictionaryVerbosity.concise);
+          await cubit.lookUp();
+        },
+        verify: (_) =>
+            verifyLookUp('gato', verbosity: DictionaryVerbosity.concise),
+      );
+
+      blocTest<DictionaryCubit, DictionaryState>(
+        'looks the shown word up again, not the edited one',
+        build: () => build(word: 'gato'),
+        act: (cubit) async {
+          await cubit.lookUp();
+          cubit.setWord('perro');
+          await cubit.setVerbosity(DictionaryVerbosity.comprehensive);
+        },
+        skip: 3,
+        expect: () => const [
+          DictionaryState(
+            word: 'perro',
+            engine: claudeEngine,
+            verbosity: DictionaryVerbosity.comprehensive,
+            status: DictionaryStatus.success,
+            lookedUp: 'gato',
+            entry: gatoEntry,
+          ),
+          DictionaryState(
+            word: 'perro',
+            engine: claudeEngine,
+            verbosity: DictionaryVerbosity.comprehensive,
+            status: DictionaryStatus.loading,
+            lookedUp: 'gato',
+          ),
+          DictionaryState(
+            word: 'perro',
+            engine: claudeEngine,
+            verbosity: DictionaryVerbosity.comprehensive,
+            status: DictionaryStatus.success,
+            lookedUp: 'gato',
+            entry: gatoEntry,
+          ),
+        ],
+        verify: (_) {
+          verifyLookUp('gato');
+          verifyLookUp('gato', verbosity: DictionaryVerbosity.comprehensive);
+        },
+      );
+
+      blocTest<DictionaryCubit, DictionaryState>(
+        'replaces a loading look-up',
+        setUp: () {
+          final slow = Completer<DictionaryEntry>();
+          var calls = 0;
+          stubLookUp(repository, () {
+            calls++;
+            return calls == 1 ? slow.future : Future.value(gatoEntry);
+          });
+          addTearDown(() => slow.complete(const DictionaryEntry(word: 'old')));
+        },
+        build: () => build(word: 'gato'),
+        act: (cubit) async {
+          unawaited(cubit.lookUp());
+          await cubit.setVerbosity(DictionaryVerbosity.concise);
+        },
+        expect: () => [
+          isA<DictionaryState>().having(
+            (s) => s.status,
+            'status',
+            DictionaryStatus.loading,
+          ),
+          // Still loading (an equal state is not emitted again).
+          isA<DictionaryState>()
+              .having(
+                (s) => s.verbosity,
+                'verbosity',
+                DictionaryVerbosity.concise,
+              )
+              .having((s) => s.status, 'status', DictionaryStatus.loading),
+          isA<DictionaryState>()
+              .having((s) => s.status, 'status', DictionaryStatus.success)
+              .having((s) => s.entry, 'entry', gatoEntry),
+        ],
+        verify: (_) {
+          verifyLookUp('gato');
+          verifyLookUp('gato', verbosity: DictionaryVerbosity.concise);
+        },
+      );
+
+      blocTest<DictionaryCubit, DictionaryState>(
+        'does not retry a failed look-up',
+        setUp: () => stubLookUp(repository, () async => throw StateError('x')),
+        build: () => build(word: 'gato'),
+        act: (cubit) async {
+          await cubit.lookUp();
+          await cubit.setVerbosity(DictionaryVerbosity.concise);
+        },
+        skip: 2,
+        expect: () => [
+          isA<DictionaryState>()
+              .having(
+                (s) => s.verbosity,
+                'verbosity',
+                DictionaryVerbosity.concise,
+              )
+              .having((s) => s.status, 'status', DictionaryStatus.failure),
+        ],
+        errors: () => [isA<StateError>()],
+        verify: (_) => verifyLookUp('gato'),
+      );
+
+      blocTest<DictionaryCubit, DictionaryState>(
+        'does not look up again once the engine is gone',
+        build: () => build(word: 'gato'),
+        act: (cubit) async {
+          await cubit.lookUp();
+          cubit.setEngine(null);
+          await cubit.setVerbosity(DictionaryVerbosity.concise);
+        },
+        skip: 3,
+        expect: () => [
+          isA<DictionaryState>()
+              .having(
+                (s) => s.verbosity,
+                'verbosity',
+                DictionaryVerbosity.concise,
+              )
+              .having((s) => s.status, 'status', DictionaryStatus.success),
+        ],
+        verify: (_) => verifyLookUp('gato'),
+      );
+
+      blocTest<DictionaryCubit, DictionaryState>(
+        'applies to a look-up that waits for an engine',
+        build: () => build(engine: null, word: 'gato'),
+        act: (cubit) async {
+          await cubit.lookUp();
+          await cubit.setVerbosity(DictionaryVerbosity.comprehensive);
+          cubit.setEngine(claudeEngine);
+          await Future<void>.delayed(Duration.zero);
+        },
+        verify: (_) =>
+            verifyLookUp('gato', verbosity: DictionaryVerbosity.comprehensive),
+      );
+    });
+
+    group('lookUpWord', () {
+      blocTest<DictionaryCubit, DictionaryState>(
+        'puts the word in the search field and looks it up',
+        build: () => build(word: 'gatto', source: spanish),
+        act: (cubit) => cubit.lookUpWord(' gato '),
+        expect: () => const [
+          DictionaryState(word: 'gato', source: spanish, engine: claudeEngine),
+          DictionaryState(
+            word: 'gato',
+            source: spanish,
+            engine: claudeEngine,
+            status: DictionaryStatus.loading,
+            lookedUp: 'gato',
+          ),
+          DictionaryState(
+            word: 'gato',
+            source: spanish,
+            engine: claudeEngine,
+            status: DictionaryStatus.success,
+            lookedUp: 'gato',
+            entry: gatoEntry,
+          ),
+        ],
+        verify: (_) => verifyLookUp('gato', source: spanish),
+      );
+
+      blocTest<DictionaryCubit, DictionaryState>(
+        'keeps the detail level',
+        build: () => build(verbosity: DictionaryVerbosity.concise),
+        act: (cubit) => cubit.lookUpWord('gato'),
+        verify: (_) =>
+            verifyLookUp('gato', verbosity: DictionaryVerbosity.concise),
+      );
+
+      blocTest<DictionaryCubit, DictionaryState>(
+        'makes model output one plain line',
+        build: build,
+        act: (cubit) => cubit.lookUpWord('\u202Egato\n\tmontés\u2028x\u0000'),
+        verify: (cubit) {
+          expect(cubit.state.word, 'gato montés x');
+          verifyLookUp('gato montés x');
+        },
+      );
+
+      blocTest<DictionaryCubit, DictionaryState>(
+        'cuts long words',
+        build: build,
+        act: (cubit) => cubit.lookUpWord('${'a' * 99} ${'b' * 50}'),
+        verify: (cubit) {
+          expect(cubit.state.word, 'a' * 99);
+          verifyLookUp('a' * 99);
+        },
+      );
+
+      blocTest<DictionaryCubit, DictionaryState>(
+        'ignores blank words',
+        build: () => build(word: 'gato'),
+        act: (cubit) => cubit.lookUpWord(' \n\u200E '),
+        expect: () => const <DictionaryState>[],
+        verify: (_) => verifyNoLookUp(),
+      );
+
+      blocTest<DictionaryCubit, DictionaryState>(
+        'waits for an engine like lookUp',
+        build: () => build(engine: null),
+        act: (cubit) async {
+          await cubit.lookUpWord('gato');
+          cubit.setEngine(claudeEngine);
+          await Future<void>.delayed(Duration.zero);
+        },
+        verify: (_) => verifyLookUp('gato'),
+      );
+    });
+
     group('usage', () {
       test('counts a finished look-up of a provider engine', () async {
         final cubit = build(word: 'gato', usageTracker: tracker);
@@ -506,6 +778,14 @@ void main() {
         error: 'e',
       );
       expect(state.copyWith(), state);
+      expect(
+        state.copyWith(verbosity: DictionaryVerbosity.concise).verbosity,
+        DictionaryVerbosity.concise,
+      );
+      expect(
+        state.copyWith(verbosity: DictionaryVerbosity.concise),
+        isNot(state),
+      );
       expect(
         state.copyWith(
           engine: () => null,

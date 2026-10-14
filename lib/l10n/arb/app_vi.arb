@@ -1125,5 +1125,6 @@
   "translateQualityOff": "Công cụ thông thường",
   "translateQualityMenuTooltip": "Chế độ chất lượng: {mode}",
   "translatePinnedTargetSelected": "Đang dịch sang {language}",
-  "translateRecentPairsNeedsCustom": "Cần mô hình AI hỗ trợ ngôn ngữ tùy chỉnh"
+  "translateRecentPairsNeedsCustom": "Cần mô hình AI hỗ trợ ngôn ngữ tùy chỉnh",
+  "translateMtServicesHeader": "Dịch vụ dịch"
 }

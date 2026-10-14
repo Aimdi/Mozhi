@@ -1125,5 +1125,6 @@
   "translateQualityOff": "Übliche Engine",
   "translateQualityMenuTooltip": "Qualitätsmodus: {mode}",
   "translatePinnedTargetSelected": "Übersetzung in {language}",
-  "translateRecentPairsNeedsCustom": "Erfordert ein KI-Modell, das eigene Sprachen unterstützt"
+  "translateRecentPairsNeedsCustom": "Erfordert ein KI-Modell, das eigene Sprachen unterstützt",
+  "translateMtServicesHeader": "Übersetzungsdienste"
 }

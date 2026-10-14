@@ -9,6 +9,7 @@ class DictionaryState extends Equatable {
     this.source = Language.auto,
     this.target = const Language(code: 'en', name: 'English'),
     this.engine,
+    this.verbosity = DictionaryVerbosity.standard,
     this.status = DictionaryStatus.idle,
     this.entry,
     this.lookedUp = '',
@@ -26,6 +27,9 @@ class DictionaryState extends Equatable {
 
   /// AI engine that writes the entries; null when none is available.
   final TranslationEngine? engine;
+
+  /// How much a look-up asks for (concise, standard or comprehensive).
+  final DictionaryVerbosity verbosity;
 
   final DictionaryStatus status;
 
@@ -62,6 +66,7 @@ class DictionaryState extends Equatable {
     Language? source,
     Language? target,
     TranslationEngine? Function()? engine,
+    DictionaryVerbosity? verbosity,
     DictionaryStatus? status,
     DictionaryEntry? Function()? entry,
     String? lookedUp,
@@ -71,6 +76,7 @@ class DictionaryState extends Equatable {
     source: source ?? this.source,
     target: target ?? this.target,
     engine: engine != null ? engine() : this.engine,
+    verbosity: verbosity ?? this.verbosity,
     status: status ?? this.status,
     entry: entry != null ? entry() : this.entry,
     lookedUp: lookedUp ?? this.lookedUp,
@@ -83,6 +89,7 @@ class DictionaryState extends Equatable {
     source,
     target,
     engine,
+    verbosity,
     status,
     entry,
     lookedUp,

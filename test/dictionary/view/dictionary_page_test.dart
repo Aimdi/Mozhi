@@ -67,6 +67,7 @@ void main() {
       source: any(named: 'source'),
       target: any(named: 'target'),
       uiLanguage: any(named: 'uiLanguage'),
+      verbosity: any(named: 'verbosity'),
     ),
   ).called(times);
 
@@ -77,6 +78,7 @@ void main() {
       source: any(named: 'source'),
       target: any(named: 'target'),
       uiLanguage: any(named: 'uiLanguage'),
+      verbosity: any(named: 'verbosity'),
     ),
   );
 
@@ -124,6 +126,30 @@ void main() {
 
   DictionaryState dictionaryState(WidgetTester tester) =>
       tester.element(find.byType(DictionaryView)).read<DictionaryCubit>().state;
+
+  void verifyLookUp(
+    String word, {
+    DictionaryVerbosity verbosity = DictionaryVerbosity.standard,
+  }) => verify(
+    () => repository.lookUp(
+      claudeEngine,
+      word,
+      source: any(named: 'source'),
+      target: any(named: 'target'),
+      uiLanguage: any(named: 'uiLanguage'),
+      verbosity: verbosity,
+    ),
+  ).called(1);
+
+  Finder verbosityChip(DictionaryVerbosity verbosity) => find.descendant(
+    of: find.byKey(const Key('dictionary_verbosity')),
+    matching: find.byKey(
+      ValueKey('translate_dictionary_verbosity:${verbosity.name}'),
+    ),
+  );
+
+  bool isSelected(WidgetTester tester, DictionaryVerbosity verbosity) =>
+      tester.widget<ChoiceChip>(verbosityChip(verbosity)).selected;
 
   group('DictionaryPage', () {
     testWidgets('shows the empty state and the engine', (tester) async {
@@ -301,6 +327,134 @@ void main() {
 
       expect(dictionaryState(tester).engine, ollamaEngine);
       expect(find.text('Answers by Ollama'), findsOneWidget);
+    });
+
+    group('detail level', () {
+      testWidgets('starts as on the translate screen and never looks up '
+          'on its own', (tester) async {
+        await pumpPage(
+          tester,
+          state: _readyWithAi.copyWith(
+            dictionaryVerbosity: DictionaryVerbosity.concise,
+          ),
+          page: const DictionaryPage(word: 'gato'),
+        );
+
+        expect(find.text('Concise'), findsOneWidget);
+        expect(find.text('Standard'), findsOneWidget);
+        expect(find.text('Detailed'), findsOneWidget);
+        expect(find.bySemanticsLabel('Detail level'), findsOneWidget);
+        expect(dictionaryState(tester).verbosity, DictionaryVerbosity.concise);
+        expect(isSelected(tester, DictionaryVerbosity.concise), isTrue);
+
+        await tester.tap(verbosityChip(DictionaryVerbosity.comprehensive));
+        await tester.pump();
+
+        expect(
+          dictionaryState(tester).verbosity,
+          DictionaryVerbosity.comprehensive,
+        );
+        expect(isSelected(tester, DictionaryVerbosity.comprehensive), isTrue);
+        expect(isSelected(tester, DictionaryVerbosity.concise), isFalse);
+        verifyNoLookUp();
+
+        await tester.tap(find.byKey(const Key('dictionary_look_up')));
+        await tester.pump();
+        await tester.pump();
+        verifyLookUp('gato', verbosity: DictionaryVerbosity.comprehensive);
+      });
+
+      testWidgets('looks the shown word up again', (tester) async {
+        await pumpPage(
+          tester,
+          page: const DictionaryPage(word: 'gato', autoLookUp: true),
+        );
+        await tester.pump();
+        verifyLookUp('gato');
+        expect(isSelected(tester, DictionaryVerbosity.standard), isTrue);
+
+        // The selected level is not requested again.
+        await tester.tap(verbosityChip(DictionaryVerbosity.standard));
+        await tester.pump();
+        verifyNoLookUp();
+
+        await tester.tap(verbosityChip(DictionaryVerbosity.concise));
+        await tester.pump();
+        await tester.pump();
+
+        verifyLookUp('gato', verbosity: DictionaryVerbosity.concise);
+        expect(find.byKey(const Key('dictionary_entry')), findsOneWidget);
+      });
+    });
+
+    group('entry links', () {
+      testWidgets('related words look that word up', (tester) async {
+        stubLookUp(
+          repository,
+          () async => const DictionaryEntry(
+            word: 'gato',
+            senses: [DictionarySense(definition: 'A cat.')],
+            relatedWords: ['felino', ' ', 'gatito'],
+          ),
+        );
+        await pumpPage(
+          tester,
+          page: const DictionaryPage(word: 'gato', autoLookUp: true),
+        );
+        await tester.pump();
+        verifyLookUp('gato');
+
+        expect(find.text('Related words'), findsOneWidget);
+        expect(find.byType(ActionChip), findsNWidgets(2));
+        final chip = find.byKey(
+          const ValueKey('translate_dictionary_related:gatito'),
+        );
+        await tester.ensureVisible(chip);
+        await tester.tap(chip);
+        await tester.pump();
+        await tester.pump();
+
+        verifyLookUp('gatito');
+        final state = dictionaryState(tester);
+        expect(state.word, 'gatito');
+        expect(state.lookedUp, 'gatito');
+        final field = tester.widget<TextField>(
+          find.byKey(const Key('dictionary_search_field')),
+        );
+        expect(field.controller!.text, 'gatito');
+      });
+
+      testWidgets('"Did you mean …?" looks the suggestion up', (tester) async {
+        stubLookUp(
+          repository,
+          () async => const DictionaryEntry(
+            word: 'gato',
+            senses: [DictionarySense(definition: 'A cat.')],
+            didYouMean: 'gato',
+          ),
+        );
+        await pumpPage(
+          tester,
+          page: const DictionaryPage(word: 'gatto', autoLookUp: true),
+        );
+        await tester.pump();
+        verifyLookUp('gatto');
+
+        final link = find.byKey(const Key('translate_dictionary_did_you_mean'));
+        expect(link, findsOneWidget);
+        expect(
+          find.textContaining('Did you mean “gato”?', findRichText: true),
+          findsOneWidget,
+        );
+        await tester.tap(link);
+        await tester.pump();
+        await tester.pump();
+
+        verifyLookUp('gato');
+        expect(dictionaryState(tester).word, 'gato');
+        // Not offered for the word that was looked up.
+        expect(link, findsNothing);
+      });
     });
 
     group('without an AI engine', () {

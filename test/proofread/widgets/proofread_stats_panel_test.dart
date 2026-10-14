@@ -64,8 +64,8 @@ void main() {
       );
     }
 
-    Future<void> expand(WidgetTester tester) async {
-      await tester.tap(find.text('Writing statistics'));
+    Future<void> expand(WidgetTester tester, {String? title}) async {
+      await tester.tap(find.text(title ?? 'Writing statistics'));
       await tester.pumpAndSettle();
     }
 
@@ -207,7 +207,7 @@ void main() {
         languageCode: 'de',
         locale: const Locale('de'),
       );
-      await expand(tester);
+      await expand(tester, title: 'Textstatistik');
       expect(find.text('1.234'), findsWidgets);
       expect(find.text('1.234,0'), findsOneWidget);
     });

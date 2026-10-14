@@ -1125,5 +1125,6 @@
   "translateQualityOff": "일반 엔진",
   "translateQualityMenuTooltip": "품질 모드: {mode}",
   "translatePinnedTargetSelected": "{language}(으)로 번역합니다",
-  "translateRecentPairsNeedsCustom": "사용자 지정 언어를 지원하는 AI 모델이 필요합니다"
+  "translateRecentPairsNeedsCustom": "사용자 지정 언어를 지원하는 AI 모델이 필요합니다",
+  "translateMtServicesHeader": "번역 서비스"
 }

@@ -12,6 +12,7 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/usage/usage.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 import '../helpers/helpers.dart';
@@ -122,6 +123,36 @@ void main() {
       await tester.tap(find.text('Translated'));
       await tester.pump();
       expect(find.bySemanticsLabel('Translated image'), findsOneWidget);
+    });
+
+    testWidgets("counts AI requests with the app's usage tracker", (
+      tester,
+    ) async {
+      final tracker = MockUsageTracker();
+      when(
+        () => tracker.recordText(
+          any(),
+          input: any(named: 'input'),
+          output: any(named: 'output'),
+        ),
+      ).thenAnswer((_) async => const UsageStats(requests: 1));
+      harness = ImageTranslateHarness(translate: translateState(engine: claude))
+        ..usageTracker = tracker;
+      harness.picker.image = jpegImage;
+      stubImage(
+        () async => const ImageTranslationResult(
+          sourceText: 'Hola',
+          translatedText: 'Salut',
+        ),
+      );
+      await harness.pumpPage(tester);
+
+      await tester.tap(find.byKey(const Key('image_translate_gallery_button')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Salut'), findsOneWidget);
+      verify(() => tracker.recordText('claude', input: 'Hola', output: 'Salut'))
+          .called(1);
     });
 
     testWidgets('opens the picker on arrival', (tester) async {

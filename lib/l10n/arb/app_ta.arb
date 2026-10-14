@@ -1125,5 +1125,6 @@
   "translateQualityOff": "வழக்கமான இன்ஜின்",
   "translateQualityMenuTooltip": "தரப் பயன்முறை: {mode}",
   "translatePinnedTargetSelected": "{language}-க்கு மொழிபெயர்க்கிறது",
-  "translateRecentPairsNeedsCustom": "தனிப்பயன் மொழிகளை ஏற்கும் AI மாடல் தேவை"
+  "translateRecentPairsNeedsCustom": "தனிப்பயன் மொழிகளை ஏற்கும் AI மாடல் தேவை",
+  "translateMtServicesHeader": "மொழிபெயர்ப்புச் சேவைகள்"
 }

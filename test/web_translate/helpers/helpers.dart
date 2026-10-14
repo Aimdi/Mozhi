@@ -9,6 +9,7 @@ import 'package:http/testing.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/usage/usage.dart';
 import 'package:mozhi/web_translate/web_translate.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -133,12 +134,13 @@ TranslateState translateState({
 );
 
 extension PumpWebTranslate on WidgetTester {
-  /// Pumps [child] in a localized app with a [TranslateCubit] and a
-  /// [TranslationRepository], at [size].
+  /// Pumps [child] in a localized app with a [TranslateCubit], a
+  /// [TranslationRepository] and optionally a [UsageTracker], at [size].
   Future<void> pumpWebTranslate(
     Widget child, {
     required TranslateCubit translateCubit,
     TranslationRepository? repository,
+    UsageTracker? usageTracker,
     Size size = const Size(400, 900),
   }) async {
     view
@@ -146,8 +148,14 @@ extension PumpWebTranslate on WidgetTester {
       ..devicePixelRatio = 1;
     addTearDown(view.reset);
     await pumpWidget(
-      RepositoryProvider<TranslationRepository>.value(
-        value: repository ?? FakeTranslationRepository(),
+      MultiRepositoryProvider(
+        providers: [
+          RepositoryProvider<TranslationRepository>.value(
+            value: repository ?? FakeTranslationRepository(),
+          ),
+          if (usageTracker != null)
+            RepositoryProvider<UsageTracker>.value(value: usageTracker),
+        ],
         child: BlocProvider<TranslateCubit>.value(
           value: translateCubit,
           child: MaterialApp(

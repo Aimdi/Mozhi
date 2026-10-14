@@ -1125,5 +1125,6 @@
   "translateQualityOff": "Normal motor",
   "translateQualityMenuTooltip": "Kalite modu: {mode}",
   "translatePinnedTargetSelected": "{language} diline çevriliyor",
-  "translateRecentPairsNeedsCustom": "Özel dilleri destekleyen bir yapay zekâ modeli gerekir"
+  "translateRecentPairsNeedsCustom": "Özel dilleri destekleyen bir yapay zekâ modeli gerekir",
+  "translateMtServicesHeader": "Çeviri hizmetleri"
 }

@@ -5393,5 +5393,9 @@
   "translateRecentPairsNeedsCustom": "Needs an AI model that takes custom languages",
   "@translateRecentPairsNeedsCustom": {
     "description": "Subtitle of a disabled recent language pair with a custom language while the engine cannot take custom languages."
+  },
+  "translateMtServicesHeader": "Translation services",
+  "@translateMtServicesHeader": {
+    "description": "Engine picker section header for machine translation services the user configured with their own key or server (DeepL API, LibreTranslate)."
   }
 }

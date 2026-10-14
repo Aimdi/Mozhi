@@ -1125,5 +1125,6 @@
   "translateQualityOff": "सामान्य इंजन",
   "translateQualityMenuTooltip": "क्वालिटी मोड: {mode}",
   "translatePinnedTargetSelected": "{language} में अनुवाद हो रहा है",
-  "translateRecentPairsNeedsCustom": "ऐसा AI मॉडल चाहिए जो कस्टम भाषाएं स्वीकार करे"
+  "translateRecentPairsNeedsCustom": "ऐसा AI मॉडल चाहिए जो कस्टम भाषाएं स्वीकार करे",
+  "translateMtServicesHeader": "अनुवाद सेवाएं"
 }

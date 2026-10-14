@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'dart:math' as math;
 
 import 'package:bloc/bloc.dart';
+import 'package:mozhi/usage/data/usage_tracker.dart';
 import 'package:mozhi/web_translate/core/block_batcher.dart';
 import 'package:mozhi/web_translate/core/readable_extractor.dart';
 import 'package:mozhi/web_translate/core/web_url.dart';
@@ -30,6 +31,11 @@ typedef ReadablePageExtractor = Future<ReadablePage> Function(
 /// block. Progress is emitted per batch; [cancel] stops loading or
 /// translating (keeping what is translated) and [resume] continues.
 ///
+/// With a `usageTracker`, every answered request (each batch and each
+/// block translated on its own) to a bring-your-own-key provider (engines
+/// with a `providerId`) is counted once. Results served from the
+/// translation cache and failed or cancelled requests are not counted.
+///
 /// The cubit owns the `fetcher` and closes it on [close].
 class WebTranslateCubit extends Cubit<WebTranslateState> {
   new({
@@ -39,6 +45,7 @@ class WebTranslateCubit extends Cubit<WebTranslateState> {
     this._batcher = const BlockBatcher(),
     int concurrency = 2,
     String initialUrl = '',
+    this._usageTracker,
   }) : _extract = extract ?? _extractInline,
        _concurrency = math.max(1, concurrency),
        super(WebTranslateState(url: initialUrl));
@@ -54,6 +61,10 @@ class WebTranslateCubit extends Cubit<WebTranslateState> {
   final ReadablePageExtractor _extract;
   final BlockBatcher _batcher;
   final int _concurrency;
+
+  /// Counts what answered requests send to and receive from a
+  /// bring-your-own-key provider; optional.
+  final UsageTracker? _usageTracker;
 
   int _loadRequest = 0;
   Completer<void>? _abortFetch;
@@ -292,6 +303,9 @@ class WebTranslateCubit extends Cubit<WebTranslateState> {
           onDone: () {
             job.untrack(subscription);
             final result = last;
+            if (result != null && !job.cancelled) {
+              _recordUsage(selection.engine, input: text, result: result);
+            }
             if (result?.detectedSource != null) {
               job.detectedSource ??= result!.detectedSource;
             }
@@ -301,6 +315,30 @@ class WebTranslateCubit extends Cubit<WebTranslateState> {
         );
     job.track(subscription, completer);
     return completer.future;
+  }
+
+  /// Counts the answered request for [input] to [engine]'s provider (engines
+  /// with a `providerId`) when a usage tracker is set, unless [result] is
+  /// incomplete or came from the cache. Never throws; tracker errors are
+  /// ignored.
+  void _recordUsage(
+    TranslationEngine engine, {
+    required String input,
+    required TranslationResult result,
+  }) {
+    final tracker = _usageTracker;
+    final providerId = engine.providerId;
+    if (tracker == null || providerId == null || providerId.isEmpty) return;
+    if (!result.isComplete || result.fromCache) return;
+    try {
+      unawaited(
+        tracker
+            .recordText(providerId, input: input, output: result.text)
+            .then((_) {}, onError: (Object _) {}),
+      );
+    } on Object {
+      // Usage counting must never break page translation.
+    }
   }
 
   void _apply(

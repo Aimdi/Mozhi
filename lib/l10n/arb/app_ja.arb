@@ -1125,5 +1125,6 @@
   "translateQualityOff": "通常のエンジン",
   "translateQualityMenuTooltip": "品質モード: {mode}",
   "translatePinnedTargetSelected": "{language}に翻訳します",
-  "translateRecentPairsNeedsCustom": "カスタム言語に対応した AI モデルが必要です"
+  "translateRecentPairsNeedsCustom": "カスタム言語に対応した AI モデルが必要です",
+  "translateMtServicesHeader": "翻訳サービス"
 }

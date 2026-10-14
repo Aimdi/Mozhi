@@ -1125,5 +1125,6 @@
   "translateQualityOff": "常规引擎",
   "translateQualityMenuTooltip": "质量模式：{mode}",
   "translatePinnedTargetSelected": "将翻译成{language}",
-  "translateRecentPairsNeedsCustom": "需要支持自定义语言的 AI 模型"
+  "translateRecentPairsNeedsCustom": "需要支持自定义语言的 AI 模型",
+  "translateMtServicesHeader": "翻译服务"
 }

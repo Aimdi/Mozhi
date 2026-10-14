@@ -386,7 +386,10 @@ void main() {
       await go(tester, '/translate/web?url=https%3A%2F%2Fexample.test');
 
       expect(location(), '/web?url=https%3A%2F%2Fexample.test');
-      expect(find.byType(WebTranslatePage), findsNothing);
+      expect(
+        tester.widget<WebTranslatePage>(find.byType(WebTranslatePage)).autoLoad,
+        isFalse,
+      );
       expect(find.byType(WebTranslateView), findsOneWidget);
       expect(find.byType(AppShell), findsNothing);
       final state = webState(tester);
@@ -500,7 +503,12 @@ void main() {
         await go(tester, 'mozhi://web?url=http%3A%2F%2F192.168.1.1%2F');
 
         expect(location(), '/web?url=http%3A%2F%2F192.168.1.1%2F');
-        expect(find.byType(WebTranslatePage), findsNothing);
+        expect(
+          tester
+              .widget<WebTranslatePage>(find.byType(WebTranslatePage))
+              .autoLoad,
+          isFalse,
+        );
         final state = webState(tester);
         expect(state.url, 'http://192.168.1.1/');
         expect(state.status, WebTranslateStatus.idle);

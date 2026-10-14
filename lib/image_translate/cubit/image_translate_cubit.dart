@@ -5,6 +5,7 @@ import 'package:bloc/bloc.dart';
 import 'package:mozhi/image_translate/cubit/image_translate_state.dart';
 import 'package:mozhi/image_translate/data/data.dart';
 import 'package:mozhi/image_translate/models/models.dart';
+import 'package:mozhi/usage/data/usage_tracker.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 export 'image_translate_state.dart';
@@ -17,9 +18,19 @@ export 'image_translate_state.dart';
 ///   on-device recognition a target change only re-translates the
 ///   recognised text).
 /// * Every new run (and [cancel]) drops the in-flight one; HTTP requests
-///   that cannot be aborted are simply ignored when they complete.
+///   that cannot be aborted are simply ignored when they complete (but
+///   still counted, see below).
 /// * Engines/providers/options come from the translator and settings; keep
 ///   them current with [updateContext].
+/// * With a `usageTracker`, every answered request to a bring-your-own-key
+///   provider (engines with a `providerId`) is counted once: the vision
+///   request (see [visionUsageInput]) and the translation of recognised
+///   text. The provider bills what it answered, so this includes answers
+///   that arrive after the run was cancelled or replaced, or the cubit
+///   closed: a vision request cannot be aborted, and a translation that
+///   already streamed its complete result is done. Results served from the
+///   translation cache, failed requests and translations aborted before
+///   their complete result are not counted.
 class ImageTranslateCubit extends Cubit<ImageTranslateState> {
   new({
     required this._repository,
@@ -33,6 +44,7 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
     Language target = const Language(code: 'en', name: 'English'),
     TranslationOptions options = const TranslationOptions(),
     this.slowThreshold = const Duration(seconds: 12),
+    this._usageTracker,
   }) : _picker = picker,
        _recognizer = recognizer,
        super(
@@ -80,6 +92,10 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
   final ImagePickerService _picker;
   final ImageEncoder _encoder;
   final TextRecognitionService _recognizer;
+
+  /// Counts what answered requests send to and receive from a
+  /// bring-your-own-key provider; optional.
+  final UsageTracker? _usageTracker;
 
   int _run = 0;
   Timer? _slowTimer;
@@ -341,13 +357,31 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
       if (!_isCurrent(token)) return null;
       emit(state.copyWith(phase: ImageTranslatePhase.uploading));
     }
+    final source = state.source;
+    final target = state.target;
+    final options = state.options;
     final result = await _repository.translateImage(
       engine,
       bytes,
       mimeType: mimeType,
-      source: state.source,
-      target: state.target,
-      options: state.options,
+      source: source,
+      target: target,
+      options: options,
+    );
+    // The provider answered (and billed) the request even when it found no
+    // text in the image, and even when this run was cancelled or replaced
+    // meanwhile (the request cannot be aborted).
+    _recordUsage(
+      engine,
+      input: () => visionUsageInput(
+        result,
+        bytes,
+        mimeType: mimeType,
+        source: source,
+        target: target,
+        options: options,
+      ),
+      output: _visionUsageOutput(result),
     );
     if (!_isCurrent(token)) return null;
     if (result.translatedText.trim().isEmpty) {
@@ -390,6 +424,7 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
     }
     final done = Completer<void>();
     _pending = done;
+    TranslationResult? last;
     _subscription = _repository
         .translate(
           engine,
@@ -402,6 +437,7 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
         )
         .listen(
           (translation) {
+            last = translation;
             if (!_isCurrent(token)) return;
             current = current.copyWith(
               translatedText: translation.text,
@@ -418,10 +454,72 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
           cancelOnError: true,
         );
     await done.future;
+    // Counted even when the run was cancelled right after the complete
+    // result arrived: the provider answered it in full. A run cancelled
+    // mid-stream aborts the request and has no complete result.
+    final answer = last;
+    if (answer != null && answer.isComplete && !answer.fromCache) {
+      _recordUsage(engine, input: () => text, output: answer.text);
+    }
     if (!_isCurrent(token)) return null;
     _subscription = null;
     _pending = null;
     return current.copyWith(isComplete: true);
+  }
+
+  /// What a vision request is counted as sending to the provider: the text
+  /// the model read from the image when the result reports it (OCR text),
+  /// else the text of the prompt (the system and user messages of
+  /// [TranslationPrompts.translateImage]).
+  ///
+  /// The image itself is not estimated: providers bill images by their
+  /// size in tiles or pixels, which a character count cannot express, so
+  /// usage of vision requests is a lower bound.
+  static String visionUsageInput(
+    ImageTranslationResult result,
+    List<int> imageBytes, {
+    required String mimeType,
+    required Language source,
+    required Language target,
+    TranslationOptions options = const TranslationOptions(),
+  }) {
+    final recognized = result.sourceText.trim();
+    if (recognized.isNotEmpty) return recognized;
+    return TranslationPrompts.translateImage(
+      imageBytes,
+      mimeType: mimeType,
+      source: source,
+      target: target,
+      options: options,
+    ).map((message) => message.content).join('\n');
+  }
+
+  /// What a vision request received: the translation and any notes.
+  static String _visionUsageOutput(ImageTranslationResult result) => [
+    result.translatedText.trim(),
+    result.notes.trim(),
+  ].where((part) => part.isNotEmpty).join('\n');
+
+  /// Counts an answered request to [engine]'s provider (engines with a
+  /// `providerId`) when a usage tracker is set. [input] is only computed
+  /// then. Never throws; tracker errors are ignored.
+  void _recordUsage(
+    TranslationEngine engine, {
+    required String Function() input,
+    required String output,
+  }) {
+    final tracker = _usageTracker;
+    final providerId = engine.providerId;
+    if (tracker == null || providerId == null || providerId.isEmpty) return;
+    try {
+      unawaited(
+        tracker
+            .recordText(providerId, input: input(), output: output)
+            .then((_) {}, onError: (Object _) {}),
+      );
+    } on Object {
+      // Usage counting must never break image translation.
+    }
   }
 
   int _start(ImageTranslatePhase phase) {

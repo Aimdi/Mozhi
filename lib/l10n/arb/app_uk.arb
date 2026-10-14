@@ -1125,5 +1125,6 @@
   "translateQualityOff": "Звичайний сервіс",
   "translateQualityMenuTooltip": "Режим якості: {mode}",
   "translatePinnedTargetSelected": "Переклад на мову «{language}»",
-  "translateRecentPairsNeedsCustom": "Потрібна ШІ-модель, що підтримує власні мови"
+  "translateRecentPairsNeedsCustom": "Потрібна ШІ-модель, що підтримує власні мови",
+  "translateMtServicesHeader": "Сервіси перекладу"
 }

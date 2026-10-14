@@ -11,14 +11,16 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/usage/data/usage_tracker.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Image translation (Kagi-style context-aware image translation and a
 /// Google Lens-lite via Mozhi).
 ///
 /// Needs `TranslationRepository` (RepositoryProvider), `TranslateCubit` and
-/// `SettingsCubit` above it. The platform services default to the plugin
-/// implementations and can be injected (tests, other platforms).
+/// `SettingsCubit` above it; a `UsageTracker` above it (optional) counts AI
+/// requests. The platform services default to the plugin implementations
+/// and can be injected (tests, other platforms).
 class ImageTranslatePage extends StatelessWidget {
   const new({
     this.initialSource,
@@ -80,6 +82,7 @@ class ImageTranslatePage extends StatelessWidget {
           source: translate.source,
           target: translate.target,
           options: translate.options,
+          usageTracker: _usageTracker(context),
         );
       },
       child: ImageTranslateView(initialSource: initialSource),
@@ -339,5 +342,14 @@ class _WideLayout extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+/// The app's usage tracker, or null when none is provided (e.g. in tests).
+UsageTracker? _usageTracker(BuildContext context) {
+  try {
+    return context.read<UsageTracker>();
+  } on ProviderNotFoundException {
+    return null;
   }
 }

@@ -10,21 +10,27 @@ import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/view/widgets/link_launcher.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/usage/usage.dart';
 import 'package:mozhi/web_translate/web_translate.dart';
 import 'package:mozhi/web_translate/widgets/web_reader.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:translation_repository/translation_repository.dart';
 
 import '../helpers/helpers.dart';
+
+class _MockUsageTracker extends Mock implements UsageTracker;
 
 Future<ReadablePage> inlineExtract(FetchedWebPage page) async =>
     extractFetchedPage(page);
 
 WebTranslatePage page({
   String? initialUrl,
+  bool autoLoad = true,
   http.Client? client,
   bool isWeb = false,
 }) => WebTranslatePage(
   initialUrl: initialUrl,
+  autoLoad: autoLoad,
   fetcher: WebPageFetcher(
     isWeb: false,
     client: client ?? htmlClient(samplePageHtml),
@@ -47,10 +53,12 @@ void main() {
     WidgetTester tester,
     Widget child, {
     Size size = const Size(400, 900),
+    UsageTracker? usageTracker,
   }) => tester.pumpWebTranslate(
     child,
     translateCubit: translateCubit,
     repository: repository,
+    usageTracker: usageTracker,
     size: size,
   );
 
@@ -133,6 +141,98 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('SAMPLE PAGE'), findsOneWidget);
     });
+
+    testWidgets('only fills in the initial address without autoLoad', (
+      tester,
+    ) async {
+      await pumpPage(
+        tester,
+        page(initialUrl: 'https://example.com/sample', autoLoad: false),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('https://example.com/sample'), findsOneWidget);
+      expect(find.text('SAMPLE PAGE'), findsNothing);
+      expect(repository.requests, isEmpty);
+
+      await tester.tap(find.byKey(const Key('web_translate_go_button')));
+      await tester.pumpAndSettle();
+      expect(find.text('SAMPLE PAGE'), findsOneWidget);
+    });
+
+    testWidgets("counts AI requests with the app's usage tracker", (
+      tester,
+    ) async {
+      const claude = TranslationEngine(
+        id: 'ai:claude',
+        kind: EngineKind.ai,
+        name: 'Claude',
+        providerId: 'claude',
+      );
+      when(() => translateCubit.state)
+          .thenReturn(translateState(engine: claude));
+      final tracker = _MockUsageTracker();
+      when(
+        () => tracker.recordText(
+          any(),
+          input: any(named: 'input'),
+          output: any(named: 'output'),
+        ),
+      ).thenAnswer((_) async => const UsageStats(requests: 1));
+      await pumpPage(tester, page(), usageTracker: tracker);
+      await loadUrl(tester, 'example.com/sample');
+
+      expect(find.text('SAMPLE PAGE'), findsOneWidget);
+      final request = repository.requests.single;
+      verify(
+        () => tracker.recordText(
+          'claude',
+          input: request.text,
+          output: request.text.toUpperCase(),
+        ),
+      ).called(1);
+    });
+
+    testWidgets(
+      'counts AI requests of an address that was only filled in (a link)',
+      (tester) async {
+        const claude = TranslationEngine(
+          id: 'ai:claude',
+          kind: EngineKind.ai,
+          name: 'Claude',
+          providerId: 'claude',
+        );
+        when(() => translateCubit.state)
+            .thenReturn(translateState(engine: claude));
+        final tracker = _MockUsageTracker();
+        when(
+          () => tracker.recordText(
+            any(),
+            input: any(named: 'input'),
+            output: any(named: 'output'),
+          ),
+        ).thenAnswer((_) async => const UsageStats(requests: 1));
+        await pumpPage(
+          tester,
+          page(initialUrl: 'https://example.com/sample', autoLoad: false),
+          usageTracker: tracker,
+        );
+        await tester.pumpAndSettle();
+        expect(repository.requests, isEmpty);
+
+        await tester.tap(find.byKey(const Key('web_translate_go_button')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('SAMPLE PAGE'), findsOneWidget);
+        final request = repository.requests.single;
+        verify(
+          () => tracker.recordText(
+            'claude',
+            input: request.text,
+            output: request.text.toUpperCase(),
+          ),
+        ).called(1);
+      },
+    );
 
     testWidgets('flags invalid addresses', (tester) async {
       await pumpPage(tester, page());

@@ -14,8 +14,11 @@ export 'dictionary_state.dart';
 /// * [lookUp] before an engine is available waits for one: the look-up
 ///   runs as soon as [setEngine] provides it (unless the word changed).
 /// * Changing a language looks the word up again once something was looked
-///   up (the user asked for a word already); nothing else starts a request
-///   on its own.
+///   up (the user asked for a word already).
+/// * Changing the detail level ([setVerbosity]) looks the shown (or
+///   loading) word up again with it; it never starts a look-up on its own.
+/// * [lookUpWord] follows a related word or the suggested spelling of an
+///   entry. Nothing else starts a request on its own.
 /// * Finished requests to a bring-your-own-key provider are counted by the
 ///   optional `usageTracker`; tracker errors are ignored.
 class DictionaryCubit extends Cubit<DictionaryState> {
@@ -25,6 +28,7 @@ class DictionaryCubit extends Cubit<DictionaryState> {
     String word = '',
     Language source = Language.auto,
     Language target = const Language(code: 'en', name: 'English'),
+    DictionaryVerbosity verbosity = DictionaryVerbosity.standard,
     this._uiLanguage = 'English',
     this._usageTracker,
   }) : super(
@@ -33,6 +37,7 @@ class DictionaryCubit extends Cubit<DictionaryState> {
            source: source.isCustom ? Language.auto : source,
            target: target.isAuto || target.isCustom ? _english : target,
            engine: _usable(engine),
+           verbosity: verbosity,
          ),
        );
 
@@ -41,6 +46,12 @@ class DictionaryCubit extends Cubit<DictionaryState> {
   static const maxWordLength = 100;
 
   static const _english = Language(code: 'en', name: 'English');
+
+  /// Control, line separator and bidi control characters: words from model
+  /// output ([lookUpWord]) must stay one plain line.
+  static final _unsafe = RegExp(
+    r'[\x00-\x1F\x7F-\x9F\u2028\u2029\u200E\u200F\u202A-\u202E\u2066-\u2069]',
+  );
 
   final TranslationRepository _repository;
   final String _uiLanguage;
@@ -97,6 +108,35 @@ class DictionaryCubit extends Cubit<DictionaryState> {
     _refresh();
   }
 
+  /// Sets how much a look-up asks for. The shown (or loading) entry is
+  /// looked up again with it; without one nothing is requested, the level
+  /// is used by the next look-up.
+  Future<void> setVerbosity(DictionaryVerbosity verbosity) {
+    if (verbosity == state.verbosity) return Future.value();
+    emit(state.copyWith(verbosity: verbosity));
+    final shown =
+        state.status == DictionaryStatus.loading ||
+        state.status == DictionaryStatus.success;
+    final engine = state.engine;
+    final word = state.lookedUp;
+    if (!shown || engine == null || word.isEmpty) return Future.value();
+    return _lookUp(engine, word);
+  }
+
+  /// Looks [word] up instead of the typed word, keeping the languages: a
+  /// related word or the suggested spelling ("Did you mean …?") of an
+  /// entry. The search field shows it. As it comes from model output it is
+  /// reduced to one line without control or bidi characters and cut to
+  /// [maxWordLength]; a blank word is ignored.
+  Future<void> lookUpWord(String word) {
+    final clean = _cut(
+      word.replaceAll(_unsafe, ' ').replaceAll(RegExp(r'\s+'), ' ').trim(),
+    ).trimRight();
+    if (clean.isEmpty) return Future.value();
+    setWord(clean);
+    return lookUp();
+  }
+
   /// Swaps the word's language and the translations' language.
   void swap() {
     if (!state.canSwap) return;
@@ -119,8 +159,8 @@ class DictionaryCubit extends Cubit<DictionaryState> {
     );
   }
 
-  /// Looks the current word up. Without an engine the look-up waits for
-  /// [setEngine].
+  /// Looks the current word up with the current [DictionaryState.verbosity].
+  /// Without an engine the look-up waits for [setEngine].
   Future<void> lookUp() async {
     final word = state.word.trim();
     if (word.isEmpty) return;
@@ -129,6 +169,12 @@ class DictionaryCubit extends Cubit<DictionaryState> {
       _pending = true;
       return;
     }
+    await _lookUp(engine, word);
+  }
+
+  /// Looks [word] up with [engine] and the current verbosity.
+  Future<void> _lookUp(TranslationEngine engine, String word) async {
+    final verbosity = state.verbosity;
     _pending = false;
     final request = ++_request;
     emit(
@@ -146,6 +192,7 @@ class DictionaryCubit extends Cubit<DictionaryState> {
         source: state.source,
         target: state.target,
         uiLanguage: _uiLanguage,
+        verbosity: verbosity,
       );
       _recordUsage(engine, word, entry);
       if (isClosed || request != _request) return;

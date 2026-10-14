@@ -75,6 +75,7 @@ void stubLookUp(
       source: any(named: 'source'),
       target: any(named: 'target'),
       uiLanguage: any(named: 'uiLanguage'),
+      verbosity: any(named: 'verbosity'),
     ),
   ).thenAnswer((_) => answer());
 }
@@ -82,4 +83,5 @@ void stubLookUp(
 void registerDictionaryFallbacks() {
   registerFallbackValue(claudeEngine);
   registerFallbackValue(english);
+  registerFallbackValue(DictionaryVerbosity.standard);
 }

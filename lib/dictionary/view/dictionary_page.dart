@@ -9,6 +9,8 @@ import 'package:mozhi/dictionary/cubit/dictionary_cubit.dart';
 import 'package:mozhi/dictionary/widgets/widgets.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/translate/widgets/dictionary_card.dart'
+    show DictionaryVerbosityChips;
 import 'package:mozhi/usage/data/usage_tracker.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -30,7 +32,9 @@ enum DictionaryLaunch { lookUp }
 /// translate screen's languages are used instead). The word is only looked
 /// up right away with [autoLookUp] (navigation inside the app); a link
 /// from outside the app never starts a (paid) AI request on its own, not
-/// even with `instantTranslateAi`: the user presses Look up.
+/// even with `instantTranslateAi`: the user presses Look up. The detail
+/// level starts as the translate screen's dictionary card has it
+/// ([TranslateState.dictionaryVerbosity]).
 class DictionaryPage extends StatelessWidget {
   const new({
     this.word,
@@ -69,6 +73,7 @@ class DictionaryPage extends StatelessWidget {
               _fromLink(to, DictionaryLanguageBar.targetLanguages) ??
               _known(translate.target, DictionaryLanguageBar.targetLanguages) ??
               const Language(code: 'en', name: 'English'),
+          verbosity: translate.dictionaryVerbosity,
           uiLanguage: uiLanguage,
           usageTracker: _usageTracker(context),
         );
@@ -208,7 +213,7 @@ class DictionaryView extends StatelessWidget {
   }
 }
 
-/// Search field, languages and the engine in use.
+/// Search field, languages, the detail level and the engine in use.
 class _Controls extends StatelessWidget {
   const new({required this.autofocus});
 
@@ -217,15 +222,25 @@ class _Controls extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final engine = context.select<DictionaryCubit, TranslationEngine?>(
-      (cubit) => cubit.state.engine,
-    );
+    final (engine, verbosity) = context
+        .select<DictionaryCubit, (TranslationEngine?, DictionaryVerbosity)>(
+          (cubit) => (cubit.state.engine, cubit.state.verbosity),
+        );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: 8,
       children: [
         DictionarySearchField(autofocus: autofocus),
         const DictionaryLanguageBar(),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: DictionaryVerbosityChips(
+            key: const Key('dictionary_verbosity'),
+            value: verbosity,
+            onChanged: (level) =>
+                unawaited(context.read<DictionaryCubit>().setVerbosity(level)),
+          ),
+        ),
         if (engine != null)
           Padding(
             padding: const EdgeInsetsDirectional.only(start: 16, end: 16),

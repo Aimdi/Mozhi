@@ -1125,5 +1125,6 @@
   "translateQualityOff": "Motore abituale",
   "translateQualityMenuTooltip": "Modalità di qualità: {mode}",
   "translatePinnedTargetSelected": "Traduzione in {language}",
-  "translateRecentPairsNeedsCustom": "Richiede un modello IA che supporti le lingue personalizzate"
+  "translateRecentPairsNeedsCustom": "Richiede un modello IA che supporti le lingue personalizzate",
+  "translateMtServicesHeader": "Servizi di traduzione"
 }
