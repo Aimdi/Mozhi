@@ -196,8 +196,10 @@ class TranslateLink extends Equatable {
   ///
   /// Switching engines and changing options re-translate the input right
   /// away (possibly a paid AI request), so the input is taken out meanwhile
-  /// (and put back afterwards when the link has no text of its own): a link
-  /// never starts a paid request on its own.
+  /// (and put back afterwards when the link has no text of its own and the
+  /// user has not typed something else meanwhile): a link never starts a
+  /// paid request on its own. A quality mode whose engine is already the
+  /// selected one changes no engine, so the input and its translation stay.
   Future<void> applyTo(
     TranslateCubit cubit, {
     Duration timeout = const Duration(seconds: 20),

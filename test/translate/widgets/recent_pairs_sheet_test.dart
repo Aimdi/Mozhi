@@ -95,6 +95,15 @@ void main() {
       final harness = await _open(tester);
       final custom = _tile(tester, 2);
       expect(custom.enabled, isFalse);
+      // It says why (to screen readers too, as part of the tile).
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('translate_recent_pair_2')),
+          matching: find.text('Needs an AI model that takes custom languages'),
+        ),
+        findsOneWidget,
+      );
+      expect(_tile(tester, 0).subtitle, isNull);
       await tester.tap(find.text('German → Pirate speak'));
       await tester.pump();
       verifyNever(() => harness.translate.applyLanguagePair(any()));
@@ -108,6 +117,7 @@ void main() {
       final custom = _tile(tester, 2);
       expect(custom.enabled, isTrue);
       expect(custom.selected, isTrue);
+      expect(custom.subtitle, isNull);
       await tester.tap(find.text('German → Pirate speak'));
       await tester.pumpAndSettle();
       verify(() => harness.translate.applyLanguagePair(_pairs[2])).called(1);

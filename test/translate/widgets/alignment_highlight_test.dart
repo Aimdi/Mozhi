@@ -118,7 +118,53 @@ void main() {
       expect(parts.map((part) => part.text), ['Hello', ' big ', 'world']);
       expect(parts[0].style, AlignedText.phraseStyle(scheme));
       expect(parts[1].style, isNull);
-      expect(parts[2].style, AlignedText.focusStyle(scheme));
+      expect(parts[2].style, HighlightTextEditingController.focusStyle(scheme));
+    });
+
+    testWidgets('the highlight leaves the caret and the selection visible', (
+      tester,
+    ) async {
+      // Text backgrounds are painted above the caret and the selection
+      // highlight on Android, Windows, Linux and the web.
+      final controller = HighlightTextEditingController(text: 'Hello world')
+        ..showAlignment(
+          phrases: const [TextRange(start: 0, end: 5)],
+          highlight: const TextRange(start: 0, end: 5),
+        )
+        ..selection = const TextSelection.collapsed(offset: 2);
+      addTearDown(controller.dispose);
+      final span = await _paint(tester, controller);
+      final scheme = Theme.of(tester.element(find.byType(TextField)))
+          .colorScheme;
+      final highlighted = span.children!.cast<TextSpan>().first;
+      expect(highlighted.text, 'Hello');
+      expect(highlighted.style?.backgroundColor, isNull);
+      expect(highlighted.style?.background, isNull);
+      expect(highlighted.style?.decoration, TextDecoration.underline);
+      expect(highlighted.style?.decorationColor, scheme.tertiary);
+      expect(highlighted.style?.decorationThickness, 3);
+      // Unlike the phrases' dotted underline.
+      expect(
+        highlighted.style?.decorationStyle,
+        isNot(TextDecorationStyle.dotted),
+      );
+    });
+
+    test('the highlight keeps its contrast on the input card', () {
+      for (final brightness in Brightness.values) {
+        final scheme = ThemeData(brightness: brightness).colorScheme;
+        final style = HighlightTextEditingController.focusStyle(scheme);
+        final text = style.color!;
+        final card = scheme.surfaceContainerLow;
+        final (hi, lo) = text.computeLuminance() > card.computeLuminance()
+            ? (text.computeLuminance(), card.computeLuminance())
+            : (card.computeLuminance(), text.computeLuminance());
+        expect(
+          (hi + 0.05) / (lo + 0.05),
+          greaterThanOrEqualTo(4.5),
+          reason: '$brightness',
+        );
+      }
     });
 
     testWidgets('paints plain text without an alignment', (tester) async {

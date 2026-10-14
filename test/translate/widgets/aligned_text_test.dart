@@ -215,19 +215,37 @@ void main() {
       expect(other.style?.decorationColor, scheme.outline);
     });
 
-    testWidgets('phrases name their counterpart for screen readers', (
+    testWidgets('phrases are read in the language of the text only', (
       tester,
     ) async {
-      final host = _Host();
-      await TranslateHarness().pump(tester, child: host.build());
-      expect(
-        _span(tester, 'le monde').semanticsLabel,
-        'le monde, translates “world”',
+      // A label mixing "translates" and the other text would be read with
+      // the voice of this text's locale.
+      await TranslateHarness().pump(
+        tester,
+        child: AlignedText(
+          text: _target,
+          other: _source,
+          alignment: _alignment,
+          locale: const Locale('fr'),
+          onFocus: (_) {},
+        ),
       );
-      expect(
-        _span(tester, 'Bonjour').semanticsLabel,
-        'Bonjour, translates “Hello”',
+      expect(_span(tester, 'le monde').semanticsLabel, isNull);
+      expect(_span(tester, 'Bonjour').semanticsLabel, isNull);
+      expect(_span(tester, 'le monde').locale, isNull);
+      final rich = tester.widget<RichText>(
+        find.descendant(of: _alignedText, matching: find.byType(RichText)),
       );
+      // One locale, the text's, around all phrases.
+      final locales = <Locale>[];
+      void collect(InlineSpan span) {
+        if (span is! TextSpan) return;
+        if (span.locale case final locale?) locales.add(locale);
+        span.children?.forEach(collect);
+      }
+
+      collect(rich.text);
+      expect(locales, [const Locale('fr')]);
     });
 
     testWidgets('phrases are unlabelled without the other text', (
@@ -348,10 +366,7 @@ void main() {
         child: host.build(side: AlignedSide.source),
         supportsAnnounce: true,
       );
-      expect(
-        _span(tester, 'world').semanticsLabel,
-        'world, translates “le monde”',
-      );
+      expect(_span(tester, 'world').semanticsLabel, isNull);
       host.focus.value = 1;
       await tester.pump();
       expect(tester.takeAnnouncements(), [
@@ -568,6 +583,117 @@ void main() {
       controller.add(next);
       await tester.pump();
       verify(harness.translate.loadAlignment).called(1);
+    });
+
+    testWidgets('turns off after an instant translation instead of '
+        'paying for a new alignment', (tester) async {
+      final initial = translatedState(assistEngine: claude);
+      final harness = TranslateHarness(state: initial);
+      stubOutputExtras(harness);
+      final controller = StreamController<TranslateState>();
+      addTearDown(controller.close);
+      whenListen(harness.translate, controller.stream, initialState: initial);
+      await harness.pump(tester, child: const OutputCard());
+      await tester.tap(button());
+      await tester.pump();
+      verify(harness.translate.loadAlignment).called(1);
+
+      // A typing pause translated the edited text with a free engine.
+      final next = translatedState(
+        assistEngine: claude,
+        input: 'Good night',
+        result: const TranslationResult(
+          engineId: 'mozhi:deepl',
+          engineName: 'DeepL',
+          text: 'Bonne nuit',
+        ),
+      ).copyWith(instantResult: true);
+      when(() => harness.translate.state).thenReturn(next);
+      controller.add(next);
+      await tester.pump();
+      verifyNever(harness.translate.loadAlignment);
+      expect(tester.widget<IconButton>(button()).isSelected, isFalse);
+      expect(find.byTooltip('Show alignment'), findsOneWidget);
+
+      // The button loads it again.
+      await tester.tap(button());
+      await tester.pump();
+      verify(harness.translate.loadAlignment).called(1);
+    });
+
+    testWidgets('reloads after an instant translation with a local engine', (
+      tester,
+    ) async {
+      final initial = translatedState(assistEngine: ollama);
+      final harness = TranslateHarness(state: initial);
+      stubOutputExtras(harness);
+      final controller = StreamController<TranslateState>();
+      addTearDown(controller.close);
+      whenListen(harness.translate, controller.stream, initialState: initial);
+      await harness.pump(tester, child: const OutputCard());
+      await tester.tap(button());
+      await tester.pump();
+      verify(harness.translate.loadAlignment).called(1);
+
+      final next = translatedState(
+        assistEngine: ollama,
+        input: 'Good night',
+        result: const TranslationResult(
+          engineId: 'mozhi:deepl',
+          engineName: 'DeepL',
+          text: 'Bonne nuit',
+        ),
+      ).copyWith(instantResult: true);
+      when(() => harness.translate.state).thenReturn(next);
+      controller.add(next);
+      await tester.pump();
+      verify(harness.translate.loadAlignment).called(1);
+    });
+
+    testWidgets('the hint is announced for the alignment asked for only', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final initial = translatedState(assistEngine: claude);
+      final harness = TranslateHarness(state: initial);
+      stubOutputExtras(harness);
+      final controller = StreamController<TranslateState>();
+      addTearDown(controller.close);
+      whenListen(harness.translate, controller.stream, initialState: initial);
+      await harness.pump(tester, child: const OutputCard());
+      await tester.tap(button());
+      await tester.pump();
+
+      bool liveHint() => tester
+          .widget<Semantics>(
+            find
+                .ancestor(
+                  of: find.byKey(const Key('translate_alignment_hint')),
+                  matching: find.byType(Semantics),
+                )
+                .first,
+          )
+          .properties
+          .liveRegion!;
+
+      final ready = initial.copyWith(
+        alignmentStatus: ExtraStatus.ready,
+        alignment: _alignment,
+      );
+      controller.add(ready);
+      await tester.pump();
+      expect(liveHint(), isTrue);
+
+      // The next translation (asked for) reloads it: not announced again.
+      final nextResult = helloResult.copyWith(text: 'Bonjour à tous');
+      final next = translatedState(
+        assistEngine: claude,
+        result: nextResult,
+      ).copyWith(alignmentStatus: ExtraStatus.ready, alignment: _alignment);
+      controller.add(next);
+      await tester.pump();
+      expect(liveHint(), isFalse);
+      handle.dispose();
     });
 
     testWidgets('loads once it is idle again while shown', (tester) async {

@@ -264,6 +264,106 @@ void main() {
       expect(translatePinnedShortcutCount, digits.length);
     });
 
+    testWidgets('number the pins the engine offers, as the picker does', (
+      tester,
+    ) async {
+      // DeepL here lists no Korean: German is pin 1.
+      const korean = Language(code: 'ko', name: 'Korean');
+      final harness = TranslateHarness(
+        state: translatedState(),
+        settings: const AppSettings(pinnedLanguages: [korean, german]),
+      );
+      await harness.pump(tester);
+      await _focusInput(tester);
+      await _pressAlt(tester, LogicalKeyboardKey.digit1);
+      verify(() => harness.translate.selectPinnedTarget(0)).called(1);
+      // There is no second usable pin: the key is not swallowed.
+      await _pressAlt(tester, LogicalKeyboardKey.digit2);
+      verifyNever(() => harness.translate.selectPinnedTarget(any()));
+    });
+
+    testWidgets('announce the picked language, also when pressed again', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(
+        state: translatedState(),
+        settings: pinned,
+      );
+      when(() => harness.translate.selectPinnedTarget(any())).thenAnswer((_) {
+        harness.setState(translatedState().copyWith(target: german));
+      });
+      await harness.pump(tester, supportsAnnounce: true);
+      await _focusInput(tester);
+      await _pressAlt(tester, LogicalKeyboardKey.digit1);
+      await tester.pump();
+      expect(tester.takeAnnouncements(), [
+        isAccessibilityAnnouncement('Translating into German'),
+      ]);
+      await _pressAlt(tester, LogicalKeyboardKey.digit1);
+      await tester.pump();
+      expect(tester.takeAnnouncements(), [
+        isAccessibilityAnnouncement('Translating into German'),
+      ]);
+    });
+
+    test('browsers get Ctrl/Cmd+Alt+digit instead of Alt+digit', () {
+      expect(TranslateView.shortcutsFor(web: false), TranslateView.shortcuts);
+      final web = TranslateView.shortcutsFor(web: true);
+      final pinned = web.entries
+          .where((entry) => entry.value is SelectPinnedTargetIntent)
+          .map((entry) => entry.key as SingleActivator)
+          .toList();
+      expect(pinned, hasLength(2 * translatePinnedShortcutCount));
+      expect(pinned.every((activator) => activator.alt), isTrue);
+      expect(
+        pinned.every((activator) => activator.control != activator.meta),
+        isTrue,
+      );
+      final first = web.entries.firstWhere(
+        (entry) =>
+            entry.key is SingleActivator &&
+            (entry.key as SingleActivator).trigger ==
+                LogicalKeyboardKey.digit1 &&
+            (entry.key as SingleActivator).control,
+      );
+      expect((first.value as SelectPinnedTargetIntent).index, 0);
+      // The other shortcuts are the same.
+      expect(
+        web.length,
+        TranslateView.shortcuts.length + translatePinnedShortcutCount,
+      );
+    });
+
+    test('pin shortcuts are shown per platform', () async {
+      final l10n = await AppLocalizations.delegate.load(const Locale('en'));
+      expect(translatePinnedShortcut(0, command: false, web: false), (
+        keys: 'Alt + 1',
+        keysSemantics: 'Alt 1',
+      ));
+      expect(translatePinnedShortcut(8, command: true, web: false), (
+        keys: '⌥ + 9',
+        keysSemantics: 'Option 9',
+      ));
+      expect(translatePinnedShortcut(1, command: false, web: true), (
+        keys: 'Ctrl + Alt + 2',
+        keysSemantics: 'Control Alt 2',
+      ));
+      expect(translatePinnedShortcut(2, command: true, web: true), (
+        keys: '⌘ + ⌥ + 3',
+        keysSemantics: 'Command Option 3',
+      ));
+      expect(translatePinnedShortcut(9, command: false), isNull);
+      expect(translatePinnedShortcut(-1, command: false), isNull);
+
+      final web = translateShortcutHelp(l10n, command: false, web: true);
+      expect(web[6].keys, 'Ctrl + Alt + 1…9');
+      expect(web[6].keysSemantics, 'Control Alt 1 to 9');
+      final appleWeb = translateShortcutHelp(l10n, command: true, web: true);
+      expect(appleWeb[6].keys, '⌘ + ⌥ + 1…9');
+      expect(showsShortcutHints(TargetPlatform.linux), isTrue);
+      expect(showsShortcutHints(TargetPlatform.android), isFalse);
+    });
+
     testWidgets('a missing pin lets the key through', (tester) async {
       final harness = TranslateHarness(
         state: translatedState(),

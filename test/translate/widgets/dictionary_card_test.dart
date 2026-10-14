@@ -222,7 +222,36 @@ void main() {
         final didYouMean = tester.widget<Text>(
           find.byKey(const Key('translate_dictionary_did_you_mean')),
         );
-        expect(didYouMean.data, 'Did you mean “hallo”?');
+        expect(didYouMean.textSpan!.toPlainText(), 'Did you mean “hallo”?');
+      });
+
+      testWidgets('"Did you mean …?" tags only the word with its language', (
+        tester,
+      ) async {
+        final harness = TranslateHarness();
+        await harness.pump(
+          tester,
+          child: DictionaryEntryView(
+            entry: const DictionaryEntry(word: 'ねこ', didYouMean: '猫'),
+            sourceLanguage: japanese,
+            onWordTap: (_) {},
+          ),
+        );
+        final label = tester.widget<Text>(
+          find.descendant(
+            of: find.byKey(const Key('translate_dictionary_did_you_mean')),
+            matching: find.byType(Text),
+          ),
+        );
+        final span = label.textSpan! as TextSpan;
+        expect(span.locale, isNull);
+        final parts = span.children!.cast<TextSpan>();
+        expect(parts.map((part) => part.text), ['Did you mean “', '猫', '”?']);
+        expect(parts.map((part) => part.locale), [
+          null,
+          const Locale('ja'),
+          null,
+        ]);
       });
 
       testWidgets('an entry without extras shows neither', (tester) async {

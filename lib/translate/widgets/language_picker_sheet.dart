@@ -5,6 +5,7 @@ import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/language_text.dart';
+import 'package:mozhi/translate/widgets/shortcuts_help.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -41,6 +42,11 @@ Future<Language?> showLanguagePicker(
 
 /// Sections: Detect (source), Recent, Pinned, Styles (AI target) and All.
 /// Searching filters by English name, native name and code.
+///
+/// The target list's Pinned section is `TranslateState.pinnedTargets` (the
+/// pins the engine offers, matched like everywhere else); on desktop its
+/// first nine entries show their shortcut (Alt+1 … Alt+9, see
+/// [translatePinnedShortcut]).
 ///
 /// When the engine takes custom languages
 /// (`TranslateState.supportsCustomLanguages`, AI engines with the general
@@ -286,7 +292,32 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
     }
 
     final recents = settings.recentLanguages.map(available).nonNulls.toList();
-    final pinnedAvailable = pinned.map(available).nonNulls.toList();
+    // Targets: the pins as the engine lists them, in the order the
+    // shortcuts number them. Each tile (un)pins the stored language.
+    final pinnedAvailable = widget.source
+        ? pinned.map(available).nonNulls.toList()
+        : state.pinnedTargets(pinned);
+    Language pinOf(Language listed) => widget.source
+        ? listed
+        : pinned.firstWhere(
+            (pin) => state.usableTarget(pin) == listed,
+            orElse: () => listed,
+          );
+    final platform = Theme.of(context).platform;
+    final hints = !widget.source && showsShortcutHints(platform);
+    Widget pinnedTile(int index, Language language) => _LanguageTile(
+      language: language,
+      selected: language == selected,
+      pinned: true,
+      pin: pinOf(language),
+      shortcut: hints
+          ? translatePinnedShortcut(
+              index,
+              command: shortcutUsesCommandKey(platform),
+            )
+          : null,
+      onTap: () => _pick(language),
+    );
     final auto = widget.source
         ? languages.where((l) => l.isAuto).firstOrNull
         : null;
@@ -322,7 +353,8 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
       ],
       if (pinnedAvailable.isNotEmpty) ...[
         _Header(l10n.translatePickerPinned),
-        ...pinnedAvailable.map(tile),
+        for (final (index, language) in pinnedAvailable.indexed)
+          pinnedTile(index, language),
       ],
       if (styles.isNotEmpty) ...[
         _Header(l10n.translatePickerStyles),
@@ -431,6 +463,8 @@ class _LanguageTile extends StatelessWidget {
     required this.selected,
     required this.pinned,
     required this.onTap,
+    this.pin,
+    this.shortcut,
   });
 
   final Language language;
@@ -438,12 +472,21 @@ class _LanguageTile extends StatelessWidget {
   final bool pinned;
   final VoidCallback onTap;
 
+  /// The stored pin that [language] stands for ([language] itself when
+  /// null); the pin button (un)pins it.
+  final Language? pin;
+
+  /// The keyboard shortcut that picks this language, shown at the end.
+  final ({String keys, String keysSemantics})? shortcut;
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final theme = Theme.of(context);
     final native = language.nativeName;
+    final shortcut = this.shortcut;
     void togglePin() =>
-        context.read<SettingsCubit>().togglePinnedLanguage(language);
+        context.read<SettingsCubit>().togglePinnedLanguage(pin ?? language);
     return ListTile(
       contentPadding: const EdgeInsetsDirectional.only(start: 24, end: 8),
       selected: selected,
@@ -463,6 +506,18 @@ class _LanguageTile extends StatelessWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (shortcut != null)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: 8),
+              child: Text(
+                shortcut.keys,
+                key: ValueKey('translate_language_shortcut:${language.code}'),
+                semanticsLabel: shortcut.keysSemantics,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
           if (selected) const Icon(Icons.check),
           IconButton(
             tooltip: pinned

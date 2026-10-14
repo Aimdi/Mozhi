@@ -50,6 +50,32 @@ class QualityToggle extends StatelessWidget {
   /// [QualityToggleLayout.icons]; below it use [QualityToggleLayout.menu].
   static const double iconsMinWidth = 300;
 
+  /// Narrowest app bar title (screen title, engine selector and toggle)
+  /// that fits [QualityToggleLayout.labels] at the normal text size; it
+  /// grows with the text size.
+  static const double labelsMinWidth = 520;
+
+  /// The layout for an app bar title area [width] wide: labelled segments
+  /// when it also holds the screen title ([withTitle]) and is at least
+  /// [labelsMinWidth] (scaled by [textScaler]) wide, icon-only segments
+  /// from [iconsMinWidth], else the menu.
+  static QualityToggleLayout layoutFor(
+    double width, {
+    TextScaler textScaler = TextScaler.noScaling,
+    bool withTitle = true,
+  }) {
+    final scale = textScaler.scale(_referenceFontSize) / _referenceFontSize;
+    if (withTitle && width >= labelsMinWidth * scale) {
+      return QualityToggleLayout.labels;
+    }
+    return width >= iconsMinWidth
+        ? QualityToggleLayout.icons
+        : QualityToggleLayout.menu;
+  }
+
+  /// Font size the text scale is measured at (segment labels).
+  static const double _referenceFontSize = 14;
+
   final QualityToggleLayout layout;
 
   @override

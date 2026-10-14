@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/usage/usage.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -10,6 +11,10 @@ import 'package:translation_repository/translation_repository.dart';
 import 'translate_cubit_helpers.dart';
 
 class _MockUsageTracker extends Mock implements UsageTracker;
+
+/// Input long enough (more than three words) for the smart swap to stop a
+/// streaming translation at the first snapshot.
+const _longText = 'how are you doing today';
 
 void main() {
   setUpAll(registerTranslateFallbacks);
@@ -68,6 +73,77 @@ void main() {
     );
 
     blocTest<TranslateCubit, TranslateState>(
+      'useDetectedAlternative of the target language switches the target too',
+      setUp: () => mocks.stubTranslate(),
+      build: () => mocks.build(),
+      seed: () => shown().copyWith(target: de),
+      act: (cubit) => cubit.useDetectedAlternative('de'),
+      verify: (cubit) {
+        // Never German into German: English (for non-English text) instead.
+        expect(cubit.state.source, de);
+        expect(cubit.state.target, en);
+        expect(cubit.state.output, 'Gift->en');
+        final request = mocks.translateRequests().single;
+        expect((request.source, request.target), (de, en));
+        verify(() => mocks.settings.setLanguages(source: de)).called(1);
+        verify(() => mocks.settings.setLanguages(target: en)).called(1);
+        verify(() => mocks.settings.addRecentLanguage(en)).called(1);
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'useDetectedAlternative of the target does nothing without another one',
+      build: () => mocks.build(),
+      seed: () => shown().copyWith(target: de, targetLanguages: const [de]),
+      act: (cubit) => cubit.useDetectedAlternative('de'),
+      expect: () => <TranslateState>[],
+      verify: (_) {
+        verifyNever(
+          () => mocks.settings.setLanguages(source: any(named: 'source')),
+        );
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'useDetectedAlternative after a smart swap goes back to the old target',
+      setUp: () {
+        mocks.stubSettings(const AppSettings(recentLanguages: [de, es]));
+        var calls = 0;
+        when(() => mocks.repository.translate(any(), any()))
+            .thenAnswer((invocation) {
+              final request =
+                  invocation.positionalArguments[1] as TranslationRequest;
+              final text = '${request.text}->${request.target.code}';
+              return Stream.value(switch (calls++) {
+                // French detected while translating into French: swap.
+                0 => resultOf(text, detected: 'fr'),
+                // Into German, the second detection doubts French.
+                1 => resultOf(text, detected: 'fr').copyWith(
+                  detectionUncertain: true,
+                  detectedAlternatives: ['de'],
+                ),
+                _ => resultOf(text, detected: request.source.code),
+              });
+            });
+      },
+      build: () => mocks.build(),
+      seed: () => readyState(input: 'Gift', target: fr),
+      act: (cubit) async {
+        await cubit.translate();
+        expect(cubit.state.target, de);
+        expect(cubit.state.detectedAlternativeLanguages, [de]);
+        cubit.useDetectedAlternative('de');
+        await Future<void>.delayed(Duration.zero);
+      },
+      verify: (cubit) {
+        expect(cubit.state.source, de);
+        // Back to French (not Spanish, the next recent language).
+        expect(cubit.state.target, fr);
+        expect(cubit.state.output, 'Gift->fr');
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
       'useDetectedAlternative ignores codes the engine does not list',
       build: () => mocks.build(),
       seed: shown,
@@ -102,7 +178,7 @@ void main() {
               final request =
                   invocation.positionalArguments[1] as TranslationRequest;
               return Stream.value(
-                resultOf('hello->${request.target.code}', engine: claude),
+                resultOf('text->${request.target.code}', engine: claude),
               );
             });
         // The marker arrives before any text.
@@ -111,11 +187,11 @@ void main() {
         );
       },
       build: () => mocks.build(),
-      seed: () => readyState(engine: claude, input: 'hello'),
+      seed: () => readyState(engine: claude, input: _longText),
       act: (cubit) => cubit.translate(),
       verify: (cubit) {
         expect(cubit.state.target, es);
-        expect(cubit.state.output, 'hello->es');
+        expect(cubit.state.output, 'text->es');
         expect(mocks.translateRequests().map((r) => r.target), [en, es]);
         expect(
           cubit.state.smartSwapNotice,
@@ -146,15 +222,111 @@ void main() {
         resultOf('', engine: claude, detected: 'en', isComplete: false),
       );
       final cubit = mocks.build()
-        ..emit(readyState(engine: claude, input: 'hi'));
+        ..emit(readyState(engine: claude, input: _longText));
       addTearDown(cubit.close);
 
       await cubit.translate();
 
       expect(first.hasListener, isFalse);
-      verify(() => tracker.recordText('claude', input: 'hi', output: 'hola'))
-          .called(1);
+      verify(
+        () => tracker.recordText('claude', input: _longText, output: 'hola'),
+      ).called(1);
     });
+
+    group('of short input', () {
+      /// Streams a partial snapshot whose marker names the target, then
+      /// [last] (once the test completes [release]).
+      Completer<void> stubShort(TranslationResult last) {
+        final release = Completer<void>();
+        var calls = 0;
+        when(() => mocks.repository.translate(any(), any()))
+            .thenAnswer((invocation) async* {
+              final request =
+                  invocation.positionalArguments[1] as TranslationRequest;
+              if (calls++ > 0) {
+                yield resultOf(
+                  '${request.text}->${request.target.code}',
+                  engine: claude,
+                );
+                return;
+              }
+              yield resultOf(
+                'Gift',
+                engine: claude,
+                detected: 'en',
+                isComplete: false,
+              );
+              await release.future;
+              yield last;
+            });
+        return release;
+      }
+
+      test('waits for the final result before swapping', () async {
+        final release = stubShort(
+          resultOf('Gift', engine: claude, detected: 'en'),
+        );
+        final cubit = mocks.build()
+          ..emit(readyState(engine: claude, input: 'Gift'));
+        addTearDown(cubit.close);
+
+        final done = cubit.translate();
+        await Future<void>.delayed(Duration.zero);
+        // The snapshot is shown; no swap yet.
+        expect(cubit.state.target, en);
+        expect(cubit.state.output, 'Gift');
+        expect(cubit.state.smartSwapNotice, isNull);
+
+        release.complete();
+        await done;
+        expect(cubit.state.target, es);
+        expect(cubit.state.output, 'Gift->es');
+      });
+
+      test('does not swap when the second detection is unsure', () async {
+        final release = stubShort(
+          resultOf(
+            'Gift',
+            engine: claude,
+            detected: 'en',
+          ).copyWith(detectionUncertain: true, detectedAlternatives: ['de']),
+        );
+        final cubit = mocks.build()
+          ..emit(readyState(engine: claude, input: 'Gift'));
+        addTearDown(cubit.close);
+
+        final done = cubit.translate();
+        release.complete();
+        await done;
+        expect(cubit.state.target, en);
+        expect(cubit.state.smartSwapNotice, isNull);
+        expect(cubit.state.detectionUncertain, isTrue);
+        // The other likely language is offered instead.
+        expect(cubit.state.detectedAlternativeLanguages, [de]);
+        expect(mocks.translateRequests(), hasLength(1));
+      });
+    });
+
+    blocTest<TranslateCubit, TranslateState>(
+      'never swaps on an uncertain detection',
+      setUp: () =>
+          when(() => mocks.repository.translate(any(), any())).thenAnswer(
+            (_) => Stream.value(
+              resultOf('Gift', detected: 'en').copyWith(
+                detectionUncertain: true,
+                detectedAlternatives: ['de'],
+              ),
+            ),
+          ),
+      build: () => mocks.build(),
+      seed: () => readyState(input: 'Gift'),
+      act: (cubit) => cubit.translate(),
+      verify: (cubit) {
+        expect(cubit.state.target, en);
+        expect(cubit.state.smartSwapNotice, isNull);
+        expect(cubit.state.output, 'Gift');
+      },
+    );
 
     blocTest<TranslateCubit, TranslateState>(
       'keeps streaming snapshots in another language',

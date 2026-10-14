@@ -87,7 +87,9 @@ void main() {
       final german = tester.widget<Text>(
         find.descendant(of: _alternative('de'), matching: find.byType(Text)),
       );
-      expect((german.textSpan! as TextSpan).locale, const Locale('de'));
+      // "German" is a UI-language name: read with the UI voice.
+      expect(german.data, 'German');
+      expect(german.textSpan, isNull);
 
       await tester.tap(_alternative('af'));
       verify(() => harness.translate.useDetectedAlternative('af')).called(1);

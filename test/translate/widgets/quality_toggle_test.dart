@@ -232,6 +232,77 @@ void main() {
       expect(find.byTooltip('More tools'), findsOneWidget);
     });
 
+    Finder appBarTitle() => find.descendant(
+      of: find.byType(AppBar),
+      matching: find.text('Translate'),
+    );
+
+    testWidgets('keeps the screen title next to labels when there is room', (
+      tester,
+    ) async {
+      final harness = _harness(_state());
+      await harness.pump(tester, size: const Size(1200, 800));
+      expect(appBarTitle(), findsOneWidget);
+      expect(find.text('Fast'), findsOneWidget);
+    });
+
+    testWidgets('makes room on 600-840 dp screens instead of overflowing', (
+      tester,
+    ) async {
+      final harness = _harness(_state(mode: QualityMode.best));
+      await harness.pump(tester, size: const Size(620, 900));
+      expect(tester.takeException(), isNull);
+      expect(_toggle, findsOneWidget);
+      expect(find.text('Best'), findsNothing);
+      expect(appBarTitle(), findsNothing);
+      // Without a toggle the title still shows.
+      final plain = _harness(_state(fast: false, best: false));
+      await plain.pump(tester, size: const Size(620, 900));
+      expect(appBarTitle(), findsOneWidget);
+    });
+
+    testWidgets('fits a 600-840 dp app bar at 200 % text', (tester) async {
+      final harness = _harness(_state(mode: QualityMode.best));
+      await harness.pump(tester, size: const Size(620, 900), textScale: 2);
+      expect(tester.takeException(), isNull);
+      expect(find.text('Best'), findsNothing);
+      // Everything stays reachable.
+      expect(
+        find.byKey(const Key('translate_engine_selector')),
+        findsOneWidget,
+      );
+      expect(find.byTooltip('More tools'), findsOneWidget);
+      for (final finder in [
+        find.byKey(const Key('translate_engine_selector')),
+        _toggle,
+      ]) {
+        final rect = tester.getRect(finder);
+        expect(rect.right, lessThanOrEqualTo(620));
+        expect(rect.left, greaterThanOrEqualTo(0));
+      }
+    });
+
+    testWidgets('the screen title gives way at 300 % text', (tester) async {
+      final harness = _harness(_state(fast: false, best: false));
+      await harness.pump(tester, size: const Size(620, 900), textScale: 3);
+      expect(tester.takeException(), isNull);
+    });
+
+    test('layoutFor follows the width and the text size', () {
+      expect(QualityToggle.layoutFor(600), QualityToggleLayout.labels);
+      expect(QualityToggle.layoutFor(440), QualityToggleLayout.icons);
+      expect(QualityToggle.layoutFor(280), QualityToggleLayout.menu);
+      expect(
+        QualityToggle.layoutFor(600, textScaler: const TextScaler.linear(2)),
+        QualityToggleLayout.icons,
+      );
+      // Phones (no screen title) never get labels.
+      expect(
+        QualityToggle.layoutFor(600, withTitle: false),
+        QualityToggleLayout.icons,
+      );
+    });
+
     testWidgets('is absent without quality engines', (tester) async {
       final harness = _harness(_state(fast: false, best: false));
       await harness.pump(tester);

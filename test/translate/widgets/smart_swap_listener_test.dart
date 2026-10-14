@@ -65,6 +65,40 @@ void main() {
       expect(find.text(_message), findsNothing);
     });
 
+    testWidgets('stays until dismissed under accessible navigation', (
+      tester,
+    ) async {
+      // Screen-reader users need time to reach Undo (WCAG 2.2.1).
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(accessibleNavigation: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      await pump(tester);
+      states.add(_swapped());
+      await tester.pumpAndSettle();
+      final bar = tester.widget<SnackBar>(find.byType(SnackBar));
+      expect(bar.persist, isTrue);
+      expect(bar.showCloseIcon, isTrue);
+
+      await tester.pump(smartSwapNoticeDuration * 3);
+      await tester.pumpAndSettle();
+      expect(find.text(_message), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Close'));
+      await tester.pumpAndSettle();
+      expect(find.text(_message), findsNothing);
+    });
+
+    testWidgets('times out without accessible navigation', (tester) async {
+      await pump(tester);
+      states.add(_swapped());
+      await tester.pumpAndSettle();
+      final bar = tester.widget<SnackBar>(find.byType(SnackBar));
+      expect(bar.persist, isFalse);
+      expect(bar.showCloseIcon, isFalse);
+    });
+
     testWidgets('Undo calls undoSmartSwap', (tester) async {
       await pump(tester);
       states.add(_swapped());

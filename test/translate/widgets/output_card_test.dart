@@ -523,6 +523,56 @@ void main() {
         verify(harness.translate.loadInsights).called(1);
       });
 
+      testWidgets('turn off instead of reloading after an instant '
+          'translation with a paid assist engine', (tester) async {
+        final controller = StreamController<TranslateState>.broadcast();
+        addTearDown(controller.close);
+        final initial = translatedState(assistEngine: claude)
+            .copyWith(insightsStatus: ExtraStatus.ready);
+        final harness = TranslateHarness(state: initial);
+        when(() => harness.translate.stream)
+            .thenAnswer((_) => controller.stream);
+        await harness.pump(tester, child: const OutputCard());
+        await tester.tap(find.byTooltip('Insights'));
+        await tester.pump();
+        expect(find.byTooltip('Hide insights'), findsOneWidget);
+
+        // A typing pause translated the edited text.
+        controller.add(
+          translatedState(
+            assistEngine: claude,
+            input: 'Hello there',
+          ).copyWith(instantResult: true),
+        );
+        await tester.pump();
+        verifyNever(harness.translate.loadInsights);
+        expect(find.byTooltip('Insights'), findsOneWidget);
+      });
+
+      testWidgets('reload after an instant translation when that is free', (
+        tester,
+      ) async {
+        final controller = StreamController<TranslateState>.broadcast();
+        addTearDown(controller.close);
+        final initial = translatedState(assistEngine: ollama)
+            .copyWith(insightsStatus: ExtraStatus.ready);
+        final harness = TranslateHarness(state: initial);
+        when(() => harness.translate.stream)
+            .thenAnswer((_) => controller.stream);
+        await harness.pump(tester, child: const OutputCard());
+        await tester.tap(find.byTooltip('Insights'));
+        await tester.pump();
+
+        controller.add(
+          translatedState(
+            assistEngine: ollama,
+            input: 'Hello there',
+          ).copyWith(instantResult: true),
+        );
+        await tester.pump();
+        verify(harness.translate.loadInsights).called(1);
+      });
+
       testWidgets('reload when they are reset for the same translation', (
         tester,
       ) async {

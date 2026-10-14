@@ -390,6 +390,94 @@ void main() {
       verify(harness.translate.loadRomanization).called(1);
     });
 
+    testWidgets('a romanization that was asked for is not paid for again '
+        'after an instant translation', (tester) async {
+      final initial = _japanese();
+      final harness = TranslateHarness(state: initial, settings: _off);
+      stubOutputExtras(harness);
+      final controller = StreamController<TranslateState>();
+      addTearDown(controller.close);
+      whenListen(harness.translate, controller.stream, initialState: initial);
+      await harness.pump(tester, child: const OutputCard());
+      await tester.tap(_button);
+      await tester.pump();
+      verify(harness.translate.loadRomanization).called(1);
+
+      final next = readyState(
+        engine: claude,
+        input: 'Good night',
+        target: japanese,
+        result: const TranslationResult(
+          engineId: 'ai:claude',
+          engineName: 'Claude',
+          text: 'おやすみなさい',
+        ),
+      ).copyWith(instantResult: true);
+      when(() => harness.translate.state).thenReturn(next);
+      controller.add(next);
+      await tester.pump();
+      verifyNever(harness.translate.loadRomanization);
+      // The button offers it again.
+      expect(find.byTooltip('Show romanization'), findsOneWidget);
+    });
+
+    testWidgets('a reloaded romanization is not announced again', (
+      tester,
+    ) async {
+      final initial = _japanese();
+      final harness = TranslateHarness(state: initial);
+      stubOutputExtras(harness);
+      final controller = StreamController<TranslateState>();
+      addTearDown(controller.close);
+      whenListen(harness.translate, controller.stream, initialState: initial);
+      await harness.pump(
+        tester,
+        child: const OutputCard(),
+        supportsAnnounce: true,
+      );
+      await tester.tap(_button);
+      await tester.pump();
+      controller.add(
+        initial.copyWith(
+          romanizationStatus: ExtraStatus.ready,
+          romanization: () => "Kon'nichiwa",
+        ),
+      );
+      await tester.pump();
+      expect(tester.takeAnnouncements(), [
+        isAccessibilityAnnouncement('Romanization ready'),
+      ]);
+
+      // The next translation (asked for) is romanized on its own: only the
+      // translation itself is announced.
+      const nextResult = TranslationResult(
+        engineId: 'ai:claude',
+        engineName: 'Claude',
+        text: 'おやすみなさい',
+      );
+      final next = readyState(
+        engine: claude,
+        input: 'Good night',
+        target: japanese,
+        result: nextResult,
+      );
+      controller.add(next);
+      await tester.pump();
+      verify(harness.translate.loadRomanization).called(2);
+      controller.add(
+        next.copyWith(
+          romanizationStatus: ExtraStatus.ready,
+          romanization: () => 'Oyasuminasai',
+        ),
+      );
+      await tester.pump();
+      expect(find.text('Oyasuminasai'), findsOneWidget);
+      expect(
+        tester.takeAnnouncements().map((a) => a.message),
+        isNot(contains('Romanization ready')),
+      );
+    });
+
     testWidgets('automatic romanizations do not reload on their own', (
       tester,
     ) async {

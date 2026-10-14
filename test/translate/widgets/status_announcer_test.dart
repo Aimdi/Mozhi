@@ -7,6 +7,7 @@ Widget _app(
   required bool supportsAnnounce,
   bool announceInitial = false,
   TextDirection? textDirection,
+  Object? announcementId,
 }) => MaterialApp(
   home: Builder(
     builder: (context) => MediaQuery(
@@ -16,6 +17,7 @@ Widget _app(
           message: message,
           announceInitial: announceInitial,
           textDirection: textDirection,
+          announcementId: announcementId,
           child: const Text('content'),
         ),
       ),
@@ -42,6 +44,24 @@ void main() {
       expect(tester.takeAnnouncements(), [
         isAccessibilityAnnouncement('مرحبا', textDirection: TextDirection.rtl),
       ]);
+    });
+
+    testWidgets('a new announcement id repeats the same message', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _app('Ready', supportsAnnounce: true, announcementId: 1),
+      );
+      await tester.pumpWidget(
+        _app('Ready', supportsAnnounce: true, announcementId: 2),
+      );
+      expect(tester.takeAnnouncements(), [
+        isAccessibilityAnnouncement('Ready'),
+      ]);
+      await tester.pumpWidget(
+        _app('Ready', supportsAnnounce: true, announcementId: 2),
+      );
+      expect(tester.takeAnnouncements(), isEmpty);
     });
 
     testWidgets('stays silent on the first build unless asked', (tester) async {

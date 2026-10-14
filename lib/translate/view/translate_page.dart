@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
@@ -45,12 +46,13 @@ class ShowShortcutsIntent extends Intent {
   const new();
 }
 
-/// Alt+1 … Alt+9: translate into pinned language [index] + 1
-/// (`AppSettings.pinnedLanguages`).
+/// Alt+1 … Alt+9 (Ctrl/Cmd+Alt+1 … 9 in a browser): translate into pinned
+/// language [index] + 1 of those the engine offers
+/// (`TranslateState.pinnedTargets`, as the language picker lists them).
 class SelectPinnedTargetIntent extends Intent {
   const new(this.index);
 
-  /// Zero-based index into the pinned languages.
+  /// Zero-based index into the pinned languages the engine offers.
   final int index;
 }
 
@@ -87,8 +89,11 @@ class _ShortcutAction<T extends Intent> extends Action<T> {
 ///
 /// Keyboard shortcuts are listed in [shortcuts] and in the cheat sheet
 /// (`?` or Ctrl/Cmd+/); Esc in the input clears it (see [InputCard]).
-/// Alt+1 … Alt+9 pick a pinned target language; on Apple platforms
-/// Option+digit keeps typing its character while a text field has focus.
+/// Alt+1 … Alt+9 pick a pinned target language (the n-th one the language
+/// picker lists under "Pinned"; keys without such a pin are not handled)
+/// and announce it to screen readers; on Apple platforms Option+digit
+/// keeps typing its character while a text field has focus. In a browser
+/// they are Ctrl/Cmd+Alt+1 … 9 ([shortcutsFor]).
 ///
 /// A smart swap of the target language is announced in a snack bar with
 /// Undo ([SmartSwapListener]).
@@ -145,6 +150,37 @@ class TranslateView extends StatelessWidget {
         SelectPinnedTargetIntent(8),
   };
 
+  /// [shortcuts] for the app ([web] false) or a browser: there Alt+digit
+  /// stays with the browser and the OS (tab switching, ChromeOS shelf
+  /// apps), so the pinned languages are Ctrl+Alt+digit (Cmd+Option+digit
+  /// on Apple platforms) instead.
+  static Map<ShortcutActivator, Intent> shortcutsFor({required bool web}) {
+    if (!web) return shortcuts;
+    return {
+      for (final entry in shortcuts.entries)
+        if (entry.value is! SelectPinnedTargetIntent) entry.key: entry.value,
+      for (final (index, digit) in _pinnedDigits.indexed) ...{
+        SingleActivator(digit, control: true, alt: true):
+            SelectPinnedTargetIntent(index),
+        SingleActivator(digit, meta: true, alt: true): SelectPinnedTargetIntent(
+          index,
+        ),
+      },
+    };
+  }
+
+  static const List<LogicalKeyboardKey> _pinnedDigits = [
+    LogicalKeyboardKey.digit1,
+    LogicalKeyboardKey.digit2,
+    LogicalKeyboardKey.digit3,
+    LogicalKeyboardKey.digit4,
+    LogicalKeyboardKey.digit5,
+    LogicalKeyboardKey.digit6,
+    LogicalKeyboardKey.digit7,
+    LogicalKeyboardKey.digit8,
+    LogicalKeyboardKey.digit9,
+  ];
+
   void _translateNow(BuildContext context) {
     final cubit = context.read<TranslateCubit>();
     final state = cubit.state;
@@ -175,23 +211,11 @@ class TranslateView extends StatelessWidget {
     );
   }
 
-  /// Whether Alt+digit picks pinned language [index]: engines are loaded,
-  /// the pin exists, and (on Apple platforms, where Option+digit types a
-  /// character) focus is not in a text field.
-  bool _canSelectPinned(BuildContext context, int index) {
-    if (context.read<TranslateCubit>().state.engines.isEmpty) return false;
-    if (index >= context.read<SettingsCubit>().state.pinnedLanguages.length) {
-      return false;
-    }
-    return !shortcutUsesCommandKey(Theme.of(context).platform) ||
-        !_focusIsInTextField();
-  }
-
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
     return Shortcuts(
-      shortcuts: shortcuts,
+      shortcuts: shortcutsFor(web: kIsWeb),
       child: Actions(
         actions: {
           TranslateIntent: CallbackAction<TranslateIntent>(
@@ -220,41 +244,38 @@ class TranslateView extends StatelessWidget {
                 HardwareKeyboard.instance.isControlPressed ||
                 HardwareKeyboard.instance.isMetaPressed,
           ),
-          SelectPinnedTargetIntent: _ShortcutAction<SelectPinnedTargetIntent>(
-            (intent) =>
-                context.read<TranslateCubit>().selectPinnedTarget(intent.index),
-            enabled: (intent) => _canSelectPinned(context, intent.index),
-          ),
         },
-        child: Focus(
-          autofocus: true,
-          child: SmartSwapListener(
-            child: Scaffold(
-              appBar: _TranslateAppBar(
-                showTitle: width >= TranslateLayout.compactBreakpoint,
-              ),
-              body: BlocBuilder<TranslateCubit, TranslateState>(
-                buildWhen: (previous, current) =>
-                    previous.enginesStatus != current.enginesStatus ||
-                    previous.engines.isEmpty != current.engines.isEmpty,
-                builder: (context, state) {
-                  if (state.engines.isEmpty) {
-                    return switch (state.enginesStatus) {
-                      EnginesStatus.initial ||
-                      EnginesStatus.loading => const TranslateSkeleton(),
-                      EnginesStatus.ready ||
-                      EnginesStatus.failure => const NoEnginesView(),
-                    };
-                  }
-                  // Measure the pane itself: the shell's navigation rail
-                  // takes part of the window on large screens.
-                  return LayoutBuilder(
-                    builder: (context, constraints) =>
-                        constraints.maxWidth >= TranslateLayout.wideBreakpoint
-                        ? const _WideLayout()
-                        : const _NarrowLayout(),
-                  );
-                },
+        child: _PinnedTargetActions(
+          child: Focus(
+            autofocus: true,
+            child: SmartSwapListener(
+              child: Scaffold(
+                appBar: _TranslateAppBar(
+                  showTitle: width >= TranslateLayout.compactBreakpoint,
+                ),
+                body: BlocBuilder<TranslateCubit, TranslateState>(
+                  buildWhen: (previous, current) =>
+                      previous.enginesStatus != current.enginesStatus ||
+                      previous.engines.isEmpty != current.engines.isEmpty,
+                  builder: (context, state) {
+                    if (state.engines.isEmpty) {
+                      return switch (state.enginesStatus) {
+                        EnginesStatus.initial ||
+                        EnginesStatus.loading => const TranslateSkeleton(),
+                        EnginesStatus.ready ||
+                        EnginesStatus.failure => const NoEnginesView(),
+                      };
+                    }
+                    // Measure the pane itself: the shell's navigation rail
+                    // takes part of the window on large screens.
+                    return LayoutBuilder(
+                      builder: (context, constraints) =>
+                          constraints.maxWidth >= TranslateLayout.wideBreakpoint
+                          ? const _WideLayout()
+                          : const _NarrowLayout(),
+                    );
+                  },
+                ),
               ),
             ),
           ),
@@ -264,10 +285,71 @@ class TranslateView extends StatelessWidget {
   }
 }
 
+/// Handles [SelectPinnedTargetIntent] (Alt+1 … Alt+9) and tells screen
+/// reader users which language it picked ("Translating into German").
+class _PinnedTargetActions extends StatefulWidget {
+  const new({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_PinnedTargetActions> createState() => _PinnedTargetActionsState();
+}
+
+class _PinnedTargetActionsState extends State<_PinnedTargetActions> {
+  String? _announcement;
+  int _announcements = 0;
+
+  /// Whether the shortcut for a pin applies: engines are loaded, the
+  /// engine offers that many pins (otherwise the key is left to others),
+  /// and (in the Apple apps, where Option+digit types a character) focus
+  /// is not in a text field.
+  bool _enabled(SelectPinnedTargetIntent intent) {
+    final state = context.read<TranslateCubit>().state;
+    if (state.engines.isEmpty) return false;
+    final pinned = context.read<SettingsCubit>().state.pinnedLanguages;
+    if (intent.index >= state.pinnedTargets(pinned).length) return false;
+    return kIsWeb ||
+        !shortcutUsesCommandKey(Theme.of(context).platform) ||
+        !_focusIsInTextField();
+  }
+
+  void _select(SelectPinnedTargetIntent intent) {
+    final cubit = context.read<TranslateCubit>()
+      ..selectPinnedTarget(intent.index);
+    // Also when it already was the target: the key press is confirmed.
+    final target = cubit.state.target;
+    setState(() {
+      _announcement = context.l10n.translatePinnedTargetSelected(target.name);
+      _announcements++;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Actions(
+      actions: {
+        SelectPinnedTargetIntent: _ShortcutAction<SelectPinnedTargetIntent>(
+          _select,
+          enabled: _enabled,
+        ),
+      },
+      child: StatusAnnouncer(
+        message: _announcement,
+        announcementId: _announcements,
+        child: widget.child,
+      ),
+    );
+  }
+}
+
 class _TranslateAppBar extends StatelessWidget implements PreferredSizeWidget {
   const new({required this.showTitle});
 
   final bool showTitle;
+
+  /// Largest part of the title area the screen title takes.
+  static const _maxTitleShare = 0.4;
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
@@ -284,32 +366,49 @@ class _TranslateAppBar extends StatelessWidget implements PreferredSizeWidget {
         actions: const [MoreToolsButton(), SizedBox(width: 4)],
       );
     }
+    final hasQualityModes = context.select<TranslateCubit, bool>(
+      (cubit) => cubit.state.hasQualityModes,
+    );
     // The quality toggle (Fast / Best) sits next to the engine selector;
-    // it is empty while no quality engine is configured.
+    // it is empty while no quality engine is configured. Its layout (and
+    // whether the screen title still fits) follows the available width
+    // and the text size.
     return AppBar(
       titleSpacing: showTitle ? null : 8,
-      title: showTitle
-          ? Row(
-              children: [
-                Text(l10n.translateTitle),
-                const SizedBox(width: 16),
-                const Flexible(child: EngineSelectorButton()),
-                const QualityToggle(),
-              ],
-            )
-          : LayoutBuilder(
-              builder: (context, constraints) => Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Flexible(child: EngineSelectorButton()),
-                  QualityToggle(
-                    layout: constraints.maxWidth >= QualityToggle.iconsMinWidth
-                        ? QualityToggleLayout.icons
-                        : QualityToggleLayout.menu,
+      title: LayoutBuilder(
+        builder: (context, constraints) {
+          final layout = QualityToggle.layoutFor(
+            constraints.maxWidth,
+            textScaler: MediaQuery.textScalerOf(context),
+            withTitle: showTitle,
+          );
+          final title =
+              showTitle &&
+              (!hasQualityModes || layout == QualityToggleLayout.labels);
+          return Row(
+            mainAxisSize: title ? MainAxisSize.max : MainAxisSize.min,
+            children: [
+              if (title) ...[
+                // Never more than part of the bar (long titles, large
+                // text): the rest is the selector's and the toggle's.
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: constraints.maxWidth * _maxTitleShare,
                   ),
-                ],
-              ),
-            ),
+                  child: Text(
+                    l10n.translateTitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 16),
+              ],
+              const Flexible(child: EngineSelectorButton()),
+              QualityToggle(layout: layout),
+            ],
+          );
+        },
+      ),
       actions: const [
         OptionsButton(),
         _CompareToggle(),

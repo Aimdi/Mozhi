@@ -748,8 +748,19 @@ void main() {
         verifyNever(() => cubit.translate());
       });
 
+      /// [cubit] whose state follows `setInput`, starting from [initial].
+      void followInput(TranslateState initial) {
+        var state = initial;
+        when(() => cubit.state).thenAnswer((_) => state);
+        when(() => cubit.setInput(any())).thenAnswer(
+          (invocation) => state = state.copyWith(
+            input: invocation.positionalArguments.single as String,
+          ),
+        );
+      }
+
       test('puts the input back for a link without text', () async {
-        when(() => cubit.state).thenReturn(withModes(input: 'old text'));
+        followInput(withModes(input: 'old text'));
 
         await const TranslateLink(quality: TranslateLinkQuality.best)
             .applyTo(cubit);
@@ -761,6 +772,37 @@ void main() {
         ]);
         verifyNever(() => cubit.translate());
       });
+
+      test('keeps what the user typed while the engine switched', () async {
+        followInput(withModes(input: 'old text'));
+        when(() => cubit.setQualityMode(any())).thenAnswer((_) async {
+          // The engine's languages load; meanwhile the user types.
+          cubit.setInput('new text');
+        });
+
+        await const TranslateLink(quality: TranslateLinkQuality.best)
+            .applyTo(cubit);
+
+        expect(cubit.state.input, 'new text');
+        verifyNever(() => cubit.setInput('old text'));
+      });
+
+      test(
+        "leaves the input alone when the mode's engine is selected",
+        () async {
+          // Best is the engine in use: only the mode changes, nothing is
+          // translated again, so the translation can stay.
+          followInput(
+            withModes(input: 'old text').copyWith(engine: () => _aiEngine),
+          );
+
+          await const TranslateLink(quality: TranslateLinkQuality.best)
+              .applyTo(cubit);
+
+          verify(() => cubit.setQualityMode(QualityMode.best)).called(1);
+          verifyNever(() => cubit.setInput(any()));
+        },
+      );
 
       test('puts the text in when it was ignored as a repeat', () async {
         var state = withModes(input: 'old');

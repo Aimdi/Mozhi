@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
+import 'package:mozhi/translate/translate.dart';
 import 'package:mozhi/translate/widgets/widgets.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -32,6 +35,55 @@ void main() {
         find.bySemanticsLabel('Source language: Detected: English'),
         findsOneWidget,
       );
+    });
+
+    testWidgets('flags a detection the engine is unsure about', (tester) async {
+      // Two words: only the engine's second detection says it is unsure,
+      // and the bar agrees with the chips under the translation.
+      final harness = TranslateHarness(
+        state: translatedState(
+          input: 'Bank Gift',
+          result: const TranslationResult(
+            engineId: 'mozhi:deepl',
+            engineName: 'DeepL',
+            text: 'Banque cadeau',
+            detectedSource: 'en',
+            detectionUncertain: true,
+            detectedAlternatives: ['de'],
+          ),
+        ),
+      );
+      await harness.pump(tester, child: const LanguageBar());
+      expect(
+        find.bySemanticsLabel('Source language: Detected: English?'),
+        findsOneWidget,
+      );
+      expect(find.byIcon(Icons.help_outline), findsOneWidget);
+    });
+
+    testWidgets('updates when only the engine verdict changes', (tester) async {
+      const certain = TranslationResult(
+        engineId: 'mozhi:deepl',
+        engineName: 'DeepL',
+        text: 'Banque cadeau',
+        detectedSource: 'en',
+      );
+      final initial = translatedState(input: 'Bank Gift', result: certain);
+      final harness = TranslateHarness(state: initial);
+      final states = StreamController<TranslateState>.broadcast();
+      addTearDown(states.close);
+      when(() => harness.translate.stream).thenAnswer((_) => states.stream);
+      await harness.pump(tester, child: const LanguageBar());
+      expect(find.byIcon(Icons.help_outline), findsNothing);
+
+      final unsure = translatedState(
+        input: 'Bank Gift',
+        result: certain.copyWith(detectionUncertain: true),
+      );
+      harness.setState(unsure);
+      states.add(unsure);
+      await tester.pump();
+      expect(find.byIcon(Icons.help_outline), findsOneWidget);
     });
 
     testWidgets('shows the selected source language', (tester) async {
@@ -233,6 +285,63 @@ void main() {
       // Custom recents are hidden for Mozhi engines.
       expect(find.text('Pirate speak'), findsNothing);
       expect(find.byTooltip('Unpin Japanese'), findsNWidgets(2));
+    });
+
+    testWidgets('lists the pins the engine offers, numbered on desktop', (
+      tester,
+    ) async {
+      // A pin saved from another engine ("de-DE") is matched like
+      // everywhere else; Korean is not offered.
+      const germany = Language(code: 'de-DE', name: 'German (Germany)');
+      const korean = Language(code: 'ko', name: 'Korean');
+      final harness = TranslateHarness(
+        settings: const AppSettings(
+          pinnedLanguages: [korean, germany, japanese],
+        ),
+      );
+      await harness.pump(
+        tester,
+        child: const LanguageBar(),
+        size: const Size(1000, 1600),
+        platform: TargetPlatform.linux,
+      );
+      await openTarget(tester);
+      expect(find.text('Pinned'), findsOneWidget);
+      expect(find.text('Korean'), findsNothing);
+      final germanShortcut = find.byKey(
+        const ValueKey('translate_language_shortcut:de'),
+      );
+      expect(tester.widget<Text>(germanShortcut).data, 'Alt + 1');
+      expect(tester.widget<Text>(germanShortcut).semanticsLabel, 'Alt 1');
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('translate_language_shortcut:ja')),
+            )
+            .data,
+        'Alt + 2',
+      );
+      // Only the Pinned entries are numbered.
+      expect(find.text('Alt + 3'), findsNothing);
+      // Unpinning removes the saved pin.
+      await tester.tap(find.byTooltip('Unpin German').first);
+      verify(() => harness.settings.togglePinnedLanguage(germany)).called(1);
+    });
+
+    testWidgets('pins are not numbered on phones or in the source list', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(
+        settings: const AppSettings(pinnedLanguages: [german]),
+      );
+      await harness.pump(
+        tester,
+        child: const LanguageBar(),
+        size: const Size(800, 1600),
+      );
+      await openTarget(tester);
+      expect(find.text('Pinned'), findsOneWidget);
+      expect(find.text('Alt + 1'), findsNothing);
     });
 
     testWidgets('pin button and long press toggle pins', (tester) async {

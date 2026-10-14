@@ -373,18 +373,33 @@ void main() {
   });
 
   group('selectPinnedTarget', () {
+    const pins = [fr, ja, pirate, Language.auto, de];
+
     setUp(() {
-      mocks.stubSettings(
-        const AppSettings(pinnedLanguages: [fr, ja, pirate, Language.auto, de]),
+      mocks.stubSettings(const AppSettings(pinnedLanguages: pins));
+    });
+
+    test('pinnedTargets are the pins the engine offers, as it lists them', () {
+      // Google lists no Japanese and takes no custom languages.
+      expect(readyState().pinnedTargets(pins), [fr, de]);
+      expect(readyState(engine: claude).pinnedTargets(pins), [fr, pirate, de]);
+      // Matched like any other language, without duplicates.
+      expect(
+        readyState().pinnedTargets(const [
+          Language(code: 'de-DE', name: 'German (Germany)'),
+          de,
+        ]),
+        [de],
       );
+      expect(readyState().usableTarget(Language.auto), isNull);
     });
 
     blocTest<TranslateCubit, TranslateState>(
-      'selects the pinned language like setTarget',
+      'selects pin n of those the engine offers, like setTarget',
       setUp: () => mocks.stubTranslate(),
       build: () => mocks.build(),
       seed: () => readyState(input: 'hi'),
-      act: (cubit) => cubit.selectPinnedTarget(4),
+      act: (cubit) => cubit.selectPinnedTarget(1),
       verify: (cubit) {
         expect(cubit.state.target, de);
         expect(mocks.translateRequests().single.target, de);
@@ -393,23 +408,21 @@ void main() {
     );
 
     blocTest<TranslateCubit, TranslateState>(
-      'ignores missing pins and languages the engine cannot take',
+      'ignores indexes beyond the pins the engine offers',
       build: () => mocks.build(),
       seed: readyState,
       act: (cubit) => cubit
         ..selectPinnedTarget(-1)
-        ..selectPinnedTarget(5)
-        ..selectPinnedTarget(1)
         ..selectPinnedTarget(2)
-        ..selectPinnedTarget(3),
+        ..selectPinnedTarget(4),
       expect: () => <TranslateState>[],
     );
 
     blocTest<TranslateCubit, TranslateState>(
-      'selects custom pins on AI engines',
+      'counts custom pins on AI engines',
       build: () => mocks.build(),
       seed: () => readyState(engine: claude),
-      act: (cubit) => cubit.selectPinnedTarget(2),
+      act: (cubit) => cubit.selectPinnedTarget(1),
       verify: (cubit) => expect(cubit.state.target, pirate),
     );
   });

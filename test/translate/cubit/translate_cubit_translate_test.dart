@@ -46,6 +46,33 @@ void main() {
       verify: (cubit) {
         expect(mocks.translateRequests().single.text, 'hallo');
         expect(cubit.state.output, 'hallo->en');
+        // Started by a typing pause, not by the user.
+        expect(cubit.state.instantResult, isTrue);
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'a translation the user asks for is not instant',
+      setUp: () => mocks.stubTranslate(),
+      build: () => mocks.build(),
+      seed: readyState,
+      act: (cubit) async {
+        cubit.setInput('hallo');
+        await Future<void>.delayed(afterDebounce);
+        expect(cubit.state.instantResult, isTrue);
+        await cubit.translate();
+      },
+      verify: (cubit) {
+        expect(cubit.state.output, 'hallo->en');
+        expect(cubit.state.instantResult, isFalse);
+        // Dropping the result drops the flag.
+        expect(
+          cubit.state
+              .copyWith(instantResult: true)
+              .copyWith(result: () => null)
+              .instantResult,
+          isFalse,
+        );
       },
     );
 

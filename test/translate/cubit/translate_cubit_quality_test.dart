@@ -195,6 +195,94 @@ void main() {
     );
   });
 
+  group('an engine reload that changes the engine', () {
+    const paragraph = 'A paragraph the user translated with Google.';
+
+    /// Best = Claude was unavailable: Google translated [paragraph]; now
+    /// Claude is back.
+    TranslateState googleResult() => readyState(
+      input: paragraph,
+      engines: const [google, deepl],
+      result: resultOf('Ein Absatz'),
+      status: TranslateStatus.success,
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'does not send the input to a paid AI engine on its own',
+      setUp: () {
+        mocks
+          ..stubSettings(configured.copyWith(qualityMode: QualityMode.best))
+          ..stubTranslate();
+      },
+      build: () => mocks.build(),
+      seed: googleResult,
+      act: (cubit) => cubit.loadEngines(refresh: true),
+      verify: (cubit) {
+        expect(cubit.state.engine, claude);
+        expect(cubit.state.qualityMode, QualityMode.best);
+        expect(cubit.state.result, isNull);
+        expect(cubit.state.input, paragraph);
+        verifyNever(() => mocks.repository.translate(any(), any()));
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'translates again when instant AI translation is on',
+      setUp: () {
+        mocks
+          ..stubSettings(
+            configured.copyWith(
+              qualityMode: QualityMode.best,
+              instantTranslateAi: true,
+            ),
+          )
+          ..stubTranslate();
+      },
+      build: () => mocks.build(),
+      seed: googleResult,
+      act: (cubit) => cubit.loadEngines(refresh: true),
+      verify: (cubit) {
+        expect(cubit.state.output, '$paragraph->en');
+        expect(cubit.state.instantResult, isTrue);
+        verify(() => mocks.repository.translate(claude, any())).called(1);
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'does not translate when instant translation is off',
+      setUp: () {
+        mocks
+          ..stubSettings(
+            const AppSettings(engineId: 'mozhi:deepl', instantTranslate: false),
+          )
+          ..stubTranslate();
+      },
+      build: () => mocks.build(),
+      seed: googleResult,
+      act: (cubit) => cubit.loadEngines(refresh: true),
+      verify: (cubit) {
+        expect(cubit.state.engine, deepl);
+        verifyNever(() => mocks.repository.translate(any(), any()));
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'translates again with a free engine and instant translation on',
+      setUp: () {
+        mocks
+          ..stubSettings(const AppSettings(engineId: 'mozhi:deepl'))
+          ..stubTranslate();
+      },
+      build: () => mocks.build(),
+      seed: googleResult,
+      act: (cubit) => cubit.loadEngines(refresh: true),
+      verify: (cubit) {
+        expect(cubit.state.engine, deepl);
+        verify(() => mocks.repository.translate(deepl, any())).called(1);
+      },
+    );
+  });
+
   group('setQualityMode', () {
     setUp(() => mocks.stubSettings(configured));
 
@@ -234,7 +322,7 @@ void main() {
     );
 
     blocTest<TranslateCubit, TranslateState>(
-      'off keeps the engine when the normal one is unavailable',
+      'off uses the default engine when the normal one is unavailable',
       setUp: () => mocks.stubSettings(
         configured.copyWith(
           engineId: () => 'mozhi:gone',
@@ -244,7 +332,133 @@ void main() {
       build: () => mocks.build(),
       seed: () => ready(engine: claude, mode: QualityMode.best),
       act: (cubit) => cubit.setQualityMode(QualityMode.off),
-      expect: () => [ready(engine: claude)],
+      verify: (cubit) {
+        expect(cubit.state.engine, google);
+        expect(cubit.state.qualityMode, QualityMode.off);
+        // The saved normal engine is kept for when it comes back.
+        verifyNever(() => mocks.settings.setEngine(any()));
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'off goes back to the engine in use before when none was ever picked',
+      setUp: () =>
+          mocks.stubSettings(const AppSettings(bestEngineId: 'ai:claude')),
+      build: () => mocks.build(),
+      seed: () => readyState(engine: deepl).copyWith(bestEngine: () => claude),
+      act: (cubit) async {
+        await cubit.setQualityMode(QualityMode.best);
+        expect(cubit.state.engine, claude);
+        await cubit.setQualityMode(QualityMode.off);
+      },
+      verify: (cubit) {
+        expect(cubit.state.engine, deepl);
+        expect(cubit.state.qualityMode, QualityMode.off);
+        // The fallback becomes the normal engine (also after a restart).
+        verify(() => mocks.settings.setEngine('mozhi:deepl')).called(1);
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'off after a restart in a mode, without a normal engine, uses the '
+      'default engine',
+      setUp: () => mocks.stubSettings(
+        const AppSettings(
+          bestEngineId: 'ai:claude',
+          qualityMode: QualityMode.best,
+        ),
+      ),
+      build: () => mocks.build(),
+      seed: () => readyState(engine: claude)
+          .copyWith(qualityMode: QualityMode.best, bestEngine: () => claude),
+      act: (cubit) => cubit.setQualityMode(QualityMode.off),
+      verify: (cubit) {
+        expect(cubit.state.engine, google);
+        expect(cubit.state.qualityMode, QualityMode.off);
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'off never stays on the mode engine while another one is available',
+      setUp: () => mocks.stubSettings(
+        const AppSettings(
+          bestEngineId: 'ai:claude',
+          qualityMode: QualityMode.best,
+        ),
+      ),
+      build: () => mocks.build(),
+      seed: () => readyState(
+        engine: claude,
+        engines: const [claude, deepl],
+      ).copyWith(qualityMode: QualityMode.best, bestEngine: () => claude),
+      act: (cubit) => cubit.setQualityMode(QualityMode.off),
+      verify: (cubit) {
+        expect(cubit.state.engine, deepl);
+        expect(cubit.state.qualityMode, QualityMode.off);
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'off keeps the engine when it is the only one',
+      setUp: () => mocks.stubSettings(
+        const AppSettings(
+          bestEngineId: 'ai:claude',
+          qualityMode: QualityMode.best,
+        ),
+      ),
+      build: () => mocks.build(),
+      seed: () => readyState(
+        engine: claude,
+        engines: const [claude],
+      ).copyWith(qualityMode: QualityMode.best, bestEngine: () => claude),
+      act: (cubit) => cubit.setQualityMode(QualityMode.off),
+      expect: () => [
+        readyState(
+          engine: claude,
+          engines: const [claude],
+        ).copyWith(bestEngine: () => claude),
+      ],
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'off while already off only saves the mode',
+      setUp: () => mocks.stubSettings(
+        configured.copyWith(
+          engineId: () => 'mozhi:deepl',
+          qualityMode: QualityMode.best,
+        ),
+      ),
+      build: () => mocks.build(),
+      // The saved mode's engine was unavailable when engines loaded.
+      seed: ready,
+      act: (cubit) => cubit.setQualityMode(QualityMode.off),
+      expect: () => <TranslateState>[],
+      verify: (cubit) {
+        expect(cubit.state.engine, google);
+        verify(() => mocks.settings.setQualityMode(QualityMode.off)).called(1);
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'switching between modes keeps the engine to go back to',
+      setUp: () {
+        mocks
+          ..stubSettings(
+            const AppSettings(
+              fastEngineId: 'mozhi:deepl',
+              bestEngineId: 'ai:claude',
+            ),
+          )
+          ..stubTranslate();
+      },
+      build: () => mocks.build(),
+      seed: ready,
+      act: (cubit) async {
+        await cubit.setQualityMode(QualityMode.fast);
+        await cubit.setQualityMode(QualityMode.best);
+        await cubit.setQualityMode(QualityMode.off);
+      },
+      verify: (cubit) => expect(cubit.state.engine, google),
     );
 
     blocTest<TranslateCubit, TranslateState>(
@@ -424,6 +638,28 @@ void main() {
         expect(cubit.state.bestEngine, isNull);
         verify(() => mocks.settings.setQualityMode(QualityMode.off)).called(1);
         verifyNever(() => mocks.settings.setEngine(any()));
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'without a normal engine, a removed mode engine gives way to the '
+      'default one',
+      setUp: () => mocks.stubSettings(
+        const AppSettings(
+          bestEngineId: 'ai:claude',
+          qualityMode: QualityMode.best,
+        ),
+      ),
+      build: () => mocks.build(),
+      seed: () => readyState(engine: claude)
+          .copyWith(qualityMode: QualityMode.best, bestEngine: () => claude),
+      act: (cubit) async {
+        await change(const AppSettings(qualityMode: QualityMode.best));
+        await Future<void>.delayed(Duration.zero);
+      },
+      verify: (cubit) {
+        expect(cubit.state.engine, google);
+        expect(cubit.state.qualityMode, QualityMode.off);
       },
     );
 
