@@ -285,6 +285,41 @@ void main() {
         expect(config.apiKey, isNull);
       });
 
+      testWidgets('the temperature slider adds no empty full-screen node', (
+        tester,
+      ) async {
+        final handle = tester.ensureSemantics();
+        await pump(tester, providerId: 'p1');
+        await tester.ensureVisible(find.byType(Slider));
+        await tester.pumpAndSettle();
+        final screen = tester.view.physicalSize / tester.view.devicePixelRatio;
+        // A Slider's value indicator overlay used to add a screen-sized
+        // leaf without a label or actions above the page.
+        final covering = find.semantics.byPredicate((node) {
+          final data = node.getSemanticsData();
+          return !node.isMergedIntoParent &&
+              !node.hasChildren &&
+              data.label.isEmpty &&
+              data.actions == 0 &&
+              node.rect.width >= screen.width &&
+              node.rect.height >= screen.height / 2;
+        });
+        expect(covering, findsNothing);
+        // The slider is still one adjustable node named by its label.
+        final slider = tester.getSemantics(find.byType(Slider));
+        expect(
+          slider,
+          isSemantics(
+            value: '0.7',
+            isSlider: true,
+            hasIncreaseAction: true,
+            hasDecreaseAction: true,
+          ),
+        );
+        expect(slider.label, startsWith('Temperature'));
+        handle.dispose();
+      });
+
       testWidgets('reveals the API key', (tester) async {
         await pump(tester, presetId: 'openai');
         bool obscured() => tester

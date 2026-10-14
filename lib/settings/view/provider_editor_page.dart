@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
+import 'package:mozhi/core/widgets/local_overlay.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/view/widgets/add_instance_dialog.dart';
@@ -1078,15 +1079,22 @@ class _TemperatureField extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Semantics(
-                  label: l10n.settingsProviderTemperature,
-                  child: Slider(
-                    value: current.clamp(0, 2),
-                    max: 2,
-                    divisions: 20,
-                    label: current.toStringAsFixed(1),
-                    semanticFormatterCallback: (v) => v.toStringAsFixed(1),
-                    onChanged: onChanged,
+                // The slider's own overlay keeps its value indicator's
+                // empty semantics node off the rest of the page (see
+                // LocalOverlay); MergeSemantics folds it into the slider.
+                child: MergeSemantics(
+                  child: Semantics(
+                    label: l10n.settingsProviderTemperature,
+                    child: LocalOverlay(
+                      child: Slider(
+                        value: current.clamp(0, 2),
+                        max: 2,
+                        divisions: 20,
+                        label: current.toStringAsFixed(1),
+                        semanticFormatterCallback: (v) => v.toStringAsFixed(1),
+                        onChanged: onChanged,
+                      ),
+                    ),
                   ),
                 ),
               ),

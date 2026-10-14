@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/local_overlay.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/speech_settings_cubit.dart';
 import 'package:mozhi/settings/view/widgets/choice_dialog.dart';
@@ -158,7 +159,7 @@ class _RateSetting extends StatelessWidget {
                 child: MergeSemantics(
                   child: Semantics(
                     label: l10n.speechRate,
-                    child: _LocalOverlay(
+                    child: LocalOverlay(
                       child: Slider(
                         key: const Key('speech_rate_slider'),
                         value: rate,
@@ -203,49 +204,6 @@ class _RateSetting extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Gives [child] an [Overlay] of its own, the size of [child].
-///
-/// A Material [Slider] always keeps its value indicator shown in the nearest
-/// overlay (an [OverlayPortal]), even when no indicator is drawn. That
-/// overlay child is laid out at the overlay's full size and gets a semantics
-/// node of its own: in the page's overlay it is an empty, screen-sized node
-/// above the whole settings list, which on the web intercepts pointer events
-/// meant for the widgets below it. In this local overlay the node stays
-/// inside the slider's bounds, and the enclosing [MergeSemantics] folds it
-/// into the slider's node.
-class _LocalOverlay extends StatefulWidget {
-  const new({required this.child});
-
-  final Widget child;
-
-  @override
-  State<_LocalOverlay> createState() => _LocalOverlayState();
-}
-
-class _LocalOverlayState extends State<_LocalOverlay> {
-  late final OverlayEntry _entry = OverlayEntry(
-    canSizeOverlay: true,
-    builder: (context) => widget.child,
-  );
-
-  @override
-  void didUpdateWidget(_LocalOverlay oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.child != widget.child) _entry.markNeedsBuild();
-  }
-
-  @override
-  void dispose() {
-    _entry
-      ..remove()
-      ..dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => Overlay(initialEntries: [_entry]);
 }
 
 class _VoicesHeader extends StatelessWidget {
