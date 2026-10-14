@@ -2,6 +2,7 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart' show Bidi, DateFormat;
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/bidi.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -49,7 +50,12 @@ class _HistoryEntryTileState extends State<HistoryEntryTile> {
     final colors = theme.colorScheme;
     final time = DateFormat.jm(l10n.localeName)
         .format(entry.createdAt.toLocal());
-    final pair = l10n.historyLanguagePair(_sourceName(l10n), entry.target.name);
+    // Isolated so Latin-script names keep the arrow's direction in RTL
+    // locales.
+    final pair = l10n.historyLanguagePair(
+      bidiIsolate(_sourceName(l10n)),
+      bidiIsolate(entry.target.name),
+    );
     final sourceCode = entry.source.isAuto
         ? entry.detectedSource
         : entry.source.isCustom

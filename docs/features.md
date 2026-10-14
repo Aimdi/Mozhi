@@ -38,7 +38,7 @@ alone.
   want it. Otherwise press **Translate**.
 - **Output actions:** copy, share, listen, add to favourites, and the elapsed
   time per engine. With an AI model available, the output also offers
-  **Insights**, **Show romanization** and **Show alignment** (see below).
+  **Insights**, **Show romanization** and **Show matching phrases** (see below).
 - **Definitions.** For single words, Google and Reverso results from Mozhi
   include definitions with examples and synonyms.
 - **Same language in and out** (AI): choose the same source and target
@@ -134,8 +134,9 @@ matters.
    the toggle shrinks to icons or a menu.
 
 The translate screen remembers the mode you used last. Picking an engine from
-the engine button turns the mode off. Links can ask for a mode with
-`quality=fast`, `quality=best` or `quality=standard` (the usual engine); see
+the engine button turns the mode off. A link that carries text can ask for a
+mode for that text with `quality=fast`, `quality=best` or `quality=standard`
+(the usual engine); the link doesn't change your saved mode. See
 [Links](#links).
 
 ## AI translation options
@@ -251,7 +252,7 @@ Jyutping for Cantonese, the Revised Romanization for Korean, IAST for
 Sanskrit, ISO 15919 for other Indic scripts, ALA-LC for Cyrillic and Arabic
 scripts, RTGS for Thai, and so on.
 
-It appears on its own (with **Settings > Show transliteration** on, the
+It appears on its own (with **Settings > Show romanization** on, the
 default) when that costs nothing: the Mozhi engine returned a
 transliteration with the translation (Google does), or the AI model for
 extras runs locally. With a cloud AI model each romanization is a separate
@@ -259,7 +260,7 @@ paid request, so it waits for you to press **Show romanization**. Once you
 have, it stays on for the next translations you start; after an instant
 translation it waits for you again.
 
-**Alignment** (AI). **Show alignment** (the ⇄ button) asks the model which
+**Alignment** (AI). **Show matching phrases** (the ⇄ button) asks the model which
 phrases of the input and the translation correspond. Aligned phrases are
 underlined; tap a phrase of the translation (or point at it with a mouse) to
 highlight it and its counterpart in the input. Moving the cursor into an
@@ -475,12 +476,10 @@ mozhi://translate?text=hola&from=es&to=en&formality=more&quality=best
 | `to` | `tl`, `target` | Target language: a code or a name the selected engine supports |
 | `style` | `translation_style` | `natural` or `literal` |
 | `formality` | | `default`, `more` (or `formal`), `less` (or `informal`), `prefer_more`, `prefer_less` |
-| `formality_context` | `formalityContext` | Formality notes (free text) |
 | `language_complexity` | `readingLevel` | Reading level: `standard`, or `a1` to `c2` |
 | `speaker_gender`, `addressee_gender` | `speakerGender`, `addresseeGender` | `masculine` (or `male`), `feminine` (or `female`), `neutral` |
-| `context` | | Free-text context |
 | `preserve_formatting` | `preserveFormatting` | `true` or `false` |
-| `quality` | | `fast`, `best` or `standard` (your usual engine); see [Quality modes](#quality-modes-fast-and-best) |
+| `quality` | | `fast`, `best` or `standard` (your usual engine) for the link's own text; ignored by links without text. See [Quality modes](#quality-modes-fast-and-best) |
 
 The app waits for the engines to load, selects the languages and applies the
 options, which then stay your translation options like ones you set
@@ -488,10 +487,12 @@ yourself. Unknown values are ignored.
 
 Links come from outside the app, so they are limited:
 
-- Text is cut to 5,000 characters, `context` and `formality_context` to
-  2,000. Language values must be in the engine's list: custom styles such as
-  *Pirate speak* (as target or source), glossaries and refinement
-  instructions can't be set from a link.
+- Text is cut to 5,000 characters. Only fixed choices can be set: free
+  text such as `context` and `formality_context` (Kagi accepts them) is
+  ignored, because it would go into the AI prompt. Language values must be
+  in the engine's list: custom styles such as *Pirate speak* (as target or
+  source), glossaries and refinement instructions can't be set from a link
+  either.
 - **A link never starts a paid AI request on its own.** The text is
   translated straight away only with engines that are not AI models (Mozhi,
   the DeepL API, LibreTranslate, offline), or with an AI model when you

@@ -1,10 +1,13 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/bidi.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/status_announcer.dart';
 import 'package:translation_repository/translation_repository.dart';
+
+export 'package:mozhi/core/bidi.dart' show bidiIsolate;
 
 /// Opens [RecentPairsSheet]; picking a pair applies it
 /// (`TranslateCubit.applyLanguagePair`).
@@ -30,11 +33,6 @@ Future<void> showRecentPairsSheet(BuildContext context) {
 /// auto).
 String translatePairLanguageName(AppLocalizations l10n, Language language) =>
     language.isAuto ? l10n.translateDetectLanguage : language.name;
-
-/// [text] as a bidirectional isolate (FIRST STRONG ISOLATE … POP
-/// DIRECTIONAL ISOLATE): it takes the direction of its own first strong
-/// character and does not affect the order of the text around it.
-String bidiIsolate(String text) => '\u2068$text\u2069';
 
 /// "{source} → {target}" for [pair], laid out in the UI direction.
 ///

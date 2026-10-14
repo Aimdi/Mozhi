@@ -75,8 +75,9 @@ history anywhere.
   opens a quick-translate sheet (with *Replace* for editable fields and
   *Open in app*), plus a share target for text.
 - Links like `/translate?text=hola&from=es&to=en` open pre-filled (same
-  parameters as Kagi Translate, including style, formality, reading level,
-  context and `quality`; `q`, `sl` and `tl` work too), plus
+  parameters as Kagi Translate, including style, formality, reading level
+  and `quality`; `q`, `sl` and `tl` work too; free-text context from links
+  is ignored), plus
   `/proofread?text=...`, `/dictionary?word=...` and `mozhi://` deep links.
 - Material 3 with Material You colours, dark mode and pure-black mode;
   bottom navigation on phones and a navigation rail on tablets and desktops.

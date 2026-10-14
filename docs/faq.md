@@ -131,8 +131,9 @@ you choose a **Fast engine** (quick and free or cheap, such as Google or
 DeepL through Mozhi) and a **Best engine** (your strongest model). The
 **Fast** / **Best** toggle next to the engine button then switches between
 them in one tap and translates the text again; tap the selected one again to
-go back to your usual engine. The app remembers the mode, and a link can ask
-for one with `quality=fast`, `quality=best` or `quality=standard`. See
+go back to your usual engine. The app remembers the mode, and a link with
+text can ask for one for that text with `quality=fast`, `quality=best` or
+`quality=standard` (without changing your saved mode). See
 [Quality modes](features.md#quality-modes-fast-and-best).
 
 ### Why is romanization not shown automatically?
@@ -143,7 +144,7 @@ Mozhi engine sends one with the translation (Google does) or when the AI
 model for extras runs locally. With a cloud AI model, every romanization is a
 separate request, so it waits until you press **Show romanization** (the
 *abc* button under the translation). Automatic romanization also needs
-**Settings > Show transliteration** on (the default), and romanization only
+**Settings > Show romanization** on (the default), and romanization only
 applies to translations in a non-Latin script. See
 [Romanization and alignment](features.md#romanization-and-alignment).
 
