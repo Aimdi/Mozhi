@@ -1,0 +1,7 @@
+Première version.
+
+• Moteurs Mozhi (publics ou perso), bascule, comparaison, modes Rapide/Optimal
+• Traduction IA avec modèles cloud ou locaux (Ollama, LM Studio, llama.cpp), API DeepL, LibreTranslate
+• Extras Kagi : registre, niveau, glossaires, préréglages, alternatives, nuances, affiner, vérifier le sens, dictionnaire
+• Correction ; images, documents, pages web, conversation ; langues hors ligne
+• « Translate with Mozhi » (menu de sélection), widget, historique et favoris

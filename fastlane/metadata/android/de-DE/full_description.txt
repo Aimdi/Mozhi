@@ -1,0 +1,46 @@
+Mozhi Translate ist ein schneller, privater Übersetzer ohne Konto, Werbung oder Tracking. Übersetze über Mozhi-Instanzen (ein quelloffenes Frontend für Google, DeepL, Reverso, Yandex, LibreTranslate, DuckDuckGo und MyMemory) oder mit dem KI-Modell deiner Wahl in der Cloud oder auf deinem Rechner, mit den Extras von Kagi Translate.
+
+ÜBERSETZUNGS-ENGINES
+• Jede Engine deiner Mozhi-Instanz: öffentliche Instanzen eingebaut oder dein eigener Server (auch per http im Heimnetz), mit automatischem Ausweichen
+• KI-Anbieter: OpenAI, Anthropic (Claude), Google Gemini, OpenRouter, Groq, DeepSeek, Mistral, xAI, Together oder jeder OpenAI-kompatible Server
+• Lokale Modelle mit Ollama, LM Studio oder llama.cpp, gekennzeichnet als „Lokal“; eigenes Prompt-Format für Modelle wie TranslateGemma
+• DeepL API und LibreTranslate mit eigenem Schlüssel oder Server
+• Engines vergleichen und das beste Ergebnis übernehmen
+• Qualitätsmodi: „Schnell“ und „Beste“ einmal festlegen, mit einem Tipp wechseln
+
+KI-EXTRAS
+• Natürlicher oder wörtlicher Stil, Förmlichkeit, Sprachniveau (GER A1 bis C2), Geschlecht, Kontext und Glossare, als Vorlagen speicherbar
+• Eigene Ziele wie „Piratensprache“, „Einfache Sprache“ oder ein Dialekt
+• Alternativen, Nuancen, „Übersetzung erklären“ und ein Wörterbuch
+• Verfeinern: Förmlicher, Kürzer, Einfacher und mehr, kombinierbar und rückgängig zu machen
+• Zuordnung: Wendungen in beiden Texten hervorheben; Umschrift unter nicht-lateinischen Schriften
+• Bedeutung prüfen: eine Rückübersetzung, die Auslassungen, Zusätze und andere Bedeutungsunterschiede markiert
+• Korrektur: Verbesserungen mit Erklärungen, Stil, regionale Varietät, Textstatistik
+• KI-Extras auch beim Übersetzen mit Mozhi-Engines
+
+WEITERE ÜBERSETZUNGSARTEN
+• Bilder und Kamera: KI-Bilderkennung, Google Lens über Mozhi oder Texterkennung auf dem Gerät
+• Dokumente: Text, Markdown, SRT/VTT-Untertitel, JSON/ARB-Stringtabellen
+• Webseiten in einer übersetzten Leseansicht
+• Gespräch für zwei Personen, mit Spracheingabe und Vorlesen
+• Auch übersetzen in bis zu vier weitere Sprachen gleichzeitig
+• Offline-Sprachen: Sprachpakete auf dem Gerät zum Übersetzen ohne Netz
+
+IM ALLTAG
+• Sofortübersetzung beim Tippen, Spracherkennung, cleveres Tauschen, zuletzt genutzte Sprachpaare
+• Vorlesen mit Mozhi- oder Gerätestimmen, einstellbares Tempo
+• „Translate with Mozhi“ im Textauswahlmenü jeder App, mit Ersetzen in bearbeitbaren Feldern
+• Teilen-Ziel, Schnelleinstellungs-Kachel, Startbildschirm-Widget und App-Verknüpfungen
+• Links wie /translate?text=hola&from=es&to=en öffnen sich vorausgefüllt
+• Durchsuchbarer Verlauf und Favoriten, JSON-Export und -Import, automatisches Löschen nach 1, 7 oder 30 Tagen
+• Nutzung & Kosten: Zeichen und geschätzte Tokens pro KI-Anbieter, optional mit Monatsbudget
+• Material You, dunkles und rein schwarzes Design, Layouts für Smartphones, Tablets und Foldables, Screenreader-Beschriftungen
+
+DATENSCHUTZ
+• Kein Konto, keine Werbung, keine Analyse, keine Telemetrie, keine Absturzberichte
+• Verlauf und Einstellungen bleiben auf deinem Gerät; API-Schlüssel liegen im sicheren Speicher
+• Dein Text geht nur an die gewählte Mozhi-Instanz oder den gewählten KI-Anbieter, bei lokalen und Offline-Modellen nirgendwohin
+• Geteilte Texte und Links starten nie von selbst eine kostenpflichtige KI-Anfrage
+• Offline-Übersetzung und Texterkennung auf dem Gerät nutzen Googles ML Kit (nur in Builds mit ML Kit): Texte und Bilder bleiben auf dem Gerät, ML Kit lädt aber Sprachpakete von Google und meldet Nutzungsstatistiken seiner Schnittstellen an Google
+
+Mozhi Translate ist freie, quelloffene Software (MIT). Ein unabhängiger, inoffizieller Client: Das Mozhi-Übersetzungs-Frontend (codeberg.org/aryak/mozhi) ist ein eigenes Projekt seiner Autoren, und die App steht in keiner Verbindung zu Google, DeepL, Kagi oder einem KI-Anbieter.

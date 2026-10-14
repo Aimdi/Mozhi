@@ -1,0 +1,7 @@
+Primeira versão.
+
+• Mecanismos Mozhi (públicos ou seus), failover, comparação, modos Rápido/Melhor
+• IA na nuvem ou local (Ollama, LM Studio, llama.cpp), API do DeepL, LibreTranslate
+• Extras do Kagi: formalidade, nível, glossários, predefinições, alternativas, nuances, refinar, verificar o significado, dicionário
+• Revisar; imagens, documentos, páginas da web, conversa; idiomas off-line
+• "Translate with Mozhi" (menu de seleção), widget, histórico e favoritos

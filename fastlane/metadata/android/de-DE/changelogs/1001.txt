@@ -1,0 +1,7 @@
+Erste Version.
+
+• Mozhi-Engines (öffentlich oder eigene), Ausweichen, Vergleich, Modi Schnell/Beste
+• KI-Übersetzung mit Cloud- oder lokalen Modellen (Ollama, LM Studio, llama.cpp), DeepL API, LibreTranslate
+• Kagi-Extras: Förmlichkeit, Sprachniveau, Glossare, Vorlagen, Alternativen, Nuancen, Verfeinern, Bedeutung prüfen, Wörterbuch
+• Korrektur; Bilder, Dokumente, Webseiten, Gespräch; Offline-Sprachen
+• „Translate with Mozhi“ im Auswahlmenü, Widget, Verlauf und Favoriten
