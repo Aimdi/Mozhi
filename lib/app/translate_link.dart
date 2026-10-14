@@ -7,7 +7,7 @@ import 'package:translation_repository/translation_repository.dart';
 /// Speed/quality preference a link asks for (Kagi's `quality` parameter).
 ///
 /// [TranslateLink.applyTo] selects the matching quality mode of the
-/// translate screen.
+/// translate screen for the link's text (without saving it).
 enum TranslateLinkQuality {
   fast,
   standard,
@@ -37,10 +37,6 @@ class TranslateLink extends Equatable {
   /// ignored.
   static const maxLanguageLength = 64;
 
-  /// Longest `context` / `formality_context` a link may carry; longer text
-  /// is cut.
-  static const maxContextLength = 2000;
-
   /// Parses Kagi/Google style query parameters from [uri].
   ///
   /// Accepted names: `text` (or `q`), `from` (or `sl`, `source`) and `to`
@@ -49,10 +45,10 @@ class TranslateLink extends Equatable {
   ///
   /// Translation options are read with [TranslationOptions.fromJson], which
   /// accepts Kagi's names and values (`translation_style`, `formality`,
-  /// `language_complexity`, `speaker_gender=male`, `context`,
-  /// `formality_context`, `preserveFormatting`, ...); see [sanitizeOptions]
-  /// for what a link may not set. `quality` is `fast`, `standard` or
-  /// `best`. Unknown values are ignored.
+  /// `language_complexity`, `speaker_gender=male`, `preserveFormatting`,
+  /// ...); see [sanitizeOptions] for what a link may not set (free-text
+  /// `context` and `formality_context` among them). `quality` is `fast`,
+  /// `standard` or `best`. Unknown values are ignored.
   ///
   /// Returns null when none of them is present.
   static TranslateLink? fromUri(Uri uri) {
@@ -91,10 +87,12 @@ class TranslateLink extends Equatable {
     );
   }
 
-  /// What a link may set of [options]: no glossary and no refinement
-  /// instructions (a link must not smuggle instructions into a prompt),
-  /// `context` and `formality_context` trimmed and cut to
-  /// [maxContextLength]. Null when nothing differs from the defaults.
+  /// What a link may set of [options]: only the fixed choices (style,
+  /// formality, reading level, genders, preserve formatting). Free text is
+  /// dropped: no glossary, no refinement instructions and no `context` /
+  /// `formality_context`, because they end up in the prompts of later AI
+  /// requests (the options are saved), so a link could smuggle
+  /// instructions into them. Null when nothing differs from the defaults.
   static TranslationOptions? sanitizeOptions(TranslationOptions options) {
     final safe = TranslationOptions(
       style: options.style,
@@ -102,9 +100,7 @@ class TranslateLink extends Equatable {
       readingLevel: options.readingLevel,
       speakerGender: options.speakerGender,
       addresseeGender: options.addresseeGender,
-      context: _cut(options.context.trim(), maxContextLength),
       preserveFormatting: options.preserveFormatting,
-      formalityContext: _cut(options.formalityContext.trim(), maxContextLength),
     );
     return safe.isDefault ? null : safe;
   }
@@ -137,17 +133,19 @@ class TranslateLink extends Equatable {
   /// applied ([mergeOptions]). Null when the link sets none.
   final TranslationOptions? options;
 
-  /// Speed/quality preference (`quality=fast|standard|best`), kept for the
-  /// translate screen to honour; null when absent or unknown.
+  /// Speed/quality preference (`quality=fast|standard|best`) for the
+  /// link's own [text] (ignored without text, see [applyTo]); null when
+  /// absent or unknown.
   final TranslateLinkQuality? quality;
 
   bool get hasText => text != null && text!.trim().isNotEmpty;
 
   /// [current] with every option this link sets to a non-default value
-  /// replaced by the link's value. The user's glossary and anything the
-  /// link leaves at its default are kept; refinement instructions are
-  /// dropped. Returns [current] (without instructions) when the link has no
-  /// [options].
+  /// replaced by the link's value. Only the options [sanitizeOptions] lets
+  /// through are taken from the link: the user's glossary, context and
+  /// formality notes, and anything the link leaves at its default are
+  /// kept; refinement instructions are dropped. Returns [current] (without
+  /// instructions) when the link has no [options].
   TranslationOptions mergeOptions(TranslationOptions current) {
     final linked = options;
     final base = current.copyWith(instructions: '');
@@ -163,14 +161,9 @@ class TranslateLink extends Equatable {
         linked.addresseeGender,
         defaults.addresseeGender,
       ),
-      context: changed(linked.context, defaults.context),
       preserveFormatting: changed(
         linked.preserveFormatting,
         defaults.preserveFormatting,
-      ),
-      formalityContext: changed(
-        linked.formalityContext,
-        defaults.formalityContext,
       ),
     );
   }
@@ -185,21 +178,23 @@ class TranslateLink extends Equatable {
   /// `Pirate speak`) are ignored, so a link cannot smuggle instructions
   /// into a prompt. The text is cut to [maxTextLength].
   ///
-  /// [quality] is applied first with [TranslateCubit.setQualityMode]
-  /// (`fast` -> [QualityMode.fast], `best` -> [QualityMode.best],
-  /// `standard` -> [QualityMode.off]; a mode whose engine is not configured
-  /// or not available changes nothing), so the languages are matched
-  /// against the lists of the engine that will translate.
+  /// [quality] chooses the engine for the link's own text. It is applied
+  /// first with [TranslateCubit.setQualityMode] (`fast` ->
+  /// [QualityMode.fast], `best` -> [QualityMode.best], `standard` ->
+  /// [QualityMode.off]; a mode whose engine is not configured or not
+  /// available changes nothing), so the languages are matched against the
+  /// lists of the engine that will translate. The mode is not saved (the
+  /// next start uses the user's own mode), and a link without text ignores
+  /// it: a link never moves text the user typed to another engine. Switching
+  /// engines translates the input again right away, so the input is taken
+  /// out first (the link's text replaces it); a mode whose engine is
+  /// already the selected one changes no engine.
   ///
   /// [options] that change the current ones are applied next with
-  /// [TranslateCubit.setOptions].
-  ///
-  /// Switching engines and changing options re-translate the input right
-  /// away (possibly a paid AI request), so the input is taken out meanwhile
-  /// (and put back afterwards when the link has no text of its own and the
-  /// user has not typed something else meanwhile): a link never starts a
-  /// paid request on its own. A quality mode whose engine is already the
-  /// selected one changes no engine, so the input and its translation stay.
+  /// [TranslateCubit.setOptions]. That translates the input again right
+  /// away on AI engines (a paid request), so the input is taken out
+  /// meanwhile and, when the link has no text of its own, put back
+  /// afterwards: a link never starts a paid request on its own.
   Future<void> applyTo(
     TranslateCubit cubit, {
     Duration timeout = const Duration(seconds: 20),
@@ -247,7 +242,7 @@ class TranslateLink extends Equatable {
   }
 
   /// Applies [quality] (see [applyTo]); returns whether the input was
-  /// cleared and still is (a link with text puts its own text in).
+  /// cleared and still is (the link's text goes in next).
   Future<bool> _applyQuality(TranslateCubit cubit) async {
     final mode = switch (quality) {
       null => null,
@@ -255,32 +250,27 @@ class TranslateLink extends Equatable {
       TranslateLinkQuality.standard => QualityMode.off,
       TranslateLinkQuality.best => QualityMode.best,
     };
+    // Only the link's own text is translated with the mode's engine.
+    if (mode == null || !hasText) return false;
     final state = cubit.state;
-    if (mode == null || mode == state.qualityMode) return false;
+    if (mode == state.qualityMode) return false;
     // Nothing would change: do not touch the input.
     if (mode != QualityMode.off && state.qualityEngine(mode) == null) {
       return false;
     }
-    final input = state.input;
     // Only an engine switch translates again: a mode whose engine is the
-    // selected one only changes the mode, and the output is kept. (Turning
-    // a mode off goes back to the normal engine, which is another one.)
+    // selected one only changes the mode. (Turning a mode off goes back to
+    // the normal engine, which is another one.)
     final switches =
         mode == QualityMode.off ||
         state.qualityEngine(mode)?.id != state.engine?.id;
-    if (input.trim().isEmpty || !switches) {
-      await cubit.setQualityMode(mode);
-      return false;
-    }
-    cubit.setInput('');
-    await cubit.setQualityMode(mode);
-    if (cubit.isClosed) return true;
-    // The user may have typed while the engine's languages loaded: keep
-    // that.
-    if (cubit.state.input.isNotEmpty) return false;
-    if (hasText) return true;
-    cubit.setInput(input);
-    return false;
+    // The user's text must not go to the new engine: the link's text
+    // replaces it.
+    final clear = switches && state.input.trim().isNotEmpty;
+    if (clear) cubit.setInput('');
+    await cubit.setQualityMode(mode, persist: false);
+    // The user may have typed while the engine's languages loaded.
+    return clear && cubit.state.input.isEmpty;
   }
 
   /// Applies [options] (see [applyTo]); returns whether the input was

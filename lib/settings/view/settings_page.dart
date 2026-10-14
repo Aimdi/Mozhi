@@ -2,12 +2,14 @@ import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/undo_snack_bar.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/view/widgets/clear_history_dialog.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/widgets/accent_color_picker.dart';
+import 'package:mozhi/settings/view/widgets/choice_dialog.dart';
 import 'package:mozhi/settings/view/widgets/history_data_actions.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 
@@ -250,40 +252,22 @@ class _AssistEngineTile extends StatelessWidget {
         .toList();
     final choice = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(l10n.settingsAssistEngine),
-        scrollable: true,
-        contentPadding: const EdgeInsets.fromLTRB(0, 16, 0, 0),
-        content: RadioGroup<String>(
-          groupValue: current,
-          onChanged: (value) => Navigator.of(context).pop(value),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-                child: Text(l10n.settingsAssistEngineDialogBody),
-              ),
-              RadioListTile<String>(
-                value: _automatic,
-                title: Text(l10n.settingsAssistEngineAutomatic),
-                subtitle: Text(l10n.settingsAssistEngineAutomaticSubtitle),
-              ),
-              for (final provider in providers)
-                RadioListTile<String>(
-                  value: 'ai:${provider.id}',
-                  title: Text(provider.name),
-                  subtitle: Text(provider.model),
-                ),
-            ],
+      builder: (context) => ChoiceDialog<String>(
+        title: l10n.settingsAssistEngine,
+        body: l10n.settingsAssistEngineDialogBody,
+        initialValue: current,
+        options: [
+          ChoiceDialogOption(
+            value: _automatic,
+            title: Text(l10n.settingsAssistEngineAutomatic),
+            subtitle: Text(l10n.settingsAssistEngineAutomaticSubtitle),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(l10n.commonCancel),
-          ),
+          for (final provider in providers)
+            ChoiceDialogOption(
+              value: 'ai:${provider.id}',
+              title: Text(provider.name),
+              subtitle: Text(provider.model),
+            ),
         ],
       ),
     );
@@ -517,34 +501,16 @@ class _DataSection extends StatelessWidget {
     final current = settings.historyRetention;
     final choice = await showDialog<HistoryRetention>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(l10n.settingsHistoryRetention),
-        scrollable: true,
-        contentPadding: const EdgeInsets.fromLTRB(0, 16, 0, 0),
-        content: RadioGroup<HistoryRetention>(
-          groupValue: current,
-          onChanged: (value) => Navigator.of(context).pop(value),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-                child: Text(l10n.settingsHistoryRetentionDialogBody),
-              ),
-              for (final retention in HistoryRetention.values)
-                RadioListTile<HistoryRetention>(
-                  value: retention,
-                  title: Text(historyRetentionLabel(l10n, retention)),
-                ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(l10n.commonCancel),
-          ),
+      builder: (context) => ChoiceDialog<HistoryRetention>(
+        title: l10n.settingsHistoryRetention,
+        body: l10n.settingsHistoryRetentionDialogBody,
+        initialValue: current,
+        options: [
+          for (final retention in HistoryRetention.values)
+            ChoiceDialogOption(
+              value: retention,
+              title: Text(historyRetentionLabel(l10n, retention)),
+            ),
         ],
       ),
     );
@@ -601,26 +567,20 @@ class _DataSection extends StatelessWidget {
     final cubit = context.read<SettingsCubit>();
     final previous = cubit.state.recentPairs;
     cubit.clearRecentPairs();
-    ScaffoldMessenger.maybeOf(context)
-      ?..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(l10n.settingsRecentPairsCleared),
-          action: SnackBarAction(
-            label: l10n.commonUndo,
-            onPressed: () => cubit.update(
-              (current) => current.copyWith(
-                recentPairs: List.unmodifiable(
-                  [
-                    ...current.recentPairs,
-                    ...previous.where((p) => !current.recentPairs.contains(p)),
-                  ].take(SettingsCubit.maxRecentPairs),
-                ),
-              ),
-            ),
+    showUndoSnackBar(
+      context,
+      message: l10n.settingsRecentPairsCleared,
+      onUndo: () => cubit.update(
+        (current) => current.copyWith(
+          recentPairs: List.unmodifiable(
+            [
+              ...current.recentPairs,
+              ...previous.where((p) => !current.recentPairs.contains(p)),
+            ].take(SettingsCubit.maxRecentPairs),
           ),
         ),
-      );
+      ),
+    );
   }
 }
 

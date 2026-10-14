@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
@@ -58,45 +59,53 @@ void main() {
         ..add(_swapped());
       await tester.pump();
       verifyNever(harness.translate.consumeSmartSwapNotice);
-
-      // It goes away on its own.
-      await tester.pump(smartSwapNoticeDuration);
-      await tester.pumpAndSettle();
-      expect(find.text(_message), findsNothing);
     });
 
-    testWidgets('stays until dismissed under accessible navigation', (
+    for (final accessible in [false, true]) {
+      testWidgets(
+        'stays until dismissed (accessible navigation: $accessible)',
+        (tester) async {
+          // Keyboard users, with or without a screen reader, need time to
+          // reach Undo (WCAG 2.2.1).
+          tester.platformDispatcher.accessibilityFeaturesTestValue =
+              FakeAccessibilityFeatures(accessibleNavigation: accessible);
+          addTearDown(
+            tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+          );
+          await pump(tester);
+          states.add(_swapped());
+          await tester.pumpAndSettle();
+          final bar = tester.widget<SnackBar>(find.byType(SnackBar));
+          expect(bar.persist, isTrue);
+          expect(bar.showCloseIcon, isTrue);
+
+          await tester.pump(const Duration(minutes: 1));
+          await tester.pumpAndSettle();
+          expect(find.text(_message), findsOneWidget);
+
+          await tester.tap(find.byTooltip('Close'));
+          await tester.pumpAndSettle();
+          expect(find.text(_message), findsNothing);
+        },
+      );
+    }
+
+    testWidgets('Undo can be reached with the keyboard after a while', (
       tester,
     ) async {
-      // Screen-reader users need time to reach Undo (WCAG 2.2.1).
-      tester.platformDispatcher.accessibilityFeaturesTestValue =
-          const FakeAccessibilityFeatures(accessibleNavigation: true);
-      addTearDown(
-        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
-      );
       await pump(tester);
       states.add(_swapped());
       await tester.pumpAndSettle();
-      final bar = tester.widget<SnackBar>(find.byType(SnackBar));
-      expect(bar.persist, isTrue);
-      expect(bar.showCloseIcon, isTrue);
-
-      await tester.pump(smartSwapNoticeDuration * 3);
+      await tester.pump(const Duration(seconds: 30));
       await tester.pumpAndSettle();
-      expect(find.text(_message), findsOneWidget);
 
-      await tester.tap(find.byTooltip('Close'));
+      final undo = find.widgetWithText(TextButton, 'Undo');
+      expect(undo, findsOneWidget);
+      Focus.of(tester.element(find.text('Undo'))).requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pumpAndSettle();
-      expect(find.text(_message), findsNothing);
-    });
-
-    testWidgets('times out without accessible navigation', (tester) async {
-      await pump(tester);
-      states.add(_swapped());
-      await tester.pumpAndSettle();
-      final bar = tester.widget<SnackBar>(find.byType(SnackBar));
-      expect(bar.persist, isFalse);
-      expect(bar.showCloseIcon, isFalse);
+      verify(harness.translate.undoSmartSwap).called(1);
     });
 
     testWidgets('Undo calls undoSmartSwap', (tester) async {

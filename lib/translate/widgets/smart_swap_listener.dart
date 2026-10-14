@@ -5,15 +5,15 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 
-/// How long the smart swap snack bar stays. Under accessible navigation
-/// (screen readers, switch access) it stays until it is dismissed, with a
-/// close button, so that there is time to reach Undo (WCAG 2.2.1).
-const smartSwapNoticeDuration = Duration(seconds: 6);
-
 /// Shows each `TranslateState.smartSwapNotice` once as a snack bar,
 /// "Translating into X instead", whose Undo action calls
 /// `TranslateCubit.undoSmartSwap`, then consumes the notice
 /// (`TranslateCubit.consumeSmartSwapNotice`).
+///
+/// The snack bar stays until it is dismissed (close button) or replaced,
+/// for everyone: the focus is usually in the input, and keyboard users
+/// (with or without a screen reader) need time to reach Undo, which comes
+/// late in the traversal order (WCAG 2.2.1).
 ///
 /// A notice that is already pending when this widget is built (e.g. a
 /// shared text was translated before the translate screen was shown) is
@@ -48,16 +48,14 @@ class _SmartSwapListenerState extends State<SmartSwapListener> {
     _shownId = notice.id;
     final cubit = context.read<TranslateCubit>();
     final l10n = context.l10n;
-    final accessible = MediaQuery.accessibleNavigationOf(context);
     ScaffoldMessenger.maybeOf(context)
       ?..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
           key: ValueKey('translate_smart_swap_${notice.id}'),
           content: Text(l10n.translateSmartSwapNotice(notice.newTarget.name)),
-          duration: smartSwapNoticeDuration,
-          persist: accessible,
-          showCloseIcon: accessible,
+          persist: true,
+          showCloseIcon: true,
           action: SnackBarAction(
             label: l10n.commonUndo,
             onPressed: () => unawaited(cubit.undoSmartSwap()),

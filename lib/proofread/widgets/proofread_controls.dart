@@ -283,6 +283,8 @@ class ProofreadMenuButton<T> extends StatelessWidget {
         label: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Wraps rather than cutting the chosen value off when the text
+            // is large or the screen narrow (WCAG 1.4.4, 1.4.10).
             Flexible(
               child: Text.rich(
                 TextSpan(
@@ -296,8 +298,6 @@ class ProofreadMenuButton<T> extends StatelessWidget {
                     TextSpan(text: labelOf(value)),
                   ],
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
             ),
             const Icon(Icons.arrow_drop_down, size: 20),

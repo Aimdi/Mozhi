@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:bloc_test/bloc_test.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -151,13 +153,23 @@ void main() {
   bool isSelected(WidgetTester tester, DictionaryVerbosity verbosity) =>
       tester.widget<ChoiceChip>(verbosityChip(verbosity)).selected;
 
+  Finder searchEditable() => find.descendant(
+    of: find.byKey(const Key('dictionary_search_field')),
+    matching: find.byType(EditableText),
+  );
+
+  /// The focus node of the button [button].
+  FocusNode focusOf(WidgetTester tester, Finder button) => Focus.of(
+    tester.element(find.descendant(of: button, matching: find.byType(Icon))),
+  );
+
   group('DictionaryPage', () {
     testWidgets('shows the empty state and the engine', (tester) async {
       await pumpPage(tester);
 
       expect(find.byKey(const Key('dictionary_empty')), findsOneWidget);
       expect(find.text('Look up any word'), findsOneWidget);
-      expect(find.text('Answers by Claude'), findsOneWidget);
+      expect(find.text('Dictionary entries by Claude'), findsOneWidget);
       final field = tester.widget<TextField>(
         find.byKey(const Key('dictionary_search_field')),
       );
@@ -326,7 +338,7 @@ void main() {
       );
 
       expect(dictionaryState(tester).engine, ollamaEngine);
-      expect(find.text('Answers by Ollama'), findsOneWidget);
+      expect(find.text('Dictionary entries by Ollama'), findsOneWidget);
     });
 
     group('detail level', () {
@@ -474,7 +486,7 @@ void main() {
         );
         expect(lookUp.onPressed, isNull);
 
-        await tester.tap(find.text('Set up AI providers'));
+        await tester.tap(find.text('Add AI provider'));
         verify(() => router.go('/settings/providers')).called(1);
       });
 
@@ -488,6 +500,15 @@ void main() {
 
         expect(
           find.byKey(const Key('dictionary_engines_error')),
+          findsOneWidget,
+        );
+        // The engines (Mozhi instances) failed: AI providers never do.
+        expect(find.text("Couldn't load translation engines"), findsOneWidget);
+        expect(
+          find.text(
+            'Check your connection and try again. The dictionary also needs '
+            'an AI provider.',
+          ),
           findsOneWidget,
         );
         await tester.tap(find.text('Retry'));
@@ -565,6 +586,106 @@ void main() {
         expect(field.controller!.text, isEmpty);
       });
 
+      testWidgets('stays named once it holds a word', (tester) async {
+        final semantics = tester.ensureSemantics();
+        await pumpPage(tester, page: const DictionaryPage(word: 'gato'));
+
+        expect(
+          tester.getSemantics(searchEditable()),
+          isSemantics(
+            label: 'Look up a word or phrase',
+            value: 'gato',
+            isTextField: true,
+          ),
+        );
+        semantics.dispose();
+      });
+
+      testWidgets('clearing moves keyboard focus to the field', (tester) async {
+        await pumpPage(tester, page: const DictionaryPage(word: 'gato'));
+
+        focusOf(
+          tester,
+          find.byKey(const Key('dictionary_clear')),
+        ).requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+
+        expect(dictionaryState(tester).word, isEmpty);
+        expect(find.byKey(const Key('dictionary_clear')), findsNothing);
+        expect(
+          tester.widget<EditableText>(searchEditable()).focusNode,
+          same(FocusManager.instance.primaryFocus),
+        );
+      });
+
+      testWidgets('Look up keeps keyboard focus on the button', (tester) async {
+        await pumpPage(tester, page: const DictionaryPage(word: 'gato'));
+
+        final lookUp = focusOf(
+          tester,
+          find.byKey(const Key('dictionary_look_up')),
+        )..requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+        await tester.pump();
+
+        verifyLookUps(1);
+        expect(lookUp.hasPrimaryFocus, isTrue);
+      });
+
+      testWidgets('Enter keeps focus in the field and hides the keyboard', (
+        tester,
+      ) async {
+        await pumpPage(tester);
+
+        await tester.enterText(
+          find.byKey(const Key('dictionary_search_field')),
+          'gato',
+        );
+        await tester.pump();
+        expect(tester.testTextInput.isVisible, isTrue);
+        await tester.testTextInput.receiveAction(TextInputAction.search);
+        await tester.pump();
+        await tester.pump();
+
+        verifyLookUps(1);
+        expect(
+          tester
+              .widget<EditableText>(searchEditable())
+              .focusNode
+              .hasPrimaryFocus,
+          isTrue,
+        );
+        expect(tester.testTextInput.isVisible, isFalse);
+      });
+
+      testWidgets(
+        'puts the on-screen keyboard away only on touch platforms',
+        (tester) async {
+          await pumpPage(tester, page: const DictionaryPage(word: 'gato'));
+          tester.testTextInput.log.clear();
+
+          await tester.tap(find.byKey(const Key('dictionary_look_up')));
+          await tester.pump();
+
+          verifyLookUps(1);
+          final methods = tester.testTextInput.log.map((call) => call.method);
+          expect(
+            methods,
+            defaultTargetPlatform == TargetPlatform.iOS
+                ? contains('TextInput.hide')
+                : isNot(contains('TextInput.hide')),
+          );
+        },
+        variant: const TargetPlatformVariant({
+          TargetPlatform.iOS,
+          TargetPlatform.linux,
+        }),
+      );
+
       testWidgets('does not look up blank words', (tester) async {
         await pumpPage(tester);
 
@@ -622,6 +743,66 @@ void main() {
         final state = dictionaryState(tester);
         expect(state.source.code, 'en');
         expect(state.target.code, 'es');
+      });
+
+      testWidgets('names a detected word language for screen readers', (
+        tester,
+      ) async {
+        final semantics = tester.ensureSemantics();
+        await pumpPage(tester);
+
+        // Not "Language of the word: Detect language".
+        expect(
+          find.bySemanticsLabel('Language of the word: detected automatically'),
+          findsOneWidget,
+        );
+        expect(find.bySemanticsLabel(RegExp('Detect language')), findsNothing);
+
+        await tester.tap(find.byKey(const Key('dictionary_source_language')));
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.byKey(const Key('dictionary_language_search')),
+          'spanish',
+        );
+        await tester.pump();
+        await tester.tap(find.byKey(const Key('dictionary_language_es')));
+        await tester.pumpAndSettle();
+        expect(
+          find.bySemanticsLabel('Language of the word: Spanish'),
+          findsOneWidget,
+        );
+        semantics.dispose();
+      });
+
+      testWidgets('the language search stays named while it holds a query', (
+        tester,
+      ) async {
+        final semantics = tester.ensureSemantics();
+        await pumpPage(tester);
+
+        await tester.tap(find.byKey(const Key('dictionary_source_language')));
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.byKey(const Key('dictionary_language_search')),
+          'spa',
+        );
+        // Let the hint fade out.
+        await tester.pumpAndSettle();
+
+        expect(
+          tester.getSemantics(
+            find.descendant(
+              of: find.byKey(const Key('dictionary_language_search')),
+              matching: find.byType(EditableText),
+            ),
+          ),
+          isSemantics(
+            label: 'Search languages',
+            value: 'spa',
+            isTextField: true,
+          ),
+        );
+        semantics.dispose();
       });
 
       testWidgets('picks the first match on Enter', (tester) async {

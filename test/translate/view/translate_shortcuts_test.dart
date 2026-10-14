@@ -515,7 +515,7 @@ void main() {
       await harness.pump(tester);
       await openTool(tester, 'Recent language pairs');
       expect(find.byType(RecentPairsSheet), findsOneWidget);
-      await tester.tap(find.text('German → English'));
+      await tester.tap(find.text('\u2068German\u2069 → \u2068English\u2069'));
       await tester.pumpAndSettle();
       verify(
         () => harness.translate.applyLanguagePair(

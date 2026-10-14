@@ -110,7 +110,9 @@ class _DictionaryLanguagePickerState extends State<DictionaryLanguagePicker> {
                 if (current.isNotEmpty) _pick(current.first);
               },
               decoration: InputDecoration(
-                hintText: l10n.dictionaryPickerSearchHint,
+                // A label, unlike a hint, still names the field once it
+                // holds a query (WCAG 4.1.2, 3.3.2).
+                labelText: l10n.dictionaryPickerSearchHint,
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _query.isEmpty
                     ? null
@@ -123,7 +125,9 @@ class _DictionaryLanguagePickerState extends State<DictionaryLanguagePicker> {
                         },
                       ),
                 filled: true,
-                border: const OutlineInputBorder(
+                // A filled pill: the label floats inside it (an outline border
+                // would put the label across its top edge).
+                border: const UnderlineInputBorder(
                   borderRadius: BorderRadius.all(Radius.circular(28)),
                   borderSide: BorderSide.none,
                 ),

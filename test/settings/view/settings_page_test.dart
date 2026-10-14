@@ -219,9 +219,16 @@ void main() {
         verify(() => settings.setSaveHistory(enabled: false)).called(1);
       });
 
-      testWidgets('show transliteration', (tester) async {
+      testWidgets('show romanization', (tester) async {
         await pump(tester);
-        await tester.tap(find.text('Show transliteration'));
+        expect(
+          find.text(
+            'Latin-script text under non-Latin text, when no cloud AI '
+            'request is needed',
+          ),
+          findsOneWidget,
+        );
+        await tester.tap(find.text('Show romanization'));
         verify(() => settings.setShowTransliteration(enabled: false)).called(1);
       });
     });
@@ -237,6 +244,12 @@ void main() {
         expect(find.text('Local Qwen'), findsNothing);
         await tester.tap(find.text('Claude'));
         await tester.pumpAndSettle();
+        // Choosing only moves the selection; Save confirms it.
+        expect(find.byType(AlertDialog), findsOneWidget);
+        verifyNever(() => settings.setAssistEngine(any()));
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
+        expect(find.byType(AlertDialog), findsNothing);
         verify(() => settings.setAssistEngine('ai:p1')).called(1);
       });
 
@@ -253,7 +266,28 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.text('Automatic'));
         await tester.pumpAndSettle();
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
         verify(() => settings.setAssistEngine(null)).called(1);
+      });
+
+      testWidgets('arrow keys move the choice without closing the dialog', (
+        tester,
+      ) async {
+        await pump(tester);
+        await tester.tap(find.text('AI assistant for insights'));
+        await tester.pumpAndSettle();
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pumpAndSettle();
+        expect(find.byType(AlertDialog), findsOneWidget);
+        verifyNever(() => settings.setAssistEngine(any()));
+
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
+        expect(find.byType(AlertDialog), findsNothing);
+        verify(() => settings.setAssistEngine('ai:p1')).called(1);
       });
 
       testWidgets('cancel keeps the selection', (tester) async {
@@ -504,8 +538,8 @@ void main() {
         expect(find.byType(AlertDialog), findsNothing);
         expect(
           find.text(
-            'History imported. 340 translations older than your auto-delete '
-            'setting were skipped.',
+            'History imported. 340 translations were skipped because they '
+            'are older than your auto-delete period.',
           ),
           findsOneWidget,
         );
@@ -668,13 +702,18 @@ void main() {
         expect(
           find.text(
             'Translations older than this are deleted from this device. '
-            'Starred translations are always kept.',
+            'Favorites are always kept.',
           ),
           findsOneWidget,
         );
         expect(find.text('After 1 day'), findsOneWidget);
         expect(find.text('After 7 days'), findsOneWidget);
         await tester.tap(find.text('After 30 days'));
+        await tester.pumpAndSettle();
+        // Choosing only moves the selection; Save confirms it.
+        expect(find.byType(AlertDialog), findsOneWidget);
+        verifyNever(() => settings.setHistoryRetention(any()));
+        await tester.tap(find.text('Save'));
         await tester.pumpAndSettle();
         expect(find.byType(AlertDialog), findsNothing);
         verify(() => settings.setHistoryRetention(HistoryRetention.month))
@@ -691,7 +730,41 @@ void main() {
         await openPicker(tester);
         await tester.tap(find.text('After 1 day').last);
         await tester.pumpAndSettle();
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
+        expect(find.byType(AlertDialog), findsNothing);
         verifyNever(() => settings.setHistoryRetention(any()));
+      });
+
+      testWidgets('arrow keys move the choice without closing the dialog', (
+        tester,
+      ) async {
+        await pump(tester);
+        await openPicker(tester);
+        // Tab reaches the selected radio of the group.
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pumpAndSettle();
+        expect(find.byType(AlertDialog), findsOneWidget);
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pumpAndSettle();
+        expect(find.byType(AlertDialog), findsOneWidget);
+        verifyNever(() => settings.setHistoryRetention(any()));
+
+        // Tab to Save past Cancel and confirm.
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        expect(
+          Focus.of(tester.element(find.text('Save'))).hasPrimaryFocus,
+          isTrue,
+        );
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+        expect(find.byType(AlertDialog), findsNothing);
+        verify(() => settings.setHistoryRetention(HistoryRetention.week))
+            .called(1);
       });
 
       testWidgets('cancel keeps the retention', (tester) async {
@@ -734,6 +807,8 @@ void main() {
           await openPicker(tester);
           await tester.tap(find.text(label));
           await tester.pumpAndSettle();
+          await tester.tap(find.text('Save'));
+          await tester.pumpAndSettle();
         }
 
         testWidgets('asks before deleting them', (tester) async {
@@ -745,7 +820,7 @@ void main() {
           expect(
             find.text(
               '2 translations are older than 1 day and will be deleted from '
-              'this device right away. Starred translations are kept.',
+              'this device right away. Favorites are kept.',
             ),
             findsOneWidget,
           );
@@ -768,7 +843,7 @@ void main() {
           expect(
             find.text(
               '1 translation is older than 30 days and will be deleted from '
-              'this device right away. Starred translations are kept.',
+              'this device right away. Favorites are kept.',
             ),
             findsOneWidget,
           );
@@ -841,6 +916,10 @@ void main() {
         verify(settings.clearRecentPairs).called(1);
         expect(find.text('Recent language pairs cleared'), findsOneWidget);
 
+        // Dismissable without a pointer and without undoing.
+        final snackBar = tester.widget<SnackBar>(find.byType(SnackBar));
+        expect(snackBar.showCloseIcon, isTrue);
+
         await tester.tap(find.text('Undo'));
         await tester.pump();
         final change =
@@ -856,6 +935,26 @@ void main() {
           change(AppSettings(recentPairs: [newer, pairs.first])).recentPairs,
           [newer, ...pairs],
         );
+      });
+
+      testWidgets('the cleared notice closes without undoing', (tester) async {
+        await pump(tester, state: const AppSettings(recentPairs: pairs));
+        await tester.ensureVisible(find.text('Clear recent language pairs'));
+        await tester.tap(find.text('Clear recent language pairs'));
+        await tester.pumpAndSettle();
+        // It waits for the user instead of timing out.
+        await tester.pump(const Duration(minutes: 1));
+        expect(find.text('Recent language pairs cleared'), findsOneWidget);
+
+        final close = find.descendant(
+          of: find.byType(SnackBar),
+          matching: find.byIcon(Icons.close),
+        );
+        expect(close, findsOneWidget);
+        await tester.tap(close);
+        await tester.pumpAndSettle();
+        expect(find.text('Recent language pairs cleared'), findsNothing);
+        verifyNever(() => settings.update(any()));
       });
     });
 

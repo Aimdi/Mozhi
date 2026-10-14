@@ -279,6 +279,11 @@ void main() {
         await tester.pumpAndSettle();
         verify(() => settings.removeInstance(_slow.url)).called(1);
         expect(find.text('Instance removed'), findsOneWidget);
+        // Closable without a pointer and without undoing.
+        expect(
+          tester.widget<SnackBar>(find.byType(SnackBar)).showCloseIcon,
+          isTrue,
+        );
         await tester.tap(find.text('Undo'));
         await tester.pumpAndSettle();
         verify(() => settings.addInstance(_slow)).called(1);

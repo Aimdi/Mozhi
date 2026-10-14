@@ -139,11 +139,14 @@ class TranslateState extends Equatable {
   /// translation lands, see [isResultStale].
   final String? resultInput;
 
-  /// Whether [result] comes from an instant translation (started by a
-  /// typing pause, see `AppSettings.instantTranslate` /
-  /// `instantTranslateAi`) rather than one the user asked for (Translate,
-  /// a language or engine change, a refinement, ...). The UI does not start
-  /// paid AI extras for such results on its own. False without a result.
+  /// Whether [result] comes from a translation nobody asked for: an
+  /// instant one (started by a typing pause, see
+  /// `AppSettings.instantTranslate` / `instantTranslateAi`) or the
+  /// automatic one of text from outside the app (links, shared text, see
+  /// `TranslateCubit.setExternalInput`), rather than one the user asked for
+  /// (Translate, a language or engine change, a refinement, ...). The UI
+  /// does not start paid AI extras for such results on its own. False
+  /// without a result.
   final bool instantResult;
 
   /// Whether [input] was cut to the maximum length (text from outside the

@@ -332,7 +332,8 @@ void main() {
       expect(find.text('Quality modes'), findsOneWidget);
       expect(
         find.text(
-          'Choose a Fast and a Best engine to switch between them here',
+          'Choose a Fast and a Best engine to switch between them next to '
+          'the engine name',
         ),
         findsOneWidget,
       );

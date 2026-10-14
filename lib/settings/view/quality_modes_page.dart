@@ -7,6 +7,7 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/engine_list_cubit.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
+import 'package:mozhi/settings/view/widgets/choice_dialog.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -208,8 +209,9 @@ IconData engineKindIcon(EngineKind kind) => switch (kind) {
   EngineKind.offline => Icons.download_for_offline_outlined,
 };
 
-/// Lets the user pick one of [engines] or none. Pops the engine id, an
-/// empty string for "none", or null when cancelled.
+/// Lets the user pick one of [engines] or none; Save confirms the choice
+/// (see [ChoiceDialog]). Pops the engine id, an empty string for "none",
+/// or null when cancelled.
 class EnginePickerDialog extends StatelessWidget {
   const new({
     required this.title,
@@ -229,41 +231,24 @@ class EnginePickerDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    return AlertDialog(
-      title: Text(title),
-      scrollable: true,
-      contentPadding: const EdgeInsets.only(top: 16),
-      content: RadioGroup<String>(
-        groupValue: selected ?? _none,
-        onChanged: (value) => Navigator.of(context).pop(value),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            RadioListTile<String>(
-              value: _none,
-              title: Text(l10n.settingsQualityNone),
-            ),
-            for (final engine in engines)
-              RadioListTile<String>(
-                value: engine.id,
-                title: Text(engine.name),
-                subtitle: engine.subtitle == null
-                    ? null
-                    : Text(
-                        engine.subtitle!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                secondary: Icon(engineKindIcon(engine.kind)),
-              ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(l10n.commonCancel),
-        ),
+    return ChoiceDialog<String>(
+      title: title,
+      initialValue: selected ?? _none,
+      options: [
+        ChoiceDialogOption(value: _none, title: Text(l10n.settingsQualityNone)),
+        for (final engine in engines)
+          ChoiceDialogOption(
+            value: engine.id,
+            title: Text(engine.name),
+            subtitle: engine.subtitle == null
+                ? null
+                : Text(
+                    engine.subtitle!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+            secondary: Icon(engineKindIcon(engine.kind)),
+          ),
       ],
     );
   }

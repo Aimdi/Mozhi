@@ -208,6 +208,11 @@ void main() {
       await settle(tester);
       expect(glossary()!.terms, const [_dog, _api]);
       expect(find.text('Deleted “cat”'), findsOneWidget);
+      // Closable without a pointer and without undoing.
+      expect(
+        tester.widget<SnackBar>(find.byType(SnackBar)).showCloseIcon,
+        isTrue,
+      );
       await tester.tap(find.text('Undo'));
       await settle(tester);
       expect(glossary()!.terms, _pets.terms);

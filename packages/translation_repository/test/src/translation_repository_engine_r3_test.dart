@@ -227,10 +227,11 @@ void main() {
           precedingText: paragraphs[0],
         ),
       );
-      // The preceding part is data in the user message; the system prompt
-      // keeps only the user's own context.
+      // The preceding part and the context are data in the user message;
+      // the system prompt only refers to them.
       expect(
         requests[2].messages.last.content,
+        '<context>\nA novel\n</context>\n'
         '<preceding_text>\n${paragraphs[1]}\n</preceding_text>\n'
         '<source>\n${paragraphs[2]}\n</source>',
       );
@@ -240,7 +241,7 @@ void main() {
       );
       expect(
         requests[2].messages.first.content,
-        contains('<context>\nA novel\n</context>'),
+        allOf(isNot(contains('A novel')), contains('in <context> tags')),
       );
     });
 

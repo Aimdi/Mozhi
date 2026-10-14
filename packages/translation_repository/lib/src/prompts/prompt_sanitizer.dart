@@ -85,4 +85,22 @@ abstract final class PromptSanitizer {
     }
     return cut.trimRight();
   }
+
+  /// The beginning of [text] that is sent when at most [max] UTF-16 code
+  /// units fit: [text] itself when it fits, else its first [max] code
+  /// units, cut back to the last whitespace when that keeps more than 80 %
+  /// of them, never ending on a lone high surrogate. Always a prefix of
+  /// [text], so offsets into it are offsets into [text].
+  static String prefix(String text, int max) {
+    if (text.length <= max) return text;
+    var cut = text.substring(0, max);
+    final space = cut.lastIndexOf(_whitespace);
+    if (space > max * 0.8) cut = cut.substring(0, space);
+    if (cut.isEmpty) return cut;
+    final last = cut.codeUnitAt(cut.length - 1);
+    if (last >= 0xD800 && last <= 0xDBFF) {
+      cut = cut.substring(0, cut.length - 1);
+    }
+    return cut;
+  }
 }

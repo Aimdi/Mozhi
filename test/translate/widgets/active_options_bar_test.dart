@@ -77,7 +77,7 @@ void main() {
       );
       expect(active.map((o) => o.label), [
         'More formal',
-        'Notes: My boss, but we are on f…',
+        'Formality notes: My boss, but we are on f…',
       ]);
       expect(active[1].tooltip, notes);
       expect(active[1].cleared.formalityContext, isEmpty);
@@ -174,8 +174,8 @@ void main() {
         ),
       );
       await harness.pump(tester, child: const ActiveOptionsBar());
-      expect(find.text('Notes: my sister'), findsOneWidget);
-      await tester.tap(find.byTooltip('Remove Notes: my sister'));
+      expect(find.text('Formality notes: my sister'), findsOneWidget);
+      await tester.tap(find.byTooltip('Remove Formality notes: my sister'));
       verify(
         () => harness.translate.setOptions(
           const TranslationOptions(formality: Formality.less),

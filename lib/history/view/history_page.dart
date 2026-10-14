@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/undo_snack_bar.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/history/view/widgets/clear_history_dialog.dart';
@@ -57,20 +58,14 @@ class _HistoryViewState extends State<HistoryView> {
     final cubit = context.read<HistoryCubit>();
     setState(() => _dismissed.add(entry.id));
     unawaited(cubit.delete(entry.id));
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(l10n.historyDeleted),
-          action: SnackBarAction(
-            label: l10n.commonUndo,
-            onPressed: () {
-              unawaited(cubit.restore(entry));
-              if (mounted) setState(() => _dismissed.remove(entry.id));
-            },
-          ),
-        ),
-      );
+    showUndoSnackBar(
+      context,
+      message: l10n.historyDeleted,
+      onUndo: () {
+        unawaited(cubit.restore(entry));
+        if (mounted) setState(() => _dismissed.remove(entry.id));
+      },
+    );
   }
 
   void _onSearch(String query) {

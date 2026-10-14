@@ -367,7 +367,9 @@ class TranslateCubit extends Cubit<TranslateState> {
         state.result == null &&
         state.status != TranslateStatus.translating &&
         _mayAutoTranslate) {
-      unawaited(_translate(auto: !_externalPending));
+      unawaited(
+        _translate(auto: !_externalPending, external: _externalPending),
+      );
     }
   }
 
@@ -463,10 +465,12 @@ class TranslateCubit extends Cubit<TranslateState> {
   ///   when available, else the engine in use before the mode was turned
   ///   on, else the default (or first) engine other than the mode's.
   ///
-  /// The mode is saved (`SettingsCubit.setQualityMode`). After an engine
-  /// switch the input is translated again like after [selectEngine]
-  /// (never in compare mode). [selectEngine] turns the mode off.
-  Future<void> setQualityMode(QualityMode mode) async {
+  /// The mode is saved (`SettingsCubit.setQualityMode`) unless [persist]
+  /// is false (a mode a link asked for: it lasts until the app restarts or
+  /// the user picks a mode or an engine). After an engine switch the input
+  /// is translated again like after [selectEngine] (never in compare mode).
+  /// [selectEngine] turns the mode off.
+  Future<void> setQualityMode(QualityMode mode, {bool persist = true}) async {
     final TranslationEngine? engine;
     if (mode == QualityMode.off) {
       // Already on the normal engine: only the saved mode may differ.
@@ -483,7 +487,9 @@ class TranslateCubit extends Cubit<TranslateState> {
       }
     }
     if (mode == QualityMode.off) _engineBeforeQuality = null;
-    if (_settings.state.qualityMode != mode) _settings.setQualityMode(mode);
+    if (persist && _settings.state.qualityMode != mode) {
+      _settings.setQualityMode(mode);
+    }
     if (state.qualityMode != mode) emit(state.copyWith(qualityMode: mode));
     if (engine == null ||
         (engine.id == state.engine?.id &&
@@ -763,7 +769,7 @@ class TranslateCubit extends Cubit<TranslateState> {
     _applyInput(text, maxLength: maxExternalInputLength, instant: false);
     if (state.input.trim().isEmpty) return;
     _externalPending = true;
-    if (_mayAutoTranslateExternal) unawaited(_translate());
+    if (_mayAutoTranslateExternal) unawaited(_translate(external: true));
   }
 
   /// Whether the input may be translated without a user action: external
@@ -1044,13 +1050,16 @@ class TranslateCubit extends Cubit<TranslateState> {
   }
 
   /// [auto] marks a debounced instant translation (its history entry is
-  /// provisional). [text] defaults to the input.
+  /// provisional), [external] one of text from outside the app that
+  /// nobody asked for (links, shared text); both make the result
+  /// [TranslateState.instantResult]. [text] defaults to the input.
   Future<void> _translate({
     TranslationEngine? engine,
     TranslationOptions? options,
     String? text,
     bool smartSwap = true,
     bool auto = false,
+    bool external = false,
   }) {
     final selected = engine ?? state.engine;
     final input = text ?? state.input;
@@ -1102,7 +1111,13 @@ class TranslateCubit extends Cubit<TranslateState> {
           // at once instead of waiting for a same-language "translation".
           final swapTo = _smartSwapTarget(request, result);
           if (swapTo != null) {
-            _smartSwap(selected, request, swapTo, auto: auto);
+            _smartSwap(
+              selected,
+              request,
+              swapTo,
+              auto: auto,
+              external: external,
+            );
             return;
           }
         }
@@ -1114,7 +1129,14 @@ class TranslateCubit extends Cubit<TranslateState> {
             _recordUsage(selected, input: request.text, output: result.text);
           }
         }
-        _onResult(selected, request, result, smartSwap: smartSwap, auto: auto);
+        _onResult(
+          selected,
+          request,
+          result,
+          smartSwap: smartSwap,
+          auto: auto,
+          external: external,
+        );
       },
       onError: (Object error) {
         if (_isCurrentTranslation(id)) fail(error);
@@ -1144,27 +1166,28 @@ class TranslateCubit extends Cubit<TranslateState> {
     TranslationResult result, {
     required bool smartSwap,
     required bool auto,
+    required bool external,
   }) {
     if (!result.isComplete) {
       emit(
         state.copyWith(
           result: () => result,
           resultInput: () => request.text,
-          instantResult: auto,
+          instantResult: auto || external,
         ),
       );
       return;
     }
     final swapTo = smartSwap ? _smartSwapTarget(request, result) : null;
     if (swapTo != null) {
-      _smartSwap(engine, request, swapTo, auto: auto);
+      _smartSwap(engine, request, swapTo, auto: auto, external: external);
       return;
     }
     emit(
       state.copyWith(
         result: () => result,
         resultInput: () => request.text,
-        instantResult: auto,
+        instantResult: auto || external,
         status: TranslateStatus.success,
       ),
     );
@@ -1190,6 +1213,7 @@ class TranslateCubit extends Cubit<TranslateState> {
     TranslationRequest request,
     Language swapTo, {
     required bool auto,
+    required bool external,
   }) {
     // Hand the caller's future over to the re-translation.
     final done = _translationDone;
@@ -1215,6 +1239,7 @@ class TranslateCubit extends Cubit<TranslateState> {
       text: request.text,
       smartSwap: false,
       auto: auto,
+      external: external,
     );
     if (done != null && !done.isCompleted) done.complete(next);
   }

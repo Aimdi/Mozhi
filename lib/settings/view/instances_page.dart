@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/undo_snack_bar.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
@@ -176,22 +177,15 @@ class _InstancesViewState extends State<InstancesView> {
         _move(index, index + 1);
       case _InstanceAction.remove:
         cubit.removeInstance(instance.url);
-        final l10n = context.l10n;
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(
-              content: Text(l10n.settingsInstanceRemoved),
-              action: SnackBarAction(
-                label: l10n.commonUndo,
-                onPressed: () {
-                  cubit.addInstance(instance);
-                  final last = cubit.state.instances.length - 1;
-                  if (last > index) cubit.moveInstance(last, index);
-                },
-              ),
-            ),
-          );
+        showUndoSnackBar(
+          context,
+          message: context.l10n.settingsInstanceRemoved,
+          onUndo: () {
+            cubit.addInstance(instance);
+            final last = cubit.state.instances.length - 1;
+            if (last > index) cubit.moveInstance(last, index);
+          },
+        );
     }
   }
 

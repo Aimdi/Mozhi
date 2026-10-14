@@ -208,6 +208,11 @@ void main() {
       verify(() => history.delete('1')).called(1);
       expect(find.text('Good morning'), findsNothing);
       expect(find.text('Translation deleted'), findsOneWidget);
+      // Closable without a pointer and without undoing.
+      expect(
+        tester.widget<SnackBar>(find.byType(SnackBar)).showCloseIcon,
+        isTrue,
+      );
 
       await tester.tap(find.text('Undo'));
       await tester.pumpAndSettle();
@@ -452,7 +457,7 @@ void main() {
         expect(
           find.text(
             'Translations older than 7 days are deleted automatically. '
-            'Starred ones are kept.',
+            'Favorites are kept.',
           ),
           findsOneWidget,
         );
@@ -468,7 +473,7 @@ void main() {
         expect(
           find.text(
             'Translations older than 1 day are deleted automatically. '
-            'Starred ones are kept.',
+            'Favorites are kept.',
           ),
           findsOneWidget,
         );

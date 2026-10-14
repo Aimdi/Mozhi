@@ -261,6 +261,21 @@ void main() {
       expect(texts(spans), [('the', 'la'), ('blue', 'bleue')]);
     });
 
+    test('finds a quoted phrase in a text shorter than the quotes', () {
+      final spans = parse(
+        {
+          'pairs': [
+            {'source': '"cat"', 'target': '«chat»'},
+          ],
+        },
+        source: 'cat',
+        translation: 'chat',
+      );
+      expect(spans, const [
+        AlignedSpan(sourceStart: 0, sourceEnd: 3, targetStart: 0, targetEnd: 4),
+      ]);
+    });
+
     test('ignoring case gives offsets in the original text', () {
       // 'İ' lower-cases to two code units on the web: offsets must not
       // come from a lower-cased copy.
@@ -531,6 +546,96 @@ void main() {
 
     test('an empty pairs list is empty', () {
       expect(parse({'pairs': <Object>[]}), isEmpty);
+    });
+
+    group('bounded work', () {
+      const max = TranslationPrompts.maxAlignmentChars;
+
+      test('reads at most maxAlignmentPairs items', () {
+        List<AlignedSpan> withPairAt(int index) =>
+            ResponseParsers.parseAlignment(
+              jsonEncode({
+                'pairs': [
+                  for (var i = 0; i < index; i++)
+                    {'source': 'missing', 'target': 'missing'},
+                  {'source': 'blue', 'target': 'bleue'},
+                ],
+              }),
+              source: 'the blue house',
+              translation: 'la maison bleue',
+            );
+        expect(ResponseParsers.maxAlignmentPairs, 1000);
+        expect(withPairAt(999), hasLength(1));
+        expect(withPairAt(1000), isEmpty, reason: 'the 1001st is ignored');
+      });
+
+      test('searches only the beginning that the prompt sends', () {
+        final filler = List.filled(max ~/ 5, 'abcd').join(' ');
+        final source = '$filler tail';
+        final translation = 'queue $filler';
+        expect(source.length, greaterThan(max));
+        final sent = TranslationPrompts.align(
+          source: source,
+          translation: translation,
+          sourceLanguage: Language.auto,
+          targetLanguage: Language.auto,
+        ).last.content;
+        expect(sent, isNot(contains('tail')));
+        final spans = ResponseParsers.parseAlignment(
+          jsonEncode({
+            'pairs': [
+              {'source': 'tail', 'target': 'queue'},
+              {'source': 'abcd', 'target': 'abcd'},
+            ],
+          }),
+          source: source,
+          translation: translation,
+        );
+        // "tail" lies beyond what the model saw; "abcd" maps to offsets in
+        // the whole texts.
+        expect(spans, hasLength(1));
+        expect(spans.single.sourceIn(source), 'abcd');
+        expect(spans.single.sourceStart, 0);
+        expect(spans.single.targetIn(translation), 'abcd');
+        expect(spans.single.targetStart, 6);
+      });
+
+      test('stays fast for a hostile or runaway reply', () {
+        // Formerly about 10 s for 300 such pairs on a 20,000-character
+        // text: every pair scanned every occurrence and every earlier
+        // pair.
+        final repeated = List.filled(10000, 'a').join(' ');
+        final inside = List.filled(4000, 'baaab').join(' ');
+        final watch = Stopwatch()..start();
+        for (final text in [repeated, inside]) {
+          final spans = ResponseParsers.parseAlignment(
+            jsonEncode({
+              'pairs': List.filled(5000, {'source': 'a', 'target': 'A'}),
+            }),
+            source: text,
+            translation: text,
+          );
+          expect(spans, hasLength(ResponseParsers.maxAlignmentPairs));
+        }
+        expect(watch.elapsed, lessThan(const Duration(seconds: 5)));
+      });
+
+      test('maps successive repeats in order on a long text', () {
+        final text = List.filled(1000, 'a').join(' ');
+        final spans = ResponseParsers.parseAlignment(
+          jsonEncode({
+            'pairs': List.filled(800, {'source': 'a', 'target': 'a'}),
+          }),
+          source: text,
+          translation: text,
+        );
+        expect(spans.map((s) => s.sourceStart), [
+          for (var i = 0; i < 800; i++) 2 * i,
+        ]);
+        expect(spans.map((s) => s.targetStart), [
+          for (var i = 0; i < 800; i++) 2 * i,
+        ]);
+      });
     });
   });
 

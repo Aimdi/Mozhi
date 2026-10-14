@@ -996,13 +996,13 @@
   "@settingsSaveHistorySubtitle": {
     "description": "settingsSaveHistorySubtitle"
   },
-  "settingsShowTransliteration": "Show transliteration",
+  "settingsShowTransliteration": "Show romanization",
   "@settingsShowTransliteration": {
-    "description": "settingsShowTransliteration"
+    "description": "Settings switch: show the romanization (the text in Latin script, e.g. pinyin) under non-Latin input and translations by default. Same term as translateRomanizationShow."
   },
-  "settingsShowTransliterationSubtitle": "Romanized text under non-Latin scripts",
+  "settingsShowTransliterationSubtitle": "Latin-script text under non-Latin text, when no cloud AI request is needed",
   "@settingsShowTransliterationSubtitle": {
-    "description": "settingsShowTransliterationSubtitle"
+    "description": "Subtitle of settingsShowTransliteration: the romanization appears on its own only when it costs nothing (from the Mozhi instance or a local AI model); otherwise the translation has a Show romanization button."
   },
   "settingsAssistEngine": "AI assistant for insights",
   "@settingsAssistEngine": {
@@ -4599,7 +4599,7 @@
   },
   "settingsHistoryRetentionNever": "Never",
   "@settingsHistoryRetentionNever": {
-    "description": "settingsHistoryRetentionNever"
+    "description": "Option of 'Delete history automatically' (settingsHistoryRetention): never delete."
   },
   "settingsHistoryRetentionDays": "{days, plural, =1{After 1 day} other{After {days} days}}",
   "@settingsHistoryRetentionDays": {
@@ -4609,12 +4609,13 @@
       }
     }
   },
-  "settingsHistoryRetentionDialogBody": "Translations older than this are deleted from this device. Starred translations are always kept.",
+  "settingsHistoryRetentionDialogBody": "Translations older than this are deleted from this device. Favorites are always kept.",
   "@settingsHistoryRetentionDialogBody": {
-    "description": "settingsHistoryRetentionDialogBody"
+    "description": "Body of the 'Delete history automatically' dialog. 'Favorites' is the same term as historyFilterFavorites (the translations the user starred)."
   },
-  "historyRetentionNote": "{days, plural, =1{Translations older than 1 day are deleted automatically. Starred ones are kept.} other{Translations older than {days} days are deleted automatically. Starred ones are kept.}}",
+  "historyRetentionNote": "{days, plural, =1{Translations older than 1 day are deleted automatically. Favorites are kept.} other{Translations older than {days} days are deleted automatically. Favorites are kept.}}",
   "@historyRetentionNote": {
+    "description": "Note on the History screen while history is deleted automatically. 'Favorites' is the same term as historyFilterFavorites.",
     "placeholders": {
       "days": {
         "type": "int"
@@ -4625,25 +4626,25 @@
   "@settingsQualityTitle": {
     "description": "settingsQualityTitle"
   },
-  "settingsQualitySubtitle": "Choose a fast engine and a best engine",
+  "settingsQualitySubtitle": "Pick the engines for Fast and Best",
   "@settingsQualitySubtitle": {
-    "description": "settingsQualitySubtitle"
+    "description": "Subtitle of the Quality modes entry in Settings. Fast and Best are the mode names (translateQualityFast / translateQualityBest)."
   },
-  "settingsQualityIntro": "Switch between a quick engine for everyday text and your strongest engine when quality matters. The translate screen remembers the mode you used last.",
+  "settingsQualityIntro": "Switch between a Fast engine for everyday text and a Best engine for text where quality matters, with the Fast / Best toggle next to the engine name on the Translate screen. The mode you used last is remembered.",
   "@settingsQualityIntro": {
-    "description": "settingsQualityIntro"
+    "description": "Intro of the quality modes page. Fast and Best are the mode names (translateQualityFast / translateQualityBest); the toggle sits next to the engine selector in the Translate screen's app bar."
   },
   "settingsQualityFast": "Fast",
   "@settingsQualityFast": {
-    "description": "settingsQualityFast"
+    "description": "Name of the Fast quality mode, section title on the quality modes page; must match translateQualityFast."
   },
-  "settingsQualityFastDescription": "Quick and free or cheap, such as a Mozhi engine like Google or DeepL.",
+  "settingsQualityFastDescription": "Quick and free or low-cost, for example Google or DeepL through a Mozhi instance.",
   "@settingsQualityFastDescription": {
-    "description": "settingsQualityFastDescription"
+    "description": "Description of the Fast quality mode on the quality modes page."
   },
   "settingsQualityBest": "Best",
   "@settingsQualityBest": {
-    "description": "settingsQualityBest"
+    "description": "Name of the Best quality mode, section title on the quality modes page; must match translateQualityBest."
   },
   "settingsQualityBestDescription": "The most capable engine for nuanced or important text, such as your strongest AI model.",
   "@settingsQualityBestDescription": {
@@ -4667,7 +4668,7 @@
   },
   "settingsQualityNone": "None",
   "@settingsQualityNone": {
-    "description": "settingsQualityNone"
+    "description": "Engine picker option: no engine for this quality mode."
   },
   "settingsQualityUnavailable": "Not available right now",
   "@settingsQualityUnavailable": {
@@ -4677,9 +4678,9 @@
   "@settingsQualityLoading": {
     "description": "settingsQualityLoading"
   },
-  "settingsQualityLoadFailed": "Couldn’t load the engines. Check your Mozhi instances and AI providers.",
+  "settingsQualityLoadFailed": "Couldn't load the engines. Check your Mozhi instances and AI providers.",
   "@settingsQualityLoadFailed": {
-    "description": "settingsQualityLoadFailed"
+    "description": "Quality modes page: the list of engines could not be loaded."
   },
   "settingsQualityNoEngines": "No engines available. Add a Mozhi instance or an AI provider first.",
   "@settingsQualityNoEngines": {
@@ -4729,6 +4730,10 @@
       }
     }
   },
+  "dictionarySourceLanguageAuto": "Language of the word: detected automatically",
+  "@dictionarySourceLanguageAuto": {
+    "description": "Screen reader label of the dictionary's word-language button while the language is detected automatically."
+  },
   "dictionaryTargetLanguage": "Translations in: {language}",
   "@dictionaryTargetLanguage": {
     "placeholders": {
@@ -4773,21 +4778,21 @@
   "@dictionaryNoEngineTitle": {
     "description": "dictionaryNoEngineTitle"
   },
-  "dictionaryNoEngineBody": "Add an OpenAI-compatible, Anthropic, Gemini or Ollama provider, including a local model, to look up words.",
+  "dictionaryNoEngineBody": "Add an OpenAI-compatible, Anthropic, Gemini or Ollama provider, including a local model, to look up words. Dedicated translation models, such as TranslateGemma, can't be used.",
   "@dictionaryNoEngineBody": {
-    "description": "dictionaryNoEngineBody"
+    "description": "Body under dictionaryNoEngineTitle. Dedicated translation models (the 'Prompt style' setting of a provider, e.g. TranslateGemma) only translate and cannot write dictionary entries."
   },
-  "dictionaryNoEngineAction": "Set up AI providers",
+  "dictionaryNoEngineAction": "Add AI provider",
   "@dictionaryNoEngineAction": {
-    "description": "dictionaryNoEngineAction"
+    "description": "Button that opens the AI provider settings; same text as proofreadEmptyAction and translateAddAiProvider."
   },
-  "dictionaryEnginesErrorTitle": "Couldn't load your AI providers",
+  "dictionaryEnginesErrorTitle": "Couldn't load translation engines",
   "@dictionaryEnginesErrorTitle": {
-    "description": "dictionaryEnginesErrorTitle"
+    "description": "Dictionary: loading the translation engines (Mozhi instances) failed and no AI provider is set up."
   },
-  "dictionaryEnginesErrorBody": "Check your connection and try again.",
+  "dictionaryEnginesErrorBody": "Check your connection and try again. The dictionary also needs an AI provider.",
   "@dictionaryEnginesErrorBody": {
-    "description": "dictionaryEnginesErrorBody"
+    "description": "Body under dictionaryEnginesErrorTitle, above a Retry button."
   },
   "dictionaryLoading": "Looking up…",
   "@dictionaryLoading": {
@@ -4801,8 +4806,9 @@
       }
     }
   },
-  "dictionaryEngine": "Answers by {engine}",
+  "dictionaryEngine": "Dictionary entries by {engine}",
   "@dictionaryEngine": {
+    "description": "Shown under the dictionary search: which AI provider writes the entries. {engine} is the provider's name, e.g. Claude.",
     "placeholders": {
       "engine": {
         "type": "String"
@@ -4821,8 +4827,9 @@
   "@settingsHistoryRetentionConfirmTitle": {
     "description": "settingsHistoryRetentionConfirmTitle"
   },
-  "settingsHistoryRetentionConfirmBody": "{count, plural, =1{1 translation is older than {days, plural, =1{1 day} other{{days} days}} and will be deleted from this device right away.} other{{count} translations are older than {days, plural, =1{1 day} other{{days} days}} and will be deleted from this device right away.}} Starred translations are kept.",
+  "settingsHistoryRetentionConfirmBody": "{count, plural, =1{1 translation is older than {days, plural, =1{1 day} other{{days} days}} and will be deleted from this device right away.} other{{count} translations are older than {days, plural, =1{1 day} other{{days} days}} and will be deleted from this device right away.}} Favorites are kept.",
   "@settingsHistoryRetentionConfirmBody": {
+    "description": "Confirmation before a shorter auto-delete period deletes {count} translations older than {days} days right away. 'Favorites' is the same term as historyFilterFavorites.",
     "placeholders": {
       "count": {
         "type": "int"
@@ -4832,8 +4839,9 @@
       }
     }
   },
-  "settingsImportSkippedExpired": "{count, plural, =1{History imported. 1 translation older than your auto-delete setting was skipped.} other{History imported. {count} translations older than your auto-delete setting were skipped.}}",
+  "settingsImportSkippedExpired": "{count, plural, =1{History imported. 1 translation was skipped because it is older than your auto-delete period.} other{History imported. {count} translations were skipped because they are older than your auto-delete period.}}",
   "@settingsImportSkippedExpired": {
+    "description": "Snack bar after a history import that skipped {count} translations older than the 'Delete history automatically' period.",
     "placeholders": {
       "count": {
         "type": "int"
@@ -4878,7 +4886,7 @@
   "@translateQualityModesTitle": {
     "description": "Engine sheet entry that opens the quality modes settings"
   },
-  "translateQualityModesSetUp": "Choose a Fast and a Best engine to switch between them here",
+  "translateQualityModesSetUp": "Choose a Fast and a Best engine to switch between them next to the engine name",
   "@translateQualityModesSetUp": {
     "description": "Engine sheet entry subtitle when no quality engines are configured"
   },
@@ -4926,6 +4934,15 @@
       }
     }
   },
+  "translateLanguagePairAutoSemantics": "From any language to {target}",
+  "@translateLanguagePairAutoSemantics": {
+    "description": "Screen reader label of a language pair whose source language is detected automatically; {target} is the name of the target language.",
+    "placeholders": {
+      "target": {
+        "type": "String"
+      }
+    }
+  },
   "translateLanguagePairCurrent": "{pair}, current",
   "@translateLanguagePairCurrent": {
     "description": "Screen reader label of the language pair that is in use",
@@ -4964,13 +4981,13 @@
   "@translateOptionsFormalityNotes": {
     "description": "Label of the free text field describing the relationship / tone for the chosen formality"
   },
-  "translateOptionsFormalityNotesHint": "e.g. my boss, but we’re on first-name terms",
+  "translateOptionsFormalityNotesHint": "e.g. my boss, but we're on first-name terms",
   "@translateOptionsFormalityNotesHint": {
     "description": "Hint of the formality notes field"
   },
-  "translateActiveOptionFormalityNotes": "Notes: {notes}",
+  "translateActiveOptionFormalityNotes": "Formality notes: {notes}",
   "@translateActiveOptionFormalityNotes": {
-    "description": "Active option chip for formality notes",
+    "description": "Active option chip for formality notes; same term as the field label translateOptionsFormalityNotes. {notes} is the start of the user's notes.",
     "placeholders": {
       "notes": {
         "type": "String"
@@ -4983,30 +5000,31 @@
   },
   "translateRefineMoreFormal": "More formal",
   "@translateRefineMoreFormal": {
-    "description": "translateRefineMoreFormal"
+    "description": "Chip that rewrites the current translation to be more formal (the adjective refers to 'the translation')."
   },
   "translateRefineMoreCasual": "More casual",
   "@translateRefineMoreCasual": {
-    "description": "translateRefineMoreCasual"
+    "description": "Chip that rewrites the current translation to be more casual (the adjective refers to 'the translation')."
   },
   "translateRefineShorter": "Shorter",
   "@translateRefineShorter": {
-    "description": "translateRefineShorter"
+    "description": "Chip that rewrites the current translation to be shorter (the adjective refers to 'the translation')."
   },
   "translateRefineSimpler": "Simpler",
   "@translateRefineSimpler": {
-    "description": "translateRefineSimpler"
+    "description": "Chip that rewrites the current translation in simpler words (the adjective refers to 'the translation')."
   },
   "translateRefineMoreFluent": "More fluent",
   "@translateRefineMoreFluent": {
-    "description": "translateRefineMoreFluent"
+    "description": "Chip that rewrites the current translation to read more naturally (the adjective refers to 'the translation')."
   },
   "translateRefineMoreLiteral": "More literal",
   "@translateRefineMoreLiteral": {
-    "description": "translateRefineMoreLiteral"
+    "description": "Chip that rewrites the current translation to stay closer to the original wording (the adjective refers to 'the translation')."
   },
   "translateRefinementUndo": "Undo “{label}”",
   "@translateRefinementUndo": {
+    "description": "Tooltip of a refinement chip whose rewrite is shown: undo it. {label} is a chip label such as 'More formal'.",
     "placeholders": {
       "label": {
         "type": "String"
@@ -5015,6 +5033,7 @@
   },
   "translateRefinementReplaces": "Replaces “{label}”",
   "@translateRefinementReplaces": {
+    "description": "Tooltip of a refinement chip while another rewrite is shown: it replaces that one. {label} is a chip label such as 'More formal'.",
     "placeholders": {
       "label": {
         "type": "String"
@@ -5023,14 +5042,16 @@
   },
   "translateRefinementCancel": "Cancel “{label}”",
   "@translateRefinementCancel": {
+    "description": "Tooltip of a refinement chip while its rewrite is loading: cancel it. {label} is a chip label such as 'More formal'.",
     "placeholders": {
       "label": {
         "type": "String"
       }
     }
   },
-  "translateRefinementFailed": "Couldn’t refine the translation. {reason}",
+  "translateRefinementFailed": "Couldn't refine the translation. {reason}",
   "@translateRefinementFailed": {
+    "description": "Snack bar; {reason} is a complete error sentence (with its own period).",
     "placeholders": {
       "reason": {
         "type": "String"
@@ -5057,17 +5078,17 @@
   "@translateRomanizationReady": {
     "description": "translateRomanizationReady"
   },
-  "translateAlignmentShow": "Show alignment",
+  "translateAlignmentShow": "Show matching phrases",
   "@translateAlignmentShow": {
-    "description": "translateAlignmentShow"
+    "description": "Tooltip of the icon-only translation button that highlights which phrase of the original text each phrase of the translation translates."
   },
-  "translateAlignmentHide": "Hide alignment",
+  "translateAlignmentHide": "Hide matching phrases",
   "@translateAlignmentHide": {
-    "description": "translateAlignmentHide"
+    "description": "Tooltip of the same button (translateAlignmentShow) while the matching phrases are shown."
   },
-  "translateAlignmentLoading": "Aligning…",
+  "translateAlignmentLoading": "Finding matching phrases…",
   "@translateAlignmentLoading": {
-    "description": "translateAlignmentLoading"
+    "description": "Progress label while the matching phrases of the original text and the translation are being found."
   },
   "translateAlignmentHint": "Tap a phrase to see which words it translates.",
   "@translateAlignmentHint": {
@@ -5077,19 +5098,9 @@
   "@translateAlignmentEmpty": {
     "description": "translateAlignmentEmpty"
   },
-  "translateAlignmentSpanSemantics": "{phrase}, translates “{source}”",
-  "@translateAlignmentSpanSemantics": {
-    "placeholders": {
-      "phrase": {
-        "type": "String"
-      },
-      "source": {
-        "type": "String"
-      }
-    }
-  },
   "translateAlignmentFocused": "“{phrase}” translates “{source}”",
   "@translateAlignmentFocused": {
+    "description": "Screen reader announcement: {phrase} is a phrase of the translation, {source} the phrase of the original text it translates.",
     "placeholders": {
       "phrase": {
         "type": "String"
@@ -5117,15 +5128,15 @@
   },
   "translateDictionaryConcise": "Concise",
   "@translateDictionaryConcise": {
-    "description": "translateDictionaryConcise"
+    "description": "Detail level of a dictionary entry (chip): a short entry."
   },
   "translateDictionaryStandard": "Standard",
   "@translateDictionaryStandard": {
-    "description": "translateDictionaryStandard"
+    "description": "Detail level of a dictionary entry (chip): the usual entry."
   },
   "translateDictionaryDetailed": "Detailed",
   "@translateDictionaryDetailed": {
-    "description": "translateDictionaryDetailed"
+    "description": "Detail level of a dictionary entry (chip): a long entry with more senses and examples."
   },
   "translateDictionaryRelated": "Related words",
   "@translateDictionaryRelated": {
@@ -5161,27 +5172,27 @@
   },
   "proofreadReadingLevelA2Description": "Elementary",
   "@proofreadReadingLevelA2Description": {
-    "description": "Subtitle of the CEFR A2 option of the proofread reading-level menu: the language level of a elementary learner"
+    "description": "Subtitle of the CEFR A2 option of the proofread reading-level menu: the language level of an elementary learner"
   },
   "proofreadReadingLevelB1Description": "Intermediate",
   "@proofreadReadingLevelB1Description": {
-    "description": "Subtitle of the CEFR B1 option of the proofread reading-level menu: the language level of a intermediate learner"
+    "description": "Subtitle of the CEFR B1 option of the proofread reading-level menu: the language level of an intermediate learner"
   },
   "proofreadReadingLevelB2Description": "Upper intermediate",
   "@proofreadReadingLevelB2Description": {
-    "description": "Subtitle of the CEFR B2 option of the proofread reading-level menu: the language level of a upper-intermediate learner"
+    "description": "Subtitle of the CEFR B2 option of the proofread reading-level menu: the language level of an upper-intermediate learner"
   },
   "proofreadReadingLevelC1Description": "Advanced",
   "@proofreadReadingLevelC1Description": {
-    "description": "Subtitle of the CEFR C1 option of the proofread reading-level menu: the language level of a advanced learner"
+    "description": "Subtitle of the CEFR C1 option of the proofread reading-level menu: the language level of an advanced learner"
   },
   "proofreadReadingLevelC2Description": "Proficient",
   "@proofreadReadingLevelC2Description": {
     "description": "Subtitle of the CEFR C2 option of the proofread reading-level menu: the language level of a proficient, near-native reader"
   },
-  "proofreadVarietyLabel": "Variety",
+  "proofreadVarietyLabel": "Region",
   "@proofreadVarietyLabel": {
-    "description": "Label of the proofread option menu that picks the regional variety of the language (e.g. English (UK), Portuguese (Brazil)) whose spelling and vocabulary to use; 'variety' as in language variety, not assortment"
+    "description": "Short label of the proofread option menu that picks the regional variety of the language (e.g. English (UK), Portuguese (Brazil)) whose spelling and vocabulary to use. Shown as 'Region: English (UK)' on one line, so keep it short."
   },
   "proofreadVarietyKeepDescription": "Keep the author's spelling and vocabulary",
   "@proofreadVarietyKeepDescription": {
@@ -5390,12 +5401,16 @@
       }
     }
   },
-  "translateRecentPairsNeedsCustom": "Needs an AI model that takes custom languages",
+  "translateRecentPairsNeedsCustom": "Needs an AI model that supports custom languages",
   "@translateRecentPairsNeedsCustom": {
     "description": "Subtitle of a disabled recent language pair with a custom language while the engine cannot take custom languages."
   },
-  "translateMtServicesHeader": "Translation services",
+  "translateMtServicesHeader": "Machine translation",
   "@translateMtServicesHeader": {
-    "description": "Engine picker section header for machine translation services the user configured with their own key or server (DeepL API, LibreTranslate)."
+    "description": "Engine picker section header for machine translation services the user configured with their own key or server (DeepL API, LibreTranslate). Use the same term as settingsProvidersPresetsMt; not settingsSectionServices, which is the settings section for all kinds of services."
+  },
+  "translateAlignmentKeyboardHint": "With a keyboard: focus the translation and use the arrow keys, or move the cursor in your text.",
+  "@translateAlignmentKeyboardHint": {
+    "description": "Alignment view: how to see which words a phrase translates without a mouse or touch (arrow keys in the translation, or the cursor in the input)."
   }
 }

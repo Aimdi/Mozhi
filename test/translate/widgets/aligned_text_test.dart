@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
@@ -343,6 +344,187 @@ void main() {
       expect(host.calls, [1, 0]);
     });
 
+    group('keyboard', () {
+      /// The focus node of the aligned text.
+      FocusNode node(WidgetTester tester) =>
+          Focus.of(tester.element(_alignedText));
+
+      BoxDecoration outline(WidgetTester tester) =>
+          tester
+                  .widget<DecoratedBox>(
+                    find.byKey(const Key('translate_aligned_text_focus')),
+                  )
+                  .decoration
+              as BoxDecoration;
+
+      testWidgets('the text is a tab stop with a visible focus', (
+        tester,
+      ) async {
+        final host = _Host();
+        await TranslateHarness().pump(tester, child: host.build());
+        expect(outline(tester).border, isNull);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        expect(node(tester).hasPrimaryFocus, isTrue);
+        final context = tester.element(_alignedText);
+        final border = outline(tester).border! as Border;
+        expect(border.top.color, Theme.of(context).colorScheme.primary);
+        expect(border.top.width, 2);
+        // Focusing the text alone focuses no phrase.
+        expect(host.calls, isEmpty);
+      });
+
+      testWidgets('arrow keys move through the phrases in reading order', (
+        tester,
+      ) async {
+        final host = _Host();
+        await TranslateHarness().pump(tester, child: host.build());
+        node(tester).requestFocus();
+        await tester.pump();
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+        await tester.pump();
+        expect(host.focus.value, 0);
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pump();
+        expect(host.focus.value, 1);
+        // Stays on the last phrase.
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+        await tester.pump();
+        expect(host.focus.value, 1);
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+        await tester.pump();
+        expect(host.focus.value, 0);
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+        await tester.pump();
+        expect(host.focus.value, 0);
+        expect(host.calls, [0, 1, 0]);
+        // Each pair is announced as it gets the focus.
+        expect(tester.takeAnnouncements().map((a) => a.message), [
+          '“Bonjour” translates “Hello”',
+          '“le monde” translates “world”',
+          '“Bonjour” translates “Hello”',
+        ]);
+      });
+
+      testWidgets('Escape clears, Enter and Space toggle the first phrase', (
+        tester,
+      ) async {
+        final host = _Host();
+        await TranslateHarness().pump(tester, child: host.build());
+        node(tester).requestFocus();
+        await tester.pump();
+
+        // Nothing to clear: Escape is left to others.
+        expect(await tester.sendKeyEvent(LogicalKeyboardKey.escape), isFalse);
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+        expect(host.focus.value, 0);
+        await tester.sendKeyEvent(LogicalKeyboardKey.space);
+        await tester.pump();
+        expect(host.focus.value, isNull);
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+        await tester.pump();
+        expect(host.focus.value, 1);
+        expect(await tester.sendKeyEvent(LogicalKeyboardKey.escape), isTrue);
+        await tester.pump();
+        expect(host.focus.value, isNull);
+        // Other keys are not handled.
+        expect(await tester.sendKeyEvent(LogicalKeyboardKey.keyA), isFalse);
+        expect(host.calls, [0, null, 1, null]);
+      });
+
+      testWidgets('left and right follow a right-to-left text', (tester) async {
+        final calls = <int?>[];
+        final focus = ValueNotifier<int?>(null);
+        await TranslateHarness().pump(
+          tester,
+          child: ValueListenableBuilder<int?>(
+            valueListenable: focus,
+            builder: (context, value, _) => AlignedText(
+              text: _target,
+              alignment: _alignment,
+              focus: value,
+              textDirection: TextDirection.rtl,
+              onFocus: (index) {
+                calls.add(index);
+                focus.value = index;
+              },
+            ),
+          ),
+        );
+        node(tester).requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+        await tester.pump();
+        expect(calls, [0, 1, 0]);
+      });
+
+      testWidgets('key repeats move but do not toggle', (tester) async {
+        final host = _Host();
+        await TranslateHarness().pump(tester, child: host.build());
+        node(tester).requestFocus();
+        await tester.pump();
+        await tester.sendKeyRepeatEvent(LogicalKeyboardKey.arrowRight);
+        await tester.pump();
+        expect(host.focus.value, 0);
+        expect(
+          await tester.sendKeyRepeatEvent(LogicalKeyboardKey.enter),
+          isFalse,
+        );
+        expect(await tester.sendKeyUpEvent(LogicalKeyboardKey.enter), isFalse);
+        expect(host.calls, [0]);
+      });
+
+      testWidgets('is no tab stop without phrases', (tester) async {
+        await TranslateHarness().pump(
+          tester,
+          child: AlignedText(
+            text: _target,
+            alignment: const [],
+            onFocus: (_) {},
+          ),
+        );
+        expect(node(tester).canRequestFocus, isFalse);
+      });
+    });
+
+    testWidgets('whitespace between phrases is no screen reader stop', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final host = _Host();
+      await TranslateHarness().pump(tester, child: host.build());
+      final paragraph = tester.getSemantics(
+        find.descendant(of: _alignedText, matching: find.byType(RichText)),
+      );
+      final children = <SemanticsNode>[];
+      paragraph.visitChildren((child) {
+        children.add(child);
+        return true;
+      });
+      final stops = [
+        for (final child in children)
+          if (child.label.isNotEmpty) child.label,
+      ];
+      expect(stops, ['Bonjour', 'le monde']);
+      for (final child in children) {
+        final data = child.getSemanticsData();
+        if (child.label.isEmpty) {
+          // Nothing for the platform to focus: no label, no action.
+          expect(data.actions, 0);
+        } else {
+          expect(data.flagsCollection.isLink, isTrue);
+        }
+      }
+      handle.dispose();
+    });
+
     testWidgets('announces the focused pair', (tester) async {
       final host = _Host();
       await TranslateHarness().pump(
@@ -420,11 +602,11 @@ void main() {
       );
       stubOutputExtras(harness);
       await harness.pump(tester, child: const OutputCard());
-      expect(find.byTooltip('Show alignment'), findsOneWidget);
+      expect(find.byTooltip('Show matching phrases'), findsOneWidget);
       await tester.tap(button());
       await tester.pump();
       verify(harness.translate.loadAlignment).called(1);
-      expect(find.byTooltip('Hide alignment'), findsOneWidget);
+      expect(find.byTooltip('Hide matching phrases'), findsOneWidget);
       expect(tester.widget<IconButton>(button()).isSelected, isTrue);
     });
 
@@ -455,7 +637,7 @@ void main() {
       final progress = tester.widget<LinearProgressIndicator>(
         find.byKey(const Key('translate_alignment_progress')),
       );
-      expect(progress.semanticsLabel, 'Aligning…');
+      expect(progress.semanticsLabel, 'Finding matching phrases…');
     });
 
     testWidgets('shows errors with retry', (tester) async {
@@ -501,6 +683,39 @@ void main() {
       );
       await tester.tapAt(_centerOf(tester, 8, 16));
       verify(() => harness.translate.focusAlignment(1)).called(1);
+    });
+
+    testWidgets('the phrases can be reached with the keyboard', (tester) async {
+      final harness = TranslateHarness(state: aligned());
+      stubOutputExtras(harness);
+      await harness.pump(tester, child: const OutputCard());
+      await tester.tap(button());
+      await tester.pump();
+      // The hint explains the keyboard path too.
+      expect(
+        find.byKey(const Key('translate_alignment_keyboard_hint')),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'With a keyboard: focus the translation and use the arrow keys, '
+          'or move the cursor in your text.',
+        ),
+        findsOneWidget,
+      );
+
+      // Tabbing through the card reaches the translation.
+      final text = Focus.of(tester.element(_alignedText));
+      var reached = false;
+      for (var i = 0; i < 30 && !reached; i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        reached = text.hasPrimaryFocus;
+      }
+      expect(reached, isTrue);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      verify(() => harness.translate.focusAlignment(0)).called(1);
     });
 
     testWidgets('hiding clears the focus', (tester) async {
@@ -613,7 +828,7 @@ void main() {
       await tester.pump();
       verifyNever(harness.translate.loadAlignment);
       expect(tester.widget<IconButton>(button()).isSelected, isFalse);
-      expect(find.byTooltip('Show alignment'), findsOneWidget);
+      expect(find.byTooltip('Show matching phrases'), findsOneWidget);
 
       // The button loads it again.
       await tester.tap(button());

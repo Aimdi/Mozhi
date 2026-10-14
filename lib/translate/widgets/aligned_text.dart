@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/widgets/status_announcer.dart';
@@ -26,10 +27,16 @@ enum AlignedSide {
 /// tapped one. The [focus]ed phrase is drawn with [focusStyle]; the other
 /// aligned phrases are underlined with [phraseStyle].
 ///
-/// Screen readers read the phrases as part of the text, in its language
-/// ([locale]); focusing a pair announces it with the phrase it corresponds
-/// to ([other]) in the UI language. (A per-phrase label mixing the UI
-/// language and both texts would be read with one voice.)
+/// Keyboard: the text is one stop in the focus traversal (outlined while
+/// focused). The arrow keys then focus the next or previous phrase (in
+/// reading order, so Left and Right follow [textDirection]), Enter or Space
+/// focuses the first phrase or clears the focus, and Escape clears it.
+///
+/// Screen readers read the text in its language ([locale]), each phrase as
+/// a link of its own in reading order; whitespace between two phrases is
+/// no separate stop. Focusing a pair announces it with the phrase it
+/// corresponds to ([other]) in the UI language. (A per-phrase label mixing
+/// the UI language and both texts would be read with one voice.)
 class AlignedText extends StatefulWidget {
   const new({
     required this.text,
@@ -136,6 +143,13 @@ class AlignedText extends StatefulWidget {
 
 class _AlignedTextState extends State<AlignedText> {
   final _recognizers = <TapGestureRecognizer>[];
+  final _focusNode = FocusNode(debugLabel: 'AlignedText');
+
+  /// Whether the text has the keyboard focus (outlined).
+  bool _focused = false;
+
+  /// The phrase ranges of the last build ([AlignedText.ranges]).
+  List<(int, int, int)> _ranges = const [];
 
   /// The pair focused by a tap, or from outside (kept when the mouse
   /// leaves a phrase).
@@ -161,6 +175,7 @@ class _AlignedTextState extends State<AlignedText> {
   @override
   void dispose() {
     _disposeRecognizers();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -174,6 +189,57 @@ class _AlignedTextState extends State<AlignedText> {
   void _tap(int index) {
     _pinned = _pinned == index ? null : index;
     if (widget.focus != _pinned) widget.onFocus(_pinned);
+  }
+
+  void _pin(int? index) {
+    _pinned = index;
+    if (widget.focus != index) widget.onFocus(index);
+  }
+
+  /// Focuses the phrase [delta] phrases after (or before) the focused one,
+  /// in reading order; the first (or last) one when none is focused.
+  void _step(int delta) {
+    final ranges = _ranges;
+    final current = ranges.indexWhere((range) => range.$3 == widget.focus);
+    final next = current < 0
+        ? (delta > 0 ? 0 : ranges.length - 1)
+        : (current + delta).clamp(0, ranges.length - 1);
+    _pin(ranges[next].$3);
+  }
+
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    if (_ranges.isEmpty) return KeyEventResult.ignored;
+    final key = event.logicalKey;
+    final rtl =
+        (widget.textDirection ?? Directionality.of(context)) ==
+        TextDirection.rtl;
+    final delta = switch (key) {
+      LogicalKeyboardKey.arrowDown => 1,
+      LogicalKeyboardKey.arrowUp => -1,
+      LogicalKeyboardKey.arrowRight => rtl ? -1 : 1,
+      LogicalKeyboardKey.arrowLeft => rtl ? 1 : -1,
+      _ => null,
+    };
+    if (delta != null) {
+      _step(delta);
+      return KeyEventResult.handled;
+    }
+    if (event is KeyRepeatEvent) return KeyEventResult.ignored;
+    if (key == LogicalKeyboardKey.escape) {
+      if (widget.focus == null) return KeyEventResult.ignored;
+      _pin(null);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter ||
+        key == LogicalKeyboardKey.space) {
+      _pin(widget.focus == null ? _ranges.first.$3 : null);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
   }
 
   void _enter(int index) {
@@ -211,16 +277,20 @@ class _AlignedTextState extends State<AlignedText> {
       return phrase.isEmpty ? null : phrase;
     }
 
-    final spans = <InlineSpan>[];
-    var cursor = 0;
-    for (final (start, end, index) in AlignedText.ranges(
+    // Text between phrases. Whitespace alone (between two phrases) gets an
+    // empty label, so screen readers do not stop on it.
+    TextSpan gap(String part) =>
+        TextSpan(text: part, semanticsLabel: part.trim().isEmpty ? '' : null);
+
+    final ranges = _ranges = AlignedText.ranges(
       text,
       widget.alignment,
       side: widget.side,
-    )) {
-      if (start > cursor) {
-        spans.add(TextSpan(text: text.substring(cursor, start)));
-      }
+    );
+    final spans = <InlineSpan>[];
+    var cursor = 0;
+    for (final (start, end, index) in ranges) {
+      if (start > cursor) spans.add(gap(text.substring(cursor, start)));
       final recognizer = TapGestureRecognizer()..onTap = () => _tap(index);
       _recognizers.add(recognizer);
       spans.add(
@@ -234,7 +304,7 @@ class _AlignedTextState extends State<AlignedText> {
       );
       cursor = end;
     }
-    if (cursor < text.length) spans.add(TextSpan(text: text.substring(cursor)));
+    if (cursor < text.length) spans.add(gap(text.substring(cursor)));
 
     final focus = widget.focus;
     String? announcement;
@@ -250,11 +320,33 @@ class _AlignedTextState extends State<AlignedText> {
     }
     return StatusAnnouncer(
       message: announcement,
-      child: Text.rich(
-        key: const Key('translate_aligned_text'),
-        TextSpan(children: spans, locale: widget.locale),
-        style: widget.style,
-        textDirection: widget.textDirection,
+      child: Focus(
+        focusNode: _focusNode,
+        canRequestFocus: ranges.isNotEmpty,
+        // Screen readers move through the phrases (links) instead.
+        includeSemantics: false,
+        onFocusChange: (focused) => setState(() => _focused = focused),
+        onKeyEvent: _onKey,
+        child: DecoratedBox(
+          key: const Key('translate_aligned_text_focus'),
+          position: DecorationPosition.foreground,
+          decoration: _focused
+              ? BoxDecoration(
+                  border: Border.all(
+                    color: scheme.primary,
+                    width: 2,
+                    strokeAlign: BorderSide.strokeAlignOutside,
+                  ),
+                  borderRadius: const BorderRadius.all(Radius.circular(4)),
+                )
+              : const BoxDecoration(),
+          child: Text.rich(
+            key: const Key('translate_aligned_text'),
+            TextSpan(children: spans, locale: widget.locale),
+            style: widget.style,
+            textDirection: widget.textDirection,
+          ),
+        ),
       ),
     );
   }

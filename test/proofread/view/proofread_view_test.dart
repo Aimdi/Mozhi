@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -331,7 +332,7 @@ void main() {
 
       testWidgets('changes the regional variety', (tester) async {
         await pumpView(tester, readyState);
-        expect(find.text('Variety: As written'), findsOneWidget);
+        expect(find.text('Region: As written'), findsOneWidget);
         await tester.tap(find.byKey(const Key('proofread_variety_menu')));
         await tester.pumpAndSettle();
         expect(
@@ -364,7 +365,7 @@ void main() {
           tester,
           readyState.copyWith(variety: () => ProofreadVariety.deCh),
         );
-        expect(find.text('Variety: German (Switzerland)'), findsOneWidget);
+        expect(find.text('Region: German (Switzerland)'), findsOneWidget);
         await tester.tap(find.byKey(const Key('proofread_variety_menu')));
         await tester.pumpAndSettle();
         await tester.tap(find.text('As written'));
@@ -393,7 +394,7 @@ void main() {
         );
         await tester.pump();
         expect(find.text('Reading level: A2'), findsOneWidget);
-        expect(find.text('Variety: Portuguese (Brazil)'), findsOneWidget);
+        expect(find.text('Region: Portuguese (Brazil)'), findsOneWidget);
       });
 
       testWidgets('fit a phone at 200% text', (tester) async {
@@ -422,6 +423,44 @@ void main() {
             reason: key,
           );
         }
+      });
+
+      testWidgets('menu buttons show their whole value at 200% text', (
+        tester,
+      ) async {
+        tester.platformDispatcher.textScaleFactorTestValue = 2;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        await pumpView(
+          tester,
+          readyState.copyWith(
+            readingLevel: ReadingLevel.a2,
+            variety: () => ProofreadVariety.es419,
+          ),
+          size: const Size(320, 3200),
+        );
+        expect(tester.takeException(), isNull);
+        RenderParagraph label(String key) => tester.renderObject(
+          find.descendant(
+            of: find.byKey(Key(key)),
+            matching: find.byType(Text),
+          ),
+        );
+        for (final key in [
+          'proofread_level_menu',
+          'proofread_style_menu',
+          'proofread_formality_menu',
+          'proofread_reading_level_menu',
+          'proofread_variety_menu',
+        ]) {
+          expect(label(key).didExceedMaxLines, isFalse, reason: key);
+        }
+        expect(find.text('Region: Spanish (Latin America)'), findsOneWidget);
+        // The long value wraps onto more lines instead.
+        final variety = label('proofread_variety_menu');
+        expect(
+          variety.size.height,
+          greaterThan(variety.getMaxIntrinsicHeight(double.infinity) * 1.5),
+        );
       });
 
       testWidgets('menu button toggles its menu', (tester) async {

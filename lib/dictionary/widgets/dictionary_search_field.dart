@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
@@ -19,6 +20,7 @@ class DictionarySearchField extends StatefulWidget {
 
 class _DictionarySearchFieldState extends State<DictionarySearchField> {
   late final TextEditingController _controller;
+  final _focusNode = FocusNode(debugLabel: 'dictionary_search_field');
 
   @override
   void initState() {
@@ -31,15 +33,33 @@ class _DictionarySearchFieldState extends State<DictionarySearchField> {
   @override
   void dispose() {
     _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
+  /// Looks the word up. Keyboard focus stays where it is (the field or the
+  /// Look up button) instead of leaving the page (WCAG 2.4.3); only the
+  /// on-screen keyboard is put away so the entry shows.
   void _lookUp() {
     final cubit = context.read<DictionaryCubit>();
     if (cubit.state.word.trim().isEmpty) return;
-    FocusScope.of(context).unfocus();
+    if (_hasSoftKeyboard) {
+      unawaited(SystemChannels.textInput.invokeMethod<void>('TextInput.hide'));
+    }
     unawaited(cubit.lookUp());
   }
+
+  /// Clears the word and moves focus to the field, as the Clear button
+  /// that had it goes away.
+  void _clear() {
+    context.read<DictionaryCubit>().clear();
+    _focusNode.requestFocus();
+  }
+
+  /// Touch platforms, where the field brings up an on-screen keyboard.
+  static bool get _hasSoftKeyboard =>
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
 
   @override
   Widget build(BuildContext context) {
@@ -60,15 +80,21 @@ class _DictionarySearchFieldState extends State<DictionarySearchField> {
       child: TextField(
         key: const Key('dictionary_search_field'),
         controller: _controller,
+        focusNode: _focusNode,
         autofocus: widget.autofocus,
         onChanged: cubit.setWord,
-        onSubmitted: (_) => _lookUp(),
+        // Enter looks up. Not via onSubmitted: without onEditingComplete
+        // the field drops focus on Enter, and with onSubmitted it restarts
+        // the input connection, bringing the on-screen keyboard back.
+        onEditingComplete: _lookUp,
         textInputAction: TextInputAction.search,
         inputFormatters: [
           LengthLimitingTextInputFormatter(DictionaryCubit.maxWordLength),
         ],
         decoration: InputDecoration(
-          hintText: l10n.dictionarySearchHint,
+          // A label, unlike a hint, still names the field once it holds a
+          // word (WCAG 4.1.2, 3.3.2).
+          labelText: l10n.dictionarySearchHint,
           prefixIcon: const Icon(Icons.search),
           suffixIcon: Row(
             mainAxisSize: MainAxisSize.min,
@@ -78,7 +104,7 @@ class _DictionarySearchFieldState extends State<DictionarySearchField> {
                   key: const Key('dictionary_clear'),
                   tooltip: l10n.commonClear,
                   icon: const Icon(Icons.close),
-                  onPressed: cubit.clear,
+                  onPressed: _clear,
                 ),
               IconButton(
                 key: const Key('dictionary_look_up'),
@@ -89,7 +115,9 @@ class _DictionarySearchFieldState extends State<DictionarySearchField> {
             ],
           ),
           filled: true,
-          border: const OutlineInputBorder(
+          // A filled pill: the label floats inside it (an outline border
+          // would put the label across its top edge).
+          border: const UnderlineInputBorder(
             borderRadius: BorderRadius.all(Radius.circular(28)),
             borderSide: BorderSide.none,
           ),

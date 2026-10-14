@@ -1,9 +1,11 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:translation_repository/src/language_catalog.dart';
 import 'package:translation_repository/src/language_matcher.dart';
 import 'package:translation_repository/src/models/models.dart';
 import 'package:translation_repository/src/prompts/prompt_sanitizer.dart';
+import 'package:translation_repository/src/prompts/translation_prompts.dart';
 
 /// Lenient parsers for LLM output.
 abstract final class ResponseParsers {
@@ -355,6 +357,12 @@ abstract final class ResponseParsers {
     );
   }
 
+  /// Most items of an alignment that [parseAlignment] reads; later ones are
+  /// ignored. Generous for the at most
+  /// `TranslationPrompts.maxAlignmentChars` characters that are aligned,
+  /// while bounding the work for a runaway or hostile reply.
+  static const maxAlignmentPairs = 1000;
+
   /// Maps each `{"source": str, "target": str}` pair of the model's
   /// alignment (`pairs`, `alignment`, `alignments`, `spans`; or a bare
   /// list, also of `[source, target]` lists) to character offsets in
@@ -371,6 +379,12 @@ abstract final class ResponseParsers {
   /// so on the target side the occurrence nearest to the previous pair's
   /// phrase is. Pairs with a phrase not found on either side are dropped,
   /// as are duplicates. The result is sorted by source position.
+  ///
+  /// The work is bounded (this runs on the UI isolate): only the
+  /// beginnings of [source] and [translation] that `TranslationPrompts
+  /// .align` sends (at most `TranslationPrompts.maxAlignmentChars`
+  /// characters each, cut at a word boundary) are searched, and only the
+  /// first [maxAlignmentPairs] items of the output are read.
   static List<AlignedSpan> parseAlignment(
     String output, {
     required String source,
@@ -388,11 +402,18 @@ abstract final class ResponseParsers {
           ]);
     final spans = <AlignedSpan>[];
     final seen = <AlignedSpan>{};
-    final usedSource = <_Range>[];
-    final usedTarget = <_Range>[];
+    // The model saw only these beginnings; offsets into a prefix are
+    // offsets into the whole text.
+    final sourceText = _AlignmentText(
+      PromptSanitizer.prefix(source, TranslationPrompts.maxAlignmentChars),
+    );
+    final targetText = _AlignmentText(
+      PromptSanitizer.prefix(translation, TranslationPrompts.maxAlignmentChars),
+    );
+    final sourceLength = sourceText.text.length;
     var sourceFrom = 0;
     _Range? previousTarget;
-    for (final item in items) {
+    for (final item in items.take(maxAlignmentPairs)) {
       final (rawSource, rawTarget) = switch (item) {
         final Map<dynamic, dynamic> map => (
           _rawString(map, const [
@@ -416,19 +437,19 @@ abstract final class ResponseParsers {
       if (rawSource == null || rawTarget == null) continue;
       final from = sourceFrom;
       final inSource = _find(
-        PromptSanitizer.restoreTags(rawSource, original: source),
-        source,
-        used: usedSource,
+        sourceText.restoreTags(rawSource),
+        sourceText,
         // The next occurrence at or after the cursor, else the nearest one
         // before it.
         distance: (r) =>
-            r.start >= from ? r.start - from : source.length + from - r.start,
+            r.start >= from ? r.start - from : sourceLength + from - r.start,
+        increasingFrom: from,
+        forwardFirst: true,
       );
       final near = previousTarget;
       final inTarget = _find(
-        PromptSanitizer.restoreTags(rawTarget, original: translation),
-        translation,
-        used: usedTarget,
+        targetText.restoreTags(rawTarget),
+        targetText,
         // The occurrence nearest to the previous pair's (after it on a tie).
         distance: (r) => near == null
             ? r.start
@@ -437,13 +458,14 @@ abstract final class ResponseParsers {
             : r.end <= near.start
             ? 2 * (near.start - r.end) + 1
             : 0,
+        increasingFrom: near?.end ?? 0,
       );
       if (inSource == null || inTarget == null) continue;
       // Never move back after falling back to an earlier occurrence.
       if (inSource.end > sourceFrom) sourceFrom = inSource.end;
       previousTarget = inTarget;
-      usedSource.add(inSource);
-      usedTarget.add(inTarget);
+      sourceText.markUsed(inSource);
+      targetText.markUsed(inTarget);
       final span = AlignedSpan(
         sourceStart: inSource.start,
         sourceEnd: inSource.end,
@@ -1319,34 +1341,66 @@ abstract final class ResponseParsers {
   /// The best occurrence of [needle] in [haystack] (see [parseAlignment]):
   /// [needle] trimmed, else without edge quotes/punctuation, else ignoring
   /// case. Occurrences at word boundaries rank first, then those that
-  /// overlap none of [used]; ties go to the smallest [distance].
+  /// overlap no range an earlier pair took; ties go to the smallest
+  /// [distance].
+  ///
+  /// [distance] must grow with the start of occurrences that start at or
+  /// after [increasingFrom], so the search stops at the first of them that
+  /// cannot beat the best one so far. With [forwardFirst], occurrences
+  /// that start at or after [increasingFrom] must also be nearer than any
+  /// before it: the first top-ranked one there is then the best, and
+  /// earlier text is only searched when there is none.
   static _Range? _find(
     String needle,
-    String haystack, {
-    required List<_Range> used,
+    _AlignmentText haystack, {
     required int Function(_Range range) distance,
+    required int increasingFrom,
+    bool forwardFirst = false,
   }) {
+    final text = haystack.text;
     final trimmed = needle.trim();
+    if (trimmed.isEmpty) return null;
     final bare = trimmed.replaceAll(_edgePunctuation, '').trim();
-    final patterns = [
-      if (trimmed.isNotEmpty) RegExp(RegExp.escape(trimmed)),
-      if (bare.isNotEmpty && bare != trimmed) RegExp(RegExp.escape(bare)),
+    final patterns = <(String, bool)>[
+      (trimmed, false),
+      if (bare.isNotEmpty && bare != trimmed) (bare, false),
       // Matches in [haystack] itself, so offsets stay valid even where
       // lower-casing would change the length (e.g. 'İ').
-      if (bare.isNotEmpty) RegExp(RegExp.escape(bare), caseSensitive: false),
+      if (bare.isNotEmpty) (bare, true),
     ];
-    for (final pattern in patterns) {
+    for (final (pattern, ignoreCase) in patterns) {
+      if (forwardFirst) {
+        _Range? first;
+        _forEachOccurrence(
+          text,
+          pattern,
+          ignoreCase: ignoreCase,
+          start: increasingFrom,
+          (range) {
+            if (!haystack.atWordBoundaries(range) || haystack.isUsed(range)) {
+              return true;
+            }
+            first = range;
+            return false;
+          },
+        );
+        if (first != null) return first;
+      }
       _Range? best;
       var bestRank = 0;
       var bestDistance = 0;
-      for (final match in pattern.allMatches(haystack)) {
-        final range = (start: match.start, end: match.end);
-        final rank =
-            (_atWordBoundaries(haystack, range) ? 0 : 2) +
-            (used.any((u) => u.start < range.end && range.start < u.end)
-                ? 1
-                : 0);
+      _forEachOccurrence(text, pattern, ignoreCase: ignoreCase, (range) {
         final d = distance(range);
+        // Later occurrences are only farther away.
+        if (best != null &&
+            bestRank == 0 &&
+            range.start >= increasingFrom &&
+            d >= bestDistance) {
+          return false;
+        }
+        final rank =
+            (haystack.atWordBoundaries(range) ? 0 : 2) +
+            (haystack.isUsed(range) ? 1 : 0);
         if (best == null ||
             rank < bestRank ||
             (rank == bestRank && d < bestDistance)) {
@@ -1354,10 +1408,39 @@ abstract final class ResponseParsers {
           bestRank = rank;
           bestDistance = d;
         }
-      }
+        return true;
+      });
       if (best != null) return best;
     }
     return null;
+  }
+
+  /// Calls [visit] with each non-overlapping occurrence of [needle] in
+  /// [text] that starts at or after [start], in order, until it returns
+  /// false. Exact occurrences are found with [String.indexOf]; with
+  /// [ignoreCase] a case-insensitive [RegExp] (simple case mappings) is
+  /// used.
+  static void _forEachOccurrence(
+    String text,
+    String needle,
+    bool Function(_Range range) visit, {
+    required bool ignoreCase,
+    int start = 0,
+  }) {
+    if (ignoreCase) {
+      final pattern = RegExp(RegExp.escape(needle), caseSensitive: false);
+      for (final match in pattern.allMatches(text, start)) {
+        if (!visit((start: match.start, end: match.end))) return;
+      }
+      return;
+    }
+    for (
+      var i = text.indexOf(needle, start);
+      i >= 0;
+      i = text.indexOf(needle, i + needle.length)
+    ) {
+      if (!visit((start: i, end: i + needle.length))) return;
+    }
   }
 
   /// Letters, marks, digits and `_`.
@@ -1371,20 +1454,16 @@ abstract final class ResponseParsers {
     unicode: true,
   );
 
-  /// Whether no word continues across either end of [range] in [text]: a
-  /// word character of a script with spaces on both sides of an end. In
-  /// scripts written without spaces every position counts as a boundary.
-  static bool _atWordBoundaries(String text, _Range range) {
-    bool joins(int index) {
-      final before = _charBefore(text, index);
-      final after = _charAt(text, index);
-      return before != null &&
-          after != null &&
-          _isSpacedWordChar(before) &&
-          _isSpacedWordChar(after);
-    }
-
-    return !joins(range.start) && !joins(range.end);
+  /// Whether a word continues across [index] of [text]: a word character
+  /// of a script with spaces on both sides. In scripts written without
+  /// spaces no position joins a word.
+  static bool _joinsWord(String text, int index) {
+    final before = _charBefore(text, index);
+    final after = _charAt(text, index);
+    return before != null &&
+        after != null &&
+        _isSpacedWordChar(before) &&
+        _isSpacedWordChar(after);
   }
 
   static bool _isSpacedWordChar(String char) =>
@@ -1496,3 +1575,58 @@ abstract final class ResponseParsers {
 
 /// A range of character offsets, end exclusive.
 typedef _Range = ({int start, int end});
+
+/// One side of an alignment for [ResponseParsers.parseAlignment]: the
+/// searched [text], the characters earlier pairs took and memoised word
+/// boundaries, so locating a phrase costs time linear in [text] however
+/// many pairs came before.
+final class _AlignmentText {
+  new(this.text)
+    : _used = Uint8List(text.length),
+      _joins = Int8List(text.length + 1)..fillRange(0, text.length + 1, -1),
+      _restore = !text.contains(_defused);
+
+  static const _defused = '<${PromptSanitizer.zeroWidthSpace}';
+
+  /// The searched text.
+  final String text;
+
+  /// 1 for every character an earlier pair took.
+  final Uint8List _used;
+
+  /// Per position: -1 unknown, 0 no word continues across it, 1 one does.
+  final Int8List _joins;
+
+  /// Whether tags defused in the prompt are restored in phrases (see
+  /// [PromptSanitizer.restoreTags]).
+  final bool _restore;
+
+  /// [phrase] with tags defused in the prompt restored.
+  String restoreTags(String phrase) =>
+      _restore ? phrase.replaceAll(_defused, '<') : phrase;
+
+  /// Whether no word continues across either end of [range]. In scripts
+  /// written without spaces every position counts as a boundary.
+  bool atWordBoundaries(_Range range) =>
+      !_joinsAt(range.start) && !_joinsAt(range.end);
+
+  bool _joinsAt(int index) {
+    var joins = _joins[index];
+    if (joins < 0) {
+      joins = ResponseParsers._joinsWord(text, index) ? 1 : 0;
+      _joins[index] = joins;
+    }
+    return joins == 1;
+  }
+
+  /// Whether [range] overlaps a range an earlier pair took.
+  bool isUsed(_Range range) {
+    for (var i = range.start; i < range.end; i++) {
+      if (_used[i] != 0) return true;
+    }
+    return false;
+  }
+
+  /// Records that a pair took [range].
+  void markUsed(_Range range) => _used.fillRange(range.start, range.end, 1);
+}

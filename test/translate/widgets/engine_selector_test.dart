@@ -139,14 +139,14 @@ void main() {
         engines: const [deepl, google, _deeplApi, _libre, claude, ollama],
       );
 
-      expect(find.text('Translation services'), findsOneWidget);
+      expect(find.text('Machine translation'), findsOneWidget);
       expect(find.text('On this device'), findsNothing);
       expect(find.byType(OfflineEngineBadge), findsNothing);
       expect(find.byIcon(OfflineEngineBadge.icon), findsNothing);
 
       // Mozhi engines, then services, then AI models.
       final mozhiHeader = find.text('Mozhi engines (via mozhi.example.org)');
-      final servicesHeader = find.text('Translation services');
+      final servicesHeader = find.text('Machine translation');
       final aiHeader = find.text('AI models');
       expect(top(tester, mozhiHeader), lessThan(top(tester, servicesHeader)));
       expect(
@@ -171,22 +171,19 @@ void main() {
       expect(inTile('LibreTranslate', find.text('192.168.1.20')), findsOne);
     });
 
-    test('the translation services header is translated in every locale', () {
+    test('the machine translation header is translated in every locale', () {
+      final en = lookupAppLocalizations(const Locale('en'));
+      // The term the add-provider sheet groups these services under, not
+      // the settings section that holds every kind of service.
+      expect(en.translateMtServicesHeader, en.settingsProvidersPresetsMt);
+      expect(en.translateMtServicesHeader, isNot(en.settingsSectionServices));
       for (final locale in AppLocalizations.supportedLocales) {
-        final l10n = lookupAppLocalizations(locale);
-        // The same term as the settings section of these services.
+        if (locale.languageCode == 'en') continue;
         expect(
-          l10n.translateMtServicesHeader,
-          l10n.settingsSectionServices,
+          lookupAppLocalizations(locale).translateMtServicesHeader,
+          isNot(en.translateMtServicesHeader),
           reason: '$locale',
         );
-        if (locale.languageCode != 'en') {
-          expect(
-            l10n.translateMtServicesHeader,
-            isNot('Translation services'),
-            reason: '$locale',
-          );
-        }
       }
     });
 
@@ -194,7 +191,7 @@ void main() {
       await open(tester, engines: const [deepl, _deeplApi, claude, _offline]);
 
       expect(find.text('On this device'), findsOneWidget);
-      expect(find.text('Translation services'), findsOneWidget);
+      expect(find.text('Machine translation'), findsOneWidget);
       expect(
         inTile('Offline (on-device)', find.byType(OfflineEngineBadge)),
         findsOneWidget,
@@ -209,7 +206,7 @@ void main() {
       );
       expect(
         top(tester, find.text('On this device')),
-        lessThan(top(tester, find.text('Translation services'))),
+        lessThan(top(tester, find.text('Machine translation'))),
       );
       expect(
         inTile('DeepL API', find.byType(OfflineEngineBadge)),
@@ -260,7 +257,7 @@ void main() {
     testWidgets('leaves out empty sections', (tester) async {
       await open(tester, engines: const [_deeplApi]);
 
-      expect(find.text('Translation services'), findsOneWidget);
+      expect(find.text('Machine translation'), findsOneWidget);
       expect(find.text('Mozhi engines'), findsNothing);
       expect(find.textContaining('Mozhi engines ('), findsNothing);
       expect(find.text('AI models'), findsNothing);

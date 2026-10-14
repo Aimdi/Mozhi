@@ -304,6 +304,26 @@ void main() {
     );
 
     blocTest<TranslateCubit, TranslateState>(
+      'with persist false switches without saving the mode (links)',
+      setUp: () => mocks.stubTranslate(),
+      build: () => mocks.build(),
+      seed: () => ready(input: 'hi'),
+      act: (cubit) async {
+        await cubit.setQualityMode(QualityMode.fast, persist: false);
+        expect(cubit.state.engine, deepl);
+        expect(cubit.state.qualityMode, QualityMode.fast);
+        // Back to the normal engine, still without saving anything.
+        await cubit.setQualityMode(QualityMode.off, persist: false);
+      },
+      verify: (cubit) {
+        expect(cubit.state.engine, google);
+        expect(cubit.state.qualityMode, QualityMode.off);
+        verifyNever(() => mocks.settings.setQualityMode(any()));
+        verifyNever(() => mocks.settings.setEngine(any()));
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
       'off returns to the normal engine',
       setUp: () {
         mocks

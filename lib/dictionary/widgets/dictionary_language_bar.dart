@@ -56,7 +56,9 @@ class DictionaryLanguageBar extends StatelessWidget {
           child: _LanguageButton(
             key: const Key('dictionary_source_language'),
             label: sourceName,
-            semanticsLabel: l10n.dictionarySourceLanguage(sourceName),
+            semanticsLabel: source.isAuto
+                ? l10n.dictionarySourceLanguageAuto
+                : l10n.dictionarySourceLanguage(sourceName),
             onPressed: () => unawaited(_pick(context, source: true)),
           ),
         ),

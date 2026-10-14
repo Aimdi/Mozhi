@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
@@ -90,7 +91,7 @@ void main() {
       expect(find.text('Fast'), findsOneWidget);
       expect(find.text('Best'), findsOneWidget);
       expect(
-        find.textContaining('such as a Mozhi engine like Google or DeepL'),
+        find.textContaining('Google or DeepL through a Mozhi instance'),
         findsOneWidget,
       );
       expect(
@@ -178,7 +179,7 @@ void main() {
       await pump(tester);
       expect(
         find.text(
-          'Couldn’t load the engines. Check your Mozhi instances and '
+          "Couldn't load the engines. Check your Mozhi instances and "
           'AI providers.',
         ),
         findsOneWidget,
@@ -252,6 +253,10 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.text('Google'));
         await tester.pumpAndSettle();
+        // Choosing only moves the selection; Save confirms it.
+        expect(find.byType(AlertDialog), findsOneWidget);
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
         expect(find.byType(AlertDialog), findsNothing);
         verify(
           () => settings.setQualityEngines(fast: 'mozhi:google', best: 'ai:p1'),
@@ -267,6 +272,8 @@ void main() {
         expect(find.text('Best engine'), findsOneWidget);
         await tester.tap(find.text('DeepL API'));
         await tester.pumpAndSettle();
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
         verify(
           () => settings.setQualityEngines(fast: 'mozhi:google', best: 'mt:p3'),
         ).called(1);
@@ -277,6 +284,8 @@ void main() {
         await tester.tap(find.text('Google'));
         await tester.pumpAndSettle();
         await tester.tap(find.text('None'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Save'));
         await tester.pumpAndSettle();
         verify(() => settings.setQualityEngines(best: 'ai:p1')).called(1);
       });
@@ -292,12 +301,43 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
+        expect(find.byType(AlertDialog), findsNothing);
         verifyNever(
           () => settings.setQualityEngines(
             fast: any(named: 'fast'),
             best: any(named: 'best'),
           ),
         );
+      });
+
+      testWidgets('arrow keys move the choice without closing the dialog', (
+        tester,
+      ) async {
+        await pump(tester, state: const AppSettings(bestEngineId: 'ai:p1'));
+        await tester.tap(find.text('Not set'));
+        await tester.pumpAndSettle();
+        // Tab reaches the selected radio ("None") of the group.
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        for (var i = 0; i < 3; i++) {
+          await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+          await tester.pumpAndSettle();
+        }
+        expect(find.byType(AlertDialog), findsOneWidget);
+        verifyNever(
+          () => settings.setQualityEngines(
+            fast: any(named: 'fast'),
+            best: any(named: 'best'),
+          ),
+        );
+
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
+        expect(find.byType(AlertDialog), findsNothing);
+        verify(() => settings.setQualityEngines(fast: 'mt:p3', best: 'ai:p1'))
+            .called(1);
       });
 
       testWidgets('cancel changes nothing', (tester) async {

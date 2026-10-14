@@ -102,7 +102,7 @@ Future<void> showEngineSheet(BuildContext context) {
 const translateQualityLocation = '/settings/quality';
 
 /// Engines grouped by kind: "On this device" (offline engines, with the
-/// offline badge), "Mozhi engines (via host)", "Translation services"
+/// offline badge), "Mozhi engines (via host)", "Machine translation"
 /// (DeepL API, LibreTranslate) and "AI models" (each with a privacy badge),
 /// followed by links to the provider, instance and quality mode settings.
 /// The quality modes entry explains how to get the Fast / Best toggle while

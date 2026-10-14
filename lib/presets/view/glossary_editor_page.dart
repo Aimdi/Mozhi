@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/undo_snack_bar.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/presets/cubit/glossary_cubit.dart';
 import 'package:mozhi/presets/data/glossary_repository.dart';
@@ -72,17 +73,11 @@ class _GlossaryEditorViewState extends State<GlossaryEditorView> {
     final l10n = context.l10n;
     final cubit = _cubit;
     unawaited(cubit.removeTerm(_id, index));
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(l10n.glossaryEditorTermDeleted(term.source)),
-          action: SnackBarAction(
-            label: l10n.commonUndo,
-            onPressed: () => unawaited(cubit.insertTerm(_id, index, term)),
-          ),
-        ),
-      );
+    showUndoSnackBar(
+      context,
+      message: l10n.glossaryEditorTermDeleted(term.source),
+      onUndo: () => unawaited(cubit.insertTerm(_id, index, term)),
+    );
   }
 
   Future<void> _import() async {

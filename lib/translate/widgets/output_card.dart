@@ -80,7 +80,7 @@ TextDirection? outputTextDirection(TranslateState state) =>
 /// of a finished translation offers "Alternatives" for that part when an AI
 /// engine is available (see [showSpanAlternativesSheet]).
 ///
-/// "Show alignment" loads the phrase alignment of the input and the
+/// "Show matching phrases" loads the phrase alignment of the input and the
 /// translation (`TranslateCubit.loadAlignment`); tapping or hovering a
 /// phrase of the translation then highlights it and focuses its pair
 /// (`TranslateCubit.focusAlignment`) so the input can highlight the
@@ -89,9 +89,10 @@ TextDirection? outputTextDirection(TranslateState state) =>
 /// complete), and so does a romanization the user asked for, as long as
 /// that costs nothing (the assist engine runs locally, or Mozhi delivered
 /// the romanization) or the user asked for the translation. After an
-/// instant translation (`TranslateState.instantResult`) they are turned off
-/// instead, so typing never starts paid AI requests; the buttons load them
-/// again.
+/// instant translation, or the automatic translation of a link or shared
+/// text (`TranslateState.instantResult`), they are turned off instead, so
+/// neither typing nor text from outside the app starts paid AI requests;
+/// the buttons load them again.
 ///
 /// "Romanization ready" and the alignment hint are announced for the load
 /// the user asked for, not for the automatic reloads.
@@ -117,7 +118,8 @@ class _OutputCardState extends State<OutputCard> {
 
   /// Whether the AI extras of [state] may be reloaded without a user
   /// action: they cost nothing (a local assist engine), or the user asked
-  /// for the translation (not an instant one).
+  /// for the translation (not an instant one, nor the automatic one of
+  /// external text).
   static bool _mayReload(TranslateState state) =>
       !state.instantResult || (state.assistEngine?.isLocal ?? false);
 
@@ -625,13 +627,24 @@ class _OutputCardState extends State<OutputCard> {
           style: muted,
         ),
       ),
-      ExtraStatus.ready => Semantics(
-        liveRegion: live,
-        child: Text(
-          l10n.translateAlignmentHint,
-          key: const Key('translate_alignment_hint'),
-          style: muted,
-        ),
+      ExtraStatus.ready => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Semantics(
+            liveRegion: live,
+            child: Text(
+              l10n.translateAlignmentHint,
+              key: const Key('translate_alignment_hint'),
+              style: muted,
+            ),
+          ),
+          // The phrases cannot be tapped without touch or a mouse.
+          Text(
+            l10n.translateAlignmentKeyboardHint,
+            key: const Key('translate_alignment_keyboard_hint'),
+            style: muted,
+          ),
+        ],
       ),
       ExtraStatus.idle => const SizedBox.shrink(),
     };

@@ -1014,6 +1014,90 @@ void main() {
     );
 
     blocTest<TranslateCubit, TranslateState>(
+      'an automatic translation of it counts as not asked for',
+      // Sticky AI extras (insights, alignment) must not reload for it on
+      // their own (OutputCard checks instantResult).
+      setUp: () => mocks.stubTranslate(),
+      build: () => mocks.build(),
+      seed: readyState,
+      act: (cubit) => cubit.setExternalInput('shared'),
+      verify: (cubit) {
+        expect(cubit.state.output, 'shared->en');
+        expect(cubit.state.status, TranslateStatus.success);
+        expect(cubit.state.instantResult, isTrue);
+        // Only the history entry of a typing pause is provisional.
+        expect(mocks.historyEntries(), hasLength(1));
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'an automatic translation on an AI engine counts as not asked for',
+      setUp: () {
+        mocks
+          ..stubTranslate()
+          ..stubSettings(const AppSettings(instantTranslateAi: true));
+      },
+      build: () => mocks.build(),
+      seed: () => readyState(engine: claude),
+      act: (cubit) => cubit.setExternalInput('shared'),
+      verify: (cubit) => expect(cubit.state.instantResult, isTrue),
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'arriving before engines load counts as not asked for',
+      setUp: () => mocks.stubTranslate(),
+      build: () => mocks.build(),
+      act: (cubit) async {
+        cubit.setExternalInput('shared');
+        await cubit.loadEngines();
+        await Future<void>.delayed(Duration.zero);
+      },
+      verify: (cubit) {
+        expect(cubit.state.output, 'shared->en');
+        expect(cubit.state.instantResult, isTrue);
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'a smart swap of it still counts as not asked for',
+      setUp: () {
+        mocks.deviceLanguages = const ['de-DE'];
+        when(() => mocks.repository.translate(any(), any())).thenAnswer((
+          invocation,
+        ) {
+          final request =
+              invocation.positionalArguments[1] as TranslationRequest;
+          return Stream.value(
+            resultOf('${request.text}->${request.target.code}', detected: 'en'),
+          );
+        });
+      },
+      build: () => mocks.build(),
+      // Detecting the source (the default).
+      seed: readyState,
+      act: (cubit) => cubit.setExternalInput('Hello there, my friend'),
+      verify: (cubit) {
+        expect(cubit.state.target, de);
+        expect(cubit.state.output, 'Hello there, my friend->de');
+        expect(cubit.state.instantResult, isTrue);
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'pressing Translate makes it a result the user asked for',
+      setUp: () => mocks.stubTranslate(),
+      build: () => mocks.build(),
+      seed: readyState,
+      act: (cubit) async {
+        cubit.setExternalInput('shared');
+        await Future<void>.delayed(Duration.zero);
+        expect(cubit.state.instantResult, isTrue);
+        await cubit.translate();
+      },
+      verify: (cubit) => expect(cubit.state.instantResult, isFalse),
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
       'blank external text does nothing more',
       build: () => mocks.build(),
       seed: () => readyState(input: 'x'),

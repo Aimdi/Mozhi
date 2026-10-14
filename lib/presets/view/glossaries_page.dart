@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/undo_snack_bar.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/presets/cubit/glossary_cubit.dart';
 import 'package:mozhi/presets/models/glossary.dart';
@@ -80,20 +81,14 @@ class _GlossariesViewState extends State<GlossariesView> {
     final index = cubit.state.glossaries.indexOf(glossary);
     setState(() => _dismissed.add(glossary.id));
     unawaited(cubit.delete(glossary.id));
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(l10n.glossariesDeleted(l10n.glossaryName(glossary))),
-          action: SnackBarAction(
-            label: l10n.commonUndo,
-            onPressed: () {
-              unawaited(cubit.restore(glossary, index: index));
-              if (mounted) setState(() => _dismissed.remove(glossary.id));
-            },
-          ),
-        ),
-      );
+    showUndoSnackBar(
+      context,
+      message: l10n.glossariesDeleted(l10n.glossaryName(glossary)),
+      onUndo: () {
+        unawaited(cubit.restore(glossary, index: index));
+        if (mounted) setState(() => _dismissed.remove(glossary.id));
+      },
+    );
   }
 
   Future<void> _onMenu(_MenuAction action) async {

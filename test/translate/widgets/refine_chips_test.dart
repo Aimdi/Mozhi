@@ -328,7 +328,7 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.textContaining('Couldn’t refine the translation.'),
+        find.textContaining("Couldn't refine the translation."),
         findsOneWidget,
       );
       expect(find.textContaining('Too many requests'), findsOneWidget);

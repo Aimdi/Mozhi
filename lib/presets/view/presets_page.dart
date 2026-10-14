@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/undo_snack_bar.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/presets/cubit/presets_cubit.dart';
 import 'package:mozhi/presets/models/preset.dart';
@@ -61,22 +62,14 @@ class _PresetsViewState extends State<PresetsView> {
     final wasDefault = cubit.state.defaultId == preset.id;
     setState(() => _dismissed.add(preset.id));
     unawaited(cubit.delete(preset.id));
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(l10n.presetsDeleted(l10n.presetName(preset))),
-          action: SnackBarAction(
-            label: l10n.commonUndo,
-            onPressed: () {
-              unawaited(
-                cubit.restore(preset, index: index, makeDefault: wasDefault),
-              );
-              if (mounted) setState(() => _dismissed.remove(preset.id));
-            },
-          ),
-        ),
-      );
+    showUndoSnackBar(
+      context,
+      message: l10n.presetsDeleted(l10n.presetName(preset)),
+      onUndo: () {
+        unawaited(cubit.restore(preset, index: index, makeDefault: wasDefault));
+        if (mounted) setState(() => _dismissed.remove(preset.id));
+      },
+    );
   }
 
   void _onAction(_PresetAction action, Preset preset, int index) {

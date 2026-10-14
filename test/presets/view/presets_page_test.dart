@@ -127,6 +127,11 @@ void main() {
       expect(state().presets, hasLength(2));
       expect(state().defaultId, isNull);
       expect(find.text('Deleted “$_chat”'), findsOneWidget);
+      // Closable without a pointer and without undoing.
+      expect(
+        tester.widget<SnackBar>(find.byType(SnackBar)).showCloseIcon,
+        isTrue,
+      );
 
       await tester.tap(find.text('Undo'));
       await settle(tester);
