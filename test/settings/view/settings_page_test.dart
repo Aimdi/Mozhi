@@ -688,7 +688,7 @@ void main() {
         expect(find.text('2 recent language pairs'), findsOneWidget);
         await tester.ensureVisible(find.text('Clear recent language pairs'));
         await tester.tap(find.text('Clear recent language pairs'));
-        await tester.pump();
+        await tester.pumpAndSettle();
         verify(settings.clearRecentPairs).called(1);
         expect(find.text('Recent language pairs cleared'), findsOneWidget);
 

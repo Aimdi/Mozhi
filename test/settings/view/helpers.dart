@@ -123,6 +123,7 @@ void registerFallbacks() {
   );
   registerFallbackValue(Language.auto);
   registerFallbackValue(HistoryRetention.forever);
+  registerFallbackValue(Duration.zero);
   registerFallbackValue(QualityMode.off);
   registerFallbackValue((AppSettings settings) => settings);
   registerFallbackValue(

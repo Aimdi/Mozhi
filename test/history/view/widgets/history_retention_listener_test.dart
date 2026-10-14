@@ -13,13 +13,15 @@ import 'package:mozhi/settings/models/app_settings.dart';
 import '../../../settings/view/helpers.dart';
 
 void main() {
+  setUpAll(registerFallbacks);
+
   group(HistoryRetentionListener, () {
     late MockSettingsCubit settings;
     late MockHistoryCubit history;
     late StreamController<AppSettings> changes;
 
     setUp(() {
-      changes = StreamController<AppSettings>();
+      changes = StreamController<AppSettings>.broadcast();
       addTearDown(changes.close);
       settings = createSettingsCubit(
         const AppSettings(historyRetention: HistoryRetention.week),
@@ -44,8 +46,6 @@ void main() {
         child: const HistoryRetentionListener(child: SizedBox()),
       ),
     );
-
-    setUpAll(() => registerFallbackValue(Duration.zero));
 
     testWidgets('applies the current retention when inserted', (tester) async {
       await pump(tester);

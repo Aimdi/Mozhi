@@ -13,6 +13,7 @@ import 'package:mozhi/app/translate_link.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/data/history_repository.dart';
+import 'package:mozhi/history/view/widgets/history_retention_listener.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/onboarding/onboarding_redirect.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
@@ -59,7 +60,10 @@ class _AppState extends State<App> {
       repository: _deps.settingsRepository,
       initial: _deps.settings,
     );
-    _historyCubit = HistoryCubit(repository: _deps.historyRepository);
+    _historyCubit = HistoryCubit(
+      repository: _deps.historyRepository,
+      maxAge: _settingsCubit.state.historyRetention.maxAge,
+    );
     unawaited(_historyCubit.load());
     _translateCubit = TranslateCubit(
       repository: _deps.translationRepository,
@@ -203,37 +207,39 @@ class _AppState extends State<App> {
         ],
         child: PresetsProviders(
           store: _deps.preferences,
-          child: BlocListener<SettingsCubit, AppSettings>(
-            listenWhen: engineConfigurationChanged,
-            listener: (context, settings) =>
-                _applyEngineConfiguration(settings),
-            child: BlocBuilder<SettingsCubit, AppSettings>(
-              buildWhen: appearanceChanged,
-              builder: (context, settings) => DynamicColorBuilder(
-                builder: (lightDynamic, darkDynamic) {
-                  final themes = AppThemes.fromSettings(
-                    settings,
-                    lightDynamic: lightDynamic,
-                    darkDynamic: darkDynamic,
-                  );
-                  return MaterialApp.router(
-                    onGenerateTitle: (context) => context.l10n.appTitle,
-                    debugShowCheckedModeBanner: false,
-                    scaffoldMessengerKey: _messengerKey,
-                    theme: themes.light,
-                    darkTheme: themes.dark,
-                    themeMode: settings.themeMode,
-                    localizationsDelegates: appLocalizationsDelegates,
-                    supportedLocales: AppLocalizations.supportedLocales,
-                    routerConfig: _router,
-                    builder: (context, child) => UsageWarningListener(
-                      tracker: _deps.usageTracker,
-                      messengerKey: _messengerKey,
-                      providerName: _providerName,
-                      child: child ?? const SizedBox.shrink(),
-                    ),
-                  );
-                },
+          child: HistoryRetentionListener(
+            child: BlocListener<SettingsCubit, AppSettings>(
+              listenWhen: engineConfigurationChanged,
+              listener: (context, settings) =>
+                  _applyEngineConfiguration(settings),
+              child: BlocBuilder<SettingsCubit, AppSettings>(
+                buildWhen: appearanceChanged,
+                builder: (context, settings) => DynamicColorBuilder(
+                  builder: (lightDynamic, darkDynamic) {
+                    final themes = AppThemes.fromSettings(
+                      settings,
+                      lightDynamic: lightDynamic,
+                      darkDynamic: darkDynamic,
+                    );
+                    return MaterialApp.router(
+                      onGenerateTitle: (context) => context.l10n.appTitle,
+                      debugShowCheckedModeBanner: false,
+                      scaffoldMessengerKey: _messengerKey,
+                      theme: themes.light,
+                      darkTheme: themes.dark,
+                      themeMode: settings.themeMode,
+                      localizationsDelegates: appLocalizationsDelegates,
+                      supportedLocales: AppLocalizations.supportedLocales,
+                      routerConfig: _router,
+                      builder: (context, child) => UsageWarningListener(
+                        tracker: _deps.usageTracker,
+                        messengerKey: _messengerKey,
+                        providerName: _providerName,
+                        child: child ?? const SizedBox.shrink(),
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
           ),

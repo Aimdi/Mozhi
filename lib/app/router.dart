@@ -23,6 +23,7 @@ import 'package:mozhi/settings/view/about_page.dart';
 import 'package:mozhi/settings/view/instances_page.dart';
 import 'package:mozhi/settings/view/provider_editor_page.dart';
 import 'package:mozhi/settings/view/providers_page.dart';
+import 'package:mozhi/settings/view/quality_modes_page.dart';
 import 'package:mozhi/settings/view/settings_page.dart';
 import 'package:mozhi/translate/view/translate_page.dart';
 import 'package:mozhi/usage/view/usage_summary_page.dart';
@@ -52,6 +53,7 @@ abstract final class AppRoutes {
 
   /// AI provider usage this and last month.
   static const usage = '/settings/usage';
+  static const quality = '/settings/quality';
 
   /// First-run flow (full screen, outside the tabs).
   static const String onboarding = onboardingLocation;
@@ -282,6 +284,10 @@ GoRouter createAppRouter({
                   GoRoute(
                     path: 'glossaries',
                     builder: (context, state) => const GlossariesPage(),
+                  ),
+                  GoRoute(
+                    path: 'quality',
+                    builder: (context, state) => const QualityModesPage(),
                   ),
                   GoRoute(
                     path: 'usage',

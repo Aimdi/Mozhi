@@ -6,6 +6,7 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/proofread/cubit/proofread_cubit.dart';
 import 'package:mozhi/proofread/widgets/widgets.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/usage/usage.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Kagi-style proofreading. Uses the AI engines known to [TranslateCubit]
@@ -36,6 +37,7 @@ class ProofreadPage extends StatelessWidget {
           engines: translate.engines,
           engine: translate.assistEngine,
           uiLanguage: uiLanguage,
+          usageTracker: _usageTracker(context),
         );
       },
       child: _LinkedText(text: initialText, child: const ProofreadView()),
@@ -205,5 +207,14 @@ class _WideLayout extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+/// The app's usage tracker, or null when none is provided (e.g. in tests).
+UsageTracker? _usageTracker(BuildContext context) {
+  try {
+    return context.read<UsageTracker>();
+  } on ProviderNotFoundException {
+    return null;
   }
 }

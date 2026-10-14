@@ -105,13 +105,12 @@ class HistoryRepository {
   /// Deletes non-favourite entries created more than [maxAge] ago (none
   /// when [maxAge] is null) and returns the history. Writes only when
   /// something was deleted.
-  Future<List<HistoryEntry>> prune(Duration? maxAge) =>
-      _synchronized(() async {
-        final entries = await _current();
-        final kept = _withoutExpired(entries, maxAge);
-        if (kept.length == entries.length) return entries;
-        return _entries = await _write(List.unmodifiable(kept));
-      });
+  Future<List<HistoryEntry>> prune(Duration? maxAge) => _synchronized(() async {
+    final entries = await _current();
+    final kept = _withoutExpired(entries, maxAge);
+    if (kept.length == entries.length) return entries;
+    return _entries = await _write(List.unmodifiable(kept));
+  });
 
   /// Inserts [entry] as the newest entry (see the class docs for merging
   /// with the newest entry, truncation, caps and [maxAge]). An existing
