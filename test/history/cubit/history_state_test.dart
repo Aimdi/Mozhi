@@ -72,6 +72,18 @@ void main() {
       );
     });
 
+    test('expiredCount counts the non-favourites older than maxAge', () {
+      // All entries were created at the start of 2026; _cat is a favourite.
+      final state = HistoryState(entries: entries);
+      final now = DateTime(2026, 1, 8);
+
+      expect(state.expiredCount(const Duration(days: 30), now: now), 0);
+      expect(state.expiredCount(const Duration(days: 7), now: now), 0);
+      expect(state.expiredCount(const Duration(days: 6), now: now), 2);
+      expect(state.expiredCount(Duration.zero, now: now), 2);
+      expect(const HistoryState().expiredCount(Duration.zero, now: now), 0);
+    });
+
     group('visible', () {
       test('returns all entries without filters', () {
         expect(HistoryState(entries: entries).visible, entries);

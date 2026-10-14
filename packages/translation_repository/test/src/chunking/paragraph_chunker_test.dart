@@ -29,13 +29,26 @@ void main() {
         isNot(const TextChunk(text: 'a', separator: ' ')),
       );
       expect(const TextChunk(text: 'a'), isNot(const TextChunk(text: 'b')));
+      expect(
+        const TextChunk(text: 'a'),
+        isNot(const TextChunk(text: 'a', sentenceEnd: true)),
+      );
+      expect(
+        const TextChunk(text: 'a', sentenceEnd: true).hashCode,
+        const TextChunk(text: 'a', sentenceEnd: true).hashCode,
+      );
       expect(const TextChunk(text: 'a').separator, isEmpty);
+      expect(const TextChunk(text: 'a').sentenceEnd, isFalse);
     });
 
     test('toString shows the sizes', () {
       expect(
         const TextChunk(text: 'abc', separator: '\n\n').toString(),
         'TextChunk(3 chars, separator: 2 chars)',
+      );
+      expect(
+        const TextChunk(text: 'abc。', sentenceEnd: true).toString(),
+        'TextChunk(4 chars, separator: 0 chars, sentence end)',
       );
     });
   });
@@ -191,7 +204,32 @@ void main() {
       final chunks = ParagraphChunker.split(text, maxChars: 10);
       expect(chunks.map((c) => c.text), ['今日は晴れです。', '明日は雨です。', '明後日は雪です。']);
       expect(chunks.map((c) => c.separator), everyElement(isEmpty));
+      expect(chunks.map((c) => c.sentenceEnd), [true, true, false]);
       expect(rejoin(chunks), text);
+    });
+
+    test('marks only cuts after a CJK full stop as sentence ends', () {
+      // Cut inside an overlong word, after a Latin full stop with a space,
+      // and after a CJK full stop.
+      final chunks = ParagraphChunker.split(
+        '${'x' * 12} Ende. 今日は晴れです。明日は雨です。',
+        maxChars: 10,
+      );
+      expect(chunks.map((c) => c.text), [
+        'x' * 10,
+        'xx',
+        'Ende.',
+        '今日は晴れです。',
+        '明日は雨です。',
+      ]);
+      expect(chunks.map((c) => c.separator), ['', ' ', ' ', '', '']);
+      expect(chunks.map((c) => c.sentenceEnd), [
+        false,
+        false,
+        false,
+        true,
+        false,
+      ]);
     });
 
     test('keeps a CJK closing quote with its sentence', () {
@@ -222,11 +260,43 @@ void main() {
         expect(rejoin(chunks), text);
       });
 
-      test('keeps an unclosed block whole to the end', () {
-        const code = '```\nint a;\n\nint b;\n\nint c;';
-        const text = 'Intro text here.\n\n$code';
-        final chunks = ParagraphChunker.split(text, maxChars: 20);
-        expect(chunks.map((c) => c.text), ['Intro text here.', code]);
+      test('treats an unclosed fence as text', () {
+        // A stray fence must not make the rest one uncuttable part.
+        const text = 'Intro\n\n```\nint a;\n\nint b;\n\nint c;';
+        final chunks = ParagraphChunker.split(text, maxChars: 12);
+        expect(chunks.map((c) => c.text), [
+          'Intro',
+          '```\nint a;',
+          'int b;',
+          'int c;',
+        ]);
+        expect(rejoin(chunks), text);
+      });
+
+      test('keeps a long text after a stray fence within the limit', () {
+        final prose = List.filled(100, paragraph('p', 50)).join('\n\n');
+        final text = 'Intro\n\n```\n$prose';
+        final chunks = ParagraphChunker.split(text, maxChars: 500);
+        expect(chunks.length, greaterThan(10));
+        for (final chunk in chunks) {
+          expect(chunk.text.length, lessThanOrEqualTo(500));
+        }
+        expect(rejoin(chunks), text);
+      });
+
+      test('still protects a block that follows a stray fence', () {
+        // "```js" cannot close the stray "```", so the stray one stays
+        // unclosed; the later ~~~ block is still a block.
+        const code = '~~~\na\n\nb\n~~~';
+        const text = 'One.\n\n```js\n\nTwo.\n\n$code\n\nThree.';
+        final chunks = ParagraphChunker.split(text, maxChars: 10);
+        expect(chunks.map((c) => c.text), [
+          'One.',
+          '```js',
+          'Two.',
+          code,
+          'Three.',
+        ]);
       });
 
       test('needs a matching closing fence', () {
@@ -313,6 +383,65 @@ void main() {
         }
         expect(chunks.isEmpty || chunks.last.separator.isEmpty, isTrue);
       }
+    });
+  });
+
+  group('ParagraphChunker.joiner', () {
+    const cut = TextChunk(text: '这是测试。', sentenceEnd: true);
+
+    test('is the separator of an ordinary chunk', () {
+      const chunk = TextChunk(text: 'a', separator: '\n\n');
+      expect(ParagraphChunker.joiner(chunk, 'A.', 'B'), '\n\n');
+      expect(ParagraphChunker.joiner(const TextChunk(text: 'a'), 'A', 'B'), '');
+    });
+
+    test('is a space between sentences in scripts with spaces', () {
+      expect(ParagraphChunker.joiner(cut, 'For the test.', 'This is'), ' ');
+      expect(ParagraphChunker.joiner(cut, 'Тест.', 'Это'), ' ');
+      expect(ParagraphChunker.joiner(cut, '시험입니다.', '다음'), ' ');
+      expect(ParagraphChunker.joiner(cut, 'Done 😀', '😀 next'), ' ');
+      expect(ParagraphChunker.joiner(cut, '.', 'N'), ' ');
+    });
+
+    test('is empty next to CJK text, whitespace or nothing', () {
+      expect(ParagraphChunker.joiner(cut, 'テストです。', 'これは'), '');
+      expect(ParagraphChunker.joiner(cut, 'Test.', '这是'), '');
+      expect(ParagraphChunker.joiner(cut, '这是测试', 'Next'), '');
+      expect(ParagraphChunker.joiner(cut, 'Test．', 'Next'), '');
+      expect(ParagraphChunker.joiner(cut, 'Test.', '「Next」'), '');
+      expect(ParagraphChunker.joiner(cut, 'Test.\n', 'Next'), '');
+      expect(ParagraphChunker.joiner(cut, 'Test.', ' Next'), '');
+      expect(ParagraphChunker.joiner(cut, '', 'Next'), '');
+      expect(ParagraphChunker.joiner(cut, 'Test.', ''), '');
+      expect(ParagraphChunker.joiner(cut, 'A𠀀', 'Next'), '');
+      expect(ParagraphChunker.joiner(cut, 'Test.', '𠀀b'), '');
+    });
+
+    test('joinTranslations joins every part with it', () {
+      const chunks = [
+        TextChunk(text: '一。', sentenceEnd: true),
+        TextChunk(text: '二', separator: '\n\n'),
+        TextChunk(text: '三。'),
+      ];
+      expect(
+        ParagraphChunker.joinTranslations(chunks, ['One.', 'Two', 'Three.']),
+        'One. Two\n\nThree.',
+      );
+      expect(
+        () => ParagraphChunker.joinTranslations(chunks, ['One.']),
+        throwsArgumentError,
+      );
+    });
+
+    test('joins Chinese text translated into English with spaces', () {
+      final text = List.filled(40, '这是一个测试句子。').join();
+      final chunks = ParagraphChunker.split(text, maxChars: 100);
+      expect(chunks.length, greaterThan(1));
+      final joined = ParagraphChunker.joinTranslations(chunks, [
+        for (final _ in chunks) 'This is a test sentence.',
+      ]);
+      expect(joined, isNot(contains('.This')));
+      expect(joined, contains('sentence. This'));
     });
   });
 

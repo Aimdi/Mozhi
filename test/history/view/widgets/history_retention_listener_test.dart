@@ -79,6 +79,73 @@ void main() {
       verifyNever(() => history.applyRetention(any()));
     });
 
+    Future<void> resume(WidgetTester tester) async {
+      const [
+        AppLifecycleState.inactive,
+        AppLifecycleState.hidden,
+        AppLifecycleState.paused,
+        AppLifecycleState.hidden,
+        AppLifecycleState.inactive,
+        AppLifecycleState.resumed,
+      ].forEach(tester.binding.handleAppLifecycleStateChanged);
+      await tester.pump();
+    }
+
+    testWidgets('applies the retention again when the app resumes', (
+      tester,
+    ) async {
+      await pump(tester);
+      clearInteractions(history);
+
+      await resume(tester);
+      verify(() => history.applyRetention(const Duration(days: 7))).called(1);
+
+      when(
+        () => settings.state,
+      ).thenReturn(const AppSettings(historyRetention: HistoryRetention.day));
+      changes.add(const AppSettings(historyRetention: HistoryRetention.day));
+      await tester.pump();
+      clearInteractions(history);
+      await resume(tester);
+      verify(() => history.applyRetention(const Duration(days: 1))).called(1);
+    });
+
+    testWidgets('applies the retention again while the app runs', (
+      tester,
+    ) async {
+      await pump(tester);
+      clearInteractions(history);
+
+      await tester.pump(HistoryRetentionListener.pruneInterval);
+      verify(() => history.applyRetention(const Duration(days: 7))).called(1);
+      await tester.pump(HistoryRetentionListener.pruneInterval);
+      verify(() => history.applyRetention(const Duration(days: 7))).called(1);
+    });
+
+    testWidgets('does nothing more once the history is kept forever', (
+      tester,
+    ) async {
+      await pump(tester);
+      when(() => settings.state).thenReturn(const AppSettings());
+      changes.add(const AppSettings());
+      await tester.pump();
+      clearInteractions(history);
+
+      await resume(tester);
+      await tester.pump(HistoryRetentionListener.pruneInterval * 3);
+      verifyNever(() => history.applyRetention(any()));
+    });
+
+    testWidgets('stops when removed', (tester) async {
+      await pump(tester);
+      await tester.pumpWidget(const SizedBox());
+      clearInteractions(history);
+
+      await resume(tester);
+      await tester.pump(HistoryRetentionListener.pruneInterval);
+      verifyNever(() => history.applyRetention(any()));
+    });
+
     testWidgets('builds its child', (tester) async {
       await pump(tester);
       expect(find.byType(SizedBox), findsOneWidget);

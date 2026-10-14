@@ -4,7 +4,6 @@ import 'package:llm_api/llm_api.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi_api/mozhi_api.dart';
 import 'package:test/test.dart';
-import 'package:translation_repository/src/chunking/chunked_translation.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 import 'repository/test_helpers.dart';
@@ -93,9 +92,6 @@ void main() {
           detectedLanguage: code,
         ),
       );
-
-  void stubChat(MockLlmClient client, String output) =>
-      when(() => client.chat(any())).thenAnswer((_) async => output);
 
   List<LlmRequest> streamed(MockLlmClient client) =>
       verify(() => client.streamChat(captureAny())).captured.cast<LlmRequest>();
@@ -227,15 +223,25 @@ void main() {
       expect(
         requests[1].messages,
         TranslationPrompts.translate(
-          longRequest.copyWith(
-            text: paragraphs[1],
-            options: longRequest.options.copyWith(
-              context: precedingTextContext('A novel', paragraphs[0]),
-            ),
-          ),
+          longRequest.copyWith(text: paragraphs[1]),
+          precedingText: paragraphs[0],
         ),
       );
-      expect(requests[2].messages.first.content, contains(paragraphs[1]));
+      // The preceding part is data in the user message; the system prompt
+      // keeps only the user's own context.
+      expect(
+        requests[2].messages.last.content,
+        '<preceding_text>\n${paragraphs[1]}\n</preceding_text>\n'
+        '<source>\n${paragraphs[2]}\n</source>',
+      );
+      expect(
+        requests[2].messages.first.content,
+        isNot(contains(paragraphs[1])),
+      );
+      expect(
+        requests[2].messages.first.content,
+        contains('<context>\nA novel\n</context>'),
+      );
     });
 
     test('caches only the combined result', () async {
@@ -322,16 +328,49 @@ void main() {
       expect(
         requests[1].messages,
         TranslationPrompts.translate(
-          auto.copyWith(
-            text: paragraphs[1],
-            source: pinned,
-            options: auto.options.copyWith(
-              context: precedingTextContext('A novel', paragraphs[0]),
-            ),
-          ),
+          auto.copyWith(text: paragraphs[1], source: pinned),
+          precedingText: paragraphs[0],
         ),
       );
     });
+
+    test(
+      'keeps later parts auto when the first is in the target language',
+      () async {
+        // An English e-mail with a German reply, translated into English: the
+        // reply must not be sent as English -> English ("do not translate").
+        repository = newRepository(aiChunkThreshold: 40);
+        stubStreams(
+          llmOf(claudeConfig),
+          (request) => [
+            if (request.messages.first.content.contains('[[lang:'))
+              '[[lang:en]]\n',
+            upper(request),
+          ],
+        );
+        final toEnglish = longRequest.copyWith(
+          source: Language.auto,
+          target: english,
+        );
+        final results = await repository.translate(claude, toEnglish).toList();
+        expect(results.last.isComplete, isTrue);
+        expect(results.last.detectedSource, 'en');
+        final requests = streamed(llmOf(claudeConfig));
+        expect(requests, hasLength(3));
+        for (final request in requests.skip(1)) {
+          final system = request.messages.first.content;
+          expect(system, contains('Source language: detect it.'));
+          expect(system, isNot(contains('is already in English, so do not')));
+        }
+        expect(
+          requests[1].messages,
+          TranslationPrompts.translate(
+            toEnglish.copyWith(text: paragraphs[1]),
+            precedingText: paragraphs[0],
+          ),
+        );
+      },
+    );
 
     test('reports the detected language before the first part ends', () async {
       repository = newRepository(aiChunkThreshold: 40);
@@ -435,11 +474,44 @@ void main() {
       target: french,
     );
 
+    /// Answers the streamed translation with [translation] and the
+    /// detection (a streamed JSON request) with [detection].
+    void stubHint(
+      MockLlmClient client, {
+      List<String> translation = const ['[[lang:en]]\n', 'Cadeau'],
+      Stream<String> Function()? detection,
+      String json = '{"language": "en"}',
+    }) => when(() => client.streamChat(any())).thenAnswer((invocation) {
+      final request = invocation.positionalArguments.single as LlmRequest;
+      if (!request.jsonOutput) return Stream.fromIterable(translation);
+      return detection?.call() ?? Stream.fromIterable([json]);
+    });
+
+    /// The streamed detection requests.
+    List<LlmRequest> detections(MockLlmClient client) =>
+        streamed(client).where((r) => r.jsonOutput).toList();
+
+    void verifyNoDetection(MockLlmClient client) {
+      verifyNever(
+        () => client.streamChat(
+          any(
+            that: isA<LlmRequest>().having(
+              (r) => r.jsonOutput,
+              'jsonOutput',
+              isTrue,
+            ),
+          ),
+        ),
+      );
+      verifyNever(() => client.chat(any()));
+    }
+
     test('marks a disagreeing detection as uncertain', () async {
-      stubStream(llmOf(claudeConfig), ['[[lang:en]]\n', 'Cadeau']);
-      stubChat(
+      stubHint(
         llmOf(claudeConfig),
-        '{"language": "de", "uncertain": false, "alternatives": ["en", "nl"]}',
+        json:
+            '{"language": "de", "uncertain": false, '
+            '"alternatives": ["en", "nl"]}',
       );
       final results = await repository.translate(claude, short).toList();
       final last = results.last;
@@ -459,19 +531,46 @@ void main() {
           ),
         ),
       );
-      final detection =
-          verify(() => llmOf(claudeConfig).chat(captureAny())).captured.single
-              as LlmRequest;
+      final detection = detections(llmOf(claudeConfig)).single;
       expect(detection.messages, TranslationPrompts.detectLanguage('Gift'));
       expect(detection.jsonOutput, isTrue);
+      verifyNever(() => llmOf(claudeConfig).chat(any()));
+    });
+
+    test('sends the detection without reasoning effort', () async {
+      // A high reasoning effort would make the best-effort check slower
+      // than the translation of a word or two.
+      stubHint(llmOf(claudeConfig));
+      stubHint(llmOf(openAiConfig));
+      await repository.translate(claude, short).drain<void>();
+      await repository.translate(aiEngine(openAiConfig), short).drain<void>();
+      final requests = streamed(llmOf(claudeConfig));
+      final anthropic = requests.where((r) => r.jsonOutput).single;
+      expect(anthropic.effort, isNull);
+      expect(anthropic.temperature, isNull);
+      expect(anthropic.model, claudeConfig.model);
+      // The translation keeps the provider's effort.
+      expect(requests.where((r) => !r.jsonOutput).single.effort, 'low');
+      final openAi = detections(llmOf(openAiConfig)).single;
+      expect(openAi.effort, isNull);
+      expect(openAi.temperature, openAiConfig.temperature);
+    });
+
+    test('is not retried after invalid JSON', () async {
+      stubHint(llmOf(claudeConfig), json: '???');
+      final result = await repository.translate(claude, short).last;
+      expect(result.isComplete, isTrue);
+      expect(result.text, 'Cadeau');
+      expect(result.detectionUncertain, isFalse);
+      expect(detections(llmOf(claudeConfig)), hasLength(1));
     });
 
     test('prefers recent source languages', () async {
-      stubStream(llmOf(claudeConfig), ['[[lang:en]]\n', 'Cadeau']);
-      stubChat(
+      stubHint(
         llmOf(claudeConfig),
-        '{"language": "en", "uncertain": true, '
-        '"alternatives": ["de", "sv", "nl", "da"]}',
+        json:
+            '{"language": "en", "uncertain": true, '
+            '"alternatives": ["de", "sv", "nl", "da"]}',
       );
       final result = await repository
           .translate(
@@ -484,10 +583,9 @@ void main() {
     });
 
     test('marks a detection that names alternatives', () async {
-      stubStream(llmOf(claudeConfig), ['[[lang:en]]\n', 'Cadeau']);
-      stubChat(
+      stubHint(
         llmOf(claudeConfig),
-        '{"language": "en-GB", "alternatives": ["en", "de"]}',
+        json: '{"language": "en-GB", "alternatives": ["en", "de"]}',
       );
       final result = await repository.translate(claude, short).last;
       expect(result.detectionUncertain, isTrue);
@@ -495,10 +593,10 @@ void main() {
     });
 
     test('leaves a confirmed detection alone', () async {
-      stubStream(llmOf(claudeConfig), ['[[lang:en]]\n', 'Cadeau']);
-      stubChat(
+      stubHint(
         llmOf(claudeConfig),
-        '{"language": "en-US", "uncertain": false, "alternatives": ["en"]}',
+        json:
+            '{"language": "en-US", "uncertain": false, "alternatives": ["en"]}',
       );
       final result = await repository.translate(claude, short).last;
       expect(result.detectionUncertain, isFalse);
@@ -506,10 +604,10 @@ void main() {
     });
 
     test('suggests the detection when the model gave no marker', () async {
-      stubStream(llmOf(claudeConfig), ['Cadeau']);
-      stubChat(
+      stubHint(
         llmOf(claudeConfig),
-        '{"language": "de", "uncertain": true, "alternatives": ["en"]}',
+        translation: ['Cadeau'],
+        json: '{"language": "de", "uncertain": true, "alternatives": ["en"]}',
       );
       final result = await repository.translate(claude, short).last;
       expect(result.detectedSource, isNull);
@@ -518,38 +616,66 @@ void main() {
     });
 
     test('ignores a confident detection when there is no marker', () async {
-      stubStream(llmOf(claudeConfig), ['Cadeau']);
-      stubChat(llmOf(claudeConfig), '{"language": "de"}');
+      stubHint(
+        llmOf(claudeConfig),
+        translation: ['Cadeau'],
+        json: '{"language": "de"}',
+      );
       final result = await repository.translate(claude, short).last;
       expect(result.detectionUncertain, isFalse);
     });
 
     test('ignores detection errors', () async {
-      stubStream(llmOf(claudeConfig), ['[[lang:en]]\n', 'Cadeau']);
-      when(() => llmOf(claudeConfig).chat(any()))
-          .thenAnswer((_) async => throw const LlmApiException('quota'));
+      stubHint(
+        llmOf(claudeConfig),
+        detection: () => Stream.error(const LlmApiException('quota')),
+      );
       final results = await repository.translate(claude, short).toList();
       expect(results.last.isComplete, isTrue);
       expect(results.last.text, 'Cadeau');
       expect(results.last.detectionUncertain, isFalse);
     });
 
+    test('ignores a detection request that cannot be made', () async {
+      when(() => llmOf(claudeConfig).streamChat(any()))
+          .thenAnswer((invocation) {
+            final request = invocation.positionalArguments.single as LlmRequest;
+            if (request.jsonOutput) throw StateError('closed');
+            return Stream.fromIterable(['[[lang:en]]\n', 'Cadeau']);
+          });
+      final result = await repository.translate(claude, short).last;
+      expect(result.isComplete, isTrue);
+      expect(result.detectionUncertain, isFalse);
+    });
+
     test('is cached with the result', () async {
-      stubStream(llmOf(claudeConfig), ['[[lang:en]]\n', 'Cadeau']);
-      stubChat(llmOf(claudeConfig), '{"language": "de", "uncertain": true}');
+      stubHint(
+        llmOf(claudeConfig),
+        json: '{"language": "de", "uncertain": true}',
+      );
       await repository.translate(claude, short).drain<void>();
       final cached = await repository.translate(claude, short).single;
       expect(cached.fromCache, isTrue);
       expect(cached.detectionUncertain, isTrue);
       expect(cached.detectedAlternatives, ['de']);
-      verify(() => llmOf(claudeConfig).chat(any())).called(1);
+      expect(detections(llmOf(claudeConfig)), hasLength(1));
+    });
+
+    test('caches a confirmed detection too', () async {
+      stubHint(llmOf(claudeConfig));
+      await repository.translate(claude, short).drain<void>();
+      final cached = await repository.translate(claude, short).single;
+      expect(cached.fromCache, isTrue);
+      expect(cached.detectionUncertain, isFalse);
     });
 
     test('waits for a slower detection without holding the text', () async {
-      final detection = Completer<String>();
-      stubStream(llmOf(claudeConfig), ['[[lang:en]]\n', 'Cad', 'eau ']);
-      when(() => llmOf(claudeConfig).chat(any()))
-          .thenAnswer((_) => detection.future);
+      final detection = ControlledDeltas();
+      stubHint(
+        llmOf(claudeConfig),
+        translation: ['[[lang:en]]\n', 'Cad', 'eau '],
+        detection: () => detection.stream,
+      );
       final results = <TranslationResult>[];
       final done = Completer<void>();
       repository
@@ -561,7 +687,10 @@ void main() {
       expect(results.last.isComplete, isFalse);
       expect(results.where((r) => r.isComplete), isEmpty);
 
-      detection.complete('{"language": "de", "uncertain": true}');
+      detection.controller
+        ..add('{"language": "de", ')
+        ..add('"uncertain": true}');
+      await detection.controller.close();
       await done.future;
       expect(results.last.isComplete, isTrue);
       expect(results.last.text, 'Cadeau');
@@ -569,17 +698,20 @@ void main() {
     });
 
     test('does not repeat a final text the last snapshot showed', () async {
-      final detection = Completer<String>();
-      stubStream(llmOf(claudeConfig), ['[[lang:en]]\nCadeau']);
-      when(() => llmOf(claudeConfig).chat(any()))
-          .thenAnswer((_) => detection.future);
+      final detection = ControlledDeltas();
+      stubHint(
+        llmOf(claudeConfig),
+        translation: ['[[lang:en]]\nCadeau'],
+        detection: () => detection.stream,
+      );
       final results = <TranslationResult>[];
       final done = Completer<void>();
       repository
           .translate(claude, short)
           .listen(results.add, onDone: done.complete);
       await pumpEventQueue();
-      detection.complete('{"language": "en"}');
+      detection.controller.add('{"language": "en"}');
+      await detection.controller.close();
       await done.future;
       expect(results.map((r) => (r.text, r.isComplete)), [
         ('Cadeau', false),
@@ -587,40 +719,78 @@ void main() {
       ]);
     });
 
-    test('gives up waiting after the timeout', () async {
-      repository = newRepository(
-        detectionHintTimeout: const Duration(milliseconds: 10),
+    test(
+      'gives up waiting after the timeout and aborts the detection',
+      () async {
+        repository = newRepository(
+          detectionHintTimeout: const Duration(milliseconds: 10),
+        );
+        final detection = ControlledDeltas();
+        stubHint(llmOf(claudeConfig), detection: () => detection.stream);
+        final result = await repository.translate(claude, short).last;
+        expect(result.isComplete, isTrue);
+        expect(result.detectionUncertain, isFalse);
+        expect(detection.cancelled, isTrue);
+        // A result without the verdict is not cached: the next translation
+        // runs the check again.
+        expect(cache.isEmpty, isTrue);
+        final again = ControlledDeltas();
+        stubHint(llmOf(claudeConfig), detection: () => again.stream);
+        final second = await repository.translate(claude, short).last;
+        expect(second.fromCache, isFalse);
+        expect(again.cancelled, isTrue);
+      },
+    );
+
+    test('does not cache a result whose detection failed', () async {
+      stubHint(
+        llmOf(claudeConfig),
+        detection: () => Stream.error(const LlmApiException('quota')),
       );
-      stubStream(llmOf(claudeConfig), ['[[lang:en]]\n', 'Cadeau']);
-      when(() => llmOf(claudeConfig).chat(any()))
-          .thenAnswer((_) => Completer<String>().future);
-      final result = await repository.translate(claude, short).last;
-      expect(result.isComplete, isTrue);
-      expect(result.detectionUncertain, isFalse);
+      await repository.translate(claude, short).drain<void>();
+      expect(cache.isEmpty, isTrue);
     });
 
-    test('stops waiting when cancelled', () async {
-      final detection = Completer<String>();
-      stubStream(llmOf(claudeConfig), ['[[lang:en]]\n', 'Cadeau']);
-      when(() => llmOf(claudeConfig).chat(any()))
-          .thenAnswer((_) => detection.future);
+    test('stops waiting and aborts the detection when cancelled', () async {
+      final detection = ControlledDeltas();
+      stubHint(llmOf(claudeConfig), detection: () => detection.stream);
       final results = <TranslationResult>[];
       final subscription = repository
           .translate(claude, short)
           .listen(results.add);
       await pumpEventQueue();
+      expect(detection.cancelled, isFalse);
       await subscription.cancel();
-      detection.complete('{"language": "de", "uncertain": true}');
+      expect(detection.cancelled, isTrue);
       await pumpEventQueue();
       expect(results.where((r) => r.isComplete), isEmpty);
       expect(cache.isEmpty, isTrue);
     });
 
+    test('aborts the detection when cancelled while translating', () async {
+      final deltas = ControlledDeltas();
+      final detection = ControlledDeltas();
+      when(() => llmOf(claudeConfig).streamChat(any()))
+          .thenAnswer((invocation) {
+            final request = invocation.positionalArguments.single as LlmRequest;
+            return request.jsonOutput ? detection.stream : deltas.stream;
+          });
+      final subscription = repository.translate(claude, short).listen((_) {});
+      await pumpEventQueue();
+      await subscription.cancel();
+      expect(deltas.cancelled, isTrue);
+      expect(detection.cancelled, isTrue);
+    });
+
     test('forwards pause and resume', () async {
       final deltas = ControlledDeltas();
       when(() => llmOf(claudeConfig).streamChat(any()))
-          .thenAnswer((_) => deltas.stream);
-      stubChat(llmOf(claudeConfig), '{"language": "en"}');
+          .thenAnswer((invocation) {
+            final request = invocation.positionalArguments.single as LlmRequest;
+            return request.jsonOutput
+                ? Stream.fromIterable(['{"language": "en"}'])
+                : deltas.stream;
+          });
       final subscription = repository.translate(claude, short).listen((_) {});
       await pumpEventQueue();
       subscription.pause();
@@ -631,22 +801,162 @@ void main() {
       expect(deltas.cancelled, isTrue);
     });
 
-    test('forwards translation errors', () async {
+    test('forwards translation errors and aborts the detection', () async {
+      final detection = ControlledDeltas();
       when(() => llmOf(claudeConfig).streamChat(any()))
-          .thenAnswer((_) => Stream.error(const LlmRefusalException('no')));
-      stubChat(llmOf(claudeConfig), '{"language": "de", "uncertain": true}');
+          .thenAnswer((invocation) {
+            final request = invocation.positionalArguments.single as LlmRequest;
+            return request.jsonOutput
+                ? detection.stream
+                : Stream.error(const LlmRefusalException('no'));
+          });
       await expectLater(
         repository.translate(claude, short),
         emitsInOrder([emitsError(isA<LlmRefusalException>()), emitsDone]),
       );
+      expect(detection.cancelled, isTrue);
+    });
+
+    group('and the cache', () {
+      test('keys short input by the recent source languages', () async {
+        stubHint(
+          llmOf(claudeConfig),
+          json: '{"language": "de", "uncertain": true}',
+        );
+        final recentGerman = short.copyWith(recentSourceLanguages: ['de']);
+        await repository.translate(claude, recentGerman).drain<void>();
+        // Other recent languages may change the reading of the text.
+        final other = await repository
+            .translate(claude, short.copyWith(recentSourceLanguages: ['en']))
+            .last;
+        expect(other.fromCache, isFalse);
+        final same = await repository.translate(claude, recentGerman).single;
+        expect(same.fromCache, isTrue);
+        expect(
+          streamed(llmOf(claudeConfig)).where((r) => !r.jsonOutput),
+          hasLength(2),
+        );
+      });
+
+      test('keys the prompt hint of 4 words by them too', () async {
+        // Too long for the second detection, short for the prompt's hint.
+        stubHint(llmOf(claudeConfig));
+        final fourWords = short.copyWith(
+          text: 'Gift for the kids',
+          recentSourceLanguages: ['de'],
+        );
+        await repository.translate(claude, fourWords).drain<void>();
+        final other = await repository
+            .translate(
+              claude,
+              fourWords.copyWith(recentSourceLanguages: ['en']),
+            )
+            .last;
+        expect(other.fromCache, isFalse);
+        expect(
+          (await repository.translate(claude, fourWords).single).fromCache,
+          isTrue,
+        );
+      });
+
+      test('ignores the recent source languages of long input', () async {
+        stubHint(llmOf(claudeConfig));
+        for (final text in [
+          'This sentence is far too long to need any language hint.',
+          // One word of more than 64 characters.
+          'Donaudampfschifffahrts' * 3,
+        ]) {
+          final long = short.copyWith(
+            text: text,
+            recentSourceLanguages: ['de'],
+          );
+          await repository.translate(claude, long).drain<void>();
+          final cached = await repository
+              .translate(claude, long.copyWith(recentSourceLanguages: ['en']))
+              .single;
+          expect(cached.fromCache, isTrue, reason: text);
+        }
+      });
+
+      test('ignores the recent source languages of other engines', () async {
+        when(
+          () => mozhi.translate(
+            engine: any(named: 'engine'),
+            from: any(named: 'from'),
+            to: any(named: 'to'),
+            text: any(named: 'text'),
+          ),
+        ).thenAnswer(
+          (_) async => const MozhiTranslation(
+            engine: 'google',
+            translatedText: 'Cadeau',
+          ),
+        );
+        await repository
+            .translate(
+              googleEngine,
+              short.copyWith(recentSourceLanguages: ['de']),
+            )
+            .drain<void>();
+        final cached = await repository
+            .translate(
+              googleEngine,
+              short.copyWith(recentSourceLanguages: ['en']),
+            )
+            .single;
+        expect(cached.fromCache, isTrue);
+      });
+
+      test('never takes a compare result for one with the hint', () async {
+        stubHint(
+          llmOf(claudeConfig),
+          json: '{"language": "de", "uncertain": true}',
+        );
+        final compared = await repository.compare([claude], short).single;
+        expect(compared.result!.detectionUncertain, isFalse);
+        expect(cache.isEmpty, isTrue);
+        final translated = await repository.translate(claude, short).last;
+        expect(translated.fromCache, isFalse);
+        expect(translated.detectionUncertain, isTrue);
+      });
+
+      test('serves compare mode a result with the hint', () async {
+        stubHint(
+          llmOf(claudeConfig),
+          json: '{"language": "de", "uncertain": true}',
+        );
+        await repository.translate(claude, short).drain<void>();
+        final compared = await repository.compare([claude], short).single;
+        expect(compared.result!.fromCache, isTrue);
+        expect(compared.result!.detectionUncertain, isTrue);
+        expect(
+          streamed(llmOf(claudeConfig)).where((r) => !r.jsonOutput),
+          hasLength(1),
+        );
+      });
+
+      test('is skipped on refresh', () async {
+        stubHint(llmOf(claudeConfig));
+        final recent = short.copyWith(recentSourceLanguages: ['de']);
+        await repository.translate(claude, recent).drain<void>();
+        final refreshed = await repository
+            .translate(claude, recent, refresh: true)
+            .last;
+        expect(refreshed.fromCache, isFalse);
+        expect(detections(llmOf(claudeConfig)), hasLength(2));
+      });
     });
 
     group('is skipped', () {
       setUp(() {
-        stubStream(llmOf(claudeConfig), ['[[lang:en]]\n', 'Cadeau']);
-        stubStream(llmOf(ollamaConfig), ['[[lang:en]]\n', 'Cadeau']);
-        stubChat(llmOf(claudeConfig), '{"language": "de", "uncertain": true}');
-        stubChat(llmOf(ollamaConfig), '{"language": "de", "uncertain": true}');
+        stubHint(
+          llmOf(claudeConfig),
+          json: '{"language": "de", "uncertain": true}',
+        );
+        stubHint(
+          llmOf(ollamaConfig),
+          json: '{"language": "de", "uncertain": true}',
+        );
       });
 
       Future<void> expectNoDetection(
@@ -656,7 +966,7 @@ void main() {
       ) async {
         final result = await repository.translate(engine, request).last;
         expect(result.detectionUncertain, isFalse);
-        verifyNever(() => client.chat(any()));
+        verifyNoDetection(client);
       }
 
       test(
@@ -712,7 +1022,7 @@ void main() {
         final result = await repository.translate(cloudGemma, short).last;
         expect(result.detectedSource, 'en');
         expect(result.detectionUncertain, isFalse);
-        verifyNever(() => llmOf(cloudGemmaConfig).chat(any()));
+        verifyNoDetection(llmOf(cloudGemmaConfig));
       });
 
       test('for engines of unknown providers', () async {
@@ -735,13 +1045,13 @@ void main() {
         stubDetection('en');
         stubStream(llmOf(cloudGemmaConfig), ['Cadeau']);
         await repository.translate(engine, short).drain<void>();
-        verifyNever(() => llmOf(cloudGemmaConfig).chat(any()));
+        verifyNoDetection(llmOf(cloudGemmaConfig));
       });
 
       test('in compare mode', () async {
         final entries = await repository.compare([claude], short).toList();
         expect(entries.single.result!.detectionUncertain, isFalse);
-        verifyNever(() => llmOf(claudeConfig).chat(any()));
+        verifyNoDetection(llmOf(claudeConfig));
       });
     });
   });

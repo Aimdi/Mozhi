@@ -137,8 +137,10 @@ class ProofreadCubit extends Cubit<ProofreadState> {
         context: state.context.trim(),
         uiLanguage: _uiLanguage,
       );
-      if (isClosed || request != _request) return;
+      // The provider billed the request even when its result is no longer
+      // shown (the page closed or a newer proofread started).
       _recordUsage(engine, input: text, result: result);
+      if (isClosed || request != _request) return;
       final reconciled = await _reconcile(text, result);
       if (isClosed || request != _request) return;
       emit(

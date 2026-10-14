@@ -73,11 +73,15 @@ class HistoryCubit extends Cubit<HistoryState> {
   // ignore: prefer_void_public_cubit_methods
   Future<String> exportJson() => _repository.exportJson();
 
-  /// Merges [json] into the history. Throws [FormatException] on invalid
-  /// input (the state is left unchanged).
-  Future<void> importJson(String json) async {
-    final entries = await _repository.importJson(json, maxAge: _maxAge);
-    _emitEntries(entries);
+  /// Merges [json] into the history and returns what was imported (e.g.
+  /// how many entries the retention left out, see [HistoryImport]). Throws
+  /// [FormatException] on invalid input (the state is left unchanged).
+  // Returns the outcome for the caller to report; the entries are emitted.
+  // ignore: prefer_void_public_cubit_methods
+  Future<HistoryImport> importJson(String json) async {
+    final result = await _repository.importJson(json, maxAge: _maxAge);
+    _emitEntries(result.entries);
+    return result;
   }
 
   Future<void> _run(Future<List<HistoryEntry>> Function() action) async {

@@ -3,7 +3,11 @@ import 'package:meta/meta.dart';
 /// One part of a long text that is translated on its own.
 @immutable
 class TextChunk {
-  const new({required this.text, this.separator = ''});
+  const new({
+    required this.text,
+    this.separator = '',
+    this.sentenceEnd = false,
+  });
 
   /// The part, without leading or trailing whitespace.
   final String text;
@@ -14,17 +18,27 @@ class TextChunk {
   /// an overlong word).
   final String separator;
 
-  @override
-  bool operator ==(Object other) =>
-      other is TextChunk && other.text == text && other.separator == separator;
+  /// Whether the part was cut right after a sentence end that the text does
+  /// not follow with whitespace (a CJK full stop): its [separator] is empty,
+  /// but a translation into a language that separates sentences with spaces
+  /// needs one there (see [ParagraphChunker.joiner]).
+  final bool sentenceEnd;
 
   @override
-  int get hashCode => Object.hash(text, separator);
+  bool operator ==(Object other) =>
+      other is TextChunk &&
+      other.text == text &&
+      other.separator == separator &&
+      other.sentenceEnd == sentenceEnd;
+
+  @override
+  int get hashCode => Object.hash(text, separator, sentenceEnd);
 
   @override
   String toString() =>
       'TextChunk(${text.length} chars, '
-      'separator: ${separator.length} chars)';
+      'separator: ${separator.length} chars'
+      '${sentenceEnd ? ', sentence end' : ''})';
 }
 
 /// Splits a long text into parts of at most `maxChars` characters for
@@ -34,14 +48,16 @@ class TextChunk {
 ///
 /// Fenced code blocks (```` ``` ```` or `~~~`) are never cut: a block longer
 /// than `maxChars` becomes a part of its own that is longer than the limit.
+/// An opening fence without a closing one is treated as text, so a stray
+/// fence cannot make the rest of the text one uncuttable part.
 ///
 /// Parts are balanced: a text slightly over the limit becomes two parts of
 /// about half its length rather than a full one and a short rest.
 ///
 /// The whitespace between parts is kept byte for byte in
-/// [TextChunk.separator], so [join] restores the layout around translated
-/// parts. Whitespace before the first and after the last part is dropped
-/// (as translations are trimmed).
+/// [TextChunk.separator], so [join] restores the original text and [joiner]
+/// the layout around translated parts. Whitespace before the first and
+/// after the last part is dropped (as translations are trimmed).
 abstract final class ParagraphChunker {
   /// Splits [text] (see the class documentation). Returns an empty list for
   /// blank text and a single part when the trimmed text fits [maxChars].
@@ -53,7 +69,8 @@ abstract final class ParagraphChunker {
     final start = text.length - text.trimLeft().length;
     final end = text.trimRight().length;
     if (end <= start) return const [];
-    final spans = _Splitter(text, start, end, maxChars).split();
+    final splitter = _Splitter(text, start, end, maxChars);
+    final spans = splitter.split();
     return [
       for (var i = 0; i < spans.length; i++)
         TextChunk(
@@ -61,13 +78,17 @@ abstract final class ParagraphChunker {
           separator: i + 1 < spans.length
               ? text.substring(spans[i].end, spans[i + 1].start)
               : '',
+          sentenceEnd:
+              i + 1 < spans.length &&
+              splitter.sentenceEnds.contains(spans[i].end),
         ),
     ];
   }
 
-  /// Joins [parts] (one per chunk, in order, e.g. their translations) with
-  /// the separators of [chunks]. Throws an [ArgumentError] when the lengths
-  /// differ.
+  /// Joins [parts] (one per chunk, in order) with the separators of
+  /// [chunks], exactly: the chunk texts give back the original text. Use
+  /// [joiner] between translations. Throws an [ArgumentError] when the
+  /// lengths differ.
   static String join(List<TextChunk> chunks, List<String> parts) {
     if (parts.length != chunks.length) {
       throw ArgumentError.value(
@@ -83,6 +104,52 @@ abstract final class ParagraphChunker {
     }
     return buffer.toString();
   }
+
+  /// Joins [parts] (the translations of [chunks], one per chunk, in order)
+  /// with [joiner]. Throws an [ArgumentError] when the lengths differ.
+  static String joinTranslations(List<TextChunk> chunks, List<String> parts) {
+    if (parts.length != chunks.length) {
+      throw ArgumentError.value(
+        parts.length,
+        'parts',
+        'Expected ${chunks.length} parts',
+      );
+    }
+    final buffer = StringBuffer();
+    for (var i = 0; i < parts.length; i++) {
+      if (i > 0) buffer.write(joiner(chunks[i - 1], parts[i - 1], parts[i]));
+      buffer.write(parts[i]);
+    }
+    return buffer.toString();
+  }
+
+  /// The text to put between [left], the translation of [chunk], and
+  /// [right], that of the next part: the [chunk]'s separator, or a single
+  /// space where [chunk] ends at a sentence end without whitespace
+  /// ([TextChunk.sentenceEnd]) and the translations meet in a script that
+  /// separates sentences with spaces (`…test.` + `This…` gives
+  /// `…test. This…`; never next to Chinese or Japanese characters or
+  /// full-width punctuation, nor next to whitespace).
+  static String joiner(TextChunk chunk, String left, String right) {
+    if (chunk.separator.isNotEmpty || !chunk.sentenceEnd) {
+      return chunk.separator;
+    }
+    if (left.isEmpty || right.isEmpty) return '';
+    final end = left.substring(left.length < 2 ? 0 : left.length - 2);
+    final begin = right.substring(0, right.length < 2 ? right.length : 2);
+    return _unspacedEnd.hasMatch(end) || _unspacedStart.hasMatch(begin)
+        ? ''
+        : ' ';
+  }
+
+  /// Whitespace, and characters of scripts that do not separate sentences
+  /// with spaces (Han, kana, bopomofo, CJK and full-width punctuation).
+  static const _unspaced =
+      r'[\s\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}'
+      r'\p{Script=Bopomofo}\u3000-\u303F\uFF00-\uFFEF]';
+
+  static final _unspacedEnd = RegExp('$_unspaced\$', unicode: true);
+  static final _unspacedStart = RegExp('^$_unspaced', unicode: true);
 }
 
 /// A place where the text may be cut: the whitespace from `start` to `end`
@@ -129,6 +196,9 @@ class _Splitter {
 
   late final List<_Span> fences;
   late final List<_Cut> cuts;
+
+  /// Positions of the cuts after a CJK full stop (without whitespace).
+  final Set<int> sentenceEnds = {};
 
   static int _target(int length, int maxChars) {
     final count = (length / maxChars).ceil();
@@ -220,6 +290,7 @@ class _Splitter {
       if (_whitespace.matchAsPrefix(text, position) != null) continue;
       if (_inFence(position, position)) continue;
       cuts.add((start: position, end: position, level: _sentence));
+      sentenceEnds.add(position);
     }
     return cuts..sort((a, b) => a.start.compareTo(b.start));
   }
@@ -241,11 +312,11 @@ class _Splitter {
   static bool _isLowSurrogate(int unit) => unit >= 0xDC00 && unit <= 0xDFFF;
 
   /// Code block ranges: from the opening fence characters to the end of the
-  /// closing fence characters (or the end of [text] when unclosed).
+  /// closing fence characters. An opening fence that is never closed is
+  /// text: CommonMark runs its block to the end of [text], but a stray or
+  /// malformed fence must not make the rest of a long text one part.
   static List<_Span> _fences(String text) {
-    final fences = <_Span>[];
-    int? blockStart;
-    String? marker;
+    final lines = <({int start, String fence, String rest})>[];
     var lineStart = 0;
     while (true) {
       final newline = text.indexOf('\n', lineStart);
@@ -255,26 +326,48 @@ class _Splitter {
       final match = _fenceLine.firstMatch(line);
       if (match != null) {
         final fence = match[1]!;
-        final rest = match[2]!;
         // The fence follows at most three spaces.
-        final fenceStart = lineStart + line.indexOf(fence);
-        if (blockStart == null) {
-          // A backtick fence's info string cannot contain backticks.
-          if (!(fence.startsWith('`') && rest.contains('`'))) {
-            blockStart = fenceStart;
-            marker = fence;
-          }
-        } else if (fence[0] == marker![0] &&
-            fence.length >= marker.length &&
-            rest.trim().isEmpty) {
-          fences.add((start: blockStart, end: fenceStart + fence.length));
-          blockStart = null;
-        }
+        lines.add((
+          start: lineStart + line.indexOf(fence),
+          fence: fence,
+          rest: match[2]!,
+        ));
       }
       if (newline < 0) break;
       lineStart = newline + 1;
     }
-    if (blockStart != null) fences.add((start: blockStart, end: text.length));
+    final fences = <_Span>[];
+    var i = 0;
+    while (i < lines.length) {
+      final open = lines[i];
+      // A backtick fence's info string cannot contain backticks.
+      if (open.fence.startsWith('`') && open.rest.contains('`')) {
+        i++;
+        continue;
+      }
+      var close = i + 1;
+      while (close < lines.length && !_closes(open.fence, lines[close])) {
+        close++;
+      }
+      if (close == lines.length) {
+        // Never closed: the line is text, and a later fence may open a block.
+        i++;
+        continue;
+      }
+      final end = lines[close];
+      fences.add((start: open.start, end: end.start + end.fence.length));
+      i = close + 1;
+    }
     return fences;
   }
+
+  /// Whether [line] closes a block opened with [fence]: the same character,
+  /// at least as long, and nothing else on the line.
+  static bool _closes(
+    String fence,
+    ({int start, String fence, String rest}) line,
+  ) =>
+      line.fence[0] == fence[0] &&
+      line.fence.length >= fence.length &&
+      line.rest.trim().isEmpty;
 }

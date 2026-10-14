@@ -261,22 +261,197 @@ void main() {
       expect(texts(spans), [('the', 'la'), ('blue', 'bleue')]);
     });
 
-    test('ignoring case keeps offsets valid', () {
-      // 'İ' lower-cases to two code units on some platforms; then the
-      // case-insensitive search is skipped rather than shifting offsets.
-      const source = 'İSTANBUL';
+    test('ignoring case gives offsets in the original text', () {
+      // 'İ' lower-cases to two code units on the web: offsets must not
+      // come from a lower-cased copy.
+      const source = 'İzmir and PARIS';
+      const translation = 'Izmir et Paris';
+      final spans = parse(
+        {
+          'pairs': [
+            {'source': 'paris', 'target': 'PARIS'},
+            {'source': 'izmir', 'target': 'izmir'},
+          ],
+        },
+        source: source,
+        translation: translation,
+      );
+      expect(texts(spans, source: source, translation: translation), [
+        ('PARIS', 'Paris'),
+      ]);
+      expect(spans.single.sourceStart, 10);
+      expect(spans.single.targetStart, 9);
+    });
+
+    test('ignores case with simple case mappings only', () {
+      // 'İ' matches 'i' only with full case folding: the pair is dropped
+      // (on every platform) rather than mapped to shifted offsets.
       final spans = parse(
         {
           'pairs': [
             {'source': 'istanbul', 'target': 'x'},
           ],
         },
-        source: source,
+        source: 'İSTANBUL',
         translation: 'x',
       );
-      for (final span in spans) {
-        expect(span.sourceIn(source), source);
-      }
+      expect(spans, isEmpty);
+      final greek = parse(
+        {
+          'pairs': [
+            {'source': 'σοφία', 'target': 'Sagesse'},
+          ],
+        },
+        source: 'Η ΣΟΦΊΑ',
+        translation: 'La sagesse',
+      );
+      expect(texts(greek, source: 'Η ΣΟΦΊΑ', translation: 'La sagesse'), [
+        ('ΣΟΦΊΑ', 'sagesse'),
+      ]);
+    });
+
+    test('maps reordered repeated phrases to the right occurrences', () {
+      // Adjectives follow the noun in French: target positions are not in
+      // source order.
+      const source = 'the red car and the blue car';
+      const translation = 'la voiture rouge et la voiture bleue';
+      final spans = parse(
+        {
+          'pairs': [
+            {'source': 'the', 'target': 'la'},
+            {'source': 'red', 'target': 'rouge'},
+            {'source': 'car', 'target': 'voiture'},
+            {'source': 'and', 'target': 'et'},
+            {'source': 'the', 'target': 'la'},
+            {'source': 'blue', 'target': 'bleue'},
+            {'source': 'car', 'target': 'voiture'},
+          ],
+        },
+        source: source,
+        translation: translation,
+      );
+      expect(
+        [for (final s in spans) (s.sourceStart, s.targetStart)],
+        [(0, 0), (4, 11), (8, 3), (12, 17), (16, 20), (20, 31), (25, 23)],
+      );
+    });
+
+    test('maps a verb-final translation by proximity', () {
+      // German puts the verb last; the second "hat" pair follows the first.
+      const source = 'he has the book and she has the pen';
+      const translation = 'er hat das Buch und sie hat den Stift';
+      final spans = parse(
+        {
+          'pairs': [
+            {'source': 'he', 'target': 'er'},
+            {'source': 'has', 'target': 'hat'},
+            {'source': 'the book', 'target': 'das Buch'},
+            {'source': 'and', 'target': 'und'},
+            {'source': 'she', 'target': 'sie'},
+            {'source': 'has', 'target': 'hat'},
+            {'source': 'the pen', 'target': 'den Stift'},
+          ],
+        },
+        source: source,
+        translation: translation,
+      );
+      expect(
+        texts(spans, source: source, translation: translation).map((p) => p.$2),
+        ['er', 'hat', 'das Buch', 'und', 'sie', 'hat', 'den Stift'],
+      );
+      expect(spans.map((s) => s.targetStart), [0, 3, 7, 16, 20, 24, 28]);
+    });
+
+    test('prefers whole words to matches inside other words', () {
+      const source = 'I scattered the cat';
+      const translation = 'Le chat a été dispersé par chatouille';
+      final spans = parse(
+        {
+          'pairs': [
+            {'source': 'cat', 'target': 'chat'},
+          ],
+        },
+        source: source,
+        translation: translation,
+      );
+      expect(spans.single.sourceStart, 16, reason: 'not inside "scattered"');
+      expect(spans.single.targetStart, 3);
+    });
+
+    test('reads characters outside the BMP as whole characters', () {
+      // 𝐀 (a mathematical letter) continues a word; 𠀀 (a Han character)
+      // belongs to a script without spaces, so it does not.
+      final spans = parse(
+        {
+          'pairs': [
+            {'source': 'cat', 'target': 'chat'},
+            {'source': 'cat', 'target': 'chat'},
+          ],
+        },
+        source: '𝐀cat cat𝐀 cat 𠀀cat',
+        translation: 'chat chat',
+      );
+      expect(spans.map((s) => s.sourceStart), [12, 18]);
+      expect(spans.map((s) => s.targetStart), [0, 5]);
+    });
+
+    test('falls back to a match inside a word', () {
+      // Compounds and scripts without spaces have no word boundaries.
+      final german = parse(
+        {
+          'pairs': [
+            {'source': 'house', 'target': 'Haus'},
+          ],
+        },
+        source: 'the house work',
+        translation: 'die Hausarbeit',
+      );
+      expect(german.single.targetStart, 4);
+      final japanese = parse(
+        {
+          'pairs': [
+            {'source': '猫', 'target': 'cat'},
+            {'source': '犬', 'target': 'dog'},
+          ],
+        },
+        source: '猫と犬',
+        translation: 'a cat and a dog',
+      );
+      expect(japanese.map((s) => s.sourceStart), [0, 2]);
+    });
+
+    test('prefers a used whole word to an unused match inside a word', () {
+      // Overlapping pairs ("the cat" and "cat") share the whole word.
+      const source = 'I scattered the cat';
+      final spans = parse(
+        {
+          'pairs': [
+            {'source': 'the cat', 'target': 'le chat'},
+            {'source': 'cat', 'target': 'chat'},
+          ],
+        },
+        source: source,
+        translation: "J'ai dispersé le chat",
+      );
+      expect(spans.map((s) => s.sourceStart), [12, 16]);
+    });
+
+    test('does not move back after an earlier occurrence', () {
+      final spans = parse(
+        {
+          'pairs': [
+            {'source': 'a', 'target': 'x'},
+            {'source': 'c', 'target': 'z'},
+            {'source': 'b', 'target': 'y'},
+            {'source': 'a', 'target': 'x'},
+          ],
+        },
+        source: 'a b a c a',
+        translation: 'x y x z x',
+      );
+      // "b" is only found before "c"; the next "a" is still looked for
+      // after "c".
+      expect(spans.map((s) => s.sourceStart), [0, 2, 6, 8]);
     });
 
     test('accepts bare lists, list pairs and other keys', () {
@@ -393,6 +568,35 @@ void main() {
           source: '你好\n再见',
         ),
         'nǐ hǎo\nzàijiàn',
+      );
+    });
+
+    test('keeps a label word that the source starts with', () {
+      expect(
+        ResponseParsers.cleanRomanization(
+          'Rōmaji: Nihongo o raten moji de kaku hōhō',
+          source: 'ローマ字：日本語をラテン文字で書く方法',
+        ),
+        'Rōmaji: Nihongo o raten moji de kaku hōhō',
+      );
+      expect(
+        ResponseParsers.cleanRomanization(
+          'Pinyin: zhè shì yī gè lìzi',
+          source: 'Pinyin: 这是一个例子',
+        ),
+        'Pinyin: zhè shì yī gè lìzi',
+      );
+      expect(
+        ResponseParsers.cleanRomanization('Pīnyīn: hànzì', source: '拼音：汉字'),
+        'Pīnyīn: hànzì',
+      );
+      // Another leading label (a speaker) does not protect the model's.
+      expect(
+        ResponseParsers.cleanRomanization(
+          'Romaji: Tanaka: konnichiwa',
+          source: '田中：こんにちは',
+        ),
+        'Tanaka: konnichiwa',
       );
     });
 

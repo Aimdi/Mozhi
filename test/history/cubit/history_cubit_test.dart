@@ -252,9 +252,10 @@ void main() {
 
       blocTest<HistoryCubit, HistoryState>(
         'importJson applies the maxAge',
-        setUp: () =>
-            when(() => repository.importJson('json', maxAge: week))
-                .thenAnswer((_) async => [two]),
+        setUp: () => when(() => repository.importJson('json', maxAge: week))
+            .thenAnswer(
+              (_) async => HistoryImport(entries: [two], added: 1, expired: 3),
+            ),
         build: buildRetaining,
         act: (cubit) => cubit.importJson('json'),
         expect: () => [
@@ -338,9 +339,9 @@ void main() {
 
       blocTest<HistoryCubit, HistoryState>(
         'importJson emits the merged entries',
-        setUp: () =>
-            when(() => repository.importJson('json'))
-                .thenAnswer((_) async => [two, one]),
+        setUp: () => when(() => repository.importJson('json')).thenAnswer(
+          (_) async => HistoryImport(entries: [two, one], added: 1, expired: 0),
+        ),
         build: buildCubit,
         seed: () => ready([one]),
         act: (cubit) => cubit.importJson('json'),
@@ -348,6 +349,14 @@ void main() {
           ready([two, one]),
         ],
       );
+
+      test('importJson returns what was imported', () async {
+        final result = HistoryImport(entries: [two], added: 1, expired: 3);
+        when(() => repository.importJson('json'))
+            .thenAnswer((_) async => result);
+
+        expect(await buildCubit().importJson('json'), result);
+      });
 
       test('importJson rethrows invalid input', () async {
         when(() => repository.importJson('bad'))

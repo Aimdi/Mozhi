@@ -4816,5 +4816,28 @@
   "dictionaryBack": "Back to Translate",
   "@dictionaryBack": {
     "description": "dictionaryBack"
+  },
+  "settingsHistoryRetentionConfirmTitle": "Delete older translations now?",
+  "@settingsHistoryRetentionConfirmTitle": {
+    "description": "settingsHistoryRetentionConfirmTitle"
+  },
+  "settingsHistoryRetentionConfirmBody": "{count, plural, =1{1 translation is older than {days, plural, =1{1 day} other{{days} days}} and will be deleted from this device right away.} other{{count} translations are older than {days, plural, =1{1 day} other{{days} days}} and will be deleted from this device right away.}} Starred translations are kept.",
+  "@settingsHistoryRetentionConfirmBody": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsImportSkippedExpired": "{count, plural, =1{History imported. 1 translation older than your auto-delete setting was skipped.} other{History imported. {count} translations older than your auto-delete setting were skipped.}}",
+  "@settingsImportSkippedExpired": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   }
 }

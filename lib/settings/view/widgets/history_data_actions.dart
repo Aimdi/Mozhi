@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
+import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -83,23 +84,26 @@ Future<void> showExportHistorySheet(BuildContext context) async {
   }
 }
 
-/// Shows the paste-JSON import dialog; reports success with a snackbar.
+/// Shows the paste-JSON import dialog; reports success with a snackbar,
+/// saying how many translations the history auto-delete left out.
 Future<void> showImportHistoryDialog(BuildContext context) async {
   final cubit = context.read<HistoryCubit>();
   final messenger = ScaffoldMessenger.maybeOf(context);
-  final doneMessage = context.l10n.settingsImportDone;
-  final imported = await showDialog<bool>(
+  final l10n = context.l10n;
+  final imported = await showDialog<HistoryImport>(
     context: context,
     builder: (_) =>
         BlocProvider.value(value: cubit, child: const ImportHistoryDialog()),
   );
-  if (imported ?? false) {
-    messenger?.showSnackBar(SnackBar(content: Text(doneMessage)));
-  }
+  if (imported == null) return;
+  final message = imported.expired > 0
+      ? l10n.settingsImportSkippedExpired(imported.expired)
+      : l10n.settingsImportDone;
+  messenger?.showSnackBar(SnackBar(content: Text(message)));
 }
 
-/// Paste exported JSON and import it into [HistoryCubit]. Pops `true` on
-/// success.
+/// Paste exported JSON and import it into [HistoryCubit]. Pops the
+/// [HistoryImport] on success, null when cancelled.
 class ImportHistoryDialog extends StatefulWidget {
   const new({super.key});
 
@@ -140,8 +144,8 @@ class _ImportHistoryDialogState extends State<ImportHistoryDialog> {
       _error = null;
     });
     try {
-      await context.read<HistoryCubit>().importJson(text);
-      if (mounted) Navigator.of(context).pop(true);
+      final imported = await context.read<HistoryCubit>().importJson(text);
+      if (mounted) Navigator.of(context).pop(imported);
     } on Object {
       if (mounted) {
         setState(() {
@@ -193,7 +197,7 @@ class _ImportHistoryDialogState extends State<ImportHistoryDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: _busy ? null : () => Navigator.of(context).pop(false),
+          onPressed: _busy ? null : () => Navigator.of(context).pop(),
           child: Text(l10n.commonCancel),
         ),
         FilledButton(

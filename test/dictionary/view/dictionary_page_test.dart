@@ -206,7 +206,7 @@ void main() {
       ).called(1);
     });
 
-    testWidgets('looks links up right away with instant AI translation', (
+    testWidgets('never looks links up on its own, even with instant AI', (
       tester,
     ) async {
       when(() => settingsCubit.state)
@@ -214,7 +214,10 @@ void main() {
       await pumpPage(tester, page: const DictionaryPage(word: 'gato'));
       await tester.pump();
 
-      verifyLookUps(1);
+      verifyNoLookUp();
+      final state = dictionaryState(tester);
+      expect(state.word, 'gato');
+      expect(state.status, DictionaryStatus.idle);
     });
 
     testWidgets('ignores unknown and custom link languages', (tester) async {

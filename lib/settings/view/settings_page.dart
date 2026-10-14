@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/view/widgets/clear_history_dialog.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
@@ -547,8 +548,52 @@ class _DataSection extends StatelessWidget {
         ],
       ),
     );
-    if (choice == null || choice == current) return;
+    if (choice == null || choice == current || !context.mounted) return;
+    if (!await _confirmRetention(context, choice)) return;
     cubit.setHistoryRetention(choice);
+  }
+
+  /// Asks before a [retention] that deletes existing translations right
+  /// away (e.g. "Never" -> "After 1 day"); true when nothing would be
+  /// deleted or the user confirmed.
+  static Future<bool> _confirmRetention(
+    BuildContext context,
+    HistoryRetention retention,
+  ) async {
+    final maxAge = retention.maxAge;
+    if (maxAge == null) return true;
+    final expired = context.read<HistoryCubit>().state.expiredCount(
+      maxAge,
+      now: DateTime.now(),
+    );
+    if (expired == 0) return true;
+    final l10n = context.l10n;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        final colors = Theme.of(context).colorScheme;
+        return AlertDialog(
+          icon: const Icon(Icons.auto_delete_outlined),
+          title: Text(l10n.settingsHistoryRetentionConfirmTitle),
+          content: Text(
+            l10n.settingsHistoryRetentionConfirmBody(expired, maxAge.inDays),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(l10n.commonCancel),
+            ),
+            TextButton(
+              key: const Key('settings_history_retention_confirm'),
+              style: TextButton.styleFrom(foregroundColor: colors.error),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(l10n.commonDelete),
+            ),
+          ],
+        );
+      },
+    );
+    return confirmed ?? false;
   }
 
   void _clearRecentPairs(BuildContext context) {

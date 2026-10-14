@@ -30,6 +30,15 @@ class HistoryState extends Equatable {
     ];
   }
 
+  /// How many [entries] a retention of [maxAge] deletes at [now]: the
+  /// non-favourites created more than [maxAge] before [now].
+  int expiredCount(Duration maxAge, {required DateTime now}) {
+    final cutoff = now.subtract(maxAge);
+    return entries
+        .where((entry) => !entry.isFavorite && entry.createdAt.isBefore(cutoff))
+        .length;
+  }
+
   static bool _matches(HistoryEntry entry, String needle) {
     if (needle.isEmpty) return true;
     return [

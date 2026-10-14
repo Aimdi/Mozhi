@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:collection';
 
+import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
 import 'package:translation_repository/src/models/models.dart';
 
@@ -9,9 +10,12 @@ import 'package:translation_repository/src/models/models.dart';
 /// Entries are keyed by the engine id, the source and target language
 /// (`code` + `isCustom`), the full [TranslationOptions] (style, formality,
 /// reading level, genders, context, formatting, glossary and the one-off
-/// `instructions`, since all of them change the output) and the exact input
-/// text. Only complete, non-empty results are stored: partial streaming
-/// snapshots and failures never are.
+/// `instructions`, since all of them change the output), the exact input
+/// text and, when the source is auto, the request's
+/// `recentSourceLanguages` (they steer the detection of short text; pass a
+/// request without them where they cannot matter). Only complete,
+/// non-empty results are stored: partial streaming snapshots and failures
+/// never are.
 ///
 /// Reads refresh an entry's recency (but not its age); once [maxEntries] is
 /// exceeded the least recently used entry is evicted. Entries older than
@@ -220,10 +224,11 @@ class _CacheKey {
     required this.targetIsCustom,
     required this.options,
     required this.text,
+    required this.recentSourceLanguages,
   });
 
-  /// Copies the glossary so later mutation of the caller's map cannot change
-  /// a stored key.
+  /// Copies the glossary and the recent languages so later mutation of the
+  /// caller's collections cannot change a stored key.
   factory of(TranslationEngine engine, TranslationRequest request) {
     final options = request.options;
     return _CacheKey(
@@ -238,8 +243,14 @@ class _CacheKey {
               glossary: Map<String, String>.unmodifiable(options.glossary),
             ),
       text: request.text,
+      recentSourceLanguages:
+          request.source.isAuto && request.recentSourceLanguages.isNotEmpty
+          ? List<String>.unmodifiable(request.recentSourceLanguages)
+          : const [],
     );
   }
+
+  static const _list = ListEquality<String>();
 
   final String engineId;
   final String sourceCode;
@@ -248,6 +259,9 @@ class _CacheKey {
   final bool targetIsCustom;
   final TranslationOptions options;
   final String text;
+
+  /// Empty unless the source is auto.
+  final List<String> recentSourceLanguages;
 
   @override
   bool operator ==(Object other) =>
@@ -258,7 +272,8 @@ class _CacheKey {
       other.targetCode == targetCode &&
       other.targetIsCustom == targetIsCustom &&
       other.options == options &&
-      other.text == text;
+      other.text == text &&
+      _list.equals(other.recentSourceLanguages, recentSourceLanguages);
 
   @override
   int get hashCode => Object.hash(
@@ -269,5 +284,6 @@ class _CacheKey {
     targetIsCustom,
     options,
     text,
+    _list.hash(recentSourceLanguages),
   );
 }

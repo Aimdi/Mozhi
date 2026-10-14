@@ -8,7 +8,6 @@ import 'package:mozhi/app/translate_link.dart'
 import 'package:mozhi/dictionary/cubit/dictionary_cubit.dart';
 import 'package:mozhi/dictionary/widgets/widgets.dart';
 import 'package:mozhi/l10n/l10n.dart';
-import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/usage/data/usage_tracker.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -22,17 +21,16 @@ enum DictionaryLaunch { lookUp }
 /// translations of a word or phrase ([TranslationRepository.lookUp]).
 ///
 /// Needs the app-wide [TranslateCubit] (for the AI engine: its assist
-/// engine, else the first engine with AI extras), [SettingsCubit] and a
+/// engine, else the first engine with AI extras) and a
 /// [TranslationRepository] above it.
 ///
 /// [word], [from] and [to] usually come from a link
 /// (`/dictionary?word=…&from=…&to=…`): the word is cut to
 /// [DictionaryCubit.maxWordLength] and unknown languages are ignored (the
 /// translate screen's languages are used instead). The word is only looked
-/// up right away with [autoLookUp] (navigation inside the app) or when the
-/// user lets AI engines translate as they type (`instantTranslateAi`, the
-/// rule for any text from outside the app); otherwise the user presses
-/// Look up.
+/// up right away with [autoLookUp] (navigation inside the app); a link
+/// from outside the app never starts a (paid) AI request on its own, not
+/// even with `instantTranslateAi`: the user presses Look up.
 class DictionaryPage extends StatelessWidget {
   const new({
     this.word,
@@ -59,7 +57,6 @@ class DictionaryPage extends StatelessWidget {
     return BlocProvider(
       create: (context) {
         final translate = context.read<TranslateCubit>().state;
-        final settings = context.read<SettingsCubit>().state;
         final cubit = DictionaryCubit(
           repository: context.read<TranslationRepository>(),
           engine: dictionaryEngine(translate),
@@ -75,9 +72,7 @@ class DictionaryPage extends StatelessWidget {
           uiLanguage: uiLanguage,
           usageTracker: _usageTracker(context),
         );
-        if (autoLookUp || settings.instantTranslateAi) {
-          unawaited(cubit.lookUp());
-        }
+        if (autoLookUp) unawaited(cubit.lookUp());
         return cubit;
       },
       child: DictionaryView(autofocus: word?.trim().isNotEmpty != true),

@@ -275,6 +275,64 @@ void main() {
           result('Hallo Erde'),
         );
       });
+
+      test('keys an auto source by the recent source languages', () {
+        // They steer the detection of short text, so a result made for
+        // other recent languages must not be served.
+        final recentGerman = request.copyWith(recentSourceLanguages: ['de']);
+        cache.store(claude, recentGerman, result('Gift'));
+        expect(
+          cache.lookup(claude, request.copyWith(recentSourceLanguages: ['de'])),
+          result('Gift'),
+        );
+        expect(
+          cache.lookup(
+            claude,
+            request.copyWith(recentSourceLanguages: ['en', 'fr']),
+          ),
+          isNull,
+        );
+        expect(
+          cache.lookup(
+            claude,
+            request.copyWith(recentSourceLanguages: ['fr', 'de']),
+          ),
+          isNull,
+          reason: 'the order matters',
+        );
+        expect(cache.lookup(claude, request), isNull);
+      });
+
+      test('ignores the recent source languages of a known source', () {
+        final fromEnglish = request.copyWith(source: english);
+        cache.store(
+          claude,
+          fromEnglish.copyWith(recentSourceLanguages: ['de']),
+          result('Hallo'),
+        );
+        expect(
+          cache.lookup(
+            claude,
+            fromEnglish.copyWith(recentSourceLanguages: ['fr']),
+          ),
+          result('Hallo'),
+        );
+        expect(cache.lookup(claude, fromEnglish), result('Hallo'));
+      });
+
+      test('is not affected by later changes to the recent languages', () {
+        final recent = ['de'];
+        cache.store(
+          claude,
+          request.copyWith(recentSourceLanguages: recent),
+          result('Gift'),
+        );
+        recent[0] = 'en';
+        expect(
+          cache.lookup(claude, request.copyWith(recentSourceLanguages: ['de'])),
+          result('Gift'),
+        );
+      });
     });
 
     group('LRU eviction', () {

@@ -360,12 +360,17 @@ abstract final class ResponseParsers {
   /// list, also of `[source, target]` lists) to character offsets in
   /// [source] and [translation].
   ///
-  /// Each phrase is searched for after the end of the previous match on
-  /// its side (so repeated phrases map to successive occurrences), falling
-  /// back to its first occurrence; a phrase that is not found exactly is
-  /// tried again without surrounding quotes and punctuation, then ignoring
-  /// case. Pairs with a phrase not found on either side are dropped, as
-  /// are duplicates. The result is sorted by source position.
+  /// A phrase is searched for exactly, then without surrounding quotes and
+  /// punctuation, then ignoring case (offsets always refer to the original
+  /// text). Of its occurrences, those at word boundaries (`cat` not inside
+  /// `scattered`; any position in scripts written without spaces) come
+  /// first, then those no earlier pair took (so repeated phrases map to
+  /// successive occurrences). Pairs are listed in source order, so on the
+  /// source side the next occurrence after the previous pair's phrase is
+  /// preferred; translations reorder words (`red car` -> `voiture rouge`),
+  /// so on the target side the occurrence nearest to the previous pair's
+  /// phrase is. Pairs with a phrase not found on either side are dropped,
+  /// as are duplicates. The result is sorted by source position.
   static List<AlignedSpan> parseAlignment(
     String output, {
     required String source,
@@ -383,8 +388,10 @@ abstract final class ResponseParsers {
           ]);
     final spans = <AlignedSpan>[];
     final seen = <AlignedSpan>{};
+    final usedSource = <_Range>[];
+    final usedTarget = <_Range>[];
     var sourceFrom = 0;
-    var targetFrom = 0;
+    _Range? previousTarget;
     for (final item in items) {
       final (rawSource, rawTarget) = switch (item) {
         final Map<dynamic, dynamic> map => (
@@ -407,19 +414,36 @@ abstract final class ResponseParsers {
         _ => (null, null),
       };
       if (rawSource == null || rawTarget == null) continue;
+      final from = sourceFrom;
       final inSource = _find(
         PromptSanitizer.restoreTags(rawSource, original: source),
         source,
-        from: sourceFrom,
+        used: usedSource,
+        // The next occurrence at or after the cursor, else the nearest one
+        // before it.
+        distance: (r) =>
+            r.start >= from ? r.start - from : source.length + from - r.start,
       );
+      final near = previousTarget;
       final inTarget = _find(
         PromptSanitizer.restoreTags(rawTarget, original: translation),
         translation,
-        from: targetFrom,
+        used: usedTarget,
+        // The occurrence nearest to the previous pair's (after it on a tie).
+        distance: (r) => near == null
+            ? r.start
+            : r.start >= near.end
+            ? 2 * (r.start - near.end)
+            : r.end <= near.start
+            ? 2 * (near.start - r.end) + 1
+            : 0,
       );
       if (inSource == null || inTarget == null) continue;
-      sourceFrom = inSource.end;
-      targetFrom = inTarget.end;
+      // Never move back after falling back to an earlier occurrence.
+      if (inSource.end > sourceFrom) sourceFrom = inSource.end;
+      previousTarget = inTarget;
+      usedSource.add(inSource);
+      usedTarget.add(inTarget);
       final span = AlignedSpan(
         sourceStart: inSource.start,
         sourceEnd: inSource.end,
@@ -446,10 +470,21 @@ abstract final class ResponseParsers {
     caseSensitive: false,
   );
 
+  /// A source that itself starts with a romanization label word, in the
+  /// Latin script or natively (ローマ字, 拼音, 粵拼, ...).
+  static final _sourceRomanizationLabel = RegExp(
+    r'^\s*(?:\*\*|__)?(?:romani[sz]|transliterat|r[oō]maji|pinyin|jyutping'
+    '|ローマ字|ろーまじ|ローマじ|拼音|粵拼|粤拼|羅馬字|罗马字|로마자)',
+    caseSensitive: false,
+  );
+
   /// [cleanTranslation] for a romanization of [source], which also drops a
-  /// leading "Romanization:" / "Romaji:" / "Pinyin:" (...) label.
+  /// leading "Romanization:" / "Romaji:" / "Pinyin:" (...) label, unless
+  /// [source] starts with such a word itself (`ローマ字：…` romanizes to
+  /// `Rōmaji: …`, and a learner's note may start with `Pinyin:`).
   static String cleanRomanization(String output, {required String source}) {
     final text = cleanTranslation(output, source: source);
+    if (_sourceRomanizationLabel.hasMatch(source)) return text;
     final match = _romanizationLabel.firstMatch(text);
     if (match == null) return text;
     final rest = text.substring(match.end).trim();
@@ -1253,31 +1288,105 @@ abstract final class ResponseParsers {
     '^["\'“”„«»‘’「」『』*]+|["\'“”„«»‘’「」『』*]+\$',
   );
 
-  /// The range of [needle] in [haystack]: its first occurrence at or after
-  /// [from], else its first occurrence. Tries [needle] trimmed, then
-  /// without edge quotes/punctuation, then ignoring case (only when
-  /// lower-casing keeps [haystack]'s length, so offsets stay valid).
-  static ({int start, int end})? _find(
+  /// The best occurrence of [needle] in [haystack] (see [parseAlignment]):
+  /// [needle] trimmed, else without edge quotes/punctuation, else ignoring
+  /// case. Occurrences at word boundaries rank first, then those that
+  /// overlap none of [used]; ties go to the smallest [distance].
+  static _Range? _find(
     String needle,
     String haystack, {
-    required int from,
+    required List<_Range> used,
+    required int Function(_Range range) distance,
   }) {
-    ({int start, int end})? search(String n, String h) {
-      if (n.isEmpty) return null;
-      var index = from <= h.length ? h.indexOf(n, from) : -1;
-      if (index < 0) index = h.indexOf(n);
-      return index < 0 ? null : (start: index, end: index + n.length);
-    }
-
     final trimmed = needle.trim();
     final bare = trimmed.replaceAll(_edgePunctuation, '').trim();
-    final lower = haystack.toLowerCase();
-    return search(trimmed, haystack) ??
-        search(bare, haystack) ??
-        (lower.length == haystack.length
-            ? search(bare.toLowerCase(), lower)
-            : null);
+    final patterns = [
+      if (trimmed.isNotEmpty) RegExp(RegExp.escape(trimmed)),
+      if (bare.isNotEmpty && bare != trimmed) RegExp(RegExp.escape(bare)),
+      // Matches in [haystack] itself, so offsets stay valid even where
+      // lower-casing would change the length (e.g. 'İ').
+      if (bare.isNotEmpty) RegExp(RegExp.escape(bare), caseSensitive: false),
+    ];
+    for (final pattern in patterns) {
+      _Range? best;
+      var bestRank = 0;
+      var bestDistance = 0;
+      for (final match in pattern.allMatches(haystack)) {
+        final range = (start: match.start, end: match.end);
+        final rank =
+            (_atWordBoundaries(haystack, range) ? 0 : 2) +
+            (used.any((u) => u.start < range.end && range.start < u.end)
+                ? 1
+                : 0);
+        final d = distance(range);
+        if (best == null ||
+            rank < bestRank ||
+            (rank == bestRank && d < bestDistance)) {
+          best = range;
+          bestRank = rank;
+          bestDistance = d;
+        }
+      }
+      if (best != null) return best;
+    }
+    return null;
   }
+
+  /// Letters, marks, digits and `_`.
+  static final _wordChar = RegExp(r'[\p{L}\p{M}\p{N}_]', unicode: true);
+
+  /// Scripts written without spaces between words.
+  static final _unspacedScript = RegExp(
+    r'[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}'
+    r'\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}'
+    r'\p{Script=Tibetan}]',
+    unicode: true,
+  );
+
+  /// Whether no word continues across either end of [range] in [text]: a
+  /// word character of a script with spaces on both sides of an end. In
+  /// scripts written without spaces every position counts as a boundary.
+  static bool _atWordBoundaries(String text, _Range range) {
+    bool joins(int index) {
+      final before = _charBefore(text, index);
+      final after = _charAt(text, index);
+      return before != null &&
+          after != null &&
+          _isSpacedWordChar(before) &&
+          _isSpacedWordChar(after);
+    }
+
+    return !joins(range.start) && !joins(range.end);
+  }
+
+  static bool _isSpacedWordChar(String char) =>
+      _wordChar.hasMatch(char) && !_unspacedScript.hasMatch(char);
+
+  /// The character (code point) that ends at [index] of [s], or null.
+  static String? _charBefore(String s, int index) {
+    if (index <= 0) return null;
+    if (index >= 2 &&
+        _isLowSurrogate(s.codeUnitAt(index - 1)) &&
+        _isHighSurrogate(s.codeUnitAt(index - 2))) {
+      return s.substring(index - 2, index);
+    }
+    return s.substring(index - 1, index);
+  }
+
+  /// The character (code point) that starts at [index] of [s], or null.
+  static String? _charAt(String s, int index) {
+    if (index >= s.length) return null;
+    if (index + 1 < s.length &&
+        _isHighSurrogate(s.codeUnitAt(index)) &&
+        _isLowSurrogate(s.codeUnitAt(index + 1))) {
+      return s.substring(index, index + 2);
+    }
+    return s.substring(index, index + 1);
+  }
+
+  static bool _isHighSurrogate(int unit) => unit >= 0xD800 && unit <= 0xDBFF;
+
+  static bool _isLowSurrogate(int unit) => unit >= 0xDC00 && unit <= 0xDFFF;
 
   static List<String> _distinct(List<String> values) {
     final seen = <String>{};
@@ -1356,3 +1465,6 @@ abstract final class ResponseParsers {
     return isCode ? LanguageMatcher.normalize(s) : '';
   }
 }
+
+/// A range of character offsets, end exclusive.
+typedef _Range = ({int start, int end});

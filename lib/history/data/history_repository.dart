@@ -1,8 +1,32 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:equatable/equatable.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/history/models/history_entry.dart';
+
+/// Outcome of [HistoryRepository.importJson].
+class HistoryImport extends Equatable {
+  const new({
+    required this.entries,
+    required this.added,
+    required this.expired,
+  });
+
+  /// The history after the import, newest first.
+  final List<HistoryEntry> entries;
+
+  /// How many imported entries were added to the history (entries whose id
+  /// was already there, and those evicted by the size limits, are not).
+  final int added;
+
+  /// How many new imported entries were left out for being older than the
+  /// retention `maxAge` (history auto-delete).
+  final int expired;
+
+  @override
+  List<Object?> get props => [entries, added, expired];
+}
 
 /// Local-only history (JSON list under key `history.v1`), newest first.
 ///
@@ -172,21 +196,33 @@ class HistoryRepository {
         .convert([for (final entry in entries) entry.toJson()]);
   });
 
-  /// Merges entries from [json] (dedupe by id); returns the new list.
-  /// Throws [FormatException] on invalid input.
+  /// Merges entries from [json] (dedupe by id) and reports the new list
+  /// and what happened to the imported entries ([HistoryImport]). Throws
+  /// [FormatException] on invalid input.
   ///
   /// Existing entries win over imported ones with the same id; the merged
   /// list is sorted newest first, truncated and capped like [add] (with
-  /// [maxAge], expired non-favourites are dropped too). Invalid elements
-  /// are skipped as long as the input is a JSON array with at least one
-  /// valid entry (or is empty).
-  Future<List<HistoryEntry>> importJson(String json, {Duration? maxAge}) async {
+  /// [maxAge], expired non-favourites are dropped too and counted as
+  /// [HistoryImport.expired]). Invalid elements are skipped as long as the
+  /// input is a JSON array with at least one valid entry (or is empty).
+  Future<HistoryImport> importJson(String json, {Duration? maxAge}) async {
     final imported = _decodeStrict(json).map(_limited).toList();
-    return await _mutate(maxAge: maxAge, (entries) {
+    var fresh = const <HistoryEntry>[];
+    var expired = 0;
+    final entries = await _mutate(maxAge: maxAge, (entries) {
       final ids = {for (final entry in entries) entry.id};
-      return [...entries, ...imported.where((e) => ids.add(e.id))]
+      final added = [...imported.where((e) => ids.add(e.id))];
+      fresh = _withoutExpired(added, maxAge);
+      expired = added.length - fresh.length;
+      return [...entries, ...fresh]
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     });
+    final kept = {for (final entry in entries) entry.id};
+    return HistoryImport(
+      entries: entries,
+      added: fresh.where((e) => kept.contains(e.id)).length,
+      expired: expired,
+    );
   }
 
   /// Whether [entry] should replace [newest] instead of being inserted.

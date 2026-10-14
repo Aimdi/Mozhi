@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -24,9 +25,11 @@ import 'package:mozhi/settings/view/about_page.dart';
 import 'package:mozhi/settings/view/instances_page.dart';
 import 'package:mozhi/settings/view/provider_editor_page.dart';
 import 'package:mozhi/settings/view/providers_page.dart';
+import 'package:mozhi/settings/view/quality_modes_page.dart';
 import 'package:mozhi/settings/view/settings_page.dart';
 import 'package:mozhi/translate/view/translate_page.dart';
 import 'package:mozhi/usage/view/usage_summary_page.dart';
+import 'package:mozhi/web_translate/cubit/web_translate_cubit.dart';
 import 'package:mozhi/web_translate/view/web_translate_page.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -309,6 +312,7 @@ void main() {
       '/settings/presets': PresetsPage,
       '/settings/glossaries': GlossariesPage,
       '/settings/usage': UsageSummaryPage,
+      '/settings/quality': QualityModesPage,
       '/translate': TranslatePage,
     };
     for (final MapEntry(key: path, value: page) in pages.entries) {
@@ -372,15 +376,51 @@ void main() {
       expect(page.initialSource, ImagePickSource.gallery);
     });
 
-    testWidgets('passes the web page address', (tester) async {
+    WebTranslateState webState(WidgetTester tester) => tester
+        .element(find.byType(WebTranslateView))
+        .read<WebTranslateCubit>()
+        .state;
+
+    testWidgets('web page links only fill in the address', (tester) async {
       await pumpRouter(tester);
       await go(tester, '/translate/web?url=https%3A%2F%2Fexample.test');
 
       expect(location(), '/web?url=https%3A%2F%2Fexample.test');
+      expect(find.byType(WebTranslatePage), findsNothing);
+      expect(find.byType(WebTranslateView), findsOneWidget);
+      expect(find.byType(AppShell), findsNothing);
+      final state = webState(tester);
+      expect(state.url, 'https://example.test');
+      expect(state.status, WebTranslateStatus.idle);
+      final field = tester.widget<TextField>(
+        find.byKey(const Key('web_translate_url_field')),
+      );
+      expect(field.controller!.text, 'https://example.test');
+
+      await go(tester, AppRoutes.webPage(url: 'https://other.test'));
+      expect(webState(tester).url, 'https://other.test');
+      expect(webState(tester).status, WebTranslateStatus.idle);
+    });
+
+    testWidgets('loads the web page right away only when the app asks', (
+      tester,
+    ) async {
+      await pumpRouter(tester);
+
+      unawaited(
+        router.push<void>(
+          AppRoutes.webPage(url: 'https://example.test'),
+          extra: WebPageLaunch.load,
+        ),
+      );
+      await tester.pump();
+      await tester.pump(_transition);
+
       final page = tester.widget<WebTranslatePage>(
         find.byType(WebTranslatePage),
       );
       expect(page.initialUrl, 'https://example.test');
+      expect(find.byType(AppShell, skipOffstage: false), findsOneWidget);
     });
 
     testWidgets('passes the dictionary word and languages', (tester) async {
@@ -453,6 +493,24 @@ void main() {
 
         expect(location(), AppRoutes.translate);
         expect(links, const [TranslateLink(text: 'hola', to: 'en')]);
+      });
+
+      testWidgets('never load a web page on their own', (tester) async {
+        await pumpRouter(tester);
+        await go(tester, 'mozhi://web?url=http%3A%2F%2F192.168.1.1%2F');
+
+        expect(location(), '/web?url=http%3A%2F%2F192.168.1.1%2F');
+        expect(find.byType(WebTranslatePage), findsNothing);
+        final state = webState(tester);
+        expect(state.url, 'http://192.168.1.1/');
+        expect(state.status, WebTranslateStatus.idle);
+        verifyNever(
+          () => env.translationRepository.translate(
+            any(),
+            any(),
+            refresh: any(named: 'refresh'),
+          ),
+        );
       });
 
       testWidgets('open other screens', (tester) async {

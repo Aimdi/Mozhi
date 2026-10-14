@@ -22,9 +22,10 @@ const chunks = [
 
 /// One chunk request and the controller that answers it.
 class Call {
-  new(this.request);
+  new(this.request, this.preceding);
 
   final TranslationRequest request;
+  final String preceding;
   bool cancelled = false;
   bool paused = false;
   late final controller = StreamController<TranslationResult>(
@@ -60,8 +61,11 @@ void main() {
   late List<Call> calls;
   late List<String> pinned;
 
-  Stream<TranslationResult> translate(TranslationRequest request) {
-    final call = Call(request);
+  Stream<TranslationResult> translate(
+    TranslationRequest request,
+    String preceding,
+  ) {
+    final call = Call(request, preceding);
     calls.add(call);
     return call.controller.stream;
   }
@@ -74,8 +78,9 @@ void main() {
   Stream<TranslationResult> chunked(
     TranslationRequest request, {
     List<TextChunk> chunks = chunks,
-    Stream<TranslationResult> Function(TranslationRequest)? translator,
+    Stream<TranslationResult> Function(TranslationRequest, String)? translator,
     int concurrency = 2,
+    int contextChars = 400,
   }) => chunkedTranslation(
     engine: engine,
     request: request,
@@ -83,6 +88,7 @@ void main() {
     translate: translator ?? translate,
     languageFor: languageFor,
     concurrency: concurrency,
+    contextChars: contextChars,
   );
 
   setUp(() {
@@ -143,15 +149,28 @@ void main() {
         expect(first.source, english);
         expect(first.target, german);
         expect(first.options, explicit.options);
+        expect(calls[0].preceding, isEmpty);
+        // The preceding text is passed on its own, never as the user's
+        // context (which ends up in the system prompt).
         final second = calls[1].request;
-        expect(second.options.formality, Formality.more);
-        expect(
-          second.options.context,
-          precedingTextContext('A letter to my landlord', 'One.'),
-        );
-        expect(second.options.context, startsWith('A letter to my landlord'));
-        expect(second.options.context, endsWith('Preceding text: One.'));
+        expect(second.options, explicit.options);
+        expect(calls[1].preceding, 'One.');
       });
+    });
+
+    test('passes only the end of a long preceding chunk', () async {
+      final long = List.filled(50, 'word').join(' ');
+      chunked(
+        explicit,
+        chunks: [
+          TextChunk(text: long, separator: '\n\n'),
+          const TextChunk(text: 'Next.'),
+        ],
+        contextChars: 20,
+      ).listen((_) {});
+      await pumpEventQueue();
+      expect(calls[1].preceding, precedingTextTail(long, maxChars: 20));
+      expect(calls[1].preceding, startsWith('…'));
     });
 
     test('combines finished and in-progress chunks in order', () async {
@@ -218,6 +237,37 @@ void main() {
       expect(results.last.text, 'Eins.\n\nZwei.\n \nDrei.');
     });
 
+    test('keeps an auto source when the first chunk is in the target '
+        'language', () async {
+      // An English e-mail with a German reply, translated into English:
+      // pinning English would ask for English -> English ("polish, do not
+      // translate") and leave the German reply untranslated.
+      final results = <TranslationResult>[];
+      final done = Completer<void>();
+      final toEnglish = auto.copyWith(target: english);
+      chunked(toEnglish).listen(results.add, onDone: done.complete);
+      await pumpEventQueue();
+      await calls[0].finish('One.', detected: 'en-US');
+      await pumpEventQueue();
+      expect(pinned, isEmpty);
+      expect(calls, hasLength(3), reason: 'the others run in parallel');
+      expect(calls.map((c) => c.request.source), everyElement(Language.auto));
+      await calls[1].finish('Two.', detected: 'de');
+      await calls[2].finish('Three.', detected: 'de');
+      await done.future;
+      expect(results.last.detectedSource, 'en-US');
+      expect(results.last.isComplete, isTrue);
+    });
+
+    test('pins a detected language for a custom target', () async {
+      chunked(auto.copyWith(target: const Language.custom('Pirate speak')))
+          .listen((_) {});
+      await pumpEventQueue();
+      await calls[0].finish('Arr.', detected: 'en');
+      await pumpEventQueue();
+      expect(pinned, ['en']);
+    });
+
     test('keeps an auto source when the first chunk detected none', () async {
       final results = <TranslationResult>[];
       final done = Completer<void>();
@@ -268,10 +318,36 @@ void main() {
       expect(calls, hasLength(2), reason: 'no chunk starts after an error');
     });
 
+    test('joins a CJK sentence end with a space where needed', () async {
+      const cjk = [
+        TextChunk(text: '这是第一句。', sentenceEnd: true),
+        TextChunk(text: '这是第二句。', sentenceEnd: true),
+        TextChunk(text: '第三句。'),
+      ];
+      final results = <TranslationResult>[];
+      final done = Completer<void>();
+      chunked(explicit, chunks: cjk).listen(results.add, onDone: done.complete);
+      await pumpEventQueue();
+      await calls[1].finish('This is the second one.');
+      await pumpEventQueue();
+      // No space before a part that has no text yet.
+      expect(results.last.text, 'This is the second one.');
+      await calls[0].finish('This is the first one.');
+      await pumpEventQueue();
+      await calls[2].finish('第三句。');
+      await done.future;
+      // A space between sentences in a script with spaces; none next to
+      // Chinese text.
+      expect(
+        results.last.text,
+        'This is the first one. This is the second one.第三句。',
+      );
+    });
+
     test('emits an error thrown when a chunk is requested', () async {
       final error = ArgumentError('bad chunk');
       await expectLater(
-        chunked(explicit, translator: (_) => throw error),
+        chunked(explicit, translator: (_, _) => throw error),
         emitsInOrder([emitsError(same(error)), emitsDone]),
       );
     });
@@ -301,23 +377,14 @@ void main() {
     });
   });
 
-  group('precedingTextContext', () {
-    test('labels the preceding text without the user context', () {
-      final context = precedingTextContext('', 'The end.');
-      expect(context, startsWith('The text to translate continues'));
-      expect(context, contains('do not translate it'));
-      expect(context, endsWith('Preceding text: The end.'));
-    });
-
-    test('puts the user context first', () {
-      final context = precedingTextContext('  Legal text  ', 'The end.');
-      expect(context, startsWith('Legal text\n\nThe text to translate'));
+  group('precedingTextTail', () {
+    test('keeps a short preceding text whole', () {
+      expect(precedingTextTail('  The end.  '), 'The end.');
     });
 
     test('keeps only the end of a long preceding text', () {
       final preceding = List.filled(200, 'word').join(' ');
-      final context = precedingTextContext('', preceding);
-      final tail = context.split('Preceding text: ').last;
+      final tail = precedingTextTail(preceding);
       expect(tail, startsWith('…word'));
       expect(tail.length, lessThanOrEqualTo(401));
       expect(preceding, endsWith(tail.substring(1)));
@@ -325,38 +392,21 @@ void main() {
 
     test('starts at a word boundary', () {
       final preceding = 'abcdefghij ${'x' * 9}';
-      final tail = precedingTextContext(
-        '',
-        preceding,
-        maxChars: 12,
-      ).split('Preceding text: ').last;
       // The cut inside "abcdefghij" moves to the next word.
-      expect(tail, '…${'x' * 9}');
+      expect(precedingTextTail(preceding, maxChars: 12), '…${'x' * 9}');
     });
 
     test('cuts a very long word where needed', () {
-      final tail = precedingTextContext(
-        '',
-        'y' * 100,
-        maxChars: 10,
-      ).split('Preceding text: ').last;
-      expect(tail, '…${'y' * 10}');
+      expect(precedingTextTail('y' * 100, maxChars: 10), '…${'y' * 10}');
     });
 
     test('never starts inside a surrogate pair', () {
-      final tail = precedingTextContext(
-        '',
-        '😀' * 10,
-        maxChars: 5,
-      ).split('Preceding text: ').last;
+      final tail = precedingTextTail('😀' * 10, maxChars: 5);
       expect(tail.runes.skip(1), everyElement(0x1F600));
     });
 
     test('keeps nothing with a limit of 0', () {
-      expect(
-        precedingTextContext('', 'text', maxChars: 0),
-        endsWith('Preceding text: '),
-      );
+      expect(precedingTextTail('text', maxChars: 0), isEmpty);
     });
   });
 }

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:translation_repository/src/chunking/paragraph_chunker.dart';
+import 'package:translation_repository/src/language_matcher.dart';
 import 'package:translation_repository/src/models/models.dart';
 
 /// Translates a long [request] in [chunks] (from [ParagraphChunker.split]
@@ -10,14 +11,24 @@ import 'package:translation_repository/src/models/models.dart';
 ///
 /// * Chunks are translated in order, at most [concurrency] (at least 1) at
 ///   a time. When the source is auto, the first chunk is translated alone
-///   and the language it detected becomes the source of the others.
-/// * Every chunk after the first gets the end (about [contextChars]
-///   characters) of the previous chunk's text as context, after the user's
-///   own `TranslationOptions.context` (see [precedingTextContext]).
+///   and the language it detected becomes the source of the others, unless
+///   it is the target language (same primary subtag, e.g. a reply below an
+///   English e-mail translated into English): the others stay auto, so a
+///   part in another language is still translated rather than polished as
+///   if it were in the target language.
+/// * [translate] also gets the end (about [contextChars] characters, see
+///   [precedingTextTail]) of the previous chunk's text, empty for the first
+///   chunk. It is for reference only (consistent terms, tone and
+///   references) and must be kept out of the system prompt: it is
+///   untrusted data like the chunk itself (see `TranslationPrompts
+///   .translate`), and the user's own `TranslationOptions.context` is
+///   passed on unchanged.
 /// * Snapshots combine the chunks started so far (finished and in
-///   progress, in order, joined with the original separators) and are
-///   `isComplete` only once every chunk is done; `detectedSource` is that of
-///   the first chunk (of a later one when the first reported none).
+///   progress, in order, joined with [ParagraphChunker.joiner]: the
+///   original separators, and a space where a CJK sentence end meets text
+///   in a script that uses spaces) and are `isComplete` only once every
+///   chunk is done; `detectedSource` is that of the first chunk (of a later
+///   one when the first reported none).
 /// * An error of any chunk cancels the others and is emitted, closing the
 ///   stream. Cancelling, pausing and resuming the returned stream are
 ///   forwarded to the chunks in flight.
@@ -25,7 +36,10 @@ Stream<TranslationResult> chunkedTranslation({
   required TranslationEngine engine,
   required TranslationRequest request,
   required List<TextChunk> chunks,
-  required Stream<TranslationResult> Function(TranslationRequest chunk)
+  required Stream<TranslationResult> Function(
+    TranslationRequest chunk,
+    String precedingText,
+  )
   translate,
   required Language Function(String code) languageFor,
   int concurrency = 2,
@@ -46,19 +60,12 @@ Stream<TranslationResult> chunkedTranslation({
   var stopped = false;
   ({String text, String? detected})? last;
 
-  TranslationRequest requestFor(int index) => request.copyWith(
-    text: chunks[index].text,
-    source: source,
-    options: index == 0
-        ? request.options
-        : request.options.copyWith(
-            context: precedingTextContext(
-              request.options.context,
-              chunks[index - 1].text,
-              maxChars: contextChars,
-            ),
-          ),
-  );
+  TranslationRequest requestFor(int index) =>
+      request.copyWith(text: chunks[index].text, source: source);
+
+  String precedingFor(int index) => index == 0
+      ? ''
+      : precedingTextTail(chunks[index - 1].text, maxChars: contextChars);
 
   String? detectedSource() {
     for (final code in detected) {
@@ -90,7 +97,11 @@ Stream<TranslationResult> chunkedTranslation({
     }
     final buffer = StringBuffer();
     for (var i = 0; i < end; i++) {
-      if (i > 0) buffer.write(chunks[i - 1].separator);
+      if (i > 0) {
+        buffer.write(
+          ParagraphChunker.joiner(chunks[i - 1], texts[i - 1], texts[i]),
+        );
+      }
       buffer.write(texts[i]);
     }
     final snapshot = (text: buffer.toString(), detected: detectedSource());
@@ -117,7 +128,7 @@ Stream<TranslationResult> chunkedTranslation({
   void start(int index) {
     final Stream<TranslationResult> stream;
     try {
-      stream = translate(requestFor(index));
+      stream = translate(requestFor(index), precedingFor(index));
     } on Object catch (error, stackTrace) {
       stop(error, stackTrace);
       return;
@@ -137,8 +148,12 @@ Stream<TranslationResult> chunkedTranslation({
         if (stopped) return;
         done[index] = true;
         finished++;
-        if (index == 0 && source.isAuto && detected[0] != null) {
-          source = languageFor(detected[0]!);
+        final code = detected[0];
+        if (index == 0 &&
+            source.isAuto &&
+            code != null &&
+            !_isTarget(code, request.target)) {
+          source = languageFor(code);
         }
         startMore();
         emit();
@@ -183,23 +198,19 @@ Stream<TranslationResult> chunkedTranslation({
   return controller.stream;
 }
 
-/// The `TranslationOptions.context` for a chunk that follows [preceding]:
-/// the user's own [context] (if any), then the end of [preceding] (at most
-/// about [maxChars] characters, starting at a word boundary), labelled as
-/// text that is translated separately and must not be translated again.
-String precedingTextContext(
-  String context,
-  String preceding, {
-  int maxChars = 400,
-}) {
-  final note =
-      'The text to translate continues a longer text that is translated in '
-      'parts. The end of the preceding part follows for reference only (for '
-      'consistent terms, tone and references). It is translated separately: '
-      'do not translate it and do not include it in your reply.\n'
-      'Preceding text: ${_tail(preceding.trim(), maxChars)}';
-  final own = context.trim();
-  return own.isEmpty ? note : '$own\n\n$note';
+/// The end of [preceding] (the text of the chunk before another one) to
+/// show with that chunk: at most about [maxChars] characters, starting at a
+/// word boundary and marked with a leading `…` when shortened.
+String precedingTextTail(String preceding, {int maxChars = 400}) =>
+    _tail(preceding.trim(), maxChars);
+
+/// Whether the detected [code] is the language of [target] (same primary
+/// subtag; never for a custom target).
+bool _isTarget(String code, Language target) {
+  if (target.isCustom || target.isAuto) return false;
+  String primary(String c) =>
+      LanguageMatcher.normalize(c).split('-').first.toLowerCase();
+  return primary(code) == primary(target.code);
 }
 
 String _tail(String text, int maxChars) {

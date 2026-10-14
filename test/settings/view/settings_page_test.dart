@@ -3,6 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/history/cubit/history_cubit.dart';
+import 'package:mozhi/history/data/history_repository.dart';
+import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/settings_page.dart';
 import 'package:mozhi/settings/view/widgets/history_data_actions.dart';
@@ -463,7 +466,9 @@ void main() {
       });
 
       testWidgets('imports pasted JSON', (tester) async {
-        when(() => history.importJson(any())).thenAnswer((_) async {});
+        when(() => history.importJson(any())).thenAnswer(
+          (_) async => const HistoryImport(entries: [], added: 0, expired: 0),
+        );
         await pump(tester);
         await tester.tap(find.text('Import history'));
         await tester.pumpAndSettle();
@@ -481,6 +486,42 @@ void main() {
         verify(() => history.importJson('[]')).called(1);
         expect(find.byType(AlertDialog), findsNothing);
         expect(find.text('History imported'), findsOneWidget);
+      });
+
+      testWidgets('says how many old translations were skipped', (
+        tester,
+      ) async {
+        when(() => history.importJson(any())).thenAnswer(
+          (_) async => const HistoryImport(entries: [], added: 1, expired: 340),
+        );
+        await pump(tester);
+        await tester.tap(find.text('Import history'));
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField), '[]');
+        await tester.tap(find.text('Import'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(
+          find.text(
+            'History imported. 340 translations older than your auto-delete '
+            'setting were skipped.',
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('History imported'), findsNothing);
+      });
+
+      testWidgets('cancelling the import shows nothing', (tester) async {
+        await pump(tester);
+        await tester.tap(find.text('Import history'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(find.byType(SnackBar), findsNothing);
+        verifyNever(() => history.importJson(any()));
       });
 
       testWidgets('pastes from the clipboard', (tester) async {
@@ -659,6 +700,114 @@ void main() {
         await tester.tap(find.text('Cancel'));
         await tester.pumpAndSettle();
         verifyNever(() => settings.setHistoryRetention(any()));
+      });
+
+      group('when existing translations would be deleted', () {
+        HistoryEntry entry(String id, Duration age, {bool favorite = false}) =>
+            HistoryEntry(
+              id: id,
+              text: 'text $id',
+              translation: 'translation $id',
+              source: const Language(code: 'es', name: 'Spanish'),
+              target: const Language(code: 'en', name: 'English'),
+              engineId: 'mozhi:google',
+              engineName: 'Google',
+              createdAt: DateTime.now().subtract(age),
+              isFavorite: favorite,
+            );
+
+        setUp(() {
+          when(() => history.state).thenReturn(
+            HistoryState(
+              status: HistoryStatus.ready,
+              entries: [
+                entry('new', const Duration(hours: 1)),
+                entry('old', const Duration(days: 3)),
+                entry('older', const Duration(days: 40)),
+                entry('starred', const Duration(days: 40), favorite: true),
+              ],
+            ),
+          );
+        });
+
+        Future<void> pick(WidgetTester tester, String label) async {
+          await openPicker(tester);
+          await tester.tap(find.text(label));
+          await tester.pumpAndSettle();
+        }
+
+        testWidgets('asks before deleting them', (tester) async {
+          await pump(tester);
+          await pick(tester, 'After 1 day');
+
+          verifyNever(() => settings.setHistoryRetention(any()));
+          expect(find.text('Delete older translations now?'), findsOneWidget);
+          expect(
+            find.text(
+              '2 translations are older than 1 day and will be deleted from '
+              'this device right away. Starred translations are kept.',
+            ),
+            findsOneWidget,
+          );
+
+          await tester.tap(
+            find.byKey(const Key('settings_history_retention_confirm')),
+          );
+          await tester.pumpAndSettle();
+          expect(find.byType(AlertDialog), findsNothing);
+          verify(() => settings.setHistoryRetention(HistoryRetention.day))
+              .called(1);
+        });
+
+        testWidgets('counts only what the new retention deletes', (
+          tester,
+        ) async {
+          await pump(tester);
+          await pick(tester, 'After 30 days');
+
+          expect(
+            find.text(
+              '1 translation is older than 30 days and will be deleted from '
+              'this device right away. Starred translations are kept.',
+            ),
+            findsOneWidget,
+          );
+        });
+
+        testWidgets('keeps the retention when cancelled', (tester) async {
+          await pump(tester);
+          await pick(tester, 'After 7 days');
+          expect(find.text('Delete older translations now?'), findsOneWidget);
+
+          await tester.tap(find.text('Cancel'));
+          await tester.pumpAndSettle();
+          expect(find.byType(AlertDialog), findsNothing);
+          verifyNever(() => settings.setHistoryRetention(any()));
+        });
+
+        testWidgets('keeps the retention when dismissed', (tester) async {
+          await pump(tester);
+          await pick(tester, 'After 7 days');
+
+          await tester.tapAt(const Offset(4, 4));
+          await tester.pumpAndSettle();
+          expect(find.byType(AlertDialog), findsNothing);
+          verifyNever(() => settings.setHistoryRetention(any()));
+        });
+
+        testWidgets('does not ask when nothing would be deleted', (
+          tester,
+        ) async {
+          await pump(
+            tester,
+            state: const AppSettings(historyRetention: HistoryRetention.week),
+          );
+          await pick(tester, 'Never');
+
+          expect(find.byType(AlertDialog), findsNothing);
+          verify(() => settings.setHistoryRetention(HistoryRetention.forever))
+              .called(1);
+        });
       });
     });
 

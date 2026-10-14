@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -27,6 +28,10 @@ import 'package:mozhi/settings/view/quality_modes_page.dart';
 import 'package:mozhi/settings/view/settings_page.dart';
 import 'package:mozhi/translate/view/translate_page.dart';
 import 'package:mozhi/usage/view/usage_summary_page.dart';
+import 'package:mozhi/web_translate/core/readable_extractor.dart';
+import 'package:mozhi/web_translate/cubit/web_translate_cubit.dart';
+import 'package:mozhi/web_translate/data/page_extraction.dart';
+import 'package:mozhi/web_translate/data/web_page_fetcher.dart';
 import 'package:mozhi/web_translate/view/web_translate_page.dart';
 import 'package:mozhi/web_translate/view/web_translate_route.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -98,7 +103,11 @@ abstract final class AppRoutes {
   static String imageTranslate({ImagePickSource? source}) =>
       _location(image, {ImageTranslatePage.sourceParameter: ?source?.name});
 
-  /// The web page translator, loading [url] on arrival.
+  /// The web page translator with [url] in its address field.
+  ///
+  /// Pass [WebPageLaunch.load] as the navigation's `extra` to load and
+  /// translate it right away; links from outside the app only fill in the
+  /// address (the user presses Translate).
   static String webPage({String? url}) {
     final trimmed = url?.trim() ?? '';
     return _location(web, {
@@ -115,6 +124,13 @@ abstract final class AppRoutes {
   static String _location(String path, Map<String, String> query) =>
       Uri(path: path, queryParameters: query.isEmpty ? null : query).toString();
 }
+
+/// Pass as the navigation's `extra` (`context.push(AppRoutes.webPage(url:
+/// …), extra: WebPageLaunch.load)`) to load and translate the address right
+/// away. Links from outside the app cannot carry it: they only fill in the
+/// address, so a link never fetches a page or sends it to a (paid)
+/// translation engine on its own.
+enum WebPageLaunch { load }
 
 /// Called when a location carries a [TranslateLink].
 typedef TranslateLinkCallback = void Function(TranslateLink link);
@@ -134,9 +150,11 @@ typedef LaunchRedirect = String? Function(String location);
 /// Translate links (`/translate?text=…&from=…&to=…` or the same query on
 /// `/`, including Kagi's option parameters, see [TranslateLink.fromUri])
 /// are handed to [onTranslateLink] and the URL is cleaned up to
-/// `/translate`. `/proofread?text=…` fills the proofreading input and
-/// `/dictionary?word=…&from=…&to=…` opens the dictionary; neither sends
-/// anything to an AI provider on its own. Deep links
+/// `/translate`. `/proofread?text=…` fills the proofreading input,
+/// `/dictionary?word=…&from=…&to=…` opens the dictionary and
+/// `/web?url=…` fills in the web page translator's address; none of them
+/// fetches or sends anything on its own (the in-app `extra`s
+/// [DictionaryLaunch.lookUp] and [WebPageLaunch.load] do). Deep links
 /// (`mozhi://translate?…`, `mozhi://dictionary?…`, ...) open the same
 /// locations ([deepLinkLocation]).
 ///
@@ -188,12 +206,17 @@ GoRouter createAppRouter({
         AppRoutes.documents,
         (context, state) => const DocumentTranslatePage(),
       ),
-      fullScreen(
-        AppRoutes.web,
-        (context, state) => WebTranslatePage(
-          initialUrl: state.uri.queryParameters[WebTranslateRoute.urlParameter],
-        ),
-      ),
+      fullScreen(AppRoutes.web, (context, state) {
+        final url =
+            state.uri.queryParameters[WebTranslateRoute.urlParameter]?.trim() ??
+            '';
+        if (url.isEmpty || state.extra == WebPageLaunch.load) {
+          return WebTranslatePage(initialUrl: url);
+        }
+        // A link only fills in the address; a new address (another link
+        // while the page is open) starts afresh.
+        return _WebAddressPage(key: ValueKey(url), url: url);
+      }),
       fullScreen(
         AppRoutes.conversation,
         (context, state) =>
@@ -354,6 +377,32 @@ String? deepLinkLocation(Uri uri) {
     query: uri.hasQuery && uri.query.isNotEmpty ? uri.query : null,
   ).toString();
 }
+
+/// The web page translator ([WebTranslatePage]) with [url] in its address
+/// field, loaded only when the user presses Translate.
+class _WebAddressPage extends StatelessWidget {
+  const new({required this.url, super.key});
+
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (context) => WebTranslateCubit(
+        repository: context.read<TranslationRepository>(),
+        fetcher: WebPageFetcher(),
+        extract: _extractInBackground,
+        initialUrl: url,
+      ),
+      child: const WebTranslateView(isWeb: kIsWeb),
+    );
+  }
+}
+
+// coverage:ignore-start
+Future<ReadablePage> _extractInBackground(FetchedWebPage page) =>
+    compute(extractFetchedPage, page);
+// coverage:ignore-end
 
 /// [UsageSummaryPage] for the configured providers; tapping a provider
 /// opens its editor.

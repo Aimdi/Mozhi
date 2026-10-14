@@ -56,6 +56,21 @@ void main() {
     );
   });
 
+  /// Replaces the repository with one that splits AI input longer than
+  /// [cloud] (cloud providers) or [local] (local providers) characters.
+  void useChunkThresholds({required int cloud, required int local}) {
+    repository = TranslationRepository(
+      llmClientFactory: (endpoint) {
+        llmBuilt.add(endpoint);
+        return llm[endpoint.baseUrl.host]!;
+      },
+      snapshotInterval: Duration.zero,
+      aiChunkThreshold: cloud,
+      localAiChunkThreshold: local,
+    );
+    configure();
+  }
+
   void stubStream(MockLlmClient client, List<String> deltas) =>
       when(() => client.streamChat(any()))
           .thenAnswer((_) => Stream.fromIterable(deltas));
@@ -268,6 +283,52 @@ void main() {
       await expectLater(refine(claude), emitsError(isA<LlmApiException>()));
     });
 
+    test('refuses text that translate would split into parts', () async {
+      // A refinement sends the whole text and translation in one request,
+      // which would overflow small context windows; the caller translates
+      // again (in parts) instead.
+      useChunkThresholds(cloud: 20, local: 10);
+      stubStream(llmOf(claudeConfig), ['Guten Tag']);
+      stubStream(llmOf(ollamaConfig), ['Guten Tag']);
+      final long = englishToGerman.copyWith(text: 'Hello world, how are you');
+      await expectLater(
+        refine(claude, request: long),
+        emitsError(
+          isA<UnsupportedError>().having(
+            (e) => e.message,
+            'message',
+            contains('too long for Claude to refine'),
+          ),
+        ),
+      );
+      await expectLater(
+        refine(claude, current: 'Hallo Welt, wie geht es dir?'),
+        emitsError(isA<UnsupportedError>()),
+      );
+      // Local providers have the smaller threshold.
+      final medium = englishToGerman.copyWith(text: 'Hello there world');
+      await expectLater(
+        refine(ollama, request: medium),
+        emitsError(isA<UnsupportedError>()),
+      );
+      verifyNever(() => llmOf(claudeConfig).streamChat(any()));
+      verifyNever(() => llmOf(ollamaConfig).streamChat(any()));
+      // At most the threshold is refined.
+      final last = await refine(
+        claude,
+        request: englishToGerman.copyWith(text: 'x' * 20),
+        current: 'y' * 20,
+      ).last;
+      expect(last.text, 'Guten Tag');
+      expect(
+        (await refine(
+          ollama,
+          request: medium.copyWith(text: 'x' * 10),
+        ).last).isComplete,
+        isTrue,
+      );
+    });
+
     test('cancelling cancels the provider stream', () async {
       configure();
       final deltas = ControlledDeltas();
@@ -347,6 +408,41 @@ void main() {
         );
       }
       expect(llmBuilt, isEmpty);
+    });
+
+    test('romanizes long text in parts', () async {
+      useChunkThresholds(cloud: 20, local: 10);
+      when(() => llmOf(ollamaConfig).chat(any()))
+          .thenAnswer((invocation) async {
+            final request = invocation.positionalArguments.single as LlmRequest;
+            return request.messages.last.content.contains('東京')
+                ? 'Romaji: Tōkyō e ikimasu.'
+                : 'Ōsaka ni mo ikimasu.';
+          });
+      final text = await repository.romanize(
+        ollama,
+        text: '東京へ行きます。大阪にも行きます。',
+        language: japanese,
+      );
+      // Parts cut after a CJK full stop are joined with a space.
+      expect(text, 'Tōkyō e ikimasu. Ōsaka ni mo ikimasu.');
+      final requests = capturedChats(llmOf(ollamaConfig));
+      expect(requests.map((r) => r.messages), [
+        TranslationPrompts.romanize('東京へ行きます。', language: japanese),
+        TranslationPrompts.romanize('大阪にも行きます。', language: japanese),
+      ]);
+    });
+
+    test('keeps long parts without non-Latin letters as they are', () async {
+      useChunkThresholds(cloud: 20, local: 10);
+      stubChat(llmOf(claudeConfig), ['Tōkyō e ikimasu. Ōsaka mo.']);
+      final text = await repository.romanize(
+        claude,
+        text: '東京へ行きます。大阪にも行きます。\n\nThis part is Latin.',
+        language: japanese,
+      );
+      expect(text, 'Tōkyō e ikimasu. Ōsaka mo.\n\nThis part is Latin.');
+      expect(capturedChats(llmOf(claudeConfig)), hasLength(1));
     });
 
     test('throws on an empty reply', () async {

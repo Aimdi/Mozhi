@@ -582,11 +582,11 @@ void main() {
       test('truncates imported entries', () async {
         final repository = HistoryRepository(store: store, maxTextLength: 3);
 
-        final entries = await repository.importJson(
+        final result = await repository.importJson(
           jsonEncode([_entry('1', text: 'abcdef').toJson()]),
         );
 
-        expect(entries.single.text, 'ab…');
+        expect(result.entries.single.text, 'ab…');
       });
     });
 
@@ -763,7 +763,7 @@ void main() {
         await repository.add(_entry('a', minute: 10, text: 'local'));
         await repository.add(_entry('b', minute: 30));
 
-        final entries = await repository.importJson(
+        final result = await repository.importJson(
           jsonEncode([
             _entry('a', minute: 10, text: 'imported').toJson(),
             _entry('c', minute: 20).toJson(),
@@ -771,7 +771,9 @@ void main() {
           ]),
         );
 
-        expect(entries, [
+        expect(result.added, 2);
+        expect(result.expired, 0);
+        expect(result.entries, [
           _entry('d', minute: 40, isFavorite: true),
           _entry('b', minute: 30),
           _entry('c', minute: 20),
@@ -786,25 +788,29 @@ void main() {
         final exported = await repository.exportJson();
 
         final other = HistoryRepository(store: MemoryStore());
-        final entries = await other.importJson(exported);
+        final result = await other.importJson(exported);
 
-        expect(entries, await repository.load());
+        expect(result.entries, await repository.load());
+        expect(result.added, 2);
       });
 
       test('applies the entry cap', () async {
         final repository = HistoryRepository(store: store, maxEntries: 2);
 
-        final entries = await repository.importJson(
+        final result = await repository.importJson(
           jsonEncode([
             for (var i = 0; i < 4; i++) _entry('$i', minute: i).toJson(),
           ]),
         );
 
-        expect(entries.map((e) => e.id), ['3', '2']);
+        expect(result.entries.map((e) => e.id), ['3', '2']);
+        // Evicted by the cap, not by the retention.
+        expect(result.added, 2);
+        expect(result.expired, 0);
       });
 
       test('skips invalid elements of an otherwise valid array', () async {
-        final entries = await repository.importJson(
+        final result = await repository.importJson(
           jsonEncode([
             _entry('1').toJson(),
             {'id': 'broken'},
@@ -812,13 +818,17 @@ void main() {
           ]),
         );
 
-        expect(entries, [_entry('1')]);
+        expect(result.entries, [_entry('1')]);
+        expect(result.added, 1);
       });
 
       test('accepts an empty array', () async {
         await repository.add(_entry('1'));
 
-        expect(await repository.importJson('[]'), [_entry('1')]);
+        expect(
+          await repository.importJson('[]'),
+          HistoryImport(entries: [_entry('1')], added: 0, expired: 0),
+        );
       });
 
       test('throws a FormatException for invalid JSON', () async {
@@ -967,16 +977,35 @@ void main() {
         });
       });
 
-      test('importJson drops expired non-favourites', () async {
+      test('importJson drops and counts expired non-favourites', () async {
+        stored([aged('kept', const Duration(days: 3))]);
         final json = jsonEncode([
           aged('new', const Duration(hours: 1)).toJson(),
           aged('old', const Duration(days: 2)).toJson(),
+          aged('older', const Duration(days: 20)).toJson(),
           aged('starred', const Duration(days: 2), isFavorite: true).toJson(),
+          // Already in the history: neither added nor expired.
+          aged('kept', const Duration(days: 3)).toJson(),
         ]);
 
-        final entries = await repository.importJson(json, maxAge: day);
+        final result = await repository.importJson(json, maxAge: day);
 
-        expect(entries.map((e) => e.id), ['new', 'starred']);
+        expect(result.entries.map((e) => e.id), ['new', 'starred']);
+        expect(result.added, 2);
+        expect(result.expired, 2);
+        expect(storedIds(), ['new', 'starred']);
+      });
+
+      test('importJson without maxAge skips nothing', () async {
+        final json = jsonEncode([
+          aged('old', const Duration(days: 400)).toJson(),
+        ]);
+
+        final result = await repository.importJson(json);
+
+        expect(result.entries.map((e) => e.id), ['old']);
+        expect(result.added, 1);
+        expect(result.expired, 0);
       });
 
       group('prune', () {

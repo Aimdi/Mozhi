@@ -608,6 +608,54 @@ void main() {
         expect(stats.outputChars, greaterThan(_result.correctedText.length));
       });
 
+      test(
+        'records a proofread that finishes after the cubit closed',
+        () async {
+          final response = Completer<ProofreadResult>();
+          stubProofread(() => response.future);
+          final tracker = UsageTracker(store: MemoryStore());
+          addTearDown(tracker.dispose);
+          final cubit = ProofreadCubit(
+            repository: repository,
+            engines: const [billed],
+            usageTracker: tracker,
+          )..setInput(_input);
+
+          final proofreading = cubit.proofread();
+          await cubit.close();
+          response.complete(_result);
+          await proofreading;
+          await pumpEventQueue();
+
+          expect(tracker.snapshot.statsFor('p1').requests, 1);
+        },
+      );
+
+      test('records a proofread superseded by a newer one', () async {
+        final first = Completer<ProofreadResult>();
+        final second = Completer<ProofreadResult>();
+        final responses = [first, second];
+        stubProofread(() => responses.removeAt(0).future);
+        final tracker = UsageTracker(store: MemoryStore());
+        addTearDown(tracker.dispose);
+        final cubit = ProofreadCubit(
+          repository: repository,
+          engines: const [billed],
+          usageTracker: tracker,
+        )..setInput(_input);
+        addTearDown(cubit.close);
+
+        final stale = cubit.proofread();
+        final current = cubit.proofread();
+        first.complete(_result);
+        second.complete(_result);
+        await Future.wait([stale, current]);
+        await pumpEventQueue();
+
+        expect(tracker.snapshot.statsFor('p1').requests, 2);
+        expect(cubit.state.status, ProofreadStatus.success);
+      });
+
       test('does not record failures or engines without a provider', () async {
         final tracker = UsageTracker(store: MemoryStore());
         addTearDown(tracker.dispose);

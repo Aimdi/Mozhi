@@ -136,9 +136,13 @@ void main() {
   List<LlmRequest> capturedChats(MockLlmClient client) =>
       verify(() => client.chat(captureAny())).captured.cast<LlmRequest>();
 
+  /// The single streamed translation request (short auto-source input on
+  /// a cloud provider also gets a streamed JSON detection request).
   LlmRequest capturedStream(MockLlmClient client) =>
-      verify(() => client.streamChat(captureAny())).captured.single
-          as LlmRequest;
+      verify(() => client.streamChat(captureAny())).captured
+          .cast<LlmRequest>()
+          .where((r) => !r.jsonOutput)
+          .single;
 
   const autoToGerman = TranslationRequest(
     text: 'Hello world',

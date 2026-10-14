@@ -382,12 +382,14 @@ class TranslationRepository {
   /// `localAiChunkThreshold` for local providers; see the constructor) are
   /// translated in parts: split at paragraph boundaries (overlong paragraphs
   /// at sentence ends, never inside fenced code blocks), two parts at a
-  /// time, each part after the first with the end of the previous one as
-  /// context. With an auto source the first part is translated alone and
-  /// its detected language is used for the others. Snapshots combine the
-  /// parts in order, joined with the original whitespace between them, and
-  /// carry the first part's `detectedSource`; the result is complete once
-  /// every part is. An error in one part cancels the others and is emitted.
+  /// time, each part after the first with the end of the previous one for
+  /// reference (in the user message, as data). With an auto source the
+  /// first part is translated alone and its detected language is used for
+  /// the others (unless it is the target language: then they stay auto).
+  /// Snapshots combine the parts in order, joined with the original
+  /// whitespace between them, and carry the first part's `detectedSource`;
+  /// the result is complete once every part is. An error in one part
+  /// cancels the others and is emitted.
   ///
   /// Short input (at most 3 words) with an auto source on a cloud AI engine
   /// with [TranslationEngine.supportsExtras] is also checked with a second
@@ -398,11 +400,18 @@ class TranslationRepository {
   /// The check never fails the translation (its errors are ignored); when
   /// it is still running as the translation finishes, the finished text is
   /// emitted as a partial snapshot right away and the final result waits
-  /// for the check at most `detectionHintTimeout` (then without the hint).
+  /// for the check at most `detectionHintTimeout` (then without the hint,
+  /// and the check is aborted). The check is a streamed request without
+  /// reasoning effort and without a retry, so cancelling the translation
+  /// cancels it too.
   ///
   /// Final results are served from and stored in the cache (results served
   /// from it have `fromCache: true`; long inputs are cached as a whole,
   /// never per part); `refresh: true` skips the lookup (e.g. "Regenerate").
+  /// For short auto-detected AI input the request's `recentSourceLanguages`
+  /// are part of the cache key, and a result of input that gets the second
+  /// detection is only stored with that detection's verdict (never one
+  /// from [compare], nor one whose check failed or timed out).
   ///
   /// Errors are forwarded as-is (`MozhiApiException`, `LlmApiException`,
   /// `LlmRefusalException`, `MtApiException`,
@@ -430,13 +439,92 @@ class TranslationRepository {
     if (request.text.trim().isEmpty) return const Stream.empty();
     final safe = _sanitizeRequest(request);
     if (safe == null) return Stream.error(_emptyCustomLanguage(request));
-    if (refresh) _cache.remove(engine, safe);
-    return _cache.cachedTranslate(engine, safe, () {
-      final translation = _translateUncached(engine, safe);
-      return detectionHint && _wantsDetectionHint(engine, safe)
-          ? _withDetectionHint(engine, safe, translation)
-          : translation;
-    });
+    final key = _cacheKeyOf(engine, safe);
+    if (refresh) _cache.remove(engine, key);
+    if (!_wantsDetectionHint(engine, safe)) {
+      return _cache.cachedTranslate(
+        engine,
+        key,
+        () => _translateUncached(engine, safe),
+      );
+    }
+    // Only results with the second detection's verdict are stored, so a
+    // result without it (compare mode, a failed or timed out check) never
+    // stands in for one with it.
+    return _cachedOrFetch(
+      engine,
+      key,
+      () => detectionHint
+          ? _withDetectionHint(
+              engine,
+              safe,
+              _translateUncached(engine, safe),
+              onVerdict: (result) => _cache.store(engine, key, result),
+            )
+          : _translateUncached(engine, safe),
+    );
+  }
+
+  /// Longest (trimmed) input, in characters and in words, whose recent
+  /// source languages can change the result: the prompt's hint for short
+  /// text and the second detection.
+  static const int _recentLanguagesMaxChars =
+      _hintMaxChars > TranslationPrompts.shortTextMaxChars
+      ? _hintMaxChars
+      : TranslationPrompts.shortTextMaxChars;
+  static const int _recentLanguagesMaxWords =
+      _hintMaxWords > TranslationPrompts.shortTextMaxWords
+      ? _hintMaxWords
+      : TranslationPrompts.shortTextMaxWords;
+
+  /// [request] as the cache keys it. Its recent source languages only steer
+  /// short auto-detected AI input (the prompt's hint and the order of the
+  /// second detection's alternatives); elsewhere they are dropped so that
+  /// they do not split the cache.
+  static TranslationRequest _cacheKeyOf(
+    TranslationEngine engine,
+    TranslationRequest request,
+  ) {
+    if (request.recentSourceLanguages.isEmpty) return request;
+    final text = request.text.trim();
+    final relevant =
+        engine.isAi &&
+        request.source.isAuto &&
+        text.runes.length <= _recentLanguagesMaxChars &&
+        text.split(RegExp(r'\s+')).length <= _recentLanguagesMaxWords;
+    return relevant
+        ? request
+        : request.copyWith(recentSourceLanguages: const []);
+  }
+
+  /// The cached result for [key] on [engine] (marked `fromCache`), else the
+  /// events of [fetch], which is responsible for storing its result.
+  Stream<TranslationResult> _cachedOrFetch(
+    TranslationEngine engine,
+    TranslationRequest key,
+    Stream<TranslationResult> Function() fetch,
+  ) {
+    late final StreamController<TranslationResult> controller;
+    StreamSubscription<TranslationResult>? subscription;
+    controller = StreamController<TranslationResult>(
+      onListen: () {
+        final hit = _cache.lookup(engine, key);
+        if (hit != null) {
+          controller.add(hit.fromCache ? hit : hit.copyWith(fromCache: true));
+          unawaited(controller.close());
+          return;
+        }
+        subscription = fetch().listen(
+          controller.add,
+          onError: controller.addError,
+          onDone: controller.close,
+        );
+      },
+      onPause: () => subscription?.pause(),
+      onResume: () => subscription?.resume(),
+      onCancel: () => subscription?.cancel(),
+    );
+    return controller.stream;
   }
 
   /// Security W4: free-form (custom) language names end up in the system
@@ -571,11 +659,14 @@ class TranslationRepository {
       engine,
       config,
       request,
-      (chunk) => aiTranslationStream(
+      (chunk, preceding) => aiTranslationStream(
         open: () => _llm
             .clientFor(config)
             .streamChat(
-              _llmRequest(config, TranslationPrompts.translate(chunk)),
+              _llmRequest(
+                config,
+                TranslationPrompts.translate(chunk, precedingText: preceding),
+              ),
             ),
         engine: engine,
         request: chunk,
@@ -584,20 +675,30 @@ class TranslationRepository {
     );
   }
 
-  /// [translate] applied to [request], or to the parts of its text when it
-  /// is longer than the chunk threshold of [config] (see the constructor).
+  /// The longest AI input of [engine] with [config] that is sent in one
+  /// request (see the constructor).
+  int _chunkLimit(TranslationEngine engine, AiProviderConfig config) =>
+      engine.isLocal || config.isLocal
+      ? _localAiChunkThreshold
+      : _aiChunkThreshold;
+
+  /// [translate] applied to [request] (with no preceding text), or to the
+  /// parts of its text when it is longer than the chunk threshold of
+  /// [config] (see the constructor and [chunkedTranslation]).
   Stream<TranslationResult> _inChunks(
     TranslationEngine engine,
     AiProviderConfig config,
     TranslationRequest request,
-    Stream<TranslationResult> Function(TranslationRequest chunk) translate,
+    Stream<TranslationResult> Function(
+      TranslationRequest chunk,
+      String precedingText,
+    )
+    translate,
   ) {
-    final limit = engine.isLocal || config.isLocal
-        ? _localAiChunkThreshold
-        : _aiChunkThreshold;
-    if (request.text.length <= limit) return translate(request);
+    final limit = _chunkLimit(engine, config);
+    if (request.text.length <= limit) return translate(request, '');
     final chunks = ParagraphChunker.split(request.text, maxChars: limit);
-    if (chunks.length < 2) return translate(request);
+    if (chunks.length < 2) return translate(request, '');
     return chunkedTranslation(
       engine: engine,
       request: request,
@@ -648,7 +749,8 @@ class TranslationRepository {
       engine,
       config,
       explicit,
-      (chunk) => aiTranslationStream(
+      // The templates of translation-specialised models take no context.
+      (chunk, _) => aiTranslationStream(
         open: () => _llm
             .clientFor(config)
             .streamChat(
@@ -730,21 +832,41 @@ class TranslationRepository {
         text.split(RegExp(r'\s+')).length <= _hintMaxWords;
   }
 
-  /// Forwards [translation] while [detectLanguage] runs on the side, and
-  /// adds its verdict to the final result (see [translate]).
+  /// Forwards [translation] while a second language detection of
+  /// `request.text` (the [detectLanguage] prompt) runs on the side, and adds
+  /// its verdict to the final result (see [translate]). [onVerdict] gets
+  /// that final result when the detection answered in time.
+  ///
+  /// The detection is best effort: streamed (so that cancelling the
+  /// returned stream, and giving up after `detectionHintTimeout`, abort the
+  /// request), without reasoning effort and without a retry for invalid
+  /// JSON; its failures are ignored.
   Stream<TranslationResult> _withDetectionHint(
     TranslationEngine engine,
     TranslationRequest request,
-    Stream<TranslationResult> translation,
-  ) {
+    Stream<TranslationResult> translation, {
+    required void Function(TranslationResult result) onVerdict,
+  }) {
     late final StreamController<TranslationResult> controller;
     StreamSubscription<TranslationResult>? subscription;
+    StreamSubscription<String>? detecting;
     DetectedLanguage? detection;
-    var detecting = true;
     var translated = false;
     TranslationResult? held;
     TranslationResult? lastPartial;
     Timer? timer;
+
+    void stopDetecting() {
+      unawaited(detecting?.cancel());
+      detecting = null;
+    }
+
+    void emitFinal(TranslationResult result) {
+      final verdict = detection;
+      final last = _withDetectionVerdict(result, verdict, request);
+      controller.add(last);
+      if (verdict != null) onVerdict(last);
+    }
 
     void release() {
       timer?.cancel();
@@ -752,7 +874,9 @@ class TranslationRepository {
       final result = held;
       held = null;
       if (result == null || controller.isClosed) return;
-      controller.add(_withDetectionVerdict(result, detection, request));
+      // A detection that has not answered by now is no longer needed.
+      stopDetecting();
+      emitFinal(result);
       if (translated) unawaited(controller.close());
     }
 
@@ -763,8 +887,8 @@ class TranslationRepository {
         return;
       }
       release();
-      if (!detecting) {
-        controller.add(_withDetectionVerdict(result, detection, request));
+      if (detecting == null) {
+        emitFinal(result);
         return;
       }
       // Show the finished text now; completion waits for the detection.
@@ -777,6 +901,16 @@ class TranslationRepository {
       timer = Timer(_detectionHintTimeout, release);
     }
 
+    void detected(String output) {
+      detecting = null;
+      try {
+        detection = ResponseParsers.parseDetectedLanguage(output);
+      } on Object {
+        // Best effort: no hint.
+      }
+      release();
+    }
+
     controller = StreamController<TranslationResult>(
       onListen: () {
         subscription = translation.listen(
@@ -784,26 +918,44 @@ class TranslationRepository {
           onError: controller.addError,
           onDone: () {
             translated = true;
-            if (held == null) unawaited(controller.close());
+            if (held != null) return;
+            stopDetecting();
+            unawaited(controller.close());
           },
         );
         // Started after the translation, which it must never hold up.
-        unawaited(
-          detectLanguage(request.text, engine: engine)
-              .then<void>((value) {
-                detection = value;
-              }, onError: (Object _) {})
-              .whenComplete(() {
-                detecting = false;
-                release();
-              }),
-        );
+        try {
+          final config = _extrasProviderFor(engine);
+          final output = StringBuffer();
+          detecting = _llm
+              .clientFor(config)
+              .streamChat(
+                _llmRequest(
+                  config,
+                  TranslationPrompts.detectLanguage(request.text),
+                  jsonOutput: true,
+                  withEffort: false,
+                ),
+              )
+              .listen(
+                output.write,
+                onError: (Object _) {
+                  detecting = null;
+                  release();
+                },
+                onDone: () => detected(output.toString()),
+                cancelOnError: true,
+              );
+        } on Object {
+          detecting = null;
+        }
       },
       onPause: () => subscription?.pause(),
       onResume: () => subscription?.resume(),
       onCancel: () {
         timer?.cancel();
         held = null;
+        stopDetecting();
         return subscription?.cancel();
       },
     );
@@ -1053,9 +1205,13 @@ class TranslationRepository {
   /// [currentTranslation], or an empty custom language name; an
   /// [UnsupportedError] for translation-specialised models
   /// ([TranslationEngine.usesMtProfile]: TranslateGemma, Hy-MT), which
-  /// cannot follow instructions (re-translate with [translate] instead);
-  /// provider errors as-is. Cancelling the subscription cancels the HTTP
-  /// request.
+  /// cannot follow instructions, and when the text or [currentTranslation]
+  /// is longer than the provider's chunk threshold (see the constructor):
+  /// [translate] splits such text into parts, but a refinement needs the
+  /// whole text and translation in one request, which would overflow the
+  /// small context windows of local models (in both cases re-translate
+  /// with [translate] and the instruction instead); provider errors as-is.
+  /// Cancelling the subscription cancels the HTTP request.
   Stream<TranslationResult> refine(
     TranslationEngine engine,
     TranslationRequest request, {
@@ -1068,6 +1224,13 @@ class TranslationRepository {
       throw UnsupportedError(
         '${engine.name} only supports plain translation and cannot refine '
         'a translation; translate again instead.',
+      );
+    }
+    final limit = _chunkLimit(engine, config);
+    if (request.text.length > limit || currentTranslation.length > limit) {
+      throw UnsupportedError(
+        'The text is too long for ${engine.name} to refine in one request; '
+        'translate it again instead.',
       );
     }
     final safe = _sanitizeRequest(request);
@@ -1094,7 +1257,10 @@ class TranslationRepository {
   /// Text without letters of a non-Latin script
   /// (`LanguageCatalog.hasNonLatinLetters`) is returned unchanged without a
   /// request; use `LanguageCatalog.usesNonLatinScript` to decide when to
-  /// offer romanization. Requires an AI engine with
+  /// offer romanization. Text longer than the provider's chunk threshold
+  /// (see the constructor) is romanized in parts, one request after the
+  /// other, split like [translate] splits long input (parts without
+  /// non-Latin letters are kept as they are). Requires an AI engine with
   /// [TranslationEngine.supportsExtras] ([ArgumentError] otherwise). An
   /// empty reply is an `LlmApiException`.
   Future<String> romanize(
@@ -1104,6 +1270,28 @@ class TranslationRepository {
   }) async {
     final config = _extrasProviderFor(engine);
     if (!LanguageCatalog.hasNonLatinLetters(text)) return text;
+    final limit = _chunkLimit(engine, config);
+    final chunks = text.length > limit
+        ? ParagraphChunker.split(text, maxChars: limit)
+        : const <TextChunk>[];
+    if (chunks.length < 2) return await _romanize(config, text, language);
+    final parts = <String>[];
+    for (final chunk in chunks) {
+      parts.add(
+        LanguageCatalog.hasNonLatinLetters(chunk.text)
+            ? await _romanize(config, chunk.text, language)
+            : chunk.text,
+      );
+    }
+    return ParagraphChunker.joinTranslations(chunks, parts);
+  }
+
+  /// [text] romanized in one request (see [romanize]).
+  Future<String> _romanize(
+    AiProviderConfig config,
+    String text,
+    Language language,
+  ) async {
     final output = await _llm
         .clientFor(config)
         .chat(
@@ -1472,19 +1660,21 @@ class TranslationRepository {
   /// Anthropic models reject non-default sampling parameters, so the
   /// temperature is never sent to them. Elsewhere the provider's own
   /// temperature wins over [defaultTemperature] (a model card's
-  /// recommendation).
+  /// recommendation). The provider's reasoning effort is sent unless
+  /// [withEffort] is false (quick best-effort requests).
   static LlmRequest _llmRequest(
     AiProviderConfig config,
     List<LlmMessage> messages, {
     bool jsonOutput = false,
     double? defaultTemperature,
+    bool withEffort = true,
   }) => LlmRequest(
     model: config.model,
     messages: messages,
     temperature: config.provider == LlmProvider.anthropic
         ? null
         : config.temperature ?? defaultTemperature,
-    effort: config.effort,
+    effort: withEffort ? config.effort : null,
     jsonOutput: jsonOutput,
   );
 
