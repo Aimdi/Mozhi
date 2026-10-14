@@ -5,18 +5,31 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/translate_link.dart';
 import 'package:mozhi/app/view/app_shell.dart';
-import 'package:mozhi/conversation/view/conversation_page.dart';
-import 'package:mozhi/conversation/widgets/conversation_voice_mic.dart';
-import 'package:mozhi/dictionary/view/dictionary_page.dart';
-import 'package:mozhi/documents/view/document_translate_page.dart';
+import 'package:mozhi/app/view/deferred_page.dart';
+import 'package:mozhi/conversation/view/conversation_page.dart'
+    deferred as conversation_page;
+import 'package:mozhi/conversation/widgets/conversation_voice_mic.dart'
+    deferred as conversation_mic;
+import 'package:mozhi/dictionary/view/dictionary_page.dart'
+    deferred as dictionary_page;
+import 'package:mozhi/dictionary/view/dictionary_page.dart'
+    show DictionaryLaunch;
+import 'package:mozhi/documents/view/document_translate_page.dart'
+    deferred as documents_page;
 import 'package:mozhi/history/view/history_page.dart';
 import 'package:mozhi/image_translate/models/picked_image.dart';
-import 'package:mozhi/image_translate/view/image_translate_page.dart';
-import 'package:mozhi/offline/view/offline_models_page.dart';
+import 'package:mozhi/image_translate/view/image_translate_page.dart'
+    deferred as image_page;
+import 'package:mozhi/image_translate/view/image_translate_page.dart'
+    show ImageTranslatePage;
+import 'package:mozhi/offline/view/offline_models_page.dart'
+    deferred as offline_page;
 import 'package:mozhi/onboarding/onboarding_redirect.dart';
-import 'package:mozhi/onboarding/view/onboarding_page.dart';
-import 'package:mozhi/presets/view/glossaries_page.dart';
-import 'package:mozhi/presets/view/presets_page.dart';
+import 'package:mozhi/onboarding/view/onboarding_page.dart'
+    deferred as onboarding_page;
+import 'package:mozhi/presets/view/glossaries_page.dart'
+    deferred as glossaries_page;
+import 'package:mozhi/presets/view/presets_page.dart' deferred as presets_page;
 import 'package:mozhi/proofread/view/proofread_page.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/view/about_page.dart';
@@ -26,8 +39,10 @@ import 'package:mozhi/settings/view/providers_page.dart';
 import 'package:mozhi/settings/view/quality_modes_page.dart';
 import 'package:mozhi/settings/view/settings_page.dart';
 import 'package:mozhi/translate/view/translate_page.dart';
-import 'package:mozhi/usage/view/usage_summary_page.dart';
-import 'package:mozhi/web_translate/view/web_translate_page.dart';
+import 'package:mozhi/usage/view/usage_summary_page.dart'
+    deferred as usage_page;
+import 'package:mozhi/web_translate/view/web_translate_page.dart'
+    deferred as web_page;
 import 'package:mozhi/web_translate/view/web_translate_route.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -90,7 +105,7 @@ abstract final class AppRoutes {
   ///
   /// Pass [DictionaryLaunch.lookUp] as the navigation's `extra` to look the
   /// word up right away; links from outside the app never do that on
-  /// their own (see [DictionaryPage]).
+  /// their own (see [dictionary_page.DictionaryPage]).
   static String dictionaryWord({String? word, String? from, String? to}) =>
       _location(dictionary, {'word': ?word, 'from': ?from, 'to': ?to});
 
@@ -118,6 +133,40 @@ abstract final class AppRoutes {
 
   static String _location(String path, Map<String, String> query) =>
       Uri(path: path, queryParameters: query.isEmpty ? null : query).toString();
+}
+
+/// The screens that are only loaded when first opened (separate downloads
+/// on the web, keeping them out of the startup bundle).
+abstract final class DeferredFeatures {
+  static final onboarding = DeferredLibrary(onboarding_page.loadLibrary);
+  static final image = DeferredLibrary(image_page.loadLibrary);
+  static final documents = DeferredLibrary(documents_page.loadLibrary);
+  static final web = DeferredLibrary(web_page.loadLibrary);
+  static final conversation = DeferredLibrary(
+    () => Future.wait<void>([
+      conversation_page.loadLibrary(),
+      conversation_mic.loadLibrary(),
+    ]),
+  );
+  static final dictionary = DeferredLibrary(dictionary_page.loadLibrary);
+  static final offline = DeferredLibrary(offline_page.loadLibrary);
+  static final presets = DeferredLibrary(presets_page.loadLibrary);
+  static final glossaries = DeferredLibrary(glossaries_page.loadLibrary);
+  static final usage = DeferredLibrary(usage_page.loadLibrary);
+
+  /// All of them.
+  static List<DeferredLibrary> get all => [
+    onboarding,
+    image,
+    documents,
+    web,
+    conversation,
+    dictionary,
+    offline,
+    presets,
+    glossaries,
+    usage,
+  ];
 }
 
 /// Pass as the navigation's `extra` (`context.push(AppRoutes.webPage(url:
@@ -166,8 +215,26 @@ GoRouter createAppRouter({
   final rootKey = navigatorKey ?? GlobalKey<NavigatorState>();
   var launched = false;
 
-  GoRoute fullScreen(String path, GoRouterWidgetBuilder builder) =>
-      GoRoute(path: path, parentNavigatorKey: rootKey, builder: builder);
+  /// A route whose page lives in a deferred [library] (a separate download
+  /// on the web, see [DeferredPage]).
+  GoRoute deferredRoute(
+    String path,
+    DeferredLibrary library,
+    GoRouterWidgetBuilder builder, {
+    GlobalKey<NavigatorState>? parentNavigatorKey,
+  }) => GoRoute(
+    path: path,
+    parentNavigatorKey: parentNavigatorKey,
+    builder: (context, state) => DeferredPage(
+      library: library,
+      builder: (context) => builder(context, state),
+    ),
+  );
+  GoRoute fullScreenDeferred(
+    String path,
+    DeferredLibrary library,
+    GoRouterWidgetBuilder builder,
+  ) => deferredRoute(path, library, builder, parentNavigatorKey: rootKey);
 
   return GoRouter(
     navigatorKey: rootKey,
@@ -185,45 +252,53 @@ GoRouter createAppRouter({
     },
     onException: (context, state, router) => router.go(AppRoutes.translate),
     routes: [
-      fullScreen(
+      fullScreenDeferred(
         AppRoutes.onboarding,
-        (context, state) => const OnboardingPage(),
+        DeferredFeatures.onboarding,
+        (context, state) => onboarding_page.OnboardingPage(),
       ),
-      fullScreen(
+      fullScreenDeferred(
         AppRoutes.image,
-        (context, state) => ImageTranslatePage(
+        DeferredFeatures.image,
+        (context, state) => image_page.ImageTranslatePage(
           initialSource: ImagePickSource.tryParse(
             state.uri.queryParameters[ImageTranslatePage.sourceParameter],
           ),
         ),
       ),
-      fullScreen(
+      fullScreenDeferred(
         AppRoutes.documents,
-        (context, state) => const DocumentTranslatePage(),
+        DeferredFeatures.documents,
+        (context, state) => documents_page.DocumentTranslatePage(),
       ),
-      fullScreen(AppRoutes.web, (context, state) {
+      fullScreenDeferred(AppRoutes.web, DeferredFeatures.web, (context, state) {
         final url =
             state.uri.queryParameters[WebTranslateRoute.urlParameter]?.trim() ??
             '';
         if (url.isEmpty || state.extra == WebPageLaunch.load) {
-          return WebTranslatePage(initialUrl: url);
+          return web_page.WebTranslatePage(initialUrl: url);
         }
         // A link only fills in the address; a new address (another link
         // while the page is open) starts afresh.
-        return WebTranslatePage(
+        return web_page.WebTranslatePage(
           key: ValueKey(url),
           initialUrl: url,
           autoLoad: false,
         );
       }),
-      fullScreen(
+      fullScreenDeferred(
         AppRoutes.conversation,
-        (context, state) =>
-            const ConversationPage(micBuilder: conversationVoiceMicBuilder),
+        DeferredFeatures.conversation,
+        (context, state) => conversation_page.ConversationPage(
+          micBuilder: conversation_mic.conversationVoiceMicBuilder,
+        ),
       ),
-      fullScreen(AppRoutes.dictionary, (context, state) {
+      fullScreenDeferred(AppRoutes.dictionary, DeferredFeatures.dictionary, (
+        context,
+        state,
+      ) {
         final query = state.uri.queryParameters;
-        return DictionaryPage(
+        return dictionary_page.DictionaryPage(
           // A new word (another link while the page is open) starts afresh.
           key: ValueKey(state.uri.query),
           word: query['word'],
@@ -292,28 +367,32 @@ GoRouter createAppRouter({
                       ),
                     ],
                   ),
-                  GoRoute(
-                    path: 'offline',
-                    builder: (context, state) => const OfflineModelsPage(),
+                  deferredRoute(
+                    'offline',
+                    DeferredFeatures.offline,
+                    (context, state) => offline_page.OfflineModelsPage(),
                   ),
-                  GoRoute(
-                    path: 'presets',
-                    builder: (context, state) => PresetsPage(
+                  deferredRoute(
+                    'presets',
+                    DeferredFeatures.presets,
+                    (context, state) => presets_page.PresetsPage(
                       onOpenGlossaries: () =>
                           unawaited(context.push<void>(AppRoutes.glossaries)),
                     ),
                   ),
-                  GoRoute(
-                    path: 'glossaries',
-                    builder: (context, state) => const GlossariesPage(),
+                  deferredRoute(
+                    'glossaries',
+                    DeferredFeatures.glossaries,
+                    (context, state) => glossaries_page.GlossariesPage(),
                   ),
                   GoRoute(
                     path: 'quality',
                     builder: (context, state) => const QualityModesPage(),
                   ),
-                  GoRoute(
-                    path: 'usage',
-                    builder: (context, state) => const _UsageRoute(),
+                  deferredRoute(
+                    'usage',
+                    DeferredFeatures.usage,
+                    (context, state) => const _UsageRoute(),
                   ),
                   GoRoute(
                     path: 'about',
@@ -377,8 +456,8 @@ String? deepLinkLocation(Uri uri) {
   ).toString();
 }
 
-/// [UsageSummaryPage] for the configured providers; tapping a provider
-/// opens its editor.
+/// [usage_page.UsageSummaryPage] for the configured providers; tapping a
+/// provider opens its editor.
 class _UsageRoute extends StatelessWidget {
   const new();
 
@@ -387,7 +466,7 @@ class _UsageRoute extends StatelessWidget {
     final providers = context.select<SettingsCubit, List<AiProviderConfig>>(
       (cubit) => cubit.state.providers,
     );
-    return UsageSummaryPage(
+    return usage_page.UsageSummaryPage(
       providers: providers,
       onOpenProvider: (id) =>
           unawaited(context.push<void>(AppRoutes.editProvider(id: id))),

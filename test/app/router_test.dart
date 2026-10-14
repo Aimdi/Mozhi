@@ -39,7 +39,12 @@ import 'mocks.dart';
 const _transition = Duration(seconds: 1);
 
 void main() {
-  setUpAll(registerAppFallbacks);
+  setUpAll(() async {
+    registerAppFallbacks();
+    // The deferred screens are loaded on first use (DeferredPage); load
+    // them up front so the routes build synchronously as before.
+    await Future.wait(DeferredFeatures.all.map((library) => library.load()));
+  });
 
   group('AppRoutes', () {
     test('editProvider builds the editor location', () {

@@ -17,6 +17,7 @@ export 'package:mt_api/mt_api.dart'
         MtApiException,
         MtErrorKind;
 
+export 'src/cache/metadata_store.dart';
 export 'src/cache/translation_cache.dart';
 export 'src/language_catalog.dart';
 export 'src/language_matcher.dart';

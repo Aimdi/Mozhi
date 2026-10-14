@@ -5855,5 +5855,13 @@
   "translateExtraTargetsKept": "Not offered by this engine; kept for one that does",
   "@translateExtraTargetsKept": {
     "description": "Subtitle of a picked extra target language that the selected engine does not offer: it stays picked (and is used again with an engine that offers it); unchecking it removes it"
+  },
+  "appScreenLoading": "Loading…",
+  "@appScreenLoading": {
+    "description": "Shown while a screen downloads (web) before it opens."
+  },
+  "appScreenLoadFailed": "This screen couldn't be loaded. Check your connection and try again.",
+  "@appScreenLoadFailed": {
+    "description": "A screen failed to download (web)."
   }
 }

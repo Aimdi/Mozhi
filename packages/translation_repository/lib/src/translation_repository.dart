@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:collection/collection.dart';
 import 'package:llm_api/llm_api.dart';
 import 'package:mozhi_api/mozhi_api.dart';
 import 'package:mt_api/mt_api.dart';
+import 'package:translation_repository/src/cache/metadata_store.dart';
+import 'package:translation_repository/src/cache/persisted_metadata.dart';
 import 'package:translation_repository/src/cache/translation_cache.dart';
 import 'package:translation_repository/src/chunking/chunked_translation.dart';
 import 'package:translation_repository/src/chunking/paragraph_chunker.dart';
@@ -49,7 +52,10 @@ typedef LibreTranslateClientFactory = LibreTranslateClient Function(
 ///
 /// Language lists and engine lists are cached in memory per instance+engine
 /// (keyed by the instance that answered; cleared by [updateConfiguration]
-/// when instances change, or `refresh: true`). Final translations are
+/// when instances change, or `refresh: true`). With a [MetadataStore] they
+/// are also persisted (see [getEngines]): a stored list is served at once
+/// and revalidated in the background, and [metadataChanged] fires when the
+/// revalidated list differs. Final translations are
 /// cached in a [TranslationCache] ([clearCache]); a provider's entries are
 /// dropped whenever its configuration changes.
 class TranslationRepository {
@@ -79,6 +85,10 @@ class TranslationRepository {
   /// `detectionHintTimeout` is how long the final result of a short
   /// auto-detected AI translation may wait for the second language
   /// detection (see [translate]).
+  ///
+  /// [metadataStore] persists the Mozhi engine and language lists across
+  /// launches (none by default); stored lists older than [metadataMaxAge]
+  /// are ignored. [clock] (default [DateTime.now]) timestamps them.
   new({
     MozhiClientFactory? mozhiClientFactory,
     LlmClientFactory? llmClientFactory,
@@ -90,7 +100,17 @@ class TranslationRepository {
     this._aiChunkThreshold = defaultAiChunkThreshold,
     this._localAiChunkThreshold = defaultLocalAiChunkThreshold,
     this._detectionHintTimeout = defaultDetectionHintTimeout,
-  }) : _mozhi = MozhiPool(mozhiClientFactory ?? _defaultMozhiClient),
+    MetadataStore? metadataStore,
+    Duration metadataMaxAge = defaultMetadataMaxAge,
+    DateTime Function()? clock,
+  }) : _metadata = metadataStore == null
+           ? null
+           : PersistedMetadata(
+               metadataStore,
+               maxAge: metadataMaxAge,
+               clock: clock ?? DateTime.now,
+             ),
+       _mozhi = MozhiPool(mozhiClientFactory ?? _defaultMozhiClient),
        _llm = LlmPool(llmClientFactory ?? _defaultLlmClient),
        _mt = MtEngines(
          deepl: deeplClientFactory,
@@ -117,6 +137,10 @@ class TranslationRepository {
   /// Default `detectionHintTimeout`.
   static const defaultDetectionHintTimeout = Duration(seconds: 2);
 
+  /// Default `metadataMaxAge`: how long persisted engine and language lists
+  /// may be served (e.g. while offline).
+  static const defaultMetadataMaxAge = Duration(days: 7);
+
   static MozhiApiClient _defaultMozhiClient(Uri baseUrl) =>
       MozhiApiClient(baseUrl: baseUrl);
 
@@ -138,6 +162,19 @@ class TranslationRepository {
   /// for languages).
   final Map<String, Future<List<TranslationEngine>>> _engines = {};
   final Map<String, Future<List<Language>>> _languages = {};
+
+  final PersistedMetadata? _metadata;
+  final _metadataChanges = StreamController<void>.broadcast();
+
+  /// Bumped whenever the in-memory lists are dropped, so background
+  /// revalidations started before do not repopulate them.
+  int _metadataGeneration = 0;
+
+  /// Fires when a background revalidation (see [getEngines]) found a Mozhi
+  /// engine or language list that differs from the persisted one served
+  /// before. Listeners reload the lists (the fresh ones are then served
+  /// from memory).
+  Stream<void> get metadataChanged => _metadataChanges.stream;
 
   static const _jsonRetryInstruction =
       'Your previous reply could not be parsed. Reply again with ONLY the '
@@ -195,6 +232,21 @@ class TranslationRepository {
   ///
   /// `refresh: true` reloads the Mozhi engine and language lists and the
   /// services' language lists, and starts at the first instance again.
+  ///
+  /// With a [MetadataStore], the Mozhi engine list and each Mozhi engine's
+  /// language lists ([getSourceLanguages], [getTargetLanguages]) are stored
+  /// as JSON with a timestamp, keyed by instance URL (+ engine and
+  /// direction). When a list is not in memory, the stored one of the
+  /// active instance (else of the first configured instance that has one)
+  /// is returned at once, if younger than `metadataMaxAge`, and reloaded in
+  /// the background; when the reloaded list differs, it replaces the
+  /// served one in memory and [metadataChanged] fires. A failed background
+  /// reload keeps nothing in memory, so the next call tries again. Without
+  /// a usable stored list, the list is loaded as without a store. With
+  /// `refresh: true` the engine list is loaded from the network first and
+  /// the stored one is only the fallback when no instance answers. Failures
+  /// are never stored; corrupt stored data is ignored. AI, machine
+  /// translation and offline engines are computed locally and not stored.
   Future<List<TranslationEngine>> getEngines({bool refresh = false}) async {
     if (refresh) {
       _clearMozhiCaches();
@@ -208,7 +260,7 @@ class TranslationRepository {
     ];
     if (_mozhi.instances.isEmpty) return others;
     try {
-      return [...await _loadMozhiEngines(), ...others];
+      return [...await _loadMozhiEngines(networkFirst: refresh), ...others];
     } on Object {
       if (others.isEmpty) rethrow;
       return others;
@@ -245,11 +297,33 @@ class TranslationRepository {
     return provider.service == MtService.deepl ? 'DeepL API' : 'LibreTranslate';
   }
 
-  Future<List<TranslationEngine>> _loadMozhiEngines() =>
-      _cachedMozhi(_engines, '', (client, instance) async {
-        final engines = await client.getEngines();
-        return List<TranslationEngine>.unmodifiable([
-          for (final MapEntry(key: id, value: name) in engines.entries)
+  Future<List<TranslationEngine>> _loadMozhiEngines({
+    required bool networkFirst,
+  }) => _cachedMozhi(
+    _engines,
+    '',
+    fetch: (client) async => [
+      for (final MapEntry(key: id, value: name)
+          in (await client.getEngines()).entries)
+        {'id': id, 'name': name},
+    ],
+    build: _enginesFromJson,
+    networkFirst: networkFirst,
+  );
+
+  /// Mozhi engines from their JSON form (`[{"id": ..., "name": ...}]`);
+  /// [FormatException] when [json] has another shape.
+  static List<TranslationEngine> _enginesFromJson(
+    Object? json,
+    MozhiInstance instance,
+  ) {
+    if (json is! List<Object?>) {
+      throw const FormatException('Expected a list of engines');
+    }
+    return List<TranslationEngine>.unmodifiable([
+      for (final item in json)
+        switch (item) {
+          {'id': final String id, 'name': final String name} =>
             TranslationEngine(
               id: 'mozhi:$id',
               kind: EngineKind.mozhi,
@@ -257,35 +331,137 @@ class TranslationRepository {
               subtitle: instance.displayName,
               mozhiEngine: id,
             ),
-        ]);
-      });
+          _ => throw const FormatException('Invalid engine'),
+        },
+    ]);
+  }
+
+  /// Languages from their JSON form ([Language.toJson]);
+  /// [FormatException] when [json] has another shape.
+  static List<Language> _languagesFromJson(Object? json, MozhiInstance _) {
+    if (json is! List<Object?>) {
+      throw const FormatException('Expected a list of languages');
+    }
+    return List<Language>.unmodifiable(json.map(_languageFromJson));
+  }
+
+  static Language _languageFromJson(Object? json) {
+    if (json case {'code': final String code, 'name': final String name}) {
+      final nativeName = json['nativeName'];
+      final isCustom = json['isCustom'] ?? false;
+      if (nativeName is String? && isCustom is bool) {
+        return code == Language.auto.code && !isCustom
+            ? Language.auto
+            : Language(
+                code: code,
+                name: name,
+                nativeName: nativeName,
+                isCustom: isCustom,
+              );
+      }
+    }
+    throw const FormatException('Invalid language');
+  }
 
   void _clearMozhiCaches() {
+    _metadataGeneration++;
     _engines.clear();
     _languages.clear();
   }
 
+  /// Instances to look for a stored list in: the active one, then the
+  /// others in configuration order.
+  List<MozhiInstance> get _storedCandidates {
+    final active = _mozhi.active;
+    return [
+      ?active,
+      for (final instance in _mozhi.instances)
+        if (instance.url != active?.url) instance,
+    ];
+  }
+
+  /// The first usable stored list [name] (see [_storedCandidates]) built
+  /// with [build], or null.
+  Future<({StoredMetadata stored, T value})?> _readStored<T>(
+    String name,
+    T Function(Object? json, MozhiInstance instance) build,
+  ) async {
+    final metadata = _metadata;
+    if (metadata == null) return null;
+    for (final instance in _storedCandidates) {
+      final stored = await metadata.read(instance.url, name);
+      if (stored == null) continue;
+      try {
+        return (stored: stored, value: build(stored.data, instance));
+      } on Object {
+        // Corrupt or outdated data: ignored.
+      }
+    }
+    return null;
+  }
+
   /// Returns the cached future for [suffix] on the active instance, or
-  /// loads it with failover. The entry is stored under the instance that
-  /// actually answered, so a later failover back to the first instance does
-  /// not serve the other instance's list. Failed loads are evicted so the
-  /// next call retries.
+  /// loads it: from the [MetadataStore] (revalidated in the background, see
+  /// [getEngines]) or, with failover, by [fetch] (a JSON-encodable value,
+  /// stored on success) turned into the list by [build]. [networkFirst]
+  /// loads with [fetch] first and serves the stored list only when that
+  /// fails.
+  ///
+  /// The entry is kept under the instance that actually answered, so a
+  /// later failover back to the first instance does not serve the other
+  /// instance's list. Failed loads are evicted so the next call retries.
   Future<T> _cachedMozhi<T>(
     Map<String, Future<T>> cache,
-    String suffix,
-    Future<T> Function(MozhiApiClient client, MozhiInstance instance) load,
-  ) {
+    String suffix, {
+    required Future<Object?> Function(MozhiApiClient client) fetch,
+    required T Function(Object? json, MozhiInstance instance) build,
+    bool networkFirst = false,
+  }) {
     String keyFor(String url) => suffix.isEmpty ? url : '$url|$suffix';
+    final name = suffix.isEmpty ? 'engines' : suffix;
     final key = keyFor(_mozhi.active?.url ?? '');
     final cached = cache[key];
     if (cached != null) return cached;
+    final generation = _metadataGeneration;
     late final Future<T> future;
-    Future<T> fetch() async {
+
+    Future<(String url, Object? json, T value)> load() => _mozhi.run(
+      (client, instance) async {
+        final json = await fetch(client);
+        return (instance.url, json, build(json, instance));
+      },
+    );
+
+    Future<void> revalidate(StoredMetadata stored) async {
       try {
-        final (url, value) = await _mozhi.run(
-          (client, instance) async =>
-              (instance.url, await load(client, instance)),
-        );
+        final (url, json, value) = await load();
+        if (generation != _metadataGeneration) return;
+        await _metadata?.write(url, name, json);
+        if (!identical(cache[key], future)) return;
+        cache
+          ..removeWhere((entry, _) => entry == key)
+          ..[keyFor(url)] = Future.value(value);
+        if (url != stored.url || jsonEncode(json) != stored.encodedData) {
+          if (!_metadataChanges.isClosed) _metadataChanges.add(null);
+        }
+      } on Object {
+        cache.removeWhere((_, value) => identical(value, future));
+      }
+    }
+
+    Future<T> run() async {
+      if (!networkFirst) {
+        final stored = await _readStored(name, build);
+        if (stored != null) {
+          unawaited(revalidate(stored.stored));
+          return stored.value;
+        }
+      }
+      try {
+        final (url, json, value) = await load();
+        if (generation == _metadataGeneration) {
+          unawaited(_metadata?.write(url, name, json));
+        }
         final actual = keyFor(url);
         if (actual != key && identical(cache[key], future)) {
           cache
@@ -295,11 +471,15 @@ class TranslationRepository {
         return value;
       } on Object {
         cache.removeWhere((_, value) => identical(value, future));
+        if (networkFirst) {
+          final stored = await _readStored(name, build);
+          if (stored != null) return stored.value;
+        }
         rethrow;
       }
     }
 
-    future = fetch();
+    future = run();
     cache[key] = future;
     return future;
   }
@@ -342,18 +522,22 @@ class TranslationRepository {
     required bool source,
   }) {
     final id = mozhiEngineId(engine);
-    return _cachedMozhi(_languages, '$id|${source ? 'source' : 'target'}', (
-      client,
-      _,
-    ) async {
-      final languages = source
-          ? await client.getSourceLanguages(id)
-          : await client.getTargetLanguages(id);
-      final fixed = !source && id.toLowerCase() == 'deepl'
-          ? fixMozhiDeeplTargets(languages)
-          : languages;
-      return List<Language>.unmodifiable(mapMozhiLanguages(fixed));
-    });
+    return _cachedMozhi(
+      _languages,
+      '$id|${source ? 'source' : 'target'}',
+      fetch: (client) async {
+        final languages = source
+            ? await client.getSourceLanguages(id)
+            : await client.getTargetLanguages(id);
+        final fixed = !source && id.toLowerCase() == 'deepl'
+            ? fixMozhiDeeplTargets(languages)
+            : languages;
+        return [
+          for (final language in mapMozhiLanguages(fixed)) language.toJson(),
+        ];
+      },
+      build: _languagesFromJson,
+    );
   }
 
   /// Mozhi, offline and machine translation engines: one complete result.
@@ -1694,6 +1878,7 @@ class TranslationRepository {
   /// Closes all cached HTTP clients and empties the caches.
   void dispose() {
     _clearMozhiCaches();
+    unawaited(_metadataChanges.close());
     _cache.clear();
     _mozhi.dispose();
     _llm.dispose();

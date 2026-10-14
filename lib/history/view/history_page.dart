@@ -39,6 +39,9 @@ class _HistoryViewState extends State<HistoryView> {
   /// Entries swiped away but possibly not yet removed from the state.
   final Set<String> _dismissed = {};
 
+  /// Tiles by entry id (see [_tile]).
+  final Map<String, HistoryEntryTile> _tiles = {};
+
   @override
   void dispose() {
     _search.dispose();
@@ -186,6 +189,7 @@ class _HistoryViewState extends State<HistoryView> {
   void _forgetDeleted(BuildContext context, HistoryState state) {
     final ids = {for (final entry in state.entries) entry.id};
     _dismissed.removeWhere((id) => !ids.contains(id));
+    _tiles.removeWhere((id, _) => !ids.contains(id));
   }
 
   List<Widget> _content(
@@ -257,42 +261,60 @@ class _HistoryViewState extends State<HistoryView> {
       ];
     }
 
-    final groups = <DateTime, List<HistoryEntry>>{};
+    final rows = <Object>[];
+    DateTime? lastDay;
     for (final entry in visible) {
-      groups.putIfAbsent(_day(entry.createdAt), () => []).add(entry);
+      final day = _day(entry.createdAt);
+      if (day != lastDay) rows.add(lastDay = day);
+      rows.add(entry);
     }
-    final cubit = context.read<HistoryCubit>();
+    final headerStyle = Theme.of(context).textTheme.titleSmall
+        ?.copyWith(color: Theme.of(context).colorScheme.primary);
     return [
-      for (final MapEntry(key: day, value: entries) in groups.entries)
-        SliverPadding(
-          padding: padding.copyWith(top: 8, bottom: 8),
-          sliver: SliverList.list(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
-                child: Semantics(
-                  header: true,
-                  child: Text(
-                    _dayLabel(l10n, day),
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                ),
+      SliverPadding(
+        padding: padding.copyWith(top: 8, bottom: 32),
+        // Built lazily: only the rows on screen exist, however long the
+        // history is.
+        sliver: SliverList.builder(
+          itemCount: rows.length,
+          findChildIndexCallback: (key) {
+            if (key is! ValueKey<String>) return null;
+            final index = rows.indexWhere(
+              (row) => row is HistoryEntry && row.id == key.value,
+            );
+            return index < 0 ? null : index;
+          },
+          itemBuilder: (context, index) => switch (rows[index]) {
+            final HistoryEntry entry => _tile(entry),
+            final DateTime day => Padding(
+              key: ValueKey(day),
+              padding: EdgeInsets.fromLTRB(4, index == 0 ? 8 : 24, 4, 8),
+              child: Semantics(
+                header: true,
+                child: Text(_dayLabel(l10n, day), style: headerStyle),
               ),
-              for (final entry in entries)
-                HistoryEntryTile(
-                  key: ValueKey(entry.id),
-                  entry: entry,
-                  onTap: () => _open(entry),
-                  onToggleFavorite: () => cubit.toggleFavorite(entry.id),
-                  onDelete: () => _delete(entry),
-                ),
-            ],
-          ),
+            ),
+            _ => const SizedBox.shrink(), // coverage:ignore-line
+          },
         ),
-      const SliverPadding(padding: EdgeInsets.only(bottom: 24)),
+      ),
     ];
+  }
+
+  /// The tile for [entry], reused while the entry is unchanged so that a
+  /// state change (a favorite toggled, an entry added, a search) only
+  /// rebuilds the tiles whose entries changed.
+  HistoryEntryTile _tile(HistoryEntry entry) {
+    final cached = _tiles[entry.id];
+    if (cached != null && cached.entry == entry) return cached;
+    return _tiles[entry.id] = HistoryEntryTile(
+      key: ValueKey(entry.id),
+      entry: entry,
+      onTap: () => _open(entry),
+      onToggleFavorite: () =>
+          context.read<HistoryCubit>().toggleFavorite(entry.id),
+      onDelete: () => _delete(entry),
+    );
   }
 
   static DateTime _day(DateTime time) {
