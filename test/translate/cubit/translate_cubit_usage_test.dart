@@ -202,6 +202,20 @@ void main() {
       },
     );
 
+    blocTest<TranslateCubit, TranslateState>(
+      'are not recorded when served from the cache',
+      setUp: () => mocks.stubTranslate(
+        resultOf('Hallo Welt', engine: claude).copyWith(fromCache: true),
+      ),
+      build: () => mocks.build(),
+      seed: onClaude,
+      act: (cubit) => cubit.translate(),
+      verify: (cubit) {
+        expect(cubit.state.output, 'Hallo Welt');
+        verifyNothingRecorded();
+      },
+    );
+
     test('work without a tracker', () async {
       mocks
         ..usageTracker = null
@@ -234,6 +248,26 @@ void main() {
       seed: () => readyState(input: 'Hello'),
       act: (cubit) => cubit.runCompare(),
       verify: (_) => expect(recorded(), [('claude', 'Hello', 'Hallo!')]),
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'skips results served from the cache',
+      setUp: () {
+        when(() => mocks.repository.compare(any(), any())).thenAnswer(
+          (_) => Stream.value(
+            CompareEntry.success(
+              resultOf('Hallo!', engine: claude).copyWith(fromCache: true),
+            ),
+          ),
+        );
+      },
+      build: () => mocks.build(),
+      seed: () => readyState(input: 'Hello'),
+      act: (cubit) => cubit.runCompare(),
+      verify: (cubit) {
+        expect(cubit.state.compareEntries, hasLength(1));
+        verifyNothingRecorded();
+      },
     );
   });
 

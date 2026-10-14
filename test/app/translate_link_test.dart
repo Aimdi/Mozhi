@@ -34,6 +34,7 @@ void main() {
   setUpAll(() {
     registerFallbackValue(_english);
     registerFallbackValue(const TranslationOptions());
+    registerFallbackValue(QualityMode.off);
   });
 
   group('TranslateLink.fromUri', () {
@@ -667,6 +668,136 @@ void main() {
             TranslationOptions(context: 'c' * TranslateLink.maxContextLength),
           ),
         ).called(1);
+      });
+    });
+
+    group('with quality', () {
+      /// Google normally, Google as "Fast", Claude as "Best".
+      TranslateState withModes({
+        QualityMode mode = QualityMode.off,
+        String input = '',
+      }) => _ready().copyWith(
+        input: input,
+        qualityMode: mode,
+        fastEngine: () => _mozhiEngine,
+        bestEngine: () => _aiEngine,
+      );
+
+      setUp(() {
+        when(() => cubit.setQualityMode(any())).thenAnswer((_) async {});
+      });
+
+      test('selects the quality mode before the text', () async {
+        when(() => cubit.state).thenReturn(withModes());
+
+        await const TranslateLink(
+          text: 'hola',
+          quality: TranslateLinkQuality.best,
+        ).applyTo(cubit);
+
+        verifyInOrder([
+          () => cubit.setQualityMode(QualityMode.best),
+          () => cubit.setExternalInput('hola'),
+        ]);
+        verifyNever(() => cubit.setInput(any()));
+      });
+
+      test('maps fast and standard', () async {
+        when(() => cubit.state).thenReturn(withModes(mode: QualityMode.best));
+
+        await const TranslateLink(quality: TranslateLinkQuality.fast)
+            .applyTo(cubit);
+        await const TranslateLink(quality: TranslateLinkQuality.standard)
+            .applyTo(cubit);
+
+        verifyInOrder([
+          () => cubit.setQualityMode(QualityMode.fast),
+          () => cubit.setQualityMode(QualityMode.off),
+        ]);
+      });
+
+      test('skips the current mode and modes without an engine', () async {
+        when(() => cubit.state)
+            .thenReturn(withModes().copyWith(fastEngine: () => null));
+
+        await const TranslateLink(quality: TranslateLinkQuality.standard)
+            .applyTo(cubit);
+        await const TranslateLink(
+          text: 'hi',
+          quality: TranslateLinkQuality.fast,
+        ).applyTo(cubit);
+
+        verifyNever(() => cubit.setQualityMode(any()));
+        verifyNever(() => cubit.setInput(any()));
+      });
+
+      test('never re-translates old input on its own', () async {
+        when(() => cubit.state).thenReturn(withModes(input: 'old text'));
+
+        await const TranslateLink(
+          text: 'hola',
+          quality: TranslateLinkQuality.best,
+        ).applyTo(cubit);
+
+        verifyInOrder([
+          () => cubit.setInput(''),
+          () => cubit.setQualityMode(QualityMode.best),
+          () => cubit.setExternalInput('hola'),
+        ]);
+        verifyNever(() => cubit.setInput('old text'));
+        verifyNever(() => cubit.translate());
+      });
+
+      test('puts the input back for a link without text', () async {
+        when(() => cubit.state).thenReturn(withModes(input: 'old text'));
+
+        await const TranslateLink(quality: TranslateLinkQuality.best)
+            .applyTo(cubit);
+
+        verifyInOrder([
+          () => cubit.setInput(''),
+          () => cubit.setQualityMode(QualityMode.best),
+          () => cubit.setInput('old text'),
+        ]);
+        verifyNever(() => cubit.translate());
+      });
+
+      test('puts the text in when it was ignored as a repeat', () async {
+        var state = withModes(input: 'old');
+        when(() => cubit.state).thenAnswer((_) => state);
+        when(() => cubit.setInput(any())).thenAnswer(
+          (invocation) => state = state.copyWith(
+            input: invocation.positionalArguments.single as String,
+          ),
+        );
+
+        await const TranslateLink(
+          text: 'hola',
+          quality: TranslateLinkQuality.best,
+        ).applyTo(cubit);
+
+        verifyInOrder([
+          () => cubit.setInput(''),
+          () => cubit.setQualityMode(QualityMode.best),
+          () => cubit.setExternalInput('hola'),
+          () => cubit.setInput('hola'),
+        ]);
+      });
+
+      test('stops when the cubit closes while switching', () async {
+        var closed = false;
+        when(() => cubit.isClosed).thenAnswer((_) => closed);
+        when(() => cubit.state).thenReturn(withModes(input: 'old'));
+        when(() => cubit.setQualityMode(any())).thenAnswer((_) async {
+          closed = true;
+        });
+
+        await const TranslateLink(quality: TranslateLinkQuality.best)
+            .applyTo(cubit);
+
+        verify(() => cubit.setInput('')).called(1);
+        verifyNever(() => cubit.setInput('old'));
+        verifyNever(() => cubit.setExternalInput(any()));
       });
     });
 

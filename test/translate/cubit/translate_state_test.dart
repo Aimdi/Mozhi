@@ -229,5 +229,156 @@ void main() {
       expect(readyState(input: 'one two three four').isShortInput, isFalse);
       expect(readyState(input: '   ').isShortInput, isFalse);
     });
+
+    group('round 3', () {
+      const formal = RefinementSuggestion(label: 'f', instruction: 'i');
+      const span = AlignedSpan(
+        sourceStart: 0,
+        sourceEnd: 1,
+        targetStart: 0,
+        targetEnd: 1,
+      );
+      const notice = SmartSwapNotice(id: 1, previousTarget: en, newTarget: es);
+
+      test('has sensible defaults', () {
+        const state = TranslateState();
+        expect(state.appliedRefinements, isEmpty);
+        expect(state.pendingRefinement, isNull);
+        expect(state.isRefining, isFalse);
+        expect(state.refinementError, isNull);
+        expect(state.romanizationStatus, ExtraStatus.idle);
+        expect(state.romanization, isNull);
+        expect(state.alignmentStatus, ExtraStatus.idle);
+        expect(state.alignment, isEmpty);
+        expect(state.alignmentFocus, isNull);
+        expect(state.focusedAlignment, isNull);
+        expect(state.smartSwapNotice, isNull);
+        expect(state.dictionaryVerbosity, DictionaryVerbosity.standard);
+        expect(state.dictionaryQuery, isNull);
+        expect(state.qualityMode, QualityMode.off);
+        expect(state.hasQualityModes, isFalse);
+        expect(state.availableQualityModes, [QualityMode.off]);
+        expect(state.supportsCustomLanguages, isFalse);
+      });
+
+      test('copyWith replaces and resets the new fields', () {
+        final result = resultOf('x');
+        final error = Exception('e');
+        final applied = AppliedRefinement(suggestion: formal, previous: result);
+        final state = const TranslateState().copyWith(
+          appliedRefinements: [applied],
+          pendingRefinement: () => formal,
+          refinementError: () => error,
+          romanizationStatus: ExtraStatus.ready,
+          romanization: () => 'r',
+          romanizationError: () => error,
+          alignmentStatus: ExtraStatus.ready,
+          alignment: const [span],
+          alignmentFocus: () => 0,
+          alignmentError: () => error,
+          smartSwapNotice: () => notice,
+          dictionaryVerbosity: DictionaryVerbosity.concise,
+          dictionaryQuery: () => 'w',
+          qualityMode: QualityMode.best,
+          fastEngine: () => deepl,
+          bestEngine: () => claude,
+        );
+        expect(state.appliedRefinements, [applied]);
+        expect(state.appliedSuggestions, [formal]);
+        expect(state.isSuggestionApplied(formal), isTrue);
+        expect(state.pendingRefinement, formal);
+        expect(state.isRefining, isTrue);
+        expect(state.refinementError, same(error));
+        expect(state.romanizationStatus, ExtraStatus.ready);
+        expect(state.romanization, 'r');
+        expect(state.romanizationError, same(error));
+        expect(state.alignmentStatus, ExtraStatus.ready);
+        expect(state.alignment, [span]);
+        expect(state.alignmentFocus, 0);
+        expect(state.focusedAlignment, span);
+        expect(state.alignmentError, same(error));
+        expect(state.smartSwapNotice, notice);
+        expect(state.dictionaryVerbosity, DictionaryVerbosity.concise);
+        expect(state.dictionaryQuery, 'w');
+        expect(state.qualityMode, QualityMode.best);
+        expect(state.fastEngine, deepl);
+        expect(state.bestEngine, claude);
+        expect(state.copyWith(), state);
+
+        final reset = state.copyWith(
+          appliedRefinements: const [],
+          pendingRefinement: () => null,
+          refinementError: () => null,
+          romanizationStatus: ExtraStatus.idle,
+          romanization: () => null,
+          romanizationError: () => null,
+          alignmentStatus: ExtraStatus.idle,
+          alignment: const [],
+          alignmentFocus: () => null,
+          alignmentError: () => null,
+          smartSwapNotice: () => null,
+          dictionaryVerbosity: DictionaryVerbosity.standard,
+          dictionaryQuery: () => null,
+          qualityMode: QualityMode.off,
+          fastEngine: () => null,
+          bestEngine: () => null,
+        );
+        expect(reset, const TranslateState());
+      });
+
+      test('AppliedRefinement and SmartSwapNotice compare by value', () {
+        expect(
+          AppliedRefinement(suggestion: formal, previous: resultOf('x')),
+          AppliedRefinement(suggestion: formal, previous: resultOf('x')),
+        );
+        expect(
+          AppliedRefinement(suggestion: formal, previous: resultOf('x')),
+          isNot(AppliedRefinement(suggestion: formal, previous: resultOf('y'))),
+        );
+        expect(
+          notice,
+          const SmartSwapNotice(id: 1, previousTarget: en, newTarget: es),
+        );
+        expect(
+          notice,
+          isNot(
+            const SmartSwapNotice(id: 2, previousTarget: en, newTarget: es),
+          ),
+        );
+      });
+
+      test('refinesOutput needs a general AI engine and a finished output', () {
+        final done = readyState(
+          engine: claude,
+          input: 'hi',
+          result: resultOf('hallo', engine: claude),
+          status: TranslateStatus.success,
+        );
+        expect(done.refinesOutput, isTrue);
+        expect(done.copyWith(engine: () => gemma).refinesOutput, isFalse);
+        expect(done.copyWith(engine: () => google).refinesOutput, isFalse);
+        expect(
+          done.copyWith(status: TranslateStatus.translating).refinesOutput,
+          isFalse,
+        );
+        expect(done.copyWith(input: 'hey').refinesOutput, isFalse);
+        expect(
+          done.copyWith(result: () => resultOf(' ')).refinesOutput,
+          isFalse,
+        );
+      });
+
+      test('qualityEngine names the engine of each mode', () {
+        final state = const TranslateState().copyWith(fastEngine: () => deepl);
+        expect(state.qualityEngine(QualityMode.fast), deepl);
+        expect(state.qualityEngine(QualityMode.best), isNull);
+        expect(state.qualityEngine(QualityMode.off), isNull);
+        expect(state.hasQualityModes, isTrue);
+        expect(state.availableQualityModes, [
+          QualityMode.off,
+          QualityMode.fast,
+        ]);
+      });
+    });
   });
 }

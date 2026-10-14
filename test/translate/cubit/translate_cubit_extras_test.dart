@@ -579,10 +579,13 @@ void main() {
       seed: () => readyState(input: 'Hallo'),
       act: (cubit) => cubit.lookUp(),
       expect: () => [
-        readyState(input: 'Hallo')
-            .copyWith(dictionaryStatus: ExtraStatus.loading),
+        readyState(input: 'Hallo').copyWith(
+          dictionaryStatus: ExtraStatus.loading,
+          dictionaryQuery: () => 'Hallo',
+        ),
         readyState(input: 'Hallo').copyWith(
           dictionaryStatus: ExtraStatus.failure,
+          dictionaryQuery: () => 'Hallo',
           extraError: () => extraError,
         ),
       ],

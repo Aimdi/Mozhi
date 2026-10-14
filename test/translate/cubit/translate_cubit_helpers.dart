@@ -40,6 +40,15 @@ const local = TranslationEngine(
   isLocal: true,
 );
 
+/// A translation-only AI model (no instructions, no extras).
+const gemma = TranslationEngine(
+  id: 'ai:gemma',
+  kind: EngineKind.ai,
+  name: 'Gemma',
+  providerId: 'gemma',
+  promptProfile: PromptProfile.translateGemma,
+);
+
 const en = Language(code: 'en', name: 'English');
 const de = Language(code: 'de', name: 'German');
 const fr = Language(code: 'fr', name: 'French');
@@ -108,6 +117,8 @@ void registerTranslateFallbacks() {
   registerFallbackValue(en);
   registerFallbackValue(const TranslationOptions());
   registerFallbackValue(<TranslationEngine>[]);
+  registerFallbackValue(DictionaryVerbosity.standard);
+  registerFallbackValue(QualityMode.off);
   registerFallbackValue(
     HistoryEntry(
       id: '0',
@@ -158,6 +169,48 @@ class TranslateMocks {
   List<TranslationRequest> translateRequests() =>
       verify(() => repository.translate(any(), captureAny())).captured
           .cast<TranslationRequest>();
+
+  /// Every refine call answers with a snapshot, then `<current>+<tag>`
+  /// where the tag is [tags] of the instruction (else the instruction).
+  void stubRefine([Map<String, String> tags = const {}]) {
+    when(
+      () => repository.refine(
+        any(),
+        any(),
+        currentTranslation: any(named: 'currentTranslation'),
+        instruction: any(named: 'instruction'),
+      ),
+    ).thenAnswer((invocation) {
+      final engine = invocation.positionalArguments[0] as TranslationEngine;
+      final current = invocation.namedArguments[#currentTranslation] as String;
+      final instruction = invocation.namedArguments[#instruction] as String;
+      final tag = tags[instruction] ?? instruction;
+      return Stream.fromIterable([
+        resultOf('…', engine: engine, isComplete: false),
+        resultOf('$current+$tag', engine: engine),
+      ]);
+    });
+  }
+
+  /// (request, currentTranslation, instruction) of every refine call.
+  List<(TranslationRequest, String, String)> refineCalls() {
+    final captured = verify(
+      () => repository.refine(
+        any(),
+        captureAny(),
+        currentTranslation: captureAny(named: 'currentTranslation'),
+        instruction: captureAny(named: 'instruction'),
+      ),
+    ).captured;
+    return [
+      for (var i = 0; i < captured.length; i += 3)
+        (
+          captured[i] as TranslationRequest,
+          captured[i + 1] as String,
+          captured[i + 2] as String,
+        ),
+    ];
+  }
 
   List<HistoryEntry> historyEntries() =>
       verify(() => history.add(captureAny())).captured.cast<HistoryEntry>();

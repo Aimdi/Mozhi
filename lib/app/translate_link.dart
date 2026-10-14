@@ -6,7 +6,8 @@ import 'package:translation_repository/translation_repository.dart';
 
 /// Speed/quality preference a link asks for (Kagi's `quality` parameter).
 ///
-/// Only recorded on [TranslateLink.quality] for now; nothing applies it yet.
+/// [TranslateLink.applyTo] selects the matching quality mode of the
+/// translate screen.
 enum TranslateLinkQuality {
   fast,
   standard,
@@ -184,11 +185,19 @@ class TranslateLink extends Equatable {
   /// `Pirate speak`) are ignored, so a link cannot smuggle instructions
   /// into a prompt. The text is cut to [maxTextLength].
   ///
-  /// [options] that change the current ones are applied first with
-  /// [TranslateCubit.setOptions]. That re-translates the input right away
-  /// on AI engines, so the input is taken out meanwhile (and put back
-  /// afterwards when the link has no text of its own): changing options
-  /// never starts a paid request either.
+  /// [quality] is applied first with [TranslateCubit.setQualityMode]
+  /// (`fast` -> [QualityMode.fast], `best` -> [QualityMode.best],
+  /// `standard` -> [QualityMode.off]; a mode whose engine is not configured
+  /// or not available changes nothing), so the languages are matched
+  /// against the lists of the engine that will translate.
+  ///
+  /// [options] that change the current ones are applied next with
+  /// [TranslateCubit.setOptions].
+  ///
+  /// Switching engines and changing options re-translate the input right
+  /// away (possibly a paid AI request), so the input is taken out meanwhile
+  /// (and put back afterwards when the link has no text of its own): a link
+  /// never starts a paid request on its own.
   Future<void> applyTo(
     TranslateCubit cubit, {
     Duration timeout = const Duration(seconds: 20),
@@ -196,7 +205,9 @@ class TranslateLink extends Equatable {
     final loaded = await waitForEngines(cubit, timeout: timeout);
     if (loaded == null || cubit.isClosed) return;
 
-    final cleared = _applyOptions(cubit);
+    final qualityCleared = await _applyQuality(cubit);
+    if (cubit.isClosed) return;
+    final cleared = _applyOptions(cubit) || qualityCleared;
     final state = cubit.state;
     final from = this.from;
     final source = from == null
@@ -231,6 +242,33 @@ class TranslateLink extends Equatable {
         target: usableTarget == state.target ? null : usableTarget,
       );
     }
+  }
+
+  /// Applies [quality] (see [applyTo]); returns whether the input was
+  /// cleared and still is (a link with text puts its own text in).
+  Future<bool> _applyQuality(TranslateCubit cubit) async {
+    final mode = switch (quality) {
+      null => null,
+      TranslateLinkQuality.fast => QualityMode.fast,
+      TranslateLinkQuality.standard => QualityMode.off,
+      TranslateLinkQuality.best => QualityMode.best,
+    };
+    final state = cubit.state;
+    if (mode == null || mode == state.qualityMode) return false;
+    // Nothing would change: do not touch the input.
+    if (mode != QualityMode.off && state.qualityEngine(mode) == null) {
+      return false;
+    }
+    final input = state.input;
+    if (input.trim().isEmpty) {
+      await cubit.setQualityMode(mode);
+      return false;
+    }
+    cubit.setInput('');
+    await cubit.setQualityMode(mode);
+    if (hasText || cubit.isClosed) return true;
+    cubit.setInput(input);
+    return false;
   }
 
   /// Applies [options] (see [applyTo]); returns whether the input was

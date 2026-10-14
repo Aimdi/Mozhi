@@ -1,5 +1,9 @@
 import 'package:equatable/equatable.dart';
+import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:translation_repository/translation_repository.dart';
+
+export 'package:mozhi/settings/models/app_settings.dart'
+    show LanguagePair, QualityMode;
 
 enum EnginesStatus { initial, loading, ready, failure }
 
@@ -7,6 +11,50 @@ enum TranslateStatus { idle, translating, success, failure }
 
 /// Status of an optional AI extra (alternatives, insights, ...).
 enum ExtraStatus { idle, loading, ready, failure }
+
+/// A refinement chip applied to the translation with
+/// `TranslateCubit.applySuggestion` (AI engines with the general prompt
+/// profile revise the current translation instead of translating again).
+class AppliedRefinement extends Equatable {
+  const new({required this.suggestion, required this.previous});
+
+  /// The chip that was applied.
+  final RefinementSuggestion suggestion;
+
+  /// The translation before [suggestion] was applied; it comes back when
+  /// the chip is toggled off.
+  final TranslationResult previous;
+
+  @override
+  List<Object?> get props => [suggestion, previous];
+}
+
+/// A one-shot notice that the target language was switched automatically
+/// because the detected source language was the target (smart swap).
+///
+/// The UI shows it once (e.g. a snack bar "Translating into Spanish
+/// instead · Undo"), then calls `TranslateCubit.consumeSmartSwapNotice`;
+/// "Undo" calls `TranslateCubit.undoSmartSwap`. [id] grows with every swap,
+/// so two swaps between the same languages are still told apart.
+class SmartSwapNotice extends Equatable {
+  const new({
+    required this.id,
+    required this.previousTarget,
+    required this.newTarget,
+  });
+
+  /// Increments with every smart swap of the cubit.
+  final int id;
+
+  /// The target before the swap (the detected source language).
+  final Language previousTarget;
+
+  /// The target the input is translated into now.
+  final Language newTarget;
+
+  @override
+  List<Object?> get props => [id, previousTarget, newTarget];
+}
 
 class TranslateState extends Equatable {
   const new({
@@ -41,6 +89,22 @@ class TranslateState extends Equatable {
     this.dictionaryStatus = ExtraStatus.idle,
     this.dictionary,
     this.extraError,
+    this.appliedRefinements = const [],
+    this.pendingRefinement,
+    this.refinementError,
+    this.romanizationStatus = ExtraStatus.idle,
+    this.romanization,
+    this.romanizationError,
+    this.alignmentStatus = ExtraStatus.idle,
+    this.alignment = const [],
+    this.alignmentFocus,
+    this.alignmentError,
+    this.smartSwapNotice,
+    this.dictionaryVerbosity = DictionaryVerbosity.standard,
+    this.dictionaryQuery,
+    this.qualityMode = QualityMode.off,
+    this.fastEngine,
+    this.bestEngine,
   });
 
   final EnginesStatus enginesStatus;
@@ -56,6 +120,9 @@ class TranslateState extends Equatable {
   final TranslationEngine? assistEngine;
   final List<Language> sourceLanguages;
   final List<Language> targetLanguages;
+
+  /// May be a free-form custom language when [engine]
+  /// `supportsCustomLanguages` (AI engines with the general profile).
   final Language source;
   final Language target;
   final String input;
@@ -98,6 +165,9 @@ class TranslateState extends Equatable {
   final ExtraStatus insightsStatus;
   final List<WordInsight> insights;
   final ExtraStatus suggestionsStatus;
+
+  /// The refinement chips: [RefinementSuggestion.defaults], then fetched
+  /// ones (and any applied chip a reload no longer lists).
   final List<RefinementSuggestion> suggestions;
   final ExtraStatus explainStatus;
 
@@ -105,12 +175,94 @@ class TranslateState extends Equatable {
   final String explanation;
   final ExtraStatus dictionaryStatus;
   final DictionaryEntry? dictionary;
+
+  /// Error of the last failed alternatives / insights / suggestions /
+  /// explain / dictionary request.
   final Object? extraError;
+
+  // Refinements -------------------------------------------------------------
+
+  /// The refinement chips whose effect is in the current output, in the
+  /// order they were applied (each with the translation from before it).
+  /// Only AI engines with the general prompt profile stack refinements;
+  /// see `TranslateCubit.applySuggestion`. Empty after any change of
+  /// input, options, languages or engine, and after a new translation.
+  final List<AppliedRefinement> appliedRefinements;
+
+  /// The chip whose refinement is being requested (show progress on it);
+  /// the output keeps the current translation until the refined one is
+  /// complete. Null when nothing is in flight.
+  final RefinementSuggestion? pendingRefinement;
+
+  /// Why the last refinement failed (the translation is kept); cleared
+  /// when the next refinement starts or the result changes otherwise.
+  final Object? refinementError;
+
+  // Romanization ------------------------------------------------------------
+
+  /// See `TranslateCubit.loadRomanization`. Reset whenever the result
+  /// changes.
+  final ExtraStatus romanizationStatus;
+
+  /// The output in the Latin script (Mozhi's transliteration or an AI
+  /// romanization), or null.
+  final String? romanization;
+
+  /// Why the last romanization failed.
+  final Object? romanizationError;
+
+  // Alignment ---------------------------------------------------------------
+
+  /// See `TranslateCubit.loadAlignment`. Reset whenever the input or the
+  /// result changes.
+  final ExtraStatus alignmentStatus;
+
+  /// Corresponding phrases of [input] and the output (UTF-16 offsets into
+  /// both texts as they are now).
+  final List<AlignedSpan> alignment;
+
+  /// Index into [alignment] of the highlighted pair, or null.
+  final int? alignmentFocus;
+
+  /// Why the last alignment request failed.
+  final Object? alignmentError;
+
+  // Smart swap --------------------------------------------------------------
+
+  /// Set when the target was switched automatically; shown once by the UI,
+  /// then cleared with `TranslateCubit.consumeSmartSwapNotice`.
+  final SmartSwapNotice? smartSwapNotice;
+
+  // Dictionary --------------------------------------------------------------
+
+  /// How much the dictionary card asks for.
+  final DictionaryVerbosity dictionaryVerbosity;
+
+  /// The word of the current (or loading) dictionary entry: the trimmed
+  /// input, or a word followed with `TranslateCubit.lookUpWord`. Null
+  /// when nothing was looked up.
+  final String? dictionaryQuery;
+
+  // Quality modes -----------------------------------------------------------
+
+  /// The active quality mode: [QualityMode.fast] / [QualityMode.best] while
+  /// [engine] is the engine chosen for it, else [QualityMode.off].
+  final QualityMode qualityMode;
+
+  /// The engine of [QualityMode.fast] when one is configured and available.
+  final TranslationEngine? fastEngine;
+
+  /// The engine of [QualityMode.best] when one is configured and available.
+  final TranslationEngine? bestEngine;
 
   String get output => result?.text ?? '';
   bool get isAiEngine => engine?.isAi ?? false;
   bool get hasExtras => assistEngine != null;
   bool get canSwap => !target.isCustom;
+
+  /// Whether free-form custom languages can be picked (source and target):
+  /// AI engines with the general prompt profile.
+  bool get supportsCustomLanguages => engine?.supportsCustomLanguages ?? false;
 
   /// True when [result] belongs to an older input (the user edited the text
   /// after it was translated, or a translation of the old text landed after
@@ -127,6 +279,134 @@ class TranslateState extends Equatable {
     final words = input.trim().split(RegExp(r'\s+'));
     return input.trim().isNotEmpty && words.length <= 3;
   }
+
+  /// The finished, current (not stale), non-empty output, else null.
+  String? get _finishedOutput {
+    final result = this.result;
+    if (result == null || !result.isComplete || isResultStale) return null;
+    if (result.text.trim().isEmpty || input.trim().isEmpty) return null;
+    return result.text;
+  }
+
+  // Refinements -------------------------------------------------------------
+
+  /// The applied chips, in the order they were applied.
+  List<RefinementSuggestion> get appliedSuggestions => [
+    for (final applied in appliedRefinements) applied.suggestion,
+  ];
+
+  /// Whether [suggestion] is applied (show its chip as selected).
+  bool isSuggestionApplied(RefinementSuggestion suggestion) =>
+      appliedRefinements.any((applied) => applied.suggestion == suggestion);
+
+  /// A refinement is being requested ([pendingRefinement]).
+  bool get isRefining => pendingRefinement != null;
+
+  /// Whether a chip revises the current output (and can be toggled off
+  /// again) rather than translating the input again with its instruction:
+  /// an AI [engine] with the general prompt profile and a finished output.
+  bool get refinesOutput =>
+      (engine?.supportsExtras ?? false) &&
+      status != TranslateStatus.translating &&
+      _finishedOutput != null;
+
+  // Romanization ------------------------------------------------------------
+
+  /// Whether a romanization of the output can be shown: the result carries
+  /// a transliteration (Mozhi), or an AI [assistEngine] can romanize it and
+  /// the target language uses a non-Latin script or the output has
+  /// non-Latin letters.
+  bool get canRomanize {
+    final output = _finishedOutput;
+    if (output == null || status == TranslateStatus.translating) return false;
+    if (result!.targetTransliteration.trim().isNotEmpty) return true;
+    if (!(assistEngine?.supportsExtras ?? false)) return false;
+    return LanguageCatalog.usesNonLatinScript(target.code) ||
+        LanguageCatalog.hasNonLatinLetters(output);
+  }
+
+  // Alignment ---------------------------------------------------------------
+
+  /// Whether phrase alignment can be requested for the input and output.
+  bool get canAlign =>
+      (assistEngine?.supportsExtras ?? false) &&
+      status != TranslateStatus.translating &&
+      _finishedOutput != null;
+
+  /// The highlighted pair ([alignmentFocus]), or null.
+  AlignedSpan? get focusedAlignment {
+    final index = alignmentFocus;
+    if (index == null || index < 0 || index >= alignment.length) return null;
+    return alignment[index];
+  }
+
+  /// Index of the first [alignment] pair whose source phrase covers the
+  /// character at [offset] of [input], or null.
+  int? alignmentIndexAtSource(int offset) {
+    for (var i = 0; i < alignment.length; i++) {
+      if (alignment[i].coversSource(offset)) return i;
+    }
+    return null;
+  }
+
+  /// Index of the first [alignment] pair whose target phrase covers the
+  /// character at [offset] of the output, or null.
+  int? alignmentIndexAtTarget(int offset) {
+    for (var i = 0; i < alignment.length; i++) {
+      if (alignment[i].coversTarget(offset)) return i;
+    }
+    return null;
+  }
+
+  // Detection ---------------------------------------------------------------
+
+  /// The detected source language of short input may be wrong (auto
+  /// source only); offer [detectedAlternativeLanguages].
+  bool get detectionUncertain =>
+      source.isAuto && (result?.detectionUncertain ?? false);
+
+  /// Codes of other languages the input may be in (most likely first) when
+  /// [detectionUncertain], else empty.
+  List<String> get detectedAlternatives =>
+      detectionUncertain ? result!.detectedAlternatives : const [];
+
+  /// [detectedAlternatives] that are in [sourceLanguages] (as listed
+  /// there), for `TranslateCubit.useDetectedAlternative`.
+  List<Language> get detectedAlternativeLanguages {
+    final languages = <Language>[];
+    for (final code in detectedAlternatives) {
+      final match = LanguageMatcher.match(
+        Language(code: code, name: code),
+        sourceLanguages,
+      );
+      if (match != null && !match.isAuto && !languages.contains(match)) {
+        languages.add(match);
+      }
+    }
+    return languages;
+  }
+
+  // Quality modes -----------------------------------------------------------
+
+  /// Whether at least one quality mode engine is available (show the
+  /// quality toggle).
+  bool get hasQualityModes => fastEngine != null || bestEngine != null;
+
+  /// The modes that can be selected: [QualityMode.off] always, fast/best
+  /// when their engine is configured and available.
+  List<QualityMode> get availableQualityModes => [
+    QualityMode.off,
+    if (fastEngine != null) QualityMode.fast,
+    if (bestEngine != null) QualityMode.best,
+  ];
+
+  /// The engine [mode] translates with ([fastEngine] / [bestEngine]); null
+  /// for [QualityMode.off] (the normal selection) or an unavailable mode.
+  TranslationEngine? qualityEngine(QualityMode mode) => switch (mode) {
+    QualityMode.off => null,
+    QualityMode.fast => fastEngine,
+    QualityMode.best => bestEngine,
+  };
 
   TranslateState copyWith({
     EnginesStatus? enginesStatus,
@@ -160,6 +440,22 @@ class TranslateState extends Equatable {
     ExtraStatus? dictionaryStatus,
     DictionaryEntry? Function()? dictionary,
     Object? Function()? extraError,
+    List<AppliedRefinement>? appliedRefinements,
+    RefinementSuggestion? Function()? pendingRefinement,
+    Object? Function()? refinementError,
+    ExtraStatus? romanizationStatus,
+    String? Function()? romanization,
+    Object? Function()? romanizationError,
+    ExtraStatus? alignmentStatus,
+    List<AlignedSpan>? alignment,
+    int? Function()? alignmentFocus,
+    Object? Function()? alignmentError,
+    SmartSwapNotice? Function()? smartSwapNotice,
+    DictionaryVerbosity? dictionaryVerbosity,
+    String? Function()? dictionaryQuery,
+    QualityMode? qualityMode,
+    TranslationEngine? Function()? fastEngine,
+    TranslationEngine? Function()? bestEngine,
   }) {
     final nextResult = result != null ? result() : this.result;
     return TranslateState(
@@ -203,6 +499,36 @@ class TranslateState extends Equatable {
       dictionaryStatus: dictionaryStatus ?? this.dictionaryStatus,
       dictionary: dictionary != null ? dictionary() : this.dictionary,
       extraError: extraError != null ? extraError() : this.extraError,
+      appliedRefinements: appliedRefinements ?? this.appliedRefinements,
+      pendingRefinement: pendingRefinement != null
+          ? pendingRefinement()
+          : this.pendingRefinement,
+      refinementError: refinementError != null
+          ? refinementError()
+          : this.refinementError,
+      romanizationStatus: romanizationStatus ?? this.romanizationStatus,
+      romanization: romanization != null ? romanization() : this.romanization,
+      romanizationError: romanizationError != null
+          ? romanizationError()
+          : this.romanizationError,
+      alignmentStatus: alignmentStatus ?? this.alignmentStatus,
+      alignment: alignment ?? this.alignment,
+      alignmentFocus: alignmentFocus != null
+          ? alignmentFocus()
+          : this.alignmentFocus,
+      alignmentError: alignmentError != null
+          ? alignmentError()
+          : this.alignmentError,
+      smartSwapNotice: smartSwapNotice != null
+          ? smartSwapNotice()
+          : this.smartSwapNotice,
+      dictionaryVerbosity: dictionaryVerbosity ?? this.dictionaryVerbosity,
+      dictionaryQuery: dictionaryQuery != null
+          ? dictionaryQuery()
+          : this.dictionaryQuery,
+      qualityMode: qualityMode ?? this.qualityMode,
+      fastEngine: fastEngine != null ? fastEngine() : this.fastEngine,
+      bestEngine: bestEngine != null ? bestEngine() : this.bestEngine,
     );
   }
 
@@ -239,5 +565,21 @@ class TranslateState extends Equatable {
     dictionaryStatus,
     dictionary,
     extraError,
+    appliedRefinements,
+    pendingRefinement,
+    refinementError,
+    romanizationStatus,
+    romanization,
+    romanizationError,
+    alignmentStatus,
+    alignment,
+    alignmentFocus,
+    alignmentError,
+    smartSwapNotice,
+    dictionaryVerbosity,
+    dictionaryQuery,
+    qualityMode,
+    fastEngine,
+    bestEngine,
   ];
 }
