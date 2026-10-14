@@ -51,6 +51,7 @@ class TranslationResult {
     this.sourceSynonyms = const [],
     this.targetSynonyms = const [],
     this.elapsed,
+    this.fromCache = false,
   });
 
   final String engineId;
@@ -72,11 +73,16 @@ class TranslationResult {
   /// Wall time from request start to this snapshot.
   final Duration? elapsed;
 
+  /// Whether this result was served from the translation cache rather
+  /// than by a new request to the engine (nothing was sent or billed).
+  final bool fromCache;
+
   TranslationResult copyWith({
     String? text,
     bool? isComplete,
     String? detectedSource,
     Duration? elapsed,
+    bool? fromCache,
   }) => TranslationResult(
     engineId: engineId,
     engineName: engineName,
@@ -89,6 +95,7 @@ class TranslationResult {
     sourceSynonyms: sourceSynonyms,
     targetSynonyms: targetSynonyms,
     elapsed: elapsed ?? this.elapsed,
+    fromCache: fromCache ?? this.fromCache,
   );
 
   @override
@@ -105,7 +112,8 @@ class TranslationResult {
           _list.equals(other.wordChoices, wordChoices) &&
           _list.equals(other.sourceSynonyms, sourceSynonyms) &&
           _list.equals(other.targetSynonyms, targetSynonyms) &&
-          other.elapsed == elapsed;
+          other.elapsed == elapsed &&
+          other.fromCache == fromCache;
 
   @override
   int get hashCode => Object.hash(
@@ -120,6 +128,7 @@ class TranslationResult {
     _list.hash(sourceSynonyms),
     _list.hash(targetSynonyms),
     elapsed,
+    fromCache,
   );
 
   @override

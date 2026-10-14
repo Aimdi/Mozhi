@@ -9,6 +9,7 @@ class TranslationRequest {
     required this.source,
     required this.target,
     this.options = const TranslationOptions(),
+    this.recentSourceLanguages = const [],
   });
 
   final String text;
@@ -20,16 +21,24 @@ class TranslationRequest {
   final Language target;
   final TranslationOptions options;
 
+  /// Codes of languages the user recently translated from, most recent
+  /// first. A hint for detecting the language of short [text] when
+  /// [source] is auto; it does not change what is asked for, so it is not
+  /// part of equality.
+  final List<String> recentSourceLanguages;
+
   TranslationRequest copyWith({
     String? text,
     Language? source,
     Language? target,
     TranslationOptions? options,
+    List<String>? recentSourceLanguages,
   }) => TranslationRequest(
     text: text ?? this.text,
     source: source ?? this.source,
     target: target ?? this.target,
     options: options ?? this.options,
+    recentSourceLanguages: recentSourceLanguages ?? this.recentSourceLanguages,
   );
 
   @override
