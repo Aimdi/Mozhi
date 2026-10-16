@@ -57,13 +57,15 @@ test('a refine chip refines the translation', async ({ page }) => {
   // it (a click on the section heading) brings the role back.
   await page.getByRole('heading', { name: 'Refine & learn' }).click();
 
-  // The chip turns into an undo chip once the refinement is applied.
-  await expect(
-    refine.getByRole('checkbox', { name: /^Undo “More formal”/ }),
-  ).toBeChecked();
+  // Wait for the refinement first: copying also moves the focus off the
+  // chip, which Flutter web may have refocused when it was rebuilt.
   await expect
     .poll(() => copiedTranslation(page))
     .toBe(`[refined] ${TRANSLATION}`);
+  // The chip turned into an undo chip once the refinement was applied.
+  await expect(
+    refine.getByRole('checkbox', { name: /^Undo “More formal”/ }),
+  ).toBeChecked();
 });
 
 test('meaning check shows a verdict and its differences', async ({ page }) => {
