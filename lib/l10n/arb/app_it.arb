@@ -1224,5 +1224,19 @@
   "settingsInstanceInsecureConfirmTitle": "Aggiungere senza cifratura?",
   "settingsInstanceInsecureConfirmBody": "{host} usa HTTP non cifrato. Chiunque sulla rete tra te e questa istanza può leggere il testo che traduci con essa.",
   "settingsInstanceInsecureConfirmAction": "Aggiungi senza cifratura",
-  "onboardingServiceOwnInsecure": "Questa istanza usa HTTP non cifrato. Conferma che vuoi aggiungerla senza cifratura."
+  "onboardingServiceOwnInsecure": "Questa istanza usa HTTP non cifrato. Conferma che vuoi aggiungerla senza cifratura.",
+  "translateRefineAndLearn": "Perfeziona e impara",
+  "translateToolsLabel": "Strumenti di traduzione",
+  "translateToolRomanization": "Romanizzazione",
+  "translateToolAlignment": "Frasi corrispondenti",
+  "translateEmptyTitle": "La traduzione apparirà qui",
+  "translateEmptyHint": "Digita o incolla del testo, parla o traduci una foto.",
+  "translateEmptyRecentPairs": "Coppie recenti",
+  "translateEmptyShortcutsTip": "Premi ? per le scorciatoie da tastiera",
+  "translateMoreLanguages": "Altre lingue",
+  "proofreadOptionsTitle": "Opzioni",
+  "proofreadSuggestionCount": "{count, plural, =0{Nessun suggerimento} =1{1 suggerimento} other{{count} suggerimenti}}",
+  "historyEmptyAction": "Inizia a tradurre",
+  "historyShowAll": "Mostra tutte le traduzioni",
+  "settingsSectionTools": "Strumenti di traduzione"
 }

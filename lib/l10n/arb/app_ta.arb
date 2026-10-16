@@ -1224,5 +1224,19 @@
   "settingsInstanceInsecureConfirmTitle": "மறையாக்கமின்றிச் சேர்க்கவா?",
   "settingsInstanceInsecureConfirmBody": "{host} மறையாக்கமில்லாத HTTP-ஐப் பயன்படுத்துகிறது. உங்களுக்கும் இந்த இன்ஸ்டன்ஸுக்கும் இடையிலான நெட்வொர்க்கில் யாரும் நீங்கள் மொழிபெயர்க்கும் உரையைப் படிக்கலாம்.",
   "settingsInstanceInsecureConfirmAction": "மறையாக்கமின்றிச் சேர்",
-  "onboardingServiceOwnInsecure": "இந்த இன்ஸ்டன்ஸ் மறையாக்கமில்லாத HTTP-ஐப் பயன்படுத்துகிறது. மறையாக்கமின்றிச் சேர்க்க விரும்புவதை உறுதிப்படுத்தவும்."
+  "onboardingServiceOwnInsecure": "இந்த இன்ஸ்டன்ஸ் மறையாக்கமில்லாத HTTP-ஐப் பயன்படுத்துகிறது. மறையாக்கமின்றிச் சேர்க்க விரும்புவதை உறுதிப்படுத்தவும்.",
+  "translateRefineAndLearn": "மேம்படுத்தி கற்க",
+  "translateToolsLabel": "மொழிபெயர்ப்புக் கருவிகள்",
+  "translateToolRomanization": "ரோமன் எழுத்துகள்",
+  "translateToolAlignment": "பொருந்தும் சொற்றொடர்கள்",
+  "translateEmptyTitle": "உங்கள் மொழிபெயர்ப்பு இங்கே தோன்றும்",
+  "translateEmptyHint": "உரையைத் தட்டச்சு செய்யவும் அல்லது ஒட்டவும், பேசவும் அல்லது ஒரு படத்தை மொழிபெயர்க்கவும்.",
+  "translateEmptyRecentPairs": "சமீபத்திய மொழி இணைகள்",
+  "translateEmptyShortcutsTip": "விசைப்பலகைக் குறுக்குவழிகளுக்கு ? அழுத்தவும்",
+  "translateMoreLanguages": "மேலும் மொழிகள்",
+  "proofreadOptionsTitle": "விருப்பங்கள்",
+  "proofreadSuggestionCount": "{count, plural, =0{பரிந்துரைகள் இல்லை} =1{1 பரிந்துரை} other{{count} பரிந்துரைகள்}}",
+  "historyEmptyAction": "மொழிபெயர்க்கத் தொடங்கு",
+  "historyShowAll": "எல்லா மொழிபெயர்ப்புகளையும் காட்டு",
+  "settingsSectionTools": "மொழிபெயர்ப்புக் கருவிகள்"
 }

@@ -1224,5 +1224,19 @@
   "settingsInstanceInsecureConfirmTitle": "Toevoegen zonder versleuteling?",
   "settingsInstanceInsecureConfirmBody": "{host} gebruikt onversleuteld HTTP. Iedereen op het netwerk tussen jou en deze instantie kan de tekst lezen die je ermee vertaalt.",
   "settingsInstanceInsecureConfirmAction": "Toevoegen zonder versleuteling",
-  "onboardingServiceOwnInsecure": "Deze instantie gebruikt onversleuteld HTTP. Bevestig dat je haar zonder versleuteling wilt toevoegen."
+  "onboardingServiceOwnInsecure": "Deze instantie gebruikt onversleuteld HTTP. Bevestig dat je haar zonder versleuteling wilt toevoegen.",
+  "translateRefineAndLearn": "Verfijnen en leren",
+  "translateToolsLabel": "Vertaalhulpmiddelen",
+  "translateToolRomanization": "Romanisering",
+  "translateToolAlignment": "Overeenkomende zinsdelen",
+  "translateEmptyTitle": "Je vertaling verschijnt hier",
+  "translateEmptyHint": "Typ of plak tekst, spreek of vertaal een foto.",
+  "translateEmptyRecentPairs": "Recente taalparen",
+  "translateEmptyShortcutsTip": "Druk op ? voor sneltoetsen",
+  "translateMoreLanguages": "Meer talen",
+  "proofreadOptionsTitle": "Opties",
+  "proofreadSuggestionCount": "{count, plural, =0{Geen suggesties} =1{1 suggestie} other{{count} suggesties}}",
+  "historyEmptyAction": "Begin met vertalen",
+  "historyShowAll": "Alle vertalingen tonen",
+  "settingsSectionTools": "Vertaalhulpmiddelen"
 }

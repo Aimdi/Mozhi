@@ -1224,5 +1224,19 @@
   "settingsInstanceInsecureConfirmTitle": "Ajouter sans chiffrement ?",
   "settingsInstanceInsecureConfirmBody": "{host} utilise HTTP sans chiffrement. Toute personne sur le réseau entre vous et cette instance peut lire le texte que vous y traduisez.",
   "settingsInstanceInsecureConfirmAction": "Ajouter sans chiffrement",
-  "onboardingServiceOwnInsecure": "Cette instance utilise HTTP sans chiffrement. Confirmez que vous voulez l’ajouter sans chiffrement."
+  "onboardingServiceOwnInsecure": "Cette instance utilise HTTP sans chiffrement. Confirmez que vous voulez l’ajouter sans chiffrement.",
+  "translateRefineAndLearn": "Affiner et apprendre",
+  "translateToolsLabel": "Outils de traduction",
+  "translateToolRomanization": "Romanisation",
+  "translateToolAlignment": "Expressions correspondantes",
+  "translateEmptyTitle": "Votre traduction apparaîtra ici",
+  "translateEmptyHint": "Saisissez ou collez du texte, parlez ou traduisez une photo.",
+  "translateEmptyRecentPairs": "Paires récentes",
+  "translateEmptyShortcutsTip": "Appuyez sur ? pour les raccourcis clavier",
+  "translateMoreLanguages": "Autres langues",
+  "proofreadOptionsTitle": "Options",
+  "proofreadSuggestionCount": "{count, plural, =0{Aucune suggestion} =1{1 suggestion} other{{count} suggestions}}",
+  "historyEmptyAction": "Commencer à traduire",
+  "historyShowAll": "Afficher toutes les traductions",
+  "settingsSectionTools": "Outils de traduction"
 }

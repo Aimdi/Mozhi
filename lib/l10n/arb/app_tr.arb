@@ -1224,5 +1224,19 @@
   "settingsInstanceInsecureConfirmTitle": "Şifrelemeden eklensin mi?",
   "settingsInstanceInsecureConfirmBody": "{host} şifrelenmemiş HTTP kullanıyor. Sizinle bu sunucu arasındaki ağdaki herkes onunla çevirdiğiniz metni okuyabilir.",
   "settingsInstanceInsecureConfirmAction": "Şifrelemeden ekle",
-  "onboardingServiceOwnInsecure": "Bu sunucu şifrelenmemiş HTTP kullanıyor. Şifreleme olmadan eklemek istediğinizi onaylayın."
+  "onboardingServiceOwnInsecure": "Bu sunucu şifrelenmemiş HTTP kullanıyor. Şifreleme olmadan eklemek istediğinizi onaylayın.",
+  "translateRefineAndLearn": "İyileştir ve öğren",
+  "translateToolsLabel": "Çeviri araçları",
+  "translateToolRomanization": "Latin harfleri",
+  "translateToolAlignment": "Eşleşen ifadeler",
+  "translateEmptyTitle": "Çeviriniz burada görünür",
+  "translateEmptyHint": "Metin yazın veya yapıştırın, konuşun ya da bir fotoğrafı çevirin.",
+  "translateEmptyRecentPairs": "Son dil çiftleri",
+  "translateEmptyShortcutsTip": "Klavye kısayolları için ? tuşuna basın",
+  "translateMoreLanguages": "Diğer diller",
+  "proofreadOptionsTitle": "Seçenekler",
+  "proofreadSuggestionCount": "{count, plural, =0{Öneri yok} =1{1 öneri} other{{count} öneri}}",
+  "historyEmptyAction": "Çevirmeye başla",
+  "historyShowAll": "Tüm çevirileri göster",
+  "settingsSectionTools": "Çeviri araçları"
 }

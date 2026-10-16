@@ -1224,5 +1224,19 @@
   "settingsInstanceInsecureConfirmTitle": "Thêm mà không mã hóa?",
   "settingsInstanceInsecureConfirmBody": "{host} dùng HTTP không mã hóa. Bất kỳ ai trên mạng giữa bạn và máy chủ này đều có thể đọc văn bản bạn dịch qua nó.",
   "settingsInstanceInsecureConfirmAction": "Thêm mà không mã hóa",
-  "onboardingServiceOwnInsecure": "Máy chủ này dùng HTTP không mã hóa. Hãy xác nhận bạn muốn thêm mà không mã hóa."
+  "onboardingServiceOwnInsecure": "Máy chủ này dùng HTTP không mã hóa. Hãy xác nhận bạn muốn thêm mà không mã hóa.",
+  "translateRefineAndLearn": "Tinh chỉnh và học",
+  "translateToolsLabel": "Công cụ dịch",
+  "translateToolRomanization": "Chữ Latinh",
+  "translateToolAlignment": "Cụm từ tương ứng",
+  "translateEmptyTitle": "Bản dịch sẽ hiển thị ở đây",
+  "translateEmptyHint": "Nhập hoặc dán văn bản, nói hoặc dịch một ảnh.",
+  "translateEmptyRecentPairs": "Cặp ngôn ngữ gần đây",
+  "translateEmptyShortcutsTip": "Nhấn ? để xem phím tắt",
+  "translateMoreLanguages": "Ngôn ngữ khác",
+  "proofreadOptionsTitle": "Tùy chọn",
+  "proofreadSuggestionCount": "{count, plural, =0{Không có gợi ý} =1{1 gợi ý} other{{count} gợi ý}}",
+  "historyEmptyAction": "Bắt đầu dịch",
+  "historyShowAll": "Hiện tất cả bản dịch",
+  "settingsSectionTools": "Công cụ dịch"
 }

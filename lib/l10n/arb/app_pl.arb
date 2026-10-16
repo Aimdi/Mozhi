@@ -1224,5 +1224,19 @@
   "settingsInstanceInsecureConfirmTitle": "Dodać bez szyfrowania?",
   "settingsInstanceInsecureConfirmBody": "{host} używa nieszyfrowanego HTTP. Każdy w sieci między Tobą a tą instancją może odczytać tłumaczony przez nią tekst.",
   "settingsInstanceInsecureConfirmAction": "Dodaj bez szyfrowania",
-  "onboardingServiceOwnInsecure": "Ta instancja używa nieszyfrowanego HTTP. Potwierdź, że chcesz ją dodać bez szyfrowania."
+  "onboardingServiceOwnInsecure": "Ta instancja używa nieszyfrowanego HTTP. Potwierdź, że chcesz ją dodać bez szyfrowania.",
+  "translateRefineAndLearn": "Dopracuj i ucz się",
+  "translateToolsLabel": "Narzędzia tłumaczenia",
+  "translateToolRomanization": "Latynizacja",
+  "translateToolAlignment": "Pasujące frazy",
+  "translateEmptyTitle": "Tu pojawi się tłumaczenie",
+  "translateEmptyHint": "Wpisz lub wklej tekst, powiedz coś albo przetłumacz zdjęcie.",
+  "translateEmptyRecentPairs": "Ostatnie pary",
+  "translateEmptyShortcutsTip": "Naciśnij ?, aby zobaczyć skróty klawiszowe",
+  "translateMoreLanguages": "Więcej języków",
+  "proofreadOptionsTitle": "Opcje",
+  "proofreadSuggestionCount": "{count, plural, =0{Brak sugestii} =1{1 sugestia} few{{count} sugestie} many{{count} sugestii} other{{count} sugestii}}",
+  "historyEmptyAction": "Zacznij tłumaczyć",
+  "historyShowAll": "Pokaż wszystkie tłumaczenia",
+  "settingsSectionTools": "Narzędzia tłumaczenia"
 }

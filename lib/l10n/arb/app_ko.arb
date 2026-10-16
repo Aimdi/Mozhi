@@ -1224,5 +1224,19 @@
   "settingsInstanceInsecureConfirmTitle": "암호화 없이 추가할까요?",
   "settingsInstanceInsecureConfirmBody": "{host}은(는) 암호화되지 않은 HTTP를 사용합니다. 나와 이 인스턴스 사이 네트워크의 누구나 이를 통해 번역하는 텍스트를 읽을 수 있습니다.",
   "settingsInstanceInsecureConfirmAction": "암호화 없이 추가",
-  "onboardingServiceOwnInsecure": "이 인스턴스는 암호화되지 않은 HTTP를 사용합니다. 암호화 없이 추가할지 확인하세요."
+  "onboardingServiceOwnInsecure": "이 인스턴스는 암호화되지 않은 HTTP를 사용합니다. 암호화 없이 추가할지 확인하세요.",
+  "translateRefineAndLearn": "다듬고 배우기",
+  "translateToolsLabel": "번역 도구",
+  "translateToolRomanization": "로마자 표기",
+  "translateToolAlignment": "일치하는 구문",
+  "translateEmptyTitle": "여기에 번역이 표시됩니다",
+  "translateEmptyHint": "텍스트를 입력하거나 붙여넣고, 말하거나, 사진을 번역하세요.",
+  "translateEmptyRecentPairs": "최근 언어 쌍",
+  "translateEmptyShortcutsTip": "?를 눌러 키보드 단축키 보기",
+  "translateMoreLanguages": "다른 언어",
+  "proofreadOptionsTitle": "옵션",
+  "proofreadSuggestionCount": "{count, plural, =0{제안 없음} =1{제안 1개} other{제안 {count}개}}",
+  "historyEmptyAction": "번역 시작",
+  "historyShowAll": "모든 번역 보기",
+  "settingsSectionTools": "번역 도구"
 }

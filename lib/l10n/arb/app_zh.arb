@@ -1224,5 +1224,19 @@
   "settingsInstanceInsecureConfirmTitle": "不加密添加？",
   "settingsInstanceInsecureConfirmBody": "{host} 使用未加密的 HTTP。你与此实例之间网络上的任何人都能读取你用它翻译的文本。",
   "settingsInstanceInsecureConfirmAction": "不加密添加",
-  "onboardingServiceOwnInsecure": "此实例使用未加密的 HTTP。请确认你要在不加密的情况下添加它。"
+  "onboardingServiceOwnInsecure": "此实例使用未加密的 HTTP。请确认你要在不加密的情况下添加它。",
+  "translateRefineAndLearn": "优化与学习",
+  "translateToolsLabel": "翻译工具",
+  "translateToolRomanization": "罗马字转写",
+  "translateToolAlignment": "对应短语",
+  "translateEmptyTitle": "译文将显示在这里",
+  "translateEmptyHint": "输入或粘贴文本、说话，或翻译照片。",
+  "translateEmptyRecentPairs": "最近的语言对",
+  "translateEmptyShortcutsTip": "按 ? 查看键盘快捷键",
+  "translateMoreLanguages": "更多语言",
+  "proofreadOptionsTitle": "选项",
+  "proofreadSuggestionCount": "{count, plural, =0{没有建议} =1{1 条建议} other{{count} 条建议}}",
+  "historyEmptyAction": "开始翻译",
+  "historyShowAll": "显示所有翻译",
+  "settingsSectionTools": "翻译工具"
 }

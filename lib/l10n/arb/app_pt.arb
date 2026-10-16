@@ -1224,5 +1224,19 @@
   "settingsInstanceInsecureConfirmTitle": "Adicionar sem criptografia?",
   "settingsInstanceInsecureConfirmBody": "{host} usa HTTP sem criptografia. Qualquer pessoa na rede entre você e esta instância pode ler o texto que você traduz com ela.",
   "settingsInstanceInsecureConfirmAction": "Adicionar sem criptografia",
-  "onboardingServiceOwnInsecure": "Esta instância usa HTTP sem criptografia. Confirme que deseja adicioná-la sem criptografia."
+  "onboardingServiceOwnInsecure": "Esta instância usa HTTP sem criptografia. Confirme que deseja adicioná-la sem criptografia.",
+  "translateRefineAndLearn": "Refinar e aprender",
+  "translateToolsLabel": "Ferramentas de tradução",
+  "translateToolRomanization": "Romanização",
+  "translateToolAlignment": "Frases correspondentes",
+  "translateEmptyTitle": "A sua tradução aparece aqui",
+  "translateEmptyHint": "Digite ou cole texto, fale ou traduza uma foto.",
+  "translateEmptyRecentPairs": "Pares recentes",
+  "translateEmptyShortcutsTip": "Prima ? para ver os atalhos de teclado",
+  "translateMoreLanguages": "Mais idiomas",
+  "proofreadOptionsTitle": "Opções",
+  "proofreadSuggestionCount": "{count, plural, =0{Nenhuma sugestão} =1{1 sugestão} other{{count} sugestões}}",
+  "historyEmptyAction": "Começar a traduzir",
+  "historyShowAll": "Mostrar todas as traduções",
+  "settingsSectionTools": "Ferramentas de tradução"
 }

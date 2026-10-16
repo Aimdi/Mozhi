@@ -1224,5 +1224,19 @@
   "settingsInstanceInsecureConfirmTitle": "Ohne Verschlüsselung hinzufügen?",
   "settingsInstanceInsecureConfirmBody": "{host} nutzt unverschlüsseltes HTTP. Alle im Netzwerk zwischen dir und dieser Instanz können den Text lesen, den du damit übersetzt.",
   "settingsInstanceInsecureConfirmAction": "Ohne Verschlüsselung hinzufügen",
-  "onboardingServiceOwnInsecure": "Diese Instanz nutzt unverschlüsseltes HTTP. Bestätige, dass du sie ohne Verschlüsselung hinzufügen willst."
+  "onboardingServiceOwnInsecure": "Diese Instanz nutzt unverschlüsseltes HTTP. Bestätige, dass du sie ohne Verschlüsselung hinzufügen willst.",
+  "translateRefineAndLearn": "Verfeinern & lernen",
+  "translateToolsLabel": "Übersetzungswerkzeuge",
+  "translateToolRomanization": "Lateinische Umschrift",
+  "translateToolAlignment": "Passende Ausdrücke",
+  "translateEmptyTitle": "Hier erscheint deine Übersetzung",
+  "translateEmptyHint": "Text eingeben oder einfügen, sprechen oder ein Foto übersetzen.",
+  "translateEmptyRecentPairs": "Letzte Sprachpaare",
+  "translateEmptyShortcutsTip": "Drücke ? für Tastenkürzel",
+  "translateMoreLanguages": "Weitere Sprachen",
+  "proofreadOptionsTitle": "Optionen",
+  "proofreadSuggestionCount": "{count, plural, =0{Keine Vorschläge} =1{1 Vorschlag} other{{count} Vorschläge}}",
+  "historyEmptyAction": "Übersetzen beginnen",
+  "historyShowAll": "Alle Übersetzungen anzeigen",
+  "settingsSectionTools": "Übersetzungswerkzeuge"
 }

@@ -1224,5 +1224,19 @@
   "settingsInstanceInsecureConfirmTitle": "Додати без шифрування?",
   "settingsInstanceInsecureConfirmBody": "{host} використовує незашифрований HTTP. Будь-хто в мережі між вами й цим сервером може прочитати текст, який ви через нього перекладаєте.",
   "settingsInstanceInsecureConfirmAction": "Додати без шифрування",
-  "onboardingServiceOwnInsecure": "Цей сервер використовує незашифрований HTTP. Підтвердьте, що хочете додати його без шифрування."
+  "onboardingServiceOwnInsecure": "Цей сервер використовує незашифрований HTTP. Підтвердьте, що хочете додати його без шифрування.",
+  "translateRefineAndLearn": "Покращити й вивчити",
+  "translateToolsLabel": "Інструменти перекладу",
+  "translateToolRomanization": "Латиниця",
+  "translateToolAlignment": "Відповідні фрази",
+  "translateEmptyTitle": "Тут з’явиться переклад",
+  "translateEmptyHint": "Введіть або вставте текст, скажіть або перекладіть фото.",
+  "translateEmptyRecentPairs": "Нещодавні пари",
+  "translateEmptyShortcutsTip": "Натисніть ?, щоб побачити сполучення клавіш",
+  "translateMoreLanguages": "Інші мови",
+  "proofreadOptionsTitle": "Параметри",
+  "proofreadSuggestionCount": "{count, plural, =0{Немає пропозицій} =1{1 пропозиція} one{{count} пропозиція} few{{count} пропозиції} many{{count} пропозицій} other{{count} пропозиції}}",
+  "historyEmptyAction": "Почати переклад",
+  "historyShowAll": "Показати всі переклади",
+  "settingsSectionTools": "Інструменти перекладу"
 }

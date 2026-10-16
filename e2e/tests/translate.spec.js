@@ -51,6 +51,10 @@ test('a refine chip refines the translation', async ({ page }) => {
 
   const refine = page.getByRole('group', { name: 'Refine' });
   await refine.getByRole('checkbox', { name: 'More formal' }).click();
+  // While the focused chip shows its tooltip, Flutter web drops the
+  // chip's checkbox role (also before the redesign); moving the focus off
+  // it (a click on the section heading) brings the role back.
+  await page.getByRole('heading', { name: 'Refine & learn' }).click();
 
   // The chip turns into an undo chip once the refinement is applied.
   await expect(
@@ -69,7 +73,9 @@ test('meaning check shows a verdict and its differences', async ({ page }) => {
   await expect(
     page.getByRole('heading', { name: 'Meaning check' }),
   ).toBeVisible();
-  await expect(page.getByText('Minor differences')).toBeVisible();
+  await expect(
+    page.getByText('Minor differences', { exact: true }),
+  ).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Differences' })).toBeVisible();
   await expect(
     page.getByRole('button', {

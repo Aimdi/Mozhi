@@ -1224,5 +1224,19 @@
   "settingsInstanceInsecureConfirmTitle": "暗号化なしで追加しますか？",
   "settingsInstanceInsecureConfirmBody": "{host} は暗号化されていない HTTP を使用しています。あなたとこのインスタンスの間のネットワーク上の誰でも、これで翻訳するテキストを読むことができます。",
   "settingsInstanceInsecureConfirmAction": "暗号化なしで追加",
-  "onboardingServiceOwnInsecure": "このインスタンスは暗号化されていない HTTP を使用しています。暗号化なしで追加することを確認してください。"
+  "onboardingServiceOwnInsecure": "このインスタンスは暗号化されていない HTTP を使用しています。暗号化なしで追加することを確認してください。",
+  "translateRefineAndLearn": "改善して学ぶ",
+  "translateToolsLabel": "翻訳ツール",
+  "translateToolRomanization": "ローマ字表記",
+  "translateToolAlignment": "対応するフレーズ",
+  "translateEmptyTitle": "ここに翻訳が表示されます",
+  "translateEmptyHint": "テキストを入力または貼り付けるか、話すか、写真を翻訳します。",
+  "translateEmptyRecentPairs": "最近の言語ペア",
+  "translateEmptyShortcutsTip": "? を押すとキーボードショートカットを表示",
+  "translateMoreLanguages": "その他の言語",
+  "proofreadOptionsTitle": "オプション",
+  "proofreadSuggestionCount": "{count, plural, =0{提案はありません} =1{1 件の提案} other{{count} 件の提案}}",
+  "historyEmptyAction": "翻訳を始める",
+  "historyShowAll": "すべての翻訳を表示",
+  "settingsSectionTools": "翻訳ツール"
 }

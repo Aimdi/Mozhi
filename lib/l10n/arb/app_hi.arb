@@ -1224,5 +1224,19 @@
   "settingsInstanceInsecureConfirmTitle": "बिना एन्क्रिप्शन के जोड़ें?",
   "settingsInstanceInsecureConfirmBody": "{host} बिना एन्क्रिप्शन वाला HTTP इस्तेमाल करता है। आपके और इस इंस्टेंस के बीच नेटवर्क पर कोई भी वह टेक्स्ट पढ़ सकता है जिसका आप इससे अनुवाद करते हैं।",
   "settingsInstanceInsecureConfirmAction": "बिना एन्क्रिप्शन के जोड़ें",
-  "onboardingServiceOwnInsecure": "यह इंस्टेंस बिना एन्क्रिप्शन वाला HTTP इस्तेमाल करता है। पुष्टि करें कि आप इसे बिना एन्क्रिप्शन के जोड़ना चाहते हैं।"
+  "onboardingServiceOwnInsecure": "यह इंस्टेंस बिना एन्क्रिप्शन वाला HTTP इस्तेमाल करता है। पुष्टि करें कि आप इसे बिना एन्क्रिप्शन के जोड़ना चाहते हैं।",
+  "translateRefineAndLearn": "सुधारें और सीखें",
+  "translateToolsLabel": "अनुवाद टूल",
+  "translateToolRomanization": "रोमन लिपि",
+  "translateToolAlignment": "मिलते-जुलते वाक्यांश",
+  "translateEmptyTitle": "आपका अनुवाद यहाँ दिखेगा",
+  "translateEmptyHint": "टेक्स्ट लिखें या चिपकाएँ, बोलें, या किसी फ़ोटो का अनुवाद करें।",
+  "translateEmptyRecentPairs": "हाल के भाषा जोड़े",
+  "translateEmptyShortcutsTip": "कीबोर्ड शॉर्टकट के लिए ? दबाएँ",
+  "translateMoreLanguages": "और भाषाएँ",
+  "proofreadOptionsTitle": "विकल्प",
+  "proofreadSuggestionCount": "{count, plural, =0{कोई सुझाव नहीं} =1{1 सुझाव} other{{count} सुझाव}}",
+  "historyEmptyAction": "अनुवाद शुरू करें",
+  "historyShowAll": "सभी अनुवाद दिखाएँ",
+  "settingsSectionTools": "अनुवाद टूल"
 }
