@@ -24,8 +24,8 @@ goes anywhere else.
 | Presets and glossaries | App preferences | Exported only when you export them. |
 | Read-aloud settings: speech rate, **Use device voice**, the device voice chosen per language | App preferences | The rate and each chosen voice's name, locale and engine details, never text. |
 | Usage counters and budgets | App preferences | Numbers only (requests, characters, estimated tokens per provider and month, for the last 13 months), never text. **Reset usage** deletes them; deleting a provider deletes its counts. |
-| API keys | Platform secure storage (Android Keystore, Apple Keychain, ...) | Kept apart from the settings and never included in exports. Deleting a provider deletes its key. |
-| Offline language packs | App storage (Android and iOS) | Downloaded once; delete them in the offline settings. |
+| API keys | Secure storage: Android Keystore (in the web app, the browser's session storage; see below) | Kept apart from the settings and never included in exports. Deleting a provider deletes its key. |
+| Offline language packs | App storage (Android) | Downloaded once; delete them in the offline settings. |
 
 Recent translations are also kept in memory, never on disk, for up to a day
 while the app is running, so that translating the same text again doesn't
@@ -46,10 +46,6 @@ The app itself never uploads this data. Backups:
   set up a new phone by copying data from the old one (device-to-device
   transfer), settings and history move with you; API keys don't and have
   to be entered again.
-- **iOS:** API keys are stored in the Keychain as "this device only": they
-  are not synced through iCloud Keychain and are not restored onto another
-  device. Settings and history can be part of an iCloud or computer backup,
-  as for other apps.
 
 See [Security](security.md) for how the app protects keys and handles text
 from other apps and links.
@@ -119,9 +115,9 @@ Some features send additional data to the same back ends:
   text recognition keeps the image on the phone.
 - **Dictation** uses your operating system's speech recognition (or, in the
   web app, the browser's). Depending on the device and its settings, the audio
-  may be processed online by Google (Android, Chrome) or Apple (iOS, macOS)
-  rather than on the device. On Android 12+, iOS and macOS, **Prefer
-  on-device speech recognition** asks the system to keep it on the device.
+  may be processed online by Google (Android, Chrome) or by your browser's
+  maker (for example Apple in Safari) rather than on the device. On Android 12+, **Prefer on-device speech
+  recognition** asks the system to keep it on the device.
 - **Text from other apps** (text selection, share sheet) and **links**
   (`/translate?text=...`, `mozhi://...`) are handled like typed text: they go
   to the engine you have selected. Shared text and links never start a paid
@@ -142,10 +138,10 @@ Some features send additional data to the same back ends:
   list (**Browse models**) and **Test connection**.
 - Your DeepL API and LibreTranslate services: translations and **Test
   connection**.
-- Google's servers, through ML Kit, on Android and iOS only (see below).
+- Google's servers, through ML Kit, on Android only (see below).
 - Web pages you translate with **Web page**: the app downloads the page from
-  its website, as a browser would (on Android, iOS and desktop it identifies
-  as a desktop browser; in the web app, your browser makes the request). The
+  its website, as a browser would (on Android it identifies as a desktop
+  browser; in the web app, your browser makes the request). The
   website sees your IP address. The page's text then goes to the engine you
   chose. A public website can't redirect the app to an address on your
   device or local network (such as your router); you can still open such
@@ -156,20 +152,20 @@ Some features send additional data to the same back ends:
   has to display a script its bundled font doesn't cover (for example
   Chinese, Arabic or Devanagari). Flutter's web engine then downloads the
   matching Noto font. The request names the font file, not your text, and
-  the browser caches it. The Android, iOS and desktop apps use the fonts
-  installed on the device instead.
+  the browser caches it. The Android app uses the fonts installed on the
+  device instead.
 
 Nothing else: no update checks, no analytics, no remote configuration.
 
 ### Google ML Kit
 
-Offline translation and on-device text recognition (Android and iOS) use
+Offline translation and on-device text recognition (Android) use
 Google's ML Kit libraries. Translation and recognition run on the device; the
 text and images are not sent anywhere. ML Kit does download language packs
 and models from Google, and according to Google's
 [ML Kit terms](https://developers.google.com/ml-kit/terms) it also sends
-metrics about the performance and use of its APIs to Google. The web and
-desktop apps don't include ML Kit.
+metrics about the performance and use of its APIs to Google. The web app
+doesn't include ML Kit.
 
 ## Keeping everything private
 
@@ -179,6 +175,6 @@ For translations that never leave hardware you control, use any of:
   ([guide](self-hosting-mozhi.md#configuration)), and remove the public
   instances from your list;
 - a local AI model ([guide](ai-providers.md#local-models));
-- offline translation on Android and iOS.
+- offline translation on Android.
 
 The app is open source (MIT); you can check all of the above in the code.

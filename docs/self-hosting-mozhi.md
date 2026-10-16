@@ -173,8 +173,8 @@ You don't need a domain or HTTPS at home:
    server with UFW.
 3. Add `http://192.168.x.x:3000` in the app.
 
-The app allows unencrypted `http` connections on Android, iOS and macOS for
-exactly this purpose. Certificates from your own private CA (for example
+The Android app allows unencrypted `http` connections for exactly this
+purpose. Certificates from your own private CA (for example
 Caddy's `tls internal`) are **not** trusted by the app: release builds trust
 the system certificate store only. For HTTPS on the LAN use a publicly
 trusted certificate (e.g. Let's Encrypt via the ACME DNS challenge), or use

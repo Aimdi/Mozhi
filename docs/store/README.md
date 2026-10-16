@@ -187,8 +187,8 @@ the feature graphic exists (see [Listing files](#listing-files)).
       the policy applies to translation and proofreading with models the user
       connects; if it does, add a *Report* action (it could open an e-mail
       or issue form; nothing may be sent automatically).
-- [ ] Privacy policy URL: `https://aimdi.github.io/Mozhi/#privacy` or the
-      rendered `docs/privacy.md` on GitHub.
+- [ ] Privacy policy URL: the rendered `docs/privacy.md` on GitHub
+      (`https://github.com/Aimdi/Mozhi/blob/main/docs/privacy.md`).
 - [ ] Content rating questionnaire: a translation utility; no user-to-user
       interaction, no purchases. The web page translator can show arbitrary
       web content, and AI output is not filtered by the app.

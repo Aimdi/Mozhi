@@ -99,9 +99,9 @@ alone.
   under **Settings**.
 - **Pinned target shortcuts.** On a keyboard, Alt+1 to Alt+9 translate into
   your first nine pinned target languages, in the order the picker lists them
-  under **Pinned** (on desktop the picker shows each one's shortcut). See
-  [Keyboard shortcuts](#keyboard-shortcuts) for the Mac and browser
-  variants.
+  under **Pinned** (in a desktop browser the picker shows each one's
+  shortcut). See [Keyboard shortcuts](#keyboard-shortcuts) for the browser
+  and Mac variants.
 
 ## Extra target languages
 
@@ -443,7 +443,7 @@ gallery, then choose how to translate it:
 - **Mozhi (Google Lens)**: when your instance offers Google, Mozhi sends the
   image to Google and returns the recognised text, its translation and a copy
   of the image with the translation drawn in.
-- **On-device recognition** (Android and iOS): ML Kit reads the text on the
+- **On-device recognition** (Android): ML Kit reads the text on the
   phone, and the text is then translated with your current engine.
 
 Large photos are scaled down before uploading (longest side 2048 px, under
@@ -453,8 +453,8 @@ Large photos are scaled down before uploading (longest side 2048 px, under
 
 - **Dictation**: tap the microphone and speak instead of typing. Speech
   recognition is provided by your device's operating system (or browser).
-  On Android 12+, iOS and macOS you can turn on **Prefer on-device speech
-  recognition** so the audio isn't sent to an online service.
+  On Android 12+ you can turn on **Prefer on-device speech recognition** so
+  the audio isn't sent to an online service.
 - **Conversation**: two people, two languages. Each person speaks in turn and
   hears or reads the other's words in their own language.
 - **Device voices**: besides your Mozhi instance's voices, the app can read
@@ -489,18 +489,17 @@ by side**, **Copy all** of it, or **Open original page** in your browser.
 Very large pages are cut after their first part.
 
 In the web app this only works for sites that allow cross-origin requests
-(CORS), and most don't; use the Android, iOS or desktop app for those.
+(CORS), and most don't; use the Android app for those.
 
 ## Offline translation
 
-On Android and iOS, Mozhi can translate without any network using Google's ML
-Kit on-device models (about 60 languages). In the offline languages page,
+On Android, Mozhi can translate without any network using Google's ML Kit
+on-device models (about 60 languages). In the offline languages page,
 download the languages you need once (around 30 MB each; **Wi-Fi only** is on
 by default) and delete them when you no longer need them. After that,
 translation runs entirely on the phone, and results are marked **Offline**.
 Quality is below the online engines, but it works on a plane and nothing
-leaves the device. Offline translation is not available on the web or
-desktop.
+leaves the device. Offline translation is not available on the web.
 
 ## History and favourites
 
@@ -599,8 +598,7 @@ The sound comes from one of two places:
   settings.
 
 **Use device voice** and **Voice per language** appear only where the device
-has a text-to-speech engine (Android, iOS, macOS, Windows and most
-browsers). The settings are kept on the device.
+has a text-to-speech engine (Android and most browsers). The settings are kept on the device.
 
 ## Android integration
 
@@ -634,11 +632,11 @@ browsers). The settings are kept on the device.
 Mozhi understands Kagi Translate-style links. In the web app:
 
 ```text
-https://<host>/Mozhi/app/#/translate?text=hola&from=es&to=en
-https://<host>/Mozhi/app/?text=hola&from=es&to=en
+https://<host>/#/translate?text=hola&from=es&to=en
+https://<host>/?text=hola&from=es&to=en
 ```
 
-On Android and iOS the same links work with the `mozhi://` scheme:
+On Android the same links work with the `mozhi://` scheme:
 
 ```text
 mozhi://translate?text=hola&from=es&to=en&formality=more&quality=best
@@ -691,17 +689,17 @@ As `mozhi://` links: `mozhi://proofread?text=...`,
 `mozhi://dictionary?word=...` and `mozhi://web?url=...`; `mozhi://image`,
 `mozhi://documents` and `mozhi://conversation` open those screens. In the web
 app, put the path after `#`, for example
-`https://<host>/Mozhi/app/#/dictionary?word=gato`.
+`https://<host>/#/dictionary?word=gato`.
 
 ## Keyboard shortcuts
 
 | Shortcut | Action |
 | --- | --- |
-| Ctrl+Enter (⌘+Enter on Apple devices) | Translate now (runs the comparison in compare mode); also runs Proofread |
+| Ctrl+Enter (⌘+Enter in a browser on a Mac) | Translate now (runs the comparison in compare mode); also runs Proofread |
 | Ctrl+Shift+S (⌘+Shift+S) | Swap languages |
 | Ctrl+Shift+C (⌘+Shift+C) | Copy the translation |
 | Ctrl+L / Ctrl+Shift+L (⌘+L / ⌘+Shift+L) | Choose the target / source language (type to search, Enter picks the first match) |
-| Alt+1 … Alt+9 (⌥+1 … ⌥+9 on Apple devices) | Translate into pinned language 1 to 9; in a browser Ctrl+Alt+1 … 9 (⌘+⌥+1 … 9), because browsers use Alt+digit for tabs |
+| Alt+1 … Alt+9 | Translate into pinned language 1 to 9; in a browser Ctrl+Alt+1 … 9 (⌘+⌥+1 … 9 on a Mac), because browsers use Alt+digit for tabs |
 | Esc | Clear the text (while typing) |
 | Shift+Enter (on a focused Listen button) | [Listen slowly](#text-to-speech) from the start |
 | ? or Ctrl+/ (⌘+/) | Show keyboard shortcuts |
@@ -713,19 +711,19 @@ The same list is under **More tools > Keyboard shortcuts**.
 - Light, dark or system theme; **Pure black** for OLED screens; Dynamic color
   or one of ten accent colours.
 - Phones use a bottom navigation bar. From 840 dp wide (tablets, foldables,
-  desktop windows) the app switches to a navigation rail with input and
+  wide browser windows) the app switches to a navigation rail with input and
   output side by side.
 - Large touch targets and screen-reader labels throughout.
 
 ## Platform support
 
-| Feature | Android | iOS | macOS | Windows | Web |
-| --- | --- | --- | --- | --- | --- |
-| Mozhi engines, AI providers, Proofread, history | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Text selection menu and share target | ✓ | | | | |
-| `mozhi://` links | ✓ | ✓ | | | |
-| Offline translation, on-device text recognition | ✓ | ✓ | | | |
-| Dynamic color from wallpaper | ✓ (12+) | | | | |
+| Feature | Android | Web |
+| --- | --- | --- |
+| Mozhi engines, AI providers, Proofread, history | ✓ | ✓ |
+| Text selection menu and share target | ✓ | |
+| `mozhi://` links | ✓ | |
+| Offline translation, on-device text recognition | ✓ | |
+| Dynamic color from wallpaper | ✓ (12+) | |
 
 On the web, the browser enforces some extra rules for self-hosted servers;
 see the [FAQ](faq.md#does-the-web-app-work-with-my-self-hosted-servers).

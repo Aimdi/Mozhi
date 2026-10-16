@@ -23,9 +23,8 @@ running on your own computer.
   providers and local servers), **Anthropic**, **Google Gemini** and the
   native **Ollama** API. Answers are streamed, so text appears as it is
   written.
-- API keys are kept in the platform's secure storage (the Android Keystore,
-  the Apple Keychain, or the equivalent on other platforms; the web app uses
-  the browser's storage for the site) and sent only to the provider they
+- API keys are kept in secure storage (the Android Keystore; the web app
+  uses the browser's storage for the site) and sent only to the provider they
   belong to. They are never written to the settings file or to exports.
 - The text to translate is marked as data in the prompt, so models treat
   instructions hidden in it ("ignore the above and...") as text to translate
@@ -220,8 +219,8 @@ so the computer must be on and reachable.
 **The one rule:** on a phone or tablet, `localhost` is the phone itself. Use
 the computer's LAN address, such as `http://192.168.1.20:11434`, and make the
 server listen on the network instead of only on `localhost`. Allow the port in
-the computer's firewall if needed. On the computer itself (desktop app),
-`localhost` works.
+the computer's firewall if needed. In the web app in a browser on the
+computer itself, `localhost` works.
 
 Find the computer's address with `ipconfig` (Windows),
 `ipconfig getifaddr en0` (macOS) or `ip -4 addr` (Linux).
@@ -262,7 +261,7 @@ Find the computer's address with `ipconfig` (Windows),
 
 For the **web app**, the browser also needs permission: set `OLLAMA_ORIGINS`
 to the web app's origin (e.g. `https://translate.example.com`) or `*`, the
-same way as `OLLAMA_HOST`. The native apps don't need this.
+same way as `OLLAMA_HOST`. The Android app doesn't need this.
 
 Tips: the first request after a model was unloaded takes a few seconds while
 it loads; `OLLAMA_KEEP_ALIVE=30m` keeps it in memory longer. The app sends

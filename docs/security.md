@@ -21,21 +21,19 @@ problem.
 | **Your local network** | Websites using the app to reach devices on your LAN |
 | **What the AI writes back** | Prompt injection through the text you translate, links and model output |
 
-Out of scope: a rooted or jailbroken device, malware that already controls
+Out of scope: a rooted device, malware that already controls
 the device or the user's account, and the servers you configure. The
 operator of a Mozhi instance or an AI provider sees the text you send it;
 pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
 
 ## API keys
 
-- Stored only in the platform's secure storage (Android Keystore-backed
-  encrypted preferences, Apple Keychain, DPAPI-encrypted storage on
-  Windows), never in the settings, exports or history.
+- Stored only in secure storage (Android Keystore-backed encrypted
+  preferences; in the web app, the browser's session storage, see below),
+  never in the settings, exports or history.
 - **Android:** cloud backup is off (`allowBackup="false"`). The backup and
   device-transfer rules also exclude the secure storage files, so keys stay
   on the phone.
-- **iOS:** Keychain items use "when unlocked, this device only": they are not
-  synced to iCloud Keychain and not restored onto another device.
 - **Web app:** keys are kept in session storage, so they last only as long
   as the browser tab. Host the web app on its own origin (its own domain or
   subdomain); any page on the same origin can read the browser's storage.
