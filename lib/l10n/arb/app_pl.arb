@@ -1238,5 +1238,18 @@
   "proofreadSuggestionCount": "{count, plural, =0{Brak sugestii} =1{1 sugestia} few{{count} sugestie} many{{count} sugestii} other{{count} sugestii}}",
   "historyEmptyAction": "Zacznij tłumaczyć",
   "historyShowAll": "Pokaż wszystkie tłumaczenia",
-  "settingsSectionTools": "Narzędzia tłumaczenia"
+  "settingsSectionTools": "Narzędzia tłumaczenia",
+  "historyNewTranslation": "Nowe tłumaczenie",
+  "historyTimeNow": "teraz",
+  "historyTimeMinutes": "{minutes} min",
+  "historyTimeHours": "{hours} godz.",
+  "offlineDownloadAction": "Pobierz",
+  "usageStatCharacters": "Znaki",
+  "usageStatRequests": "Żądania",
+  "usageStatTokens": "Szac. tokeny",
+  "settingsColorYellow": "Żółty",
+  "settingsDarkLook": "Ciemny motyw",
+  "settingsDarkLookDim": "Przyciemniony",
+  "settingsDarkLookLightsOut": "Zgaszone światła",
+  "settingsDarkLookSubtitle": "Przyciemniony to ciemny niebieskoszary; Zgaszone światła to czysta czerń, lepsza dla ekranów OLED"
 }

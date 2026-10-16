@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/speech/speech_service.dart';
 
@@ -46,7 +47,10 @@ class _PreferDeviceVoiceTileState extends State<PreferDeviceVoiceTile> {
     return SwitchListTile(
       secondary: const Icon(Icons.record_voice_over_outlined),
       title: Text(l10n.speechPreferDeviceVoice),
-      subtitle: Text(l10n.speechPreferDeviceVoiceDescription),
+      subtitle: Text(
+        l10n.speechPreferDeviceVoiceDescription,
+        style: TextStyle(color: AppPalette.of(context).secondaryText),
+      ),
       value: _enabled,
       onChanged: (enabled) => unawaited(_set(enabled: enabled)),
     );

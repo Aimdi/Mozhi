@@ -1238,5 +1238,18 @@
   "proofreadSuggestionCount": "{count, plural, =0{Không có gợi ý} =1{1 gợi ý} other{{count} gợi ý}}",
   "historyEmptyAction": "Bắt đầu dịch",
   "historyShowAll": "Hiện tất cả bản dịch",
-  "settingsSectionTools": "Công cụ dịch"
+  "settingsSectionTools": "Công cụ dịch",
+  "historyNewTranslation": "Bản dịch mới",
+  "historyTimeNow": "bây giờ",
+  "historyTimeMinutes": "{minutes} phút",
+  "historyTimeHours": "{hours} giờ",
+  "offlineDownloadAction": "Tải xuống",
+  "usageStatCharacters": "Ký tự",
+  "usageStatRequests": "Yêu cầu",
+  "usageStatTokens": "Token ước tính",
+  "settingsColorYellow": "Vàng",
+  "settingsDarkLook": "Giao diện tối",
+  "settingsDarkLookDim": "Mờ",
+  "settingsDarkLookLightsOut": "Tắt đèn",
+  "settingsDarkLookSubtitle": "Mờ là xám xanh đậm; Tắt đèn là đen tuyền, dịu hơn cho màn hình OLED"
 }

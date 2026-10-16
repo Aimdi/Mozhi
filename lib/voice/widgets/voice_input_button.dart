@@ -49,6 +49,10 @@ class VoiceInputButton extends StatefulWidget {
   /// Key of the sound level ring shown while listening.
   static const ValueKey<String> levelRingKey = ValueKey('voiceInputLevelRing');
 
+  /// Key of the ring that pulses while listening (absent with reduced
+  /// motion).
+  static const ValueKey<String> pulseRingKey = ValueKey('voiceInputPulseRing');
+
   /// Explicit service; null reads it from the context.
   final SpeechInputService? service;
 
@@ -252,9 +256,6 @@ class _LevelRing extends StatelessWidget {
 class _PulseRing extends StatefulWidget {
   const new();
 
-  /// Key of the pulsing ring.
-  static const ValueKey<String> pulseKey = ValueKey('voiceInputPulseRing');
-
   @override
   State<_PulseRing> createState() => _PulseRingState();
 }
@@ -291,7 +292,7 @@ class _PulseRingState extends State<_PulseRing>
     final color = Theme.of(context).colorScheme.primary;
     return IgnorePointer(
       child: AnimatedBuilder(
-        key: _PulseRing.pulseKey,
+        key: VoiceInputButton.pulseRingKey,
         animation: _controller,
         builder: (context, child) {
           final t = Curves.easeOut.transform(_controller.value);

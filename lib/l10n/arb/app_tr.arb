@@ -1238,5 +1238,18 @@
   "proofreadSuggestionCount": "{count, plural, =0{Öneri yok} =1{1 öneri} other{{count} öneri}}",
   "historyEmptyAction": "Çevirmeye başla",
   "historyShowAll": "Tüm çevirileri göster",
-  "settingsSectionTools": "Çeviri araçları"
+  "settingsSectionTools": "Çeviri araçları",
+  "historyNewTranslation": "Yeni çeviri",
+  "historyTimeNow": "şimdi",
+  "historyTimeMinutes": "{minutes} dk",
+  "historyTimeHours": "{hours} sa",
+  "offlineDownloadAction": "İndir",
+  "usageStatCharacters": "Karakter",
+  "usageStatRequests": "İstek",
+  "usageStatTokens": "Tahmini token",
+  "settingsColorYellow": "Sarı",
+  "settingsDarkLook": "Koyu tema",
+  "settingsDarkLookDim": "Loş",
+  "settingsDarkLookLightsOut": "Işıklar kapalı",
+  "settingsDarkLookSubtitle": "Loş koyu mavi-gridir; Işıklar kapalı saf siyahtır, OLED ekranlar için daha iyidir"
 }

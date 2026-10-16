@@ -43,6 +43,25 @@ void main() {
       expect(calls, ['finish']);
     });
 
+    testWidgets('Next is a full-width pill, Back an outlined one', (
+      tester,
+    ) async {
+      await pump(tester, OnboardingStep.ai);
+      final next = find.ancestor(
+        of: find.text('Next'),
+        matching: find.byWidgetPredicate((w) => w is FilledButton),
+      );
+      final back = find.ancestor(
+        of: find.text('Back'),
+        matching: find.byWidgetPredicate((w) => w is OutlinedButton),
+      );
+      expect(next, findsOneWidget);
+      expect(back, findsOneWidget);
+      expect(tester.getSize(next).width, tester.getSize(back).width);
+      // Primary first, secondary below it.
+      expect(tester.getTopLeft(next).dy, lessThan(tester.getTopLeft(back).dy));
+    });
+
     testWidgets('buttons are at least 48dp tall', (tester) async {
       await pump(tester, OnboardingStep.service);
       for (final label in ['Back', 'Next']) {

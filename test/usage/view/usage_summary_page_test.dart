@@ -91,10 +91,8 @@ void main() {
 
     // Totals.
     expect(find.text('October 2026'), findsOneWidget);
-    Finder stat(String key, String text) => find.descendant(
-      of: find.byKey(Key(key)),
-      matching: find.text(text),
-    );
+    Finder stat(String key, String text) =>
+        find.descendant(of: find.byKey(Key(key)), matching: find.text(text));
     expect(stat('usage_total_characters', '600'), findsOneWidget);
     expect(stat('usage_total_characters', 'Characters'), findsOneWidget);
     expect(stat('usage_total_requests', '3'), findsOneWidget);

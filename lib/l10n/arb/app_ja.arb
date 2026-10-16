@@ -1238,5 +1238,18 @@
   "proofreadSuggestionCount": "{count, plural, =0{提案はありません} =1{1 件の提案} other{{count} 件の提案}}",
   "historyEmptyAction": "翻訳を始める",
   "historyShowAll": "すべての翻訳を表示",
-  "settingsSectionTools": "翻訳ツール"
+  "settingsSectionTools": "翻訳ツール",
+  "historyNewTranslation": "新しい翻訳",
+  "historyTimeNow": "今",
+  "historyTimeMinutes": "{minutes}分",
+  "historyTimeHours": "{hours}時間",
+  "offlineDownloadAction": "ダウンロード",
+  "usageStatCharacters": "文字数",
+  "usageStatRequests": "リクエスト",
+  "usageStatTokens": "推定トークン",
+  "settingsColorYellow": "黄",
+  "settingsDarkLook": "ダークテーマ",
+  "settingsDarkLookDim": "ダーク(ブルー)",
+  "settingsDarkLookLightsOut": "ブラック",
+  "settingsDarkLookSubtitle": "ダーク(ブルー)は濃い青灰色、ブラックは純粋な黒で OLED 画面に優しい表示です"
 }

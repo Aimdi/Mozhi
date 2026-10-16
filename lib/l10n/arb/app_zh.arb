@@ -1238,5 +1238,18 @@
   "proofreadSuggestionCount": "{count, plural, =0{没有建议} =1{1 条建议} other{{count} 条建议}}",
   "historyEmptyAction": "开始翻译",
   "historyShowAll": "显示所有翻译",
-  "settingsSectionTools": "翻译工具"
+  "settingsSectionTools": "翻译工具",
+  "historyNewTranslation": "新翻译",
+  "historyTimeNow": "刚刚",
+  "historyTimeMinutes": "{minutes}分钟",
+  "historyTimeHours": "{hours}小时",
+  "offlineDownloadAction": "下载",
+  "usageStatCharacters": "字符",
+  "usageStatRequests": "请求",
+  "usageStatTokens": "估算令牌",
+  "settingsColorYellow": "黄色",
+  "settingsDarkLook": "深色主题",
+  "settingsDarkLookDim": "暗淡",
+  "settingsDarkLookLightsOut": "熄灯",
+  "settingsDarkLookSubtitle": "暗淡为深蓝灰色；熄灯为纯黑色，更适合 OLED 屏幕"
 }

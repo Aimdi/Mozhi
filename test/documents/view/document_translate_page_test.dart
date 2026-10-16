@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/documents/documents.dart';
 import 'package:mozhi/documents/widgets/widgets.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -78,6 +79,16 @@ void main() {
       await pumpPage(tester);
       expect(find.text('Translate documents'), findsOneWidget);
       expect(find.text('Choose a document'), findsOneWidget);
+      // An X-style empty state: a bold headline and a pill CTA.
+      final headline = tester.widget<Text>(find.text('Choose a document'));
+      expect(headline.style?.fontWeight, FontWeight.w800);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('documents_target_language')),
+          matching: find.byType(LanguageAvatar),
+        ),
+        findsOneWidget,
+      );
       final state = cubitOf(tester).state;
       expect(state.engine, googleEngine);
       expect(state.target, german);

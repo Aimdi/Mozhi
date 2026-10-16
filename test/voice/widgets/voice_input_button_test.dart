@@ -183,7 +183,8 @@ void main() {
         ..emitLevel(10);
       await tester.pump();
       expect(ringScale(tester), 1.5);
-      await tester.pumpAndSettle();
+      // The pulsing ring repeats, so wait for the scale instead of settling.
+      await tester.pump(const Duration(milliseconds: 300));
       expect(renderedScale(tester), 1.5);
 
       recognizer.emitLevel(5);
@@ -196,8 +197,34 @@ void main() {
       // The scale animates rather than jumping.
       await tester.pump(const Duration(milliseconds: 60));
       expect(renderedScale(tester), inExclusiveRange(1.25, 1.5));
-      await tester.pumpAndSettle();
+      // The pulsing ring repeats, so wait for the scale instead of settling.
+      await tester.pump(const Duration(milliseconds: 300));
       expect(renderedScale(tester), 1.25);
+    });
+
+    testWidgets('pulses an accent ring while listening', (tester) async {
+      await pump(tester, button());
+      expect(find.byKey(VoiceInputButton.pulseRingKey), findsNothing);
+      await tapMic(tester);
+      expect(find.byKey(VoiceInputButton.pulseRingKey), findsOneWidget);
+      double pulseScale() => tester
+          .widget<Transform>(
+            find.descendant(
+              of: find.byKey(VoiceInputButton.pulseRingKey),
+              matching: find.byType(Transform),
+            ),
+          )
+          .transform
+          .getMaxScaleOnAxis();
+      final start = pulseScale();
+      await tester.pump(const Duration(milliseconds: 700));
+      expect(pulseScale(), greaterThan(start));
+      expect(
+        tester.widget<IconButton>(mic()).style?.backgroundColor?.resolve({}),
+        Theme.of(tester.element(mic())).colorScheme.primary,
+      );
+      await tapMic(tester);
+      expect(find.byKey(VoiceInputButton.pulseRingKey), findsNothing);
     });
 
     testWidgets('keeps the ring static when animations are disabled', (
@@ -215,6 +242,7 @@ void main() {
         ..emitLevel(10);
       await tester.pump();
       expect(ringScale(tester), 1.15);
+      expect(find.byKey(VoiceInputButton.pulseRingKey), findsNothing);
     });
 
     testWidgets('stops listening when tapped again', (tester) async {

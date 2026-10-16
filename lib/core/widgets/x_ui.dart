@@ -319,6 +319,7 @@ class _XActionButtonState extends State<XActionButton>
         enabled: enabled,
         toggled: widget.activeIcon != null ? active : null,
         label: widget.tooltip,
+        onTap: widget.onPressed,
         excludeSemantics: true,
         child: InkResponse(
           onTap: widget.onPressed,

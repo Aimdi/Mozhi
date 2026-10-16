@@ -54,6 +54,13 @@ void main() {
       expect(find.text('Quick translate'), findsOneWidget);
       expect(find.text('Hello world'), findsOneWidget);
       expect(find.text('Detected: English'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: byKey('quick_translate_target_chip'),
+          matching: find.byType(LanguageAvatar),
+        ),
+        findsOneWidget,
+      );
       expect(find.text('French'), findsOneWidget);
       expect(find.text('Google'), findsOneWidget);
       expect(find.text('Bonjour le monde'), findsOneWidget);
@@ -98,9 +105,8 @@ void main() {
       final context = tester.element(byKey('quick_translate_translation'));
       expect(
         text.style,
-        Theme.of(
-          context,
-        ).textTheme.bodyLarge?.copyWith(fontSize: 18, height: 1.4),
+        Theme.of(context).textTheme.bodyLarge
+            ?.copyWith(fontSize: 18, height: 1.4),
       );
       expect(text.textDirection, isNull);
     });

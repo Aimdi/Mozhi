@@ -1238,5 +1238,18 @@
   "proofreadSuggestionCount": "{count, plural, =0{பரிந்துரைகள் இல்லை} =1{1 பரிந்துரை} other{{count} பரிந்துரைகள்}}",
   "historyEmptyAction": "மொழிபெயர்க்கத் தொடங்கு",
   "historyShowAll": "எல்லா மொழிபெயர்ப்புகளையும் காட்டு",
-  "settingsSectionTools": "மொழிபெயர்ப்புக் கருவிகள்"
+  "settingsSectionTools": "மொழிபெயர்ப்புக் கருவிகள்",
+  "historyNewTranslation": "புதிய மொழிபெயர்ப்பு",
+  "historyTimeNow": "இப்போது",
+  "historyTimeMinutes": "{minutes} நி",
+  "historyTimeHours": "{hours} ம",
+  "offlineDownloadAction": "பதிவிறக்கு",
+  "usageStatCharacters": "எழுத்துகள்",
+  "usageStatRequests": "கோரிக்கைகள்",
+  "usageStatTokens": "மதிப்பிட்ட டோக்கன்கள்",
+  "settingsColorYellow": "மஞ்சள்",
+  "settingsDarkLook": "இருண்ட தீம்",
+  "settingsDarkLookDim": "மங்கல்",
+  "settingsDarkLookLightsOut": "விளக்குகள் அணை",
+  "settingsDarkLookSubtitle": "மங்கல் என்பது அடர் நீல-சாம்பல்; விளக்குகள் அணை என்பது முழு கருப்பு, OLED திரைகளுக்கு ஏற்றது"
 }

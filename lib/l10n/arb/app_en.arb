@@ -6053,10 +6053,6 @@
       }
     }
   },
-  "historyFilterLabel": "Show",
-  "@historyFilterLabel": {
-    "description": "historyFilterLabel"
-  },
   "offlineDownloadAction": "Download",
   "@offlineDownloadAction": {
     "description": "offlineDownloadAction"

@@ -1238,5 +1238,18 @@
   "proofreadSuggestionCount": "{count, plural, =0{Keine Vorschläge} =1{1 Vorschlag} other{{count} Vorschläge}}",
   "historyEmptyAction": "Übersetzen beginnen",
   "historyShowAll": "Alle Übersetzungen anzeigen",
-  "settingsSectionTools": "Übersetzungswerkzeuge"
+  "settingsSectionTools": "Übersetzungswerkzeuge",
+  "historyNewTranslation": "Neue Übersetzung",
+  "historyTimeNow": "jetzt",
+  "historyTimeMinutes": "{minutes} Min.",
+  "historyTimeHours": "{hours} Std.",
+  "offlineDownloadAction": "Herunterladen",
+  "usageStatCharacters": "Zeichen",
+  "usageStatRequests": "Anfragen",
+  "usageStatTokens": "Geschätzte Tokens",
+  "settingsColorYellow": "Gelb",
+  "settingsDarkLook": "Dunkles Design",
+  "settingsDarkLookDim": "Gedimmt",
+  "settingsDarkLookLightsOut": "Licht aus",
+  "settingsDarkLookSubtitle": "Gedimmt ist dunkles Blaugrau; Licht aus ist echtes Schwarz, schonender für OLED-Bildschirme"
 }

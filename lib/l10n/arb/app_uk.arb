@@ -1238,5 +1238,18 @@
   "proofreadSuggestionCount": "{count, plural, =0{Немає пропозицій} =1{1 пропозиція} one{{count} пропозиція} few{{count} пропозиції} many{{count} пропозицій} other{{count} пропозиції}}",
   "historyEmptyAction": "Почати переклад",
   "historyShowAll": "Показати всі переклади",
-  "settingsSectionTools": "Інструменти перекладу"
+  "settingsSectionTools": "Інструменти перекладу",
+  "historyNewTranslation": "Новий переклад",
+  "historyTimeNow": "щойно",
+  "historyTimeMinutes": "{minutes} хв",
+  "historyTimeHours": "{hours} год",
+  "offlineDownloadAction": "Завантажити",
+  "usageStatCharacters": "Символи",
+  "usageStatRequests": "Запити",
+  "usageStatTokens": "Оцінка токенів",
+  "settingsColorYellow": "Жовтий",
+  "settingsDarkLook": "Темна тема",
+  "settingsDarkLookDim": "Приглушена",
+  "settingsDarkLookLightsOut": "Без світла",
+  "settingsDarkLookSubtitle": "Приглушена — темний синьо-сірий; «Без світла» — чистий чорний, краще для OLED-екранів"
 }

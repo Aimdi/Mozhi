@@ -1238,5 +1238,18 @@
   "proofreadSuggestionCount": "{count, plural, =0{لا توجد اقتراحات} =1{اقتراح واحد} =2{اقتراحان} few{{count} اقتراحات} many{{count} اقتراحًا} other{{count} اقتراح}}",
   "historyEmptyAction": "ابدأ الترجمة",
   "historyShowAll": "عرض كل الترجمات",
-  "settingsSectionTools": "أدوات الترجمة"
+  "settingsSectionTools": "أدوات الترجمة",
+  "historyNewTranslation": "ترجمة جديدة",
+  "historyTimeNow": "الآن",
+  "historyTimeMinutes": "{minutes} د",
+  "historyTimeHours": "{hours} س",
+  "offlineDownloadAction": "تنزيل",
+  "usageStatCharacters": "الأحرف",
+  "usageStatRequests": "الطلبات",
+  "usageStatTokens": "الرموز المقدّرة",
+  "settingsColorYellow": "أصفر",
+  "settingsDarkLook": "المظهر الداكن",
+  "settingsDarkLookDim": "معتم",
+  "settingsDarkLookLightsOut": "إطفاء الأنوار",
+  "settingsDarkLookSubtitle": "المعتم رمادي مزرق داكن؛ وإطفاء الأنوار أسود خالص، أفضل لشاشات OLED"
 }

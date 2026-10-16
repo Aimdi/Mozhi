@@ -1238,5 +1238,18 @@
   "proofreadSuggestionCount": "{count, plural, =0{Aucune suggestion} =1{1 suggestion} other{{count} suggestions}}",
   "historyEmptyAction": "Commencer à traduire",
   "historyShowAll": "Afficher toutes les traductions",
-  "settingsSectionTools": "Outils de traduction"
+  "settingsSectionTools": "Outils de traduction",
+  "historyNewTranslation": "Nouvelle traduction",
+  "historyTimeNow": "maintenant",
+  "historyTimeMinutes": "{minutes} min",
+  "historyTimeHours": "{hours} h",
+  "offlineDownloadAction": "Télécharger",
+  "usageStatCharacters": "Caractères",
+  "usageStatRequests": "Requêtes",
+  "usageStatTokens": "Jetons estimés",
+  "settingsColorYellow": "Jaune",
+  "settingsDarkLook": "Thème sombre",
+  "settingsDarkLookDim": "Atténué",
+  "settingsDarkLookLightsOut": "Extinction des feux",
+  "settingsDarkLookSubtitle": "Atténué est un gris-bleu foncé ; Extinction des feux est un vrai noir, plus doux pour les écrans OLED"
 }

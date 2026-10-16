@@ -1238,5 +1238,18 @@
   "proofreadSuggestionCount": "{count, plural, =0{Нет предложений} =1{1 предложение} one{{count} предложение} few{{count} предложения} many{{count} предложений} other{{count} предложения}}",
   "historyEmptyAction": "Начать перевод",
   "historyShowAll": "Показать все переводы",
-  "settingsSectionTools": "Инструменты перевода"
+  "settingsSectionTools": "Инструменты перевода",
+  "historyNewTranslation": "Новый перевод",
+  "historyTimeNow": "сейчас",
+  "historyTimeMinutes": "{minutes} мин",
+  "historyTimeHours": "{hours} ч",
+  "offlineDownloadAction": "Скачать",
+  "usageStatCharacters": "Символы",
+  "usageStatRequests": "Запросы",
+  "usageStatTokens": "Оценка токенов",
+  "settingsColorYellow": "Жёлтый",
+  "settingsDarkLook": "Тёмная тема",
+  "settingsDarkLookDim": "Приглушённая",
+  "settingsDarkLookLightsOut": "Без света",
+  "settingsDarkLookSubtitle": "Приглушённая — тёмный сине-серый; «Без света» — чистый чёрный, бережнее к OLED-экранам"
 }

@@ -1238,5 +1238,18 @@
   "proofreadSuggestionCount": "{count, plural, =0{Tidak ada saran} =1{1 saran} other{{count} saran}}",
   "historyEmptyAction": "Mulai menerjemahkan",
   "historyShowAll": "Tampilkan semua terjemahan",
-  "settingsSectionTools": "Alat terjemahan"
+  "settingsSectionTools": "Alat terjemahan",
+  "historyNewTranslation": "Terjemahan baru",
+  "historyTimeNow": "sekarang",
+  "historyTimeMinutes": "{minutes} mnt",
+  "historyTimeHours": "{hours} j",
+  "offlineDownloadAction": "Unduh",
+  "usageStatCharacters": "Karakter",
+  "usageStatRequests": "Permintaan",
+  "usageStatTokens": "Perkiraan token",
+  "settingsColorYellow": "Kuning",
+  "settingsDarkLook": "Tema gelap",
+  "settingsDarkLookDim": "Redup",
+  "settingsDarkLookLightsOut": "Lampu mati",
+  "settingsDarkLookSubtitle": "Redup adalah abu-abu kebiruan gelap; Lampu mati adalah hitam pekat, lebih hemat untuk layar OLED"
 }

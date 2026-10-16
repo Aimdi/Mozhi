@@ -1238,5 +1238,18 @@
   "proofreadSuggestionCount": "{count, plural, =0{제안 없음} =1{제안 1개} other{제안 {count}개}}",
   "historyEmptyAction": "번역 시작",
   "historyShowAll": "모든 번역 보기",
-  "settingsSectionTools": "번역 도구"
+  "settingsSectionTools": "번역 도구",
+  "historyNewTranslation": "새 번역",
+  "historyTimeNow": "방금",
+  "historyTimeMinutes": "{minutes}분",
+  "historyTimeHours": "{hours}시간",
+  "offlineDownloadAction": "다운로드",
+  "usageStatCharacters": "글자 수",
+  "usageStatRequests": "요청",
+  "usageStatTokens": "예상 토큰",
+  "settingsColorYellow": "노랑",
+  "settingsDarkLook": "어두운 테마",
+  "settingsDarkLookDim": "어둡게",
+  "settingsDarkLookLightsOut": "완전 검정",
+  "settingsDarkLookSubtitle": "어둡게는 짙은 청회색이고, 완전 검정은 OLED 화면에 좋은 순수한 검정입니다"
 }

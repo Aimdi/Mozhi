@@ -1238,5 +1238,18 @@
   "proofreadSuggestionCount": "{count, plural, =0{Geen suggesties} =1{1 suggestie} other{{count} suggesties}}",
   "historyEmptyAction": "Begin met vertalen",
   "historyShowAll": "Alle vertalingen tonen",
-  "settingsSectionTools": "Vertaalhulpmiddelen"
+  "settingsSectionTools": "Vertaalhulpmiddelen",
+  "historyNewTranslation": "Nieuwe vertaling",
+  "historyTimeNow": "nu",
+  "historyTimeMinutes": "{minutes} min",
+  "historyTimeHours": "{hours} u",
+  "offlineDownloadAction": "Downloaden",
+  "usageStatCharacters": "Tekens",
+  "usageStatRequests": "Verzoeken",
+  "usageStatTokens": "Geschatte tokens",
+  "settingsColorYellow": "Geel",
+  "settingsDarkLook": "Donker thema",
+  "settingsDarkLookDim": "Gedimd",
+  "settingsDarkLookLightsOut": "Lichten uit",
+  "settingsDarkLookSubtitle": "Gedimd is donker blauwgrijs; Lichten uit is echt zwart, zuiniger voor OLED-schermen"
 }

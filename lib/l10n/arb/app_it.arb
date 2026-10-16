@@ -1238,5 +1238,18 @@
   "proofreadSuggestionCount": "{count, plural, =0{Nessun suggerimento} =1{1 suggerimento} other{{count} suggerimenti}}",
   "historyEmptyAction": "Inizia a tradurre",
   "historyShowAll": "Mostra tutte le traduzioni",
-  "settingsSectionTools": "Strumenti di traduzione"
+  "settingsSectionTools": "Strumenti di traduzione",
+  "historyNewTranslation": "Nuova traduzione",
+  "historyTimeNow": "ora",
+  "historyTimeMinutes": "{minutes} min",
+  "historyTimeHours": "{hours} h",
+  "offlineDownloadAction": "Scarica",
+  "usageStatCharacters": "Caratteri",
+  "usageStatRequests": "Richieste",
+  "usageStatTokens": "Token stimati",
+  "settingsColorYellow": "Giallo",
+  "settingsDarkLook": "Tema scuro",
+  "settingsDarkLookDim": "Attenuato",
+  "settingsDarkLookLightsOut": "Luci spente",
+  "settingsDarkLookSubtitle": "Attenuato è un grigio-blu scuro; Luci spente è nero puro, più delicato sugli schermi OLED"
 }
