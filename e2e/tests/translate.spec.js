@@ -5,7 +5,6 @@ const {
   copiedTranslation,
   openApp,
   recordAiRequests,
-  scrollTo,
   seedSettings,
   test,
   typeSource,
@@ -63,12 +62,13 @@ test('a refine chip refines the translation', async ({ page }) => {
   await expect
     .poll(() => copiedTranslation(page))
     .toBe(`[refined] ${TRANSLATION}`);
-  // The chip turned into an undo chip once the refinement was applied.
-  // The longer refined text can push the chips below the fold, where
-  // Flutter builds no semantics: scroll them back into view.
-  const undo = refine.getByRole('checkbox', { name: /^Undo “More formal”/ });
-  await scrollTo(page, undo);
-  await expect(undo).toBeChecked();
+  // The chip turned into an undo chip once the refinement was applied. It
+  // still has the keyboard focus, which drops its checkbox role on Flutter
+  // web: move the focus on to the next chip first.
+  await page.keyboard.press('Tab');
+  await expect(
+    refine.getByRole('checkbox', { name: /^Undo “More formal”/ }),
+  ).toBeChecked();
 });
 
 test('meaning check shows a verdict and its differences', async ({ page }) => {
