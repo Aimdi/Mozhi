@@ -38,7 +38,7 @@ flowchart TB
 
   mozhiapi["packages/mozhi_api (pure Dart)<br/>MozhiApiClient"]
   llmapi["packages/llm_api (pure Dart)<br/>LlmClient: OpenAI-compatible,<br/>Anthropic, Gemini, Ollama"]
-  mlkit["packages/mlkit_translator (Flutter)<br/>ML Kit on Android and iOS"]
+  mlkit["packages/mlkit_translator (Flutter)<br/>ML Kit on Android"]
 
   cubits --> repo
   services --> repo
@@ -60,7 +60,7 @@ flowchart TB
 | `packages/mozhi_api` | `http` | One `MozhiApiClient` per instance: `/api/translate`, `/api/engines`, `/api/source_languages`, `/api/target_languages`, `/api/tts`, `/api/image`, `/api/version`. URL normalisation, timeouts, typed models, `MozhiApiException` with `isRetryable`. |
 | `packages/llm_api` | `http` | Streaming chat clients for the four wire protocols (`LlmProvider`): OpenAI-compatible (SSE), Anthropic Messages (SSE), Gemini (SSE) and Ollama native (NDJSON). Model listing, cancellation, reasoning-tag filtering, error extraction into `LlmApiException` / `LlmRefusalException`. Uses only `package:http`, so it runs on the web. |
 | `packages/translation_repository` | `mozhi_api`, `llm_api` | Domain models (`TranslationEngine`, `TranslationRequest`, `TranslationResult`, `TranslationOptions`, `AiProviderConfig` and its presets, `MozhiInstance`, ...), the ~290-language catalogue, prompt construction and response parsing, and `TranslationRepository`, the single entry point that unifies Mozhi engines, AI providers and the offline engine. |
-| `packages/mlkit_translator` | `translation_repository`, Google ML Kit | Implements `OfflineTranslator` with on-device ML Kit translation and language identification (Android and iOS). |
+| `packages/mlkit_translator` | `translation_repository`, Google ML Kit | Implements `OfflineTranslator` with on-device ML Kit translation and language identification (Android). |
 | `packages/mt_api` | `http` | Clients for classic machine-translation APIs (DeepL API v2 and LibreTranslate). |
 | `packages/mozhi_cli` | `mozhi_api`, `llm_api`, `translation_repository` | A command-line translator built on the same packages. |
 | `lib/` | the packages above | UI, state, persistence and platform integration. |

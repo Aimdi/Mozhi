@@ -59,26 +59,21 @@ update tracker such as [Obtainium](https://github.com/ImranR98/Obtainium).
 
 ### Web
 
-The [project website](https://aimdi.github.io/Mozhi/) links to a hosted copy
-of the web app (**Try the web app**). To host it yourself:
+There is no hosted copy of the web app; serve it yourself from any static web
+server:
 
 - Each release has a `mozhi-v1.2.3-web.zip` built for the root of a web
-  server. To serve it from a sub-path, change `<base href>` in its
-  `index.html` (for example to `/mozhi/`).
-- Every CI run also produces a static build (the `mozhi-web` artifact) built
-  for the `/Mozhi/app/` sub-path.
+  server.
+- Every CI run also produces the same static build (the `mozhi-web`
+  artifact), also built for the root (base href `/`).
 
-To use another path, you can also build it yourself with a different
-`--base-href` (see [Contributing](contributing.md)).
+To serve it from a sub-path, change `<base href>` in its `index.html` (for
+example to `/mozhi/`), or build it yourself with a different `--base-href`
+(see [Contributing](contributing.md#building-releases)).
 
 The web app runs entirely in your browser and talks to Mozhi instances and AI
 providers directly, which has a few consequences; see
 [the FAQ](faq.md#does-the-web-app-work-with-my-self-hosted-servers).
-
-### iOS, macOS and Windows
-
-There are no prebuilt packages yet. Build from source as described in
-[Contributing](contributing.md).
 
 ## First run
 
@@ -113,8 +108,9 @@ After that you land on the **Translate** tab:
    the extras need an AI model; see the [feature tour](features.md).
 
 The other tabs are **Proofread** (grammar and style checks with an AI model),
-**History** and **Settings**. On wide screens, such as tablets and desktops,
-the tabs move into a side rail and input and output sit side by side.
+**History** and **Settings**. On wide screens, such as tablets and wide
+browser windows, the tabs move into a side rail and input and output sit side
+by side.
 
 ## Choose where translations come from
 
@@ -128,7 +124,7 @@ Mozhi can use several kinds of back ends, and you can mix them:
 | DeepL API or your own LibreTranslate server | A DeepL API key, or a LibreTranslate server address | DeepL, or nobody but your server | DeepL: Free plan with a monthly limit, or paid Pro; your own LibreTranslate: free |
 | Cloud AI provider | An API key | The AI provider | Pay per use (some have free tiers) |
 | Local AI model | Ollama, LM Studio or llama.cpp on a computer you own | Nobody: it runs on your hardware | Free |
-| Offline (Android and iOS) | Download language packs once | Nobody: it runs on the device | Free |
+| Offline (Android) | Download language packs once | Nobody: it runs on the device | Free |
 
 ### Public instances
 
@@ -212,8 +208,8 @@ replaces your selection in the other app.
 shared text.
 
 **Links.** Links such as
-`https://<host>/Mozhi/app/#/translate?text=hola&from=es&to=en` (web app) or
-`mozhi://translate?text=hola&from=es&to=en` (Android and iOS) open the
+`https://<host>/#/translate?text=hola&from=es&to=en` (web app) or
+`mozhi://translate?text=hola&from=es&to=en` (Android) open the
 translator with the text and languages filled in. The parameters are the same
 as Kagi Translate's, including options such as `formality` and `quality`;
 `q`, `sl` and `tl` work too. The text is translated straight away with Mozhi

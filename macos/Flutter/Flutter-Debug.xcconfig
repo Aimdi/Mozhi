@@ -1,9 +1,0 @@
-// CocoaPods settings for the flavoured Debug-* configurations. CocoaPods
-// generates one Pods-Runner.<configuration>.xcconfig per build configuration;
-// all Debug-* configurations use this file, and their Pods files are identical
-// (no configuration-specific pods), so including all of them is equivalent to
-// including the matching one. #include? skips files that do not exist yet.
-#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.debug-production.xcconfig"
-#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.debug-staging.xcconfig"
-#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.debug-development.xcconfig"
-#include "ephemeral/Flutter-Generated.xcconfig"

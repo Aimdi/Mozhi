@@ -83,7 +83,7 @@ custom target you type. Offline translation covers about 60 languages.
 
 ### Can I use it completely offline?
 
-On Android and iOS, yes: download offline language packs and translate
+On Android, yes: download offline language packs and translate
 without any network. A local AI model on a laptop also works without
 internet, as long as the phone can reach the laptop (the same Wi-Fi, or the
 laptop's hotspot).
@@ -280,10 +280,9 @@ Yes, with two browser rules to keep in mind:
    `OLLAMA_ORIGINS`; in LM Studio turn on **Enable CORS**; llama.cpp's server
    allows cross-origin requests by default.
 
-The native apps (Android, iOS, macOS, Windows) are not affected by either
-rule. Also note that the CI build of the web app expects to be served from
-`/Mozhi/app/`, and the release zip from the root of a web server (see
-[Getting started](getting-started.md#web)).
+The Android app is not affected by either rule. Also note that the CI build
+of the web app and the release zip both expect to be served from the root of
+a web server (see [Getting started](getting-started.md#web)).
 
 ### "Translate with Mozhi" is missing from the selection menu
 

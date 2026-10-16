@@ -4,7 +4,7 @@
 [![style: very good analysis][very_good_analysis_badge]][very_good_analysis_link]
 [![License: MIT][license_badge]][license_link]
 
-A fast, private translator for Android, iOS, macOS, Windows and the web.
+A fast, private translator for Android and the web.
 
 Mozhi is a client for self-hostable [Mozhi][mozhi] translation instances (the
 privacy front-end for Google, DeepL, Reverso, Yandex, LibreTranslate and more)
@@ -30,7 +30,7 @@ history anywhere.
   get a privacy badge. Dedicated translation models (TranslateGemma,
   Hunyuan-MT) get their own prompt format.
 - **DeepL API and LibreTranslate** with your own key or server, and
-  **offline** translation on Android and iOS (ML Kit).
+  **offline** translation on Android (ML Kit).
 - **Quality modes**: a Fast and a Best engine you pick once, switched with
   one tap and remembered (Kagi's Standard / Best).
 - Long texts are split at paragraph boundaries and translated in parallel
@@ -92,7 +92,8 @@ history anywhere.
   is ignored), plus
   `/proofread?text=...`, `/dictionary?word=...` and `mozhi://` deep links.
 - Material 3 with Material You colours, dark mode and pure-black mode;
-  bottom navigation on phones and a navigation rail on tablets and desktops.
+  bottom navigation on phones and a navigation rail on tablets and wide
+  browser windows.
 
 **Privacy**
 
@@ -130,7 +131,7 @@ Besides the four tabs (Translate, Proofread, History, Settings):
 | Web page | Translate > More tools | Reader view of a page, translated block by block |
 | Conversation | Translate > More tools | Two people, two languages, with voice input and read-aloud |
 | Voice input | microphone buttons | Dictation, optionally on-device only |
-| Offline languages | Settings | ML Kit models for translating without a network (Android, iOS) |
+| Offline languages | Settings | ML Kit models for translating without a network (Android) |
 | Presets and glossaries | Settings | Named option sets and term lists for AI translation |
 | Usage | Settings | Requests and characters per AI provider this month, with optional budgets |
 | Quick translate | Android selection menu | Translate a selection in place without leaving the other app |
@@ -157,11 +158,13 @@ Documentation:
   artifact of a recent [CI run][actions]). Pick `arm64-v8a` for almost every
   modern phone, `armeabi-v7a` for old 32-bit devices, or `universal` if unsure.
   Check downloads against `SHA256SUMS.txt`.
-- **Web**: every CI run also produces a static build (`mozhi-web` artifact)
-  that can be served from any web server under `/Mozhi/app/` (the base href
-  CI uses; set the `WEB_BASE_HREF` repository variable for another path). It
-  makes no requests to a CDN.
-- **iOS, macOS, Windows**: build from source (see below).
+- **Web**: there is no hosted copy; serve it yourself from any static web
+  server. Each [release][releases] has a `mozhi-<version>-web.zip`, and every
+  [CI run][actions] produces the same static build as the `mozhi-web`
+  artifact. Both are built for the root of a server (base href `/`; set the
+  `WEB_BASE_HREF` repository variable to change it for CI). To serve it from
+  a sub-path, edit `<base href>` in `index.html` or build it yourself with
+  `--base-href` (see below). It makes no requests to a CDN.
 
 > APKs built without the release signing secrets are signed with a throwaway
 > debug key. Android refuses to update an app signed with a different key, so
@@ -184,7 +187,7 @@ the top. Plain `http` on your LAN is allowed.
 
 The web build calls instances from the browser, so a self-hosted instance used
 from the web app must send CORS headers (for example via your reverse proxy).
-The native apps do not need this.
+The Android app does not need this.
 
 ## Connect an AI provider
 
@@ -236,9 +239,10 @@ flutter run --flavor production -t lib/main_production.dart
 # Android release APKs
 flutter build apk --release --flavor production -t lib/main_production.dart --split-per-abi
 
-# Web (CanvasKit served from the build, not from Google's CDN)
+# Web (CanvasKit served from the build, not from Google's CDN; use e.g.
+# --base-href /mozhi/ to serve it from a sub-path)
 flutter build web --release -t lib/main_production.dart \
-  --base-href /Mozhi/app/ --no-web-resources-cdn
+  --base-href / --no-web-resources-cdn
 ```
 
 The three flavors install side by side on Android (`io.github.aimdi.mozhi`,
@@ -263,8 +267,8 @@ In GitHub Actions (Settings > Secrets and variables > Actions), add:
 Without them CI signs with a throwaway debug key (see the note under
 [Install](#install)).
 
-**Releases.** Pushing a tag such as `v1.0.0` builds the APKs and publishes a
-GitHub release.
+**Releases.** Pushing a tag such as `v1.0.0` builds the APKs, the app bundle
+and the web zip and publishes a GitHub release.
 
 ### Tests
 
@@ -286,7 +290,7 @@ A layered Flutter app with pure Dart packages:
 | `packages/llm_api` | Streaming clients for OpenAI-compatible, Anthropic, Gemini and Ollama APIs. |
 | `packages/translation_repository` | Domain models, language catalogue, prompts and parsers, and `TranslationRepository`, which unifies Mozhi engines and AI providers (failover, caching, compare, extras). |
 | `packages/mt_api` | Clients for machine translation services (DeepL, LibreTranslate). |
-| `packages/mlkit_translator` | On-device ML Kit translation (Android, iOS) behind `OfflineTranslator`. |
+| `packages/mlkit_translator` | On-device ML Kit translation (Android) behind `OfflineTranslator`. |
 | `packages/mozhi_cli` | Command-line client. |
 | `lib/app` | Bootstrap wiring, router (`go_router`), adaptive shell, theme, shared-text and link handling. |
 | `lib/translate`, `lib/proofread`, `lib/history`, `lib/settings` | Features: Cubits (`flutter_bloc`) and views. |

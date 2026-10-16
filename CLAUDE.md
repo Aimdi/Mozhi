@@ -1,6 +1,6 @@
 # Mozhi app – contributor notes for agents
 
-Flutter app (Android first; also iOS, macOS, Windows, web) that is a client for
+Flutter app (Android and web only) that is a client for
 self-hostable **Mozhi** translation instances plus an **AI translator**
 (OpenAI-compatible / Anthropic / Gemini / Ollama), modelled on Kagi Translate.
 

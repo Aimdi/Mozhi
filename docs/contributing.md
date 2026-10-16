@@ -22,8 +22,6 @@ first.
 
 - **Flutter 3.47** (stable; CI uses 3.47.7) with **Dart 3.13**.
 - Android: JDK 17 and the Android SDK.
-- iOS and macOS: Xcode on a Mac.
-- Windows: Visual Studio with the "Desktop development with C++" workload.
 - Optional: [Very Good CLI](https://cli.vgv.dev) (`very_good test`).
 
 ## Get the code running
@@ -48,9 +46,8 @@ locally with the Compose file in [`deploy/`](../deploy/README.md).
 | staging | `lib/main_staging.dart` | `io.github.aimdi.mozhi.stg` | [STG] Mozhi |
 | production | `lib/main_production.dart` | `io.github.aimdi.mozhi` | Mozhi |
 
-The three install side by side on Android. iOS and macOS have matching
-`development`, `staging` and `production` schemes. Always pass both
-`--flavor` and `-t`:
+The three install side by side on Android. Always pass both `--flavor` and
+`-t`:
 
 ```sh
 flutter run --flavor staging -t lib/main_staging.dart
@@ -75,14 +72,10 @@ For a one-off debug session you can remove the
 flutter build apk --release --flavor production -t lib/main_production.dart --split-per-abi
 flutter build apk --release --flavor production -t lib/main_production.dart
 
-# Web (served from /Mozhi/app/ like the CI build; change --base-href for
-# another path, e.g. / for the root of a web server)
+# Web (for the root of a web server, like the CI and release builds; change
+# --base-href for a sub-path, e.g. /mozhi/)
 flutter build web --release -t lib/main_production.dart \
-  --base-href /Mozhi/app/ --no-web-resources-cdn
-
-# Desktop
-flutter build macos --release --flavor production -t lib/main_production.dart
-flutter build windows --release -t lib/main_production.dart
+  --base-href / --no-web-resources-cdn
 ```
 
 Release signing for Android, the CI artifacts and tagged releases are
@@ -343,9 +336,7 @@ Rules:
    automatically: `supportedLocales` is generated from the ARB files. Keys
    you haven't translated yet fall back to English, and the generator lists
    them as untranslated.
-3. Add the locale to `CFBundleLocalizations` in `ios/Runner/Info.plist` so iOS
-   offers it.
-4. Translate the Android text-selection label: create
+3. Translate the Android text-selection label: create
    `android/app/src/main/res/values-<locale>/strings.xml` (e.g. `values-de`,
    `values-pt-rBR`) with
 
@@ -355,9 +346,9 @@ Rules:
    </resources>
    ```
 
-5. Optionally translate the store listing in
+4. Optionally translate the store listing in
    `fastlane/metadata/android/<locale>/` (same files as `en-US`).
-6. Check the app in that language, including a right-to-left check for
+5. Check the app in that language, including a right-to-left check for
    Arabic, Hebrew, Persian or Urdu: use `EdgeInsetsDirectional` and
    `AlignmentDirectional` in layouts.
 

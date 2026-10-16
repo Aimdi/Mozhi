@@ -1,10 +1,10 @@
 # Mozhi documentation
 
-Mozhi is a translator app for Android, iOS, macOS, Windows and the web. It
-translates through self-hostable [Mozhi](https://codeberg.org/aryak/mozhi)
-instances (Google, DeepL, Reverso, Yandex, LibreTranslate, DuckDuckGo,
-MyMemory) and through the AI models you choose, cloud or local, with the
-extras you know from Kagi Translate.
+Mozhi is a translator app for Android and the web. It translates through
+self-hostable [Mozhi](https://codeberg.org/aryak/mozhi) instances (Google,
+DeepL, Reverso, Yandex, LibreTranslate, DuckDuckGo, MyMemory) and through the
+AI models you choose, cloud or local, with the extras you know from Kagi
+Translate.
 
 ## For users
 
