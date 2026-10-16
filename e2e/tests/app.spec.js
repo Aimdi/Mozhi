@@ -59,8 +59,12 @@ test.describe('routes render', () => {
     await expect(
       page.getByRole('heading', { name: 'Quality modes' }),
     ).toBeVisible();
-    await expect(page.getByRole('banner', { name: 'Fast' })).toBeVisible();
-    await expect(page.getByRole('banner', { name: 'Best' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Fast', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Best', exact: true }),
+    ).toBeVisible();
   });
 
   test('usage (deferred)', async ({ page }) => {

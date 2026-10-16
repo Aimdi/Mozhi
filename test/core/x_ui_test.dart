@@ -364,7 +364,7 @@ void main() {
       expect(
         tester.getSemantics(find.byType(InkResponse)),
         isSemantics(
-          label: 'Like',
+          tooltip: 'Like',
           isButton: true,
           hasEnabledState: true,
           isEnabled: true,
@@ -378,7 +378,7 @@ void main() {
       expect(
         tester.getSemantics(find.byType(InkResponse)),
         isSemantics(
-          label: 'Like',
+          tooltip: 'Like',
           isButton: true,
           hasToggledState: true,
           isToggled: true,
@@ -394,7 +394,7 @@ void main() {
         await pump(tester, button(onPressed: () {}));
         expect(
           tester.getSemantics(find.byType(InkResponse)),
-          isSemantics(label: 'Like', hasTapAction: true),
+          isSemantics(tooltip: 'Like', hasTapAction: true),
         );
         handle.dispose();
       },

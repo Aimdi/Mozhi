@@ -35,7 +35,10 @@ class SettingsSection extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 8),
+            // Its own node: without the old card around the rows, a plain
+            // header flag would merge the rows into the heading.
             child: Semantics(
+              container: true,
               header: true,
               child: Text(
                 title,

@@ -318,7 +318,8 @@ class _XActionButtonState extends State<XActionButton>
         button: true,
         enabled: enabled,
         toggled: widget.activeIcon != null ? active : null,
-        label: widget.tooltip,
+        // No label: like IconButton, the tooltip names the button (a label
+        // as well would be announced twice, "Copy Copy").
         onTap: widget.onPressed,
         excludeSemantics: true,
         child: InkResponse(
