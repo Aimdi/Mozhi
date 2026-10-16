@@ -64,7 +64,7 @@ test('a refine chip refines the translation', async ({ page }) => {
 test('meaning check shows a verdict and its differences', async ({ page }) => {
   await translate(page);
 
-  await page.getByRole('button', { name: 'Check meaning' }).click();
+  await page.getByRole('checkbox', { name: 'Check meaning' }).click();
 
   await expect(
     page.getByRole('heading', { name: 'Meaning check' }),

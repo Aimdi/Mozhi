@@ -450,8 +450,9 @@ class _CompareToggle extends StatelessWidget {
   }
 }
 
-/// Output card or compare cards; then the meaning check, the translations
-/// into the extra target languages, definitions and AI extras.
+/// Output card or compare cards; then the meaning check, "Refine & learn"
+/// (AI extras), definitions and the translations into the extra target
+/// languages.
 ///
 /// Hiding the meaning check from its panel hands the focus back to the
 /// output card's "Check meaning" button.
@@ -483,9 +484,9 @@ class _OutputSectionState extends State<_OutputSection> {
         const TranslationMemoryCard(),
         OutputCard(meaningButtonFocusNode: _meaningButton),
         MeaningCheckPanel(returnFocusNode: _meaningButton),
-        const ExtraTargetsSection(),
-        const WordChoicesPanel(),
         const ExtrasSection(),
+        const WordChoicesPanel(),
+        const ExtraTargetsSection(),
       ],
     );
   }

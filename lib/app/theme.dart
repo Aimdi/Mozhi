@@ -4,6 +4,20 @@ import 'package:mozhi/settings/models/app_settings.dart';
 /// Corner radius used by cards, text fields and other large surfaces.
 const double kCardRadius = 16;
 
+/// Corner radius of chips, small badges and menus.
+const double kChipRadius = 8;
+
+/// Spacing scale (logical pixels) shared by the screens: use these instead
+/// of ad-hoc gaps so groups line up.
+abstract final class AppSpacing {
+  static const double xs = 4;
+  static const double sm = 8;
+  static const double md = 12;
+  static const double lg = 16;
+  static const double xl = 24;
+  static const double xxl = 32;
+}
+
 /// Width (logical pixels) from which the app switches to the expanded
 /// layout (navigation rail, side-by-side panes).
 const double kExpandedBreakpoint = 840;
@@ -96,7 +110,8 @@ ThemeData buildAppTheme(ColorScheme scheme) {
       backgroundColor: scheme.surface,
       foregroundColor: scheme.onSurface,
       surfaceTintColor: Colors.transparent,
-      scrolledUnderElevation: 3,
+      // A flat tonal shift (no shadow) once content scrolls under.
+      scrolledUnderElevation: 0,
       centerTitle: false,
       titleTextStyle: textTheme.titleLarge?.copyWith(color: scheme.onSurface),
     ),
@@ -132,11 +147,67 @@ ThemeData buildAppTheme(ColorScheme scheme) {
       labelStyle: textTheme.labelLarge,
       side: BorderSide(color: scheme.outlineVariant),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.all(Radius.circular(10)),
+        borderRadius: BorderRadius.all(Radius.circular(kChipRadius)),
       ),
+      selectedColor: scheme.secondaryContainer,
+      checkmarkColor: scheme.onSecondaryContainer,
+      iconTheme: IconThemeData(color: scheme.primary, size: 18),
       // Selected filter/choice chips show a check mark, so selection is
       // not conveyed by colour alone (WCAG 1.4.1).
       showCheckmark: true,
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        textStyle: textTheme.labelLarge,
+        minimumSize: const Size(64, 44),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        textStyle: textTheme.labelLarge,
+        minimumSize: const Size(64, 44),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+        side: BorderSide(color: scheme.outlineVariant),
+      ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        textStyle: textTheme.labelLarge,
+        minimumSize: const Size(48, 44),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      ),
+    ),
+    segmentedButtonTheme: SegmentedButtonThemeData(
+      style: SegmentedButton.styleFrom(
+        textStyle: textTheme.labelLarge,
+        selectedBackgroundColor: scheme.secondaryContainer,
+        selectedForegroundColor: scheme.onSecondaryContainer,
+        side: BorderSide(color: scheme.outlineVariant),
+      ),
+    ),
+    expansionTileTheme: const ExpansionTileThemeData(
+      // Tiles sit in cards: no lines of their own.
+      shape: RoundedRectangleBorder(),
+      collapsedShape: RoundedRectangleBorder(),
+    ),
+    menuTheme: MenuThemeData(
+      style: MenuStyle(
+        backgroundColor: WidgetStatePropertyAll(scheme.surfaceContainer),
+        surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+        shape: const WidgetStatePropertyAll(
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(kChipRadius * 1.5)),
+          ),
+        ),
+      ),
+    ),
+    popupMenuTheme: PopupMenuThemeData(
+      color: scheme.surfaceContainer,
+      surfaceTintColor: Colors.transparent,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(kChipRadius * 1.5)),
+      ),
     ),
     listTileTheme: ListTileThemeData(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16),
@@ -159,7 +230,8 @@ ThemeData buildAppTheme(ColorScheme scheme) {
       ),
     ),
     navigationRailTheme: NavigationRailThemeData(
-      backgroundColor: scheme.surface,
+      // The rail is chrome: a quiet tonal panel beside the page.
+      backgroundColor: scheme.surfaceContainerLow,
       indicatorColor: scheme.secondaryContainer,
       labelType: NavigationRailLabelType.all,
       groupAlignment: -1,
@@ -216,6 +288,7 @@ TextTheme _textTheme(TextTheme base) => base.copyWith(
   titleLarge: base.titleLarge?.copyWith(fontWeight: FontWeight.w600),
   titleMedium: base.titleMedium?.copyWith(fontWeight: FontWeight.w600),
   titleSmall: base.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+  bodySmall: base.bodySmall?.copyWith(height: 1.4),
   bodyLarge: base.bodyLarge?.copyWith(height: 1.45),
   bodyMedium: base.bodyMedium?.copyWith(height: 1.4),
   labelLarge: base.labelLarge?.copyWith(fontWeight: FontWeight.w600),

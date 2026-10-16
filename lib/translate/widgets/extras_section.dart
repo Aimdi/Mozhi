@@ -15,8 +15,9 @@ import 'package:translation_repository/translation_repository.dart';
 
 export 'package:mozhi/translate/widgets/refine_chips.dart';
 
-/// AI extras under a finished translation: refinement chips (AI engines),
-/// alternatives, explain and (short inputs) a dictionary card. Hidden while
+/// "Refine & learn": the AI extras under a finished translation, under one
+/// heading: refinement chips (AI engines), alternatives, explain and
+/// (short inputs) a dictionary card. Hidden while
 /// the translation belongs to text the user has since edited.
 class ExtrasSection extends StatelessWidget {
   const new({super.key});
@@ -39,13 +40,18 @@ class ExtrasSection extends StatelessWidget {
             return const SizedBox.shrink();
           }
           return Column(
+            key: const Key('translate_refine_and_learn'),
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              const SizedBox(height: TranslateLayout.sectionGap),
+              TranslateSectionHeader(
+                context.l10n.translateRefineAndLearn,
+                icon: Icons.auto_awesome_outlined,
+              ),
               if (state.isAiEngine) ...[
-                const SizedBox(height: TranslateLayout.gap),
                 RefinementChips(state: state),
+                const SizedBox(height: TranslateLayout.gap),
               ],
-              const SizedBox(height: TranslateLayout.gap),
               _ExtrasCard(state: state),
               if (state.isShortInput) ...[
                 const SizedBox(height: TranslateLayout.gap),

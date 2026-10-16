@@ -6,6 +6,7 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/language_text.dart';
 import 'package:mozhi/translate/widgets/status_announcer.dart';
+import 'package:mozhi/translate/widgets/tool_chip.dart';
 import 'package:mozhi/translate/widgets/translate_error.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -131,7 +132,7 @@ class RomanizationLine extends StatelessWidget {
 }
 
 /// Toggles the romanization of the output ("Show romanization" / "Hide
-/// romanization"); selected while it is shown.
+/// romanization"): a "Romanization" tool chip, selected while it is shown.
 class RomanizationButton extends StatelessWidget {
   const new({required this.shown, required this.onPressed, super.key});
 
@@ -144,14 +145,14 @@ class RomanizationButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    return IconButton(
+    return TranslateToolChip(
       key: const Key('translate_romanize_button'),
+      icon: Icons.abc,
+      label: l10n.translateToolRomanization,
       tooltip: shown
           ? l10n.translateRomanizationHide
           : l10n.translateRomanizationShow,
-      isSelected: shown,
-      icon: const Icon(Icons.abc_outlined),
-      selectedIcon: const Icon(Icons.abc),
+      selected: shown,
       onPressed: onPressed,
     );
   }

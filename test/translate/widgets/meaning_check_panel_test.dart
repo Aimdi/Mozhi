@@ -443,6 +443,10 @@ void main() {
           tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
         );
         await tester.pump();
+        await tester.ensureVisible(
+          find.byKey(const Key('translate_meaning_close')),
+        );
+        await tester.pump();
         await tester.tap(find.byKey(const Key('translate_meaning_close')));
         await tester.pump();
         expect(
@@ -457,6 +461,10 @@ void main() {
       testWidgets('but not from a tap elsewhere in focus', (tester) async {
         final harness = _harness(_checked());
         await harness.pump(tester);
+        await tester.ensureVisible(
+          find.byKey(const Key('translate_meaning_close')),
+        );
+        await tester.pump();
         await tester.tap(find.byKey(const Key('translate_meaning_close')));
         await tester.pump();
         expect(
@@ -608,7 +616,7 @@ void main() {
     testWidgets('is offered for engines without AI extras too', (tester) async {
       final harness = _harness(_translated(assistEngine: null));
       await harness.pump(tester, child: const OutputCard());
-      expect(find.byTooltip('Check meaning'), findsOneWidget);
+      expect(find.byKey(const Key('translate_meaning_button')), findsOneWidget);
       await tester.tap(find.byKey(const Key('translate_meaning_button')));
       expect(
         verify(
@@ -628,7 +636,7 @@ void main() {
         ),
       );
       await harness.pump(tester, child: const OutputCard());
-      final button = tester.widget<IconButton>(
+      final button = tester.widget<TranslateToolChip>(
         find.byKey(const Key('translate_meaning_button')),
       );
       expect(button.onPressed, isNull);

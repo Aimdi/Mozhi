@@ -12,6 +12,7 @@ import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/aligned_text.dart';
 import 'package:mozhi/translate/widgets/detection_chips.dart';
+import 'package:mozhi/translate/widgets/empty_output.dart';
 import 'package:mozhi/translate/widgets/extras_section.dart';
 import 'package:mozhi/translate/widgets/insight_sheet.dart';
 import 'package:mozhi/translate/widgets/language_text.dart';
@@ -19,6 +20,7 @@ import 'package:mozhi/translate/widgets/listen_button.dart';
 import 'package:mozhi/translate/widgets/meaning_check_panel.dart';
 import 'package:mozhi/translate/widgets/romanization_line.dart';
 import 'package:mozhi/translate/widgets/status_announcer.dart';
+import 'package:mozhi/translate/widgets/tool_chip.dart';
 import 'package:mozhi/translate/widgets/translate_error.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
 import 'package:mozhi/translate/widgets/translation_memory_card.dart'
@@ -28,6 +30,7 @@ import 'package:translation_repository/translation_repository.dart';
 
 export 'package:mozhi/translate/widgets/aligned_text.dart';
 export 'package:mozhi/translate/widgets/detection_chips.dart';
+export 'package:mozhi/translate/widgets/empty_output.dart';
 export 'package:mozhi/translate/widgets/romanization_line.dart';
 
 /// Copies [text] and confirms with a snackbar.
@@ -77,8 +80,10 @@ TextDirection? outputTextDirection(TranslateState state) =>
 
 /// The translation: streaming text, progress, errors, romanization,
 /// detected language (with other likely languages when uncertain),
-/// engine/latency footer and actions (copy, share, listen, favourite,
-/// insights, romanization, alignment).
+/// engine/latency footer, the everyday actions (copy, listen, favourite;
+/// share at the end) and labelled tools (check meaning, insights,
+/// romanization, matching phrases). Without a translation it shows
+/// [EmptyOutput].
 ///
 /// A finished translation is announced to screen readers once (never per
 /// streamed token); errors are announced by [TranslateErrorView].
@@ -316,7 +321,7 @@ class _OutputCardState extends State<OutputCard> {
               margin: EdgeInsets.zero,
               elevation: 0,
               clipBehavior: Clip.antiAlias,
-              color: theme.colorScheme.surfaceContainer,
+              color: TranslateLayout.outputSurface(theme.colorScheme),
               shape: const RoundedRectangleBorder(
                 borderRadius: TranslateLayout.cardBorderRadius,
               ),
@@ -334,7 +339,12 @@ class _OutputCardState extends State<OutputCard> {
                         : null,
                   ),
                   Padding(
-                    padding: const EdgeInsetsDirectional.fromSTEB(20, 13, 8, 8),
+                    padding: const EdgeInsetsDirectional.fromSTEB(
+                      TranslateLayout.cardPadding,
+                      13,
+                      8,
+                      8,
+                    ),
                     child: _content(context, state),
                   ),
                 ],
@@ -384,15 +394,16 @@ class _OutputCardState extends State<OutputCard> {
     }
 
     if (output.isEmpty) {
+      if (state.status != TranslateStatus.translating) {
+        return EmptyOutput(state: state);
+      }
       return ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 96),
         child: Padding(
           padding: const EdgeInsetsDirectional.only(top: 8, end: 12),
           child: Text(
-            state.status == TranslateStatus.translating
-                ? l10n.translateTranslating
-                : l10n.translateOutputHint,
-            style: TranslateLayout.textStyle(
+            l10n.translateTranslating,
+            style: TranslateLayout.outputTextStyle(
               context,
               0,
             )?.copyWith(color: muted),
@@ -402,7 +413,7 @@ class _OutputCardState extends State<OutputCard> {
     }
 
     final settings = context.watch<SettingsCubit>().state;
-    final style = TranslateLayout.textStyle(context, output.length);
+    final style = TranslateLayout.outputTextStyle(context, output.length);
     final complete = result?.isComplete ?? true;
     final insightsReady =
         _showInsights &&
@@ -693,15 +704,15 @@ class _OutputCardState extends State<OutputCard> {
   Widget _meaningButton(BuildContext context, TranslateState state) {
     final l10n = context.l10n;
     final shown = state.meaningStatus != ExtraStatus.idle;
-    return IconButton(
+    return TranslateToolChip(
       key: const Key('translate_meaning_button'),
       focusNode: widget.meaningButtonFocusNode,
+      icon: Icons.fact_check_outlined,
+      label: l10n.translateMeaningCheck,
       tooltip: shown
           ? l10n.translateMeaningCheckHide
           : l10n.translateMeaningCheck,
-      isSelected: shown,
-      icon: const Icon(Icons.fact_check_outlined),
-      selectedIcon: const Icon(Icons.fact_check),
+      selected: shown,
       onPressed: shown
           ? context.read<TranslateCubit>().clearMeaningCheck
           : state.canCheckMeaning
@@ -710,93 +721,124 @@ class _OutputCardState extends State<OutputCard> {
     );
   }
 
+  /// The everyday actions (copy, listen, favourite, and share at the end)
+  /// as icon buttons, then the labelled tools ([_tools]).
   Widget _actions(BuildContext context, TranslateState state) {
     final l10n = context.l10n;
     final output = state.output;
     final complete = state.result?.isComplete ?? true;
     final target = state.target;
+    final tools = _tools(context, state);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            IconButton(
+              key: const Key('translate_copy_button'),
+              tooltip: l10n.commonCopy,
+              icon: const Icon(Icons.copy_outlined),
+              onPressed: () => unawaited(copyToClipboard(context, output)),
+            ),
+            ListenButton(
+              id: translateOutputSpeechId,
+              text: output,
+              languageCode: target.isCustom ? null : target.code,
+            ),
+            BlocBuilder<HistoryCubit, HistoryState>(
+              builder: (context, history) {
+                final entry = findHistoryEntry(
+                  history.entries,
+                  state.resultInput ?? state.input,
+                  output,
+                );
+                final favorite = entry?.isFavorite ?? false;
+                return IconButton(
+                  key: const Key('translate_favorite_button'),
+                  tooltip: favorite
+                      ? l10n.translateUnfavorite
+                      : l10n.translateFavorite,
+                  isSelected: favorite,
+                  icon: const Icon(Icons.star_outline),
+                  selectedIcon: const Icon(Icons.star),
+                  onPressed: complete
+                      ? () => _toggleFavorite(state, entry)
+                      : null,
+                );
+              },
+            ),
+            const Spacer(),
+            Builder(
+              builder: (buttonContext) => IconButton(
+                key: const Key('translate_share_button'),
+                tooltip: l10n.commonShare,
+                icon: const Icon(Icons.share_outlined),
+                onPressed: () => unawaited(_share(buttonContext, output)),
+              ),
+            ),
+          ],
+        ),
+        if (tools.isNotEmpty)
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(4, 4, 12, 4),
+            child: Semantics(
+              key: const Key('translate_output_tools'),
+              container: true,
+              explicitChildNodes: true,
+              label: l10n.translateToolsLabel,
+              child: Wrap(spacing: 8, runSpacing: 8, children: tools),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// The on/off tools for the translation: check meaning, insights (AI
+  /// extras), romanization and matching phrases (alignment), each a
+  /// labelled chip.
+  List<Widget> _tools(BuildContext context, TranslateState state) {
+    final l10n = context.l10n;
+    final complete = state.result?.isComplete ?? true;
     final romanizationShown = _romanizationShown(
       state,
       context.watch<SettingsCubit>().state,
     );
-    return Wrap(
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        IconButton(
-          key: const Key('translate_copy_button'),
-          tooltip: l10n.commonCopy,
-          icon: const Icon(Icons.copy_outlined),
-          onPressed: () => unawaited(copyToClipboard(context, output)),
+    return [
+      _meaningButton(context, state),
+      if (state.hasExtras)
+        TranslateToolChip(
+          key: const Key('translate_insights_button'),
+          icon: Icons.lightbulb_outline,
+          label: l10n.translateInsights,
+          tooltip: _showInsights
+              ? l10n.translateInsightsHide
+              : l10n.translateInsights,
+          selected: _showInsights,
+          // No extras for a translation of text that has been edited.
+          onPressed: complete && !state.isResultStale
+              ? () => _toggleInsights(state)
+              : null,
         ),
-        Builder(
-          builder: (buttonContext) => IconButton(
-            key: const Key('translate_share_button'),
-            tooltip: l10n.commonShare,
-            icon: const Icon(Icons.share_outlined),
-            onPressed: () => unawaited(_share(buttonContext, output)),
-          ),
+      if (complete && (romanizationShown || romanizationAvailable(state)))
+        RomanizationButton(
+          shown: romanizationShown,
+          onPressed: () => _toggleRomanization(state, shown: romanizationShown),
         ),
-        ListenButton(
-          id: translateOutputSpeechId,
-          text: output,
-          languageCode: target.isCustom ? null : target.code,
+      if (state.assistEngine?.supportsExtras ?? false)
+        TranslateToolChip(
+          key: const Key('translate_alignment_button'),
+          icon: Icons.sync_alt,
+          label: l10n.translateToolAlignment,
+          tooltip: _showAlignment
+              ? l10n.translateAlignmentHide
+              : l10n.translateAlignmentShow,
+          selected: _showAlignment,
+          // Can always be turned off; turned on for a finished, current
+          // translation.
+          onPressed: _showAlignment || state.canAlign
+              ? () => _toggleAlignment(state)
+              : null,
         ),
-        BlocBuilder<HistoryCubit, HistoryState>(
-          builder: (context, history) {
-            final entry = findHistoryEntry(
-              history.entries,
-              state.resultInput ?? state.input,
-              output,
-            );
-            final favorite = entry?.isFavorite ?? false;
-            return IconButton(
-              key: const Key('translate_favorite_button'),
-              tooltip: favorite
-                  ? l10n.translateUnfavorite
-                  : l10n.translateFavorite,
-              isSelected: favorite,
-              icon: const Icon(Icons.star_outline),
-              selectedIcon: const Icon(Icons.star),
-              onPressed: complete ? () => _toggleFavorite(state, entry) : null,
-            );
-          },
-        ),
-        _meaningButton(context, state),
-        if (state.hasExtras)
-          IconButton(
-            key: const Key('translate_insights_button'),
-            tooltip: _showInsights
-                ? l10n.translateInsightsHide
-                : l10n.translateInsights,
-            isSelected: _showInsights,
-            icon: const Icon(Icons.lightbulb_outline),
-            selectedIcon: const Icon(Icons.lightbulb),
-            // No extras for a translation of text that has been edited.
-            onPressed: complete && !state.isResultStale
-                ? () => _toggleInsights(state)
-                : null,
-          ),
-        if (complete && (romanizationShown || romanizationAvailable(state)))
-          RomanizationButton(
-            shown: romanizationShown,
-            onPressed: () =>
-                _toggleRomanization(state, shown: romanizationShown),
-          ),
-        if (state.assistEngine?.supportsExtras ?? false)
-          IconButton(
-            key: const Key('translate_alignment_button'),
-            tooltip: _showAlignment
-                ? l10n.translateAlignmentHide
-                : l10n.translateAlignmentShow,
-            isSelected: _showAlignment,
-            icon: const Icon(Icons.sync_alt),
-            // Can always be turned off; turned on for a finished, current
-            // translation.
-            onPressed: _showAlignment || state.canAlign
-                ? () => _toggleAlignment(state)
-                : null,
-          ),
-      ],
-    );
+    ];
   }
 }

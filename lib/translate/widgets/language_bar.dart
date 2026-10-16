@@ -134,6 +134,8 @@ class LanguageBar extends StatelessWidget {
                 semanticLabel: l10n.translateTargetLanguage(state.target.name),
                 tooltip: state.target.name,
                 icon: state.target.isCustom ? Icons.auto_awesome : null,
+                // Tinted like the output card it belongs to.
+                target: true,
                 onPressed: () => pickTranslateLanguage(context, source: false),
               ),
             ),
@@ -191,8 +193,12 @@ class _LanguageButton extends StatelessWidget {
     required this.tooltip,
     required this.onPressed,
     this.icon,
+    this.target = false,
     super.key,
   });
+
+  /// Whether this is the target language (tinted like the output card).
+  final bool target;
 
   final String label;
   final String semanticLabel;
@@ -203,15 +209,18 @@ class _LanguageButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     return Tooltip(
       message: tooltip,
       excludeFromSemantics: true,
       child: FilledButton.tonal(
         style: FilledButton.styleFrom(
-          minimumSize: const Size(48, 48),
+          minimumSize: const Size(48, 52),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          backgroundColor: theme.colorScheme.surfaceContainerHigh,
-          foregroundColor: theme.colorScheme.onSurface,
+          backgroundColor: target
+              ? TranslateLayout.targetButtonSurface(scheme)
+              : scheme.surfaceContainerHigh,
+          foregroundColor: scheme.onSurface,
         ),
         onPressed: onPressed,
         child: Semantics(

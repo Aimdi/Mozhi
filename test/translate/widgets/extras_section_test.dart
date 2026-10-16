@@ -20,6 +20,25 @@ void main() {
   setUpAll(registerTranslateFallbacks);
 
   group('ExtrasSection', () {
+    testWidgets('groups the extras under "Refine & learn"', (tester) async {
+      final harness = TranslateHarness(state: _aiState());
+      final semantics = tester.ensureSemantics();
+      await harness.pump(tester, child: const ExtrasSection());
+      expect(
+        find.byKey(const Key('translate_refine_and_learn')),
+        findsOneWidget,
+      );
+      expect(
+        tester.getSemantics(find.text('Refine & learn')),
+        matchesSemantics(label: 'Refine & learn', isHeader: true),
+      );
+      expect(
+        tester.getTopLeft(find.text('Refine & learn')).dy,
+        lessThan(tester.getTopLeft(find.text('Alternatives')).dy),
+      );
+      semantics.dispose();
+    });
+
     testWidgets('is hidden without an AI engine', (tester) async {
       final harness = TranslateHarness(state: translatedState());
       await harness.pump(tester, child: const ExtrasSection());

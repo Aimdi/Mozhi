@@ -607,7 +607,7 @@ void main() {
       await tester.pump();
       verify(harness.translate.loadAlignment).called(1);
       expect(find.byTooltip('Hide matching phrases'), findsOneWidget);
-      expect(tester.widget<IconButton>(button()).isSelected, isTrue);
+      expect(tester.widget<TranslateToolChip>(button()).selected, isTrue);
     });
 
     testWidgets('is not offered without an AI engine', (tester) async {
@@ -622,7 +622,7 @@ void main() {
             .copyWith(input: 'Hello there', resultInput: () => 'Hello world'),
       );
       await harness.pump(tester, child: const OutputCard());
-      expect(tester.widget<IconButton>(button()).onPressed, isNull);
+      expect(tester.widget<TranslateToolChip>(button()).onPressed, isNull);
     });
 
     testWidgets('shows progress while aligning', (tester) async {
@@ -765,7 +765,7 @@ void main() {
       verify(() => harness.translate.focusAlignment(null)).called(1);
       expect(_alignedText, findsNothing);
       expect(find.byKey(const Key('translate_insight_text')), findsOneWidget);
-      expect(tester.widget<IconButton>(button()).isSelected, isFalse);
+      expect(tester.widget<TranslateToolChip>(button()).selected, isFalse);
 
       await tester.tap(button());
       await tester.pump();
@@ -827,7 +827,7 @@ void main() {
       controller.add(next);
       await tester.pump();
       verifyNever(harness.translate.loadAlignment);
-      expect(tester.widget<IconButton>(button()).isSelected, isFalse);
+      expect(tester.widget<TranslateToolChip>(button()).selected, isFalse);
       expect(find.byTooltip('Show matching phrases'), findsOneWidget);
 
       // The button loads it again.

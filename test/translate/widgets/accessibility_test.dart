@@ -486,7 +486,7 @@ void main() {
       );
       await harness.pump(tester, child: const OutputCard());
       expect(find.byType(InsightChips), findsNothing);
-      await tester.tap(find.byTooltip('Insights'));
+      await tester.tap(find.byKey(const Key('translate_insights_button')));
       await tester.pump();
       expect(find.bySemanticsLabel('Word insights'), findsOneWidget);
       final chip = find.byKey(const ValueKey('translate_insight_chip:0'));

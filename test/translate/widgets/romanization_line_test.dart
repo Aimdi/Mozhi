@@ -110,7 +110,13 @@ void main() {
       expect(text.textDirection, TextDirection.ltr);
       final context = tester.element(_line);
       expect(text.style?.color, Theme.of(context).colorScheme.onSurfaceVariant);
-      expect(find.bySemanticsLabel('Romanization'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(RomanizationLine),
+          matching: find.bySemanticsLabel('Romanization'),
+        ),
+        findsOneWidget,
+      );
       expect(find.byTooltip('Hide romanization'), findsOneWidget);
     });
 
@@ -151,7 +157,7 @@ void main() {
       await harness.pump(tester, child: const OutputCard());
       expect(_line, findsNothing);
       expect(find.byTooltip('Show romanization'), findsOneWidget);
-      expect(tester.widget<IconButton>(_button).isSelected, isFalse);
+      expect(tester.widget<TranslateToolChip>(_button).selected, isFalse);
       await tester.tap(_button);
       await tester.pump();
       verify(harness.translate.loadRomanization).called(1);
@@ -224,7 +230,7 @@ void main() {
       stubOutputExtras(harness);
       await harness.pump(tester, child: const OutputCard());
       expect(find.text("Kon'nichiwa"), findsOneWidget);
-      expect(tester.widget<IconButton>(_button).isSelected, isTrue);
+      expect(tester.widget<TranslateToolChip>(_button).selected, isTrue);
 
       await tester.tap(_button);
       await tester.pump();

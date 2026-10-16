@@ -80,34 +80,42 @@ class AppShell extends StatelessWidget {
     }
 
     final extended = width >= 1200;
+    final theme = Theme.of(context);
+    final railColor =
+        theme.navigationRailTheme.backgroundColor ??
+        theme.colorScheme.surfaceContainerLow;
     return Scaffold(
       body: Row(
         children: [
-          SafeArea(
-            right: false,
-            child: NavigationRail(
-              selectedIndex: selectedIndex,
-              onDestinationSelected: onDestinationSelected,
-              extended: extended,
-              minExtendedWidth: 200,
-              labelType: extended
-                  ? NavigationRailLabelType.none
-                  : NavigationRailLabelType.all,
-              leading: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: _RailHeader(extended: extended),
+          // The tinted rail sets itself apart from the page without a
+          // divider; the colour also fills the safe area beside it.
+          ColoredBox(
+            color: railColor,
+            child: SafeArea(
+              right: false,
+              child: NavigationRail(
+                selectedIndex: selectedIndex,
+                onDestinationSelected: onDestinationSelected,
+                extended: extended,
+                minExtendedWidth: 200,
+                labelType: extended
+                    ? NavigationRailLabelType.none
+                    : NavigationRailLabelType.all,
+                leading: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: _RailHeader(extended: extended),
+                ),
+                destinations: [
+                  for (final d in destinations)
+                    NavigationRailDestination(
+                      icon: Icon(d.icon),
+                      selectedIcon: Icon(d.selectedIcon),
+                      label: Text(d.label(l10n)),
+                    ),
+                ],
               ),
-              destinations: [
-                for (final d in destinations)
-                  NavigationRailDestination(
-                    icon: Icon(d.icon),
-                    selectedIcon: Icon(d.selectedIcon),
-                    label: Text(d.label(l10n)),
-                  ),
-              ],
             ),
           ),
-          const VerticalDivider(width: 1),
           Expanded(child: child),
         ],
       ),

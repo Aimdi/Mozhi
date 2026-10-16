@@ -17,18 +17,101 @@ abstract final class TranslateLayout {
 
   static const double gutter = 16;
   static const double gap = 12;
+
+  /// Space between two groups of the output column (output card, "Refine
+  /// & learn", more languages).
+  static const double sectionGap = 20;
   static const double paneGap = 48;
   static const double cardRadius = 24;
+
+  /// Inner padding of the input and output cards (start edge).
+  static const double cardPadding = 20;
+
+  /// Texts longer than this use the smaller text style.
+  static const int longTextLength = 160;
 
   static const BorderRadius cardBorderRadius = BorderRadius.all(
     Radius.circular(cardRadius),
   );
 
-  /// Large, calm text for short inputs/outputs; smaller for long texts.
+  /// Large, calm text for short inputs; smaller for long texts.
   static TextStyle? textStyle(BuildContext context, int length) {
     final textTheme = Theme.of(context).textTheme;
-    final base = length > 160 ? textTheme.titleMedium : textTheme.titleLarge;
+    final base = length > longTextLength
+        ? textTheme.titleMedium
+        : textTheme.titleLarge;
     return base?.copyWith(fontWeight: FontWeight.w400, height: 1.4);
+  }
+
+  /// The translation: a step larger than [textStyle], with a comfortable
+  /// line height.
+  static TextStyle? outputTextStyle(BuildContext context, int length) {
+    final textTheme = Theme.of(context).textTheme;
+    final base = length > longTextLength
+        ? textTheme.titleLarge
+        : textTheme.headlineSmall;
+    return base?.copyWith(
+      fontWeight: FontWeight.w400,
+      height: 1.4,
+      letterSpacing: 0,
+    );
+  }
+
+  /// Surface of the input card.
+  static Color inputSurface(ColorScheme scheme) => scheme.surfaceContainerLow;
+
+  /// Surface of the output card: a subtle tint of the primary colour over
+  /// the input's surface, so the translation stands apart without
+  /// competing with it (text keeps `onSurface` contrast in every theme).
+  static Color outputSurface(ColorScheme scheme) => Color.alphaBlend(
+    scheme.primary.withValues(
+      alpha: scheme.brightness == Brightness.dark ? 0.10 : 0.07,
+    ),
+    scheme.surfaceContainerLow,
+  );
+
+  /// Surface of the target language button: a stronger tint of the output
+  /// card's colour, so the button reads as the output's header.
+  static Color targetButtonSurface(ColorScheme scheme) => Color.alphaBlend(
+    scheme.primary.withValues(
+      alpha: scheme.brightness == Brightness.dark ? 0.16 : 0.12,
+    ),
+    scheme.surfaceContainerHigh,
+  );
+}
+
+/// A small heading that names a group of the translate screen ("Refine &
+/// learn"), a header for screen readers.
+class TranslateSectionHeader extends StatelessWidget {
+  const new(this.title, {this.icon, super.key});
+
+  final String title;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.onSurfaceVariant;
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(start: 4, bottom: 8),
+      child: Semantics(
+        header: true,
+        child: Row(
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 18, color: theme.colorScheme.primary),
+              const SizedBox(width: 8),
+            ],
+            Expanded(
+              child: Text(
+                title,
+                style: theme.textTheme.titleSmall?.copyWith(color: color),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

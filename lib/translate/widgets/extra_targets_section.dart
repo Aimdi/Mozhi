@@ -61,12 +61,12 @@ class ExtraTargetsSection extends StatelessWidget {
         final column = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SizedBox(height: TranslateLayout.gap),
+            const SizedBox(height: TranslateLayout.sectionGap),
             Align(
               alignment: AlignmentDirectional.centerStart,
               child: TextButton.icon(
                 key: const Key('translate_extra_targets_button'),
-                icon: const Icon(Icons.add),
+                icon: const Icon(Icons.add_circle_outline),
                 label: Text(
                   names.isEmpty
                       ? l10n.translateExtraTargetsAdd

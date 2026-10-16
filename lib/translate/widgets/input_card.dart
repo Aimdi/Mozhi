@@ -278,12 +278,17 @@ class _InputCardState extends State<InputCard> {
           // merged card would read the counter as part of the field name).
           semanticContainer: false,
           elevation: 0,
-          color: theme.colorScheme.surfaceContainerLow,
+          color: TranslateLayout.inputSurface(theme.colorScheme),
           shape: const RoundedRectangleBorder(
             borderRadius: TranslateLayout.cardBorderRadius,
           ),
           child: Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(20, 8, 8, 8),
+            padding: const EdgeInsetsDirectional.fromSTEB(
+              TranslateLayout.cardPadding,
+              8,
+              8,
+              8,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

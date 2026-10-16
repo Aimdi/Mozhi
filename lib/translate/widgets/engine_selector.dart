@@ -36,10 +36,12 @@ class EngineSelectorButton extends StatelessWidget {
           message: l10n.translateEngineSelectorTooltip,
           child: TextButton(
             key: const Key('translate_engine_selector'),
+            // A tonal chip: clearly tappable, calm next to the title.
             style: TextButton.styleFrom(
               minimumSize: const Size(48, 48),
-              padding: const EdgeInsetsDirectional.only(start: 12, end: 4),
+              padding: const EdgeInsetsDirectional.only(start: 12, end: 8),
               shape: const StadiumBorder(),
+              backgroundColor: theme.colorScheme.surfaceContainerHigh,
               foregroundColor: theme.colorScheme.onSurface,
             ),
             onPressed: state.engines.isEmpty
@@ -49,7 +51,10 @@ class EngineSelectorButton extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (engine != null) ...[
-                  EngineIcon(engine: engine, size: 20),
+                  IconTheme.merge(
+                    data: IconThemeData(color: theme.colorScheme.primary),
+                    child: EngineIcon(engine: engine, size: 20),
+                  ),
                   const SizedBox(width: 8),
                 ],
                 Flexible(
@@ -61,7 +66,7 @@ class EngineSelectorButton extends StatelessWidget {
                         name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleMedium,
+                        style: theme.textTheme.titleSmall,
                       ),
                       if (subtitle != null && subtitle.isNotEmpty)
                         Text(
@@ -75,7 +80,8 @@ class EngineSelectorButton extends StatelessWidget {
                     ],
                   ),
                 ),
-                const Icon(Icons.arrow_drop_down),
+                const SizedBox(width: 4),
+                const Icon(Icons.expand_more, size: 20),
               ],
             ),
           ),
