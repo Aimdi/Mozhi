@@ -63,6 +63,8 @@ void main() {
       final state = proofreadState(tester);
       expect(state.availableEngines, [openAiEngine, ollamaEngine]);
       expect(state.engine, ollamaEngine);
+      await tester.tap(find.text('Options'));
+      await tester.pumpAndSettle();
       expect(find.byKey(const Key('proofread_engine_menu')), findsOneWidget);
     });
 
@@ -107,6 +109,8 @@ void main() {
         sampleInput,
       );
       await tester.pump();
+      await tester.tap(find.text('Options'));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('proofread_style_menu')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Business'));

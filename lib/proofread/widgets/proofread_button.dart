@@ -16,7 +16,11 @@ class ProofreadButton extends StatelessWidget {
         );
     return FilledButton.icon(
       key: const Key('proofread_button'),
-      style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+      style: FilledButton.styleFrom(
+        minimumSize: const Size.fromHeight(56),
+        textStyle: Theme.of(context).textTheme.titleMedium,
+        shape: const StadiumBorder(),
+      ),
       onPressed: canProofread ? context.read<ProofreadCubit>().proofread : null,
       icon: isLoading
           ? const SizedBox.square(

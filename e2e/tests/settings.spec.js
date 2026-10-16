@@ -19,7 +19,9 @@ test('with Save history off, translations are not saved', async ({
   page,
 }) => {
   await openApp(page, '/settings');
+  // Save history is in the Data section, further down on a phone.
   const saveHistory = page.getByRole('switch', { name: /^Save history/ });
+  await scrollTo(page, saveHistory);
   await expect(saveHistory).toBeChecked();
   await saveHistory.click();
   await expect(saveHistory).not.toBeChecked();
@@ -42,17 +44,16 @@ test('with Save history off, translations are not saved', async ({
   // The setting is stored: still off after a reload.
   await page.reload();
   await openApp(page, '/settings');
-  await expect(
-    page.getByRole('switch', { name: /^Save history/ }),
-  ).not.toBeChecked();
+  await scrollTo(page, saveHistory);
+  await expect(saveHistory).not.toBeChecked();
 
   // The banner turns it back on.
   await page.getByRole('tab', { name: 'History' }).click();
   await banner.getByRole('button', { name: 'Turn on' }).click();
   await expect(banner).toBeHidden();
   await page.getByRole('tab', { name: 'Settings' }).click();
-  await expect(page.getByRole('switch', { name: /^Save history/ }))
-    .toBeChecked();
+  await scrollTo(page, saveHistory);
+  await expect(saveHistory).toBeChecked();
 });
 
 test('the dark theme persists after a reload', async ({ page }) => {

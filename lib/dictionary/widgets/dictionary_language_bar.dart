@@ -95,8 +95,15 @@ class _LanguageButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return TextButton(
-      style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+      style: TextButton.styleFrom(
+        minimumSize: const Size(48, 48),
+        backgroundColor: colors.surfaceContainerHigh,
+        foregroundColor: colors.onSurface,
+        shape: const StadiumBorder(),
+        padding: const EdgeInsetsDirectional.fromSTEB(16, 8, 8, 8),
+      ),
       onPressed: onPressed,
       // The button reads "Language of the word: Spanish", not just
       // "Spanish".

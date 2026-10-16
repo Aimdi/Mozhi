@@ -113,7 +113,7 @@ class _AboutViewState extends State<AboutView> {
                   title: l10n.settingsSectionAbout,
                   children: [
                     ListTile(
-                      leading: const Icon(Icons.code),
+                      leading: const SettingsIcon(Icons.code),
                       title: Text(l10n.settingsAboutSource),
                       subtitle: Text(AboutView.sourceCodeUrl.host),
                       trailing: const Icon(Icons.open_in_new),
@@ -121,7 +121,7 @@ class _AboutViewState extends State<AboutView> {
                           LinkLauncher.open(context, AboutView.sourceCodeUrl),
                     ),
                     ListTile(
-                      leading: const Icon(Icons.public),
+                      leading: const SettingsIcon(Icons.public),
                       title: Text(l10n.settingsAboutMozhiProject),
                       subtitle: Text(l10n.settingsAboutMozhiProjectSubtitle),
                       trailing: const Icon(Icons.open_in_new),
@@ -129,7 +129,7 @@ class _AboutViewState extends State<AboutView> {
                           LinkLauncher.open(context, AboutView.mozhiProjectUrl),
                     ),
                     ListTile(
-                      leading: const Icon(Icons.description_outlined),
+                      leading: const SettingsIcon(Icons.description_outlined),
                       title: Text(l10n.settingsAboutLicenses),
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () => showLicensePage(

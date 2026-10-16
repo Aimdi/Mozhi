@@ -143,7 +143,7 @@ class _RateSetting extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           ListTile(
-            leading: const Icon(Icons.av_timer_outlined),
+            leading: const SettingsIcon(Icons.av_timer_outlined),
             title: Text(l10n.speechRate),
             subtitle: Text(l10n.speechRateSubtitle),
             // The slider below reads the value.
@@ -264,7 +264,7 @@ class _VoiceTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     return ListTile(
-      leading: const Icon(Icons.graphic_eq),
+      leading: const SettingsIcon(Icons.graphic_eq),
       title: Text(l10n.speechVoiceForLanguage(language.name)),
       subtitle: Text(switch (voice) {
         final voice? => voiceLabel(l10n, voice, listed),

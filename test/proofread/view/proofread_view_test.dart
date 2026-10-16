@@ -65,6 +65,36 @@ void main() {
     );
   }
 
+  /// Pumps the view and expands its collapsed "Options" card.
+  Future<void> pumpControls(
+    WidgetTester tester,
+    ProofreadState state, {
+    Stream<ProofreadState>? stream,
+    TranslateState translateState = readyTranslateState,
+    Size size = const Size(800, 2400),
+  }) async {
+    await pumpView(
+      tester,
+      state,
+      stream: stream,
+      translateState: translateState,
+      size: size,
+    );
+    if (find.byKey(const Key('proofread_style_menu')).evaluate().isEmpty) {
+      await tester.tap(find.text('Options'));
+      await tester.pumpAndSettle();
+    }
+  }
+
+  /// Expects the menu button [key] to show [value].
+  void expectMenuValue(WidgetTester tester, String key, String value) {
+    expect(
+      find.descendant(of: find.byKey(Key(key)), matching: find.text(value)),
+      findsOneWidget,
+      reason: key,
+    );
+  }
+
   group('ProofreadView', () {
     group('empty state', () {
       testWidgets('explains that an AI provider is needed', (tester) async {
@@ -322,9 +352,57 @@ void main() {
     });
 
     group('controls', () {
+      testWidgets('start collapsed with a summary on narrow screens', (
+        tester,
+      ) async {
+        await pumpView(
+          tester,
+          readyState.copyWith(
+            correctionLevel: CorrectionLevel.light,
+            writingStyle: WritingStyle.academic,
+            formality: Formality.more,
+            readingLevel: ReadingLevel.b2,
+            variety: () => ProofreadVariety.enGb,
+          ),
+        );
+        expect(find.byKey(const Key('proofread_style_menu')), findsNothing);
+        expect(
+          find.text('Light · Academic · More formal · B2 · English (UK)'),
+          findsOneWidget,
+        );
+        await tester.tap(find.text('Options'));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('proofread_style_menu')), findsOneWidget);
+      });
+
+      testWidgets('summary names a set context', (tester) async {
+        await pumpView(tester, readyState.copyWith(context: 'thesis'));
+        expect(find.text('Standard · General · Context'), findsOneWidget);
+        // A set context keeps the options open.
+        expect(find.byKey(const Key('proofread_context')), findsOneWidget);
+      });
+
+      testWidgets('start expanded on wide screens', (tester) async {
+        await pumpView(tester, readyState, size: const Size(1200, 1600));
+        expect(find.byKey(const Key('proofread_style_menu')), findsOneWidget);
+      });
+
+      testWidgets('lay the menus out in two equal columns', (tester) async {
+        await pumpControls(tester, readyState);
+        final style = tester.getRect(
+          find.byKey(const Key('proofread_style_menu')),
+        );
+        final formality = tester.getRect(
+          find.byKey(const Key('proofread_formality_menu')),
+        );
+        expect(style.top, formality.top);
+        expect(style.width, closeTo(formality.width, 0.5));
+        expect(style.height, formality.height);
+      });
+
       testWidgets('changes the writing style', (tester) async {
-        await pumpView(tester, readyState);
-        expect(find.textContaining('General'), findsOneWidget);
+        await pumpControls(tester, readyState);
+        expectMenuValue(tester, 'proofread_style_menu', 'General');
         await tester.tap(find.byKey(const Key('proofread_style_menu')));
         await tester.pumpAndSettle();
         await tester.tap(find.text('Academic'));
@@ -333,7 +411,7 @@ void main() {
       });
 
       testWidgets('changes the formality', (tester) async {
-        await pumpView(tester, readyState);
+        await pumpControls(tester, readyState);
         await tester.tap(find.byKey(const Key('proofread_formality_menu')));
         await tester.pumpAndSettle();
         await tester.tap(find.text('Less formal'));
@@ -342,8 +420,8 @@ void main() {
       });
 
       testWidgets('changes the reading level', (tester) async {
-        await pumpView(tester, readyState);
-        expect(find.text('Reading level: As written'), findsOneWidget);
+        await pumpControls(tester, readyState);
+        expectMenuValue(tester, 'proofread_reading_level_menu', 'As written');
         await tester.tap(find.byKey(const Key('proofread_reading_level_menu')));
         await tester.pumpAndSettle();
         // Each option shows its CEFR description.
@@ -355,8 +433,8 @@ void main() {
       });
 
       testWidgets('changes the regional variety', (tester) async {
-        await pumpView(tester, readyState);
-        expect(find.text('Region: As written'), findsOneWidget);
+        await pumpControls(tester, readyState);
+        expectMenuValue(tester, 'proofread_variety_menu', 'As written');
         await tester.tap(find.byKey(const Key('proofread_variety_menu')));
         await tester.pumpAndSettle();
         expect(
@@ -385,28 +463,37 @@ void main() {
       });
 
       testWidgets("goes back to the author's variety", (tester) async {
-        await pumpView(
+        await pumpControls(
           tester,
           readyState.copyWith(variety: () => ProofreadVariety.deCh),
         );
-        expect(find.text('Region: German (Switzerland)'), findsOneWidget);
+        expectMenuValue(
+          tester,
+          'proofread_variety_menu',
+          'German (Switzerland)',
+        );
         await tester.tap(find.byKey(const Key('proofread_variety_menu')));
         await tester.pumpAndSettle();
-        await tester.tap(find.text('As written'));
+        await tester.tap(
+          find.descendant(
+            of: find.byType(MenuItemButton),
+            matching: find.text('As written'),
+          ),
+        );
         await tester.pumpAndSettle();
         verify(() => cubit.setVariety(null)).called(1);
       });
 
       testWidgets('shows the chosen reading level', (tester) async {
-        await pumpView(
+        await pumpControls(
           tester,
           readyState.copyWith(readingLevel: ReadingLevel.c1),
         );
-        expect(find.text('Reading level: C1'), findsOneWidget);
+        expectMenuValue(tester, 'proofread_reading_level_menu', 'C1');
       });
 
       testWidgets('updates when the new options change', (tester) async {
-        await pumpView(
+        await pumpControls(
           tester,
           readyState,
           stream: Stream.value(
@@ -417,14 +504,18 @@ void main() {
           ),
         );
         await tester.pump();
-        expect(find.text('Reading level: A2'), findsOneWidget);
-        expect(find.text('Region: Portuguese (Brazil)'), findsOneWidget);
+        expectMenuValue(tester, 'proofread_reading_level_menu', 'A2');
+        expectMenuValue(
+          tester,
+          'proofread_variety_menu',
+          'Portuguese (Brazil)',
+        );
       });
 
       testWidgets('fit a phone at 200% text', (tester) async {
         tester.platformDispatcher.textScaleFactorTestValue = 2;
         addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-        await pumpView(
+        await pumpControls(
           tester,
           readyState.copyWith(availableEngines: [openAiEngine, ollamaEngine]),
           size: const Size(320, 3200),
@@ -454,7 +545,7 @@ void main() {
       ) async {
         tester.platformDispatcher.textScaleFactorTestValue = 2;
         addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-        await pumpView(
+        await pumpControls(
           tester,
           readyState.copyWith(
             readingLevel: ReadingLevel.a2,
@@ -464,10 +555,9 @@ void main() {
         );
         expect(tester.takeException(), isNull);
         RenderParagraph label(String key) => tester.renderObject(
-          find.descendant(
-            of: find.byKey(Key(key)),
-            matching: find.byType(Text),
-          ),
+          find
+              .descendant(of: find.byKey(Key(key)), matching: find.byType(Text))
+              .last,
         );
         for (final key in [
           'proofread_level_menu',
@@ -478,7 +568,11 @@ void main() {
         ]) {
           expect(label(key).didExceedMaxLines, isFalse, reason: key);
         }
-        expect(find.text('Region: Spanish (Latin America)'), findsOneWidget);
+        expectMenuValue(
+          tester,
+          'proofread_variety_menu',
+          'Spanish (Latin America)',
+        );
         // The long value wraps onto more lines instead.
         final variety = label('proofread_variety_menu');
         expect(
@@ -488,7 +582,7 @@ void main() {
       });
 
       testWidgets('menu button toggles its menu', (tester) async {
-        await pumpView(tester, readyState);
+        await pumpControls(tester, readyState);
         await tester.tap(find.byKey(const Key('proofread_formality_menu')));
         await tester.pumpAndSettle();
         expect(find.text('Prefer informal'), findsOneWidget);
@@ -501,7 +595,7 @@ void main() {
       });
 
       testWidgets('changes the correction level', (tester) async {
-        await pumpView(tester, readyState);
+        await pumpControls(tester, readyState);
         await tester.tap(find.text('Comprehensive'));
         verify(() => cubit.setLevel(CorrectionLevel.comprehensive)).called(1);
       });
@@ -509,7 +603,7 @@ void main() {
       testWidgets('uses a menu for the level when labels would not fit', (
         tester,
       ) async {
-        await pumpView(tester, readyState, size: const Size(360, 2400));
+        await pumpControls(tester, readyState, size: const Size(360, 2400));
         expect(find.byType(SegmentedButton<CorrectionLevel>), findsNothing);
         await tester.tap(find.byKey(const Key('proofread_level_menu')));
         await tester.pumpAndSettle();
@@ -527,7 +621,7 @@ void main() {
         tester,
       ) async {
         final semantics = tester.ensureSemantics();
-        await pumpView(tester, readyState);
+        await pumpControls(tester, readyState);
         await tester.tap(find.byKey(const Key('proofread_style_menu')));
         await tester.pumpAndSettle();
         final general = find.descendant(
@@ -556,12 +650,12 @@ void main() {
       testWidgets('hides the engine picker for a single engine', (
         tester,
       ) async {
-        await pumpView(tester, readyState);
+        await pumpControls(tester, readyState);
         expect(find.byKey(const Key('proofread_engine_menu')), findsNothing);
       });
 
       testWidgets('picks among several AI engines', (tester) async {
-        await pumpView(
+        await pumpControls(
           tester,
           readyState.copyWith(availableEngines: [openAiEngine, ollamaEngine]),
         );
@@ -575,7 +669,7 @@ void main() {
       });
 
       testWidgets('adds and removes context', (tester) async {
-        await pumpView(tester, readyState);
+        await pumpControls(tester, readyState);
         expect(find.byKey(const Key('proofread_context')), findsNothing);
         await tester.tap(find.text('Add context'));
         await tester.pump();
@@ -592,7 +686,7 @@ void main() {
       });
 
       testWidgets('shows existing context', (tester) async {
-        await pumpView(tester, readyState.copyWith(context: 'thesis'));
+        await pumpControls(tester, readyState.copyWith(context: 'thesis'));
         expect(find.text('thesis'), findsOneWidget);
         expect(find.text('Add context'), findsNothing);
       });

@@ -575,6 +575,9 @@ void main() {
           tester.getSemantics(find.text('No history yet')),
           isSemantics(isHeader: true, isLiveRegion: false),
         );
+        await tester.tap(find.text('Start translating'));
+        verify(() => router.go('/translate', extra: any(named: 'extra')))
+            .called(1);
       });
 
       testWidgets('no matches', (tester) async {
@@ -592,6 +595,8 @@ void main() {
           tester.getSemantics(find.text('No matches')),
           isSemantics(isLiveRegion: true, isHeader: true),
         );
+        await tester.tap(find.text('Clear search'));
+        verify(() => history.search('')).called(1);
       });
 
       testWidgets('no favorites', (tester) async {
@@ -604,6 +609,8 @@ void main() {
           ),
         );
         expect(find.text('No favorites yet'), findsOneWidget);
+        await tester.tap(find.text('Show all translations'));
+        verify(() => history.setFavoritesOnly(enabled: false)).called(1);
       });
 
       testWidgets('loading', (tester) async {

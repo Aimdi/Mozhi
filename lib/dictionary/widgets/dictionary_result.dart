@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/dictionary/cubit/dictionary_cubit.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/settings/view/widgets/empty_state_view.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/ai_generated_header.dart';
 import 'package:mozhi/translate/widgets/dictionary_card.dart';
@@ -46,7 +47,7 @@ class DictionaryResult extends StatelessWidget {
             EnginesStatus.failure => _Message(
               key: const Key('dictionary_engines_error'),
               icon: Icons.cloud_off_outlined,
-              iconColor: Theme.of(context).colorScheme.error,
+              error: true,
               title: l10n.dictionaryEnginesErrorTitle,
               body: l10n.dictionaryEnginesErrorBody,
               action: FilledButton.icon(
@@ -156,55 +157,30 @@ class _Message extends StatelessWidget {
     required this.title,
     this.body,
     this.action,
-    this.iconColor,
+    this.error = false,
     super.key,
   });
 
   final IconData icon;
-  final Color? iconColor;
   final String title;
   final String? body;
   final Widget? action;
 
+  /// Whether this reports a failure (error-tinted icon).
+  final bool error;
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final body = this.body;
-    final action = this.action;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 32),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Semantics(
-            liveRegion: true,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              spacing: 16,
-              children: [
-                Icon(
-                  icon,
-                  size: 56,
-                  color: iconColor ?? theme.colorScheme.primary,
-                ),
-                Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.titleLarge,
-                ),
-                if (body != null)
-                  Text(
-                    body,
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ?action,
-              ],
-            ),
-          ),
-        ),
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: EmptyStateView(
+        icon: icon,
+        title: title,
+        body: body,
+        action: action,
+        tone: error ? EmptyStateTone.error : EmptyStateTone.neutral,
+        announce: true,
+        compact: true,
       ),
     );
   }

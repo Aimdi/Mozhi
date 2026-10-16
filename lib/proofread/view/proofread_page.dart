@@ -193,7 +193,7 @@ class _WideLayout extends StatelessWidget {
               spacing: 16,
               children: [
                 ProofreadInputCard(),
-                ProofreadControls(),
+                ProofreadControls(initiallyExpanded: true),
                 ProofreadButton(),
               ],
             ),

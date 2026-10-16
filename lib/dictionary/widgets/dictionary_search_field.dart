@@ -106,12 +106,13 @@ class _DictionarySearchFieldState extends State<DictionarySearchField> {
                   icon: const Icon(Icons.close),
                   onPressed: _clear,
                 ),
-              IconButton(
+              IconButton.filled(
                 key: const Key('dictionary_look_up'),
                 tooltip: l10n.dictionaryLookUp,
                 icon: const Icon(Icons.arrow_forward),
                 onPressed: word.trim().isEmpty || !hasEngine ? null : _lookUp,
               ),
+              const SizedBox(width: 4),
             ],
           ),
           filled: true,

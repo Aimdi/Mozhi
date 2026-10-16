@@ -5966,5 +5966,65 @@
   "onboardingServiceOwnInsecure": "This instance uses plain HTTP. Confirm that you want to add it without encryption.",
   "@onboardingServiceOwnInsecure": {
     "description": "onboardingServiceOwnInsecure"
+  },
+  "translateRefineAndLearn": "Refine & learn",
+  "@translateRefineAndLearn": {
+    "description": "Heading of the group under a translation with refinement chips, alternatives, explanations and definitions"
+  },
+  "translateToolsLabel": "Translation tools",
+  "@translateToolsLabel": {
+    "description": "Screen reader name of the row of secondary tools under the translation"
+  },
+  "translateToolRomanization": "Romanization",
+  "@translateToolRomanization": {
+    "description": "Chip label: show the translation in Latin letters"
+  },
+  "translateToolAlignment": "Matching phrases",
+  "@translateToolAlignment": {
+    "description": "Chip label: highlight which phrases of the input and the translation match"
+  },
+  "translateEmptyTitle": "Your translation appears here",
+  "@translateEmptyTitle": {
+    "description": "Title of the empty output card"
+  },
+  "translateEmptyHint": "Type or paste text, speak, or translate a photo.",
+  "@translateEmptyHint": {
+    "description": "Hint in the empty output card"
+  },
+  "translateEmptyRecentPairs": "Recent pairs",
+  "@translateEmptyRecentPairs": {
+    "description": "Label above recent language pair chips in the empty output card"
+  },
+  "translateEmptyShortcutsTip": "Press ? for keyboard shortcuts",
+  "@translateEmptyShortcutsTip": {
+    "description": "Tip in the empty output card on large screens"
+  },
+  "translateMoreLanguages": "More languages",
+  "@translateMoreLanguages": {
+    "description": "Heading of the section with translations into extra target languages"
+  },
+  "proofreadOptionsTitle": "Options",
+  "@proofreadOptionsTitle": {
+    "description": "proofreadOptionsTitle"
+  },
+  "proofreadSuggestionCount": "{count, plural, =0{No suggestions} =1{1 suggestion} other{{count} suggestions}}",
+  "@proofreadSuggestionCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "historyEmptyAction": "Start translating",
+  "@historyEmptyAction": {
+    "description": "historyEmptyAction"
+  },
+  "historyShowAll": "Show all translations",
+  "@historyShowAll": {
+    "description": "historyShowAll"
+  },
+  "settingsSectionTools": "Translation tools",
+  "@settingsSectionTools": {
+    "description": "settingsSectionTools"
   }
 }

@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/settings/view/widgets/empty_state_view.dart';
 import 'package:mozhi/usage/cubit/usage_cubit.dart';
 import 'package:mozhi/usage/data/usage_tracker.dart';
 import 'package:mozhi/usage/models/models.dart';
@@ -191,32 +192,13 @@ class _EmptyUsage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final l10n = context.l10n;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 48),
-      child: Column(
-        children: [
-          Icon(
-            Icons.data_usage_outlined,
-            size: 48,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            l10n.usageEmptyTitle,
-            style: theme.textTheme.titleMedium,
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            l10n.usageEmptyBody,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
+      padding: const EdgeInsets.symmetric(vertical: 24),
+      child: EmptyStateView(
+        icon: Icons.data_usage_outlined,
+        title: l10n.usageEmptyTitle,
+        body: l10n.usageEmptyBody,
       ),
     );
   }
@@ -244,14 +226,21 @@ class _MonthTotals extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Semantics(
-              header: true,
-              child: Text(
-                context.usageMonthYear(snapshot.currentMonth),
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: scheme.onPrimaryContainer,
+            Row(
+              children: [
+                Expanded(
+                  child: Semantics(
+                    header: true,
+                    child: Text(
+                      context.usageMonthYear(snapshot.currentMonth),
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: scheme.onPrimaryContainer,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+                Icon(Icons.insights_outlined, color: scheme.onPrimaryContainer),
+              ],
             ),
             const SizedBox(height: 4),
             Text(
@@ -328,7 +317,16 @@ class ProviderUsageTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Row(
+                spacing: 12,
                 children: [
+                  ExcludeSemantics(
+                    child: CircleAvatar(
+                      radius: 18,
+                      backgroundColor: scheme.secondaryContainer,
+                      foregroundColor: scheme.onSecondaryContainer,
+                      child: const Icon(Icons.auto_awesome_outlined, size: 18),
+                    ),
+                  ),
                   Expanded(
                     child: Text(
                       name,
@@ -343,7 +341,7 @@ class ProviderUsageTile extends StatelessWidget {
                     Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               if (unused)
                 Text(
                   l10n.usageNotUsed,

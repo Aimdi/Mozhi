@@ -150,7 +150,7 @@ class _QualityEngineSection extends StatelessWidget {
         ),
         if (_isBest && ready && !hasAi)
           ListTile(
-            leading: const Icon(Icons.add),
+            leading: const SettingsIcon(Icons.add),
             title: Text(l10n.settingsProvidersAdd),
             subtitle: Text(l10n.settingsQualityBestNoAi),
             onTap: () => context.push('/settings/providers'),

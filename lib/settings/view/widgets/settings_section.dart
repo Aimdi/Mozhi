@@ -15,6 +15,8 @@ EdgeInsets centeredPadding(
 }
 
 /// A titled group of settings rendered as a calm, rounded card.
+///
+/// Use [SettingsIcon] for the leading icons of the tiles inside.
 class SettingsSection extends StatelessWidget {
   const new({required this.title, required this.children, super.key});
 
@@ -24,36 +26,86 @@ class SettingsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colors = theme.colorScheme;
     return Padding(
       padding: const EdgeInsets.only(bottom: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            padding: const EdgeInsetsDirectional.fromSTEB(16, 8, 16, 10),
             child: Semantics(
               header: true,
               child: Text(
                 title,
                 style: theme.textTheme.titleSmall?.copyWith(
-                  color: theme.colorScheme.primary,
+                  color: colors.primary,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
           ),
           Card.filled(
             margin: EdgeInsets.zero,
-            color: theme.colorScheme.surfaceContainerLow,
+            color: colors.surfaceContainerLow,
             clipBehavior: Clip.antiAlias,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(24),
             ),
-            child: Column(children: children),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Column(children: children),
+            ),
           ),
         ],
       ),
     );
   }
+}
+
+/// A settings tile's leading icon on a soft tinted square.
+///
+/// Tinted with the primary colour, or with [color] (e.g. the error colour
+/// for destructive actions). In a disabled tile, which greys out its icons
+/// through the [IconTheme], it takes that grey instead.
+class SettingsIcon extends StatelessWidget {
+  const new(this.icon, {this.color, super.key});
+
+  final IconData icon;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final inherited = IconTheme.of(context).color;
+    // An enabled ListTile gives its icons onSurfaceVariant.
+    final enabled = inherited == null || inherited == colors.onSurfaceVariant;
+    final foreground = enabled ? color ?? colors.primary : inherited;
+    return SizedBox.square(
+      dimension: 40,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: foreground.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon, size: 22, color: foreground),
+      ),
+    );
+  }
+}
+
+/// A separator before destructive actions at the end of a
+/// [SettingsSection].
+class SettingsDangerDivider extends StatelessWidget {
+  const new({super.key});
+
+  @override
+  Widget build(BuildContext context) => Divider(
+    height: 13,
+    indent: 16,
+    endIndent: 16,
+    color: Theme.of(context).colorScheme.outlineVariant,
+  );
 }
 
 /// WCAG contrast ratio between two opaque colours (1 to 21).

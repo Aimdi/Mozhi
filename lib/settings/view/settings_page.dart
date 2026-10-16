@@ -41,6 +41,7 @@ class SettingsView extends StatelessWidget {
     final primary = [
       _ServicesSection(settings: settings),
       _TranslationSection(settings: settings),
+      const _ToolsSection(),
       if (_hasSpeechService(context))
         SpeechSettingsSection(
           languages: [
@@ -116,7 +117,7 @@ class _ServicesSection extends StatelessWidget {
       title: l10n.settingsSectionServices,
       children: [
         ListTile(
-          leading: const Icon(Icons.dns_outlined),
+          leading: const SettingsIcon(Icons.dns_outlined),
           title: Text(l10n.settingsInstancesTitle),
           subtitle: Text(
             instances.isEmpty
@@ -130,7 +131,7 @@ class _ServicesSection extends StatelessWidget {
           onTap: () => context.push('/settings/instances'),
         ),
         ListTile(
-          leading: const Icon(Icons.auto_awesome_outlined),
+          leading: const SettingsIcon(Icons.auto_awesome_outlined),
           title: Text(l10n.settingsProvidersTitle),
           subtitle: Text(
             providers.isEmpty
@@ -142,7 +143,7 @@ class _ServicesSection extends StatelessWidget {
         ),
         if (SettingsView.offlineSupported)
           ListTile(
-            leading: const Icon(Icons.download_for_offline_outlined),
+            leading: const SettingsIcon(Icons.download_for_offline_outlined),
             title: Text(l10n.offlineTitle),
             subtitle: Text(l10n.settingsOfflineSubtitle),
             trailing: const Icon(Icons.chevron_right),
@@ -152,12 +153,12 @@ class _ServicesSection extends StatelessWidget {
           // A phone build without ML Kit (F-Droid): say why it is missing.
           ListTile(
             enabled: false,
-            leading: const Icon(Icons.download_for_offline_outlined),
+            leading: const SettingsIcon(Icons.download_for_offline_outlined),
             title: Text(l10n.offlineTitle),
             subtitle: Text(l10n.settingsOfflineNotIncluded),
           ),
         ListTile(
-          leading: const Icon(Icons.insights_outlined),
+          leading: const SettingsIcon(Icons.insights_outlined),
           title: Text(l10n.settingsUsageTitle),
           subtitle: Text(l10n.settingsUsageSubtitle),
           trailing: const Icon(Icons.chevron_right),
@@ -186,50 +187,58 @@ class _TranslationSection extends StatelessWidget {
       title: l10n.settingsSectionTranslation,
       children: [
         SwitchListTile(
-          secondary: const Icon(Icons.bolt_outlined),
+          secondary: const SettingsIcon(Icons.bolt_outlined),
           title: Text(l10n.settingsInstantTranslate),
           subtitle: Text(l10n.settingsInstantTranslateSubtitle),
           value: settings.instantTranslate,
           onChanged: (value) => cubit.setInstantTranslate(enabled: value),
         ),
         SwitchListTile(
-          secondary: const Icon(Icons.electric_bolt_outlined),
+          secondary: const SettingsIcon(Icons.electric_bolt_outlined),
           title: Text(l10n.settingsInstantTranslateAi),
           subtitle: Text(l10n.settingsInstantTranslateAiSubtitle),
           value: settings.instantTranslateAi,
           onChanged: (value) => cubit.setInstantTranslateAi(enabled: value),
         ),
         SwitchListTile(
-          secondary: const Icon(Icons.history),
-          title: Text(l10n.settingsSaveHistory),
-          subtitle: Text(l10n.settingsSaveHistorySubtitle),
-          value: settings.saveHistory,
-          onChanged: (value) => cubit.setSaveHistory(enabled: value),
-        ),
-        SwitchListTile(
-          secondary: const Icon(Icons.abc),
+          secondary: const SettingsIcon(Icons.abc),
           title: Text(l10n.settingsShowTransliteration),
           subtitle: Text(l10n.settingsShowTransliterationSubtitle),
           value: settings.showTransliteration,
           onChanged: (value) => cubit.setShowTransliteration(enabled: value),
         ),
         _AssistEngineTile(settings: settings),
+      ],
+    );
+  }
+}
+
+/// Quality modes, presets and glossaries.
+class _ToolsSection extends StatelessWidget {
+  const new();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return SettingsSection(
+      title: l10n.settingsSectionTools,
+      children: [
         ListTile(
-          leading: const Icon(Icons.speed_outlined),
+          leading: const SettingsIcon(Icons.speed_outlined),
           title: Text(l10n.settingsQualityTitle),
           subtitle: Text(l10n.settingsQualitySubtitle),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => context.push('/settings/quality'),
         ),
         ListTile(
-          leading: const Icon(Icons.tune),
+          leading: const SettingsIcon(Icons.tune),
           title: Text(l10n.presetsTitle),
           subtitle: Text(l10n.settingsPresetsSubtitle),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => context.push('/settings/presets'),
         ),
         ListTile(
-          leading: const Icon(Icons.menu_book_outlined),
+          leading: const SettingsIcon(Icons.menu_book_outlined),
           title: Text(l10n.glossariesTitle),
           subtitle: Text(l10n.settingsGlossariesSubtitle),
           trailing: const Icon(Icons.chevron_right),
@@ -256,7 +265,7 @@ class _AssistEngineTile extends StatelessWidget {
         .firstOrNull;
     final hasProviders = settings.providers.isNotEmpty;
     return ListTile(
-      leading: const Icon(Icons.lightbulb_outline),
+      leading: const SettingsIcon(Icons.lightbulb_outline),
       title: Text(l10n.settingsAssistEngine),
       subtitle: Text(
         !hasProviders
@@ -324,14 +333,14 @@ class _AppearanceSection extends StatelessWidget {
         ),
         if (dynamicColorAvailable)
           SwitchListTile(
-            secondary: const Icon(Icons.wallpaper_outlined),
+            secondary: const SettingsIcon(Icons.wallpaper_outlined),
             title: Text(l10n.settingsDynamicColor),
             subtitle: Text(l10n.settingsDynamicColorSubtitle),
             value: settings.dynamicColor,
             onChanged: (value) => cubit.setDynamicColor(enabled: value),
           ),
         SwitchListTile(
-          secondary: const Icon(Icons.contrast),
+          secondary: const SettingsIcon(Icons.contrast),
           title: Text(l10n.settingsPureBlack),
           subtitle: Text(l10n.settingsPureBlackSubtitle),
           value: settings.pureBlack,
@@ -481,11 +490,19 @@ class _DataSection extends StatelessWidget {
     final l10n = context.l10n;
     final error = Theme.of(context).colorScheme.error;
     final pairs = settings.recentPairs.length;
+    final cubit = context.read<SettingsCubit>();
     return SettingsSection(
       title: l10n.settingsSectionData,
       children: [
+        SwitchListTile(
+          secondary: const SettingsIcon(Icons.history),
+          title: Text(l10n.settingsSaveHistory),
+          subtitle: Text(l10n.settingsSaveHistorySubtitle),
+          value: settings.saveHistory,
+          onChanged: (value) => cubit.setSaveHistory(enabled: value),
+        ),
         ListTile(
-          leading: const Icon(Icons.auto_delete_outlined),
+          leading: const SettingsIcon(Icons.auto_delete_outlined),
           title: Text(l10n.settingsHistoryRetention),
           subtitle: Text(
             historyRetentionLabel(l10n, settings.historyRetention),
@@ -494,26 +511,27 @@ class _DataSection extends StatelessWidget {
           onTap: () => _pickRetention(context),
         ),
         ListTile(
-          leading: const Icon(Icons.upload_outlined),
+          leading: const SettingsIcon(Icons.upload_outlined),
           title: Text(l10n.settingsExportHistory),
           subtitle: Text(l10n.settingsExportHistorySubtitle),
           onTap: () => showExportHistorySheet(context),
         ),
         ListTile(
-          leading: const Icon(Icons.download_outlined),
+          leading: const SettingsIcon(Icons.download_outlined),
           title: Text(l10n.settingsImportHistory),
           subtitle: Text(l10n.settingsImportHistorySubtitle),
           onTap: () => showImportHistoryDialog(context),
         ),
         ListTile(
-          leading: const Icon(Icons.swap_horiz),
+          leading: const SettingsIcon(Icons.swap_horiz),
           title: Text(l10n.settingsClearRecentPairs),
           subtitle: Text(l10n.settingsRecentPairsSummary(pairs)),
           enabled: pairs > 0,
           onTap: () => _clearRecentPairs(context),
         ),
+        const SettingsDangerDivider(),
         ListTile(
-          leading: Icon(Icons.delete_sweep_outlined, color: error),
+          leading: SettingsIcon(Icons.delete_sweep_outlined, color: error),
           title: Text(l10n.historyClearMenu, style: TextStyle(color: error)),
           subtitle: Text(l10n.settingsClearHistorySubtitle),
           onTap: () => confirmClearHistory(context),
@@ -630,14 +648,14 @@ class _AboutSection extends StatelessWidget {
       title: l10n.settingsSectionAbout,
       children: [
         ListTile(
-          leading: const Icon(Icons.info_outline),
+          leading: const SettingsIcon(Icons.info_outline),
           title: Text(l10n.settingsAbout),
           subtitle: Text(l10n.settingsAboutSubtitle),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => context.push('/settings/about'),
         ),
         ListTile(
-          leading: const Icon(Icons.restart_alt),
+          leading: const SettingsIcon(Icons.restart_alt),
           title: Text(l10n.settingsRunSetup),
           subtitle: Text(l10n.settingsRunSetupSubtitle),
           trailing: const Icon(Icons.chevron_right),

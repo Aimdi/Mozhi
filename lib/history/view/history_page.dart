@@ -11,6 +11,7 @@ import 'package:mozhi/history/view/widgets/clear_history_dialog.dart';
 import 'package:mozhi/history/view/widgets/history_entry_tile.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/view/widgets/empty_state_view.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 
@@ -218,12 +219,14 @@ class _HistoryViewState extends State<HistoryView> {
       return [
         SliverFillRemaining(
           hasScrollBody: false,
-          child: _EmptyState(
-            icon: Icons.error_outline,
+          child: EmptyStateView(
+            icon: Icons.cloud_off_outlined,
+            tone: EmptyStateTone.error,
             title: l10n.historyLoadFailed,
-            action: TextButton(
+            action: FilledButton.tonalIcon(
               onPressed: () => context.read<HistoryCubit>().load(),
-              child: Text(l10n.commonRetry),
+              icon: const Icon(Icons.refresh),
+              label: Text(l10n.commonRetry),
             ),
           ),
         ),
@@ -231,28 +234,53 @@ class _HistoryViewState extends State<HistoryView> {
     }
     if (visible.isEmpty) {
       final query = state.query.trim();
-      final (icon, title, body) = !hasEntries
-          ? (Icons.history, l10n.historyEmptyTitle, l10n.historyEmptyBody)
+      final cubit = context.read<HistoryCubit>();
+      final (icon, title, body, action) = !hasEntries
+          ? (
+              Icons.history_rounded,
+              l10n.historyEmptyTitle,
+              l10n.historyEmptyBody,
+              FilledButton.icon(
+                onPressed: () => context.go('/translate'),
+                icon: const Icon(Icons.translate),
+                label: Text(l10n.historyEmptyAction),
+              ),
+            )
           : query.isNotEmpty
           ? (
               Icons.search_off,
               l10n.historyNoMatchesTitle,
               l10n.historyNoMatchesBody(query),
+              FilledButton.tonalIcon(
+                onPressed: _clearSearch,
+                icon: const Icon(Icons.close),
+                label: Text(l10n.historyClearSearch),
+              ),
             )
           : state.favoritesOnly
           ? (
               Icons.star_outline_rounded,
               l10n.historyNoFavoritesTitle,
               l10n.historyNoFavoritesBody,
+              FilledButton.tonal(
+                onPressed: () => cubit.setFavoritesOnly(enabled: false),
+                child: Text(l10n.historyShowAll),
+              ),
             )
-          : (Icons.history, l10n.historyEmptyTitle, l10n.historyEmptyBody);
+          : (
+              Icons.history_rounded,
+              l10n.historyEmptyTitle,
+              l10n.historyEmptyBody,
+              null,
+            );
       return [
         SliverFillRemaining(
           hasScrollBody: false,
-          child: _EmptyState(
+          child: EmptyStateView(
             icon: icon,
             title: title,
             body: body,
+            action: action,
             // Search results change as the user types: say when there are
             // none (WCAG 4.1.3).
             announce: hasEntries && query.isNotEmpty,
@@ -268,8 +296,12 @@ class _HistoryViewState extends State<HistoryView> {
       if (day != lastDay) rows.add(lastDay = day);
       rows.add(entry);
     }
-    final headerStyle = Theme.of(context).textTheme.titleSmall
-        ?.copyWith(color: Theme.of(context).colorScheme.primary);
+    final theme = Theme.of(context);
+    final headerStyle = theme.textTheme.labelLarge?.copyWith(
+      color: theme.colorScheme.primary,
+      fontWeight: FontWeight.w600,
+    );
+    final dividerColor = theme.colorScheme.outlineVariant;
     return [
       SliverPadding(
         padding: padding.copyWith(top: 8, bottom: 32),
@@ -288,10 +320,34 @@ class _HistoryViewState extends State<HistoryView> {
             final HistoryEntry entry => _tile(entry),
             final DateTime day => Padding(
               key: ValueKey(day),
-              padding: EdgeInsets.fromLTRB(4, index == 0 ? 8 : 24, 4, 8),
-              child: Semantics(
-                header: true,
-                child: Text(_dayLabel(l10n, day), style: headerStyle),
+              padding: EdgeInsetsDirectional.fromSTEB(
+                4,
+                index == 0 ? 8 : 20,
+                4,
+                10,
+              ),
+              // The label sits on a hairline that runs to the end; it
+              // covers the line with the page colour, so it can wrap freely
+              // at large text sizes.
+              child: Stack(
+                alignment: AlignmentDirectional.centerStart,
+                children: [
+                  Positioned.fill(
+                    child: Center(
+                      child: Divider(color: dividerColor, height: 1),
+                    ),
+                  ),
+                  ColoredBox(
+                    color: theme.scaffoldBackgroundColor,
+                    child: Padding(
+                      padding: const EdgeInsetsDirectional.only(end: 12),
+                      child: Semantics(
+                        header: true,
+                        child: Text(_dayLabel(l10n, day), style: headerStyle),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             _ => const SizedBox.shrink(), // coverage:ignore-line
@@ -413,76 +469,6 @@ class _HistoryDisabledBanner extends StatelessWidget {
                   child: Text(l10n.historyTurnOn),
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  const new({
-    required this.icon,
-    required this.title,
-    this.body,
-    this.action,
-    this.announce = false,
-  });
-
-  final IconData icon;
-  final String title;
-  final String? body;
-  final Widget? action;
-
-  /// Whether the title and body form a live region.
-  final bool announce;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(32, 24, 32, 48),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 48, color: colors.outline),
-              const SizedBox(height: 16),
-              Semantics(
-                container: announce,
-                liveRegion: announce,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Semantics(
-                      header: true,
-                      child: Text(
-                        title,
-                        style: theme.textTheme.titleMedium,
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    if (body case final body?) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        body,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: colors.onSurfaceVariant,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              if (action case final action?) ...[
-                const SizedBox(height: 16),
-                action,
-              ],
             ],
           ),
         ),

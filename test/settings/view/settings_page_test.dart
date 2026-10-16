@@ -172,8 +172,10 @@ void main() {
           findsOne,
         );
         expect(inSection('Translation services', 'Usage & costs'), findsOne);
-        expect(inSection('Translation', 'Presets'), findsOne);
-        expect(inSection('Translation', 'Glossaries'), findsOne);
+        expect(inSection('Translation tools', 'Presets'), findsOne);
+        expect(inSection('Translation tools', 'Glossaries'), findsOne);
+        expect(inSection('Translation tools', 'Quality modes'), findsOne);
+        expect(inSection('Data', 'Save history'), findsOne);
         expect(inSection('About', 'Run setup again'), findsOne);
       });
 
@@ -788,12 +790,12 @@ void main() {
         ).called(1);
       });
 
-      testWidgets('lives in the translation section', (tester) async {
+      testWidgets('lives in the translation tools section', (tester) async {
         await pump(tester);
         expect(
           find.descendant(
             of: find.ancestor(
-              of: find.text('Translation'),
+              of: find.text('Translation tools'),
               matching: find.byType(SettingsSection),
             ),
             matching: find.text('Quality modes'),

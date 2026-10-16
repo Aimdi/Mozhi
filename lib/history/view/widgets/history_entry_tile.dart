@@ -94,7 +94,7 @@ class _HistoryEntryTileState extends State<HistoryEntryTile> {
                 onTap: widget.onTap,
                 onLongPress: () => _menuKey.currentState?.showButtonMenu(),
                 child: Padding(
-                  padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 4, 12),
+                  padding: const EdgeInsetsDirectional.fromSTEB(16, 14, 4, 14),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -102,29 +102,43 @@ class _HistoryEntryTileState extends State<HistoryEntryTile> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              pair,
-                              style: theme.textTheme.labelMedium?.copyWith(
-                                color: colors.onSurfaceVariant,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 6),
+                            _PairBadge(pair: pair),
+                            const SizedBox(height: 10),
                             _LanguageText(
                               text: entry.text,
                               code: sourceCode,
-                              style: theme.textTheme.bodyLarge,
-                            ),
-                            const SizedBox(height: 4),
-                            _LanguageText(
-                              text: entry.translation,
-                              code: targetCode,
                               style: theme.textTheme.bodyLarge?.copyWith(
-                                color: colors.primary,
+                                color: colors.onSurface,
                               ),
                             ),
                             const SizedBox(height: 8),
+                            // A quiet accent line marks the translation.
+                            DecoratedBox(
+                              decoration: BoxDecoration(
+                                border: BorderDirectional(
+                                  start: BorderSide(
+                                    color: colors.primary.withValues(
+                                      alpha: 0.5,
+                                    ),
+                                    width: 3,
+                                  ),
+                                ),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsetsDirectional.only(
+                                  start: 10,
+                                ),
+                                child: _LanguageText(
+                                  text: entry.translation,
+                                  code: targetCode,
+                                  style: theme.textTheme.bodyLarge?.copyWith(
+                                    color: colors.primary,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
                             Text(
                               '${entry.engineName} · $time',
                               style: theme.textTheme.labelSmall?.copyWith(
@@ -251,6 +265,45 @@ Locale? localeForLanguageCode(String code) {
     scriptCode: script,
     countryCode: country,
   );
+}
+
+/// The language pair as a small tonal badge.
+class _PairBadge extends StatelessWidget {
+  const new({required this.pair});
+
+  final String pair;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.secondaryContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsetsDirectional.fromSTEB(6, 2, 8, 2),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          spacing: 4,
+          children: [
+            Icon(Icons.translate, size: 14, color: colors.onSecondaryContainer),
+            Flexible(
+              child: Text(
+                pair,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: colors.onSecondaryContainer,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _DeleteBackground extends StatelessWidget {

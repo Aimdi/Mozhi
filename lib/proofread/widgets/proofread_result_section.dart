@@ -12,6 +12,8 @@ import 'package:mozhi/proofread/widgets/proofread_diff_text.dart';
 import 'package:mozhi/proofread/widgets/proofread_edit_tile.dart';
 import 'package:mozhi/proofread/widgets/proofread_labels.dart';
 import 'package:mozhi/proofread/widgets/proofread_stats_panel.dart';
+import 'package:mozhi/settings/view/widgets/settings_section.dart'
+    show StatusBadge;
 import 'package:share_plus/share_plus.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -177,21 +179,46 @@ class _ProofreadResultCardState extends State<ProofreadResultCard> {
     final state = widget.state;
     final output = state.outputText;
     final summary = state.result?.summary.trim() ?? '';
-    final textStyle = theme.textTheme.bodyLarge;
+    // Taller lines keep the highlighted changes from touching.
+    final textStyle = theme.textTheme.bodyLarge?.copyWith(height: 1.45);
+    final colors = theme.colorScheme;
 
-    return Card(
+    return Card.filled(
       margin: EdgeInsets.zero,
+      color: colors.surfaceContainerLow,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+        padding: const EdgeInsetsDirectional.fromSTEB(16, 8, 8, 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
+              spacing: 8,
               children: [
+                Icon(Icons.fact_check_outlined, color: colors.primary),
                 Expanded(
-                  child: Text(
-                    l10n.proofreadResultTitle,
-                    style: theme.textTheme.titleSmall,
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        l10n.proofreadResultTitle,
+                        style: theme.textTheme.titleMedium,
+                      ),
+                      // Screen readers hear the count with the edits list
+                      // ("2 of 2 applied") and in the announcement.
+                      if (state.edits.isNotEmpty)
+                        ExcludeSemantics(
+                          child: StatusBadge(
+                            key: const Key('proofread_suggestion_count'),
+                            label: l10n.proofreadSuggestionCount(
+                              state.edits.length,
+                            ),
+                            color: colors.primary,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 IconButton(
@@ -206,7 +233,7 @@ class _ProofreadResultCardState extends State<ProofreadResultCard> {
               ],
             ),
             Padding(
-              padding: const EdgeInsets.only(right: 8, bottom: 8),
+              padding: const EdgeInsetsDirectional.only(end: 8, bottom: 12),
               child: _showChanges
                   ? ProofreadDiffText(
                       key: const Key('proofread_diff'),
@@ -223,25 +250,34 @@ class _ProofreadResultCardState extends State<ProofreadResultCard> {
             ),
             if (summary.isNotEmpty)
               Padding(
-                padding: const EdgeInsets.only(right: 8, bottom: 4),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  spacing: 8,
-                  children: [
-                    Icon(
-                      Icons.auto_awesome_outlined,
-                      size: 18,
-                      color: theme.colorScheme.primary,
-                    ),
-                    Expanded(
-                      child: Text(
-                        summary,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+                padding: const EdgeInsetsDirectional.only(end: 8, bottom: 4),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: colors.secondaryContainer.withValues(alpha: 0.6),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      spacing: 8,
+                      children: [
+                        Icon(
+                          Icons.auto_awesome_outlined,
+                          size: 18,
+                          color: colors.onSecondaryContainer,
                         ),
-                      ),
+                        Expanded(
+                          child: Text(
+                            summary,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: colors.onSecondaryContainer,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             // "Use as input" moves below the icons when it does not fit
