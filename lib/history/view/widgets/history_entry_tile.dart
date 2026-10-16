@@ -325,28 +325,33 @@ class _Header extends StatelessWidget {
     final theme = Theme.of(context);
     final palette = AppPalette.of(context);
     final style = theme.textTheme.bodyMedium?.copyWith(fontSize: 15);
-    return Row(
-      children: [
-        Flexible(
-          child: Text(
-            pair,
-            style: style?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: theme.colorScheme.onSurface,
+    // The pair matters most: the meta gets at most 40 % of the row and
+    // gives up its space (ellipsized) first.
+    return LayoutBuilder(
+      builder: (context, constraints) => Row(
+        children: [
+          Flexible(
+            child: Text(
+              pair,
+              style: style?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: theme.colorScheme.onSurface,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
-        ),
-        Flexible(
-          child: Text(
-            meta,
-            style: style?.copyWith(color: palette.secondaryText),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: constraints.maxWidth * 0.4),
+            child: Text(
+              meta,
+              style: style?.copyWith(color: palette.secondaryText),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
