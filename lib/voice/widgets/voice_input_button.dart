@@ -188,21 +188,24 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
         alignment: Alignment.center,
         clipBehavior: Clip.none,
         children: [
-          if (listening)
+          if (listening) ...[
+            const _PulseRing(),
             Semantics(
               liveRegion: true,
               label: l10n.voiceInputListening,
               child: _LevelRing(level: level),
             ),
+          ],
           IconButton(
             tooltip: listening ? l10n.voiceInputStop : l10n.voiceInputStart,
             isSelected: listening,
+            // An accent mic; a filled accent circle while listening.
             style: listening
                 ? IconButton.styleFrom(
                     backgroundColor: scheme.primary,
                     foregroundColor: scheme.onPrimary,
                   )
-                : null,
+                : IconButton.styleFrom(foregroundColor: scheme.primary),
             icon: const Icon(Icons.mic_none_outlined),
             selectedIcon: const Icon(Icons.mic),
             onPressed: () => unawaited(_toggle()),
@@ -213,8 +216,8 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
   }
 }
 
-/// Translucent circle behind the button, scaled by the input [level]
-/// (static when animations are disabled).
+/// Translucent accent circle behind the button, scaled by the input
+/// [level] (static when animations are disabled).
 class _LevelRing extends StatelessWidget {
   const new({required this.level});
 
@@ -236,10 +239,71 @@ class _LevelRing extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: scheme.primary.withValues(alpha: 0.16),
-            border: Border.all(
-              color: scheme.primary.withValues(alpha: 0.4),
-              width: 2,
-            ),
+          ),
+          child: const SizedBox.square(dimension: 48),
+        ),
+      ),
+    );
+  }
+}
+
+/// A subtle accent ring that keeps pulsing outwards while listening;
+/// nothing when animations are disabled.
+class _PulseRing extends StatefulWidget {
+  const new();
+
+  /// Key of the pulsing ring.
+  static const ValueKey<String> pulseKey = ValueKey('voiceInputPulseRing');
+
+  @override
+  State<_PulseRing> createState() => _PulseRingState();
+}
+
+class _PulseRingState extends State<_PulseRing>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1400),
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    if (reduceMotion) {
+      _controller.stop();
+    } else if (!_controller.isAnimating) {
+      _controller.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
+      return const SizedBox.shrink();
+    }
+    final color = Theme.of(context).colorScheme.primary;
+    return IgnorePointer(
+      child: AnimatedBuilder(
+        key: _PulseRing.pulseKey,
+        animation: _controller,
+        builder: (context, child) {
+          final t = Curves.easeOut.transform(_controller.value);
+          return Transform.scale(
+            scale: 1 + 0.7 * t,
+            child: Opacity(opacity: (1 - t) * 0.6, child: child),
+          );
+        },
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: color, width: 2),
           ),
           child: const SizedBox.square(dimension: 48),
         ),
