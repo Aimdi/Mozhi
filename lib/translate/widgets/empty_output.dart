@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -25,8 +26,8 @@ class EmptyOutput extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final muted = scheme.onSurfaceVariant;
+    final palette = AppPalette.of(context);
+    final muted = palette.secondaryText;
     final recent = context.select<SettingsCubit, List<LanguagePair>>(
       (cubit) => cubit.state.recentPairs,
     );
@@ -40,21 +41,29 @@ class EmptyOutput extends StatelessWidget {
       key: const Key('translate_empty_output'),
       constraints: const BoxConstraints(minHeight: 96),
       child: Padding(
-        padding: const EdgeInsetsDirectional.only(top: 8, end: 12, bottom: 8),
+        padding: const EdgeInsetsDirectional.only(top: 20, end: 12, bottom: 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              l10n.translateEmptyTitle,
-              style: theme.textTheme.titleLarge?.copyWith(
-                color: muted,
-                fontWeight: FontWeight.w400,
+            // X's empty state: a big bold headline, quiet sub-text.
+            Semantics(
+              header: true,
+              child: Text(
+                l10n.translateEmptyTitle,
+                key: const Key('translate_empty_title'),
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  color: theme.colorScheme.onSurface,
+                  fontSize: 27,
+                  fontWeight: FontWeight.w800,
+                  height: 1.15,
+                  letterSpacing: -0.4,
+                ),
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text(
               l10n.translateEmptyHint,
-              style: theme.textTheme.bodyMedium?.copyWith(color: muted),
+              style: theme.textTheme.bodyLarge?.copyWith(color: muted),
             ),
             if (pairs.isNotEmpty) ...[
               const SizedBox(height: 20),
@@ -68,16 +77,12 @@ class EmptyOutput extends StatelessWidget {
                     ExcludeSemantics(
                       child: Text(
                         l10n.translateEmptyRecentPairs,
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          color: muted,
-                        ),
+                        style: TranslateLayout.headingStyle(context),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    // Flat chips paint the canvas colour: let the card's
-                    // surface show through.
-                    Theme(
-                      data: theme.copyWith(canvasColor: Colors.transparent),
+                    const SizedBox(height: 10),
+                    // Outlined hairline pills (X topics) on the page.
+                    TranslatePills(
                       child: Wrap(
                         spacing: 8,
                         runSpacing: 8,
@@ -85,6 +90,11 @@ class EmptyOutput extends StatelessWidget {
                           for (final (index, pair) in pairs.indexed)
                             ActionChip(
                               key: ValueKey('translate_empty_pair:$index'),
+                              avatar: Icon(
+                                Icons.history,
+                                size: 18,
+                                color: theme.colorScheme.primary,
+                              ),
                               label: Text(translatePairLabel(l10n, pair)),
                               onPressed:
                                   (pair.source.isCustom ||

@@ -5,6 +5,7 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/speech/speech_service.dart';
 
@@ -67,8 +68,13 @@ class ListenButton extends StatefulWidget {
     required this.languageCode,
     this.tooltip,
     this.stopTooltip,
+    this.quiet = false,
     super.key,
   });
+
+  /// X action-bar look: a quiet grey icon that takes the accent colour
+  /// while the clip plays (for rows of [XActionButton]s).
+  final bool quiet;
 
   /// Button id passed to [SpeechService.toggle] (`source` / `target`).
   final String id;
@@ -123,6 +129,29 @@ class _ListenButtonState extends State<ListenButton> {
   void _openMenu(TapUpDetails details) =>
       _menu.open(position: details.localPosition);
 
+  static ButtonStyle _quietStyle(BuildContext context) {
+    final palette = AppPalette.of(context);
+    final accent = Theme.of(context).colorScheme.primary;
+    return ButtonStyle(
+      iconSize: const WidgetStatePropertyAll(20),
+      foregroundColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.disabled)
+            ? palette.secondaryText.withValues(alpha: 0.4)
+            : states.contains(WidgetState.selected)
+            ? accent
+            : palette.secondaryText,
+      ),
+      overlayColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.pressed)
+            ? accent.withValues(alpha: 0.16)
+            : states.contains(WidgetState.hovered) ||
+                  states.contains(WidgetState.focused)
+            ? accent.withValues(alpha: 0.1)
+            : null,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
@@ -148,6 +177,7 @@ class _ListenButtonState extends State<ListenButton> {
           onTriggered: enabled ? _listenSlowly : null,
           child: IconButton(
             isSelected: playing,
+            style: widget.quiet ? _quietStyle(context) : null,
             icon: Icon(Icons.volume_up_outlined, semanticLabel: label),
             selectedIcon: Icon(
               Icons.stop_circle_outlined,

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/undo_snack_bar.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/presets/cubit/glossary_cubit.dart';
 import 'package:mozhi/presets/models/glossary.dart';
@@ -178,7 +179,7 @@ class _GlossariesViewState extends State<GlossariesView> {
               return PresetsMessage(
                 icon: Icons.error_outline,
                 title: l10n.glossariesLoadFailed,
-                action: FilledButton.tonal(
+                action: FilledButton(
                   onPressed: () => unawaited(_cubit.load()),
                   child: Text(l10n.commonRetry),
                 ),
@@ -255,54 +256,60 @@ class _GlossaryTile extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final name = l10n.glossaryName(glossary);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Dismissible(
-        key: ValueKey('dismiss-${glossary.id}'),
-        direction: DismissDirection.endToStart,
-        onDismissed: (_) => onDismissed(),
-        background: Container(
-          alignment: AlignmentDirectional.centerEnd,
-          padding: const EdgeInsetsDirectional.only(end: 24),
-          decoration: BoxDecoration(
-            color: colors.errorContainer,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Icon(Icons.delete_outline, color: colors.onErrorContainer),
-        ),
-        child: Card.filled(
-          margin: EdgeInsets.zero,
-          color: colors.surfaceContainerLow,
-          clipBehavior: Clip.antiAlias,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: ListTile(
-            minTileHeight: 72,
-            onTap: onTap,
-            leading: CircleAvatar(
-              backgroundColor: glossary.enabled
-                  ? colors.secondaryContainer
-                  : colors.surfaceContainerHighest,
-              foregroundColor: glossary.enabled
-                  ? colors.onSecondaryContainer
-                  : colors.onSurfaceVariant,
-              child: const Icon(Icons.menu_book_outlined),
-            ),
-            title: Text(name, style: theme.textTheme.titleMedium),
-            subtitle: Text(
-              '${l10n.glossaryScope(glossary)} · '
-              '${l10n.glossariesTermCount(glossary.terms.length)}',
-            ),
-            trailing: Semantics(
-              label: l10n.glossariesEnableLabel(name),
-              child: Switch(
-                key: Key('glossary_enabled_${glossary.id}'),
-                value: glossary.enabled,
-                onChanged: onEnabled,
+    // A flat list row with a hairline below, X style.
+    return Dismissible(
+      key: ValueKey('dismiss-${glossary.id}'),
+      direction: DismissDirection.endToStart,
+      onDismissed: (_) => onDismissed(),
+      background: Container(
+        alignment: AlignmentDirectional.centerEnd,
+        padding: const EdgeInsetsDirectional.only(end: 24),
+        color: colors.errorContainer,
+        child: Icon(Icons.delete_outline, color: colors.onErrorContainer),
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              minTileHeight: 72,
+              contentPadding: const EdgeInsetsDirectional.only(
+                start: 4,
+                end: 4,
+              ),
+              onTap: onTap,
+              leading: CircleAvatar(
+                backgroundColor: glossary.enabled
+                    ? colors.secondaryContainer
+                    : colors.surfaceContainerHighest,
+                foregroundColor: glossary.enabled
+                    ? colors.onSecondaryContainer
+                    : colors.onSurfaceVariant,
+                child: const Icon(Icons.menu_book_outlined),
+              ),
+              title: Text(
+                name,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              subtitle: Text(
+                '${l10n.glossaryScope(glossary)} · '
+                '${l10n.glossariesTermCount(glossary.terms.length)}',
+                style: TextStyle(color: AppPalette.of(context).secondaryText),
+              ),
+              trailing: Semantics(
+                label: l10n.glossariesEnableLabel(name),
+                child: Switch(
+                  key: Key('glossary_enabled_${glossary.id}'),
+                  value: glossary.enabled,
+                  onChanged: onEnabled,
+                ),
               ),
             ),
-          ),
+            const Hairline(),
+          ],
         ),
       ),
     );

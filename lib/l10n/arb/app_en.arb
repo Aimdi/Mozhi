@@ -6026,5 +6026,71 @@
   "settingsSectionTools": "Translation tools",
   "@settingsSectionTools": {
     "description": "settingsSectionTools"
+  },
+  "historyNewTranslation": "New translation",
+  "@historyNewTranslation": {
+    "description": "historyNewTranslation"
+  },
+  "historyTimeNow": "now",
+  "@historyTimeNow": {
+    "description": "Relative time of a history entry made less than a minute ago."
+  },
+  "historyTimeMinutes": "{minutes}m",
+  "@historyTimeMinutes": {
+    "description": "Short relative time: minutes ago (X style, e.g. 5m).",
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "historyTimeHours": "{hours}h",
+  "@historyTimeHours": {
+    "description": "Short relative time: hours ago (X style, e.g. 3h).",
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      }
+    }
+  },
+  "historyFilterLabel": "Show",
+  "@historyFilterLabel": {
+    "description": "historyFilterLabel"
+  },
+  "offlineDownloadAction": "Download",
+  "@offlineDownloadAction": {
+    "description": "offlineDownloadAction"
+  },
+  "usageStatCharacters": "Characters",
+  "@usageStatCharacters": {
+    "description": "usageStatCharacters"
+  },
+  "usageStatRequests": "Requests",
+  "@usageStatRequests": {
+    "description": "usageStatRequests"
+  },
+  "usageStatTokens": "Est. tokens",
+  "@usageStatTokens": {
+    "description": "usageStatTokens"
+  },
+  "settingsColorYellow": "Yellow",
+  "@settingsColorYellow": {
+    "description": "settingsColorYellow"
+  },
+  "settingsDarkLook": "Dark theme",
+  "@settingsDarkLook": {
+    "description": "settingsDarkLook"
+  },
+  "settingsDarkLookDim": "Dim",
+  "@settingsDarkLookDim": {
+    "description": "settingsDarkLookDim"
+  },
+  "settingsDarkLookLightsOut": "Lights out",
+  "@settingsDarkLookLightsOut": {
+    "description": "settingsDarkLookLightsOut"
+  },
+  "settingsDarkLookSubtitle": "Dim is dark blue-grey; Lights out is true black, easier on OLED screens",
+  "@settingsDarkLookSubtitle": {
+    "description": "settingsDarkLookSubtitle"
   }
 }

@@ -63,15 +63,10 @@ class SkeletonCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      elevation: 0,
-      color: Theme.of(context).colorScheme.surfaceContainerLow,
-      shape: const RoundedRectangleBorder(
-        borderRadius: TranslateLayout.cardBorderRadius,
-      ),
-      child: const Padding(
-        padding: EdgeInsets.all(20),
+    return const TranslateFlatCard(
+      look: TranslateCardLook.quote,
+      child: Padding(
+        padding: EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -113,16 +108,53 @@ class TranslateSkeleton extends StatelessWidget {
                       Expanded(child: SkeletonBox(height: 40, radius: 20)),
                     ],
                   ),
-                  SizedBox(height: TranslateLayout.gap),
-                  SkeletonBox(height: 160, radius: TranslateLayout.cardRadius),
-                  SizedBox(height: TranslateLayout.gap),
-                  SkeletonBox(height: 120, radius: TranslateLayout.cardRadius),
+                  SizedBox(height: 20),
+                  _SkeletonPost(lines: 3),
+                  SizedBox(height: 20),
+                  _SkeletonPost(lines: 2),
                 ],
               ),
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+/// A placeholder post of the thread layout: an avatar and a few lines.
+class _SkeletonPost extends StatelessWidget {
+  const new({required this.lines});
+
+  final int lines;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SkeletonBox(
+          height: TranslateLayout.avatarSize,
+          width: TranslateLayout.avatarSize,
+          radius: TranslateLayout.avatarSize / 2,
+        ),
+        const SizedBox(width: TranslateLayout.avatarGap),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SkeletonBox(height: 14, width: 96),
+              for (var line = 0; line < lines; line++) ...[
+                const SizedBox(height: 10),
+                FractionallySizedBox(
+                  widthFactor: line == lines - 1 ? 0.6 : 1,
+                  child: const SkeletonBox(height: 18),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

@@ -6,6 +6,7 @@ import 'package:mozhi/conversation/cubit/conversation_cubit.dart';
 import 'package:mozhi/conversation/models/conversation_turn.dart';
 import 'package:mozhi/conversation/widgets/conversation_language_picker.dart';
 import 'package:mozhi/conversation/widgets/side_colors.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -47,18 +48,27 @@ class ConversationLanguageButton extends StatelessWidget {
         button: true,
         label: l10n.conversationChangeLanguage(language.name),
         excludeSemantics: true,
-        child: FilledButton.tonal(
+        // An outlined pill led by the language's avatar; the side's colour
+        // draws the outline.
+        child: OutlinedButton(
           key: Key('conversation_language_${side.name}'),
-          style: FilledButton.styleFrom(
-            backgroundColor: colors.container,
-            foregroundColor: colors.onContainer,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.onSurface,
+            side: BorderSide(color: colors.accent),
+            shape: const StadiumBorder(),
             minimumSize: const Size(48, 48),
-            padding: const EdgeInsetsDirectional.only(start: 20, end: 12),
+            padding: const EdgeInsetsDirectional.only(start: 8, end: 12),
+            textStyle: const TextStyle(fontWeight: FontWeight.w700),
           ),
           onPressed: () => unawaited(_pick(context, language)),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              LanguageAvatar(
+                code: language.isCustom ? language.name : language.code,
+                size: 28,
+              ),
+              const SizedBox(width: 8),
               Flexible(
                 child: Text(
                   language.name,

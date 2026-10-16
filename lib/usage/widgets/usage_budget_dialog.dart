@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/usage/models/models.dart';
 import 'package:mozhi/usage/widgets/usage_format.dart';
@@ -51,14 +52,21 @@ class _UsageBudgetDialogState extends State<UsageBudgetDialog> {
     final threshold =
         widget.current?.warningThreshold ?? UsageBudget.defaultWarningThreshold;
     return AlertDialog(
-      title: Text(l10n.usageBudgetDialogTitle),
+      title: Text(
+        l10n.usageBudgetDialogTitle,
+        style: Theme.of(context).textTheme.titleLarge
+            ?.copyWith(fontWeight: FontWeight.w800),
+      ),
       content: Form(
         key: _formKey,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(l10n.usageBudgetDialogBody(context.usagePercent(threshold))),
+            Text(
+              l10n.usageBudgetDialogBody(context.usagePercent(threshold)),
+              style: TextStyle(color: AppPalette.of(context).secondaryText),
+            ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _controller,

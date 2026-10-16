@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/quick_translate/quick_translate.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -95,7 +96,12 @@ void main() {
         byKey('quick_translate_translation'),
       );
       final context = tester.element(byKey('quick_translate_translation'));
-      expect(text.style, Theme.of(context).textTheme.bodyLarge);
+      expect(
+        text.style,
+        Theme.of(
+          context,
+        ).textTheme.bodyLarge?.copyWith(fontSize: 18, height: 1.4),
+      );
       expect(text.textDirection, isNull);
     });
 
@@ -141,10 +147,8 @@ void main() {
           isFalse,
         );
         expect(
-          tester
-              .widget<ButtonStyleButton>(byKey('quick_translate_copy'))
-              .enabled,
-          isFalse,
+          tester.widget<XActionButton>(byKey('quick_translate_copy')).onPressed,
+          isNull,
         );
 
         states.add(done);
@@ -284,6 +288,10 @@ void main() {
         await tester.pump();
         expect(clipboard, 'Bonjour le monde');
         expect(find.text('Copied'), findsOneWidget);
+        expect(
+          tester.widget<XActionButton>(byKey('quick_translate_copy')).active,
+          isTrue,
+        );
         expect(find.text('Copied to clipboard'), findsOneWidget);
 
         await tester.pump(const Duration(seconds: 2));

@@ -8,17 +8,18 @@ class AccentColorOption {
   final int argb;
   final String Function(AppLocalizations l10n) label;
 
+  /// X's accents first (blue is the default), then a few classics so a
+  /// previously picked colour stays selectable.
   static final options = <AccentColorOption>[
-    AccentColorOption(0xFF3F51B5, (l10n) => l10n.settingsColorIndigo),
-    AccentColorOption(0xFF1E6FD9, (l10n) => l10n.settingsColorBlue),
+    AccentColorOption(0xFF1D9BF0, (l10n) => l10n.settingsColorBlue),
+    AccentColorOption(0xFFFFD400, (l10n) => l10n.settingsColorYellow),
+    AccentColorOption(0xFFF91880, (l10n) => l10n.settingsColorPink),
+    AccentColorOption(0xFF7856FF, (l10n) => l10n.settingsColorPurple),
+    AccentColorOption(0xFFFF7A00, (l10n) => l10n.settingsColorOrange),
+    AccentColorOption(0xFF00BA7C, (l10n) => l10n.settingsColorGreen),
     AccentColorOption(0xFF00897B, (l10n) => l10n.settingsColorTeal),
-    AccentColorOption(0xFF43A047, (l10n) => l10n.settingsColorGreen),
-    AccentColorOption(0xFF7C8B3A, (l10n) => l10n.settingsColorOlive),
-    AccentColorOption(0xFFFFB300, (l10n) => l10n.settingsColorAmber),
-    AccentColorOption(0xFFF4511E, (l10n) => l10n.settingsColorOrange),
-    AccentColorOption(0xFFD32F2F, (l10n) => l10n.settingsColorRed),
-    AccentColorOption(0xFFD81B60, (l10n) => l10n.settingsColorPink),
-    AccentColorOption(0xFF8E24AA, (l10n) => l10n.settingsColorPurple),
+    AccentColorOption(0xFFF4212E, (l10n) => l10n.settingsColorRed),
+    AccentColorOption(0xFF3F51B5, (l10n) => l10n.settingsColorIndigo),
   ];
 }
 

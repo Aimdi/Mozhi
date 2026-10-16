@@ -1,17 +1,22 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/proofread/widgets/proofread_diff_colors.dart';
 import 'package:mozhi/proofread/widgets/proofread_labels.dart';
+import 'package:mozhi/proofread/widgets/proofread_result_section.dart'
+    show ProofreadPill;
 import 'package:translation_repository/translation_repository.dart';
 
-/// One suggested edit: category, original -> replacement, explanation and an
-/// accept/reject checkbox.
+/// One suggested edit as a flat row: category pill, original ->
+/// replacement, explanation and an accept/reject checkbox, with a hairline
+/// below unless it is the last one ([divider]).
 class ProofreadEditTile extends StatelessWidget {
   const new({
     required this.edit,
     required this.accepted,
     required this.onToggle,
     this.located = true,
+    this.divider = false,
     super.key,
   });
 
@@ -22,23 +27,25 @@ class ProofreadEditTile extends StatelessWidget {
   /// False when the edit's original text could not be found in the input.
   final bool located;
 
+  /// Whether a hairline separates this row from the next.
+  final bool divider;
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final explanation = edit.explanation.trim();
     final subtitleStyle = theme.textTheme.bodyMedium?.copyWith(
-      color: theme.colorScheme.onSurfaceVariant,
+      color: AppPalette.of(context).secondaryText,
     );
 
-    return Card.outlined(
-      margin: EdgeInsets.zero,
-      clipBehavior: Clip.antiAlias,
+    final tile = Semantics(
+      container: true,
       child: CheckboxListTile(
         value: accepted,
         onChanged: (_) => onToggle(),
         controlAffinity: ListTileControlAffinity.leading,
-        contentPadding: const EdgeInsetsDirectional.only(start: 8, end: 16),
+        contentPadding: const EdgeInsetsDirectional.only(end: 4),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -70,6 +77,11 @@ class ProofreadEditTile extends StatelessWidget {
                 ),
               ),
       ),
+    );
+    if (!divider) return tile;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [tile, const Hairline()],
     );
   }
 }
@@ -122,7 +134,7 @@ class ProofreadEditChange extends StatelessWidget {
   }
 }
 
-/// Small tonal label for an edit category.
+/// Small outlined pill naming an edit category.
 class ProofreadCategoryChip extends StatelessWidget {
   const new({required this.category, super.key});
 
@@ -130,35 +142,9 @@ class ProofreadCategoryChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: scheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          spacing: 4,
-          children: [
-            Icon(
-              proofreadCategoryIcon(category),
-              size: 14,
-              color: scheme.onSecondaryContainer,
-            ),
-            Flexible(
-              child: Text(
-                context.l10n.proofreadCategory(category),
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: scheme.onSecondaryContainer,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+    return ProofreadPill(
+      icon: proofreadCategoryIcon(category),
+      label: context.l10n.proofreadCategory(category),
     );
   }
 }

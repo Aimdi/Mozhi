@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/documents/core/core.dart';
 import 'package:mozhi/documents/cubit/document_translate_cubit.dart';
 import 'package:mozhi/documents/data/document_file_service.dart';
@@ -163,11 +164,13 @@ class _Controls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Flat sections separated by hairlines instead of cards.
     return const Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: 16,
       children: [
         DocumentSourceCard(),
+        Hairline(),
         DocumentSettingsCard(),
         DocumentProgressSection(),
         DocumentFailuresCard(),

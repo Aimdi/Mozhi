@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/view/provider_editor_page.dart';
@@ -284,11 +285,15 @@ class _ProviderTile extends StatelessWidget {
     final isLocal = provider.isLocal;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: Card.filled(
+      // A flat hairline card (X's quoted-post box).
+      child: Card.outlined(
         margin: EdgeInsets.zero,
-        color: colors.surfaceContainerLow,
+        color: colors.surface,
         clipBehavior: Clip.antiAlias,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: AppPalette.of(context).hairline),
+        ),
         child: InkWell(
           onTap: () =>
               context.push(providerEditorLocation(providerId: provider.id)),

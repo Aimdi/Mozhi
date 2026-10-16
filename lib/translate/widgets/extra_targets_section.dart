@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/bidi.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/language_text.dart';
@@ -61,7 +62,9 @@ class ExtraTargetsSection extends StatelessWidget {
         final column = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SizedBox(height: TranslateLayout.sectionGap),
+            const SizedBox(height: TranslateLayout.gap),
+            const Hairline(),
+            const SizedBox(height: 4),
             Align(
               alignment: AlignmentDirectional.centerStart,
               child: TextButton.icon(
@@ -80,7 +83,7 @@ class ExtraTargetsSection extends StatelessWidget {
             if (state.input.trim().isNotEmpty)
               for (final target in active)
                 Padding(
-                  padding: const EdgeInsets.only(top: TranslateLayout.gap),
+                  padding: const EdgeInsets.only(top: 4),
                   child: ExtraTargetCard(
                     key: ValueKey('translate_extra_target_${target.code}'),
                     state: state,
@@ -203,16 +206,10 @@ class ExtraTargetCard extends StatelessWidget {
     final output = translation?.output ?? '';
     final complete = translation?.result?.isComplete ?? false;
     final name = bidiIsolate(target.name);
-    return Card(
-      margin: EdgeInsets.zero,
+    return TranslateFlatCard(
       // The labelled container below groups the card's nodes.
       semanticContainer: false,
-      elevation: 0,
       clipBehavior: Clip.antiAlias,
-      color: theme.colorScheme.surfaceContainer,
-      shape: const RoundedRectangleBorder(
-        borderRadius: TranslateLayout.cardBorderRadius,
-      ),
       child: Semantics(
         container: true,
         explicitChildNodes: true,
@@ -230,17 +227,22 @@ class ExtraTargetCard extends StatelessWidget {
                   : null,
             ),
             Padding(
-              padding: const EdgeInsetsDirectional.fromSTEB(20, 4, 8, 8),
+              padding: const EdgeInsetsDirectional.fromSTEB(4, 4, 0, 4),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
+                      LanguageAvatar(
+                        code: target.isCustom ? target.name : target.code,
+                        size: 32,
+                      ),
+                      const SizedBox(width: TranslateLayout.avatarGap),
                       Expanded(
                         child: Text(
                           target.name,
-                          style: theme.textTheme.labelLarge?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
                       ),
@@ -253,38 +255,60 @@ class ExtraTargetCard extends StatelessWidget {
                     ],
                   ),
                   Padding(
-                    padding: const EdgeInsetsDirectional.only(end: 12),
+                    padding: const EdgeInsetsDirectional.only(
+                      start: 32 + TranslateLayout.avatarGap,
+                      end: 12,
+                    ),
                     child: _content(context, translation),
                   ),
                   if (output.trim().isNotEmpty)
-                    Wrap(
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        IconButton(
-                          key: const Key('translate_extra_target_copy'),
-                          tooltip: l10n.translateExtraTargetCopy(name),
-                          icon: const Icon(Icons.copy_outlined),
-                          onPressed: () =>
-                              unawaited(copyToClipboard(context, output)),
-                        ),
-                        ListenButton(
-                          id: 'extra:${target.code}',
-                          text: output,
-                          languageCode: target.isCustom ? null : target.code,
-                          tooltip: l10n.translateExtraTargetListen(name),
-                          stopTooltip: l10n.translateExtraTargetStopListening(
-                            name,
+                    Padding(
+                      // Under the text, like a reply's actions.
+                      padding: const EdgeInsetsDirectional.only(
+                        start: 32 + TranslateLayout.avatarGap - 12,
+                      ),
+                      child: IconButtonTheme(
+                        data: IconButtonThemeData(
+                          style: IconButton.styleFrom(
+                            iconSize: 20,
+                            foregroundColor: AppPalette.of(context)
+                                .secondaryText,
                           ),
                         ),
-                        IconButton(
-                          key: const Key('translate_extra_target_insert'),
-                          tooltip: l10n.translateExtraTargetUseAsInput(name),
-                          icon: const Icon(Icons.input),
-                          onPressed: complete
-                              ? () => _useAsInput(context)
-                              : null,
+                        child: Wrap(
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            IconButton(
+                              key: const Key('translate_extra_target_copy'),
+                              tooltip: l10n.translateExtraTargetCopy(name),
+                              icon: const Icon(Icons.copy_outlined),
+                              onPressed: () =>
+                                  unawaited(copyToClipboard(context, output)),
+                            ),
+                            ListenButton(
+                              id: 'extra:${target.code}',
+                              text: output,
+                              languageCode: target.isCustom
+                                  ? null
+                                  : target.code,
+                              tooltip: l10n.translateExtraTargetListen(name),
+                              stopTooltip: l10n
+                                  .translateExtraTargetStopListening(name),
+                              quiet: true,
+                            ),
+                            IconButton(
+                              key: const Key('translate_extra_target_insert'),
+                              tooltip: l10n.translateExtraTargetUseAsInput(
+                                name,
+                              ),
+                              icon: const Icon(Icons.input),
+                              onPressed: complete
+                                  ? () => _useAsInput(context)
+                                  : null,
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                 ],
               ),

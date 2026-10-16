@@ -127,38 +127,40 @@ class ActiveOptionsBar extends StatelessWidget {
         }
         final cubit = context.read<TranslateCubit>();
         final active = activeTranslationOptions(l10n, options);
-        return Padding(
-          padding: const EdgeInsets.only(top: TranslateLayout.gap),
-          child: Semantics(
-            key: const Key('translate_active_options'),
-            container: true,
-            explicitChildNodes: true,
-            label: l10n.translateActiveOptionsLabel,
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                for (final option in active)
-                  InputChip(
-                    key: ValueKey('translate_active_option:${option.label}'),
-                    avatar: const Icon(Icons.tune),
-                    label: Text(option.label),
-                    tooltip: option.tooltip,
-                    onPressed: () => unawaited(showOptionsSheet(context)),
-                    onDeleted: () => cubit.setOptions(option.cleared),
-                    deleteButtonTooltipMessage: l10n
-                        .translateActiveOptionRemove(option.label),
+        return TranslatePills(
+          child: Padding(
+            padding: const EdgeInsets.only(top: TranslateLayout.gap),
+            child: Semantics(
+              key: const Key('translate_active_options'),
+              container: true,
+              explicitChildNodes: true,
+              label: l10n.translateActiveOptionsLabel,
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  for (final option in active)
+                    InputChip(
+                      key: ValueKey('translate_active_option:${option.label}'),
+                      avatar: const Icon(Icons.tune),
+                      label: Text(option.label),
+                      tooltip: option.tooltip,
+                      onPressed: () => unawaited(showOptionsSheet(context)),
+                      onDeleted: () => cubit.setOptions(option.cleared),
+                      deleteButtonTooltipMessage: l10n
+                          .translateActiveOptionRemove(option.label),
+                    ),
+                  TextButton.icon(
+                    key: const Key('translate_active_options_reset'),
+                    onPressed: () => cubit.setOptions(
+                      TranslationOptions(instructions: options.instructions),
+                    ),
+                    icon: const Icon(Icons.restart_alt),
+                    label: Text(l10n.translateActiveOptionsReset),
                   ),
-                TextButton.icon(
-                  key: const Key('translate_active_options_reset'),
-                  onPressed: () => cubit.setOptions(
-                    TranslationOptions(instructions: options.instructions),
-                  ),
-                  icon: const Icon(Icons.restart_alt),
-                  label: Text(l10n.translateActiveOptionsReset),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );

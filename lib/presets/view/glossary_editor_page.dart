@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/undo_snack_bar.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/presets/cubit/glossary_cubit.dart';
 import 'package:mozhi/presets/data/glossary_repository.dart';
@@ -413,13 +414,12 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    return Card.filled(
-      margin: EdgeInsets.zero,
-      color: colors.surfaceContainerLow,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+    // A flat, hairline-bordered box (radius 16, no fill).
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: AppPalette.of(context).hairline),
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: Column(
         children: [
           ListTile(
@@ -433,7 +433,7 @@ class _Header extends StatelessWidget {
               onPressed: onEditDetails,
             ),
           ),
-          const Divider(height: 1, indent: 16, endIndent: 16),
+          const Hairline(),
           SwitchListTile(
             key: const Key('glossary_editor_enabled'),
             secondary: const Icon(Icons.check_circle_outline),
@@ -607,12 +607,7 @@ class _TermRow extends StatelessWidget {
       ),
       child: Semantics(
         label: l10n.glossaryEditorTermSemantics(term.source, term.target),
-        child: Column(
-          children: [
-            content,
-            Divider(height: 1, color: colors.outlineVariant),
-          ],
-        ),
+        child: Column(children: [content, const Hairline()]),
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/ai_generated_header.dart';
@@ -52,7 +53,7 @@ class _ExplainSheetState extends State<ExplainSheet> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    final muted = theme.colorScheme.onSurfaceVariant;
+    final muted = AppPalette.of(context).secondaryText;
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: DraggableScrollableSheet(
@@ -80,7 +81,10 @@ class _ExplainSheetState extends State<ExplainSheet> {
                           children: [
                             AiGeneratedHeader(
                               title: l10n.translateExplainTitle,
-                              style: theme.textTheme.titleLarge,
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.3,
+                              ),
                             ),
                             if (_asked != null) ...[
                               const SizedBox(height: 12),
@@ -92,7 +96,9 @@ class _ExplainSheetState extends State<ExplainSheet> {
                                 ),
                               ),
                             ],
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 12),
+                            const Hairline(),
+                            const SizedBox(height: 12),
                             if (loading && state.explanation.isEmpty)
                               LinearProgressIndicator(
                                 key: const Key('translate_explain_progress'),
@@ -127,7 +133,7 @@ class _ExplainSheetState extends State<ExplainSheet> {
                           ],
                         ),
                       ),
-                      const Divider(height: 1),
+                      const Hairline(),
                       Padding(
                         padding: const EdgeInsetsDirectional.fromSTEB(
                           16,
@@ -156,6 +162,7 @@ class _ExplainSheetState extends State<ExplainSheet> {
                             ),
                             IconButton(
                               tooltip: l10n.translateExplainSend,
+                              color: theme.colorScheme.primary,
                               icon: const Icon(Icons.send),
                               onPressed: loading ? null : _send,
                             ),

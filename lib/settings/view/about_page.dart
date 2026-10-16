@@ -52,7 +52,7 @@ class _AboutViewState extends State<AboutView> {
                   child: DecoratedBox(
                     decoration: BoxDecoration(
                       color: colors.primaryContainer,
-                      borderRadius: BorderRadius.circular(28),
+                      shape: BoxShape.circle,
                     ),
                     child: Padding(
                       padding: const EdgeInsets.all(20),
@@ -165,9 +165,6 @@ class _PrivacyRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
-      title: Text(text),
-    );
+    return ListTile(leading: SettingsIcon(icon), title: Text(text));
   }
 }

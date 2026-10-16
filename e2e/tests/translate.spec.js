@@ -33,9 +33,10 @@ test('typing translates with the AI provider', async ({ page }) => {
   const requests = recordAiRequests(page);
   await translate(page);
 
-  // The result card names the engine that produced it.
+  // The result's header names the target language, then the engine that
+  // produced it (X-style "French · Local AI (mock) · 0.4 s").
   await expect(
-    page.getByRole('group', { name: /^Local AI \(mock\) · / }),
+    page.getByRole('group', { name: /^French\b[\s\S]*Local AI \(mock\) · / }),
   ).toBeVisible();
   // The source language was detected.
   await expect(

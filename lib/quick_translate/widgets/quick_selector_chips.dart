@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/widgets/engine_selector.dart' show EngineIcon;
 import 'package:translation_repository/translation_repository.dart';
@@ -16,9 +17,9 @@ class QuickTargetChip extends StatelessWidget {
     return ActionChip(
       key: const Key('quick_translate_target_chip'),
       tooltip: l10n.translateTargetLanguage(target.name),
-      avatar: Icon(
-        target.isCustom ? Icons.auto_awesome_outlined : Icons.translate,
-      ),
+      avatar: target.isCustom
+          ? const Icon(Icons.auto_awesome_outlined)
+          : LanguageAvatar(code: target.code, size: 22),
       label: _ChipLabel(text: target.name),
       onPressed: onPressed,
     );
@@ -51,7 +52,7 @@ class QuickEngineChip extends StatelessWidget {
             key: Key('quick_translate_engine_${candidate.id}'),
             leadingIcon: EngineIcon(engine: candidate, size: 20),
             trailingIcon: candidate.id == current.id
-                ? const Icon(Icons.check)
+                ? Icon(Icons.check, color: theme.colorScheme.primary)
                 : null,
             onPressed: () => onSelected(candidate),
             child: ConstrainedBox(
@@ -72,7 +73,7 @@ class QuickEngineChip extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                        color: AppPalette.of(context).secondaryText,
                       ),
                     ),
                 ],

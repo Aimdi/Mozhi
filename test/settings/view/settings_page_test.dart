@@ -6,7 +6,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/on_device_ml.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/history/models/history_entry.dart';
@@ -429,7 +431,7 @@ void main() {
           ),
         );
         expect(
-          tester.getSemantics(find.bySemanticsLabel('Indigo')),
+          tester.getSemantics(find.bySemanticsLabel('Blue')),
           isSemantics(isSelected: true),
         );
         expect(node.id, isNonZero);
@@ -462,21 +464,104 @@ void main() {
         expect(containers.map((c) => c.duration), everyElement(Duration.zero));
       });
 
-      testWidgets('pure black toggles in dark/system mode', (tester) async {
-        await pump(tester);
-        await tester.tap(find.text('Pure black'));
-        verify(() => settings.setPureBlack(enabled: true)).called(1);
+      testWidgets('offers X accents with blue first', (tester) async {
+        await pump(tester, state: const AppSettings(dynamicColor: false));
+        for (final name in [
+          'Blue',
+          'Yellow',
+          'Pink',
+          'Purple',
+          'Orange',
+          'Green',
+        ]) {
+          expect(find.bySemanticsLabel(name), findsOneWidget, reason: name);
+        }
+        expect(
+          tester.getTopLeft(find.bySemanticsLabel('Blue')).dx,
+          lessThan(tester.getTopLeft(find.bySemanticsLabel('Yellow')).dx),
+        );
       });
 
-      testWidgets('pure black is disabled in light mode', (tester) async {
+      testWidgets('picks Lights out or Dim for the dark theme', (tester) async {
+        final handle = tester.ensureSemantics();
+        await pump(tester);
+        expect(find.text('Dark theme'), findsOneWidget);
+        expect(find.bySemanticsLabel('Dark theme'), findsOneWidget);
+        expect(
+          tester
+              .widget<RadioGroup<bool>>(find.byType(RadioGroup<bool>))
+              .groupValue,
+          isFalse,
+        );
+        await tester.tap(find.text('Lights out'));
+        verify(() => settings.setPureBlack(enabled: true)).called(1);
+        // Picking the current look again is a no-op.
+        await tester.tap(find.text('Dim'));
+        verifyNever(
+          () => settings.setPureBlack(enabled: any(named: 'enabled')),
+        );
+        handle.dispose();
+      });
+
+      testWidgets('switches back to Dim', (tester) async {
+        await pump(tester, state: const AppSettings(pureBlack: true));
+        await tester.tap(find.text('Dim'));
+        verify(() => settings.setPureBlack(enabled: false)).called(1);
+      });
+
+      testWidgets('the dark look is disabled in light mode', (tester) async {
         await pump(
           tester,
           state: const AppSettings(themeMode: ThemeMode.light),
         );
-        await tester.tap(find.text('Pure black'));
+        final tiles = tester.widgetList<RadioListTile<bool>>(
+          find.byType(RadioListTile<bool>),
+        );
+        expect(tiles.map((t) => t.enabled), everyElement(isFalse));
+        await tester.tap(find.text('Lights out'), warnIfMissed: false);
         verifyNever(
           () => settings.setPureBlack(enabled: any(named: 'enabled')),
         );
+      });
+
+      testWidgets('renders in the app theme (light and Lights out)', (
+        tester,
+      ) async {
+        for (final theme in [
+          buildAppTheme(
+            appColorScheme(
+              brightness: Brightness.light,
+              seedColor: const Color(0xFF1D9BF0),
+            ),
+          ),
+          buildAppTheme(
+            appColorScheme(
+              brightness: Brightness.dark,
+              seedColor: const Color(0xFF1D9BF0),
+              pureBlack: true,
+            ),
+          ),
+        ]) {
+          when(() => settings.state).thenReturn(const AppSettings());
+          tester.setScreenSize(const Size(800, 3000));
+          await tester.pumpView(
+            const SettingsPage(),
+            settings: settings,
+            history: history,
+            router: router,
+            theme: theme,
+          );
+          await tester.pumpAndSettle();
+          // Plain rows: no tinted icon squares, bold section headings.
+          final heading = tester.widget<Text>(find.text('Appearance'));
+          expect(heading.style?.fontWeight, FontWeight.w800);
+          expect(find.byType(Card), findsNothing);
+          expect(
+            tester.widget<Icon>(find.byIcon(Icons.dns_outlined)).color,
+            theme.extension<AppPalette>()!.secondaryText,
+          );
+          expect(find.byType(Hairline), findsWidgets);
+        }
       });
     });
 

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/dictionary/cubit/dictionary_cubit.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/view/widgets/empty_state_view.dart';
@@ -51,6 +52,7 @@ class DictionaryResult extends StatelessWidget {
               title: l10n.dictionaryEnginesErrorTitle,
               body: l10n.dictionaryEnginesErrorBody,
               action: FilledButton.icon(
+                style: FilledButton.styleFrom(shape: const StadiumBorder()),
                 onPressed: () => unawaited(
                   context.read<TranslateCubit>().loadEngines(refresh: true),
                 ),
@@ -65,6 +67,7 @@ class DictionaryResult extends StatelessWidget {
               body: l10n.dictionaryNoEngineBody,
               action: FilledButton.icon(
                 key: const Key('dictionary_set_up_providers'),
+                style: FilledButton.styleFrom(shape: const StadiumBorder()),
                 onPressed: () => GoRouter.maybeOf(context)?.go(providersRoute),
                 icon: const Icon(Icons.add),
                 label: Text(l10n.dictionaryNoEngineAction),
@@ -112,6 +115,7 @@ class DictionaryResult extends StatelessWidget {
   }
 }
 
+/// The entry as a flat section between hairlines (no tinted card).
 class _EntryCard extends StatelessWidget {
   const new({required this.state});
 
@@ -119,33 +123,34 @@ class _EntryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
+    return Column(
       key: const Key('dictionary_entry'),
-      margin: EdgeInsets.zero,
-      elevation: 0,
-      color: theme.colorScheme.surfaceContainerLow,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            AiGeneratedHeader(
-              icon: Icons.menu_book_outlined,
-              title: context.l10n.dictionaryTitle,
-            ),
-            const SizedBox(height: 12),
-            DictionaryEntryView(
-              entry: state.entry!,
-              sourceLanguage: state.source.isAuto ? null : state.source,
-              targetLanguage: state.target,
-              query: state.lookedUp,
-              onWordTap: (word) =>
-                  unawaited(context.read<DictionaryCubit>().lookUpWord(word)),
-            ),
-          ],
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Hairline(),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AiGeneratedHeader(
+                icon: Icons.menu_book_outlined,
+                title: context.l10n.dictionaryTitle,
+              ),
+              const SizedBox(height: 12),
+              DictionaryEntryView(
+                entry: state.entry!,
+                sourceLanguage: state.source.isAuto ? null : state.source,
+                targetLanguage: state.target,
+                query: state.lookedUp,
+                onWordTap: (word) =>
+                    unawaited(context.read<DictionaryCubit>().lookUpWord(word)),
+              ),
+            ],
+          ),
         ),
-      ),
+        const Hairline(),
+      ],
     );
   }
 }

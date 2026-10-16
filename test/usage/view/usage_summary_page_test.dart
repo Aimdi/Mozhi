@@ -91,8 +91,17 @@ void main() {
 
     // Totals.
     expect(find.text('October 2026'), findsOneWidget);
-    expect(find.text('600 characters'), findsOneWidget);
-    expect(find.text('3 requests · ≈ 150 tokens'), findsOneWidget);
+    Finder stat(String key, String text) => find.descendant(
+      of: find.byKey(Key(key)),
+      matching: find.text(text),
+    );
+    expect(stat('usage_total_characters', '600'), findsOneWidget);
+    expect(stat('usage_total_characters', 'Characters'), findsOneWidget);
+    expect(stat('usage_total_requests', '3'), findsOneWidget);
+    expect(stat('usage_total_requests', 'Requests'), findsOneWidget);
+    expect(stat('usage_total_tokens', '150'), findsOneWidget);
+    expect(stat('usage_total_tokens', 'Est. tokens'), findsOneWidget);
+    expect(find.bySemanticsLabel('600\nCharacters'), findsOneWidget);
     expect(
       find.text('Last month: 1,050 characters · 2 requests'),
       findsOneWidget,
@@ -174,6 +183,6 @@ void main() {
     await tracker.record('a', 10, 10);
     await pumpPage(tester, providers: [_provider('a', 'OpenAI')]);
     final listView = tester.widget<ListView>(find.byType(ListView));
-    expect(listView.padding, const EdgeInsets.fromLTRB(440, 8, 440, 32));
+    expect(listView.padding, const EdgeInsets.fromLTRB(424, 8, 424, 32));
   });
 }

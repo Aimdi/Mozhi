@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/on_device_ml.dart';
 import 'package:mozhi/core/undo_snack_bar.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/view/widgets/clear_history_dialog.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -339,14 +340,10 @@ class _AppearanceSection extends StatelessWidget {
             value: settings.dynamicColor,
             onChanged: (value) => cubit.setDynamicColor(enabled: value),
           ),
-        SwitchListTile(
-          secondary: const SettingsIcon(Icons.contrast),
-          title: Text(l10n.settingsPureBlack),
-          subtitle: Text(l10n.settingsPureBlackSubtitle),
-          value: settings.pureBlack,
-          onChanged: settings.themeMode == ThemeMode.light
-              ? null
-              : (value) => cubit.setPureBlack(enabled: value),
+        _DarkLookPicker(
+          lightsOut: settings.pureBlack,
+          enabled: settings.themeMode != ThemeMode.light,
+          onChanged: (value) => cubit.setPureBlack(enabled: value),
         ),
         if (showAccent)
           Padding(
@@ -478,6 +475,100 @@ class _ThemeModePicker extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The dark look: "Dim" (dark blue-grey) or "Lights out" (true black),
+/// stored as [AppSettings.pureBlack]. Disabled while the light theme is
+/// forced.
+class _DarkLookPicker extends StatelessWidget {
+  const new({
+    required this.lightsOut,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final bool lightsOut;
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final options = [
+      (false, const Color(0xFF15202B), l10n.settingsDarkLookDim),
+      (true, const Color(0xFF000000), l10n.settingsDarkLookLightsOut),
+    ];
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: ExcludeSemantics(
+              child: Text(
+                l10n.settingsDarkLook,
+                style: theme.textTheme.bodyLarge,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 2, 16, 4),
+            child: Text(
+              l10n.settingsDarkLookSubtitle,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: AppPalette.of(context).secondaryText,
+              ),
+            ),
+          ),
+          Semantics(
+            container: true,
+            explicitChildNodes: true,
+            label: l10n.settingsDarkLook,
+            child: RadioGroup<bool>(
+              groupValue: lightsOut,
+              onChanged: (value) {
+                if (value != null && value != lightsOut) onChanged(value);
+              },
+              child: Column(
+                children: [
+                  for (final (value, swatch, label) in options)
+                    RadioListTile<bool>(
+                      key: Key('settings_dark_look_$value'),
+                      value: value,
+                      enabled: enabled,
+                      title: Text(label),
+                      secondary: _LookSwatch(color: swatch),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A small round preview of a dark look's background (decorative).
+class _LookSwatch extends StatelessWidget {
+  const new({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => ExcludeSemantics(
+    child: Container(
+      width: 24,
+      height: 24,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        border: Border.all(color: Theme.of(context).colorScheme.outline),
+      ),
+    ),
+  );
 }
 
 class _DataSection extends StatelessWidget {

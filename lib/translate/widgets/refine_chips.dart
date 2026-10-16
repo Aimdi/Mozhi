@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/translate/widgets/translate_layout.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Icon of a refinement chip ([RefinementSuggestion.icon] hint).
@@ -71,45 +72,47 @@ class RefinementChips extends StatelessWidget {
       container: true,
       explicitChildNodes: true,
       label: l10n.translateRefine,
-      child: SingleChildScrollView(
-        key: const Key('translate_refinement_chips'),
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            for (final (index, suggestion) in state.suggestions.indexed)
-              Padding(
-                padding: const EdgeInsetsDirectional.only(end: 8),
-                child: stacks
-                    ? _RefinementFilterChip(
-                        key: ValueKey('translate_refinement_chip:$index'),
-                        state: state,
-                        suggestion: suggestion,
-                        onPressed: () =>
-                            unawaited(cubit.applySuggestion(suggestion)),
-                      )
-                    : ActionChip(
-                        key: ValueKey('translate_refinement_chip:$index'),
-                        avatar: Icon(refinementIcon(suggestion.icon)),
-                        label: Text(refinementLabel(l10n, suggestion)),
-                        tooltip: suggestion.description.isEmpty
-                            ? null
-                            : suggestion.description,
-                        onPressed: () =>
-                            unawaited(cubit.applySuggestion(suggestion)),
-                      ),
-              ),
-            if (loading || canLoadMore)
-              ActionChip(
-                key: const Key('translate_more_suggestions'),
-                avatar: loading
-                    ? _Spinner(label: l10n.translateLoading)
-                    : const Icon(Icons.auto_awesome),
-                label: Text(l10n.translateMoreSuggestions),
-                onPressed: loading
-                    ? null
-                    : () => unawaited(cubit.loadSuggestions()),
-              ),
-          ],
+      child: TranslatePills(
+        child: SingleChildScrollView(
+          key: const Key('translate_refinement_chips'),
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (final (index, suggestion) in state.suggestions.indexed)
+                Padding(
+                  padding: const EdgeInsetsDirectional.only(end: 8),
+                  child: stacks
+                      ? _RefinementFilterChip(
+                          key: ValueKey('translate_refinement_chip:$index'),
+                          state: state,
+                          suggestion: suggestion,
+                          onPressed: () =>
+                              unawaited(cubit.applySuggestion(suggestion)),
+                        )
+                      : ActionChip(
+                          key: ValueKey('translate_refinement_chip:$index'),
+                          avatar: Icon(refinementIcon(suggestion.icon)),
+                          label: Text(refinementLabel(l10n, suggestion)),
+                          tooltip: suggestion.description.isEmpty
+                              ? null
+                              : suggestion.description,
+                          onPressed: () =>
+                              unawaited(cubit.applySuggestion(suggestion)),
+                        ),
+                ),
+              if (loading || canLoadMore)
+                ActionChip(
+                  key: const Key('translate_more_suggestions'),
+                  avatar: loading
+                      ? _Spinner(label: l10n.translateLoading)
+                      : const Icon(Icons.auto_awesome),
+                  label: Text(l10n.translateMoreSuggestions),
+                  onPressed: loading
+                      ? null
+                      : () => unawaited(cubit.loadSuggestions()),
+                ),
+            ],
+          ),
         ),
       ),
     );

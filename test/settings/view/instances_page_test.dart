@@ -5,6 +5,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/instances_page.dart';
 import 'package:mozhi/settings/view/widgets/add_instance_dialog.dart';
@@ -189,7 +190,7 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('outlines the preferred instance instead of tinting it', (
+    testWidgets('draws flat hairline cards and outlines the preferred one', (
       tester,
     ) async {
       await pump(tester);
@@ -199,12 +200,17 @@ void main() {
       );
       final preferred = card('Fast');
       final other = card('slow.example.com');
-      expect(preferred.color, colors.surfaceContainerLow);
-      expect(other.color, colors.surfaceContainerLow);
+      expect(preferred.color, colors.surface);
+      expect(other.color, colors.surface);
       final side = (preferred.shape! as RoundedRectangleBorder).side;
       expect(side.color, colors.primary);
       expect(side.width, 2);
-      expect((other.shape! as RoundedRectangleBorder).side, BorderSide.none);
+      expect(
+        (other.shape! as RoundedRectangleBorder).side,
+        BorderSide(
+          color: AppPalette.of(tester.element(find.text('Fast'))).hairline,
+        ),
+      );
     });
 
     testWidgets('pings instances added later', (tester) async {

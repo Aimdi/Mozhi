@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/onboarding/widgets/onboarding_badge.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -83,20 +84,23 @@ class ProviderCard extends StatelessWidget {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final foreground = selected
-        ? colors.onSecondaryContainer
-        : colors.onSurface;
+    final foreground = colors.onSurface;
     return Semantics(
       selected: selected,
       inMutuallyExclusiveGroup: true,
       child: Card.outlined(
         margin: EdgeInsets.zero,
         clipBehavior: Clip.antiAlias,
-        color: selected ? colors.secondaryContainer : colors.surface,
+        color: selected
+            ? Color.alphaBlend(
+                colors.primary.withValues(alpha: 0.08),
+                colors.surface,
+              )
+            : colors.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
           side: BorderSide(
-            color: selected ? colors.primary : colors.outlineVariant,
+            color: selected ? colors.primary : AppPalette.of(context).hairline,
             width: selected ? 2 : 1,
           ),
         ),
@@ -142,9 +146,7 @@ class ProviderCard extends StatelessWidget {
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: selected
-                            ? colors.onSecondaryContainer
-                            : colors.onSurfaceVariant,
+                        color: colors.onSurfaceVariant,
                       ),
                     ),
                   ],

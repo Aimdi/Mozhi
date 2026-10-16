@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/quick_translate/cubit/quick_translate_state.dart';
 import 'package:mozhi/quick_translate/models/quick_languages.dart';
@@ -18,6 +19,7 @@ class QuickResultView extends StatelessWidget {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final palette = AppPalette.of(context);
 
     final Widget child = switch (state.status) {
       QuickTranslateStatus.loading => _Progress(
@@ -33,8 +35,9 @@ class QuickResultView extends StatelessWidget {
         icon: Icons.error_outline,
         color: scheme.error,
         message: describeTranslateError(l10n, state.error).message,
-        action: FilledButton.tonalIcon(
+        action: FilledButton.icon(
           key: const Key('quick_translate_retry'),
+          style: FilledButton.styleFrom(shape: const StadiumBorder()),
           onPressed: onRetry,
           icon: const Icon(Icons.refresh),
           label: Text(l10n.commonRetry),
@@ -43,14 +46,14 @@ class QuickResultView extends StatelessWidget {
       QuickTranslateStatus.noEngines => _Message(
         key: const ValueKey('noEngines'),
         icon: Icons.cloud_off_outlined,
-        color: scheme.onSurfaceVariant,
+        color: palette.secondaryText,
         title: l10n.translateNoEnginesTitle,
         message: l10n.quickTranslateNoEngines,
       ),
       _ when state.translation.trim().isEmpty => _Message(
         key: const ValueKey('empty'),
         icon: Icons.info_outline,
-        color: scheme.onSurfaceVariant,
+        color: palette.secondaryText,
         message: l10n.quickTranslateEmpty,
       ),
       _ => _Translation(key: const ValueKey('result'), state: state),
@@ -75,9 +78,10 @@ class _Translation extends StatelessWidget {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final text = state.translation;
+    // Large compose-sheet text; long translations stay readable.
     final style = text.length <= 120
-        ? theme.textTheme.titleLarge
-        : theme.textTheme.bodyLarge;
+        ? theme.textTheme.headlineSmall?.copyWith(height: 1.3)
+        : theme.textTheme.bodyLarge?.copyWith(fontSize: 18, height: 1.4);
     final target = state.target;
     final direction = target.isCustom
         ? null
@@ -134,7 +138,7 @@ class _Progress extends StatelessWidget {
             child: Text(
               label,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+                color: AppPalette.of(context).secondaryText,
               ),
             ),
           ),
@@ -180,7 +184,12 @@ class _Message extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (title case final String title) ...[
-                      Text(title, style: theme.textTheme.titleMedium),
+                      Text(
+                        title,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                       const SizedBox(height: 4),
                     ],
                     Text(

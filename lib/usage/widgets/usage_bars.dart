@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/usage/models/models.dart';
 import 'package:mozhi/usage/widgets/usage_format.dart';
@@ -24,7 +25,7 @@ class UsageBar extends StatelessWidget {
   /// Fill colour; defaults to the primary colour.
   final Color? color;
 
-  /// Background colour; defaults to `surfaceContainerHighest`.
+  /// Background colour; defaults to the hairline colour.
   final Color? trackColor;
   final double height;
   final String? semanticsLabel;
@@ -42,7 +43,7 @@ class UsageBar extends StatelessWidget {
         child: SizedBox(
           height: height,
           child: ColoredBox(
-            color: trackColor ?? scheme.surfaceContainerHighest,
+            color: trackColor ?? AppPalette.of(context).hairline,
             child: Align(
               alignment: AlignmentDirectional.centerStart,
               child: FractionallySizedBox(
@@ -107,9 +108,9 @@ class UsageHistoryChart extends StatelessWidget {
               child: CustomPaint(
                 painter: UsageHistoryPainter(
                   values: values,
-                  color: scheme.primary.withValues(alpha: 0.45),
+                  color: scheme.primary.withValues(alpha: 0.35),
                   highlightColor: scheme.primary,
-                  baselineColor: scheme.outlineVariant,
+                  baselineColor: AppPalette.of(context).hairline,
                 ),
               ),
             ),
@@ -125,7 +126,7 @@ class UsageHistoryChart extends StatelessWidget {
                       overflow: TextOverflow.fade,
                       softWrap: false,
                       style: theme.textTheme.labelSmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
+                        color: AppPalette.of(context).secondaryText,
                       ),
                     ),
                   ),

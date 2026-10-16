@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/detection_chips.dart';
@@ -134,7 +135,6 @@ class LanguageBar extends StatelessWidget {
                 semanticLabel: l10n.translateTargetLanguage(state.target.name),
                 tooltip: state.target.name,
                 icon: state.target.isCustom ? Icons.auto_awesome : null,
-                // Tinted like the output card it belongs to.
                 target: true,
                 onPressed: () => pickTranslateLanguage(context, source: false),
               ),
@@ -164,8 +164,12 @@ class _SwapButton extends StatelessWidget {
         child: Tooltip(
           message: l10n.translateSwapLanguages,
           triggerMode: TooltipTriggerMode.manual,
-          child: IconButton(
+          child: IconButton.outlined(
             key: const Key('translate_swap_button'),
+            style: IconButton.styleFrom(
+              side: BorderSide(color: AppPalette.of(context).hairline),
+              foregroundColor: Theme.of(context).colorScheme.primary,
+            ),
             icon: const Icon(Icons.swap_horiz),
             onPressed: enabled ? context.read<TranslateCubit>().swap : null,
             onLongPress: showPairs,
@@ -183,7 +187,8 @@ class _SwapButton extends StatelessWidget {
   }
 }
 
-/// A tonal language button. The button keeps its own semantics (tap action,
+/// An X-style pill language button with a hairline border (the target's
+/// a little bolder). The button keeps its own semantics (tap action,
 /// enabled state, focus); only its visible content is replaced by
 /// [semanticLabel] for screen readers.
 class _LanguageButton extends StatelessWidget {
@@ -197,7 +202,8 @@ class _LanguageButton extends StatelessWidget {
     super.key,
   });
 
-  /// Whether this is the target language (tinted like the output card).
+  /// Whether this is the target language (bolder, like the translation's
+  /// header).
   final bool target;
 
   final String label;
@@ -210,17 +216,18 @@ class _LanguageButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final palette = AppPalette.of(context);
     return Tooltip(
       message: tooltip,
       excludeFromSemantics: true,
-      child: FilledButton.tonal(
-        style: FilledButton.styleFrom(
-          minimumSize: const Size(48, 52),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          backgroundColor: target
-              ? TranslateLayout.targetButtonSurface(scheme)
-              : scheme.surfaceContainerHigh,
+      child: OutlinedButton(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          padding: const EdgeInsetsDirectional.only(start: 16, end: 10),
+          shape: const StadiumBorder(),
+          side: BorderSide(color: palette.hairline),
           foregroundColor: scheme.onSurface,
+          backgroundColor: Colors.transparent,
         ),
         onPressed: onPressed,
         child: Semantics(
@@ -231,7 +238,7 @@ class _LanguageButton extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (icon != null) ...[
-                Icon(icon, size: 18, color: theme.colorScheme.primary),
+                Icon(icon, size: 18, color: scheme.primary),
                 const SizedBox(width: 6),
               ],
               Flexible(
@@ -239,10 +246,13 @@ class _LanguageButton extends StatelessWidget {
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleSmall,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: target ? FontWeight.w800 : FontWeight.w700,
+                  ),
                 ),
               ),
-              const Icon(Icons.expand_more, size: 20),
+              const SizedBox(width: 2),
+              Icon(Icons.expand_more, size: 20, color: palette.secondaryText),
             ],
           ),
         ),

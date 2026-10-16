@@ -64,6 +64,7 @@ class _DictionarySearchFieldState extends State<DictionarySearchField> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final theme = Theme.of(context);
     final cubit = context.read<DictionaryCubit>();
     final (word, hasEngine) = context.select<DictionaryCubit, (String, bool)>(
       (cubit) => (cubit.state.word, cubit.state.hasEngine),
@@ -108,6 +109,11 @@ class _DictionarySearchFieldState extends State<DictionarySearchField> {
                 ),
               IconButton.filled(
                 key: const Key('dictionary_look_up'),
+                // X's inverse pill: black on light, white on dark.
+                style: IconButton.styleFrom(
+                  backgroundColor: theme.colorScheme.onSurface,
+                  foregroundColor: theme.colorScheme.surface,
+                ),
                 tooltip: l10n.dictionaryLookUp,
                 icon: const Icon(Icons.arrow_forward),
                 onPressed: word.trim().isEmpty || !hasEngine ? null : _lookUp,

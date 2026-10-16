@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/view/widgets/empty_state_view.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
@@ -73,7 +74,7 @@ void main() {
         of: find.byIcon(Icons.error_outline),
         matching: find.byType(SizedBox),
       );
-      expect(tester.getSize(circle.first).width, 64);
+      expect(tester.getSize(circle.first).width, 48);
     });
   });
 
@@ -81,12 +82,27 @@ void main() {
     Color iconColor(WidgetTester tester) =>
         tester.widget<Icon>(find.byIcon(Icons.tune)).color!;
 
-    testWidgets('is primary in an enabled tile', (tester) async {
+    testWidgets('is the secondary text colour in an enabled tile', (
+      tester,
+    ) async {
       await pump(
         tester,
         const ListTile(leading: SettingsIcon(Icons.tune), title: Text('A')),
       );
-      expect(iconColor(tester), theme.colorScheme.primary);
+      expect(iconColor(tester), const Color(0xFF536471));
+      // A plain icon, no tinted square behind it.
+      expect(
+        find.ancestor(
+          of: find.byIcon(Icons.tune),
+          matching: find.byType(DecoratedBox),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('is plain outside a tile', (tester) async {
+      await pump(tester, const SettingsIcon(Icons.tune));
+      expect(iconColor(tester), const Color(0xFF536471));
     });
 
     testWidgets('takes a given colour', (tester) async {
@@ -114,8 +130,27 @@ void main() {
     });
   });
 
-  testWidgets('SettingsDangerDivider is a divider', (tester) async {
+  testWidgets('SettingsDangerDivider is a hairline', (tester) async {
     await pump(tester, const SettingsDangerDivider());
-    expect(find.byType(Divider), findsOneWidget);
+    expect(find.byType(Hairline), findsOneWidget);
+  });
+
+  testWidgets('SettingsSection: bold heading, rows, closing hairline', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      const SettingsSection(title: 'Section', children: [Text('Row')]),
+    );
+    final heading = tester.widget<Text>(find.text('Section'));
+    expect(heading.style?.fontWeight, FontWeight.w800);
+    expect(heading.style?.fontSize, 20);
+    expect(
+      tester.getSemantics(find.text('Section')),
+      isSemantics(isHeader: true),
+    );
+    expect(find.text('Row'), findsOneWidget);
+    expect(find.byType(Hairline), findsOneWidget);
+    expect(find.byType(Card), findsNothing);
   });
 }

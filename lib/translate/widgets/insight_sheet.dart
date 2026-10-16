@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/language_text.dart';
+import 'package:mozhi/translate/widgets/translate_layout.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Opens the details of one word insight; tapping a variation applies it.
@@ -72,7 +74,7 @@ class InsightSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+    final palette = AppPalette.of(context);
     final type = insight.type.trim();
     final target = targetLanguage;
     final source = sourceLanguage;
@@ -90,17 +92,21 @@ class InsightSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (type.isNotEmpty)
+            // An outlined hairline pill, like an X topic.
             DecoratedBox(
-              decoration: BoxDecoration(
-                color: scheme.tertiaryContainer,
-                borderRadius: BorderRadius.circular(8),
+              decoration: ShapeDecoration(
+                shape: StadiumBorder(side: BorderSide(color: palette.hairline)),
               ),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 3,
+                ),
                 child: Text(
                   type[0].toUpperCase() + type.substring(1),
                   style: theme.textTheme.labelMedium?.copyWith(
-                    color: scheme.onTertiaryContainer,
+                    color: palette.secondaryText,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
@@ -111,7 +117,10 @@ class InsightSheet extends StatelessWidget {
             child: SelectableText.rich(
               TextSpan(text: insight.targetText, locale: targetLocale),
               textDirection: targetDirection,
-              style: theme.textTheme.headlineSmall,
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.3,
+              ),
             ),
           ),
           if (insight.sourceText.isNotEmpty) ...[
@@ -123,24 +132,26 @@ class InsightSheet extends StatelessWidget {
               ),
               textDirection: sourceDirection,
               style: theme.textTheme.bodyLarge?.copyWith(
-                color: scheme.onSurfaceVariant,
+                color: palette.secondaryText,
                 fontStyle: FontStyle.italic,
               ),
             ),
           ],
           if (insight.explanation.isNotEmpty) ...[
             const SizedBox(height: 16),
+            const Hairline(),
+            const SizedBox(height: 16),
             Text(insight.explanation, style: theme.textTheme.bodyLarge),
           ],
           if (insight.variations.isNotEmpty) ...[
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
+            const Hairline(),
+            const SizedBox(height: 12),
             Semantics(
               header: true,
               child: Text(
                 l10n.translateInsightVariations,
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: scheme.primary,
-                ),
+                style: TranslateLayout.headingStyle(context),
               ),
             ),
             const SizedBox(height: 4),

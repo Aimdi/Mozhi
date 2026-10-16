@@ -72,7 +72,7 @@ void main() {
       await harness.pump(tester, child: const LanguageBar());
       Finder button(String key) => find.descendant(
         of: find.byKey(Key(key)),
-        matching: find.byType(FilledButton),
+        matching: find.byType(OutlinedButton),
       );
       expect(
         tester.getSemantics(button('translate_source_button')),

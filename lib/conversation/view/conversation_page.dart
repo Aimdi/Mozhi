@@ -4,6 +4,7 @@ import 'package:mozhi/conversation/cubit/conversation_cubit.dart';
 import 'package:mozhi/conversation/models/conversation_mic.dart';
 import 'package:mozhi/conversation/models/conversation_turn.dart';
 import 'package:mozhi/conversation/widgets/widgets.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/speech/speech_service.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -146,7 +147,6 @@ class _StandardLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final composerA = ConversationComposer(
       side: ConversationSide.a,
       micBuilder: micBuilder,
@@ -181,22 +181,20 @@ class _StandardLayout extends StatelessWidget {
                   ],
                 ),
               ),
+              const Hairline(),
               const Expanded(child: ConversationTranscriptList()),
-              Material(
-                color: theme.colorScheme.surfaceContainerLow,
-                child: wide
-                    ? Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Expanded(child: composerA),
-                          Expanded(child: composerB),
-                        ],
-                      )
-                    : Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [composerA, composerB],
-                      ),
-              ),
+              if (wide)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(child: composerA),
+                    Expanded(child: composerB),
+                  ],
+                )
+              else ...[
+                composerA,
+                composerB,
+              ],
             ],
           ),
         ),
@@ -215,7 +213,6 @@ class _FaceToFaceLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return SafeArea(
       child: Column(
         key: const Key('conversation_face_to_face_layout'),
@@ -226,8 +223,10 @@ class _FaceToFaceLayout extends StatelessWidget {
               micBuilder: micBuilder,
             ),
           ),
-          Material(
-            color: theme.colorScheme.surfaceContainerHigh,
+          BlurBar(
+            top: true,
+            bottom: true,
+            sigma: 0,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               child: Row(

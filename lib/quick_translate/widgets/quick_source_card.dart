@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/quick_translate/models/quick_languages.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -36,35 +37,34 @@ class _QuickSourceCardState extends State<QuickSourceCard> {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final detected = widget.detectedSource;
-    final textStyle = theme.textTheme.bodyMedium?.copyWith(
-      color: scheme.onSurfaceVariant,
+    final palette = AppPalette.of(context);
+    final textStyle = theme.textTheme.bodyLarge?.copyWith(
+      color: palette.secondaryText,
     );
     final direction = detected == null
         ? null
         : (isRtlLanguage(detected) ? TextDirection.rtl : TextDirection.ltr);
 
-    return Card.filled(
+    // Flat, like a quoted line in a compose sheet: no card around it.
+    return KeyedSubtree(
       key: const Key('quick_translate_source'),
-      margin: EdgeInsets.zero,
-      color: scheme.surfaceContainerHigh,
-      clipBehavior: Clip.antiAlias,
       child: LayoutBuilder(
         builder: (context, constraints) {
           final overflows = _overflows(
             context,
             style: textStyle,
-            maxWidth: constraints.maxWidth - 32,
+            maxWidth: constraints.maxWidth - 8,
             direction: direction,
           );
           final header = Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 4, 0),
+            padding: const EdgeInsetsDirectional.fromSTEB(4, 0, 0, 0),
             child: Row(
               children: [
                 Flexible(
                   child: Text(
                     l10n.quickTranslateOriginal,
                     style: theme.textTheme.labelLarge?.copyWith(
-                      color: scheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
@@ -109,7 +109,7 @@ class _QuickSourceCardState extends State<QuickSourceCard> {
               children: [
                 header,
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                  padding: const EdgeInsets.fromLTRB(4, 0, 4, 12),
                   child: AnimatedSize(
                     duration: const Duration(milliseconds: 200),
                     curve: Curves.easeOutCubic,

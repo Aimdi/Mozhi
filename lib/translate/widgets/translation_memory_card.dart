@@ -66,16 +66,10 @@ class _MemoryCard extends StatelessWidget {
     final similarity = l10n.translateMemorySimilarity(match.percent);
     final date = MaterialLocalizations.of(context)
         .formatMediumDate(entry.createdAt);
-    return Card(
-      margin: EdgeInsets.zero,
+    // An earlier translation, quoted like a post inside a post.
+    return TranslateFlatCard(
+      look: TranslateCardLook.quote,
       semanticContainer: false,
-      elevation: 0,
-      clipBehavior: Clip.antiAlias,
-      color: colors.surfaceContainerLow,
-      shape: RoundedRectangleBorder(
-        borderRadius: TranslateLayout.cardBorderRadius,
-        side: BorderSide(color: colors.outlineVariant),
-      ),
       child: Semantics(
         container: true,
         explicitChildNodes: true,
@@ -104,7 +98,9 @@ class _MemoryCard extends StatelessWidget {
                         ],
                       ),
                       key: const Key('translate_memory_title'),
-                      style: theme.textTheme.labelLarge,
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
                   IconButton(

@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 
 /// A section title with a muted "AI-generated" label on the far end; wraps
@@ -13,7 +14,7 @@ class AiGeneratedHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final muted = theme.colorScheme.onSurfaceVariant;
+    final muted = AppPalette.of(context).secondaryText;
     return SizedBox(
       width: double.infinity,
       child: Wrap(
@@ -26,7 +27,7 @@ class AiGeneratedHeader extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (icon != null) ...[
-                Icon(icon, color: muted, size: 20),
+                Icon(icon, color: theme.colorScheme.primary, size: 20),
                 const SizedBox(width: 8),
               ],
               Flexible(
@@ -34,7 +35,11 @@ class AiGeneratedHeader extends StatelessWidget {
                   header: true,
                   child: Text(
                     title,
-                    style: style ?? theme.textTheme.titleSmall,
+                    style:
+                        style ??
+                        theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
                   ),
                 ),
               ),

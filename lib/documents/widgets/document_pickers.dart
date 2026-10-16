@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/documents/widgets/document_labels.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/widgets/engine_selector.dart';
@@ -43,15 +44,29 @@ class DocumentEngineSheet extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
             child: Text(
               context.l10n.documentsEngineSheetTitle,
-              style: theme.textTheme.titleLarge,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.3,
+              ),
             ),
           ),
-          for (final engine in engines)
+          for (final (index, engine) in engines.indexed) ...[
+            if (index > 0) const Hairline(indent: 72),
             ListTile(
               key: Key('documents_engine_${engine.id}'),
               leading: EngineIcon(engine: engine),
-              title: Text(engine.name),
-              subtitle: engine.subtitle == null ? null : Text(engine.subtitle!),
+              title: Text(
+                engine.name,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              subtitle: engine.subtitle == null
+                  ? null
+                  : Text(
+                      engine.subtitle!,
+                      style: TextStyle(
+                        color: AppPalette.of(context).secondaryText,
+                      ),
+                    ),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 spacing: 8,
@@ -64,6 +79,7 @@ class DocumentEngineSheet extends StatelessWidget {
               selected: engine.id == selected?.id,
               onTap: () => Navigator.of(context).pop(engine),
             ),
+          ],
         ],
       ),
     );
@@ -143,6 +159,7 @@ class _DocumentLanguageSheetState extends State<DocumentLanguageSheet> {
       (language) => language.name.toLowerCase() == query.toLowerCase(),
     );
     final offerCustom = widget.allowCustom && query.isNotEmpty && !exact;
+    final palette = AppPalette.of(context);
 
     return DraggableScrollableSheet(
       expand: false,
@@ -153,7 +170,13 @@ class _DocumentLanguageSheetState extends State<DocumentLanguageSheet> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-            child: Text(widget.title, style: theme.textTheme.titleLarge),
+            child: Text(
+              widget.title,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.3,
+              ),
+            ),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -165,7 +188,11 @@ class _DocumentLanguageSheetState extends State<DocumentLanguageSheet> {
               decoration: InputDecoration(
                 hintText: l10n.documentsSearchLanguages,
                 prefixIcon: const Icon(Icons.search),
-                border: const OutlineInputBorder(),
+                filled: true,
+                border: const OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(28)),
+                  borderSide: BorderSide.none,
+                ),
               ),
             ),
           ),
@@ -188,23 +215,33 @@ class _DocumentLanguageSheetState extends State<DocumentLanguageSheet> {
                     child: Text(
                       l10n.documentsNoLanguages,
                       textAlign: TextAlign.center,
+                      style: TextStyle(color: palette.secondaryText),
                     ),
                   ),
-                for (final language in matches)
+                for (final (index, language) in matches.indexed) ...[
+                  if (index > 0) const Hairline(indent: 72),
                   ListTile(
                     key: Key('documents_language_${language.code}'),
-                    title: Text(documentLanguageLabel(l10n, language)),
+                    leading: LanguageAvatar(code: language.code),
+                    title: Text(
+                      documentLanguageLabel(l10n, language),
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
                     subtitle:
                         language.nativeName == null ||
                             language.nativeName == language.name
                         ? null
-                        : Text(language.nativeName!),
+                        : Text(
+                            language.nativeName!,
+                            style: TextStyle(color: palette.secondaryText),
+                          ),
                     selected: language == widget.selected,
                     trailing: language == widget.selected
-                        ? const Icon(Icons.check)
+                        ? Icon(Icons.check, color: theme.colorScheme.primary)
                         : null,
                     onTap: () => Navigator.of(context).pop(language),
                   ),
+                ],
               ],
             ),
           ),

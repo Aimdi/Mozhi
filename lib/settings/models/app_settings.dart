@@ -41,7 +41,7 @@ class AppSettings extends Equatable {
     this.themeMode = ThemeMode.system,
     this.dynamicColor = true,
     this.pureBlack = false,
-    this.seedColor = 0xFF3F51B5,
+    this.seedColor = 0xFF1D9BF0,
     this.instances = MozhiInstance.publicInstances,
     this.providers = const [],
     this.engineId,
@@ -150,13 +150,15 @@ class AppSettings extends Equatable {
 
   final ThemeMode themeMode;
 
-  /// Use the platform (Material You) palette when available.
+  /// Take the accent from the platform (Material You) palette when
+  /// available; surfaces stay neutral either way.
   final bool dynamicColor;
 
-  /// AMOLED black backgrounds in dark mode.
+  /// The dark look: "Lights out" (true black, AMOLED-friendly) when true,
+  /// "Dim" (dark blue-grey) when false.
   final bool pureBlack;
 
-  /// ARGB seed when [dynamicColor] is off/unavailable.
+  /// ARGB accent colour when [dynamicColor] is off/unavailable.
   final int seedColor;
 
   /// Ordered by preference; the repository fails over in this order.

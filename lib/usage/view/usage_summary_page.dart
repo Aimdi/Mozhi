@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/view/widgets/empty_state_view.dart';
 import 'package:mozhi/usage/cubit/usage_cubit.dart';
@@ -62,8 +63,15 @@ class UsageSummaryView extends StatelessWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(l10n.usageResetTitle),
-        content: Text(l10n.usageResetBody),
+        title: Text(
+          l10n.usageResetTitle,
+          style: Theme.of(context).textTheme.titleLarge
+              ?.copyWith(fontWeight: FontWeight.w800),
+        ),
+        content: Text(
+          l10n.usageResetBody,
+          style: TextStyle(color: AppPalette.of(context).secondaryText),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -120,7 +128,9 @@ class UsageSummaryView extends StatelessWidget {
           ? const Center(child: CircularProgressIndicator())
           : LayoutBuilder(
               builder: (context, constraints) {
-                final gutter = math.max(16, (constraints.maxWidth - 720) / 2);
+                // Rows run edge to edge on phones (their content keeps a
+                // 16 dp inset); wide windows keep a centered column.
+                final gutter = math.max(0, (constraints.maxWidth - 752) / 2);
                 return ListView(
                   padding: EdgeInsets.fromLTRB(
                     gutter.toDouble(),
@@ -133,8 +143,8 @@ class UsageSummaryView extends StatelessWidget {
                       const _EmptyUsage()
                     else ...[
                       _MonthTotals(snapshot: snapshot),
-                      const SizedBox(height: 16),
                       for (final id in ids) ...[
+                        const Hairline(),
                         ProviderUsageTile(
                           name: names[id] ?? l10n.usageUnknownProvider,
                           thisMonth: snapshot.statsFor(id),
@@ -148,21 +158,19 @@ class UsageSummaryView extends StatelessWidget {
                               ? () => onOpenProvider!(id)
                               : null,
                         ),
-                        const SizedBox(height: 12),
                       ],
+                      const Hairline(),
                     ],
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 16),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Icon(
                             Icons.info_outline,
                             size: 18,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant,
+                            color: AppPalette.of(context).secondaryText,
                           ),
                           const SizedBox(width: 8),
                           Expanded(
@@ -170,9 +178,7 @@ class UsageSummaryView extends StatelessWidget {
                               l10n.usageDisclaimer,
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant,
+                                    color: AppPalette.of(context).secondaryText,
                                   ),
                             ),
                           ),
@@ -204,7 +210,8 @@ class _EmptyUsage extends StatelessWidget {
   }
 }
 
-/// Totals of all providers this month, compared with last month.
+/// Totals of all providers this month as X-analytics style big numbers,
+/// compared with last month.
 class _MonthTotals extends StatelessWidget {
   const new({required this.snapshot});
 
@@ -213,67 +220,100 @@ class _MonthTotals extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+    final palette = AppPalette.of(context);
     final l10n = context.l10n;
     final total = snapshot.totalFor();
     final last = snapshot.totalFor(month: snapshot.lastMonth);
-    return Card.filled(
-      margin: EdgeInsets.zero,
-      color: scheme.primaryContainer,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Semantics(
-                    header: true,
-                    child: Text(
-                      context.usageMonthYear(snapshot.currentMonth),
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        color: scheme.onPrimaryContainer,
-                      ),
-                    ),
-                  ),
-                ),
-                Icon(Icons.insights_outlined, color: scheme.onPrimaryContainer),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              context.usageCharacters(total.totalChars),
-              style: theme.textTheme.headlineSmall?.copyWith(
-                color: scheme.onPrimaryContainer,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Semantics(
+            header: true,
+            child: Text(
+              context.usageMonthYear(snapshot.currentMonth),
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.3,
               ),
             ),
-            Text(
-              '${context.usageRequests(total.requests)} · '
-              '${context.usageTokens(total.estimatedTokens)}',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: scheme.onPrimaryContainer,
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 32,
+            runSpacing: 12,
+            children: [
+              UsageStat(
+                key: const Key('usage_total_characters'),
+                value: context.usageNumber(total.totalChars),
+                label: l10n.usageStatCharacters,
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${l10n.usageLastMonth}: '
-              '${context.usageCharacters(last.totalChars)} · '
-              '${context.usageRequests(last.requests)}',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: scheme.onPrimaryContainer,
+              UsageStat(
+                key: const Key('usage_total_requests'),
+                value: context.usageNumber(total.requests),
+                label: l10n.usageStatRequests,
               ),
+              UsageStat(
+                key: const Key('usage_total_tokens'),
+                value: context.usageNumber(total.estimatedTokens),
+                label: l10n.usageStatTokens,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '${l10n.usageLastMonth}: '
+            '${context.usageCharacters(last.totalChars)} · '
+            '${context.usageRequests(last.requests)}',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: palette.secondaryText,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
-/// One provider's usage this and last month as two bars scaled to
-/// [maxChars], plus its budget progress.
+/// An analytics figure: a big bold [value] over a quiet [label], read as
+/// one ("600 Characters").
+class UsageStat extends StatelessWidget {
+  const new({required this.value, required this.label, super.key});
+
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return MergeSemantics(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            value,
+            style: theme.textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.6,
+              height: 1.1,
+            ),
+          ),
+          Text(
+            label,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: AppPalette.of(context).secondaryText,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One provider's usage this and last month as two accent bars scaled to
+/// [maxChars], plus its budget progress: a flat, tappable row.
 class ProviderUsageTile extends StatelessWidget {
   const new({
     required this.name,
@@ -298,86 +338,87 @@ class ProviderUsageTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final palette = AppPalette.of(context);
     final l10n = context.l10n;
     final status = budgetStatus;
     final unused = thisMonth.isEmpty && lastMonth.isEmpty;
     double fraction(UsageStats stats) =>
         maxChars <= 0 ? 0 : stats.totalChars / maxChars;
+    final secondary = theme.textTheme.bodyMedium?.copyWith(
+      color: palette.secondaryText,
+    );
 
-    return Card.filled(
-      margin: EdgeInsets.zero,
-      color: scheme.surfaceContainerLow,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                spacing: 12,
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 12,
+          children: [
+            ExcludeSemantics(
+              child: CircleAvatar(
+                radius: 20,
+                backgroundColor: scheme.primary.withValues(alpha: 0.12),
+                foregroundColor: scheme.primary,
+                child: const Icon(Icons.auto_awesome_outlined, size: 20),
+              ),
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  ExcludeSemantics(
-                    child: CircleAvatar(
-                      radius: 18,
-                      backgroundColor: scheme.secondaryContainer,
-                      foregroundColor: scheme.onSecondaryContainer,
-                      child: const Icon(Icons.auto_awesome_outlined, size: 18),
-                    ),
+                  Row(
+                    spacing: 8,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          name,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (status != null && status.level != UsageBudgetLevel.ok)
+                        UsageLevelBadge(level: status.level),
+                      if (onTap != null)
+                        Icon(Icons.chevron_right, color: palette.secondaryText),
+                    ],
                   ),
-                  Expanded(
-                    child: Text(
-                      name,
-                      style: theme.textTheme.titleMedium,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                  const SizedBox(height: 8),
+                  if (unused)
+                    Text(l10n.usageNotUsed, style: secondary)
+                  else ...[
+                    _BarRow(
+                      label: l10n.usageThisMonth,
+                      value: context.usageCharacters(thisMonth.totalChars),
+                      fraction: fraction(thisMonth),
+                      color: scheme.primary,
                     ),
-                  ),
-                  if (status != null && status.level != UsageBudgetLevel.ok)
-                    UsageLevelBadge(level: status.level),
-                  if (onTap != null)
-                    Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
+                    const SizedBox(height: 8),
+                    _BarRow(
+                      label: l10n.usageLastMonth,
+                      value: context.usageCharacters(lastMonth.totalChars),
+                      fraction: fraction(lastMonth),
+                      color: scheme.primary.withValues(alpha: 0.4),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${context.usageRequests(thisMonth.requests)} · '
+                      '${context.usageTokens(thisMonth.estimatedTokens)}',
+                      style: secondary,
+                    ),
+                  ],
+                  if (status != null) ...[
+                    const SizedBox(height: 12),
+                    UsageBudgetProgress(status: status),
+                  ],
                 ],
               ),
-              const SizedBox(height: 12),
-              if (unused)
-                Text(
-                  l10n.usageNotUsed,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                  ),
-                )
-              else ...[
-                _BarRow(
-                  label: l10n.usageThisMonth,
-                  value: context.usageCharacters(thisMonth.totalChars),
-                  fraction: fraction(thisMonth),
-                  color: scheme.primary,
-                ),
-                const SizedBox(height: 8),
-                _BarRow(
-                  label: l10n.usageLastMonth,
-                  value: context.usageCharacters(lastMonth.totalChars),
-                  fraction: fraction(lastMonth),
-                  color: scheme.tertiary,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '${context.usageRequests(thisMonth.requests)} · '
-                  '${context.usageTokens(thisMonth.estimatedTokens)}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-              if (status != null) ...[
-                const SizedBox(height: 12),
-                UsageBudgetProgress(status: status),
-              ],
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -400,17 +441,27 @@ class _BarRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final style = theme.textTheme.bodySmall?.copyWith(
-      color: theme.colorScheme.onSurfaceVariant,
-    );
+    final palette = AppPalette.of(context);
     return MergeSemantics(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              Expanded(child: Text(label, style: style)),
-              Text(value, style: style),
+              Expanded(
+                child: Text(
+                  label,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: palette.secondaryText,
+                  ),
+                ),
+              ),
+              Text(
+                value,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 4),

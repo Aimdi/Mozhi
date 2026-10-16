@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/proofread/proofread.dart';
 import 'package:mozhi/proofread/widgets/widgets.dart';
@@ -970,10 +971,10 @@ void main() {
           find.text('Your text has changed since it was checked.'),
           findsOneWidget,
         );
-        final useAsInput = tester.widget<TextButton>(
+        final useAsInput = tester.widget<ButtonStyleButton>(
           find.ancestor(
             of: find.text('Use as input'),
-            matching: find.byWidgetPredicate((w) => w is TextButton),
+            matching: find.byWidgetPredicate((w) => w is ButtonStyleButton),
           ),
         );
         expect(useAsInput.onPressed, isNull);
@@ -1006,8 +1007,8 @@ void main() {
             proofreadInput: 'x',
           ),
         );
-        final copy = tester.widget<IconButton>(
-          find.widgetWithIcon(IconButton, Icons.copy_outlined),
+        final copy = tester.widget<XActionButton>(
+          find.widgetWithIcon(XActionButton, Icons.copy_rounded),
         );
         expect(copy.onPressed, isNull);
       });

@@ -4,11 +4,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/on_device_ml.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/cubit/offline_models_cubit.dart';
 import 'package:mozhi/offline/widgets/offline_language_tile.dart';
 import 'package:mozhi/platform/mlkit_bindings.dart'
     show createOfflineTranslator;
+import 'package:mozhi/settings/view/widgets/empty_state_view.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -99,33 +101,16 @@ class _LoadFailure extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final theme = Theme.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.cloud_off_outlined,
-              size: 48,
-              color: theme.colorScheme.error,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              l10n.offlineLoadFailed,
-              style: theme.textTheme.titleMedium,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            FilledButton.tonalIcon(
-              onPressed: () =>
-                  unawaited(context.read<OfflineModelsCubit>().load()),
-              icon: const Icon(Icons.refresh),
-              label: Text(l10n.commonRetry),
-            ),
-          ],
-        ),
+    return EmptyStateView(
+      icon: Icons.cloud_off_outlined,
+      tone: EmptyStateTone.error,
+      title: l10n.offlineLoadFailed,
+      announce: true,
+      action: FilledButton.icon(
+        style: FilledButton.styleFrom(shape: const StadiumBorder()),
+        onPressed: () => unawaited(context.read<OfflineModelsCubit>().load()),
+        icon: const Icon(Icons.refresh),
+        label: Text(l10n.commonRetry),
       ),
     );
   }
@@ -158,37 +143,71 @@ class _ModelsList extends StatelessWidget {
       onDelete: () => unawaited(_delete(context, language)),
     );
 
+    List<Widget> rows(List<OfflineLanguage> languages) => [
+      for (final (index, language) in languages.indexed) ...[
+        if (index > 0) const Hairline(indent: 72),
+        tile(language),
+      ],
+    ];
+
     final downloaded = state.visibleDownloaded;
     final available = state.visibleAvailable;
     return LayoutBuilder(
       builder: (context, constraints) => ListView(
-        padding: centeredPadding(constraints.maxWidth),
+        // Rows run edge to edge on phones (their content keeps a 16 dp
+        // inset); wide windows keep the centered column.
+        padding: centeredPadding(constraints.maxWidth)
+            .subtract(const EdgeInsets.symmetric(horizontal: 16))
+            .resolve(TextDirection.ltr),
         children: [
           if (!state.isAvailable) const _UnavailableBanner(),
           _Overview(state: state),
-          const SizedBox(height: 16),
-          const _SearchField(),
-          const SizedBox(height: 16),
-          if (downloaded.isNotEmpty)
-            SettingsSection(
-              title: l10n.offlineSectionDownloaded,
-              children: [for (final language in downloaded) tile(language)],
-            ),
-          if (available.isNotEmpty)
-            SettingsSection(
-              title: l10n.offlineSectionAvailable,
-              children: [for (final language in available) tile(language)],
-            ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: _SearchField(),
+          ),
+          if (downloaded.isNotEmpty) ...[
+            _SectionHeading(title: l10n.offlineSectionDownloaded),
+            ...rows(downloaded),
+            const Hairline(),
+          ],
+          if (available.isNotEmpty) ...[
+            _SectionHeading(title: l10n.offlineSectionAvailable),
+            ...rows(available),
+          ],
           if (downloaded.isEmpty && available.isEmpty)
             Padding(
               padding: const EdgeInsets.all(24),
               child: Text(
                 l10n.offlineNoMatches(state.query.trim()),
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyLarge,
+                style: Theme.of(context).textTheme.bodyLarge
+                    ?.copyWith(color: AppPalette.of(context).secondaryText),
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// A bold X-style section heading.
+class _SectionHeading extends StatelessWidget {
+  const new({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
+      child: Semantics(
+        header: true,
+        child: Text(
+          title,
+          style: Theme.of(context).textTheme.titleLarge
+              ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.3),
+        ),
       ),
     );
   }
@@ -199,21 +218,33 @@ class _UnavailableBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final palette = AppPalette.of(context);
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Card.filled(
-        margin: EdgeInsets.zero,
-        color: colors.secondaryContainer,
-        child: ListTile(
-          leading: Icon(Icons.info_outline, color: colors.onSecondaryContainer),
-          title: Text(
-            // Without ML Kit in the build (F-Droid) the platform is not
-            // the reason, so say what is missing instead.
-            mlKitIncluded
-                ? context.l10n.offlineUnavailable
-                : context.l10n.offlineNotIncluded,
-            style: TextStyle(color: colors.onSecondaryContainer),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border.all(color: palette.hairline),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: 12,
+            children: [
+              Icon(Icons.info_outline, color: theme.colorScheme.primary),
+              Expanded(
+                child: Text(
+                  // Without ML Kit in the build (F-Droid) the platform is
+                  // not the reason, so say what is missing instead.
+                  mlKitIncluded
+                      ? context.l10n.offlineUnavailable
+                      : context.l10n.offlineNotIncluded,
+                  style: theme.textTheme.bodyMedium,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -230,42 +261,48 @@ class _Overview extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    return Card.filled(
-      margin: EdgeInsets.zero,
-      color: theme.colorScheme.surfaceContainerLow,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Text(l10n.offlineDescription),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text(
-              l10n.offlineDownloadedCount(state.downloadedCount),
-              style: theme.textTheme.titleSmall?.copyWith(
-                color: theme.colorScheme.primary,
-              ),
+    final palette = AppPalette.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+          child: Text(
+            l10n.offlineDownloadedCount(state.downloadedCount),
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.4,
             ),
           ),
-          SwitchListTile(
-            secondary: const Icon(Icons.wifi),
-            title: Text(l10n.offlineWifiOnly),
-            subtitle: Text(l10n.offlineWifiOnlyDescription),
-            value: state.wifiOnly,
-            onChanged: state.isAvailable
-                ? (enabled) => unawaited(
-                    context.read<OfflineModelsCubit>().setWifiOnly(
-                      enabled: enabled,
-                    ),
-                  )
-                : null,
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Text(
+            l10n.offlineDescription,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: palette.secondaryText,
+            ),
           ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 8),
+        SwitchListTile(
+          secondary: const Icon(Icons.wifi),
+          title: Text(l10n.offlineWifiOnly),
+          subtitle: Text(
+            l10n.offlineWifiOnlyDescription,
+            style: TextStyle(color: palette.secondaryText),
+          ),
+          value: state.wifiOnly,
+          onChanged: state.isAvailable
+              ? (enabled) => unawaited(
+                  context.read<OfflineModelsCubit>().setWifiOnly(
+                    enabled: enabled,
+                  ),
+                )
+              : null,
+        ),
+        const Hairline(),
+      ],
     );
   }
 }

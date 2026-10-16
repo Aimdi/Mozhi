@@ -46,26 +46,35 @@ test('a translation appears in History and can be starred', async ({
   await expect(item).toBeVisible();
   await expect(item).toHaveAccessibleName(
     new RegExp(
-      `^.*English \\(detected\\).* → .*French.* ${FIRST} ` +
-        `\\[AI→French \\(Français\\)\\] ${FIRST} Local AI \\(mock\\) · `,
+      // Header (pair · engine · time), the translation, the quoted source.
+      `^.*English \\(detected\\).* → .*French.*· Local AI \\(mock\\) · .*` +
+        `\\[AI→French \\(Français\\)\\] ${FIRST}.* ${FIRST}`,
     ),
   );
 
-  // Nothing is starred yet.
-  const favourites = page.getByRole('checkbox', { name: 'Favorites' });
+  // Nothing is starred yet. The filters are tabs.
+  const favourites = page.getByRole('tab', { name: 'Favorites' });
   await favourites.click();
   await expect(page.getByRole('heading', { name: /^No favorites yet/ }))
     .toBeVisible();
   await expect(item).toBeHidden();
-  await page.getByRole('checkbox', { name: 'All' }).click();
+  await page.getByRole('tab', { name: 'All' }).click();
 
-  // Star it: it shows under Favorites.
+  // Copy shows a check for a moment.
+  expect(await copiedTranslation(page, item)).toBe(
+    `[AI→French (Français)] ${FIRST}`,
+  );
+  await expect(
+    item.getByRole('button', { name: /^Copied to clipboard/ }),
+  ).toBeVisible();
+
+  // Like it (a heart): it shows under Favorites.
   await item.getByRole('button', { name: 'Add to favorites' }).click();
   await expect(
     item.getByRole('button', { name: 'Remove from favorites' }),
   ).toBeVisible();
   await favourites.click();
-  await expect(favourites).toBeChecked();
+  await expect(favourites).toHaveAttribute('aria-selected', 'true');
   await expect(item).toBeVisible();
 
   // Unstar it: Favorites is empty again.

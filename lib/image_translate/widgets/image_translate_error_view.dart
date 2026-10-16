@@ -29,10 +29,15 @@ class ImageTranslateErrorView extends StatelessWidget {
       ),
       TranslateErrorFix.none => (null, null),
     };
-    return Card(
+    // Flat: an error-tinted hairline outline, no fill.
+    return DecoratedBox(
       key: const Key('image_translate_error'),
-      color: theme.colorScheme.errorContainer,
-      margin: EdgeInsets.zero,
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: theme.colorScheme.error.withValues(alpha: 0.5),
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -42,20 +47,12 @@ class ImageTranslateErrorView extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  Icons.error_outline,
-                  color: theme.colorScheme.onErrorContainer,
-                ),
+                Icon(Icons.error_outline, color: theme.colorScheme.error),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Semantics(
                     liveRegion: true,
-                    child: Text(
-                      info.message,
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        color: theme.colorScheme.onErrorContainer,
-                      ),
-                    ),
+                    child: Text(info.message, style: theme.textTheme.bodyLarge),
                   ),
                 ),
               ],
@@ -67,8 +64,12 @@ class ImageTranslateErrorView extends StatelessWidget {
                 runSpacing: 8,
                 children: [
                   if (onRetry != null)
-                    FilledButton.tonalIcon(
+                    FilledButton.icon(
                       key: const Key('image_translate_retry_button'),
+                      style: FilledButton.styleFrom(
+                        shape: const StadiumBorder(),
+                        textStyle: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
                       onPressed: onRetry,
                       icon: const Icon(Icons.refresh),
                       label: Text(l10n.commonRetry),

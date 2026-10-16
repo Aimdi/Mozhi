@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/dictionary/cubit/dictionary_cubit.dart';
 import 'package:mozhi/dictionary/widgets/dictionary_language_picker.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -55,6 +56,7 @@ class DictionaryLanguageBar extends StatelessWidget {
         Expanded(
           child: _LanguageButton(
             key: const Key('dictionary_source_language'),
+            code: source.code,
             label: sourceName,
             semanticsLabel: source.isAuto
                 ? l10n.dictionarySourceLanguageAuto
@@ -71,6 +73,7 @@ class DictionaryLanguageBar extends StatelessWidget {
         Expanded(
           child: _LanguageButton(
             key: const Key('dictionary_target_language'),
+            code: target.code,
             label: targetName,
             semanticsLabel: l10n.dictionaryTargetLanguage(targetName),
             onPressed: () => unawaited(_pick(context, source: false)),
@@ -81,14 +84,17 @@ class DictionaryLanguageBar extends StatelessWidget {
   }
 }
 
+/// An outlined hairline pill with the language's avatar.
 class _LanguageButton extends StatelessWidget {
   const new({
+    required this.code,
     required this.label,
     required this.semanticsLabel,
     required this.onPressed,
     super.key,
   });
 
+  final String code;
   final String label;
   final String semanticsLabel;
   final VoidCallback onPressed;
@@ -96,13 +102,15 @@ class _LanguageButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return TextButton(
-      style: TextButton.styleFrom(
+    final palette = AppPalette.of(context);
+    return OutlinedButton(
+      style: OutlinedButton.styleFrom(
         minimumSize: const Size(48, 48),
-        backgroundColor: colors.surfaceContainerHigh,
         foregroundColor: colors.onSurface,
+        side: BorderSide(color: palette.hairline),
         shape: const StadiumBorder(),
-        padding: const EdgeInsetsDirectional.fromSTEB(16, 8, 8, 8),
+        padding: const EdgeInsetsDirectional.fromSTEB(6, 6, 8, 6),
+        textStyle: const TextStyle(fontWeight: FontWeight.w700),
       ),
       onPressed: onPressed,
       // The button reads "Language of the word: Spanish", not just
@@ -112,9 +120,11 @@ class _LanguageButton extends StatelessWidget {
         excludeSemantics: true,
         child: Row(
           mainAxisSize: MainAxisSize.min,
+          spacing: 8,
           children: [
+            LanguageAvatar(code: code, size: 28),
             Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
-            const Icon(Icons.arrow_drop_down),
+            Icon(Icons.expand_more, size: 20, color: palette.secondaryText),
           ],
         ),
       ),

@@ -32,7 +32,7 @@ class OnboardingProgressDots extends StatelessWidget {
               width: i == current ? 24 : 8,
               height: 8,
               decoration: BoxDecoration(
-                color: i <= current ? colors.primary : colors.outlineVariant,
+                color: i <= current ? colors.primary : colors.outline,
                 borderRadius: BorderRadius.circular(4),
               ),
             ),

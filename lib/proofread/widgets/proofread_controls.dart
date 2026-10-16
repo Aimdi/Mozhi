@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/proofread/cubit/proofread_cubit.dart';
 import 'package:mozhi/proofread/widgets/proofread_labels.dart';
@@ -8,8 +9,9 @@ import 'package:translation_repository/translation_repository.dart';
 /// Correction level, writing style, formality, reading level, regional
 /// variety, engine and context controls.
 ///
-/// The options sit in a collapsible "Options" card whose subtitle sums up
-/// the current choices; menus are laid out as a grid of equal tiles.
+/// The options sit in a flat collapsible "Options" section between
+/// hairlines whose subtitle sums up the current choices; menus are laid out
+/// as a grid of equal outlined pills.
 class ProofreadControls extends StatefulWidget {
   const new({this.initiallyExpanded = false, super.key});
 
@@ -86,6 +88,7 @@ class _ProofreadControlsState extends State<ProofreadControls> {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final palette = AppPalette.of(context);
     final cubit = context.read<ProofreadCubit>();
 
     return BlocBuilder<ProofreadCubit, ProofreadState>(
@@ -99,77 +102,89 @@ class _ProofreadControlsState extends State<ProofreadControls> {
           // Engine equality ignores the model and locality badge.
           !identical(previous.engine, current.engine) ||
           !identical(previous.availableEngines, current.availableEngines),
-      builder: (context, state) => Card.filled(
-        margin: EdgeInsets.zero,
-        color: colors.surfaceContainerLow,
-        clipBehavior: Clip.antiAlias,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: ExpansionTile(
-          key: const Key('proofread_options'),
-          initiallyExpanded: widget.initiallyExpanded || _showContext,
-          maintainState: true,
-          shape: const Border(),
-          collapsedShape: const Border(),
-          tilePadding: const EdgeInsetsDirectional.fromSTEB(16, 4, 12, 4),
-          leading: Icon(Icons.tune, color: colors.primary),
-          title: Text(l10n.proofreadOptionsTitle),
-          subtitle: Text(
-            _summary(context, state),
-            key: const Key('proofread_options_summary'),
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: colors.onSurfaceVariant,
+      builder: (context, state) => Semantics(
+        container: true,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            border: Border(
+              top: BorderSide(color: palette.hairline),
+              bottom: BorderSide(color: palette.hairline),
             ),
           ),
-          expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
-          childrenPadding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 16),
-          children: [
-            LayoutBuilder(
-              builder: (context, constraints) {
-                // Narrow screens or large text: a menu instead of truncated
-                // segment labels.
-                final segmented = _levelLabelsFit(
-                  context,
-                  constraints.maxWidth,
-                );
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  spacing: 12,
-                  children: [
-                    if (segmented)
-                      Semantics(
-                        label: l10n.proofreadLevelLabel,
-                        container: true,
-                        child: SegmentedButton<CorrectionLevel>(
-                          showSelectedIcon: false,
-                          segments: [
-                            for (final level in CorrectionLevel.values)
-                              ButtonSegment(
-                                value: level,
-                                tooltip: l10n.proofreadLevelDescription(level),
-                                label: Text(
-                                  l10n.proofreadCorrectionLevel(level),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                          ],
-                          selected: {state.correctionLevel},
-                          onSelectionChanged: (selection) =>
-                              cubit.setLevel(selection.first),
-                        ),
-                      ),
-                    _buildMenus(
-                      context,
-                      state,
-                      showLevel: !segmented,
-                      width: constraints.maxWidth,
-                    ),
-                    if (_showContext) _buildContextField(context),
-                  ],
-                );
-              },
+          child: ExpansionTile(
+            key: const Key('proofread_options'),
+            initiallyExpanded: widget.initiallyExpanded || _showContext,
+            maintainState: true,
+            shape: const Border(),
+            collapsedShape: const Border(),
+            tilePadding: const EdgeInsetsDirectional.fromSTEB(4, 4, 4, 4),
+            leading: Icon(Icons.tune, color: colors.primary),
+            title: Text(
+              l10n.proofreadOptionsTitle,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
             ),
-          ],
+            subtitle: Text(
+              _summary(context, state),
+              key: const Key('proofread_options_summary'),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: palette.secondaryText,
+              ),
+            ),
+            expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+            childrenPadding: const EdgeInsetsDirectional.fromSTEB(4, 0, 4, 16),
+            children: [
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  // Narrow screens or large text: a menu instead of truncated
+                  // segment labels.
+                  final segmented = _levelLabelsFit(
+                    context,
+                    constraints.maxWidth,
+                  );
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    spacing: 12,
+                    children: [
+                      if (segmented)
+                        Semantics(
+                          label: l10n.proofreadLevelLabel,
+                          container: true,
+                          child: SegmentedButton<CorrectionLevel>(
+                            showSelectedIcon: false,
+                            segments: [
+                              for (final level in CorrectionLevel.values)
+                                ButtonSegment(
+                                  value: level,
+                                  tooltip: l10n.proofreadLevelDescription(
+                                    level,
+                                  ),
+                                  label: Text(
+                                    l10n.proofreadCorrectionLevel(level),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                            ],
+                            selected: {state.correctionLevel},
+                            onSelectionChanged: (selection) =>
+                                cubit.setLevel(selection.first),
+                          ),
+                        ),
+                      _buildMenus(
+                        context,
+                        state,
+                        showLevel: !segmented,
+                        width: constraints.maxWidth,
+                      ),
+                      if (_showContext) _buildContextField(context),
+                    ],
+                  );
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -373,8 +388,9 @@ class ProofreadMenuButton<T> extends StatelessWidget {
   }
 }
 
-/// A uniform option tile: an [icon], an optional small [label] above the
-/// [title] (the current value) and an optional [trailing] widget.
+/// A uniform option tile, an outlined pill: an [icon], an optional small
+/// [label] above the [title] (the current value) and an optional
+/// [trailing] widget.
 ///
 /// Texts wrap rather than being cut off at large text sizes or on narrow
 /// screens (WCAG 1.4.4, 1.4.10).
@@ -400,11 +416,11 @@ class ProofreadOptionTile extends StatelessWidget {
     final colors = theme.colorScheme;
     final label = this.label;
     final shape = RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(28),
       side: BorderSide(color: colors.outlineVariant),
     );
     return Material(
-      color: colors.surface,
+      type: MaterialType.transparency,
       shape: shape,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -413,7 +429,7 @@ class ProofreadOptionTile extends StatelessWidget {
         child: ConstrainedBox(
           constraints: const BoxConstraints(minHeight: 56),
           child: Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(12, 8, 8, 8),
+            padding: const EdgeInsetsDirectional.fromSTEB(16, 8, 12, 8),
             child: Row(
               spacing: 12,
               children: [
@@ -434,6 +450,7 @@ class ProofreadOptionTile extends StatelessWidget {
                         title,
                         style: theme.textTheme.labelLarge?.copyWith(
                           color: colors.onSurface,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ],

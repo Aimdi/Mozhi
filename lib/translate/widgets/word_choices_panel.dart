@@ -46,15 +46,9 @@ class _Panel extends StatelessWidget {
       color: theme.colorScheme.primary,
     );
     final synonyms = {...result.sourceSynonyms, ...result.targetSynonyms};
-    return Card(
+    return TranslateFlatCard(
       key: const Key('translate_word_choices'),
-      margin: EdgeInsets.zero,
-      elevation: 0,
       clipBehavior: Clip.antiAlias,
-      color: theme.colorScheme.surfaceContainerLow,
-      shape: const RoundedRectangleBorder(
-        borderRadius: TranslateLayout.cardBorderRadius,
-      ),
       child: Theme(
         data: theme.copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(

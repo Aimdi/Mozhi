@@ -5,12 +5,14 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/conversation/cubit/conversation_cubit.dart';
 import 'package:mozhi/conversation/models/conversation_mic.dart';
 import 'package:mozhi/conversation/models/conversation_turn.dart';
-import 'package:mozhi/conversation/widgets/side_colors.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-/// Text field, optional microphone and send button for one [side].
+/// A round pill text field (with the side's language avatar), optional
+/// microphone and send button for one [side], on a translucent bar with a
+/// hairline on top.
 ///
 /// Sending (button or keyboard action) translates the text for the other
 /// side and clears the field. Dictation from the [micBuilder] button
@@ -56,7 +58,8 @@ class _ConversationComposerState extends State<ConversationComposer> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final side = widget.side;
-    final colors = ConversationSideColors.of(context, side);
+    final theme = Theme.of(context);
+    final palette = AppPalette.of(context);
     final language = context.select<ConversationCubit, Language>(
       (cubit) => cubit.state.languageOf(side),
     );
@@ -65,60 +68,85 @@ class _ConversationComposerState extends State<ConversationComposer> {
     );
     final micBuilder = widget.micBuilder;
 
-    return Padding(
-      padding: const EdgeInsetsDirectional.fromSTEB(16, 8, 12, 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Expanded(
-            child: TextField(
-              key: Key('conversation_input_${side.name}'),
-              controller: _controller,
-              minLines: 1,
-              maxLines: 4,
-              textInputAction: TextInputAction.send,
-              textCapitalization: TextCapitalization.sentences,
-              onSubmitted: (_) => _submit(),
-              decoration: InputDecoration(
-                hintText: l10n.conversationInputHint(language.name),
-                filled: true,
-                fillColor: colors.container.withValues(alpha: 0.45),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 14,
+    // Nothing scrolls under the composer, so the bar skips the blur.
+    return BlurBar(
+      top: true,
+      sigma: 0,
+      child: Padding(
+        padding: const EdgeInsetsDirectional.fromSTEB(12, 8, 8, 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: TextField(
+                key: Key('conversation_input_${side.name}'),
+                controller: _controller,
+                minLines: 1,
+                maxLines: 4,
+                textInputAction: TextInputAction.send,
+                textCapitalization: TextCapitalization.sentences,
+                onSubmitted: (_) => _submit(),
+                decoration: InputDecoration(
+                  hintText: l10n.conversationInputHint(language.name),
+                  hintStyle: TextStyle(color: palette.secondaryText),
+                  filled: true,
+                  fillColor: theme.colorScheme.surfaceContainerHigh,
+                  prefixIcon: Padding(
+                    padding: const EdgeInsetsDirectional.only(start: 8, end: 8),
+                    child: LanguageAvatar(
+                      code: language.isCustom ? language.name : language.code,
+                      size: 28,
+                    ),
+                  ),
+                  prefixIconConstraints: const BoxConstraints(
+                    minWidth: 44,
+                    minHeight: 44,
+                  ),
+                  contentPadding: const EdgeInsetsDirectional.fromSTEB(
+                    4,
+                    12,
+                    20,
+                    12,
+                  ),
+                  border: const OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(28)),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: const OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(28)),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: const BorderRadius.all(Radius.circular(28)),
+                    borderSide: BorderSide(color: theme.colorScheme.primary),
+                  ),
                 ),
-                border: const OutlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(28)),
-                  borderSide: BorderSide.none,
+              ),
+            ),
+            const SizedBox(width: 4),
+            if (micBuilder != null)
+              micBuilder(
+                context,
+                ConversationMicRequest(
+                  side: side,
+                  language: language,
+                  onResult: _onDictation,
                 ),
               ),
-            ),
-          ),
-          const SizedBox(width: 4),
-          if (micBuilder != null)
-            micBuilder(
-              context,
-              ConversationMicRequest(
-                side: side,
-                language: language,
-                onResult: _onDictation,
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: _controller,
+              builder: (context, value, _) => IconButton(
+                key: Key('conversation_send_${side.name}'),
+                tooltip: l10n.conversationSend,
+                color: theme.colorScheme.primary,
+                icon: const Icon(Icons.send_rounded),
+                onPressed: ready && value.text.trim().isNotEmpty
+                    ? _submit
+                    : null,
               ),
             ),
-          ValueListenableBuilder<TextEditingValue>(
-            valueListenable: _controller,
-            builder: (context, value, _) => IconButton.filled(
-              key: Key('conversation_send_${side.name}'),
-              tooltip: l10n.conversationSend,
-              style: IconButton.styleFrom(
-                backgroundColor: colors.accent,
-                foregroundColor: colors.onAccent,
-                minimumSize: const Size.square(48),
-              ),
-              icon: const Icon(Icons.send),
-              onPressed: ready && value.text.trim().isNotEmpty ? _submit : null,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

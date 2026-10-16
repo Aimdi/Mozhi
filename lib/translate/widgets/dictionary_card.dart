@@ -59,7 +59,6 @@ class DictionaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final theme = Theme.of(context);
     return BlocBuilder<TranslateCubit, TranslateState>(
       buildWhen: (previous, current) =>
           previous.dictionaryStatus != current.dictionaryStatus ||
@@ -110,16 +109,10 @@ class DictionaryCard extends StatelessWidget {
           message: state.dictionaryStatus == ExtraStatus.ready && entry != null
               ? l10n.translateDictionaryReady
               : null,
-          child: Card(
+          child: TranslateFlatCard(
             key: const Key('translate_dictionary_card'),
-            margin: EdgeInsets.zero,
-            elevation: 0,
-            color: theme.colorScheme.surfaceContainerLow,
-            shape: const RoundedRectangleBorder(
-              borderRadius: TranslateLayout.cardBorderRadius,
-            ),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -181,27 +174,31 @@ class DictionaryVerbosityChips extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final onChanged = this.onChanged;
-    return Semantics(
-      key: const Key('translate_dictionary_verbosity'),
-      container: true,
-      explicitChildNodes: true,
-      label: l10n.translateDictionaryDetailLevel,
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 4,
-        children: [
-          for (final verbosity in DictionaryVerbosity.values)
-            ChoiceChip(
-              key: ValueKey('translate_dictionary_verbosity:${verbosity.name}'),
-              label: Text(label(l10n, verbosity)),
-              selected: verbosity == value,
-              onSelected: onChanged == null
-                  ? null
-                  : (_) {
-                      if (verbosity != value) onChanged(verbosity);
-                    },
-            ),
-        ],
+    return TranslatePills(
+      child: Semantics(
+        key: const Key('translate_dictionary_verbosity'),
+        container: true,
+        explicitChildNodes: true,
+        label: l10n.translateDictionaryDetailLevel,
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            for (final verbosity in DictionaryVerbosity.values)
+              ChoiceChip(
+                key: ValueKey(
+                  'translate_dictionary_verbosity:${verbosity.name}',
+                ),
+                label: Text(label(l10n, verbosity)),
+                selected: verbosity == value,
+                onSelected: onChanged == null
+                    ? null
+                    : (_) {
+                        if (verbosity != value) onChanged(verbosity);
+                      },
+              ),
+          ],
+        ),
       ),
     );
   }

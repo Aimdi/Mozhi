@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/image_translate/cubit/image_translate_cubit.dart';
 import 'package:mozhi/image_translate/data/data.dart';
 import 'package:mozhi/image_translate/models/models.dart';
@@ -249,7 +250,15 @@ class _Status extends StatelessWidget {
               onPressed: state.canTranslate
                   ? () => unawaited(cubit.translate())
                   : null,
-              style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, 52),
+                shape: const StadiumBorder(),
+                padding: const EdgeInsets.symmetric(horizontal: 28),
+                textStyle: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                ),
+              ),
               icon: const Icon(Icons.translate),
               label: Text(l10n.imageTranslateTranslateAction),
             ),
@@ -330,7 +339,7 @@ class _WideLayout extends StatelessWidget {
                   ),
           ),
         ),
-        const VerticalDivider(width: 1),
+        const Hairline(vertical: true),
         Expanded(
           flex: 2,
           child: ListView(

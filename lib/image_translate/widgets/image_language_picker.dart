@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/image_translate/widgets/image_translate_labels.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -67,6 +68,7 @@ class _ImageLanguagePickerSheetState extends State<ImageLanguagePickerSheet> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
+    final palette = AppPalette.of(context);
     final matches = _matches;
     final height = MediaQuery.sizeOf(context).height * 0.75;
     return SizedBox(
@@ -76,7 +78,13 @@ class _ImageLanguagePickerSheetState extends State<ImageLanguagePickerSheet> {
         children: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text(widget.title, style: theme.textTheme.titleMedium),
+            child: Text(
+              widget.title,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.3,
+              ),
+            ),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -88,15 +96,25 @@ class _ImageLanguagePickerSheetState extends State<ImageLanguagePickerSheet> {
               decoration: InputDecoration(
                 prefixIcon: const Icon(Icons.search),
                 hintText: l10n.imageTranslateSearchLanguages,
-                border: const OutlineInputBorder(),
+                filled: true,
+                border: const OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(28)),
+                  borderSide: BorderSide.none,
+                ),
               ),
             ),
           ),
           Expanded(
             child: matches.isEmpty
-                ? Center(child: Text(l10n.imageTranslateNoLanguages))
-                : ListView.builder(
+                ? Center(
+                    child: Text(
+                      l10n.imageTranslateNoLanguages,
+                      style: TextStyle(color: palette.secondaryText),
+                    ),
+                  )
+                : ListView.separated(
                     itemCount: matches.length,
+                    separatorBuilder: (_, _) => const Hairline(indent: 72),
                     itemBuilder: (context, index) {
                       final language = matches[index];
                       final selected = language == widget.selected;
@@ -104,11 +122,23 @@ class _ImageLanguagePickerSheetState extends State<ImageLanguagePickerSheet> {
                       return ListTile(
                         key: Key('image_language_${language.code}'),
                         selected: selected,
-                        title: Text(imageLanguageLabel(l10n, language)),
+                        leading: LanguageAvatar(code: language.code),
+                        title: Text(
+                          imageLanguageLabel(l10n, language),
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
                         subtitle: native == null || native == language.name
                             ? null
-                            : Text(native),
-                        trailing: selected ? const Icon(Icons.check) : null,
+                            : Text(
+                                native,
+                                style: TextStyle(color: palette.secondaryText),
+                              ),
+                        trailing: selected
+                            ? Icon(
+                                Icons.check,
+                                color: theme.colorScheme.primary,
+                              )
+                            : null,
                         onTap: () => Navigator.of(context).pop(language),
                       );
                     },

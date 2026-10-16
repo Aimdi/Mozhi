@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/offline.dart' show OfflineEngineBadge;
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -36,12 +37,15 @@ class EngineSelectorButton extends StatelessWidget {
           message: l10n.translateEngineSelectorTooltip,
           child: TextButton(
             key: const Key('translate_engine_selector'),
-            // A tonal chip: clearly tappable, calm next to the title.
+            // A hairline-outlined pill: clearly tappable, calm next to the
+            // title.
             style: TextButton.styleFrom(
               minimumSize: const Size(48, 48),
               padding: const EdgeInsetsDirectional.only(start: 12, end: 8),
-              shape: const StadiumBorder(),
-              backgroundColor: theme.colorScheme.surfaceContainerHigh,
+              shape: StadiumBorder(
+                side: BorderSide(color: AppPalette.of(context).hairline),
+              ),
+              backgroundColor: Colors.transparent,
               foregroundColor: theme.colorScheme.onSurface,
             ),
             onPressed: state.engines.isEmpty
@@ -66,7 +70,9 @@ class EngineSelectorButton extends StatelessWidget {
                         name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleSmall,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       if (subtitle != null && subtitle.isNotEmpty)
                         Text(
@@ -74,14 +80,18 @@ class EngineSelectorButton extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.labelSmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
+                            color: AppPalette.of(context).secondaryText,
                           ),
                         ),
                     ],
                   ),
                 ),
                 const SizedBox(width: 4),
-                const Icon(Icons.expand_more, size: 20),
+                Icon(
+                  Icons.expand_more,
+                  size: 20,
+                  color: AppPalette.of(context).secondaryText,
+                ),
               ],
             ),
           ),

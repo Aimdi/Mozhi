@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/dictionary/dictionary.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
@@ -725,6 +726,13 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('Language of the word'), findsOneWidget);
         expect(find.byKey(const Key('dictionary_language_auto')), findsOne);
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('dictionary_language_auto')),
+            matching: find.byType(LanguageAvatar),
+          ),
+          findsOne,
+        );
 
         await tester.enterText(
           find.byKey(const Key('dictionary_language_search')),

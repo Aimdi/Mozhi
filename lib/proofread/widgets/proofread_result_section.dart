@@ -4,16 +4,14 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/proofread/cubit/proofread_cubit.dart';
 import 'package:mozhi/proofread/models/proofread_diff.dart';
-import 'package:mozhi/proofread/widgets/proofread_diff_colors.dart';
 import 'package:mozhi/proofread/widgets/proofread_diff_text.dart';
 import 'package:mozhi/proofread/widgets/proofread_edit_tile.dart';
 import 'package:mozhi/proofread/widgets/proofread_labels.dart';
 import 'package:mozhi/proofread/widgets/proofread_stats_panel.dart';
-import 'package:mozhi/settings/view/widgets/settings_section.dart'
-    show StatusBadge;
 import 'package:share_plus/share_plus.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -91,13 +89,17 @@ class ProofreadResultSection extends StatelessWidget {
                 _NoIssuesCard(summary: result.summary)
               else
                 ProofreadResultCard(state: state),
+              // Flat sections divided by hairlines, X style.
+              const Hairline(),
               ProofreadStatsPanel(
                 original: state.proofreadInput,
                 corrected: state.outputText,
                 languageCode: state.textLanguage,
               ),
-              if (!state.isClean && result.edits.isNotEmpty)
+              if (!state.isClean && result.edits.isNotEmpty) ...[
+                const Hairline(),
                 ProofreadEditsList(state: state),
+              ],
             ],
           ],
         );
@@ -183,138 +185,190 @@ class _ProofreadResultCardState extends State<ProofreadResultCard> {
     final textStyle = theme.textTheme.bodyLarge?.copyWith(height: 1.45);
     final colors = theme.colorScheme;
 
-    return Card.filled(
-      margin: EdgeInsets.zero,
-      color: colors.surfaceContainerLow,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Padding(
-        padding: const EdgeInsetsDirectional.fromSTEB(16, 8, 8, 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              spacing: 8,
-              children: [
-                Icon(Icons.fact_check_outlined, color: colors.primary),
-                Expanded(
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 4,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Text(
-                        l10n.proofreadResultTitle,
-                        style: theme.textTheme.titleMedium,
+    final palette = AppPalette.of(context);
+
+    // A flat section (no card); as a semantics container it reads as one
+    // group named by its heading.
+    return Semantics(
+      container: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            spacing: 8,
+            children: [
+              Expanded(
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      l10n.proofreadResultTitle,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.3,
                       ),
-                      // Screen readers hear the count with the edits list
-                      // ("2 of 2 applied") and in the announcement.
-                      if (state.edits.isNotEmpty)
-                        ExcludeSemantics(
-                          child: StatusBadge(
-                            key: const Key('proofread_suggestion_count'),
-                            label: l10n.proofreadSuggestionCount(
-                              state.edits.length,
-                            ),
-                            color: colors.primary,
+                    ),
+                    // Screen readers hear the count with the edits list
+                    // ("2 of 2 applied") and in the announcement.
+                    if (state.edits.isNotEmpty)
+                      ExcludeSemantics(
+                        child: ProofreadPill(
+                          key: const Key('proofread_suggestion_count'),
+                          label: l10n.proofreadSuggestionCount(
+                            state.edits.length,
+                          ),
+                          filled: true,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: _showChanges
+                    ? l10n.proofreadHideChanges
+                    : l10n.proofreadShowChanges,
+                isSelected: _showChanges,
+                color: colors.primary,
+                onPressed: () => setState(() => _showChanges = !_showChanges),
+                icon: const Icon(Icons.difference_outlined),
+                selectedIcon: const Icon(Icons.difference),
+              ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 4, bottom: 12),
+            child: _showChanges
+                ? ProofreadDiffText(
+                    key: const Key('proofread_diff'),
+                    segments: _segmentsFor(state),
+                    style: textStyle,
+                    onEditTap: (index) =>
+                        showProofreadEditSheet(context, index),
+                  )
+                : SelectableText(
+                    output,
+                    key: const Key('proofread_output'),
+                    style: textStyle,
+                  ),
+          ),
+          if (summary.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              // Quoted like a linked post: a hairline box, no fill.
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  border: Border.all(color: palette.hairline),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: 8,
+                    children: [
+                      Icon(
+                        Icons.auto_awesome_outlined,
+                        size: 18,
+                        color: colors.primary,
+                      ),
+                      Expanded(
+                        child: Text(
+                          summary,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: palette.secondaryText,
                           ),
                         ),
+                      ),
                     ],
                   ),
                 ),
-                IconButton(
-                  tooltip: _showChanges
-                      ? l10n.proofreadHideChanges
-                      : l10n.proofreadShowChanges,
-                  isSelected: _showChanges,
-                  onPressed: () => setState(() => _showChanges = !_showChanges),
-                  icon: const Icon(Icons.difference_outlined),
-                  selectedIcon: const Icon(Icons.difference),
-                ),
-              ],
+              ),
             ),
-            Padding(
-              padding: const EdgeInsetsDirectional.only(end: 8, bottom: 12),
-              child: _showChanges
-                  ? ProofreadDiffText(
-                      key: const Key('proofread_diff'),
-                      segments: _segmentsFor(state),
-                      style: textStyle,
-                      onEditTap: (index) =>
-                          showProofreadEditSheet(context, index),
-                    )
-                  : SelectableText(
-                      output,
-                      key: const Key('proofread_output'),
-                      style: textStyle,
-                    ),
-            ),
-            if (summary.isNotEmpty)
-              Padding(
-                padding: const EdgeInsetsDirectional.only(end: 8, bottom: 4),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: colors.secondaryContainer.withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(12),
+          // "Use as input" moves below the icons when it does not fit
+          // beside them (narrow screens, large text).
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  XActionButton(
+                    icon: Icons.copy_rounded,
+                    tooltip: l10n.commonCopy,
+                    onPressed: output.isEmpty ? null : () => _copy(output),
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      spacing: 8,
-                      children: [
-                        Icon(
-                          Icons.auto_awesome_outlined,
-                          size: 18,
-                          color: colors.onSecondaryContainer,
-                        ),
-                        Expanded(
-                          child: Text(
-                            summary,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: colors.onSecondaryContainer,
-                            ),
-                          ),
-                        ),
-                      ],
+                  Builder(
+                    builder: (buttonContext) => XActionButton(
+                      icon: Icons.ios_share_rounded,
+                      tooltip: l10n.commonShare,
+                      onPressed: output.isEmpty
+                          ? null
+                          : () => unawaited(_share(buttonContext, output)),
                     ),
                   ),
+                ],
+              ),
+              OutlinedButton.icon(
+                // Replacing newer input with an older result would silently
+                // discard what the user typed since.
+                onPressed: output.isEmpty || state.isStale
+                    ? null
+                    : context.read<ProofreadCubit>().useOutputAsInput,
+                style: OutlinedButton.styleFrom(shape: const StadiumBorder()),
+                icon: const Icon(Icons.input),
+                label: Text(l10n.proofreadUseAsInput),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A small pill label: outlined, or [filled] in the primary container.
+class ProofreadPill extends StatelessWidget {
+  const new({required this.label, this.icon, this.filled = false, super.key});
+
+  final String label;
+  final IconData? icon;
+  final bool filled;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final foreground = filled
+        ? colors.onPrimaryContainer
+        : AppPalette.of(context).secondaryText;
+    final icon = this.icon;
+    return DecoratedBox(
+      decoration: ShapeDecoration(
+        color: filled ? colors.primaryContainer : null,
+        shape: StadiumBorder(
+          side: filled
+              ? BorderSide.none
+              : BorderSide(color: colors.outlineVariant),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          spacing: 4,
+          children: [
+            if (icon != null) Icon(icon, size: 14, color: foreground),
+            Flexible(
+              child: Text(
+                label,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: foreground,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-            // "Use as input" moves below the icons when it does not fit
-            // beside them (narrow screens, large text).
-            Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      tooltip: l10n.commonCopy,
-                      onPressed: output.isEmpty ? null : () => _copy(output),
-                      icon: const Icon(Icons.copy_outlined),
-                    ),
-                    Builder(
-                      builder: (buttonContext) => IconButton(
-                        tooltip: l10n.commonShare,
-                        onPressed: output.isEmpty
-                            ? null
-                            : () => unawaited(_share(buttonContext, output)),
-                        icon: const Icon(Icons.share_outlined),
-                      ),
-                    ),
-                  ],
-                ),
-                TextButton.icon(
-                  // Replacing newer input with an older result would silently
-                  // discard what the user typed since.
-                  onPressed: output.isEmpty || state.isStale
-                      ? null
-                      : context.read<ProofreadCubit>().useOutputAsInput,
-                  icon: const Icon(Icons.input),
-                  label: Text(l10n.proofreadUseAsInput),
-                ),
-              ],
             ),
           ],
         ),
@@ -420,7 +474,6 @@ class ProofreadEditsList extends StatelessWidget {
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: 8,
       children: [
         // The buttons move below the title when they do not fit beside it
         // (narrow screens, large text).
@@ -437,12 +490,14 @@ class ProofreadEditsList extends StatelessWidget {
               children: [
                 Text(
                   l10n.proofreadEditsTitle,
-                  style: theme.textTheme.titleMedium,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
                 Text(
                   l10n.proofreadEditsApplied(accepted, edits.length),
                   style: theme.textTheme.labelMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                    color: AppPalette.of(context).secondaryText,
                   ),
                 ),
               ],
@@ -469,6 +524,7 @@ class ProofreadEditsList extends StatelessWidget {
             accepted: state.acceptedEdits.contains(i),
             located: locations[i] != null,
             onToggle: () => cubit.toggleEdit(i),
+            divider: i < edits.length - 1,
           ),
       ],
     );
@@ -484,57 +540,15 @@ class _ErrorCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    return Card(
-      margin: EdgeInsets.zero,
-      color: scheme.errorContainer,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: 12,
-              children: [
-                Icon(Icons.error_outline, color: scheme.onErrorContainer),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    spacing: 4,
-                    children: [
-                      Text(
-                        l10n.proofreadErrorTitle,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          color: scheme.onErrorContainer,
-                        ),
-                      ),
-                      Text(
-                        l10n.proofreadError(error),
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: scheme.onErrorContainer,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            Align(
-              alignment: AlignmentDirectional.centerEnd,
-              child: TextButton(
-                style: TextButton.styleFrom(
-                  foregroundColor: scheme.onErrorContainer,
-                ),
-                onPressed: canRetry
-                    ? context.read<ProofreadCubit>().proofread
-                    : null,
-                child: Text(l10n.commonRetry),
-              ),
-            ),
-          ],
-        ),
+    final scheme = Theme.of(context).colorScheme;
+    return _FlatNotice(
+      icon: Icons.error_outline,
+      iconColor: scheme.error,
+      title: l10n.proofreadErrorTitle,
+      body: l10n.proofreadError(error),
+      action: TextButton(
+        onPressed: canRetry ? context.read<ProofreadCubit>().proofread : null,
+        child: Text(l10n.commonRetry),
       ),
     );
   }
@@ -549,33 +563,15 @@ class _StaleNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    return Card.outlined(
+    return _FlatNotice(
       key: const Key('proofread_stale'),
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsetsDirectional.fromSTEB(16, 8, 8, 8),
-        child: Row(
-          spacing: 12,
-          children: [
-            Icon(Icons.edit_note, color: scheme.onSurfaceVariant),
-            Expanded(
-              child: Text(
-                l10n.proofreadStaleNotice,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-            TextButton(
-              onPressed: canProofread
-                  ? context.read<ProofreadCubit>().proofread
-                  : null,
-              child: Text(l10n.proofreadStaleAction),
-            ),
-          ],
-        ),
+      icon: Icons.edit_note,
+      body: l10n.proofreadStaleNotice,
+      action: TextButton(
+        onPressed: canProofread
+            ? context.read<ProofreadCubit>().proofread
+            : null,
+        child: Text(l10n.proofreadStaleAction),
       ),
     );
   }
@@ -586,27 +582,12 @@ class _LoadingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          spacing: 16,
-          children: [
-            const SizedBox.square(
-              dimension: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-            Expanded(
-              child: Text(
-                context.l10n.proofreadLoading,
-                style: theme.textTheme.bodyMedium,
-              ),
-            ),
-          ],
-        ),
+    return _FlatNotice(
+      leading: const SizedBox.square(
+        dimension: 20,
+        child: CircularProgressIndicator(strokeWidth: 2),
       ),
+      body: context.l10n.proofreadLoading,
     );
   }
 }
@@ -617,27 +598,21 @@ class _PlaceholderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Card.outlined(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          spacing: 12,
-          children: [
-            Icon(
-              Icons.spellcheck,
-              size: 40,
-              color: theme.colorScheme.onSurfaceVariant,
+    final palette = AppPalette.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: 12,
+        children: [
+          Icon(Icons.spellcheck, size: 32, color: palette.secondaryText),
+          Text(
+            context.l10n.proofreadPlaceholder,
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: palette.secondaryText,
             ),
-            Text(
-              context.l10n.proofreadPlaceholder,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -651,42 +626,92 @@ class _NoIssuesCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    return _FlatNotice(
+      icon: Icons.check_circle_outline,
+      iconColor: AppPalette.of(context).success,
+      title: l10n.proofreadNoIssuesTitle,
+      body: summary.trim().isEmpty
+          ? l10n.proofreadNoIssuesBody
+          : summary.trim(),
+    );
+  }
+}
+
+/// A flat notice: a hairline-bordered box (radius 16, no fill) with an
+/// icon, an optional bold title, a body and an optional trailing action.
+class _FlatNotice extends StatelessWidget {
+  const new({
+    required this.body,
+    this.icon,
+    this.iconColor,
+    this.leading,
+    this.title,
+    this.action,
+    super.key,
+  });
+
+  final IconData? icon;
+  final Color? iconColor;
+  final Widget? leading;
+  final String? title;
+  final String body;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = ProofreadDiffColors.of(context);
-    final foreground = colors.insertedForeground;
-    return Card(
-      margin: EdgeInsets.zero,
-      color: colors.insertedBackground,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 12,
-          children: [
-            Icon(Icons.check_circle_outline, color: foreground),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: 4,
-                children: [
-                  Text(
-                    l10n.proofreadNoIssuesTitle,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      color: foreground,
+    final palette = AppPalette.of(context);
+    final title = this.title;
+    final icon = this.icon;
+    final action = this.action;
+    return Semantics(
+      container: true,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border.all(color: palette.hairline),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Padding(
+          padding: EdgeInsetsDirectional.fromSTEB(
+            16,
+            12,
+            action == null ? 16 : 8,
+            12,
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: 12,
+            children: [
+              if (leading != null)
+                leading!
+              else if (icon != null)
+                Icon(icon, color: iconColor ?? palette.secondaryText),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: 4,
+                  children: [
+                    if (title != null)
+                      Text(
+                        title,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    Text(
+                      body,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: title == null
+                            ? palette.secondaryText
+                            : theme.colorScheme.onSurface,
+                      ),
                     ),
-                  ),
-                  Text(
-                    summary.trim().isEmpty
-                        ? l10n.proofreadNoIssuesBody
-                        : summary.trim(),
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: foreground,
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+              ?action,
+            ],
+          ),
         ),
       ),
     );

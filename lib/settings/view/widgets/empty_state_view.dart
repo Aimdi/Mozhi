@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 
 /// Tone of an [EmptyStateView]'s illustration.
 enum EmptyStateTone {
@@ -9,9 +10,9 @@ enum EmptyStateTone {
   error,
 }
 
-/// A calm empty or error state shared by the app's screens: an icon in a
-/// tinted circle, a short title, an optional body and an optional primary
-/// [action].
+/// An empty or error state shared by the app's screens, in the X style: an
+/// icon in a round badge, a big bold left-aligned headline, secondary body
+/// text and an optional pill [action].
 class EmptyStateView extends StatelessWidget {
   const new({
     required this.icon,
@@ -28,7 +29,7 @@ class EmptyStateView extends StatelessWidget {
   final String title;
   final String? body;
 
-  /// Usually a [FilledButton] or [FilledButton.tonal].
+  /// Usually a [FilledButton] (an inverse pill in the app theme).
   final Widget? action;
   final EmptyStateTone tone;
 
@@ -49,7 +50,7 @@ class EmptyStateView extends StatelessWidget {
       ),
       EmptyStateTone.error => (colors.errorContainer, colors.onErrorContainer),
     };
-    final circle = compact ? 64.0 : 88.0;
+    final circle = compact ? 48.0 : 64.0;
     final body = this.body;
     final action = this.action;
     return Center(
@@ -57,53 +58,61 @@ class EmptyStateView extends StatelessWidget {
         padding: EdgeInsets.fromLTRB(32, compact ? 16 : 24, 32, 32),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ExcludeSemantics(
-                child: SizedBox.square(
-                  dimension: circle,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: background,
-                      shape: BoxShape.circle,
+          child: SizedBox(
+            width: double.infinity,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ExcludeSemantics(
+                  child: SizedBox.square(
+                    dimension: circle,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: background,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(icon, size: circle / 2, color: foreground),
                     ),
-                    child: Icon(icon, size: circle / 2, color: foreground),
                   ),
                 ),
-              ),
-              SizedBox(height: compact ? 16 : 20),
-              Semantics(
-                container: announce,
-                liveRegion: announce,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Semantics(
-                      header: true,
-                      child: Text(
-                        title,
-                        style: compact
-                            ? theme.textTheme.titleMedium
-                            : theme.textTheme.titleLarge,
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    if (body != null) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        body,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: colors.onSurfaceVariant,
+                SizedBox(height: compact ? 16 : 20),
+                Semantics(
+                  container: announce,
+                  liveRegion: announce,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Semantics(
+                        header: true,
+                        child: Text(
+                          title,
+                          style: compact
+                              ? theme.textTheme.titleLarge
+                              : theme.textTheme.headlineSmall?.copyWith(
+                                  fontSize: 28,
+                                  height: 1.15,
+                                ),
+                          textAlign: TextAlign.start,
                         ),
-                        textAlign: TextAlign.center,
                       ),
+                      if (body != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          body,
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            color: AppPalette.of(context).secondaryText,
+                          ),
+                          textAlign: TextAlign.start,
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-              if (action != null) ...[const SizedBox(height: 24), action],
-            ],
+                if (action != null) ...[const SizedBox(height: 28), action],
+              ],
+            ),
           ),
         ),
       ),

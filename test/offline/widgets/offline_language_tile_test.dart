@@ -1,5 +1,7 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/offline/offline.dart';
 
 import '../../helpers/helpers.dart';
@@ -54,6 +56,30 @@ void main() {
       expect(find.byIcon(Icons.offline_pin), findsOneWidget);
       await tester.tap(find.byTooltip('Delete German'));
       expect(taps, ['delete']);
+    });
+
+    testWidgets('uses an inverse pill to download', (tester) async {
+      await pump(tester);
+      expect(find.widgetWithText(FilledButton, 'Download'), findsOneWidget);
+      expect(find.byType(LanguageAvatar), findsOneWidget);
+    });
+
+    testWidgets('the downloaded pill reads Delete while hovered', (
+      tester,
+    ) async {
+      await pump(tester, downloaded: true);
+      expect(find.widgetWithText(OutlinedButton, 'Downloaded'), findsOneWidget);
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(gesture.removePointer);
+      await gesture.addPointer(location: Offset.zero);
+      await gesture.moveTo(
+        tester.getCenter(find.byKey(const Key('offline_downloaded_pill'))),
+      );
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(OutlinedButton, 'Delete'), findsOneWidget);
+      await gesture.moveTo(Offset.zero);
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(OutlinedButton, 'Downloaded'), findsOneWidget);
     });
 
     testWidgets('shows progress while downloading', (tester) async {

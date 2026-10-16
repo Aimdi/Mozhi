@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -127,7 +128,31 @@ class OutputCard extends StatefulWidget {
 }
 
 class _OutputCardState extends State<OutputCard> {
+  /// How long the copy action shows its check mark.
+  static const _copiedFor = Duration(seconds: 2);
+
   bool _showInsights = false;
+
+  /// Whether the copy action shows "copied" (a check mark, briefly).
+  bool _copied = false;
+  Timer? _copiedTimer;
+
+  @override
+  void dispose() {
+    _copiedTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _copy(String text) async {
+    await copyToClipboard(context, text);
+    if (!mounted) return;
+    _copiedTimer?.cancel();
+    setState(() => _copied = true);
+    _copiedTimer = Timer(_copiedFor, () {
+      if (mounted) setState(() => _copied = false);
+    });
+  }
+
   bool _showAlignment = false;
 
   /// Whether romanizations are shown: null follows
@@ -247,7 +272,6 @@ class _OutputCardState extends State<OutputCard> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return MultiBlocListener(
       listeners: [
         BlocListener<TranslateCubit, TranslateState>(
@@ -316,24 +340,22 @@ class _OutputCardState extends State<OutputCard> {
           return StatusAnnouncer(
             message: announcement,
             textDirection: announcementDirection,
-            child: Card(
+            child: TranslateFlatCard(
               key: const Key('translate_output_card'),
-              margin: EdgeInsets.zero,
-              elevation: 0,
+              look: TranslateCardLook.plain,
               clipBehavior: Clip.antiAlias,
-              color: TranslateLayout.outputSurface(theme.colorScheme),
-              shape: const RoundedRectangleBorder(
-                borderRadius: TranslateLayout.cardBorderRadius,
-              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   SizedBox(
-                    height: 3,
+                    height: 2,
                     child: translating
                         ? LinearProgressIndicator(
                             key: const Key('translate_output_progress'),
-                            minHeight: 3,
+                            minHeight: 2,
+                            borderRadius: const BorderRadius.all(
+                              Radius.circular(1),
+                            ),
                             semanticsLabel: context.l10n.translateTranslating,
                           )
                         : null,
@@ -341,9 +363,9 @@ class _OutputCardState extends State<OutputCard> {
                   Padding(
                     padding: const EdgeInsetsDirectional.fromSTEB(
                       TranslateLayout.cardPadding,
-                      13,
-                      8,
-                      8,
+                      6,
+                      0,
+                      0,
                     ),
                     child: _content(context, state),
                   ),
@@ -379,7 +401,7 @@ class _OutputCardState extends State<OutputCard> {
   Widget _content(BuildContext context, TranslateState state) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    final muted = theme.colorScheme.onSurfaceVariant;
+    final muted = AppPalette.of(context).secondaryText;
     final output = state.output;
     final result = state.result;
 
@@ -399,15 +421,21 @@ class _OutputCardState extends State<OutputCard> {
       }
       return ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 96),
-        child: Padding(
-          padding: const EdgeInsetsDirectional.only(top: 8, end: 12),
-          child: Text(
-            l10n.translateTranslating,
-            style: TranslateLayout.outputTextStyle(
-              context,
-              0,
-            )?.copyWith(color: muted),
-          ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _header(context, state),
+            Padding(
+              padding: const EdgeInsetsDirectional.only(top: 4, end: 12),
+              child: Text(
+                l10n.translateTranslating,
+                style: TranslateLayout.outputTextStyle(
+                  context,
+                  0,
+                )?.copyWith(color: muted),
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -428,7 +456,6 @@ class _OutputCardState extends State<OutputCard> {
         complete &&
         !stale;
     final detected = result?.detectedSource;
-    final elapsed = result?.elapsed;
     final direction = outputTextDirection(state);
     final locale = localeForLanguage(state.target);
     final offline = result != null && isOfflineEngineId(result.engineId);
@@ -438,8 +465,9 @@ class _OutputCardState extends State<OutputCard> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        _header(context, state),
         Padding(
-          padding: const EdgeInsetsDirectional.only(top: 8, end: 12),
+          padding: const EdgeInsetsDirectional.only(top: 2, end: 12),
           // A named container; completion is announced separately (a live
           // region here would fire on every streamed token or not at all).
           child: Semantics(
@@ -525,7 +553,11 @@ class _OutputCardState extends State<OutputCard> {
           ),
         if (_showInsights && state.hasExtras) _insightsStatus(context, state),
         if (_showAlignment && state.hasExtras) _alignmentStatus(context, state),
-        if (complete && result != null)
+        if (complete &&
+            result != null &&
+            ((detected != null && state.source.isAuto) ||
+                offline ||
+                state.resultFromMemory))
           Padding(
             padding: const EdgeInsetsDirectional.only(top: 12, end: 12),
             child: Wrap(
@@ -537,22 +569,56 @@ class _OutputCardState extends State<OutputCard> {
                   DetectedLanguageChips(state: state),
                 if (offline) const OfflineEngineBadge(),
                 if (state.resultFromMemory) const MemoryResultBadge(),
-                Text(
-                  elapsed == null
-                      ? result.engineName
-                      : l10n.translateEngineElapsed(
-                          result.engineName,
-                          formatSeconds(elapsed),
-                        ),
-                  key: const Key('translate_output_footer'),
-                  style: theme.textTheme.labelMedium?.copyWith(color: muted),
-                ),
               ],
             ),
           ),
         const SizedBox(height: 4),
         _actions(context, state),
       ],
+    );
+  }
+
+  /// The translation's header line, like a reply's: the target language in
+  /// bold, then " · engine · 0.7 s" in the secondary colour once the
+  /// translation is complete.
+  Widget _header(BuildContext context, TranslateState state) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final muted = AppPalette.of(context).secondaryText;
+    final result = state.result;
+    final complete = result?.isComplete ?? false;
+    final elapsed = result?.elapsed;
+    final meta = theme.textTheme.bodyMedium?.copyWith(color: muted);
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(top: 8, end: 12),
+      child: Wrap(
+        key: const Key('translate_output_header'),
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text(
+            state.target.name,
+            key: const Key('translate_output_language'),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodyLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          if (complete && result != null) ...[
+            ExcludeSemantics(child: Text(' · ', style: meta)),
+            Text(
+              elapsed == null
+                  ? result.engineName
+                  : l10n.translateEngineElapsed(
+                      result.engineName,
+                      formatSeconds(elapsed),
+                    ),
+              key: const Key('translate_output_footer'),
+              style: meta,
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -721,10 +787,12 @@ class _OutputCardState extends State<OutputCard> {
     );
   }
 
-  /// The everyday actions (copy, listen, favourite, and share at the end)
-  /// as icon buttons, then the labelled tools ([_tools]).
+  /// The everyday actions as an X action bar (copy, listen, favourite as a
+  /// heart, share; evenly spaced quiet icons that take a colour while
+  /// active), then the labelled tools ([_tools]).
   Widget _actions(BuildContext context, TranslateState state) {
     final l10n = context.l10n;
+    final palette = AppPalette.of(context);
     final output = state.output;
     final complete = state.result?.isComplete ?? true;
     final target = state.target;
@@ -732,55 +800,67 @@ class _OutputCardState extends State<OutputCard> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            IconButton(
-              key: const Key('translate_copy_button'),
-              tooltip: l10n.commonCopy,
-              icon: const Icon(Icons.copy_outlined),
-              onPressed: () => unawaited(copyToClipboard(context, output)),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: ConstrainedBox(
+            // X keeps its action bar compact on wide columns.
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: Row(
+              key: const Key('translate_output_actions'),
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                XActionButton(
+                  key: const Key('translate_copy_button'),
+                  tooltip: l10n.commonCopy,
+                  icon: _copied ? Icons.check : Icons.copy_outlined,
+                  active: _copied,
+                  activeColor: palette.success,
+                  onPressed: () => unawaited(_copy(output)),
+                ),
+                ListenButton(
+                  id: translateOutputSpeechId,
+                  text: output,
+                  languageCode: target.isCustom ? null : target.code,
+                  quiet: true,
+                ),
+                BlocBuilder<HistoryCubit, HistoryState>(
+                  builder: (context, history) {
+                    final entry = findHistoryEntry(
+                      history.entries,
+                      state.resultInput ?? state.input,
+                      output,
+                    );
+                    final favorite = entry?.isFavorite ?? false;
+                    return XActionButton(
+                      key: const Key('translate_favorite_button'),
+                      tooltip: favorite
+                          ? l10n.translateUnfavorite
+                          : l10n.translateFavorite,
+                      active: favorite,
+                      icon: Icons.favorite_border,
+                      activeIcon: Icons.favorite,
+                      activeColor: palette.like,
+                      onPressed: complete
+                          ? () => _toggleFavorite(state, entry)
+                          : null,
+                    );
+                  },
+                ),
+                Builder(
+                  builder: (buttonContext) => XActionButton(
+                    key: const Key('translate_share_button'),
+                    tooltip: l10n.commonShare,
+                    icon: Icons.ios_share,
+                    onPressed: () => unawaited(_share(buttonContext, output)),
+                  ),
+                ),
+              ],
             ),
-            ListenButton(
-              id: translateOutputSpeechId,
-              text: output,
-              languageCode: target.isCustom ? null : target.code,
-            ),
-            BlocBuilder<HistoryCubit, HistoryState>(
-              builder: (context, history) {
-                final entry = findHistoryEntry(
-                  history.entries,
-                  state.resultInput ?? state.input,
-                  output,
-                );
-                final favorite = entry?.isFavorite ?? false;
-                return IconButton(
-                  key: const Key('translate_favorite_button'),
-                  tooltip: favorite
-                      ? l10n.translateUnfavorite
-                      : l10n.translateFavorite,
-                  isSelected: favorite,
-                  icon: const Icon(Icons.star_outline),
-                  selectedIcon: const Icon(Icons.star),
-                  onPressed: complete
-                      ? () => _toggleFavorite(state, entry)
-                      : null,
-                );
-              },
-            ),
-            const Spacer(),
-            Builder(
-              builder: (buttonContext) => IconButton(
-                key: const Key('translate_share_button'),
-                tooltip: l10n.commonShare,
-                icon: const Icon(Icons.share_outlined),
-                onPressed: () => unawaited(_share(buttonContext, output)),
-              ),
-            ),
-          ],
+          ),
         ),
         if (tools.isNotEmpty)
           Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(4, 4, 12, 4),
+            padding: const EdgeInsetsDirectional.fromSTEB(0, 4, 12, 8),
             child: Semantics(
               key: const Key('translate_output_tools'),
               container: true,

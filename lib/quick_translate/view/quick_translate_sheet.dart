@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/quick_translate/cubit/quick_translate_cubit.dart';
@@ -316,7 +317,9 @@ class _QuickTranslateViewState extends State<QuickTranslateView> {
                     ),
                   ),
                   if (!_picking) ...[
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
+                    const Hairline(),
+                    const SizedBox(height: 4),
                     QuickActionsBar(
                       enabled: state.hasTranslation,
                       copied: _copied,
@@ -352,6 +355,7 @@ class _QuickTranslateViewState extends State<QuickTranslateView> {
   }
 }
 
+/// X compose-style header: Close at the start, a bold title.
 class _Header extends StatelessWidget {
   const new({required this.onClose});
 
@@ -363,22 +367,30 @@ class _Header extends StatelessWidget {
     final theme = Theme.of(context);
     return Row(
       children: [
-        Icon(Icons.translate, color: theme.colorScheme.primary),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Semantics(
-            header: true,
-            child: Text(
-              l10n.quickTranslateTitle,
-              style: theme.textTheme.titleMedium,
-            ),
-          ),
-        ),
         IconButton(
           key: const Key('quick_translate_close'),
           tooltip: l10n.commonClose,
           icon: const Icon(Icons.close),
           onPressed: onClose,
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Semantics(
+            header: true,
+            child: Text(
+              l10n.quickTranslateTitle,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.3,
+              ),
+            ),
+          ),
+        ),
+        ExcludeSemantics(
+          child: Padding(
+            padding: const EdgeInsetsDirectional.only(end: 12),
+            child: Icon(Icons.translate, color: theme.colorScheme.primary),
+          ),
         ),
       ],
     );
@@ -405,6 +417,7 @@ class _ResultBody extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         QuickSourceCard(text: state.text, detectedSource: state.detectedSource),
+        const Hairline(),
         const SizedBox(height: 12),
         if (state.status != QuickTranslateStatus.noEngines) ...[
           Wrap(
@@ -420,7 +433,7 @@ class _ResultBody extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
         ],
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -453,7 +466,7 @@ class _Notice extends StatelessWidget {
                   key: const Key('quick_translate_notice'),
                   textAlign: TextAlign.end,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                    color: AppPalette.of(context).secondaryText,
                   ),
                 ),
               ),

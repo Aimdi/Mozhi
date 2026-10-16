@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/documents/cubit/document_translate_cubit.dart';
 import 'package:mozhi/l10n/l10n.dart';
 
@@ -38,39 +39,39 @@ class _DocumentPreviewTabsState extends State<DocumentPreviewTabs>
           previous.hasTranslation != current.hasTranslation,
       listener: (context, state) =>
           _tabs.animateTo(state.hasTranslation ? 1 : 0),
-      child: Card.outlined(
-        margin: EdgeInsets.zero,
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TabBar(
-              key: const Key('documents_preview_tabs'),
-              controller: _tabs,
-              tabs: [
-                Tab(text: l10n.documentsTabOriginal),
-                Tab(text: l10n.documentsTabTranslation),
-              ],
+      // Flat: X-style tabs over the text, hairlines instead of a card.
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Hairline(),
+          TabBar(
+            key: const Key('documents_preview_tabs'),
+            controller: _tabs,
+            dividerColor: AppPalette.of(context).hairline,
+            labelStyle: const TextStyle(fontWeight: FontWeight.w700),
+            tabs: [
+              Tab(text: l10n.documentsTabOriginal),
+              Tab(text: l10n.documentsTabTranslation),
+            ],
+          ),
+          ListenableBuilder(
+            listenable: _tabs,
+            builder: (context, _) => Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 16),
+              child: _tabs.index == 0
+                  ? _PreviewText(
+                      key: const Key('documents_preview_original'),
+                      text: state.text,
+                    )
+                  : state.hasTranslation
+                  ? _PreviewText(
+                      key: const Key('documents_preview_translation'),
+                      text: state.output,
+                    )
+                  : _Placeholder(text: l10n.documentsPreviewEmpty),
             ),
-            ListenableBuilder(
-              listenable: _tabs,
-              builder: (context, _) => Padding(
-                padding: const EdgeInsets.all(16),
-                child: _tabs.index == 0
-                    ? _PreviewText(
-                        key: const Key('documents_preview_original'),
-                        text: state.text,
-                      )
-                    : state.hasTranslation
-                    ? _PreviewText(
-                        key: const Key('documents_preview_translation'),
-                        text: state.output,
-                      )
-                    : _Placeholder(text: l10n.documentsPreviewEmpty),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -100,7 +101,7 @@ class _PreviewText extends StatelessWidget {
               NumberFormat.decimalPattern(locale).format(documentPreviewLimit),
             ),
             style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+              color: AppPalette.of(context).secondaryText,
             ),
           ),
       ],
@@ -121,8 +122,8 @@ class _Placeholder extends StatelessWidget {
       child: Text(
         text,
         textAlign: TextAlign.center,
-        style: theme.textTheme.bodyMedium?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
+        style: theme.textTheme.bodyLarge?.copyWith(
+          color: AppPalette.of(context).secondaryText,
         ),
       ),
     );
@@ -149,13 +150,17 @@ class DocumentSideBySide extends StatelessWidget {
         ),
       );
     }
+    final palette = AppPalette.of(context);
     final header = theme.textTheme.titleSmall?.copyWith(
-      color: theme.colorScheme.onSurfaceVariant,
+      fontWeight: FontWeight.w800,
     );
 
-    return Card.outlined(
-      margin: EdgeInsets.zero,
-      clipBehavior: Clip.antiAlias,
+    // A flat card: hairline outline, no fill.
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: palette.hairline),
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -171,13 +176,16 @@ class DocumentSideBySide extends StatelessWidget {
               ],
             ),
           ),
-          const Divider(height: 1),
+          const Hairline(),
           Expanded(
             child: ListView.separated(
               key: const Key('documents_side_by_side'),
               padding: const EdgeInsets.symmetric(vertical: 8),
               itemCount: document.segments.length,
-              separatorBuilder: (_, _) => const Divider(indent: 16),
+              separatorBuilder: (_, _) => const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Hairline(indent: 16),
+              ),
               itemBuilder: (context, index) {
                 final translation = index < state.translations.length
                     ? state.translations[index]
@@ -199,7 +207,7 @@ class DocumentSideBySide extends StatelessWidget {
                             ? Text(
                                 '…',
                                 style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: theme.colorScheme.outline,
+                                  color: palette.secondaryText,
                                 ),
                               )
                             : SelectableText(

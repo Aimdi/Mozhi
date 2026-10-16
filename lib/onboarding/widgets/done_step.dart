@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/onboarding/cubit/onboarding_cubit.dart';
 import 'package:mozhi/onboarding/widgets/step_layout.dart';
@@ -53,12 +54,13 @@ class DoneStep extends StatelessWidget {
       title: l10n.onboardingDoneTitle,
       subtitle: l10n.onboardingDoneBody,
       children: [
-        Card.filled(
+        Card.outlined(
           margin: EdgeInsets.zero,
-          color: colors.surfaceContainerLow,
+          color: colors.surface,
           clipBehavior: Clip.antiAlias,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: AppPalette.of(context).hairline),
           ),
           child: Column(
             children: [

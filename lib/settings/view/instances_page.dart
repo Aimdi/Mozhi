@@ -4,6 +4,7 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/undo_snack_bar.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
@@ -267,9 +268,10 @@ class _Header extends StatelessWidget {
       children: [
         Card.outlined(
           margin: const EdgeInsets.only(bottom: 16),
+          color: colors.surface,
           shape: RoundedRectangleBorder(
-            side: BorderSide(color: colors.outlineVariant),
-            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: AppPalette.of(context).hairline),
+            borderRadius: BorderRadius.circular(16),
           ),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -391,16 +393,17 @@ class _InstanceTile extends StatelessWidget {
     final preferred = index == 0;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      // The preferred card keeps the normal surface (so badge and text
-      // contrast stay the same) and is marked by a primary outline instead.
-      child: Card.filled(
+      // A flat hairline card; the preferred one keeps the same surface (so
+      // badge and text contrast stay the same) and is marked by a primary
+      // outline instead.
+      child: Card.outlined(
         margin: EdgeInsets.zero,
-        color: colors.surfaceContainerLow,
+        color: colors.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
           side: preferred
               ? BorderSide(color: colors.primary, width: 2)
-              : BorderSide.none,
+              : BorderSide(color: AppPalette.of(context).hairline),
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 4),

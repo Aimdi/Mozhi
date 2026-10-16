@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/image_translate/image_translate.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -225,6 +226,12 @@ void main() {
       await tester.pump();
       expect(clipboard.copied, 'Bonjour');
       expect(find.text(l10n.commonCopied), findsOneWidget);
+      XActionButton copy() => tester.widget<XActionButton>(
+        find.byKey(const Key('image_translate_copy_button')),
+      );
+      expect(copy().active, isTrue);
+      await tester.pump(const Duration(seconds: 2));
+      expect(copy().active, isFalse);
     });
 
     testWidgets('shares the translation', (tester) async {

@@ -148,15 +148,10 @@ class CompareEntryCard extends StatelessWidget {
     final direction =
         (target == null ? null : textDirectionForLanguage(target)) ??
         (result == null ? null : textDirectionForText(result.text));
-    return Card(
-      margin: EdgeInsets.zero,
-      elevation: 0,
-      color: theme.colorScheme.surfaceContainer,
-      shape: const RoundedRectangleBorder(
-        borderRadius: TranslateLayout.cardBorderRadius,
-      ),
+    return TranslateFlatCard(
+      look: TranslateCardLook.quote,
       child: Padding(
-        padding: const EdgeInsetsDirectional.fromSTEB(20, 16, 8, 8),
+        padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 8, 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

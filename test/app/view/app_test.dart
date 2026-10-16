@@ -220,7 +220,12 @@ void main() {
 
     testWidgets('brings shared text to the translate tab', (tester) async {
       await pumpApp(tester);
-      await tester.tap(find.text('History'));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(NavigationBar),
+          matching: find.byIcon(Icons.history_outlined),
+        ),
+      );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       expect(find.byType(TranslatePage).hitTestable(), findsNothing);

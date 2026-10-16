@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/translate_link.dart'
     show TranslateLink, matchLanguage;
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/dictionary/cubit/dictionary_cubit.dart';
 import 'package:mozhi/dictionary/widgets/widgets.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -248,7 +249,7 @@ class _Controls extends StatelessWidget {
               context.l10n.dictionaryEngine(engine.name),
               key: const Key('dictionary_engine'),
               style: theme.textTheme.labelMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+                color: AppPalette.of(context).secondaryText,
               ),
             ),
           ),

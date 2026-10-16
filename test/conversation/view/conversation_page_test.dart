@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/conversation/conversation.dart';
 import 'package:mozhi/conversation/widgets/widgets.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/no_engines_view.dart';
@@ -158,6 +159,40 @@ void main() {
       expect(second.target, english);
       expect(find.text('Thanks'), findsOneWidget);
       expect(find.byType(ConversationTurnBubble), findsNWidgets(2));
+    });
+
+    testWidgets('styles messages like direct messages', (tester) async {
+      await pumpPage(tester);
+      await send(tester, ConversationSide.a, 'Hello');
+      when(() => repository.translate(any(), any()))
+          .thenAnswer((_) => Stream.value(resultOf('Thanks')));
+      await send(tester, ConversationSide.b, 'Gracias');
+      final scheme = Theme.of(
+        tester.element(find.byType(ConversationTurnBubble).first),
+      ).colorScheme;
+      Color bubbleOf(String text) => tester
+          .widget<Material>(
+            find
+                .ancestor(of: find.text(text), matching: find.byType(Material))
+                .first,
+          )
+          .color!;
+      // Side A sits at the start in a neutral bubble, side B at the end in
+      // the primary container.
+      expect(bubbleOf('Hello'), scheme.surfaceContainerHigh);
+      expect(bubbleOf('Gracias'), scheme.primaryContainer);
+      expect(
+        tester.getCenter(find.text('Hello')).dx,
+        lessThan(tester.getCenter(find.text('Gracias')).dx),
+      );
+      // Each message carries its speaker's language avatar.
+      expect(
+        find.descendant(
+          of: find.byType(ConversationTurnBubble),
+          matching: find.byType(LanguageAvatar),
+        ),
+        findsNWidgets(2),
+      );
     });
 
     testWidgets('the keyboard send action submits', (tester) async {

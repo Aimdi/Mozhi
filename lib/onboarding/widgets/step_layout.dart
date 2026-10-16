@@ -1,12 +1,14 @@
 import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 
 /// Maximum width of the onboarding content on large screens.
 const onboardingMaxContentWidth = 640.0;
 
-/// The scrollable, centred layout of every onboarding step: a large icon,
-/// a title (a semantic header), an optional intro and the step [children].
+/// The scrollable layout of every onboarding step, in the style of X's
+/// sign-up: an accent icon, a big bold left-aligned headline (a semantic
+/// header), an optional secondary intro and the step [children].
 class OnboardingStepLayout extends StatelessWidget {
   const new({
     required this.icon,
@@ -42,23 +44,10 @@ class OnboardingStepLayout extends StatelessWidget {
             Align(
               alignment: AlignmentDirectional.centerStart,
               child: ExcludeSemantics(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: colors.primaryContainer,
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Icon(
-                      icon,
-                      size: 40,
-                      color: colors.onPrimaryContainer,
-                    ),
-                  ),
-                ),
+                child: Icon(icon, size: 36, color: colors.primary),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
             Wrap(
               spacing: 12,
               runSpacing: 8,
@@ -66,7 +55,16 @@ class OnboardingStepLayout extends StatelessWidget {
               children: [
                 Semantics(
                   header: true,
-                  child: Text(title, style: theme.textTheme.headlineMedium),
+                  child: Text(
+                    title,
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      fontSize: 30,
+                      height: 1.15,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.5,
+                      color: colors.onSurface,
+                    ),
+                  ),
                 ),
                 ?titleTrailing,
               ],
@@ -76,7 +74,7 @@ class OnboardingStepLayout extends StatelessWidget {
               Text(
                 subtitle,
                 style: theme.textTheme.bodyLarge?.copyWith(
-                  color: colors.onSurfaceVariant,
+                  color: AppPalette.of(context).secondaryText,
                 ),
               ),
             ],
@@ -108,8 +106,9 @@ class OnboardingSection extends StatelessWidget {
             header: true,
             child: Text(
               title,
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: theme.colorScheme.primary,
+              style: theme.textTheme.titleLarge?.copyWith(
+                color: theme.colorScheme.onSurface,
+                fontWeight: FontWeight.w800,
               ),
             ),
           ),
@@ -174,7 +173,8 @@ class OnboardingInfoRow extends StatelessWidget {
   }
 }
 
-/// A calm, tinted note card (privacy hints, results).
+/// A note box (privacy hints, results): a flat hairline box, or filled
+/// with [background] when given.
 class OnboardingNote extends StatelessWidget {
   const new({
     required this.icon,
@@ -197,8 +197,11 @@ class OnboardingNote extends StatelessWidget {
     return MergeSemantics(
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: background ?? colors.surfaceContainerHigh,
+          color: background ?? colors.surface,
           borderRadius: BorderRadius.circular(16),
+          border: background == null
+              ? Border.all(color: AppPalette.of(context).hairline)
+              : null,
         ),
         child: Padding(
           padding: const EdgeInsets.all(16),

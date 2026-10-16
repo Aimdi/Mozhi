@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/dictionary_card.dart';
@@ -32,35 +33,40 @@ class ExtrasSection extends StatelessWidget {
           current.refinementError != previous.refinementError,
       listener: _showRefinementError,
       child: BlocBuilder<TranslateCubit, TranslateState>(
-        builder: (context, state) {
-          if (!state.hasExtras ||
-              state.output.trim().isEmpty ||
-              state.status != TranslateStatus.success ||
-              state.isResultStale) {
-            return const SizedBox.shrink();
-          }
-          return Column(
-            key: const Key('translate_refine_and_learn'),
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: TranslateLayout.sectionGap),
-              TranslateSectionHeader(
-                context.l10n.translateRefineAndLearn,
-                icon: Icons.auto_awesome_outlined,
-              ),
-              if (state.isAiEngine) ...[
-                RefinementChips(state: state),
-                const SizedBox(height: TranslateLayout.gap),
-              ],
-              _ExtrasCard(state: state),
-              if (state.isShortInput) ...[
-                const SizedBox(height: TranslateLayout.gap),
-                const DictionaryCard(),
-              ],
-            ],
-          );
-        },
+        builder: (context, state) => AnimatedSize(
+          duration: TranslateLayout.motion(context),
+          curve: Curves.easeOutCubic,
+          alignment: AlignmentDirectional.topStart,
+          child: _section(context, state),
+        ),
       ),
+    );
+  }
+
+  Widget _section(BuildContext context, TranslateState state) {
+    if (!state.hasExtras ||
+        state.output.trim().isEmpty ||
+        state.status != TranslateStatus.success ||
+        state.isResultStale) {
+      return const SizedBox.shrink();
+    }
+    return Column(
+      key: const Key('translate_refine_and_learn'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: TranslateLayout.gap),
+        const Hairline(),
+        TranslateSectionHeader(
+          context.l10n.translateRefineAndLearn,
+          icon: Icons.auto_awesome_outlined,
+        ),
+        if (state.isAiEngine) ...[
+          RefinementChips(state: state),
+          const SizedBox(height: TranslateLayout.gap),
+        ],
+        _ExtrasCard(state: state),
+        if (state.isShortInput) const DictionaryCard(),
+      ],
     );
   }
 
@@ -88,14 +94,9 @@ class _ExtrasCard extends StatelessWidget {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final cubit = context.read<TranslateCubit>();
-    return Card(
-      margin: EdgeInsets.zero,
-      elevation: 0,
+    return TranslateFlatCard(
+      look: TranslateCardLook.plain,
       clipBehavior: Clip.antiAlias,
-      color: theme.colorScheme.surfaceContainerLow,
-      shape: const RoundedRectangleBorder(
-        borderRadius: TranslateLayout.cardBorderRadius,
-      ),
       child: Column(
         children: [
           Theme(
@@ -120,7 +121,7 @@ class _ExtrasCard extends StatelessWidget {
               children: [AlternativesList(state: state)],
             ),
           ),
-          const Divider(height: 1, indent: 16, endIndent: 16),
+          const Hairline(indent: 16),
           ListTile(
             key: const Key('translate_explain_button'),
             leading: const Icon(Icons.school_outlined),

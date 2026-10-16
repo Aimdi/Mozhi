@@ -3,8 +3,9 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/onboarding/cubit/onboarding_state.dart';
 import 'package:mozhi/onboarding/widgets/progress_dots.dart';
 
-/// Bottom bar of the onboarding: progress dots, Back and Next (or
-/// "Start translating" on the last step).
+/// Bottom bar of the onboarding in the style of X's sign-up: progress
+/// dots, a full-width inverse pill for Next (or "Start translating" on the
+/// last step) and, after the first step, an outlined pill for Back.
 class OnboardingNavBar extends StatelessWidget {
   const new({
     required this.step,
@@ -19,7 +20,7 @@ class OnboardingNavBar extends StatelessWidget {
   final VoidCallback onNext;
   final VoidCallback onFinish;
 
-  static const _buttonSize = Size(88, 48);
+  static const _buttonSize = Size.fromHeight(48);
 
   @override
   Widget build(BuildContext context) {
@@ -31,55 +32,47 @@ class OnboardingNavBar extends StatelessWidget {
       child: Center(
         heightFactor: 1,
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 720),
+          constraints: const BoxConstraints(maxWidth: 640),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                OnboardingProgressDots(
-                  count: OnboardingStep.values.length,
-                  current: step.index,
+                Center(
+                  child: OnboardingProgressDots(
+                    count: OnboardingStep.values.length,
+                    current: step.index,
+                  ),
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    if (!isFirst)
-                      TextButton.icon(
-                        style: TextButton.styleFrom(minimumSize: _buttonSize),
-                        onPressed: onBack,
-                        icon: const Icon(Icons.arrow_back),
-                        label: Text(l10n.onboardingBack),
-                      ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Align(
-                        alignment: AlignmentDirectional.centerEnd,
-                        child: isLast
-                            ? FilledButton.icon(
-                                style: FilledButton.styleFrom(
-                                  minimumSize: _buttonSize,
-                                ),
-                                onPressed: onFinish,
-                                icon: const Icon(Icons.translate),
-                                label: Text(
-                                  l10n.onboardingStartTranslating,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              )
-                            : FilledButton.icon(
-                                style: FilledButton.styleFrom(
-                                  minimumSize: _buttonSize,
-                                ),
-                                onPressed: onNext,
-                                icon: const Icon(Icons.arrow_forward),
-                                iconAlignment: IconAlignment.end,
-                                label: Text(l10n.onboardingNext),
-                              ),
-                      ),
+                if (isLast)
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(minimumSize: _buttonSize),
+                    onPressed: onFinish,
+                    icon: const Icon(Icons.translate),
+                    label: Text(
+                      l10n.onboardingStartTranslating,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ],
-                ),
+                  )
+                else
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(minimumSize: _buttonSize),
+                    onPressed: onNext,
+                    icon: const Icon(Icons.arrow_forward),
+                    iconAlignment: IconAlignment.end,
+                    label: Text(l10n.onboardingNext),
+                  ),
+                if (!isFirst) ...[
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(minimumSize: _buttonSize),
+                    onPressed: onBack,
+                    icon: const Icon(Icons.arrow_back),
+                    label: Text(l10n.onboardingBack),
+                  ),
+                ],
               ],
             ),
           ),

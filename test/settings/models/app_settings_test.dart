@@ -62,7 +62,7 @@ void main() {
       expect(settings.themeMode, ThemeMode.system);
       expect(settings.dynamicColor, isTrue);
       expect(settings.pureBlack, isFalse);
-      expect(settings.seedColor, 0xFF3F51B5);
+      expect(settings.seedColor, 0xFF1D9BF0);
       expect(settings.instances, MozhiInstance.publicInstances);
       expect(settings.providers, isEmpty);
       expect(settings.engineId, isNull);

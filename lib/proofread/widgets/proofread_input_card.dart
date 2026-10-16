@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/proofread/cubit/proofread_cubit.dart';
 
-/// Multiline input with paste/clear actions. Ctrl/Cmd+Enter proofreads.
+/// A flat, compose-like multiline input with a toolbar of accent paste and
+/// clear actions and the character count. Ctrl/Cmd+Enter proofreads.
 class ProofreadInputCard extends StatefulWidget {
   const new({super.key});
 
@@ -63,6 +65,8 @@ class _ProofreadInputCardState extends State<ProofreadInputCard> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final palette = AppPalette.of(context);
     final input = context.select<ProofreadCubit, String>(
       (cubit) => cubit.state.input,
     );
@@ -76,9 +80,9 @@ class _ProofreadInputCardState extends State<ProofreadInputCard> {
           selection: TextSelection.collapsed(offset: state.input.length),
         );
       },
-      child: Card(
-        margin: EdgeInsets.zero,
-        clipBehavior: Clip.antiAlias,
+      // Flat like a compose box: no card, a hairline under the toolbar.
+      child: Semantics(
+        container: true,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -104,44 +108,55 @@ class _ProofreadInputCardState extends State<ProofreadInputCard> {
                   maxLines: null,
                   keyboardType: TextInputType.multiline,
                   textCapitalization: TextCapitalization.sentences,
-                  style: theme.textTheme.bodyLarge,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontSize: 19,
+                    height: 1.4,
+                  ),
                   decoration: InputDecoration(
                     hintText: l10n.proofreadInputHint,
                     border: InputBorder.none,
                     focusedBorder: InputBorder.none,
                     enabledBorder: InputBorder.none,
                     filled: false,
-                    contentPadding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    hintStyle: theme.textTheme.bodyLarge?.copyWith(
+                      fontSize: 19,
+                      color: palette.secondaryText,
+                    ),
+                    contentPadding: const EdgeInsets.fromLTRB(4, 12, 4, 8),
                   ),
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 4, 4),
-              child: Row(
-                children: [
-                  Expanded(
+            Row(
+              children: [
+                IconButton(
+                  tooltip: l10n.proofreadPaste,
+                  onPressed: _paste,
+                  color: colors.primary,
+                  icon: const Icon(Icons.content_paste_rounded),
+                ),
+                if (input.isNotEmpty)
+                  IconButton(
+                    tooltip: l10n.commonClear,
+                    onPressed: context.read<ProofreadCubit>().clear,
+                    color: colors.primary,
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsetsDirectional.only(end: 4),
                     child: Text(
                       l10n.proofreadCharacterCount(input.characters.length),
+                      textAlign: TextAlign.end,
                       style: theme.textTheme.labelMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                        color: palette.secondaryText,
                       ),
                     ),
                   ),
-                  IconButton(
-                    tooltip: l10n.proofreadPaste,
-                    onPressed: _paste,
-                    icon: const Icon(Icons.content_paste),
-                  ),
-                  if (input.isNotEmpty)
-                    IconButton(
-                      tooltip: l10n.commonClear,
-                      onPressed: context.read<ProofreadCubit>().clear,
-                      icon: const Icon(Icons.clear),
-                    ),
-                ],
-              ),
+                ),
+              ],
             ),
+            const Hairline(),
           ],
         ),
       ),

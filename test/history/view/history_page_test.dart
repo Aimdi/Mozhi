@@ -6,10 +6,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/history/view/history_page.dart';
 import 'package:mozhi/history/view/widgets/history_entry_tile.dart';
+import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -152,10 +154,58 @@ void main() {
       verify(() => history.search('')).called(1);
     });
 
-    testWidgets('filter chips show a checkmark when selected', (tester) async {
+    testWidgets('filters are tabs that say which is selected', (tester) async {
+      final handle = tester.ensureSemantics();
       await pump(tester);
-      final chips = tester.widgetList<ChoiceChip>(find.byType(ChoiceChip));
-      expect(chips.map((c) => c.showCheckmark), everyElement(isTrue));
+      expect(find.byType(TabBar), findsOneWidget);
+      expect(
+        tester.getSemantics(find.text('All')),
+        isSemantics(label: 'All\nTab 1 of 2', isSelected: true),
+      );
+      expect(
+        tester.getSemantics(find.text('Favorites')),
+        isSemantics(label: 'Favorites\nTab 2 of 2', isSelected: false),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('the tabs follow the filter', (tester) async {
+      final controller = StreamController<HistoryState>();
+      addTearDown(controller.close);
+      final initial = HistoryState(
+        status: HistoryStatus.ready,
+        entries: [_today, _yesterday],
+      );
+      whenListen(history, controller.stream, initialState: initial);
+      await pump(tester);
+      TabController tabs() =>
+          tester.widget<TabBar>(find.byType(TabBar)).controller!;
+      expect(tabs().index, 0);
+      controller.add(initial.copyWith(favoritesOnly: true));
+      await tester.pumpAndSettle();
+      expect(tabs().index, 1);
+    });
+
+    testWidgets('starts on the Favorites tab when filtered', (tester) async {
+      await pump(
+        tester,
+        state: HistoryState(
+          status: HistoryStatus.ready,
+          entries: [_yesterday],
+          favoritesOnly: true,
+        ),
+      );
+      expect(tester.widget<TabBar>(find.byType(TabBar)).controller!.index, 1);
+    });
+
+    testWidgets('the tabs stay pinned while the timeline scrolls', (
+      tester,
+    ) async {
+      await pump(tester, size: const Size(400, 500));
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -300));
+      await tester.pump();
+      expect(tester.getTopLeft(find.byType(TabBar)).dy, lessThan(120));
+      expect(find.byType(TabBar), findsOneWidget);
     });
 
     testWidgets('search field stays named after typing', (tester) async {
@@ -291,7 +341,8 @@ void main() {
           semantics.attributedLabel.attributes
               .whereType<LocaleStringAttribute>()
               .map((a) => a.locale),
-          [const Locale('en'), const Locale('de')],
+          // The translation is the body; the quoted source follows it.
+          [const Locale('de'), const Locale('en')],
         );
         tester.semantics.customAction(
           node,
@@ -515,6 +566,126 @@ void main() {
           .called(1);
     });
 
+    group('actions', () {
+      late List<MethodCall> calls;
+
+      setUp(() {
+        calls = [];
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+              calls.add(call);
+              return null;
+            });
+      });
+
+      tearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(SystemChannels.platform, null);
+      });
+
+      testWidgets('copy copies the translation and shows a check', (
+        tester,
+      ) async {
+        await pump(tester);
+        await tester.tap(find.byTooltip('Copy').first);
+        await tester.pump();
+        expect(
+          calls
+              .where((c) => c.method == 'Clipboard.setData')
+              .map((c) => (c.arguments as Map)['text']),
+          ['Guten Morgen'],
+        );
+        expect(find.byIcon(Icons.check_rounded), findsOneWidget);
+        expect(find.byTooltip('Copied to clipboard'), findsOneWidget);
+        // Copying again restarts the timer.
+        await tester.tap(find.byTooltip('Copied to clipboard'));
+        await tester.pump();
+        await tester.pump(HistoryEntryTile.copiedDuration);
+        expect(find.byIcon(Icons.check_rounded), findsNothing);
+        expect(find.byTooltip('Copy'), findsNWidgets(3));
+        await tester.pumpAndSettle();
+      });
+
+      testWidgets('a copied row can go away while it shows the check', (
+        tester,
+      ) async {
+        await pump(tester);
+        await tester.tap(find.byTooltip('Copy').first);
+        await tester.pump();
+        await tester.pumpWidget(const SizedBox());
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('share shares the translation', (tester) async {
+        final shared = <String?>[];
+        final previous = HistoryShare.share;
+        HistoryShare.share = (params) async => shared.add(params.text);
+        addTearDown(() => HistoryShare.share = previous);
+        await pump(tester);
+        await tester.tap(find.byTooltip('Share').at(1));
+        expect(shared, ['Hello']);
+      });
+
+      testWidgets('the favorite is a heart in the like colour', (tester) async {
+        await pump(tester);
+        final hearts = tester.widgetList<XActionButton>(
+          find.byWidgetPredicate(
+            (w) =>
+                w is XActionButton && w.activeColor == const Color(0xFFF91880),
+          ),
+        );
+        expect(hearts.map((b) => b.active), [false, true, false]);
+        expect(find.byIcon(Icons.favorite_rounded), findsOneWidget);
+      });
+
+      testWidgets('the button starts a new translation', (tester) async {
+        await pump(tester);
+        await tester.tap(find.byTooltip('New translation'));
+        verify(() => router.go('/translate', extra: any(named: 'extra')))
+            .called(1);
+      });
+    });
+
+    group('relativeHistoryTime', () {
+      final now = DateTime(2026, 5, 6, 12);
+      late AppLocalizations l10n;
+
+      setUpAll(() async {
+        l10n = await AppLocalizations.delegate.load(const Locale('en'));
+      });
+
+      test('is X-style short for the last day', () {
+        expect(relativeHistoryTime(l10n, now, now), 'now');
+        expect(
+          relativeHistoryTime(l10n, now.add(const Duration(minutes: 1)), now),
+          'now',
+        );
+        expect(
+          relativeHistoryTime(
+            l10n,
+            now.subtract(const Duration(minutes: 5)),
+            now,
+          ),
+          '5m',
+        );
+        expect(
+          relativeHistoryTime(
+            l10n,
+            now.subtract(const Duration(hours: 3)),
+            now,
+          ),
+          '3h',
+        );
+      });
+
+      test('is the clock time for older entries', () {
+        expect(
+          relativeHistoryTime(l10n, now.subtract(const Duration(days: 2)), now),
+          '12:00\u202fPM',
+        );
+      });
+    });
+
     testWidgets('clears history from the app bar', (tester) async {
       await pump(tester);
       await tester.tap(find.byTooltip('Clear history'));
@@ -571,6 +742,8 @@ void main() {
         );
         expect(find.text('No history yet'), findsOneWidget);
         expect(find.byTooltip('Clear history'), findsNothing);
+        // The empty state has its own call to action.
+        expect(find.byType(FloatingActionButton), findsNothing);
         expect(
           tester.getSemantics(find.text('No history yet')),
           isSemantics(isHeader: true, isLiveRegion: false),

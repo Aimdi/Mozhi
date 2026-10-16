@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/onboarding/cubit/onboarding_cubit.dart';
 import 'package:mozhi/onboarding/widgets/onboarding_badge.dart';
@@ -79,10 +80,13 @@ class _ProviderFormState extends State<ProviderForm> {
     final testing = state.testStatus == ProviderTestStatus.running;
     final saved = state.savedDraft;
 
-    return Card.filled(
+    return Card.outlined(
       margin: EdgeInsets.zero,
-      color: colors.surfaceContainerLow,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      color: colors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: AppPalette.of(context).hairline),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(

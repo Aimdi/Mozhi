@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/documents/cubit/document_translate_cubit.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/widgets/translate_error.dart';
@@ -26,6 +27,9 @@ class DocumentProgressSection extends StatelessWidget {
           LinearProgressIndicator(
             key: const Key('documents_progress'),
             value: state.progress,
+            minHeight: 6,
+            borderRadius: BorderRadius.circular(3),
+            backgroundColor: AppPalette.of(context).hairline,
             semanticsLabel: l10n.documentsProgress(
               state.doneChunks,
               state.chunkCount,
@@ -36,11 +40,18 @@ class DocumentProgressSection extends StatelessWidget {
               Expanded(
                 child: Text(
                   l10n.documentsProgress(state.doneChunks, state.chunkCount),
-                  style: theme.textTheme.bodyMedium,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: AppPalette.of(context).secondaryText,
+                  ),
                 ),
               ),
               OutlinedButton.icon(
                 key: const Key('documents_cancel'),
+                style: OutlinedButton.styleFrom(
+                  shape: const StadiumBorder(),
+                  side: BorderSide(color: AppPalette.of(context).hairline),
+                  textStyle: const TextStyle(fontWeight: FontWeight.w700),
+                ),
                 onPressed: cubit.cancel,
                 icon: const Icon(Icons.stop_circle_outlined),
                 label: Text(l10n.commonCancel),
@@ -59,8 +70,8 @@ class DocumentProgressSection extends StatelessWidget {
         if (translated && state.isComplete)
           _Status(
             key: const Key('documents_done'),
-            icon: Icons.check_circle_outline,
-            color: theme.colorScheme.primary,
+            icon: Icons.check_circle,
+            color: AppPalette.of(context).success,
             text: l10n.documentsDone,
           ),
         if (translated && !state.isComplete)
@@ -79,6 +90,14 @@ class DocumentProgressSection extends StatelessWidget {
           ),
         FilledButton.icon(
           key: const Key('documents_translate'),
+          style: FilledButton.styleFrom(
+            shape: const StadiumBorder(),
+            minimumSize: const Size(0, 52),
+            textStyle: const TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
+            ),
+          ),
           onPressed: state.canTranslate
               ? () => unawaited(cubit.translate())
               : null,
@@ -114,7 +133,12 @@ class _Status extends StatelessWidget {
       spacing: 8,
       children: [
         Icon(icon, color: color),
-        Expanded(child: Text(text)),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ),
         ?action,
       ],
     );
@@ -135,43 +159,51 @@ class DocumentFailuresCard extends StatelessWidget {
       ..sort((a, b) => a.key.compareTo(b.key));
     if (failures.isEmpty) return const SizedBox.shrink();
 
-    return Card.outlined(
+    return Column(
       key: const Key('documents_failures'),
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-              child: Text(
-                l10n.documentsFailedTitle,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  color: theme.colorScheme.error,
-                ),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Hairline(),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 16, 4, 4),
+          child: Semantics(
+            header: true,
+            child: Text(
+              l10n.documentsFailedTitle,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: theme.colorScheme.error,
               ),
             ),
-            for (final MapEntry(key: index, value: error) in failures)
-              ListTile(
-                key: Key('documents_failure_$index'),
-                leading: Icon(
-                  Icons.error_outline,
-                  color: theme.colorScheme.error,
-                ),
-                title: Text(l10n.documentsPartLabel(index + 1)),
-                subtitle: Text(describeTranslateError(l10n, error).message),
-                trailing: IconButton(
-                  tooltip: l10n.documentsRetryPart(index + 1),
-                  onPressed: state.canTranslate
-                      ? () => unawaited(cubit.retryChunk(index))
-                      : null,
-                  icon: const Icon(Icons.refresh),
-                ),
-              ),
-          ],
+          ),
         ),
-      ),
+        for (final (position, MapEntry(key: index, value: error))
+            in failures.indexed) ...[
+          if (position > 0) const Hairline(indent: 56),
+          ListTile(
+            key: Key('documents_failure_$index'),
+            contentPadding: const EdgeInsetsDirectional.only(start: 4),
+            leading: Icon(Icons.error_outline, color: theme.colorScheme.error),
+            title: Text(
+              l10n.documentsPartLabel(index + 1),
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            subtitle: Text(
+              describeTranslateError(l10n, error).message,
+              style: TextStyle(color: AppPalette.of(context).secondaryText),
+            ),
+            trailing: IconButton(
+              tooltip: l10n.documentsRetryPart(index + 1),
+              color: theme.colorScheme.primary,
+              onPressed: state.canTranslate
+                  ? () => unawaited(cubit.retryChunk(index))
+                  : null,
+              icon: const Icon(Icons.refresh),
+            ),
+          ),
+        ],
+        const Hairline(),
+      ],
     );
   }
 }

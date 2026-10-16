@@ -1,6 +1,8 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 
-/// Centered icon, title, optional body and action (empty / error states).
+/// X-style empty / error state: a quiet icon, a big bold start-aligned
+/// headline, secondary body text and an optional pill action.
 class PresetsMessage extends StatelessWidget {
   const new({
     required this.icon,
@@ -18,6 +20,7 @@ class PresetsMessage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final palette = AppPalette.of(context);
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(32),
@@ -25,21 +28,26 @@ class PresetsMessage extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 420),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, size: 48, color: theme.colorScheme.primary),
+              Icon(icon, size: 32, color: palette.secondaryText),
               const SizedBox(height: 16),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.titleMedium,
+              Semantics(
+                header: true,
+                child: Text(
+                  title,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.4,
+                  ),
+                ),
               ),
               if (body != null) ...[
                 const SizedBox(height: 8),
                 Text(
                   body!,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: palette.secondaryText,
                   ),
                 ),
               ],

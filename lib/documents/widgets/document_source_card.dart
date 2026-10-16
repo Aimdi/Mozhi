@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/documents/core/core.dart';
 import 'package:mozhi/documents/cubit/document_translate_cubit.dart';
 import 'package:mozhi/documents/widgets/document_labels.dart';
@@ -19,50 +20,44 @@ class DocumentSourceCard extends StatelessWidget {
     final state = context.watch<DocumentTranslateCubit>().state;
     final busy = state.isTranslating || state.status == DocumentStatus.loading;
 
-    return Card.outlined(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: 16,
-          children: [
-            SegmentedButton<DocumentInputMode>(
-              key: const Key('documents_mode'),
-              segments: [
-                ButtonSegment(
-                  value: DocumentInputMode.file,
-                  icon: const Icon(Icons.upload_file_outlined),
-                  label: Text(l10n.documentsModeFile),
-                ),
-                ButtonSegment(
-                  value: DocumentInputMode.text,
-                  icon: const Icon(Icons.notes),
-                  label: Text(l10n.documentsModeText),
-                ),
-              ],
-              selected: {state.mode},
-              onSelectionChanged: busy
-                  ? null
-                  : (selection) => cubit.setMode(selection.single),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: 16,
+      children: [
+        SegmentedButton<DocumentInputMode>(
+          key: const Key('documents_mode'),
+          segments: [
+            ButtonSegment(
+              value: DocumentInputMode.file,
+              icon: const Icon(Icons.upload_file_outlined),
+              label: Text(l10n.documentsModeFile),
             ),
-            if (state.mode == DocumentInputMode.file)
-              const _FileInput()
-            else
-              const _TextInput(),
-            if (state.error case final error?)
-              _ErrorBanner(
-                message: documentErrorLabel(
-                  context,
-                  error,
-                  maxBytes: cubit.maxBytes,
-                ),
-                warning: error == DocumentError.nothingToTranslate,
-              ),
-            if (state.hasDocument) const DocumentInfoChips(),
+            ButtonSegment(
+              value: DocumentInputMode.text,
+              icon: const Icon(Icons.notes),
+              label: Text(l10n.documentsModeText),
+            ),
           ],
+          selected: {state.mode},
+          onSelectionChanged: busy
+              ? null
+              : (selection) => cubit.setMode(selection.single),
         ),
-      ),
+        if (state.mode == DocumentInputMode.file)
+          const _FileInput()
+        else
+          const _TextInput(),
+        if (state.error case final error?)
+          _ErrorBanner(
+            message: documentErrorLabel(
+              context,
+              error,
+              maxBytes: cubit.maxBytes,
+            ),
+            warning: error == DocumentError.nothingToTranslate,
+          ),
+        if (state.hasDocument) const DocumentInfoChips(),
+      ],
     );
   }
 }
@@ -76,63 +71,88 @@ class _FileInput extends StatelessWidget {
     final theme = Theme.of(context);
     final cubit = context.read<DocumentTranslateCubit>();
     final state = context.watch<DocumentTranslateCubit>().state;
+    final palette = AppPalette.of(context);
     final loading = state.status == DocumentStatus.loading;
     final name = state.fileName;
 
     if (name == null) {
-      return Column(
-        spacing: 12,
-        children: [
-          Icon(
-            Icons.upload_file_outlined,
-            size: 48,
-            color: theme.colorScheme.primary,
-          ),
-          Text(
-            l10n.documentsPickTitle,
-            style: theme.textTheme.titleMedium,
-            textAlign: TextAlign.center,
-          ),
-          Text(
-            l10n.documentsPickHint(documentSizeLabel(context, cubit.maxBytes)),
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+      // X empty state: big bold headline, quiet text, one pill CTA.
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 8,
+          children: [
+            Semantics(
+              header: true,
+              child: Text(
+                l10n.documentsPickTitle,
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.6,
+                  height: 1.15,
+                ),
+              ),
             ),
-            textAlign: TextAlign.center,
-          ),
-          FilledButton.tonalIcon(
-            key: const Key('documents_pick_file'),
-            onPressed: loading ? null : () => unawaited(cubit.pickFile()),
-            icon: loading
-                ? const SizedBox.square(
-                    dimension: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.folder_open_outlined),
-            label: Text(l10n.documentsPickButton),
-          ),
-        ],
+            Text(
+              l10n.documentsPickHint(
+                documentSizeLabel(context, cubit.maxBytes),
+              ),
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: palette.secondaryText,
+              ),
+            ),
+            const SizedBox(height: 8),
+            FilledButton.icon(
+              key: const Key('documents_pick_file'),
+              style: FilledButton.styleFrom(
+                shape: const StadiumBorder(),
+                minimumSize: const Size(0, 48),
+                textStyle: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              onPressed: loading ? null : () => unawaited(cubit.pickFile()),
+              icon: loading
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.folder_open_outlined),
+              label: Text(l10n.documentsPickButton),
+            ),
+          ],
+        ),
       );
     }
 
     return Row(
-      spacing: 8,
+      spacing: 12,
       children: [
-        Icon(
-          documentFormatIcon(state.format),
-          color: theme.colorScheme.primary,
+        ExcludeSemantics(
+          child: CircleAvatar(
+            radius: 20,
+            backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.12),
+            foregroundColor: theme.colorScheme.primary,
+            child: Icon(documentFormatIcon(state.format), size: 20),
+          ),
         ),
         Expanded(
           child: Text(
             name,
             key: const Key('documents_file_name'),
-            style: theme.textTheme.titleMedium,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        TextButton(
+        OutlinedButton(
           key: const Key('documents_replace_file'),
+          style: OutlinedButton.styleFrom(
+            shape: const StadiumBorder(),
+            side: BorderSide(color: palette.hairline),
+            textStyle: const TextStyle(fontWeight: FontWeight.w700),
+          ),
           onPressed: state.isTranslating || loading
               ? null
               : () => unawaited(cubit.pickFile()),
@@ -197,7 +217,9 @@ class _TextInputState extends State<_TextInput> {
               labelText: l10n.documentsTextLabel,
               hintText: l10n.documentsTextHint,
               alignLabelWithHint: true,
-              border: const OutlineInputBorder(),
+              border: const OutlineInputBorder(
+                borderRadius: BorderRadius.all(Radius.circular(16)),
+              ),
             ),
           ),
           Row(
@@ -216,6 +238,8 @@ class _TextInputState extends State<_TextInput> {
   }
 }
 
+/// A flat, hairline-outlined notice: an error (error colour) or a
+/// warning (accent).
 class _ErrorBanner extends StatelessWidget {
   const new({required this.message, this.warning = false});
 
@@ -224,18 +248,18 @@ class _ErrorBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final background = warning
-        ? scheme.secondaryContainer
-        : scheme.errorContainer;
-    final foreground = warning
-        ? scheme.onSecondaryContainer
-        : scheme.onErrorContainer;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final accent = warning ? scheme.primary : scheme.error;
     return DecoratedBox(
       key: const Key('documents_error'),
       decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: warning
+              ? AppPalette.of(context).hairline
+              : scheme.error.withValues(alpha: 0.5),
+        ),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -244,11 +268,9 @@ class _ErrorBanner extends StatelessWidget {
           children: [
             Icon(
               warning ? Icons.info_outline : Icons.error_outline,
-              color: foreground,
+              color: accent,
             ),
-            Expanded(
-              child: Text(message, style: TextStyle(color: foreground)),
-            ),
+            Expanded(child: Text(message, style: theme.textTheme.bodyMedium)),
           ],
         ),
       ),

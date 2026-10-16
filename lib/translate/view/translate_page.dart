@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -450,14 +451,81 @@ class _CompareToggle extends StatelessWidget {
   }
 }
 
+/// Language code shown in the source avatar: the chosen language, the
+/// detected one, or `auto` (a sparkle) while detecting.
+String sourceAvatarCode(TranslateState state) {
+  final source = state.source;
+  if (source.isCustom) return source.name;
+  if (!source.isAuto) return source.code;
+  return state.result?.detectedSource ?? source.code;
+}
+
+/// Language code shown in the target avatar (a custom target's text).
+String targetAvatarCode(TranslateState state) =>
+    state.target.isCustom ? state.target.name : state.target.code;
+
+/// Whether the output shows a translation (or one in progress), so it is
+/// drawn as the reply of the input's thread (not the empty state or an
+/// error).
+bool outputJoinsThread(TranslateState state) =>
+    state.output.isNotEmpty || state.status == TranslateStatus.translating;
+
+/// The input as the first post of the thread: the source language's avatar
+/// beside it, joined to the translation's avatar by a connector while there
+/// is one ([connector]).
+class _InputThread extends StatelessWidget {
+  const new({this.connector = true, this.minLines = 4, this.footer});
+
+  final bool connector;
+  final int minLines;
+
+  /// Shown under the input, inside the thread (the memory match).
+  final Widget? footer;
+
+  @override
+  Widget build(BuildContext context) {
+    final code = context.select<TranslateCubit, String>(
+      (cubit) => sourceAvatarCode(cubit.state),
+    );
+    final joined =
+        connector &&
+        context.select<TranslateCubit, bool>(
+          (cubit) => !cubit.state.compareMode && outputJoinsThread(cubit.state),
+        );
+    final footer = this.footer;
+    return TranslateThreadRow(
+      key: const Key('translate_input_thread'),
+      code: code,
+      connector: joined,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InputCard(minLines: minLines),
+          ?footer,
+          if (joined) const SizedBox(height: TranslateLayout.gap),
+        ],
+      ),
+    );
+  }
+}
+
 /// Output card or compare cards; then the meaning check, "Refine & learn"
 /// (AI extras), definitions and the translations into the extra target
-/// languages.
+/// languages. A translation is the reply of the thread: the target
+/// language's avatar beside it; before there is one, the empty state sits
+/// under a hairline.
 ///
 /// Hiding the meaning check from its panel hands the focus back to the
 /// output card's "Check meaning" button.
 class _OutputSection extends StatefulWidget {
-  const new();
+  const new({this.memory = true, this.separated = true});
+
+  /// Whether the memory match is shown here (the narrow layout shows it
+  /// under the input instead).
+  final bool memory;
+
+  /// Whether a hairline separates the empty state from the input above.
+  final bool separated;
 
   @override
   State<_OutputSection> createState() => _OutputSectionState();
@@ -478,11 +546,28 @@ class _OutputSectionState extends State<_OutputSection> {
       (cubit) => cubit.state.compareMode,
     );
     if (compareMode) return const ComparePanel();
+    final threaded = context.select<TranslateCubit, bool>(
+      (cubit) => outputJoinsThread(cubit.state),
+    );
+    final targetCode = context.select<TranslateCubit, String>(
+      (cubit) => targetAvatarCode(cubit.state),
+    );
+    final output = OutputCard(meaningButtonFocusNode: _meaningButton);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const TranslationMemoryCard(),
-        OutputCard(meaningButtonFocusNode: _meaningButton),
+        if (widget.memory) const TranslationMemoryCard(),
+        if (threaded)
+          TranslateThreadRow(
+            key: const Key('translate_output_thread'),
+            code: targetCode,
+            avatarTop: 10,
+            child: output,
+          )
+        else ...[
+          if (widget.separated) const Hairline(),
+          output,
+        ],
         MeaningCheckPanel(returnFocusNode: _meaningButton),
         const ExtrasSection(),
         const WordChoicesPanel(),
@@ -517,9 +602,8 @@ class _NarrowLayout extends StatelessWidget {
               LanguageBar(),
               ActiveOptionsBar(),
               SizedBox(height: TranslateLayout.gap),
-              InputCard(),
-              SizedBox(height: TranslateLayout.gap),
-              _OutputSection(),
+              _InputThread(footer: TranslationMemoryCard()),
+              _OutputSection(memory: false),
             ],
           ),
         ),
@@ -528,6 +612,8 @@ class _NarrowLayout extends StatelessWidget {
   }
 }
 
+/// Input and output side by side, like X's web columns: flat panes
+/// separated by a vertical hairline.
 class _WideLayout extends StatelessWidget {
   const new();
 
@@ -546,23 +632,32 @@ class _WideLayout extends StatelessWidget {
               LanguageBar(),
               ActiveOptionsBar(),
               SizedBox(height: TranslateLayout.gap),
+              Hairline(),
               Expanded(
                 child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Expanded(
                       child: SingleChildScrollView(
                         key: Key('translate_input_pane'),
-                        padding: EdgeInsets.only(bottom: 32),
-                        child: InputCard(minLines: 8),
+                        padding: EdgeInsetsDirectional.only(
+                          top: 8,
+                          end: TranslateLayout.paneGap / 2,
+                          bottom: 32,
+                        ),
+                        child: _InputThread(connector: false, minLines: 8),
                       ),
                     ),
-                    SizedBox(width: TranslateLayout.paneGap),
+                    Hairline(vertical: true),
                     Expanded(
                       child: SingleChildScrollView(
                         key: Key('translate_output_pane'),
-                        padding: EdgeInsets.only(bottom: 32),
-                        child: _OutputSection(),
+                        padding: EdgeInsetsDirectional.only(
+                          top: 8,
+                          start: TranslateLayout.paneGap / 2,
+                          bottom: 32,
+                        ),
+                        child: _OutputSection(separated: false),
                       ),
                     ),
                   ],

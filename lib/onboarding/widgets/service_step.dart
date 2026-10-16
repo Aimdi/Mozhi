@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/onboarding/cubit/onboarding_cubit.dart';
 import 'package:mozhi/onboarding/widgets/instance_tile.dart';
@@ -117,12 +118,13 @@ class _InstanceList extends StatelessWidget {
           ),
           const SizedBox(height: 12),
         ],
-        Card.filled(
+        Card.outlined(
           margin: EdgeInsets.zero,
-          color: colors.surfaceContainerLow,
+          color: colors.surface,
           clipBehavior: Clip.antiAlias,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: AppPalette.of(context).hairline),
           ),
           child: RadioGroup<String>(
             // The first instance is the preferred one.

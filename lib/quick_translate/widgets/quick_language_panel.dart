@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/quick_translate/models/quick_languages.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -74,7 +75,10 @@ class _QuickLanguagePanelState extends State<QuickLanguagePanel> {
                 header: true,
                 child: Text(
                   l10n.translatePickerTargetTitle,
-                  style: theme.textTheme.titleMedium,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.3,
+                  ),
                 ),
               ),
             ),
@@ -147,22 +151,34 @@ class _QuickLanguagePanelState extends State<QuickLanguagePanel> {
     final exact = matches.any(
       (language) => language.name.toLowerCase() == query.toLowerCase(),
     );
+    final palette = AppPalette.of(context);
     return [
-      for (final language in matches)
+      for (final (index, language) in matches.indexed) ...[
+        if (index > 0) const Hairline(indent: 64),
         ListTile(
           contentPadding: const EdgeInsetsDirectional.only(start: 8, end: 8),
-          title: Text(language.name),
+          leading: language.isCustom
+              ? null
+              : LanguageAvatar(code: language.code),
+          title: Text(
+            language.name,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
           subtitle:
               language.nativeName == null ||
                   language.nativeName == language.name
               ? null
-              : Text(language.nativeName!),
+              : Text(
+                  language.nativeName!,
+                  style: TextStyle(color: palette.secondaryText),
+                ),
           selected: language == widget.selected,
           trailing: language == widget.selected
-              ? const Icon(Icons.check)
+              ? Icon(Icons.check, color: theme.colorScheme.primary)
               : null,
           onTap: () => widget.onSelected(language),
         ),
+      ],
       if (widget.allowCustom && !exact)
         ListTile(
           key: const Key('quick_translate_custom_language'),
@@ -178,7 +194,7 @@ class _QuickLanguagePanelState extends State<QuickLanguagePanel> {
             l10n.translatePickerNoResults(query),
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+              color: palette.secondaryText,
             ),
           ),
         ),
@@ -214,8 +230,8 @@ class _ChipSection extends StatelessWidget {
               header: true,
               child: Text(
                 title,
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ),

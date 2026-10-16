@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/usage/cubit/usage_cubit.dart';
 import 'package:mozhi/usage/data/usage_tracker.dart';
@@ -62,7 +63,6 @@ class UsageCardView extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     final snapshot = context.select<UsageCubit, UsageSnapshot>(
       (cubit) => cubit.state.snapshot,
     );
@@ -74,14 +74,18 @@ class UsageCardView extends StatelessWidget {
       for (var i = historyMonths - 1; i >= 0; i--)
         snapshot.currentMonth.shift(-i),
     ];
+    final palette = AppPalette.of(context);
     final secondary = theme.textTheme.bodySmall?.copyWith(
-      color: scheme.onSurfaceVariant,
+      color: palette.secondaryText,
     );
 
-    return Card.filled(
-      margin: EdgeInsets.zero,
-      color: scheme.surfaceContainerLow,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+    // A flat X-style card: a hairline outline, no fill.
+    return DecoratedBox(
+      key: const Key('usage_card'),
+      decoration: BoxDecoration(
+        border: Border.all(color: palette.hairline),
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
         child: Column(
@@ -89,14 +93,15 @@ class UsageCardView extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(Icons.data_usage_outlined, color: scheme.primary),
-                const SizedBox(width: 12),
                 Expanded(
                   child: Semantics(
                     header: true,
                     child: Text(
                       l10n.usageTitle,
-                      style: theme.textTheme.titleMedium,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.3,
+                      ),
                     ),
                   ),
                 ),
@@ -108,7 +113,7 @@ class UsageCardView extends StatelessWidget {
             Text(
               l10n.usageThisMonth,
               style: theme.textTheme.labelLarge?.copyWith(
-                color: scheme.onSurfaceVariant,
+                color: palette.secondaryText,
               ),
             ),
             const SizedBox(height: 2),
@@ -118,7 +123,9 @@ class UsageCardView extends StatelessWidget {
                 context.usageCharacters(stats.totalChars),
                 context.usageTokens(stats.estimatedTokens),
               ].join(' · '),
-              style: theme.textTheme.bodyLarge,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
             ),
             Text(
               l10n.usageInputOutput(
@@ -144,24 +151,38 @@ class UsageCardView extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            const Divider(height: 1),
+            const Hairline(),
             const SizedBox(height: 12),
-            Text(l10n.usageBudgetTitle, style: theme.textTheme.titleSmall),
+            Text(
+              l10n.usageBudgetTitle,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
             const SizedBox(height: 8),
             if (status == null)
               Text(l10n.usageBudgetNone, style: secondary)
             else
               UsageBudgetProgress(status: status),
-            const SizedBox(height: 4),
+            const SizedBox(height: 8),
             Wrap(
               alignment: WrapAlignment.end,
+              spacing: 8,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 if (onShowAll != null)
                   TextButton(
                     onPressed: onShowAll,
                     child: Text(l10n.usageViewAll),
                   ),
-                TextButton.icon(
+                OutlinedButton.icon(
+                  key: const Key('usage_budget_button'),
+                  style: OutlinedButton.styleFrom(
+                    shape: const StadiumBorder(),
+                    side: BorderSide(color: palette.hairline),
+                    textStyle: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
                   onPressed: () => _editBudget(context, budget),
                   icon: const Icon(Icons.savings_outlined),
                   label: Text(
@@ -170,6 +191,7 @@ class UsageCardView extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 4),
           ],
         ),
       ),
@@ -205,7 +227,7 @@ class UsageBudgetProgress extends StatelessWidget {
           Text(
             text,
             style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+              color: AppPalette.of(context).secondaryText,
             ),
           ),
         ],

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/image_translate/cubit/image_translate_cubit.dart';
 import 'package:mozhi/image_translate/models/models.dart';
 import 'package:mozhi/image_translate/widgets/image_translate_labels.dart';
@@ -31,36 +32,36 @@ class ImageTranslateEmptyState extends StatelessWidget {
     ];
     final kinds = {for (final method in methods) method.kind};
 
+    final palette = AppPalette.of(context);
+    const pillText = TextStyle(fontWeight: FontWeight.w700);
+
+    // X empty state: big bold headline, quiet text, pill CTAs.
     return Column(
       key: const Key('image_translate_empty_state'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
         const SizedBox(height: 8),
-        ExcludeSemantics(
-          child: Icon(
-            Icons.image_search_outlined,
-            size: 64,
-            color: theme.colorScheme.primary,
+        Semantics(
+          header: true,
+          child: Text(
+            l10n.imageTranslateEmptyTitle,
+            style: theme.textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.6,
+              height: 1.15,
+            ),
           ),
-        ),
-        const SizedBox(height: 16),
-        Text(
-          l10n.imageTranslateEmptyTitle,
-          textAlign: TextAlign.center,
-          style: theme.textTheme.headlineSmall,
         ),
         const SizedBox(height: 8),
         Text(
           l10n.imageTranslateEmptyBody,
-          textAlign: TextAlign.center,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+          style: theme.textTheme.bodyLarge?.copyWith(
+            color: palette.secondaryText,
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
         Wrap(
-          alignment: WrapAlignment.center,
           spacing: 12,
           runSpacing: 12,
           children: [
@@ -69,7 +70,11 @@ class ImageTranslateEmptyState extends StatelessWidget {
               onPressed: canPick
                   ? () => unawaited(cubit.pickImage(ImagePickSource.gallery))
                   : null,
-              style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, 48),
+                shape: const StadiumBorder(),
+                textStyle: pillText,
+              ),
               icon: const Icon(Icons.photo_library_outlined),
               label: Text(l10n.imageTranslatePickGallery),
             ),
@@ -79,7 +84,12 @@ class ImageTranslateEmptyState extends StatelessWidget {
                 onPressed: canPick
                     ? () => unawaited(cubit.pickImage(ImagePickSource.camera))
                     : null,
-                style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(0, 48),
+                  shape: const StadiumBorder(),
+                  side: BorderSide(color: palette.hairline),
+                  textStyle: pillText,
+                ),
                 icon: const Icon(Icons.photo_camera_outlined),
                 label: Text(l10n.imageTranslateTakePhoto),
               ),
@@ -89,26 +99,44 @@ class ImageTranslateEmptyState extends StatelessWidget {
         if (!canPick)
           const _NoMethods()
         else ...[
-          Text(
-            l10n.imageTranslateMethodsHeader,
-            style: theme.textTheme.titleSmall,
-          ),
-          const SizedBox(height: 4),
-          for (final kind in ImageTranslateMethodKind.values)
-            if (kinds.contains(kind))
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(imageMethodIcon(kind)),
-                title: Text(switch (kind) {
-                  ImageTranslateMethodKind.aiVision =>
-                    l10n.imageTranslateMethodAi(aiNames.join(', ')),
-                  ImageTranslateMethodKind.mozhiLens =>
-                    l10n.imageTranslateMethodMozhi,
-                  ImageTranslateMethodKind.onDevice =>
-                    l10n.imageTranslateMethodOnDevice,
-                }),
-                subtitle: Text(imageMethodDescription(l10n, kind)),
+          const Hairline(),
+          Padding(
+            padding: const EdgeInsets.only(top: 16, bottom: 4),
+            child: Semantics(
+              header: true,
+              child: Text(
+                l10n.imageTranslateMethodsHeader,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
               ),
+            ),
+          ),
+          for (final (index, kind) in [
+            for (final kind in ImageTranslateMethodKind.values)
+              if (kinds.contains(kind)) kind,
+          ].indexed) ...[
+            if (index > 0) const Hairline(indent: 40),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(
+                imageMethodIcon(kind),
+                color: theme.colorScheme.primary,
+              ),
+              title: Text(switch (kind) {
+                ImageTranslateMethodKind.aiVision =>
+                  l10n.imageTranslateMethodAi(aiNames.join(', ')),
+                ImageTranslateMethodKind.mozhiLens =>
+                  l10n.imageTranslateMethodMozhi,
+                ImageTranslateMethodKind.onDevice =>
+                  l10n.imageTranslateMethodOnDevice,
+              }, style: const TextStyle(fontWeight: FontWeight.w700)),
+              subtitle: Text(
+                imageMethodDescription(l10n, kind),
+                style: TextStyle(color: palette.secondaryText),
+              ),
+            ),
+          ],
         ],
       ],
     );
@@ -122,10 +150,14 @@ class _NoMethods extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    return Card(
+    final palette = AppPalette.of(context);
+    // A flat card: hairline outline, no fill.
+    return DecoratedBox(
       key: const Key('image_translate_no_methods'),
-      margin: EdgeInsets.zero,
-      color: theme.colorScheme.surfaceContainerLow,
+      decoration: BoxDecoration(
+        border: Border.all(color: palette.hairline),
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -134,22 +166,30 @@ class _NoMethods extends StatelessWidget {
           children: [
             Text(
               l10n.imageTranslateNoMethodsTitle,
-              style: theme.textTheme.titleMedium,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
               l10n.imageTranslateNoMethodsBody,
-              style: theme.textTheme.bodyMedium,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: palette.secondaryText,
+              ),
             ),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                FilledButton.tonal(
+                FilledButton(
                   key: const Key('image_translate_providers_button'),
                   onPressed: () => context.go(ImageTranslateLinks.providers),
-                  style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 48),
+                    shape: const StadiumBorder(),
+                    textStyle: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
                   child: Text(l10n.translateProvidersAction),
                 ),
                 TextButton(

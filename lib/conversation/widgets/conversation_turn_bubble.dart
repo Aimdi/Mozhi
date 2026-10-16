@@ -8,6 +8,7 @@ import 'package:mozhi/conversation/models/conversation_turn.dart';
 import 'package:mozhi/conversation/widgets/conversation_listen_button.dart';
 import 'package:mozhi/conversation/widgets/conversation_orientation.dart';
 import 'package:mozhi/conversation/widgets/side_colors.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 
 /// Formats [time] as the locale's short time of day.
@@ -17,7 +18,10 @@ String formatConversationTime(BuildContext context, DateTime time) =>
       alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
     );
 
-/// One message of the transcript.
+/// One message of the transcript, styled like a direct message: the
+/// reader's own messages (end aligned) in the primary container, the other
+/// side's in a neutral raised surface, each next to the speaker's language
+/// avatar, with time · engine and the actions below the bubble.
 ///
 /// With a [viewer] (face-to-face halves) the viewer's own messages sit at
 /// the end and show what they said in large type; the other side's
@@ -90,10 +94,15 @@ class ConversationTurnBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    final colors = ConversationSideColors.of(context, turn.side);
     final alignEnd = viewer == null ? turn.side == ConversationSide.b : _mine;
+    final colors = alignEnd
+        ? ConversationBubbleColors.own(context)
+        : ConversationBubbleColors.other(context);
+    final palette = AppPalette.of(context);
     final large = theme.textTheme.titleMedium?.copyWith(
       color: colors.onContainer,
+      fontWeight: FontWeight.w400,
+      fontSize: 16,
       height: 1.35,
     );
     final small = theme.textTheme.bodyMedium?.copyWith(
@@ -121,123 +130,150 @@ class ConversationTurnBubble extends StatelessWidget {
       formatConversationTime(context, turn.createdAt),
       ?turn.engineName,
     ].join(' · ');
+    // Rounded, with a smaller corner toward the speaker.
     final radius = BorderRadiusDirectional.only(
       topStart: const Radius.circular(20),
       topEnd: const Radius.circular(20),
-      bottomStart: Radius.circular(alignEnd ? 20 : 6),
-      bottomEnd: Radius.circular(alignEnd ? 6 : 20),
+      bottomStart: Radius.circular(alignEnd ? 20 : 4),
+      bottomEnd: Radius.circular(alignEnd ? 4 : 20),
+    );
+    final speaker = turn.source.isAuto ? turn.target : turn.source;
+    final avatar = LanguageAvatar(
+      code: speaker.isCustom ? speaker.name : speaker.code,
+      size: 28,
     );
 
-    return LayoutBuilder(
-      builder: (context, constraints) => Align(
-        alignment: alignEnd
-            ? AlignmentDirectional.centerEnd
-            : AlignmentDirectional.centerStart,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: constraints.maxWidth * 0.86),
-          child: Semantics(
-            container: true,
-            label: l10n.conversationMessageSemantics(
-              turn.source.name,
-              turn.original,
-              turn.target.name,
-              status,
+    // Lined up with the bottom of the bubble, above the 48 dp footer.
+    final avatarBesideBubble = Padding(
+      padding: const EdgeInsets.only(bottom: 48),
+      child: avatar,
+    );
+
+    final bubble = Material(
+      color: colors.container,
+      borderRadius: radius,
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: EdgeInsetsDirectional.fromSTEB(
+          16,
+          10,
+          16,
+          turn.isFailed ? 4 : 10,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ExcludeSemantics(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: texts,
+              ),
             ),
-            child: Material(
-              color: colors.container,
-              borderRadius: radius,
-              clipBehavior: Clip.antiAlias,
-              child: Padding(
-                padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 4, 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsetsDirectional.only(end: 12),
-                      child: ExcludeSemantics(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: texts,
-                        ),
-                      ),
-                    ),
-                    if (turn.isFailed)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: TextButton.icon(
-                          key: Key('conversation_retry_${turn.id}'),
-                          onPressed: () => unawaited(
-                            context.read<ConversationCubit>().retry(turn.id),
-                          ),
-                          style: TextButton.styleFrom(
-                            foregroundColor: colors.onContainer,
-                          ),
-                          icon: const Icon(Icons.refresh),
-                          label: Text(l10n.commonRetry),
-                        ),
-                      ),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ExcludeSemantics(
-                            child: Text(
-                              details,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: colors.onContainer.withValues(
-                                  alpha: 0.7,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        ConversationListenButton(
-                          buttonKey: Key('conversation_listen_${turn.id}'),
-                          playing: speaking,
-                          color: colors.onContainer,
-                          onListen: hasTranslation
-                              ? () => unawaited(
-                                  context.read<ConversationCubit>().speak(
-                                    turn.id,
-                                  ),
-                                )
-                              : null,
-                          onListenSlowly: hasTranslation
-                              ? () => unawaited(
-                                  context.read<ConversationCubit>().speak(
-                                    turn.id,
-                                    slow: true,
-                                  ),
-                                )
-                              : null,
-                        ),
-                        IconButton(
-                          key: Key('conversation_copy_${turn.id}'),
-                          tooltip: l10n.conversationCopyTranslation,
-                          color: colors.onContainer,
-                          icon: const Icon(Icons.content_copy_outlined),
-                          onPressed: hasTranslation
-                              ? () =>
-                                    unawaited(_copy(context, turn.translation))
-                              : null,
-                        ),
-                        IconButton(
-                          key: Key('conversation_more_${turn.id}'),
-                          tooltip: l10n.commonMoreOptions,
-                          color: colors.onContainer,
-                          icon: const Icon(Icons.more_vert),
-                          onPressed: () => unawaited(_showMore(context)),
-                        ),
-                      ],
-                    ),
-                  ],
+            if (turn.isFailed)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: TextButton.icon(
+                  key: Key('conversation_retry_${turn.id}'),
+                  onPressed: () => unawaited(
+                    context.read<ConversationCubit>().retry(turn.id),
+                  ),
+                  style: TextButton.styleFrom(
+                    foregroundColor: colors.onContainer,
+                  ),
+                  icon: const Icon(Icons.refresh),
+                  label: Text(l10n.commonRetry),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+
+    final footer = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Flexible(
+          child: ExcludeSemantics(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                details,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: palette.secondaryText,
                 ),
               ),
             ),
           ),
+        ),
+        ConversationListenButton(
+          buttonKey: Key('conversation_listen_${turn.id}'),
+          playing: speaking,
+          color: palette.secondaryText,
+          onListen: hasTranslation
+              ? () =>
+                    unawaited(context.read<ConversationCubit>().speak(turn.id))
+              : null,
+          onListenSlowly: hasTranslation
+              ? () => unawaited(
+                  context.read<ConversationCubit>().speak(turn.id, slow: true),
+                )
+              : null,
+        ),
+        IconButton(
+          key: Key('conversation_copy_${turn.id}'),
+          tooltip: l10n.conversationCopyTranslation,
+          color: palette.secondaryText,
+          icon: const Icon(Icons.copy_rounded, size: 20),
+          onPressed: hasTranslation
+              ? () => unawaited(_copy(context, turn.translation))
+              : null,
+        ),
+        IconButton(
+          key: Key('conversation_more_${turn.id}'),
+          tooltip: l10n.commonMoreOptions,
+          color: palette.secondaryText,
+          icon: const Icon(Icons.more_horiz_rounded, size: 20),
+          onPressed: () => unawaited(_showMore(context)),
+        ),
+      ],
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) => Semantics(
+        container: true,
+        label: l10n.conversationMessageSemantics(
+          turn.source.name,
+          turn.original,
+          turn.target.name,
+          status,
+        ),
+        child: Row(
+          mainAxisAlignment: alignEnd
+              ? MainAxisAlignment.end
+              : MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            if (!alignEnd) ...[avatarBesideBubble, const SizedBox(width: 8)],
+            Flexible(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: constraints.maxWidth * 0.8,
+                ),
+                child: Column(
+                  crossAxisAlignment: alignEnd
+                      ? CrossAxisAlignment.end
+                      : CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [bubble, footer],
+                ),
+              ),
+            ),
+            if (alignEnd) ...[const SizedBox(width: 8), avatarBesideBubble],
+          ],
         ),
       ),
     );

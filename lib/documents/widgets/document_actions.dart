@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/documents/cubit/document_translate_cubit.dart';
 import 'package:mozhi/l10n/l10n.dart';
 
@@ -24,6 +25,13 @@ class DocumentActions extends StatelessWidget {
     final state = context.watch<DocumentTranslateCubit>().state;
     if (!state.hasTranslation) return const SizedBox.shrink();
     final enabled = !state.isTranslating;
+    final palette = AppPalette.of(context);
+    const pillText = TextStyle(fontWeight: FontWeight.w700);
+    final outlined = OutlinedButton.styleFrom(
+      shape: const StadiumBorder(),
+      side: BorderSide(color: palette.hairline),
+      textStyle: pillText,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -33,8 +41,14 @@ class DocumentActions extends StatelessWidget {
           SwitchListTile(
             key: const Key('documents_bilingual'),
             contentPadding: EdgeInsets.zero,
-            title: Text(l10n.documentsBilingual),
-            subtitle: Text(l10n.documentsBilingualHint),
+            title: Text(
+              l10n.documentsBilingual,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            subtitle: Text(
+              l10n.documentsBilingualHint,
+              style: TextStyle(color: palette.secondaryText),
+            ),
             value: state.bilingual,
             onChanged: (value) => cubit.setBilingual(enabled: value),
           ),
@@ -42,10 +56,21 @@ class DocumentActions extends StatelessWidget {
           spacing: 8,
           runSpacing: 8,
           children: [
+            FilledButton.icon(
+              key: const Key('documents_save'),
+              style: FilledButton.styleFrom(
+                shape: const StadiumBorder(),
+                textStyle: pillText,
+              ),
+              onPressed: enabled ? () => unawaited(cubit.save()) : null,
+              icon: const Icon(Icons.save_alt),
+              label: Text(l10n.documentsSave),
+            ),
             if (cubit.canShareFiles)
               Builder(
-                builder: (context) => FilledButton.tonalIcon(
+                builder: (context) => OutlinedButton.icon(
                   key: const Key('documents_share'),
+                  style: outlined,
                   onPressed: enabled
                       ? () => unawaited(cubit.share(origin: _origin(context)))
                       : null,
@@ -53,16 +78,11 @@ class DocumentActions extends StatelessWidget {
                   label: Text(l10n.documentsShareFile),
                 ),
               ),
-            FilledButton.tonalIcon(
-              key: const Key('documents_save'),
-              onPressed: enabled ? () => unawaited(cubit.save()) : null,
-              icon: const Icon(Icons.save_alt),
-              label: Text(l10n.documentsSave),
-            ),
             OutlinedButton.icon(
               key: const Key('documents_copy'),
+              style: outlined,
               onPressed: enabled ? () => unawaited(cubit.copy()) : null,
-              icon: const Icon(Icons.copy),
+              icon: const Icon(Icons.copy_outlined),
               label: Text(l10n.documentsCopyText),
             ),
           ],
@@ -71,7 +91,7 @@ class DocumentActions extends StatelessWidget {
           l10n.documentsOutputName(state.outputFileName),
           key: const Key('documents_output_name'),
           style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+            color: palette.secondaryText,
           ),
         ),
         if (!state.isComplete && !state.isTranslating)

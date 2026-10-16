@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/conversation/cubit/conversation_cubit.dart';
 import 'package:mozhi/conversation/models/conversation_turn.dart';
 import 'package:mozhi/conversation/widgets/conversation_turn_bubble.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 
 /// The transcript, newest message at the bottom (kept in view as messages
@@ -30,7 +31,7 @@ class ConversationTranscriptList extends StatelessWidget {
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           itemCount: turns.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 10),
+          separatorBuilder: (_, _) => const SizedBox(height: 4),
           itemBuilder: (context, index) {
             final turn = turns[turns.length - 1 - index];
             return ConversationTurnBubble(
@@ -46,6 +47,8 @@ class ConversationTranscriptList extends StatelessWidget {
   }
 }
 
+/// X-style empty state: a big bold headline and secondary text, start
+/// aligned.
 class _EmptyTranscript extends StatelessWidget {
   const new();
 
@@ -60,25 +63,24 @@ class _EmptyTranscript extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 360),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                Icons.forum_outlined,
-                size: 48,
-                color: theme.colorScheme.primary,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                l10n.conversationEmptyTitle,
-                style: theme.textTheme.titleLarge,
-                textAlign: TextAlign.center,
+              Semantics(
+                header: true,
+                child: Text(
+                  l10n.conversationEmptyTitle,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.4,
+                  ),
+                ),
               ),
               const SizedBox(height: 8),
               Text(
                 l10n.conversationEmptyBody,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: AppPalette.of(context).secondaryText,
                 ),
-                textAlign: TextAlign.center,
               ),
             ],
           ),

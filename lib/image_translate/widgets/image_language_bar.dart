@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/image_translate/cubit/image_translate_cubit.dart';
 import 'package:mozhi/image_translate/widgets/image_language_picker.dart';
 import 'package:mozhi/image_translate/widgets/image_translate_labels.dart';
@@ -60,19 +61,22 @@ class ImageLanguageBar extends StatelessWidget {
             key: const Key('image_translate_source_button'),
             label: sourceLabel,
             semanticLabel: l10n.translateSourceLanguage(sourceLabel),
-            icon: state.source.isAuto ? Icons.auto_awesome_outlined : null,
+            code: state.source.isAuto && detected != null
+                ? detected
+                : state.source.code,
             onPressed: () => unawaited(_pick(context, source: true)),
           ),
         ),
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 8),
-          child: ExcludeSemantics(child: Icon(Icons.arrow_forward)),
+          child: ExcludeSemantics(child: Icon(Icons.arrow_forward, size: 20)),
         ),
         Expanded(
           child: _LanguageButton(
             key: const Key('image_translate_target_button'),
             label: targetLabel,
             semanticLabel: l10n.translateTargetLanguage(targetLabel),
+            code: state.target.isCustom ? null : state.target.code,
             onPressed: () => unawaited(_pick(context, source: false)),
           ),
         ),
@@ -81,22 +85,27 @@ class ImageLanguageBar extends StatelessWidget {
   }
 }
 
+/// An outlined hairline pill with the language's avatar.
 class _LanguageButton extends StatelessWidget {
   const new({
     required this.label,
     required this.semanticLabel,
     required this.onPressed,
-    this.icon,
+    this.code,
     super.key,
   });
 
   final String label;
   final String semanticLabel;
-  final IconData? icon;
+
+  /// Language code for the avatar; null shows none (custom targets).
+  final String? code;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
+    final palette = AppPalette.of(context);
+    final code = this.code;
     return Semantics(
       button: true,
       label: semanticLabel,
@@ -105,19 +114,23 @@ class _LanguageButton extends StatelessWidget {
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
           minimumSize: const Size(0, 48),
-          padding: const EdgeInsets.symmetric(horizontal: 12),
+          foregroundColor: Theme.of(context).colorScheme.onSurface,
+          side: BorderSide(color: palette.hairline),
+          shape: const StadiumBorder(),
+          padding: const EdgeInsetsDirectional.fromSTEB(6, 6, 8, 6),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (icon != null) ...[
-              Icon(icon, size: 18),
-              const SizedBox(width: 6),
+            if (code != null) ...[
+              LanguageAvatar(code: code, size: 28),
+              const SizedBox(width: 8),
             ],
             Flexible(
               child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
             ),
-            const Icon(Icons.arrow_drop_down),
+            Icon(Icons.expand_more, size: 20, color: palette.secondaryText),
           ],
         ),
       ),

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/image_translate/cubit/image_translate_cubit.dart';
 import 'package:mozhi/image_translate/models/models.dart';
 import 'package:mozhi/image_translate/widgets/image_translate_labels.dart';
@@ -27,7 +28,12 @@ class ImageMethodSelector extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(l10n.imageTranslateMethodLabel, style: theme.textTheme.labelLarge),
+        Text(
+          l10n.imageTranslateMethodLabel,
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w800,
+          ),
+        ),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
@@ -50,7 +56,7 @@ class ImageMethodSelector extends StatelessWidget {
           Text(
             imageMethodDescription(l10n, selected.kind),
             style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+              color: AppPalette.of(context).secondaryText,
             ),
           ),
         ],

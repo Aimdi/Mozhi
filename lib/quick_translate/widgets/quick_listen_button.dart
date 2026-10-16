@@ -147,6 +147,8 @@ class _QuickListenButtonState extends State<QuickListenButton> {
       onTriggered: enabled ? _listenSlowly : null,
       child: IconButton(
         key: const Key('quick_translate_listen'),
+        // An accent toolbar icon, like the compose sheet's.
+        color: Theme.of(context).colorScheme.primary,
         isSelected: _playing,
         icon: Icon(Icons.volume_up_outlined, semanticLabel: label),
         selectedIcon: Icon(Icons.stop_circle_outlined, semanticLabel: label),

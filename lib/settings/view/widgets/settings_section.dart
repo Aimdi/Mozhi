@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 
 /// Horizontal padding that keeps content at most [maxWidth] wide and
 /// centered, with a 16 dp gutter on small screens.
@@ -14,7 +15,8 @@ EdgeInsets centeredPadding(
   return EdgeInsets.fromLTRB(horizontal, top, horizontal, bottom);
 }
 
-/// A titled group of settings rendered as a calm, rounded card.
+/// A titled group of settings in the X style: a bold section heading,
+/// plain rows and a hairline that closes the group (no card, no tint).
 ///
 /// Use [SettingsIcon] for the leading icons of the tiles inside.
 class SettingsSection extends StatelessWidget {
@@ -26,48 +28,38 @@ class SettingsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = theme.colorScheme;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(16, 8, 16, 10),
+            padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 8),
             child: Semantics(
               header: true,
               child: Text(
                 title,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  color: colors.primary,
-                  fontWeight: FontWeight.w600,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  color: theme.colorScheme.onSurface,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ),
           ),
-          Card.filled(
-            margin: EdgeInsets.zero,
-            color: colors.surfaceContainerLow,
-            clipBehavior: Clip.antiAlias,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Column(children: children),
-            ),
-          ),
+          ...children,
+          const SizedBox(height: 8),
+          const Hairline(),
         ],
       ),
     );
   }
 }
 
-/// A settings tile's leading icon on a soft tinted square.
-///
-/// Tinted with the primary colour, or with [color] (e.g. the error colour
-/// for destructive actions). In a disabled tile, which greys out its icons
-/// through the [IconTheme], it takes that grey instead.
+/// A settings row's leading icon: a plain outline icon in the secondary
+/// text colour, or in [color] (e.g. the error colour for destructive
+/// actions). In a disabled tile, which greys out its icons through the
+/// [IconTheme], it takes that grey instead.
 class SettingsIcon extends StatelessWidget {
   const new(this.icon, {this.color, super.key});
 
@@ -76,35 +68,24 @@ class SettingsIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final secondary = AppPalette.of(context).secondaryText;
     final inherited = IconTheme.of(context).color;
-    // An enabled ListTile gives its icons onSurfaceVariant.
-    final enabled = inherited == null || inherited == colors.onSurfaceVariant;
-    final foreground = enabled ? color ?? colors.primary : inherited;
-    return SizedBox.square(
-      dimension: 40,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: foreground.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Icon(icon, size: 22, color: foreground),
-      ),
-    );
+    // A disabled ListTile greys its icons out with a translucent colour.
+    final enabled = inherited == null || inherited.a >= 0.5;
+    final foreground = enabled ? color ?? secondary : inherited;
+    return Icon(icon, size: 24, color: foreground);
   }
 }
 
-/// A separator before destructive actions at the end of a
+/// A hairline before destructive actions at the end of a
 /// [SettingsSection].
 class SettingsDangerDivider extends StatelessWidget {
   const new({super.key});
 
   @override
-  Widget build(BuildContext context) => Divider(
-    height: 13,
-    indent: 16,
-    endIndent: 16,
-    color: Theme.of(context).colorScheme.outlineVariant,
+  Widget build(BuildContext context) => const Padding(
+    padding: EdgeInsets.symmetric(vertical: 6),
+    child: Hairline(),
   );
 }
 

@@ -4,7 +4,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/core/undo_snack_bar.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/history/view/widgets/clear_history_dialog.dart';
@@ -32,7 +34,8 @@ class HistoryView extends StatefulWidget {
   State<HistoryView> createState() => _HistoryViewState();
 }
 
-class _HistoryViewState extends State<HistoryView> {
+class _HistoryViewState extends State<HistoryView>
+    with SingleTickerProviderStateMixin {
   late final TextEditingController _search = TextEditingController(
     text: context.read<HistoryCubit>().state.query,
   );
@@ -43,8 +46,16 @@ class _HistoryViewState extends State<HistoryView> {
   /// Tiles by entry id (see [_tile]).
   final Map<String, HistoryEntryTile> _tiles = {};
 
+  /// The All / Favorites tabs, kept in step with the cubit's filter.
+  late final TabController _tabs = TabController(
+    length: 2,
+    vsync: this,
+    initialIndex: context.read<HistoryCubit>().state.favoritesOnly ? 1 : 0,
+  );
+
   @override
   void dispose() {
+    _tabs.dispose();
     _search.dispose();
     super.dispose();
   }
@@ -54,7 +65,7 @@ class _HistoryViewState extends State<HistoryView> {
       ..setSource(entry.source)
       ..setTarget(entry.target)
       ..setInputAndTranslate(entry.text);
-    context.go('/translate');
+    context.go(AppRoutes.translate);
   }
 
   void _delete(HistoryEntry entry) {
@@ -97,9 +108,21 @@ class _HistoryViewState extends State<HistoryView> {
           ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     final hasEntries = state.entries.any((e) => !_dismissed.contains(e.id));
 
-    return BlocListener<HistoryCubit, HistoryState>(
-      listenWhen: (previous, current) => previous.entries != current.entries,
-      listener: _forgetDeleted,
+    final cubit = context.read<HistoryCubit>();
+    return MultiBlocListener(
+      listeners: [
+        BlocListener<HistoryCubit, HistoryState>(
+          listenWhen: (previous, current) =>
+              previous.entries != current.entries,
+          listener: _forgetDeleted,
+        ),
+        BlocListener<HistoryCubit, HistoryState>(
+          listenWhen: (previous, current) =>
+              previous.favoritesOnly != current.favoritesOnly,
+          listener: (context, state) =>
+              _tabs.animateTo(state.favoritesOnly ? 1 : 0),
+        ),
+      ],
       child: Scaffold(
         appBar: AppBar(
           title: Text(l10n.historyTitle),
@@ -112,6 +135,13 @@ class _HistoryViewState extends State<HistoryView> {
               ),
           ],
         ),
+        floatingActionButton: hasEntries
+            ? FloatingActionButton(
+                tooltip: l10n.historyNewTranslation,
+                onPressed: () => context.go(AppRoutes.translate),
+                child: const Icon(Icons.add_rounded),
+              )
+            : null,
         body: LayoutBuilder(
           builder: (context, constraints) {
             final padding = centeredPadding(
@@ -143,39 +173,37 @@ class _HistoryViewState extends State<HistoryView> {
                         ],
                         onChanged: _onSearch,
                       ),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          // Checkmarks show the selection; the app theme
-                          // hides them and the fill alone is too faint
-                          // (WCAG 1.4.1, 1.4.11).
-                          ChoiceChip(
-                            showCheckmark: true,
-                            label: Text(l10n.historyFilterAll),
-                            selected: !state.favoritesOnly,
-                            onSelected: (_) => context
-                                .read<HistoryCubit>()
-                                .setFavoritesOnly(enabled: false),
-                          ),
-                          ChoiceChip(
-                            showCheckmark: true,
-                            avatar: state.favoritesOnly
-                                ? null
-                                : const Icon(Icons.star_outline_rounded),
-                            label: Text(l10n.historyFilterFavorites),
-                            selected: state.favoritesOnly,
-                            onSelected: (_) => context
-                                .read<HistoryCubit>()
-                                .setFavoritesOnly(enabled: true),
-                          ),
-                        ],
-                      ),
-                      if (maxAge != null) _RetentionNote(days: maxAge.inDays),
                     ],
                   ),
                 ),
+                // X-style tabs that stay on top of the timeline.
+                PinnedHeaderSliver(
+                  child: BlurBar(
+                    bottom: true,
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: padding.left - 16,
+                      ),
+                      child: TabBar(
+                        controller: _tabs,
+                        dividerHeight: 0,
+                        onTap: (index) =>
+                            cubit.setFavoritesOnly(enabled: index == 1),
+                        tabs: [
+                          Tab(text: l10n.historyFilterAll),
+                          Tab(text: l10n.historyFilterFavorites),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                if (maxAge != null)
+                  SliverPadding(
+                    padding: padding.copyWith(top: 0, bottom: 0),
+                    sliver: SliverToBoxAdapter(
+                      child: _RetentionNote(days: maxAge.inDays),
+                    ),
+                  ),
                 ..._content(context, state, visible, hasEntries, padding),
               ],
             );
@@ -241,7 +269,7 @@ class _HistoryViewState extends State<HistoryView> {
               l10n.historyEmptyTitle,
               l10n.historyEmptyBody,
               FilledButton.icon(
-                onPressed: () => context.go('/translate'),
+                onPressed: () => context.go(AppRoutes.translate),
                 icon: const Icon(Icons.translate),
                 label: Text(l10n.historyEmptyAction),
               ),
@@ -298,13 +326,13 @@ class _HistoryViewState extends State<HistoryView> {
     }
     final theme = Theme.of(context);
     final headerStyle = theme.textTheme.labelLarge?.copyWith(
-      color: theme.colorScheme.primary,
-      fontWeight: FontWeight.w600,
+      color: AppPalette.of(context).secondaryText,
+      fontWeight: FontWeight.w700,
     );
-    final dividerColor = theme.colorScheme.outlineVariant;
     return [
       SliverPadding(
-        padding: padding.copyWith(top: 8, bottom: 32),
+        // Room below the last row for the floating action button.
+        padding: padding.copyWith(top: 0, bottom: 96),
         // Built lazily: only the rows on screen exist, however long the
         // history is.
         sliver: SliverList.builder(
@@ -320,34 +348,10 @@ class _HistoryViewState extends State<HistoryView> {
             final HistoryEntry entry => _tile(entry),
             final DateTime day => Padding(
               key: ValueKey(day),
-              padding: EdgeInsetsDirectional.fromSTEB(
-                4,
-                index == 0 ? 8 : 20,
-                4,
-                10,
-              ),
-              // The label sits on a hairline that runs to the end; it
-              // covers the line with the page colour, so it can wrap freely
-              // at large text sizes.
-              child: Stack(
-                alignment: AlignmentDirectional.centerStart,
-                children: [
-                  Positioned.fill(
-                    child: Center(
-                      child: Divider(color: dividerColor, height: 1),
-                    ),
-                  ),
-                  ColoredBox(
-                    color: theme.scaffoldBackgroundColor,
-                    child: Padding(
-                      padding: const EdgeInsetsDirectional.only(end: 12),
-                      child: Semantics(
-                        header: true,
-                        child: Text(_dayLabel(l10n, day), style: headerStyle),
-                      ),
-                    ),
-                  ),
-                ],
+              padding: const EdgeInsetsDirectional.fromSTEB(4, 16, 4, 4),
+              child: Semantics(
+                header: true,
+                child: Text(_dayLabel(l10n, day), style: headerStyle),
               ),
             ),
             _ => const SizedBox.shrink(), // coverage:ignore-line
@@ -400,9 +404,9 @@ class _RetentionNote extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color = theme.colorScheme.onSurfaceVariant;
+    final color = AppPalette.of(context).secondaryText;
     return Padding(
-      padding: const EdgeInsetsDirectional.fromSTEB(4, 12, 4, 0),
+      padding: const EdgeInsetsDirectional.fromSTEB(4, 12, 4, 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -428,41 +432,41 @@ class _HistoryDisabledBanner extends StatelessWidget {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final palette = AppPalette.of(context);
+    // A flat, hairline-bordered notice with a pill action.
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: Card.filled(
-        margin: EdgeInsets.zero,
-        color: colors.tertiaryContainer,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border.all(color: palette.hairline),
+          borderRadius: BorderRadius.circular(16),
+        ),
         child: Padding(
-          padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 8, 4),
+          padding: const EdgeInsetsDirectional.fromSTEB(16, 14, 12, 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    Icons.history_toggle_off,
-                    color: colors.onTertiaryContainer,
-                  ),
+                  Icon(Icons.history_toggle_off, color: colors.onSurface),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       l10n.historyDisabledBanner,
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: colors.onTertiaryContainer,
+                        color: colors.onSurface,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
                 ],
               ),
+              const SizedBox(height: 8),
               Align(
                 alignment: AlignmentDirectional.centerEnd,
-                child: TextButton(
-                  style: TextButton.styleFrom(
-                    foregroundColor: colors.onTertiaryContainer,
-                  ),
+                child: FilledButton(
+                  style: FilledButton.styleFrom(shape: const StadiumBorder()),
                   onPressed: () => context.read<SettingsCubit>().setSaveHistory(
                     enabled: true,
                   ),

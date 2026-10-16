@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/undo_snack_bar.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/presets/cubit/presets_cubit.dart';
 import 'package:mozhi/presets/models/preset.dart';
@@ -227,7 +228,7 @@ class _PresetsViewState extends State<PresetsView> {
               return PresetsMessage(
                 icon: Icons.error_outline,
                 title: l10n.presetsLoadFailed,
-                action: FilledButton.tonal(
+                action: FilledButton(
                   onPressed: () => unawaited(_cubit.load()),
                   child: Text(l10n.commonRetry),
                 ),
@@ -243,7 +244,7 @@ class _PresetsViewState extends State<PresetsView> {
                 icon: Icons.tune,
                 title: l10n.presetsEmptyTitle,
                 body: l10n.presetsEmptyBody,
-                action: FilledButton.tonalIcon(
+                action: FilledButton.icon(
                   key: const Key('presets_restore_examples'),
                   onPressed: () => unawaited(_restoreExamples()),
                   icon: const Icon(Icons.auto_awesome_outlined),
@@ -255,7 +256,13 @@ class _PresetsViewState extends State<PresetsView> {
               key: const Key('presets_list'),
               buildDefaultDragHandles: false,
               padding: padding,
-              header: _Intro(text: l10n.presetsIntro),
+              header: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _Intro(text: l10n.presetsIntro),
+                  const Hairline(),
+                ],
+              ),
               itemCount: presets.length,
               onReorderItem: (from, to) {
                 // Indexes refer to the visible list; map them back.
@@ -302,7 +309,7 @@ class _Intro extends StatelessWidget {
       child: Text(
         text,
         style: theme.textTheme.bodyMedium?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
+          color: AppPalette.of(context).secondaryText,
         ),
       ),
     );
@@ -335,104 +342,106 @@ class _PresetTile extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final name = l10n.presetName(preset);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Dismissible(
-        key: ValueKey('dismiss-${preset.id}'),
-        direction: DismissDirection.endToStart,
-        onDismissed: (_) => onDismissed(),
-        background: Container(
-          alignment: AlignmentDirectional.centerEnd,
-          padding: const EdgeInsetsDirectional.only(end: 24),
-          decoration: BoxDecoration(
-            color: colors.errorContainer,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Icon(Icons.delete_outline, color: colors.onErrorContainer),
-        ),
-        child: Card.filled(
-          margin: EdgeInsets.zero,
-          color: colors.surfaceContainerLow,
-          clipBehavior: Clip.antiAlias,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: ListTile(
-            minTileHeight: 72,
-            contentPadding: const EdgeInsetsDirectional.only(start: 4, end: 4),
-            onTap: onTap,
-            leading: ReorderableDragStartListener(
-              index: index,
-              child: Semantics(
-                container: true,
-                label: l10n.presetsReorderHint(name),
-                child: const SizedBox(
-                  width: 48,
-                  height: 48,
-                  child: Icon(Icons.drag_indicator),
+    // A flat list row with a hairline below, X style.
+    return Dismissible(
+      key: ValueKey('dismiss-${preset.id}'),
+      direction: DismissDirection.endToStart,
+      onDismissed: (_) => onDismissed(),
+      background: Container(
+        alignment: AlignmentDirectional.centerEnd,
+        padding: const EdgeInsetsDirectional.only(end: 24),
+        color: colors.errorContainer,
+        child: Icon(Icons.delete_outline, color: colors.onErrorContainer),
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              minTileHeight: 72,
+              contentPadding: EdgeInsetsDirectional.zero,
+              onTap: onTap,
+              leading: ReorderableDragStartListener(
+                index: index,
+                child: Semantics(
+                  container: true,
+                  label: l10n.presetsReorderHint(name),
+                  child: const SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: Icon(Icons.drag_indicator),
+                  ),
                 ),
               ),
-            ),
-            title: Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Text(name, style: theme.textTheme.titleMedium),
-                if (isDefault) _DefaultBadge(label: l10n.presetsDefaultBadge),
-              ],
-            ),
-            subtitle: Text(
-              l10n.presetSummary(preset.options),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            trailing: PopupMenuButton<_PresetAction>(
-              tooltip: l10n.presetsActionsTooltip(name),
-              onSelected: onAction,
-              itemBuilder: (context) => [
-                _item(
-                  _PresetAction.edit,
-                  Icons.edit_outlined,
-                  l10n.presetsEdit,
-                ),
-                _item(
-                  _PresetAction.toggleDefault,
-                  isDefault ? Icons.star_rounded : Icons.star_outline_rounded,
-                  isDefault
-                      ? l10n.presetsRemoveDefault
-                      : l10n.presetsSetDefault,
-                ),
-                _item(
-                  _PresetAction.duplicate,
-                  Icons.copy_all_outlined,
-                  l10n.presetsDuplicate,
-                ),
-                _item(
-                  _PresetAction.share,
-                  Icons.share_outlined,
-                  l10n.presetsShareOne,
-                ),
-                if (index > 0)
-                  _item(
-                    _PresetAction.moveUp,
-                    Icons.arrow_upward,
-                    l10n.presetsMoveUp,
+              title: Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(
+                    name,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                if (index < count - 1)
+                  if (isDefault) _DefaultBadge(label: l10n.presetsDefaultBadge),
+                ],
+              ),
+              subtitle: Text(
+                l10n.presetSummary(preset.options),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: AppPalette.of(context).secondaryText),
+              ),
+              trailing: PopupMenuButton<_PresetAction>(
+                tooltip: l10n.presetsActionsTooltip(name),
+                onSelected: onAction,
+                itemBuilder: (context) => [
                   _item(
-                    _PresetAction.moveDown,
-                    Icons.arrow_downward,
-                    l10n.presetsMoveDown,
+                    _PresetAction.edit,
+                    Icons.edit_outlined,
+                    l10n.presetsEdit,
                   ),
-                _item(
-                  _PresetAction.delete,
-                  Icons.delete_outline,
-                  l10n.commonDelete,
-                ),
-              ],
+                  _item(
+                    _PresetAction.toggleDefault,
+                    isDefault ? Icons.star_rounded : Icons.star_outline_rounded,
+                    isDefault
+                        ? l10n.presetsRemoveDefault
+                        : l10n.presetsSetDefault,
+                  ),
+                  _item(
+                    _PresetAction.duplicate,
+                    Icons.copy_all_outlined,
+                    l10n.presetsDuplicate,
+                  ),
+                  _item(
+                    _PresetAction.share,
+                    Icons.share_outlined,
+                    l10n.presetsShareOne,
+                  ),
+                  if (index > 0)
+                    _item(
+                      _PresetAction.moveUp,
+                      Icons.arrow_upward,
+                      l10n.presetsMoveUp,
+                    ),
+                  if (index < count - 1)
+                    _item(
+                      _PresetAction.moveDown,
+                      Icons.arrow_downward,
+                      l10n.presetsMoveDown,
+                    ),
+                  _item(
+                    _PresetAction.delete,
+                    Icons.delete_outline,
+                    l10n.commonDelete,
+                  ),
+                ],
+              ),
             ),
-          ),
+            const Hairline(),
+          ],
         ),
       ),
     );
@@ -459,10 +468,10 @@ class _DefaultBadge extends StatelessWidget {
     final colors = theme.colorScheme;
     return Container(
       key: const Key('presets_default_badge'),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      decoration: ShapeDecoration(
         color: colors.primaryContainer,
-        borderRadius: BorderRadius.circular(8),
+        shape: const StadiumBorder(),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -473,6 +482,7 @@ class _DefaultBadge extends StatelessWidget {
             label,
             style: theme.textTheme.labelSmall?.copyWith(
               color: colors.onPrimaryContainer,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],

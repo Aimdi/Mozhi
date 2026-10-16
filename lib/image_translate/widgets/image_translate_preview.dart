@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/image_translate/cubit/image_translate_cubit.dart';
 import 'package:mozhi/image_translate/widgets/image_translate_progress.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -27,10 +28,14 @@ class ImageTranslatePreview extends StatelessWidget {
     final showTranslated = translated != null && !state.showOriginal;
     final bytes = showTranslated ? translated : image.bytes;
 
-    final viewer = Card(
-      margin: EdgeInsets.zero,
+    // X media: a 16 dp rounded frame with a hairline edge.
+    final viewer = Container(
       clipBehavior: Clip.antiAlias,
-      color: theme.colorScheme.surfaceContainerHighest,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppPalette.of(context).hairline),
+      ),
       child: Stack(
         fit: StackFit.expand,
         children: [

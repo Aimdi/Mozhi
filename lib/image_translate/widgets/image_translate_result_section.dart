@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/image_translate/cubit/image_translate_cubit.dart';
 import 'package:mozhi/image_translate/models/models.dart';
 import 'package:mozhi/image_translate/widgets/image_translate_links.dart';
@@ -40,7 +41,7 @@ class ImageTranslateResultSection extends StatelessWidget {
             busy: state.isWorking,
           ),
         if (showTranslation) ...[
-          const SizedBox(height: 12),
+          if (result.sourceText.isNotEmpty) const Hairline(),
           _TextCard(
             key: const Key('image_translate_translation'),
             label: l10n.imageTranslateTranslationLabel,
@@ -50,7 +51,7 @@ class ImageTranslateResultSection extends StatelessWidget {
           ),
         ],
         if (result.notes.isNotEmpty) ...[
-          const SizedBox(height: 12),
+          const Hairline(),
           _TextCard(
             key: const Key('image_translate_notes'),
             label: l10n.imageTranslateNotesLabel,
@@ -58,14 +59,16 @@ class ImageTranslateResultSection extends StatelessWidget {
           ),
         ],
         if (hasActions && !state.isWorking) ...[
-          const SizedBox(height: 8),
+          const Hairline(),
           _ResultActions(state: state, result: result),
+          const Hairline(),
         ],
       ],
     );
   }
 }
 
+/// A flat result section: a bold label over the text (no card).
 class _TextCard extends StatelessWidget {
   const new({
     required this.label,
@@ -83,36 +86,50 @@ class _TextCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Card(
-      margin: EdgeInsets.zero,
-      color: emphasized
-          ? theme.colorScheme.secondaryContainer
-          : theme.colorScheme.surfaceContainerLow,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(label, style: theme.textTheme.labelLarge),
-            const SizedBox(height: 8),
-            if (streaming) ...[
-              const LinearProgressIndicator(),
-              const SizedBox(height: 8),
-            ],
-            SelectableText(
-              text,
-              style: emphasized
-                  ? theme.textTheme.bodyLarge?.copyWith(
-                      color: theme.colorScheme.onSecondaryContainer,
-                    )
-                  : theme.textTheme.bodyMedium,
+    final palette = AppPalette.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _Label(label),
+          const SizedBox(height: 8),
+          if (streaming) ...[
+            LinearProgressIndicator(
+              borderRadius: BorderRadius.circular(2),
+              backgroundColor: palette.hairline,
             ),
+            const SizedBox(height: 8),
           ],
-        ),
+          SelectableText(
+            text,
+            style: emphasized
+                ? theme.textTheme.titleLarge?.copyWith(height: 1.35)
+                : theme.textTheme.bodyMedium?.copyWith(
+                    color: palette.secondaryText,
+                  ),
+          ),
+        ],
       ),
     );
   }
+}
+
+class _Label extends StatelessWidget {
+  const new(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    header: true,
+    child: Text(
+      text,
+      style: Theme.of(context).textTheme.titleSmall
+          ?.copyWith(fontWeight: FontWeight.w800),
+    ),
+  );
 }
 
 class _SourceTextCard extends StatefulWidget {
@@ -147,65 +164,100 @@ class _SourceTextCardState extends State<_SourceTextCard> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    return Card(
+    final palette = AppPalette.of(context);
+    return Padding(
       key: const Key('image_translate_source_text'),
-      margin: EdgeInsets.zero,
-      color: theme.colorScheme.surfaceContainerLow,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              l10n.imageTranslateSourceTextLabel,
-              style: theme.textTheme.labelLarge,
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _Label(l10n.imageTranslateSourceTextLabel),
+          const SizedBox(height: 8),
+          if (widget.editable) ...[
+            TextField(
+              key: const Key('image_translate_source_field'),
+              controller: _controller,
+              minLines: 2,
+              maxLines: 8,
+              keyboardType: TextInputType.multiline,
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(16)),
+                ),
+                helperText: l10n.imageTranslateEditHint,
+                helperMaxLines: 2,
+              ),
             ),
             const SizedBox(height: 8),
-            if (widget.editable) ...[
-              TextField(
-                key: const Key('image_translate_source_field'),
-                controller: _controller,
-                minLines: 2,
-                maxLines: 8,
-                keyboardType: TextInputType.multiline,
-                decoration: InputDecoration(
-                  border: const OutlineInputBorder(),
-                  helperText: l10n.imageTranslateEditHint,
-                  helperMaxLines: 2,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Align(
-                alignment: AlignmentDirectional.centerEnd,
-                child: FilledButton.tonalIcon(
-                  key: const Key('image_translate_retranslate_button'),
-                  onPressed: widget.busy
-                      ? null
-                      : () => unawaited(
-                          context.read<ImageTranslateCubit>().translateText(
-                            _controller.text,
-                          ),
+            Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: FilledButton.icon(
+                key: const Key('image_translate_retranslate_button'),
+                onPressed: widget.busy
+                    ? null
+                    : () => unawaited(
+                        context.read<ImageTranslateCubit>().translateText(
+                          _controller.text,
                         ),
-                  style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
-                  icon: const Icon(Icons.translate),
-                  label: Text(l10n.imageTranslateRetranslate),
+                      ),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(0, 48),
+                  shape: const StadiumBorder(),
+                  textStyle: const TextStyle(fontWeight: FontWeight.w700),
                 ),
+                icon: const Icon(Icons.translate),
+                label: Text(l10n.imageTranslateRetranslate),
               ),
-            ] else
-              SelectableText(widget.text, style: theme.textTheme.bodyMedium),
-          ],
-        ),
+            ),
+          ] else
+            SelectableText(
+              widget.text,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: palette.secondaryText,
+              ),
+            ),
+        ],
       ),
     );
   }
 }
 
-class _ResultActions extends StatelessWidget {
+/// X-style action row: quiet icons (copy turns green with a check) and an
+/// "Open in translator" pill.
+class _ResultActions extends StatefulWidget {
   const new({required this.state, required this.result});
 
   final ImageTranslateState state;
   final ImageTranslation result;
+
+  @override
+  State<_ResultActions> createState() => _ResultActionsState();
+}
+
+class _ResultActionsState extends State<_ResultActions> {
+  static const _copiedDuration = Duration(seconds: 2);
+
+  bool _copied = false;
+  Timer? _copiedTimer;
+
+  ImageTranslation get result => widget.result;
+
+  @override
+  void dispose() {
+    _copiedTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _copy(String text) async {
+    await copyImageTranslation(context, text);
+    if (!mounted) return;
+    _copiedTimer?.cancel();
+    setState(() => _copied = true);
+    _copiedTimer = Timer(_copiedDuration, () {
+      if (mounted) setState(() => _copied = false);
+    });
+  }
 
   Future<void> _share(BuildContext buttonContext) async {
     final box = buttonContext.findRenderObject() as RenderBox?;
@@ -232,6 +284,7 @@ class _ResultActions extends StatelessWidget {
   }
 
   void _openInTranslator(BuildContext context) {
+    final state = widget.state;
     final translate = context.read<TranslateCubit>();
     if (state.source != translate.state.source) {
       translate.setSource(state.source);
@@ -246,37 +299,50 @@ class _ResultActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final palette = AppPalette.of(context);
     final text = result.translatedText;
-    return Wrap(
-      spacing: 4,
-      runSpacing: 4,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        if (text.isNotEmpty)
-          IconButton(
-            key: const Key('image_translate_copy_button'),
-            tooltip: l10n.commonCopy,
-            icon: const Icon(Icons.copy_outlined),
-            onPressed: () => unawaited(copyImageTranslation(context, text)),
-          ),
-        if (text.isNotEmpty || result.hasImage)
-          Builder(
-            builder: (buttonContext) => IconButton(
-              key: const Key('image_translate_share_button'),
-              tooltip: l10n.commonShare,
-              icon: const Icon(Icons.share_outlined),
-              onPressed: () => unawaited(_share(buttonContext)),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 4,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          if (text.isNotEmpty)
+            XActionButton(
+              key: const Key('image_translate_copy_button'),
+              tooltip: l10n.commonCopy,
+              icon: Icons.copy_outlined,
+              activeIcon: Icons.check,
+              active: _copied,
+              activeColor: palette.success,
+              onPressed: () => unawaited(_copy(text)),
             ),
-          ),
-        if (result.sourceText.isNotEmpty)
-          TextButton.icon(
-            key: const Key('image_translate_open_button'),
-            onPressed: () => _openInTranslator(context),
-            style: TextButton.styleFrom(minimumSize: const Size(0, 48)),
-            icon: const Icon(Icons.open_in_new),
-            label: Text(l10n.imageTranslateOpenInTranslator),
-          ),
-      ],
+          if (text.isNotEmpty || result.hasImage)
+            Builder(
+              builder: (buttonContext) => XActionButton(
+                key: const Key('image_translate_share_button'),
+                tooltip: l10n.commonShare,
+                icon: Icons.share_outlined,
+                onPressed: () => unawaited(_share(buttonContext)),
+              ),
+            ),
+          if (result.sourceText.isNotEmpty)
+            OutlinedButton.icon(
+              key: const Key('image_translate_open_button'),
+              onPressed: () => _openInTranslator(context),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(0, 40),
+                tapTargetSize: MaterialTapTargetSize.padded,
+                shape: const StadiumBorder(),
+                side: BorderSide(color: palette.hairline),
+                textStyle: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              icon: const Icon(Icons.open_in_new),
+              label: Text(l10n.imageTranslateOpenInTranslator),
+            ),
+        ],
+      ),
     );
   }
 }

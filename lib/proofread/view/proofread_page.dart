@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/proofread/cubit/proofread_cubit.dart';
 import 'package:mozhi/proofread/widgets/widgets.dart';
@@ -183,7 +184,7 @@ class _WideLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Expanded(
           child: SingleChildScrollView(
@@ -199,6 +200,8 @@ class _WideLayout extends StatelessWidget {
             ),
           ),
         ),
+        // The panes are divided by a hairline, not boxed.
+        Hairline(vertical: true),
         Expanded(
           child: SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(12, 16, 24, 24),

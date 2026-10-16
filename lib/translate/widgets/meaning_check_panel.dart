@@ -146,15 +146,20 @@ class MeaningCheckPanel extends StatelessWidget {
           previous.target != current.target ||
           previous.result != current.result ||
           previous.engine != current.engine,
-      builder: (context, state) {
-        if (state.meaningStatus == ExtraStatus.idle) {
-          return const SizedBox.shrink();
-        }
-        return Padding(
-          padding: const EdgeInsets.only(top: TranslateLayout.gap),
-          child: _MeaningCard(state: state, returnFocusNode: returnFocusNode),
-        );
-      },
+      builder: (context, state) => AnimatedSize(
+        duration: TranslateLayout.motion(context),
+        curve: Curves.easeOutCubic,
+        alignment: AlignmentDirectional.topStart,
+        child: state.meaningStatus == ExtraStatus.idle
+            ? const SizedBox(width: double.infinity)
+            : Padding(
+                padding: const EdgeInsets.only(top: TranslateLayout.gap),
+                child: _MeaningCard(
+                  state: state,
+                  returnFocusNode: returnFocusNode,
+                ),
+              ),
+      ),
     );
   }
 }
@@ -207,18 +212,12 @@ class _MeaningCardState extends State<_MeaningCard> {
     final backTranslationOnly =
         state.backTranslation != null ||
         (state.meaningCheck == null && !state.meaningUsesAi);
-    return Card(
+    return TranslateFlatCard(
       key: const Key('translate_meaning_panel'),
-      margin: EdgeInsets.zero,
       // Separate nodes for the title, the texts and each difference.
       semanticContainer: false,
-      elevation: 0,
-      color: theme.colorScheme.surfaceContainerLow,
-      shape: const RoundedRectangleBorder(
-        borderRadius: TranslateLayout.cardBorderRadius,
-      ),
       child: Padding(
-        padding: const EdgeInsetsDirectional.fromSTEB(20, 4, 4, 16),
+        padding: const EdgeInsetsDirectional.fromSTEB(4, 4, 0, 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -226,9 +225,10 @@ class _MeaningCardState extends State<_MeaningCard> {
               children: [
                 Icon(
                   Icons.fact_check_outlined,
-                  color: theme.colorScheme.onSurfaceVariant,
+                  size: 20,
+                  color: theme.colorScheme.primary,
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Semantics(
                     header: true,
@@ -236,7 +236,7 @@ class _MeaningCardState extends State<_MeaningCard> {
                       backTranslationOnly
                           ? l10n.translateMeaningBackTranslationTitle
                           : l10n.translateMeaningTitle,
-                      style: theme.textTheme.titleMedium,
+                      style: TranslateLayout.headingStyle(context),
                     ),
                   ),
                 ),

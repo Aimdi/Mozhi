@@ -43,15 +43,23 @@ class _ProofreadStatsPanelState extends State<ProofreadStatsPanel> {
     final beforeFlesch = before.fleschReadingEase;
     final afterFlesch = after.fleschReadingEase;
 
-    return Card.outlined(
-      margin: EdgeInsets.zero,
-      clipBehavior: Clip.antiAlias,
+    // A flat section; as a semantics container it reads as one group.
+    return Semantics(
+      container: true,
       child: ExpansionTile(
         key: const PageStorageKey('proofread_stats'),
         shape: const Border(),
         collapsedShape: const Border(),
-        leading: const Icon(Icons.insights_outlined),
-        title: Text(l10n.proofreadStatsTitle),
+        tilePadding: const EdgeInsetsDirectional.symmetric(horizontal: 4),
+        leading: Icon(
+          Icons.insights_outlined,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+        title: Text(
+          l10n.proofreadStatsTitle,
+          style: Theme.of(context).textTheme.titleMedium
+              ?.copyWith(fontWeight: FontWeight.w700),
+        ),
         subtitle: Text(
           l10n.proofreadStatsSummary(
             l10n.proofreadStatsWordCount(
@@ -62,7 +70,7 @@ class _ProofreadStatsPanelState extends State<ProofreadStatsPanel> {
           ),
         ),
         expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
-        childrenPadding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 12),
+        childrenPadding: const EdgeInsetsDirectional.fromSTEB(4, 0, 4, 12),
         children: [
           const _Legend(),
           _StatRow(

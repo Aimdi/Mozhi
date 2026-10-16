@@ -1,5 +1,5 @@
 // Settings round trips: turning history off and switching to the dark
-// theme (which must survive a reload).
+// theme and its Lights out look (which must survive a reload).
 const { expect } = require('@playwright/test');
 const {
   copiedTranslation,
@@ -56,26 +56,41 @@ test('with Save history off, translations are not saved', async ({
   await expect(saveHistory).toBeChecked();
 });
 
-test('the dark theme persists after a reload', async ({ page }) => {
+test('the dark theme and its look persist after a reload', async ({
+  page,
+}) => {
   await openApp(page, '/settings');
   const theme = page.getByRole('group', { name: 'Theme' });
   await scrollTo(page, theme);
-  // The seeded settings use the light theme; "Pure black" only applies
-  // to the dark one.
-  const pureBlack = page.getByRole('switch', { name: /^Pure black/ });
-  await expect(pureBlack).toBeDisabled();
+  // The seeded settings use the light theme; the dark look (Dim or
+  // Lights out) only applies to the dark one.
+  const darkLook = page.getByRole('group', { name: 'Dark theme' });
+  const lightsOut = darkLook.getByRole('radio', { name: 'Lights out' });
+  const dim = darkLook.getByRole('radio', { name: 'Dim' });
+  await expect(lightsOut).toBeDisabled();
   const light = await meanLuminance(page);
   expect(light).toBeGreaterThan(150);
 
   await theme.getByRole('button', { name: 'Dark' }).click();
-  await expect(pureBlack).toBeEnabled();
+  await expect(lightsOut).toBeEnabled();
+  await expect(dim).toBeChecked();
   await expect.poll(() => meanLuminance(page)).toBeLessThan(100);
+  const dimLuminance = await meanLuminance(page);
+
+  await scrollTo(page, lightsOut);
+  await lightsOut.click();
+  await expect(lightsOut).toBeChecked();
+  // True black is darker still than Dim's blue-grey.
+  await expect.poll(() => meanLuminance(page)).toBeLessThan(dimLuminance);
 
   await page.reload();
   await openApp(page, '/settings');
-  await scrollTo(page, page.getByRole('group', { name: 'Theme' }));
-  await expect(page.getByRole('switch', { name: /^Pure black/ }))
-    .toBeEnabled();
+  await scrollTo(page, page.getByRole('group', { name: 'Dark theme' }));
+  await expect(
+    page
+      .getByRole('group', { name: 'Dark theme' })
+      .getByRole('radio', { name: 'Lights out' }),
+  ).toBeChecked();
   await expect.poll(() => meanLuminance(page)).toBeLessThan(100);
 
   // Other screens use it too.

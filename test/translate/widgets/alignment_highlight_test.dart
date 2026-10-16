@@ -155,7 +155,7 @@ void main() {
         final scheme = ThemeData(brightness: brightness).colorScheme;
         final style = HighlightTextEditingController.focusStyle(scheme);
         final text = style.color!;
-        final card = scheme.surfaceContainerLow;
+        final card = TranslateLayout.inputSurface(scheme);
         final (hi, lo) = text.computeLuminance() > card.computeLuminance()
             ? (text.computeLuminance(), card.computeLuminance())
             : (card.computeLuminance(), text.computeLuminance());
