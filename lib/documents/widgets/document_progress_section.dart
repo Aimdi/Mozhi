@@ -2,10 +2,13 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/documents/cubit/document_translate_cubit.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/widgets/translate_error.dart';
+import 'package:translation_repository/translation_repository.dart'
+    show ConsentRequiredException;
 
 /// The translate button, or progress with a cancel button while running,
 /// then the outcome (complete / parts missing).
@@ -145,7 +148,21 @@ class _Status extends StatelessWidget {
   }
 }
 
-/// Chunks that failed, each with its error and a retry button.
+/// How many translation requests retrying the failed parts makes at most
+/// (a part whose batch cannot be split back is translated unit by unit):
+/// what a one-time consent covers.
+int documentRequests(DocumentTranslateState state) {
+  final chunks = state.plan?.chunks ?? const [];
+  var requests = 0;
+  for (final index in state.failures.keys) {
+    final units = index < chunks.length ? chunks[index].units.length : 1;
+    requests += 1 + (units > 1 ? units : 0);
+  }
+  return requests < 1 ? 1 : requests;
+}
+
+/// Chunks that failed, each with its error and a retry button. When the
+/// privacy settings stopped them, the consent prompt instead.
 class DocumentFailuresCard extends StatelessWidget {
   const new({super.key});
 
@@ -158,6 +175,22 @@ class DocumentFailuresCard extends StatelessWidget {
     final failures = state.failures.entries.toList()
       ..sort((a, b) => a.key.compareTo(b.key));
     if (failures.isEmpty) return const SizedBox.shrink();
+    final consent = failures
+        .map((entry) => entry.value)
+        .whereType<ConsentRequiredException>()
+        .firstOrNull;
+    if (consent != null) {
+      // Nothing was sent: once allowed, the failed parts are translated.
+      return Padding(
+        padding: const EdgeInsets.only(top: 16),
+        child: ConsentInlinePrompt(
+          key: const Key('documents_consent'),
+          consent: consent,
+          requests: documentRequests(state),
+          onGranted: () => unawaited(cubit.retryFailed()),
+        ),
+      );
+    }
 
     return Column(
       key: const Key('documents_failures'),

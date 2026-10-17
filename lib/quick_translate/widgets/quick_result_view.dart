@@ -1,10 +1,13 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/quick_translate/cubit/quick_translate_state.dart';
 import 'package:mozhi/quick_translate/models/quick_languages.dart';
 import 'package:mozhi/translate/widgets/translate_error.dart'
     show describeTranslateError;
+import 'package:translation_repository/translation_repository.dart'
+    show ConsentRequiredException;
 
 /// The translation area: progress while loading / translating, the
 /// (streaming) translation, or an error with a retry button.
@@ -30,6 +33,13 @@ class QuickResultView extends StatelessWidget {
         key: const ValueKey('translating'),
         label: l10n.quickTranslateTranslatingTo(state.target.name),
       ),
+      QuickTranslateStatus.failure
+          when state.error is ConsentRequiredException =>
+        ConsentInlinePrompt(
+          key: const Key('quick_translate_consent'),
+          consent: state.error! as ConsentRequiredException,
+          onGranted: onRetry,
+        ),
       QuickTranslateStatus.failure => _Message(
         key: const ValueKey('failure'),
         icon: Icons.error_outline,
@@ -42,6 +52,13 @@ class QuickResultView extends StatelessWidget {
           icon: const Icon(Icons.refresh),
           label: Text(l10n.commonRetry),
         ),
+      ),
+      QuickTranslateStatus.chooseEngine => _Message(
+        key: const ValueKey('chooseEngine'),
+        icon: Icons.alt_route,
+        color: palette.secondaryText,
+        title: l10n.translateChooseEngineTitle,
+        message: l10n.translateChooseEngineBody,
       ),
       QuickTranslateStatus.noEngines => _Message(
         key: const ValueKey('noEngines'),
@@ -107,6 +124,16 @@ class _Translation extends StatelessWidget {
               key: const Key('quick_translate_streaming'),
               semanticsLabel: l10n.translateTranslating,
               borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+        if (state.result?.destination case final destination?
+            when state.hasTranslation)
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: DestinationChip(
+              key: const Key('quick_translate_destination'),
+              destination: destination,
+              engineId: state.result?.engineId,
             ),
           ),
       ],

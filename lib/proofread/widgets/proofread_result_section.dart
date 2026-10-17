@@ -4,6 +4,7 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/proofread/cubit/proofread_cubit.dart';
@@ -52,7 +53,18 @@ class ProofreadResultSection extends StatelessWidget {
           (current.status == ProofreadStatus.success ||
               current.status == ProofreadStatus.failure),
       listener: _announce,
-      child: _buildContent(),
+      // Proofreading is always the user's own action: ask right away.
+      child: ConsentDialogListener<ProofreadCubit, ProofreadState>(
+        consentOf: (state) => state.status == ProofreadStatus.failure
+            ? switch (state.error) {
+                final ConsentRequiredException consent => consent,
+                _ => null,
+              }
+            : null,
+        onGranted: (context) =>
+            unawaited(context.read<ProofreadCubit>().proofread()),
+        child: _buildContent(),
+      ),
     );
   }
 
@@ -541,6 +553,14 @@ class _ErrorCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final scheme = Theme.of(context).colorScheme;
+    final consent = error;
+    if (consent is ConsentRequiredException) {
+      return ConsentInlinePrompt(
+        key: const Key('proofread_consent'),
+        consent: consent,
+        onGranted: () => unawaited(context.read<ProofreadCubit>().proofread()),
+      );
+    }
     return _FlatNotice(
       icon: Icons.error_outline,
       iconColor: scheme.error,

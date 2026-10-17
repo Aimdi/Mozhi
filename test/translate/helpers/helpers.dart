@@ -201,6 +201,8 @@ class TranslateHarness {
     when(() => translate.loadEngines(refresh: any(named: 'refresh')))
         .thenAnswer((_) async {});
     when(() => translate.selectEngine(any())).thenAnswer((_) async {});
+    when(translate.loadDeferredEngines).thenAnswer((_) async {});
+    when(translate.retryAfterConsent).thenAnswer((_) async {});
     when(translate.translate).thenAnswer((_) async {});
     when(() => translate.applySuggestion(any())).thenAnswer((_) async {});
     when(translate.runCompare).thenAnswer((_) async {});

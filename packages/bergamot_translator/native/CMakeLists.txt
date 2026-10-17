@@ -73,6 +73,28 @@ endif()
 set(BUILD_ARCH "${_arch}" CACHE STRING "Marian target architecture" FORCE)
 message(STATUS "mozhi_bergamot: BUILD_ARCH=${BUILD_ARCH}")
 
+# Marian's flags only reach Marian's own directories. Every other target
+# (bergamot's translator sources, PCRE2, SentencePiece, this shim) must be
+# compiled for the same CPU, or the headers they share with Marian take
+# different code paths (e.g. NEON vs SSE emulation on 32-bit ARM).
+separate_arguments(_arch_flags UNIX_COMMAND "-march=${_arch}")
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64)$"
+   AND NOT _arch STREQUAL "native")
+  list(APPEND _arch_flags -msse4.1)
+endif()
+add_compile_options(${_arch_flags})
+
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|arm)")
+  # simd_utils.h (Marian's SSE-on-NEON layer, ARM only) calls fesetround()
+  # without including <fenv.h>; only some C++ libraries include it already.
+  add_compile_options("SHELL:-include fenv.h")
+endif()
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^arm" AND NOT CMAKE_SYSTEM_PROCESSOR MATCHES "^arm64")
+  # AArch64-only NEON intrinsics used by simd_utils and Marian's ruy glue.
+  add_compile_options(
+    "SHELL:-include ${CMAKE_CURRENT_SOURCE_DIR}/src/armv7_neon_compat.h")
+endif()
+
 # --- Engine options ------------------------------------------------------------
 # CACHE ... FORCE so that option() in every subproject (including those
 # without policy CMP0077) sees them.
@@ -172,6 +194,20 @@ else()
   unset(ENV{GIT_DIR})
 endif()
 
+# Marian adds its configuration (ARM FMA SSE / USE_INTGEMM, USE_RUY_SGEMM,
+# -flax-vector-conversions, ...) as directory properties, which do not reach
+# bergamot's translator sources (a sibling directory) or this shim. Its
+# headers depend on them (e.g. the SSE-on-NEON layer on ARM), so every
+# translation unit must agree: forward them through the bergamot target.
+get_directory_property(_marian_definitions
+  DIRECTORY "${_inference}/marian-fork/src" COMPILE_DEFINITIONS)
+get_directory_property(_marian_options
+  DIRECTORY "${_inference}/marian-fork/src" COMPILE_OPTIONS)
+message(STATUS "mozhi_bergamot: Marian definitions: ${_marian_definitions}")
+target_compile_definitions(bergamot-translator-source PUBLIC
+  ${_marian_definitions})
+target_compile_options(bergamot-translator-source PUBLIC ${_marian_options})
+
 if(ANDROID AND TARGET pathie-cpp)
   # Bionic declares iconv only from API 28 (minSdk is lower). Android paths
   # are always UTF-8, so pathie never converts and iconv is never called.
@@ -204,3 +240,10 @@ if(ANDROID)
 endif()
 
 install(TARGETS mozhi_bergamot LIBRARY DESTINATION lib)
+
+# Smoke-test / benchmark CLI (not part of the app): `--target mozhi_bergamot_cli`.
+add_executable(mozhi_bergamot_cli EXCLUDE_FROM_ALL tool/mozhi_bergamot_cli.c)
+target_link_libraries(mozhi_bergamot_cli PRIVATE mozhi_bergamot)
+if(NOT ANDROID AND NOT APPLE AND NOT WIN32)
+  set_target_properties(mozhi_bergamot_cli PROPERTIES BUILD_RPATH "$ORIGIN")
+endif()

@@ -40,7 +40,8 @@ typedef _Languages = ({List<Language> sources, List<Language> targets});
 ///   translation cancels the in-flight one (stream subscription cancel).
 /// * Text from outside the app ([setExternalInput]) is length-capped and
 ///   only auto-translated when that costs nothing (see there).
-/// * Completed translations are added to `history` when `saveHistory`.
+/// * Completed translations are added to `history` when `saveHistory` (and
+///   not `incognito`).
 ///   Consecutive instant translations of the same, growing text update one
 ///   entry instead of adding one per typing pause.
 /// * Changing text/engine/languages/options clears extras.
@@ -211,6 +212,12 @@ class TranslateCubit extends Cubit<TranslateState> {
   Completer<void>? _translationDone;
   int _translationRequest = 0;
 
+  /// Translation requests stopped for consent ([TranslateState.consent]).
+  int _consentRequests = 0;
+
+  /// Runs the translation [TranslateState.consent] stopped again.
+  Future<void> Function()? _consentRetry;
+
   StreamSubscription<CompareEntry>? _compare;
   Completer<void>? _compareDone;
   int _compareRequest = 0;
@@ -364,15 +371,40 @@ class TranslateCubit extends Cubit<TranslateState> {
       engines,
       _qualityEngineId(_settings.state.qualityMode),
     );
+    final fast = _engineIn(engines, _settings.state.fastEngineId);
+    final best = _engineIn(engines, _settings.state.bestEngineId);
+    final candidates = _engineCandidates(
+      engines,
+      preferred: picked ?? modeEngine,
+    );
+    if (candidates.isEmpty) {
+      // The chosen engine is gone and nothing may replace it silently: the
+      // user picks one (the engine list is shown).
+      _languagesRequest++;
+      _cancelTranslation();
+      emit(
+        _clearedExtras(_withoutExtraTranslations(state)).copyWith(
+          enginesStatus: EnginesStatus.ready,
+          engines: engines,
+          engine: () => null,
+          assistEngine: () => null,
+          status: TranslateStatus.idle,
+          result: () => null,
+          error: () => null,
+          qualityMode: QualityMode.off,
+          fastEngine: () => fast,
+          bestEngine: () => best,
+        ),
+      );
+      return;
+    }
     final languagesRequest = ++_languagesRequest;
     final loaded = await _loadFirstUsable(
-      _engineCandidates(engines, preferred: picked ?? modeEngine),
+      candidates,
       isCurrent: () =>
           _isCurrentEngines(request) && languagesRequest == _languagesRequest,
     );
     if (!_isCurrentEngines(request)) return;
-    final fast = _engineIn(engines, _settings.state.fastEngineId);
-    final best = _engineIn(engines, _settings.state.bestEngineId);
     if (languagesRequest != _languagesRequest) {
       // A switch started meanwhile and maps its own languages (and sets the
       // status): only apply the refreshed list.
@@ -593,9 +625,11 @@ class TranslateCubit extends Cubit<TranslateState> {
 
   /// The engine [QualityMode.off] switches to: the saved normal engine
   /// (`AppSettings.engineId`), else the one in use before the quality mode
-  /// was turned on, else the default (or first) engine other than the
-  /// current one (the quality mode's), so that turning a mode off never
-  /// keeps translating with its engine while another one is available.
+  /// was turned on, else the on-device engine, the default engine or the
+  /// first engine that is not a cloud provider, other than the current one
+  /// (the quality mode's), so that turning a mode off never keeps
+  /// translating with its engine while another one is available (and never
+  /// picks a cloud provider by itself).
   TranslationEngine? _normalEngine() {
     final engines = state.engines;
     final saved =
@@ -603,7 +637,11 @@ class TranslateCubit extends Cubit<TranslateState> {
         _engineIn(engines, _engineBeforeQuality);
     if (saved != null) return saved;
     final current = state.engine?.id;
-    for (final engine in [_engineIn(engines, _defaultEngineId), ...engines]) {
+    for (final engine in [
+      engines.where((e) => e.isOffline).firstOrNull,
+      _engineIn(engines, _defaultEngineId),
+      ...engines.where((e) => !_isCloudEngine(e)),
+    ]) {
       if (engine != null && engine.id != current) return engine;
     }
     return null;
@@ -693,8 +731,15 @@ class TranslateCubit extends Cubit<TranslateState> {
   bool _isCurrentLanguages(int request) =>
       !isClosed && request == _languagesRequest;
 
-  /// Engines to try, best first: [preferred], the saved engine, the current
-  /// one, the default, then the first engine.
+  /// Engines to try, best first: [preferred], the saved engine and the
+  /// current one. Text never moves to another destination by itself, so
+  /// the only fallback after them (an engine that is gone, or whose
+  /// languages fail to load) is the on-device engine. Only when nothing was
+  /// chosen yet (no saved engine) is a default picked: the on-device engine
+  /// first unless the privacy mode is online, then [_defaultEngineId] (a
+  /// Mozhi engine), then the first engine that is not a cloud provider
+  /// (never a cloud AI or DeepL, which the user must pick). May be empty:
+  /// the user then picks an engine.
   List<TranslationEngine> _engineCandidates(
     List<TranslationEngine> engines, {
     TranslationEngine? preferred,
@@ -707,19 +752,37 @@ class TranslateCubit extends Cubit<TranslateState> {
       return null;
     }
 
+    final offline = engines.where((e) => e.isOffline).firstOrNull;
+    final saved = _settings.state.engineId;
+    final online = _settings.state.privacyMode == PrivacyMode.online;
     final candidates = <TranslationEngine>[];
     for (final engine in [
       byId(preferred?.id),
-      byId(_settings.state.engineId),
+      byId(saved),
       byId(state.engine?.id),
-      byId(_defaultEngineId),
-      engines.first,
+      if (saved == null) ...[
+        if (!online) offline,
+        byId(_defaultEngineId),
+        engines.where((e) => !_isCloudEngine(e)).firstOrNull,
+      ],
+      offline,
     ]) {
       if (engine != null && candidates.every((e) => e.id != engine.id)) {
         candidates.add(engine);
       }
     }
     return candidates;
+  }
+
+  /// Whether [engine] sends text to a cloud provider (AI providers and
+  /// machine translation services that are not local, DeepL).
+  bool _isCloudEngine(TranslationEngine engine) {
+    try {
+      return _repository.destinationOf(engine.id) is CloudProviderDestination;
+    } on Object {
+      // Unknown (or a repository test double): judge by the engine.
+      return (engine.isAi || engine.isMt) && !engine.isLocal;
+    }
   }
 
   /// Loads the languages of the first candidate that works. Failures are
@@ -1096,7 +1159,7 @@ class TranslateCubit extends Cubit<TranslateState> {
         comparing: false,
       ),
     );
-    unawaited(translate());
+    unawaited(_translateAgain());
   }
 
   void setOptions(TranslationOptions options) {
@@ -1129,7 +1192,7 @@ class TranslateCubit extends Cubit<TranslateState> {
   void _retranslate() {
     _debounceTimer?.cancel();
     if (state.input.trim().isEmpty) return;
-    unawaited(translate());
+    unawaited(_translateAgain());
   }
 
   // ---------------------------------------------------------------------
@@ -1141,10 +1204,60 @@ class TranslateCubit extends Cubit<TranslateState> {
   ///
   /// The future completes when the translation finished, failed or was
   /// superseded.
+  ///
+  /// When the privacy settings stop it, [TranslateState.consent] asks for
+  /// the user's consent with a dialog (`ConsentRequest.automatic` is false):
+  /// the user asked for this translation. Translations started otherwise
+  /// (instant translation, a language or engine change, a swap) only show
+  /// the inline prompt.
   Future<void> translate() {
     _debounceTimer?.cancel();
     if (state.compareMode) return runCompare();
+    return _translate(userAsked: true);
+  }
+
+  /// [translate] for a translation the user did not ask for as such (a
+  /// changed language, a swap): consent is only asked inline.
+  Future<void> _translateAgain() {
+    _debounceTimer?.cancel();
+    if (state.compareMode) return runCompare();
     return _translate();
+  }
+
+  /// Translates again what [TranslateState.consent] stopped, once the user
+  /// gave consent (recorded in the settings and the repository, e.g. with
+  /// `requestConsent`). Without a stopped translation, translates the
+  /// input.
+  Future<void> retryAfterConsent() {
+    final retry = state.consent == null
+        ? translate
+        : _consentRetry ?? translate;
+    _consentRetry = null;
+    if (state.consent != null) emit(state.copyWith(consent: () => null));
+    return retry();
+  }
+
+  /// Hides [TranslateState.consent] without translating.
+  void dismissConsent() {
+    _consentRetry = null;
+    if (state.consent != null) emit(state.copyWith(consent: () => null));
+  }
+
+  /// In offline-first mode the Mozhi engine list is only loaded once the
+  /// user lets the app use the network (`TranslationRepository
+  /// .metadataDeferred`): opening the engine picker does. Loads the lists
+  /// then (without the loading state); does nothing otherwise.
+  Future<void> loadDeferredEngines() async {
+    final bool deferred;
+    try {
+      deferred = _repository.metadataDeferred;
+    } on Object {
+      // A repository test double without privacy settings.
+      return;
+    }
+    if (!deferred) return;
+    _repository.allowMetadataRequests();
+    await _loadEngines(quiet: true);
   }
 
   /// [auto] marks a debounced instant translation (its history entry is
@@ -1170,6 +1283,7 @@ class TranslateCubit extends Cubit<TranslateState> {
     bool auto = false,
     bool external = false,
     bool extraTargets = true,
+    bool userAsked = false,
   }) {
     final main = _translateMain(
       engine: engine,
@@ -1178,6 +1292,16 @@ class TranslateCubit extends Cubit<TranslateState> {
       smartSwap: smartSwap,
       auto: auto,
       external: external,
+      userAsked: userAsked,
+      // After consent: the same translation, now asked for by the user.
+      retry: () => _translate(
+        engine: engine,
+        options: options,
+        text: text,
+        smartSwap: smartSwap,
+        extraTargets: extraTargets,
+        userAsked: true,
+      ),
     );
     final selected = engine ?? state.engine;
     final input = text ?? state.input;
@@ -1202,14 +1326,19 @@ class TranslateCubit extends Cubit<TranslateState> {
     return Future.wait([main, ?extras, held]).then((_) {});
   }
 
-  /// The main translation of [_translate].
+  /// The main translation of [_translate]. When the privacy settings stop
+  /// it ([ConsentRequiredException]), [TranslateState.consent] asks for
+  /// consent instead of reporting an error, and [retry] runs once it is
+  /// given ([retryAfterConsent]).
   Future<void> _translateMain({
+    required Future<void> Function() retry,
     TranslationEngine? engine,
     TranslationOptions? options,
     String? text,
     bool smartSwap = true,
     bool auto = false,
     bool external = false,
+    bool userAsked = false,
   }) {
     final selected = engine ?? state.engine;
     final input = text ?? state.input;
@@ -1232,13 +1361,29 @@ class TranslateCubit extends Cubit<TranslateState> {
 
     void fail(Object error) {
       _translation = null;
-      emit(
-        state.copyWith(
-          status: TranslateStatus.failure,
-          result: () => null,
-          error: () => error,
-        ),
-      );
+      if (error is ConsentRequiredException) {
+        _consentRetry = retry;
+        emit(
+          state.copyWith(
+            status: TranslateStatus.idle,
+            result: () => null,
+            error: () => null,
+            consent: () => ConsentRequest(
+              exception: error,
+              id: ++_consentRequests,
+              automatic: !userAsked || auto || external,
+            ),
+          ),
+        );
+      } else {
+        emit(
+          state.copyWith(
+            status: TranslateStatus.failure,
+            result: () => null,
+            error: () => error,
+          ),
+        );
+      }
       _complete(done);
     }
 
@@ -1557,7 +1702,8 @@ class TranslateCubit extends Cubit<TranslateState> {
     if (done != null) _complete(done);
   }
 
-  /// Adds the translation to history when enabled. The history repository
+  /// Adds the translation to history when enabled (`saveHistory`, and
+  /// never in incognito mode). The history repository
   /// replaces the newest entry when text+target+engine match, so this also
   /// serves to update an entry after alternatives/variations.
   ///
@@ -1571,7 +1717,12 @@ class TranslateCubit extends Cubit<TranslateState> {
     required String engineName,
     bool auto = false,
   }) {
-    if (!_settings.state.saveHistory || result.text.trim().isEmpty) return;
+    final settings = _settings.state;
+    if (!settings.saveHistory ||
+        settings.incognito ||
+        result.text.trim().isEmpty) {
+      return;
+    }
     final now = _clock();
     final previous = _provisionalEntry;
     final merge =
@@ -3483,6 +3634,7 @@ class TranslateCubit extends Cubit<TranslateState> {
       appliedRefinements: const [],
       pendingRefinement: () => null,
       refinementError: () => null,
+      consent: () => null,
     );
   }
 

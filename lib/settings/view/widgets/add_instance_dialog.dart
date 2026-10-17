@@ -1,11 +1,11 @@
 import 'dart:async';
 
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/network/network.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/view/widgets/insecure_http_warning.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
-import 'package:mozhi_api/mozhi_api.dart';
+import 'package:mozhi_api/mozhi_api.dart' show MozhiApiClient;
 import 'package:translation_repository/translation_repository.dart';
 
 /// User-facing text for a failure (repository/API errors carry a message).
@@ -16,6 +16,12 @@ String describeError(Object error) => switch (error) {
   FormatException(:final message) => message,
   _ => error.toString(),
 };
+
+/// Like [describeError], but a request the network policy refused (plain
+/// http to a public server, `.onion` without a proxy, a broken proxy
+/// setting) gets its localised explanation ([describeNetworkPolicyError]).
+String describeErrorLocalized(AppLocalizations l10n, Object error) =>
+    describeNetworkPolicyError(l10n, error) ?? describeError(error);
 
 /// Why [input] must not be saved as a service URL, or null when it is fine:
 /// `userInfo` (`https://user:pass@host`) and query strings (`?key=…`) would
@@ -37,15 +43,34 @@ enum UrlSecretProblem { credentials, query }
 
 /// Asks for an instance URL (+ optional label) and returns the new
 /// [MozhiInstance], or null when cancelled. [existingUrls] are rejected as
-/// duplicates.
+/// duplicates. With [initial] it edits that instance instead (prefilled;
+/// leave its own URL out of [existingUrls]).
 ///
-/// A plain `http://` URL to a host outside the device and the local network
-/// ([isInsecureHttp]) shows a warning banner, and adding it needs an
-/// explicit confirmation (the translated text would travel unencrypted).
+/// Plain `http://` is only accepted for this device, the local network and
+/// Tor/I2P addresses ([isCleartextAllowed]): for any other host a banner
+/// says so as it is typed and the URL does not validate, because the app
+/// would refuse to send anything there. A Tor or I2P address while no proxy
+/// is active ([proxyActive]) gets a note that it needs one.
+///
+/// "Test" translates `hello` with the instance through [checker] (default:
+/// the session's, see [NetworkSession.instanceChecker]) and shows the
+/// result and how long it took.
 class AddInstanceDialog extends StatefulWidget {
-  const new({required this.existingUrls, super.key});
+  const new({
+    required this.existingUrls,
+    this.initial,
+    this.checker,
+    this.proxyActive,
+    super.key,
+  });
 
   final List<String> existingUrls;
+  final MozhiInstance? initial;
+  final MozhiInstanceChecker? checker;
+
+  /// Whether requests go through a proxy (default:
+  /// [NetworkSession.hasProxy] of the current session).
+  final bool? proxyActive;
 
   @override
   State<AddInstanceDialog> createState() => _AddInstanceDialogState();
@@ -60,8 +85,8 @@ class _Testing extends _TestState {
 }
 
 class _TestOk extends _TestState {
-  const new(this.latency);
-  final Duration latency;
+  const new(this.result);
+  final InstanceTestResult result;
 }
 
 class _TestFailed extends _TestState {
@@ -71,13 +96,18 @@ class _TestFailed extends _TestState {
 
 class _AddInstanceDialogState extends State<AddInstanceDialog> {
   final _formKey = GlobalKey<FormState>();
-  final _urlController = TextEditingController();
-  final _labelController = TextEditingController();
+  late final _urlController = TextEditingController(text: widget.initial?.url);
+  late final _labelController = TextEditingController(
+    text: widget.initial?.label,
+  );
   final _urlFocus = FocusNode();
   _TestState? _test;
 
-  /// The plain-http URL the user agreed to add without encryption.
-  String? _insecureConfirmedFor;
+  MozhiInstanceChecker get _checker =>
+      widget.checker ?? NetworkSession.current.instanceChecker;
+
+  bool get _proxyActive =>
+      widget.proxyActive ?? NetworkSession.current.hasProxy;
 
   @override
   void dispose() {
@@ -109,6 +139,7 @@ class _AddInstanceDialogState extends State<AddInstanceDialog> {
     }
     final uri = _normalized();
     if (uri == null) return l10n.settingsInstanceUrlInvalid;
+    if (!isCleartextAllowed(uri)) return l10n.commonHttpsRequired;
     if (widget.existingUrls.contains(uri.toString())) {
       return l10n.settingsInstanceUrlDuplicate;
     }
@@ -125,66 +156,45 @@ class _AddInstanceDialogState extends State<AddInstanceDialog> {
     final uri = _normalized();
     if (uri == null) return null;
     final label = _labelController.text.trim();
+    final url = uri.toString();
+    final initial = widget.initial;
     return MozhiInstance(
-      url: uri.toString(),
+      url: url,
       label: label.isEmpty ? null : label,
+      // An edited public instance stays one while its URL is the same.
+      isCustom: initial == null || initial.url != url || initial.isCustom,
     );
   }
 
   Future<void> _runTest() async {
     final instance = _buildInstance();
     if (instance == null) return;
-    final repository = context.read<TranslationRepository>();
+    final l10n = context.l10n;
     setState(() => _test = const _Testing());
     _TestState result;
     try {
-      result = _TestOk(await repository.pingInstance(instance));
+      result = _TestOk(await _checker.test(instance.url));
+    } on InstanceHasNoEnginesException {
+      result = _TestFailed(l10n.settingsInstancesNoEngines);
     } on Object catch (error) {
-      result = _TestFailed(describeError(error));
+      result = _TestFailed(describeErrorLocalized(l10n, error));
     }
     if (mounted) setState(() => _test = result);
   }
 
-  bool get _insecure => isInsecureHttp(_normalized());
+  bool get _insecure => switch (_normalized()) {
+    final uri? => !isCleartextAllowed(uri),
+    null => false,
+  };
 
-  /// Asks once per URL before a plain-http instance outside the local
-  /// network is added; true when it may be added.
-  Future<bool> _confirmInsecure(MozhiInstance instance) async {
-    final uri = Uri.parse(instance.url);
-    if (!isInsecureHttp(uri) || _insecureConfirmedFor == instance.url) {
-      return true;
-    }
-    final l10n = context.l10n;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        icon: const Icon(Icons.no_encryption_outlined),
-        title: Text(l10n.settingsInstanceInsecureConfirmTitle),
-        content: Text(l10n.settingsInstanceInsecureConfirmBody(uri.host)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(l10n.commonCancel),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.error,
-            ),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(l10n.settingsInstanceInsecureConfirmAction),
-          ),
-        ],
-      ),
-    );
-    if (!(confirmed ?? false)) return false;
-    _insecureConfirmedFor = instance.url;
-    return true;
-  }
+  bool get _needsProxy => switch (_normalized()) {
+    final uri? => !_proxyActive && isHiddenServiceHost(uri.host),
+    null => false,
+  };
 
-  Future<void> _save() async {
+  void _save() {
     final instance = _buildInstance();
     if (instance == null) return;
-    if (!await _confirmInsecure(instance) || !mounted) return;
     Navigator.of(context).pop(instance);
   }
 
@@ -193,8 +203,11 @@ class _AddInstanceDialogState extends State<AddInstanceDialog> {
     final l10n = context.l10n;
     final colors = Theme.of(context).colorScheme;
     final test = _test;
+    final editing = widget.initial != null;
     return AlertDialog(
-      title: Text(l10n.settingsInstancesAdd),
+      title: Text(
+        editing ? l10n.settingsInstanceEditTitle : l10n.settingsInstancesAdd,
+      ),
       scrollable: true,
       content: Form(
         key: _formKey,
@@ -217,8 +230,7 @@ class _AddInstanceDialogState extends State<AddInstanceDialog> {
                 errorMaxLines: 4,
               ),
               validator: _validateUrl,
-              // Rebuild for the insecure-http banner, and drop a stale
-              // test result.
+              // Rebuild for the banners, and drop a stale test result.
               onChanged: (_) => setState(() => _test = null),
             ),
             if (_insecure) ...[
@@ -226,7 +238,16 @@ class _AddInstanceDialogState extends State<AddInstanceDialog> {
               InsecureHttpWarning(
                 key: const Key('instance_insecure_warning'),
                 title: l10n.settingsInstanceInsecureTitle,
-                text: l10n.settingsInstanceInsecureWarning,
+                text: l10n.commonErrorCleartextRefused,
+              ),
+            ],
+            if (_needsProxy) ...[
+              const SizedBox(height: 12),
+              _TestMessage(
+                key: const Key('instance_needs_proxy'),
+                icon: Icons.vpn_lock_outlined,
+                color: colors.warning,
+                text: l10n.settingsInstanceNeedsProxyNote,
               ),
             ],
             const SizedBox(height: 16),
@@ -238,7 +259,7 @@ class _AddInstanceDialogState extends State<AddInstanceDialog> {
                 prefixIcon: const Icon(Icons.label_outline),
                 border: const OutlineInputBorder(),
               ),
-              onFieldSubmitted: (_) => unawaited(_save()),
+              onFieldSubmitted: (_) => _save(),
             ),
             if (test != null) ...[
               const SizedBox(height: 16),
@@ -246,10 +267,14 @@ class _AddInstanceDialogState extends State<AddInstanceDialog> {
                 _Testing() => LinearProgressIndicator(
                   semanticsLabel: l10n.settingsInstanceTesting,
                 ),
-                _TestOk(:final latency) => _TestMessage(
+                _TestOk(:final result) => _TestMessage(
                   icon: Icons.check_circle_outline,
                   color: colors.success,
-                  text: l10n.settingsInstanceTestOk(latency.inMilliseconds),
+                  text: l10n.settingsInstancesTestResult(
+                    result.engineName,
+                    result.text,
+                    result.latency.inMilliseconds,
+                  ),
                 ),
                 _TestFailed(:final message) => _TestMessage(
                   icon: Icons.error_outline,
@@ -271,8 +296,8 @@ class _AddInstanceDialogState extends State<AddInstanceDialog> {
           child: Text(l10n.settingsInstanceTest),
         ),
         FilledButton(
-          onPressed: () => unawaited(_save()),
-          child: Text(l10n.commonAdd),
+          onPressed: _save,
+          child: Text(editing ? l10n.commonSave : l10n.commonAdd),
         ),
       ],
     );
@@ -283,7 +308,12 @@ class _AddInstanceDialogState extends State<AddInstanceDialog> {
 /// (coloured text on the dialog surface fell below 4.5:1), announced as a
 /// status message (WCAG 4.1.3).
 class _TestMessage extends StatelessWidget {
-  const new({required this.icon, required this.color, required this.text});
+  const new({
+    required this.icon,
+    required this.color,
+    required this.text,
+    super.key,
+  });
 
   final IconData icon;
   final Color color;

@@ -200,7 +200,16 @@ class CompareEntryCard extends StatelessWidget {
                         ),
                       ),
                     )
-                  : TranslateErrorView(error: entry.error, dense: true),
+                  : TranslateErrorView(
+                      error: entry.error,
+                      dense: true,
+                      // Only consent prompts offer it (compare again).
+                      onRetry: entry.error is ConsentRequiredException
+                          ? () => unawaited(
+                              context.read<TranslateCubit>().runCompare(),
+                            )
+                          : null,
+                    ),
             ),
             if (result != null)
               Row(

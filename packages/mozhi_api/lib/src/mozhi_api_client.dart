@@ -300,7 +300,14 @@ class MozhiApiClient {
   );
 
   /// `GET /api/tts`. Only `google` and `reverso` support TTS. Returns the
-  /// MP3 bytes. Throws [MozhiApiException] when the body is empty, and an
+  /// MP3 bytes.
+  ///
+  /// Mozhi only serves this endpoint for GET (`app.Get("/api/tts", ...)`),
+  /// so [text] travels in the request URL: unlike the POSTed translations,
+  /// it can end up in the access logs of the instance and of any reverse
+  /// proxy in front of it.
+  ///
+  /// Throws [MozhiApiException] when the body is empty, and an
   /// [ArgumentError] (without a request) when [text] is blank. Completing
   /// [abortTrigger] cancels the request.
   Future<Uint8List> textToSpeech({

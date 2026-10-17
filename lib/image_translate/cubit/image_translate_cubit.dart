@@ -12,11 +12,17 @@ export 'image_translate_state.dart';
 
 /// Drives the image translation screen.
 ///
-/// * [pickImage] / [setImage] load an image and translate it right away
-///   with the selected [ImageTranslateState.method].
-/// * Changing the method, source or target re-runs the translation (for
-///   on-device recognition a target change only re-translates the
-///   recognised text).
+/// * [pickImage] / [setImage] load an image. It is translated right away
+///   only with on-device recognition (the preferred method when the device
+///   has it): a method that sends the photo off the device
+///   ([ImageTranslateMethod.uploadsImage], Mozhi / Google Lens, AI vision)
+///   waits for the user's explicit [translate].
+/// * Changing the method, source or target re-runs the translation the
+///   same way (for on-device recognition a target change only
+///   re-translates the recognised text); with an uploading method the
+///   image waits for [translate] again.
+/// * The privacy settings apply (the repository enforces them): a stopped
+///   request fails with a `ConsentRequiredException` (nothing was sent).
 /// * Every new run (and [cancel]) drops the in-flight one; HTTP requests
 ///   that cannot be aborted are simply ignored when they complete (but
 ///   still counted, see below).
@@ -160,7 +166,8 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
     await setImage(image);
   }
 
-  /// Shows [image] and translates it with the selected method.
+  /// Shows [image]; translates it right away with on-device recognition
+  /// (an uploading method waits for [translate]).
   Future<void> setImage(PickedImage image) {
     _cancelRun();
     emit(
@@ -173,7 +180,14 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
         showOriginal: false,
       ),
     );
-    return translate();
+    return _translateUnlessUpload();
+  }
+
+  /// [translate] unless the selected method sends the photo off the device,
+  /// which only the user's explicit [translate] may do.
+  Future<void> _translateUnlessUpload() async {
+    if (state.method?.uploadsImage ?? true) return;
+    await translate();
   }
 
   /// Back to the empty state.
@@ -210,13 +224,33 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
         showOriginal: false,
       ),
     );
-    await translate();
+    await _translateUnlessUpload();
   }
 
   Future<void> setSource(Language language) async {
     if (language == state.source || language.isCustom) return;
     _cancelRun();
     emit(state.copyWith(source: language));
+    await _again();
+  }
+
+  /// After a language change: translate again right away with on-device
+  /// recognition; an uploading method shows the image ready to translate.
+  Future<void> _again() async {
+    if (state.method?.uploadsImage ?? true) {
+      if (state.hasImage && state.status != ImageTranslateStatus.initial) {
+        emit(
+          state.copyWith(
+            status: ImageTranslateStatus.ready,
+            result: () => null,
+            error: () => null,
+            slow: false,
+            showOriginal: false,
+          ),
+        );
+      }
+      return;
+    }
     await translate();
   }
 
@@ -230,7 +264,7 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
     if (recognized != null) {
       await translateText(recognized);
     } else {
-      await translate();
+      await _again();
     }
   }
 
@@ -337,6 +371,7 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
       sourceText: result.sourceText.trim(),
       translatedText: result.translatedText.trim(),
       notes: result.notes.trim(),
+      destination: result.destination,
     );
   }
 
@@ -387,6 +422,7 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
       sourceText: result.sourceText.trim(),
       translatedText: result.translatedText.trim(),
       notes: result.notes.trim(),
+      destination: result.destination,
     );
   }
 
@@ -438,6 +474,7 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
             current = current.copyWith(
               translatedText: translation.text,
               detectedSource: translation.detectedSource,
+              destination: translation.destination,
             );
             emit(state.copyWith(result: () => current));
           },

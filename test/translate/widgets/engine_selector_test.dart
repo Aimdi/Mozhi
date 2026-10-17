@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:bloc_test/bloc_test.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
@@ -12,6 +13,8 @@ import 'package:translation_repository/translation_repository.dart';
 
 import '../../helpers/pump_app.dart';
 import '../helpers/helpers.dart';
+
+class _MockRepository extends Mock implements TranslationRepository;
 
 /// DeepL API with the user's own key (a cloud service).
 const _deeplApi = TranslationEngine(
@@ -115,9 +118,9 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('AI models'), findsOneWidget);
-      expect(find.text('Self-hosted'), findsNWidgets(2));
+      expect(find.text('Public server'), findsNWidgets(2));
       expect(find.text('Cloud'), findsOneWidget);
-      expect(find.text('Local'), findsOneWidget);
+      expect(find.text('Self-hosted'), findsOneWidget);
       expect(find.text('claude-opus-5-5'), findsOneWidget);
       expect(find.byIcon(Icons.check), findsOneWidget);
     });
@@ -162,10 +165,10 @@ void main() {
       expect(inTile('DeepL API', find.text('Cloud')), findsOneWidget);
       expect(inTile('DeepL API', find.byIcon(Icons.translate)), findsOne);
       expect(inTile('DeepL API', find.text('api-free.deepl.com')), findsOne);
-      expect(inTile('DeepL API', find.text('Local')), findsNothing);
+      expect(inTile('DeepL API', find.text('Self-hosted')), findsNothing);
 
-      // A server on the LAN keeps its Local privacy badge, not Offline.
-      expect(inTile('LibreTranslate', find.text('Local')), findsOneWidget);
+      // A server on the LAN is self-hosted, not Offline.
+      expect(inTile('LibreTranslate', find.text('Self-hosted')), findsOne);
       expect(inTile('LibreTranslate', find.byType(PrivacyBadge)), findsOne);
       expect(inTile('LibreTranslate', find.byIcon(Icons.translate)), findsOne);
       expect(inTile('LibreTranslate', find.text('192.168.1.20')), findsOne);
@@ -365,12 +368,38 @@ void main() {
     }
 
     testWidgets('says where the text goes for each kind', (tester) async {
-      expect(await labelOf(tester, deepl), 'Self-hosted');
+      expect(await labelOf(tester, deepl), 'Public server');
       expect(await labelOf(tester, claude), 'Cloud');
-      expect(await labelOf(tester, ollama), 'Local');
+      expect(await labelOf(tester, ollama), 'Self-hosted');
       expect(await labelOf(tester, _deeplApi), 'Cloud');
-      expect(await labelOf(tester, _libre), 'Local');
-      expect(await labelOf(tester, _offline), 'Local');
+      expect(await labelOf(tester, _libre), 'Self-hosted');
+      expect(await labelOf(tester, _offline), 'On device');
+    });
+
+    testWidgets('names a self-hosted Mozhi instance by its destination', (
+      tester,
+    ) async {
+      await tester.pumpApp(
+        const PrivacyBadge(
+          engine: deepl,
+          destination: SelfHostedDestination('192.168.1.10'),
+        ),
+      );
+      expect(find.text('Self-hosted'), findsOneWidget);
+    });
+
+    testWidgets('asks the repository for the destination', (tester) async {
+      final repository = _MockRepository();
+      when(
+        () => repository.destinationOf('mozhi:deepl'),
+      ).thenReturn(const SelfHostedDestination('mozhi.lan'));
+      await tester.pumpApp(
+        RepositoryProvider<TranslationRepository>.value(
+          value: repository,
+          child: const PrivacyBadge(engine: deepl),
+        ),
+      );
+      expect(find.text('Self-hosted'), findsOneWidget);
     });
   });
 }

@@ -18,13 +18,27 @@ export 'speech_language.dart';
 export 'speech_settings.dart';
 
 /// Thrown by [SpeechService.toggle] when no backend can read the text aloud:
-/// Mozhi is not configured or failed, and the device has no voice for
-/// [languageCode]. [cause] is the first underlying failure, if any.
+/// the device has no voice for [languageCode] (or its voice failed), and
+/// Mozhi is not configured, not allowed or failed. [cause] is the first
+/// underlying failure, if any.
 class SpeechUnavailableException implements Exception {
   const new(this.languageCode, {this.cause});
 
   final String languageCode;
   final Object? cause;
+
+  /// The consent that lets a Mozhi instance read the text aloud once, when
+  /// the privacy settings stopped it ([PrivacyMode.offlineFirst] and the
+  /// language was not approved): pass it as `allowOnline` to
+  /// [SpeechService.toggle] after the user chose "Listen via (instance)".
+  /// Null otherwise, also in [PrivacyMode.offlineOnly], which cannot be
+  /// overridden.
+  ConsentRequiredException? get onlineConsent => switch (cause) {
+    final ConsentRequiredException consent
+        when consent.kind != ConsentKind.offlineOnly =>
+      consent,
+    _ => null,
+  };
 
   @override
   String toString() =>
@@ -68,6 +82,10 @@ class _MozhiPlayback {
   final bool slow;
   final List<String> chunks;
 
+  /// The user's approval to send [text] to the instance despite the privacy
+  /// settings, renewed for every chunk; null when none was needed.
+  ConsentRequiredException? consent;
+
   /// Index of the chunk playing, or last played.
   int index = 0;
 
@@ -75,27 +93,34 @@ class _MozhiPlayback {
   /// when it could not be fetched.
   Future<Uint8List?>? next;
 
-  /// Whether the device engine has taken over reading [text].
-  bool handedOver = false;
-
   bool get hasNext => index + 1 < chunks.length;
 }
 
 /// Reads text aloud.
 ///
-/// Strategy: Mozhi `/api/tts` first (google, falling back to reverso, via
-/// [TranslationRepository.textToSpeech]) when at least one instance is
-/// configured and the language looks speakable. The endpoint is GET-only
-/// with a ~4 KiB request line, so the text is split into chunks of at most
-/// [maxSpeechChunkLength] characters at sentence, clause or word breaks
-/// ([splitTextForSpeech]); the MP3 clips are played one after another with
-/// [AudioOutput], the next one being fetched while the current one plays,
-/// and the last 20 clips are cached in memory. On any fetch/playback
-/// failure, or without instances, the device engine ([DeviceTts]) speaks the
-/// whole text if it has a voice for the language. Otherwise [toggle] throws
-/// [SpeechUnavailableException]. With [preferDeviceVoice], or when a
-/// device voice was chosen for the language ([SpeechSettings.voices]), the
-/// device engine is tried first and Mozhi is only the fallback.
+/// Strategy (privacy first): the device engine ([DeviceTts]) reads the text
+/// whenever it has a voice for the language (the voice chosen in
+/// [SpeechSettings.voices], else its default one). Only when the device has
+/// no voice for it is Mozhi `/api/tts` used (google, falling back to
+/// reverso, via [TranslationRepository.textToSpeech]), and only when an
+/// instance is configured, the language looks speakable and the privacy
+/// settings allow it: the repository refuses in [PrivacyMode.offlineOnly],
+/// and in [PrivacyMode.offlineFirst] unless the language was approved
+/// (then [SpeechUnavailableException.onlineConsent] lets the caller offer
+/// "Listen via (instance)" and retry with `allowOnline`). A device voice
+/// that fails is not replaced by Mozhi, and with [preferDeviceVoice]
+/// ("device voice only") Mozhi is never used.
+///
+/// Mozhi's `/api/tts` only accepts GET: the text travels in the request
+/// URL, so it can end up in the instance's (and any reverse proxy's)
+/// access logs. The request line is limited to ~4 KiB, so the text is split
+/// into chunks of at most [maxSpeechChunkLength] characters at sentence,
+/// clause or word breaks ([splitTextForSpeech]); the MP3 clips are played
+/// one after another with [AudioOutput], the next one being fetched while
+/// the current one plays, and the last 20 clips are cached in memory. When
+/// the first clip cannot be fetched or played, [toggle] throws
+/// [SpeechUnavailableException]; when a later one fails, the clip playing is
+/// finished and the service becomes idle.
 ///
 /// [settings] hold the speech rate (applied to the Mozhi clips through
 /// [AudioOutput.setPlaybackRate] when the player supports it, and to the
@@ -103,11 +128,6 @@ class _MozhiPlayback {
 /// slowly", [replaySlowly]) runs at [slowPlaybackRate] times that rate.
 /// [speak] always starts from the beginning (e.g. to replay at another
 /// speed), [toggle] stops when the same id is playing.
-///
-/// A later chunk failing does not make [toggle] throw (it has already
-/// returned): the device engine reads the whole text from the start instead,
-/// or, without a device voice, the clip playing is finished and the service
-/// becomes idle.
 ///
 /// [speaking] exposes the id of the clip currently playing (null = idle) so
 /// buttons can show a stop icon. The id is reported as speaking from the
@@ -186,6 +206,9 @@ class SpeechService {
 
   SpeechUtterance? _last;
 
+  /// The approval [_last] was read aloud with, reused by [replaySlowly].
+  ConsentRequiredException? _lastConsent;
+
   /// Broadcast stream of the speaking id (null = idle); emits on change.
   Stream<String?> get speaking => _speaking.stream;
   String? get current => _current;
@@ -194,8 +217,10 @@ class SpeechService {
   /// "use device voice" setting when false).
   bool get deviceVoiceSupported => _device.isSupported;
 
-  /// Whether the device voice is tried before Mozhi. False until
-  /// [loadPreferDeviceVoice] has read the stored value.
+  /// "Device voice only": whether Mozhi is never used to read aloud, not
+  /// even for languages the device has no voice for (the device voice is
+  /// always tried first). False until [loadPreferDeviceVoice] has read the
+  /// stored value.
   bool get preferDeviceVoice => _preferDevice ?? false;
 
   /// Reads [preferDeviceVoice] from the store (once; later calls reuse the
@@ -248,8 +273,7 @@ class SpeechService {
 
   /// Chooses the device [voice] for [languageCode] (null: the engine's
   /// default voice) for the next playback and persists it; throws when the
-  /// store fails (the choice still applies until restart). A chosen voice
-  /// makes the device engine read the language before Mozhi.
+  /// store fails (the choice still applies until restart).
   Future<void> setVoice(String languageCode, DeviceVoice? voice) =>
       _updateSettings((settings) => settings.withVoice(languageCode, voice));
 
@@ -286,8 +310,13 @@ class SpeechService {
   /// Plays [text] in [languageCode]; [id] identifies the button (e.g.
   /// `source` / `target`). Calling with the id that is playing stops it.
   /// [slow] plays at [slowPlaybackRate] times the [settings] rate. Throws
-  /// [SpeechUnavailableException] when neither Mozhi nor the device can
-  /// speak it (caller shows a snackbar).
+  /// [SpeechUnavailableException] when neither the device nor Mozhi can
+  /// (or may) speak it (caller shows a snackbar, see `speechErrorMessage`).
+  ///
+  /// [allowOnline] is the [SpeechUnavailableException.onlineConsent] of an
+  /// earlier attempt the user then approved ("Listen via (instance)"): the
+  /// instance may receive this text despite the privacy settings, for this
+  /// playback only.
   ///
   /// Once playback has started, [text] becomes the [lastUtterance] unless
   /// [remember] is false (e.g. a sample read by a settings preview).
@@ -297,6 +326,7 @@ class SpeechService {
     required String languageCode,
     bool slow = false,
     bool remember = true,
+    ConsentRequiredException? allowOnline,
   }) => _start(
     id: id,
     text: text,
@@ -304,6 +334,7 @@ class SpeechService {
     slow: slow,
     toggles: true,
     remember: remember,
+    allowOnline: allowOnline,
   );
 
   /// Like [toggle], but always (re)starts reading [text] from the beginning,
@@ -315,6 +346,7 @@ class SpeechService {
     required String languageCode,
     bool slow = false,
     bool remember = true,
+    ConsentRequiredException? allowOnline,
   }) => _start(
     id: id,
     text: text,
@@ -322,12 +354,13 @@ class SpeechService {
     slow: slow,
     toggles: false,
     remember: remember,
+    allowOnline: allowOnline,
   );
 
   /// Reads the [lastUtterance] again, slowly ([slowPlaybackRate]) and from
-  /// the start, under its id. Mozhi clips come from the in-memory cache, so
-  /// this usually needs no network. False when nothing was read aloud yet;
-  /// throws like [speak].
+  /// the start, under its id (with the approval it was read with, if any).
+  /// Mozhi clips come from the in-memory cache, so this usually needs no
+  /// network. False when nothing was read aloud yet; throws like [speak].
   Future<bool> replaySlowly() async {
     final last = _last;
     if (last == null) return false;
@@ -336,6 +369,7 @@ class SpeechService {
       text: last.text,
       languageCode: last.languageCode,
       slow: true,
+      allowOnline: _lastConsent,
     );
     return true;
   }
@@ -362,7 +396,8 @@ class SpeechService {
 
   /// Starts reading [text] under [id]. [toggles]: stop instead when [id] is
   /// playing. [remember]: make it the [lastUtterance] once a backend has
-  /// started. [preview]: device only, with that voice.
+  /// started. [preview]: device only, with that voice. [allowOnline]: see
+  /// [toggle].
   Future<void> _start({
     required String id,
     required String text,
@@ -370,6 +405,7 @@ class SpeechService {
     required bool slow,
     required bool toggles,
     required bool remember,
+    ConsentRequiredException? allowOnline,
     ({DeviceVoice? voice})? preview,
   }) async {
     final trimmed = text.trim();
@@ -385,17 +421,18 @@ class SpeechService {
     _setCurrent(id);
     try {
       if (previous != null) await _stopOutputs();
-      final preferDevice = await loadPreferDeviceVoice();
+      final deviceOnly = preview != null || await loadPreferDeviceVoice();
       final settings = await loadSettings();
       final voice = preview != null
           ? preview.voice
           : settings.voiceFor(languageCode);
-      final deviceFirst = preview != null || preferDevice || voice != null;
+      final consent = allowOnline?.kind == ConsentKind.offlineOnly
+          ? null
+          : allowOnline;
       Object? cause;
       for (final backend in [
-        if (!deviceFirst) _Backend.mozhi,
         _Backend.device,
-        if (deviceFirst && preview == null) _Backend.mozhi,
+        if (!deviceOnly) _Backend.mozhi,
       ]) {
         if (generation != _generation) return;
         try {
@@ -405,6 +442,7 @@ class SpeechService {
               languageCode,
               slow: slow,
               generation: generation,
+              consent: consent,
             ),
             _Backend.device => await _speakOnDevice(
               trimmed,
@@ -420,10 +458,14 @@ class SpeechService {
               text: trimmed,
               languageCode: languageCode,
             );
+            _lastConsent = backend == _Backend.mozhi ? consent : null;
           }
           if (outcome != _Outcome.skipped) return;
         } on Object catch (error) {
           cause ??= error;
+          // A device voice that fails is not replaced by a server: the text
+          // only leaves the device when the device has no voice for it.
+          if (backend == _Backend.device) break;
         }
       }
       if (generation != _generation) return;
@@ -442,6 +484,7 @@ class SpeechService {
     String languageCode, {
     required bool slow,
     required int generation,
+    required ConsentRequiredException? consent,
   }) async {
     if (_repository.instances.isEmpty || !_mozhiSupports(languageCode)) {
       return _Outcome.skipped;
@@ -452,9 +495,9 @@ class SpeechService {
       languageCode: languageCode,
       slow: slow,
       chunks: splitTextForSpeech(text),
-    );
+    )..consent = consent;
     await _setPlaybackRate(settings.speed(slow: slow));
-    final bytes = await _fetch(playback.chunks.first, languageCode);
+    final bytes = await _fetch(playback.chunks.first, languageCode, consent);
     if (generation != _generation) return _Outcome.superseded;
     _mozhi = playback;
     if (!await _startChunk(playback, bytes)) return _Outcome.superseded;
@@ -488,27 +531,21 @@ class SpeechService {
     return true;
   }
 
-  /// Starts fetching the chunk after the current one. A failure hands the
-  /// whole text over to the device engine ([_interruptForDevice]).
+  /// Starts fetching the chunk after the current one; null when it cannot
+  /// be fetched (the playback then ends after the current chunk).
   void _prefetchNext(_MozhiPlayback playback) {
     if (!playback.hasNext) return;
-    playback.next =
-        _fetch(
-          playback.chunks[playback.index + 1],
-          playback.languageCode,
-        ).then<Uint8List?>(
-          (bytes) => bytes,
-          onError: (Object _) {
-            if (playback.generation == _generation) {
-              unawaited(_interruptForDevice(playback));
-            }
-            return null;
-          },
-        );
+    playback.next = _fetch(
+      playback.chunks[playback.index + 1],
+      playback.languageCode,
+      playback.consent,
+    ).then<Uint8List?>((bytes) => bytes, onError: (Object _) => null);
   }
 
   /// Called when [playback]'s current chunk has finished: plays the next
-  /// one once it is fetched, or hands over to the device engine.
+  /// one once it is fetched. When it could not be fetched or played the
+  /// service becomes idle (toggle() has returned already; the device has no
+  /// voice to take over, or Mozhi would not have been used).
   Future<void> _playNextChunk(_MozhiPlayback playback) async {
     final generation = playback.generation;
     // Completions are ignored until the next chunk has started.
@@ -525,49 +562,7 @@ class SpeechService {
         if (generation != _generation) return;
       }
     }
-    await _handOverToDevice(playback);
-  }
-
-  /// A later chunk could not be fetched while the current one plays: stops
-  /// it and lets the device engine read the whole text, unless the device
-  /// has no voice for it (then the current chunk plays out and
-  /// [_playNextChunk] ends the playback).
-  Future<void> _interruptForDevice(_MozhiPlayback playback) async {
-    final generation = playback.generation;
-    final tag = await _deviceTag(playback.languageCode);
-    if (tag == null ||
-        generation != _generation ||
-        _playing != generation ||
-        playback.handedOver) {
-      return;
-    }
-    await _handOverToDevice(playback, tag: tag);
-  }
-
-  /// Reads [playback]'s whole text on the device engine after a chunk
-  /// failed; becomes idle when the device cannot. A [tag] means the device
-  /// voice is known to exist and a chunk is still playing.
-  Future<void> _handOverToDevice(_MozhiPlayback playback, {String? tag}) async {
-    if (playback.handedOver) return;
-    playback.handedOver = true;
-    final generation = playback.generation;
-    _playing = null;
-    _playingBackend = null;
-    try {
-      if (tag != null) await _output.stop();
-      final outcome = await _speakOnDevice(
-        playback.text,
-        playback.languageCode,
-        slow: playback.slow,
-        generation: generation,
-        voice: settings.voiceFor(playback.languageCode),
-        tag: tag,
-      );
-      if (outcome != _Outcome.skipped) return;
-    } on Object {
-      // toggle() has returned already; there is nothing left to try.
-    }
-    if (generation == _generation) _setCurrent(null);
+    _setCurrent(null);
   }
 
   /// The device engine's tag for [languageCode], or null when it has no
@@ -582,17 +577,15 @@ class SpeechService {
     return tag;
   }
 
-  /// Speaks [text] on the device with [voice] (null: the default voice);
-  /// [tag] skips the availability check.
+  /// Speaks [text] on the device with [voice] (null: the default voice).
   Future<_Outcome> _speakOnDevice(
     String text,
     String languageCode, {
     required bool slow,
     required int generation,
     required DeviceVoice? voice,
-    String? tag,
   }) async {
-    final resolved = tag ?? await _deviceTag(languageCode);
+    final resolved = await _deviceTag(languageCode);
     if (resolved == null) return _Outcome.skipped;
     if (generation != _generation) return _Outcome.superseded;
     await _device.setLanguage(resolved, voice: voice);
@@ -647,11 +640,18 @@ class SpeechService {
     await _device.dispose();
   }
 
-  Future<Uint8List> _fetch(String text, String languageCode) async {
+  /// The clip of [text], from the cache or Mozhi. A [consent] approved by
+  /// the user is granted to this one request first.
+  Future<Uint8List> _fetch(
+    String text,
+    String languageCode,
+    ConsentRequiredException? consent,
+  ) async {
     final key = '$languageCode\u0000$text';
     final cached = _cache.remove(key);
     if (cached != null) return _cache[key] = cached;
 
+    if (consent != null) _repository.allowOnce(consent);
     final bytes = await _repository.textToSpeech(
       text: text,
       languageCode: languageCode,

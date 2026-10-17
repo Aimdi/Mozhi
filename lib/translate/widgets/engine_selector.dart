@@ -102,8 +102,12 @@ class EngineSelectorButton extends StatelessWidget {
 }
 
 /// Opens the engine picker as a modal bottom sheet.
+/// The engine picker. In offline-first mode, opening it lets the app load
+/// the Mozhi engine list it has deferred (`TranslateCubit
+/// .loadDeferredEngines`).
 Future<void> showEngineSheet(BuildContext context) {
   final cubit = context.read<TranslateCubit>();
+  unawaited(cubit.loadDeferredEngines());
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -347,31 +351,65 @@ class EngineIcon extends StatelessWidget {
   }
 }
 
-/// Where the text goes: Local (on device/LAN), Self-hosted (Mozhi proxy) or
-/// Cloud (third-party AI provider or machine translation service).
+/// Where the engine's text goes, from its [DataDestination]: On device,
+/// Self-hosted (the user's own server, LAN, Tor), Public server (a public
+/// Mozhi or LibreTranslate instance run by someone else) or Cloud (an AI
+/// provider or DeepL).
+///
+/// [destination] defaults to `TranslationRepository.destinationOf` (when a
+/// repository is provided); without one, local engines count as
+/// self-hosted, Mozhi engines as public servers and other engines as cloud.
 class PrivacyBadge extends StatelessWidget {
-  const new({required this.engine, super.key});
+  const new({required this.engine, this.destination, super.key});
 
   final TranslationEngine engine;
+  final DataDestination? destination;
+
+  /// The destination of [engine] (see [PrivacyBadge]).
+  static DataDestination destinationFor(
+    BuildContext context,
+    TranslationEngine engine,
+  ) {
+    try {
+      return context.read<TranslationRepository>().destinationOf(engine.id);
+    } on Object {
+      // No repository (or a test double): judge by the engine.
+      return switch (engine) {
+        _ when isOnDeviceEngine(engine) => const OnDeviceDestination(),
+        TranslationEngine(isLocal: true) => const SelfHostedDestination(''),
+        TranslationEngine(isMozhi: true) => const PublicInstanceDestination(
+          '',
+        ),
+        _ => CloudProviderDestination(engine.name),
+      };
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final scheme = Theme.of(context).colorScheme;
-    final (label, icon, background, foreground) = switch (engine) {
-      _ when engine.isLocal || isOnDeviceEngine(engine) => (
-        l10n.translateBadgeLocal,
-        Icons.lock_outline,
+    final where = destination ?? destinationFor(context, engine);
+    final (label, icon, background, foreground) = switch (where) {
+      OnDeviceDestination() => (
+        l10n.translateBadgeOnDevice,
+        Icons.phone_android,
         scheme.tertiaryContainer,
         scheme.onTertiaryContainer,
       ),
-      TranslationEngine(isMozhi: true) => (
+      SelfHostedDestination() => (
         l10n.translateBadgeSelfHosted,
         Icons.dns_outlined,
+        scheme.tertiaryContainer,
+        scheme.onTertiaryContainer,
+      ),
+      PublicInstanceDestination() => (
+        l10n.translateBadgePublic,
+        Icons.public,
         scheme.secondaryContainer,
         scheme.onSecondaryContainer,
       ),
-      _ => (
+      CloudProviderDestination() => (
         l10n.translateBadgeCloud,
         Icons.cloud_outlined,
         scheme.surfaceContainerHighest,

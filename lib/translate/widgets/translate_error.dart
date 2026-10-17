@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -15,10 +16,15 @@ class TranslateErrorInfo {
     this.fix = TranslateErrorFix.none,
     this.details,
     this.offlineModels = false,
+    this.consent,
   });
 
   final String message;
   final TranslateErrorFix fix;
+
+  /// The privacy settings stopped the request before anything was sent:
+  /// ask for consent (e.g. with `askConsent`) instead of retrying.
+  final ConsentRequiredException? consent;
 
   /// The technical message with URLs and credentials removed, for an
   /// expandable "Details" section (null when there is nothing to add).
@@ -41,6 +47,9 @@ TranslateErrorInfo describeTranslateError(
   AppLocalizations l10n,
   Object? error,
 ) {
+  if (error is ConsentRequiredException) {
+    return TranslateErrorInfo(consentMessage(l10n, error), consent: error);
+  }
   final info = switch (error) {
     OfflineModelMissingException(:final languages) => TranslateErrorInfo(
       languages.isEmpty
@@ -216,7 +225,9 @@ String _redactUrl(String url) {
 }
 
 /// Error message with a retry button and, when useful, a shortcut to the
-/// relevant settings page and an expandable "Details" section.
+/// relevant settings page and an expandable "Details" section. A
+/// [ConsentRequiredException] is shown as a [ConsentInlinePrompt] instead
+/// (its actions record the consent, then `onRetry` runs).
 ///
 /// The message is a live region, so screen readers announce it when it
 /// appears.
@@ -241,6 +252,15 @@ class TranslateErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final consent = error;
+    if (consent is ConsentRequiredException) {
+      // Nothing failed: the user decides (Retry runs once consent is given).
+      return ConsentInlinePrompt(
+        key: const Key('translate_error_consent'),
+        consent: consent,
+        onGranted: onRetry ?? () {},
+      );
+    }
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final info = describeTranslateError(l10n, error);

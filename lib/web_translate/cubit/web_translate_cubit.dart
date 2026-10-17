@@ -68,6 +68,16 @@ class WebTranslateCubit extends Cubit<WebTranslateState> {
 
   int _loadRequest = 0;
   Completer<void>? _abortFetch;
+
+  /// Whether the privacy settings keep everything on the device.
+  bool get _offlineOnly {
+    try {
+      return _repository.privacyMode == PrivacyMode.offlineOnly;
+    } on Object {
+      // A repository test double without privacy settings.
+      return false;
+    }
+  }
   _TranslationJob? _job;
 
   /// Updates the address field.
@@ -82,10 +92,30 @@ class WebTranslateCubit extends Cubit<WebTranslateState> {
 
   /// Loads the address in the field and, with a [selection], translates it.
   /// An invalid address only sets `urlInvalid`.
+  ///
+  /// In offline-only mode (`TranslationRepository.privacyMode`) the page is
+  /// not fetched: the state fails with a `ConsentRequiredException` of
+  /// [ConsentKind.offlineOnly].
   Future<void> load({WebTranslateSelection? selection}) async {
     final uri = normalizeWebUrl(state.url);
     if (uri == null) {
       emit(state.copyWith(urlInvalid: true));
+      return;
+    }
+    if (_offlineOnly) {
+      emit(
+        WebTranslateState(
+          url: uri.toString(),
+          status: WebTranslateStatus.failure,
+          selection: selection,
+          mode: state.mode,
+          error: ConsentRequiredException(
+            kind: ConsentKind.offlineOnly,
+            destination: PublicInstanceDestination(uri.host),
+            engineId: selection?.engine.id ?? '',
+          ),
+        ),
+      );
       return;
     }
     final request = ++_loadRequest;

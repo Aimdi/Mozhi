@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/models/history_entry.dart';
@@ -405,6 +406,38 @@ class _OutputCardState extends State<OutputCard> {
     final output = state.output;
     final result = state.result;
 
+    final consent = state.consent;
+    if (consent != null && output.isEmpty) {
+      // Never a dialog by itself: an instant translation shows this inline
+      // prompt (a translation the user asked for also opens the dialog).
+      return Padding(
+        padding: const EdgeInsetsDirectional.only(top: 8, end: 12, bottom: 8),
+        child: ConsentInlinePrompt(
+          key: const Key('translate_consent_prompt'),
+          consent: consent.exception,
+          onGranted: () =>
+              unawaited(context.read<TranslateCubit>().retryAfterConsent()),
+        ),
+      );
+    }
+
+    if (state.enginesStatus == EnginesStatus.failure &&
+        state.error != null &&
+        state.status == TranslateStatus.idle &&
+        output.isEmpty) {
+      // The engine's languages could not be loaded (e.g. offline first has
+      // not loaded the lists of this server yet).
+      return Padding(
+        padding: const EdgeInsetsDirectional.only(top: 8, end: 12, bottom: 8),
+        child: TranslateErrorView(
+          key: const Key('translate_engine_error'),
+          error: state.error,
+          onRetry: () =>
+              unawaited(context.read<TranslateCubit>().loadEngines()),
+        ),
+      );
+    }
+
     if (state.status == TranslateStatus.failure && output.isEmpty) {
       return Padding(
         padding: const EdgeInsetsDirectional.only(end: 12, bottom: 8),
@@ -615,6 +648,14 @@ class _OutputCardState extends State<OutputCard> {
                     ),
               key: const Key('translate_output_footer'),
               style: meta,
+            ),
+          ],
+          if (result?.destination case final destination?) ...[
+            const SizedBox(width: 8),
+            DestinationChip(
+              key: const Key('translate_output_destination'),
+              destination: destination,
+              engineId: result?.engineId,
             ),
           ],
         ],

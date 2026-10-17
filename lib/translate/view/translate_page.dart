@@ -250,32 +250,40 @@ class TranslateView extends StatelessWidget {
           child: Focus(
             autofocus: true,
             child: SmartSwapListener(
-              child: Scaffold(
-                appBar: _TranslateAppBar(
-                  showTitle: width >= TranslateLayout.compactBreakpoint,
-                ),
-                body: BlocBuilder<TranslateCubit, TranslateState>(
-                  buildWhen: (previous, current) =>
-                      previous.enginesStatus != current.enginesStatus ||
-                      previous.engines.isEmpty != current.engines.isEmpty,
-                  builder: (context, state) {
-                    if (state.engines.isEmpty) {
-                      return switch (state.enginesStatus) {
-                        EnginesStatus.initial ||
-                        EnginesStatus.loading => const TranslateSkeleton(),
-                        EnginesStatus.ready ||
-                        EnginesStatus.failure => const NoEnginesView(),
-                      };
-                    }
-                    // Measure the pane itself: the shell's navigation rail
-                    // takes part of the window on large screens.
-                    return LayoutBuilder(
-                      builder: (context, constraints) =>
-                          constraints.maxWidth >= TranslateLayout.wideBreakpoint
-                          ? const _WideLayout()
-                          : const _NarrowLayout(),
-                    );
-                  },
+              child: TranslateConsentListener(
+                child: Scaffold(
+                  appBar: _TranslateAppBar(
+                    showTitle: width >= TranslateLayout.compactBreakpoint,
+                  ),
+                  body: BlocBuilder<TranslateCubit, TranslateState>(
+                    buildWhen: (previous, current) =>
+                        previous.enginesStatus != current.enginesStatus ||
+                        previous.engines.isEmpty != current.engines.isEmpty ||
+                        (previous.engine == null) != (current.engine == null),
+                    builder: (context, state) {
+                      if (state.engines.isEmpty) {
+                        return switch (state.enginesStatus) {
+                          EnginesStatus.initial ||
+                          EnginesStatus.loading => const TranslateSkeleton(),
+                          EnginesStatus.ready ||
+                          EnginesStatus.failure => const NoEnginesView(),
+                        };
+                      }
+                      if (state.engine == null &&
+                          state.enginesStatus == EnginesStatus.ready) {
+                        return const ChooseEngineView();
+                      }
+                      // Measure the pane itself: the shell's navigation rail
+                      // takes part of the window on large screens.
+                      return LayoutBuilder(
+                        builder: (context, constraints) =>
+                            constraints.maxWidth >=
+                                TranslateLayout.wideBreakpoint
+                            ? const _WideLayout()
+                            : const _NarrowLayout(),
+                      );
+                    },
+                  ),
                 ),
               ),
             ),

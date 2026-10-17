@@ -1,0 +1,611 @@
+@TestOn('vm')
+library;
+
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:mozhi/core/network/http_client_factory.dart';
+import 'package:mozhi/core/network/http_client_factory_io.dart';
+import 'package:mozhi/core/network/http_proxy_tunnel.dart';
+
+/// Real sockets, whatever `HttpOverrides` the test binding installs.
+class _RealHttp extends HttpOverrides;
+
+/// What a fake proxy saw: the first line of each request.
+typedef _ProxyLog = List<String>;
+
+void main() {
+  final servers = <Object>[];
+
+  tearDown(() async {
+    for (final server in servers) {
+      switch (server) {
+        case HttpServer():
+          await server.close(force: true);
+        case ServerSocket():
+          await server.close();
+      }
+    }
+    servers.clear();
+  });
+
+  Future<T> real<T>(Future<T> Function() body) =>
+      HttpOverrides.runWithHttpOverrides(body, _RealHttp());
+
+  /// A server that answers with the request headers as JSON and sets a
+  /// cookie.
+  Future<HttpServer> echoServer() async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    servers.add(server);
+    server.listen((request) async {
+      final headers = <String, String>{};
+      request.headers.forEach((name, values) => headers[name] = values.join());
+      request.response
+        ..headers.set('set-cookie', 'session=1; Path=/')
+        ..headers.contentType = ContentType.json
+        ..write(jsonEncode({'path': request.uri.path, 'headers': headers}));
+      await request.response.close();
+    });
+    return server;
+  }
+
+  /// A CONNECT proxy that logs the first line of each request and then
+  /// either answers [refuse] and hangs up, answers [answer] (acting as the
+  /// server too), or tunnels to [target] on loopback.
+  Future<(ServerSocket, _ProxyLog)> connectProxy({
+    int? target,
+    String? refuse,
+    String? answer,
+  }) async {
+    final log = <String>[];
+    final proxy = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+    servers.add(proxy);
+    proxy.listen((client) {
+      final buffer = <int>[];
+      late StreamSubscription<Uint8List> subscription;
+      subscription = client.listen((data) async {
+        if (target == null && log.isNotEmpty) return;
+        buffer.addAll(data);
+        final text = latin1.decode(buffer);
+        final end = text.indexOf('\r\n\r\n');
+        if (end < 0) return;
+        log.add(text.split('\r\n').first);
+        if (refuse != null) {
+          client.add(latin1.encode(refuse));
+          await client.flush();
+          client.destroy();
+          await subscription.cancel();
+          return;
+        }
+        if (answer != null) {
+          client.add(latin1.encode(answer));
+          return;
+        }
+        subscription.pause();
+        final upstream = await Socket.connect(
+          InternetAddress.loopbackIPv4,
+          target!,
+        );
+        client.add(
+          latin1.encode('HTTP/1.1 200 Connection established\r\n\r\n'),
+        );
+        final rest = buffer.sublist(end + 4);
+        if (rest.isNotEmpty) upstream.add(rest);
+        subscription
+          ..onData(upstream.add)
+          ..onDone(upstream.destroy)
+          ..resume();
+        upstream.listen(client.add, onDone: client.destroy);
+      });
+    });
+    return (proxy, log);
+  }
+
+  group('createHttpClient', () {
+    test('sends a bare User-Agent, no cookies and no referer', () async {
+      final server = await echoServer();
+      final url = Uri.parse('http://127.0.0.1:${server.port}/api/engines');
+
+      final bodies = await real(() async {
+        final client = createHttpClient();
+        addTearDown(client.close);
+        return [
+          for (var i = 0; i < 2; i++)
+            jsonDecode((await client.get(url)).body) as Map<String, dynamic>,
+        ];
+      });
+
+      for (final body in bodies) {
+        final headers = body['headers'] as Map<String, dynamic>;
+        expect(headers['user-agent'], appUserAgent);
+        expect(headers, isNot(contains('cookie')));
+        expect(headers, isNot(contains('referer')));
+      }
+    });
+
+    test('a blank proxy means direct connections', () async {
+      final server = await echoServer();
+
+      final response = await real(() async {
+        final client = createHttpClient(proxy: '  ');
+        addTearDown(client.close);
+        return await client.get(Uri.parse('http://127.0.0.1:${server.port}/x'));
+      });
+
+      expect(response.statusCode, 200);
+    });
+
+    test('an invalid proxy refuses every request', () async {
+      final client = createHttpClient(proxy: 'socks5://127.0.0.1:9050');
+
+      await expectLater(
+        client.get(Uri.parse('https://mozhi.example/api/engines#top')),
+        throwsA(
+          isA<InvalidProxyException>()
+              .having(
+                (e) => e.message,
+                'message',
+                InvalidProxyException.defaultMessage,
+              )
+              .having(
+                (e) => e.uri.toString(),
+                'uri',
+                'https://mozhi.example/api/engines',
+              ),
+        ),
+      );
+    });
+
+    group('with a proxy', () {
+      test(
+        'tunnels plain http with CONNECT; the proxy resolves the name',
+        () async {
+          final server = await echoServer();
+          final (proxy, log) = await connectProxy(target: server.port);
+
+          final body = await real(() async {
+            final client = createHttpClient(proxy: '127.0.0.1:${proxy.port}');
+            addTearDown(client.close);
+            return jsonDecode(
+              (await client.get(
+                Uri.parse('http://mozhi.example.onion/api/engines'),
+              )).body,
+            ) as Map<String, dynamic>;
+          });
+
+          expect(log, ['CONNECT mozhi.example.onion:80 HTTP/1.1']);
+          expect(body['path'], '/api/engines');
+          expect((body['headers'] as Map)['host'], 'mozhi.example.onion');
+        },
+      );
+
+      test('reads what the proxy sent along with its answer', () async {
+        final (proxy, log) = await connectProxy(
+          answer:
+              'HTTP/1.0 200 OK\r\n\r\n'
+              'HTTP/1.1 200 OK\r\ncontent-length: 2\r\n'
+              'connection: close\r\n\r\nok',
+        );
+
+        final response = await real(() async {
+          final client = createHttpClient(
+            proxy: 'http://127.0.0.1:${proxy.port}/',
+          );
+          addTearDown(client.close);
+          return await client.get(
+            Uri.parse('http://mozhi.example/api/version'),
+          );
+        });
+
+        expect(log, ['CONNECT mozhi.example:80 HTTP/1.1']);
+        expect(response.body, 'ok');
+      });
+
+      test('reports a refusing proxy', () async {
+        final (proxy, _) = await connectProxy(
+          refuse: 'HTTP/1.0 405 Method Not Allowed\r\n\r\n',
+        );
+
+        await expectLater(
+          real(() async {
+            final client = createHttpClient(proxy: '127.0.0.1:${proxy.port}');
+            addTearDown(client.close);
+            return await client.get(Uri.parse('http://abc.onion/api/engines'));
+          }),
+          throwsA(
+            isA<http.ClientException>().having(
+              (e) => e.message,
+              'message',
+              contains('refused the connection to abc.onion:80 (HTTP 405)'),
+            ),
+          ),
+        );
+      });
+
+      for (final (name, answer) in [
+        ('garbage', 'SSH-2.0-OpenSSH\r\n\r\n'),
+        ('a closed connection', ''),
+      ]) {
+        test('reports $name from the proxy', () async {
+          final (proxy, _) = await connectProxy(refuse: answer);
+
+          await expectLater(
+            real(() async {
+              final client = createHttpClient(proxy: '127.0.0.1:${proxy.port}');
+              addTearDown(client.close);
+              return await client.get(Uri.parse('http://abc.onion/'));
+            }),
+            throwsA(
+              isA<http.ClientException>().having(
+                (e) => e.message,
+                'message',
+                startsWith('The proxy'),
+              ),
+            ),
+          );
+        });
+      }
+
+      test('reports an endless proxy answer', () async {
+        final proxy = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+        servers.add(proxy);
+        proxy.listen((client) {
+          client
+            ..add(Uint8List(20 * 1024))
+            ..listen((_) {});
+        });
+
+        await expectLater(
+          real(() async {
+            final client = createHttpClient(proxy: '127.0.0.1:${proxy.port}');
+            addTearDown(client.close);
+            return await client.get(Uri.parse('http://abc.onion/'));
+          }),
+          throwsA(
+            isA<http.ClientException>().having(
+              (e) => e.message,
+              'message',
+              'The proxy sent an invalid answer',
+            ),
+          ),
+        );
+      });
+
+      test('connects to this device and the LAN directly', () async {
+        final server = await echoServer();
+        final (proxy, log) = await connectProxy(target: server.port);
+
+        final response = await real(() async {
+          final client = createHttpClient(proxy: '127.0.0.1:${proxy.port}');
+          addTearDown(client.close);
+          return await client.get(
+            Uri.parse('http://127.0.0.1:${server.port}/'),
+          );
+        });
+
+        expect(response.statusCode, 200);
+        expect(log, isEmpty);
+      });
+
+      test('connects to a local https server directly', () async {
+        // Nothing listens on TLS here: the direct attempt fails without the
+        // proxy ever being asked.
+        final (proxy, log) = await connectProxy(answer: '');
+        final closed = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+        final port = closed.port;
+        await closed.close();
+
+        await expectLater(
+          real(() async {
+            final client = createHttpClient(proxy: '127.0.0.1:${proxy.port}');
+            addTearDown(client.close);
+            return await client.get(Uri.parse('https://127.0.0.1:$port/'));
+          }),
+          throwsA(isA<http.ClientException>()),
+        );
+        expect(log, isEmpty);
+      });
+
+      test('sends https to public hosts through the proxy', () async {
+        final (proxy, log) = await connectProxy(
+          refuse: 'HTTP/1.1 403 Forbidden\r\n\r\n',
+        );
+
+        await expectLater(
+          real(() async {
+            final client = createHttpClient(proxy: '127.0.0.1:${proxy.port}');
+            addTearDown(client.close);
+            return await client.get(
+              Uri.parse('https://mozhi.example/api/engines'),
+            );
+          }),
+          throwsA(isA<http.ClientException>()),
+        );
+        expect(log, ['CONNECT mozhi.example:443 HTTP/1.1']);
+      });
+    });
+  });
+
+  group('proxyDirective', () {
+    const proxy = ProxyAddress('127.0.0.1', 8118);
+
+    test('https goes through the proxy, the rest is direct', () {
+      String directive(String url) =>
+          proxyDirective(Uri.parse(url), proxy, bypass: bypassesProxy);
+
+      expect(directive('https://mozhi.example/'), 'PROXY 127.0.0.1:8118');
+      expect(directive('https://abc.onion/'), 'PROXY 127.0.0.1:8118');
+      expect(directive('http://abc.onion/'), 'DIRECT');
+      expect(directive('https://192.168.1.2/'), 'DIRECT');
+    });
+  });
+
+  test('bypassesProxy', () {
+    expect(bypassesProxy('localhost'), isTrue);
+    expect(bypassesProxy('192.168.1.2'), isTrue);
+    expect(bypassesProxy('NAS.local'), isTrue);
+    expect(bypassesProxy('abc.onion'), isFalse);
+    expect(bypassesProxy('abc.b32.i2p'), isFalse);
+    expect(bypassesProxy('mozhi.example'), isFalse);
+  });
+
+  test('connectAuthority brackets IPv6', () {
+    expect(connectAuthority('abc.onion', 80), 'abc.onion:80');
+    expect(connectAuthority('2001:db8::1', 443), '[2001:db8::1]:443');
+  });
+
+  group('connectTunnel', () {
+    test(
+      'hands over a socket that reads and writes through the proxy',
+      () async {
+        final echo = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+        servers.add(echo);
+        echo.listen(
+          (socket) => socket.listen(socket.add, onDone: socket.destroy),
+        );
+        final (proxy, log) = await connectProxy(target: echo.port);
+
+        final task = await connectTunnel(
+          ProxyAddress('127.0.0.1', proxy.port),
+          '2001:db8::1',
+          7,
+        );
+        final socket = await task.socket;
+        final received = <int>[];
+        final done = Completer<void>();
+        final subscription =
+            socket.listen((data) {
+                received.addAll(data);
+                if (utf8.decode(received).endsWith('!')) done.complete();
+              })
+              ..pause()
+              ..resume();
+
+        socket
+          ..encoding = utf8
+          ..write('a')
+          ..writeln('b')
+          ..writeCharCode(0x63)
+          ..writeAll(['d', 'e'], '-')
+          ..add(utf8.encode('f'));
+        await socket.addStream(Stream.value(utf8.encode('!')));
+        await socket.flush();
+        await done.future;
+
+        expect(log, ['CONNECT [2001:db8::1]:7 HTTP/1.1']);
+        expect(utf8.decode(received), 'ab\ncd-ef!');
+        expect(socket.encoding, utf8);
+        expect(socket.port, greaterThan(0));
+        expect(socket.remotePort, proxy.port);
+        expect(socket.address.isLoopback, isTrue);
+        expect(socket.remoteAddress.isLoopback, isTrue);
+        expect(socket.setOption(SocketOption.tcpNoDelay, true), isTrue);
+        final option = RawSocketOption.fromBool(
+          RawSocketOption.levelTcp,
+          Platform.isMacOS ? 0x01 : 1,
+          true,
+        );
+        socket.setRawOption(option);
+        expect(socket.getRawOption(option), isNotEmpty);
+
+        expect(() => socket.addError(StateError('x')), throwsUnsupportedError);
+        await socket.close();
+        await socket.done.catchError((Object _) {});
+        socket.destroy();
+        await subscription.cancel();
+      },
+    );
+
+    test('cancelling closes the connection attempt', () async {
+      final silent = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      servers.add(silent);
+      silent.listen((client) => client.listen((_) {}));
+
+      final task = await connectTunnel(
+        ProxyAddress('127.0.0.1', silent.port),
+        'abc.onion',
+        80,
+      );
+      task.cancel();
+
+      await expectLater(task.socket, throwsA(isA<SocketException>()));
+    });
+
+    test('ends the reader when the proxy hangs up later', () async {
+      final opened = Completer<Socket>();
+      final proxy = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      servers.add(proxy);
+      proxy.listen((client) {
+        client.listen((_) {
+          if (opened.isCompleted) return;
+          client.add(latin1.encode('HTTP/1.1 200 OK\r\n\r\n'));
+          opened.complete(client);
+        });
+      });
+
+      final task = await connectTunnel(
+        ProxyAddress('127.0.0.1', proxy.port),
+        'abc.onion',
+        80,
+      );
+      final socket = await task.socket;
+      final closed = Completer<void>();
+      socket.listen((_) {}, onDone: closed.complete, onError: (Object _) {});
+      (await opened.future).destroy();
+
+      await closed.future;
+    });
+  });
+
+  group('connectTunnel with a fake proxy connection', () {
+    const proxy = ProxyAddress('proxy.lan', 8118);
+
+    test('drops a connection that opens after the cancellation', () async {
+      final socket = _FakeSocket();
+      final opening = Completer<Socket>();
+      final task = await connectTunnel(
+        proxy,
+        'abc.onion',
+        80,
+        connect: (host, port) async {
+          expect((host, port), ('proxy.lan', 8118));
+          return ConnectionTask.fromSocket(opening.future, () {});
+        },
+      );
+
+      task.cancel();
+      opening.complete(socket);
+
+      await expectLater(task.socket, throwsA(isA<SocketException>()));
+      expect(socket.destroyed, isTrue);
+      expect(socket.written, isEmpty);
+    });
+
+    test('cancelling closes an open connection', () async {
+      final socket = _FakeSocket();
+      final task = await connectTunnel(
+        proxy,
+        'abc.onion',
+        80,
+        connect: (_, _) async =>
+            ConnectionTask.fromSocket(Future.value(socket), () {}),
+      );
+      await pumpEventQueue();
+
+      task.cancel();
+
+      expect(socket.destroyed, isTrue);
+      expect(latin1.decode(socket.written), startsWith('CONNECT abc.onion:80'));
+    });
+  });
+
+  group('openTunnel', () {
+    test('fails on a connection error before the answer', () async {
+      final socket = _FakeSocket();
+      final tunnel = openTunnel(socket, 'abc.onion:80');
+
+      socket.incoming.addError(const SocketException('reset'));
+
+      await expectLater(
+        tunnel,
+        throwsA(
+          isA<SocketException>().having(
+            (e) => e.message,
+            'message',
+            startsWith('The proxy connection failed'),
+          ),
+        ),
+      );
+      expect(socket.destroyed, isTrue);
+    });
+
+    test('passes later connection errors to the reader', () async {
+      final socket = _FakeSocket();
+      final tunnel = openTunnel(socket, 'abc.onion:80');
+      socket.incoming.add(latin1.encode('HTTP/1.1 200 OK\r\n\r\n'));
+      final opened = await tunnel;
+      final errors = <Object>[];
+      opened.listen((_) {}, onError: errors.add);
+
+      socket.incoming.addError(const SocketException('reset'));
+      await pumpEventQueue();
+
+      expect(errors, [isA<SocketException>()]);
+    });
+  });
+
+  group('ProxyAddress.parse', () {
+    for (final (input, host, port) in [
+      ('127.0.0.1:8118', '127.0.0.1', 8118),
+      (' localhost:9080 ', 'localhost', 9080),
+      ('[::1]:8118', '::1', 8118),
+      ('HTTP://proxy.lan:3128/', 'proxy.lan', 3128),
+    ]) {
+      test('"$input"', () {
+        final address = ProxyAddress.parse(input);
+        expect(address, ProxyAddress(host, port));
+        expect(address.hashCode, ProxyAddress(host, port).hashCode);
+      });
+    }
+
+    for (final input in [
+      '',
+      'localhost',
+      'localhost:0',
+      'localhost:70000',
+      'socks5://127.0.0.1:9050',
+      'user:pw@127.0.0.1:8118',
+      '127.0.0.1:8118/path',
+      '127.0.0.1:8118?x=1',
+      '127.0.0.1:8118#x',
+      'bad host:80',
+      'http://[::1',
+    ]) {
+      test('rejects "$input"', () {
+        expect(() => ProxyAddress.parse(input), throwsFormatException);
+      });
+    }
+
+    test('authority and toString', () {
+      expect(const ProxyAddress('::1', 8118).authority, '[::1]:8118');
+      expect(
+        const ProxyAddress('127.0.0.1', 8118).toString(),
+        'ProxyAddress(127.0.0.1:8118)',
+      );
+      expect(const ProxyAddress('a', 1), isNot(const ProxyAddress('a', 2)));
+    });
+  });
+}
+
+/// A proxy connection whose incoming data the test writes.
+class _FakeSocket extends Stream<Uint8List> implements Socket {
+  final incoming = StreamController<Uint8List>();
+  final written = <int>[];
+  bool destroyed = false;
+
+  @override
+  StreamSubscription<Uint8List> listen(
+    void Function(Uint8List event)? onData, {
+    Function? onError,
+    void Function()? onDone,
+    bool? cancelOnError,
+  }) => incoming.stream.listen(
+    onData,
+    onError: onError,
+    onDone: onDone,
+    cancelOnError: cancelOnError,
+  );
+
+  @override
+  void add(List<int> data) => written.addAll(data);
+
+  @override
+  void destroy() => destroyed = true;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}

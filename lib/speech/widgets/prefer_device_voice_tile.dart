@@ -6,9 +6,10 @@ import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/speech/speech_service.dart';
 
-/// Settings switch for [SpeechService.preferDeviceVoice]. Reads the
-/// [SpeechService] from context; renders nothing on platforms without a
-/// device speech engine.
+/// Settings switch "Device voice only" ([SpeechService.preferDeviceVoice]:
+/// never read aloud through a Mozhi instance). Reads the [SpeechService]
+/// from context; renders nothing on platforms without a device speech
+/// engine.
 class PreferDeviceVoiceTile extends StatefulWidget {
   const new({super.key});
 
@@ -46,9 +47,9 @@ class _PreferDeviceVoiceTileState extends State<PreferDeviceVoiceTile> {
     final l10n = context.l10n;
     return SwitchListTile(
       secondary: const Icon(Icons.record_voice_over_outlined),
-      title: Text(l10n.speechPreferDeviceVoice),
+      title: Text(l10n.speechDeviceVoiceOnly),
       subtitle: Text(
-        l10n.speechPreferDeviceVoiceDescription,
+        l10n.speechDeviceVoiceOnlyDescription,
         style: TextStyle(color: AppPalette.of(context).secondaryText),
       ),
       value: _enabled,

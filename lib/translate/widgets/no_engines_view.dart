@@ -5,8 +5,15 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/translate/widgets/translate_error.dart';
+import 'package:translation_repository/translation_repository.dart';
 
 /// Shown when no Mozhi instance is reachable and no AI provider is set up.
+///
+/// When the privacy settings kept the engine list from loading
+/// (`ConsentRequiredException`: offline only, or offline first before the
+/// user let the app contact the servers), that is said instead, with the
+/// prompt to allow it.
 class NoEnginesView extends StatelessWidget {
   const new({super.key});
 
@@ -14,6 +21,26 @@ class NoEnginesView extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
+    final error = context.select<TranslateCubit, Object?>(
+      (cubit) => cubit.state.error,
+    );
+    if (error is ConsentRequiredException) {
+      return Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: TranslateErrorView(
+              key: const Key('translate_no_engines_consent'),
+              error: error,
+              onRetry: () => unawaited(
+                context.read<TranslateCubit>().loadEngines(refresh: true),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),

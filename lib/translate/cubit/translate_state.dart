@@ -13,6 +13,33 @@ enum TranslateStatus { idle, translating, success, failure }
 /// Status of an optional AI extra (alternatives, insights, ...).
 enum ExtraStatus { idle, loading, ready, failure }
 
+/// The main translation stopped before its text left the device because
+/// the privacy settings want the user's say ([exception]); nothing was
+/// sent. The screen shows an inline prompt, and opens the consent dialog
+/// only for a translation the user asked for (not [automatic]). Once
+/// consent is recorded, `TranslateCubit.retryAfterConsent` translates
+/// again.
+class ConsentRequest extends Equatable {
+  const new({
+    required this.exception,
+    required this.id,
+    this.automatic = false,
+  });
+
+  final ConsentRequiredException exception;
+
+  /// A new id for every stopped request (so the same exception twice is
+  /// still a new request).
+  final int id;
+
+  /// The translation started by itself (instant translation, text from
+  /// another app): never open a dialog for it.
+  final bool automatic;
+
+  @override
+  List<Object?> get props => [exception, id, automatic];
+}
+
 /// A refinement chip applied to the translation with
 /// `TranslateCubit.applySuggestion` (AI engines with the general prompt
 /// profile revise the current translation instead of translating again).
@@ -180,6 +207,7 @@ class TranslateState extends Equatable {
     this.extraTranslations = const [],
     this.memoryMatch,
     this.resultFromMemory = false,
+    this.consent,
   });
 
   final EnginesStatus enginesStatus;
@@ -387,6 +415,10 @@ class TranslateState extends Equatable {
   /// with `TranslateCubit.useMemoryMatch` (no engine was asked). False
   /// once another result replaces it.
   final bool resultFromMemory;
+
+  /// The main translation waits for the user's consent (nothing was sent);
+  /// see [ConsentRequest].
+  final ConsentRequest? consent;
 
   /// [memoryMatch] when it is worth showing: not in compare mode, and its
   /// translation is not what the output shows already (as the current
@@ -749,6 +781,7 @@ class TranslateState extends Equatable {
     List<ExtraTranslation>? extraTranslations,
     MemoryMatch? Function()? memoryMatch,
     bool? resultFromMemory,
+    ConsentRequest? Function()? consent,
   }) {
     final nextResult = result != null ? result() : this.result;
     return TranslateState(
@@ -837,6 +870,7 @@ class TranslateState extends Equatable {
       // Any other result is not the one from history.
       resultFromMemory:
           resultFromMemory ?? (result == null && this.resultFromMemory),
+      consent: consent != null ? consent() : this.consent,
     );
   }
 
@@ -899,5 +933,6 @@ class TranslateState extends Equatable {
     extraTranslations,
     memoryMatch,
     resultFromMemory,
+    consent,
   ];
 }

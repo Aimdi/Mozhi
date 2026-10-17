@@ -172,6 +172,10 @@ class TranslationRepository {
   /// One-shot approvals ([allowOnce]), oldest first.
   final List<_OnceGrant> _grants = [];
 
+  /// Whether offline-first mode may load lists over the network in this
+  /// session (see [metadataDeferred]).
+  bool _metadataUnlocked = false;
+
   /// Keyed by the URL of the instance that answered (+ engine and direction
   /// for languages).
   final Map<String, Future<List<TranslationEngine>>> _engines = {};
@@ -269,7 +273,8 @@ class TranslationRepository {
   ///   or in the [MetadataStore] are still served).
   /// * [PrivacyMode.offlineFirst]: text leaves the device (to any server,
   ///   the user's own included) only for the language pairs in
-  ///   [approvedPairs] ([pairKey]); otherwise [ConsentKind.pair].
+  ///   [approvedPairs] ([pairKey]); otherwise [ConsentKind.pair]. Mozhi
+  ///   lists are not refreshed by themselves (see [metadataDeferred]).
   /// * [PrivacyMode.online]: the configured engines are used without
   ///   asking.
   ///
@@ -279,11 +284,14 @@ class TranslationRepository {
   ///
   /// The rules are checked before any request, separately for every engine
   /// a request involves (an assisting AI engine, each engine in [compare],
-  /// a Mozhi instance used for language detection, each instance the Mozhi
-  /// failover tries: instances the rules do not allow are skipped), so text
-  /// never moves on to another destination by itself. Connection tests the
-  /// user starts in settings ([pingInstance], [listModels],
-  /// [testProvider]) carry no user text and are not restricted.
+  /// a Mozhi instance used for language detection, Reverso after Google
+  /// text-to-speech), so text never moves on to another back end by
+  /// itself. The consent for a Mozhi request covers the instances in the
+  /// user's list: the failover may try them in order (never after
+  /// [PrivacyMode.offlineOnly] was turned on), and the result names the
+  /// instance that answered. Connection tests the user starts in settings
+  /// ([pingInstance], [listModels], [testProvider]) carry no user text and
+  /// are not restricted.
   void updatePrivacy({
     required PrivacyMode mode,
     Iterable<String> approvedPairs = const [],
@@ -305,16 +313,23 @@ class TranslationRepository {
 
   /// Lets the next request that [consent] stopped through once ("Send just
   /// this once"): the next request of `consent.engineId` for the same
-  /// language pair may send its text to `consent.destination` despite the
-  /// missing pair approval ([ConsentKind.pair]) or provider consent
-  /// ([ConsentKind.cloudProvider]) — only there (a Mozhi failover to
-  /// another instance is not covered) and only for that kind of consent.
+  /// language pair may send its text to `consent.destination` (for Mozhi:
+  /// and on to the other instances of the user's list, as the failover
+  /// does) despite the missing pair approval ([ConsentKind.pair]) or
+  /// provider consent ([ConsentKind.cloudProvider]), only for that kind of
+  /// consent. Another back end the request would involve (a Mozhi instance
+  /// detecting the language for an AI engine, Reverso speech) is not
+  /// covered.
   ///
   /// The approval is used up by the next request of that engine and pair
   /// that checks it, whether or not it needed it, and expires after
-  /// [consentOnceLifetime]. [ConsentKind.offlineOnly] cannot be overridden
-  /// ([ArgumentError]).
-  void allowOnce(ConsentRequiredException consent) {
+  /// [consentOnceLifetime]. A job that the user approved as a whole (a web
+  /// page, a document) passes the number of [requests] it makes: the
+  /// approval then lets that many through (each use keeps it alive for
+  /// another [consentOnceLifetime]). [ConsentKind.offlineOnly] cannot be
+  /// overridden ([ArgumentError]); [requests] must be at least 1
+  /// ([RangeError]).
+  void allowOnce(ConsentRequiredException consent, {int requests = 1}) {
     if (consent.kind == ConsentKind.offlineOnly) {
       throw ArgumentError.value(
         consent.kind,
@@ -322,14 +337,18 @@ class TranslationRepository {
         'Offline-only mode cannot be overridden for one request',
       );
     }
+    RangeError.checkValueInInterval(requests, 1, 1 << 30, 'requests');
     _dropExpiredGrants();
-    _grants.add((
-      kind: consent.kind,
-      engineId: consent.engineId,
-      destination: consent.destination,
-      pair: pairKey(consent.source ?? 'auto', consent.target ?? 'auto'),
-      expires: _clock().add(consentOnceLifetime),
-    ));
+    _grants.add(
+      _OnceGrant(
+        kind: consent.kind,
+        engineId: consent.engineId,
+        destination: consent.destination,
+        pair: pairKey(consent.source ?? 'auto', consent.target ?? 'auto'),
+        expires: _clock().add(consentOnceLifetime),
+        remaining: requests,
+      ),
+    );
   }
 
   /// Where the text of engine [engineId] goes: [OnDeviceDestination] for
@@ -478,6 +497,7 @@ class TranslationRepository {
       if (!grant && !_approvedPairs.contains(pair)) {
         return denied(ConsentKind.pair);
       }
+      _unlockMetadata();
     }
     return null;
   }
@@ -499,7 +519,12 @@ class TranslationRepository {
           grant.pair == pair,
     );
     if (index < 0) return false;
-    _grants.removeAt(index);
+    final grant = _grants[index];
+    if (--grant.remaining <= 0) {
+      _grants.removeAt(index);
+    } else {
+      grant.expires = _clock().add(consentOnceLifetime);
+    }
     return true;
   }
 
@@ -508,43 +533,12 @@ class TranslationRepository {
     _grants.removeWhere((grant) => !grant.expires.isAfter(now));
   }
 
-  /// Whether [instance] may receive text of Mozhi [engine] for [source] >
-  /// [target] without an [allowOnce] approval (failover candidates).
-  bool _mozhiAllows(
-    MozhiInstance instance,
-    String engine, {
-    required String engineId,
-    required String source,
-    required String target,
-  }) =>
-      _denial(
-        _mozhiDestination(engine, instance),
-        engineId: engineId,
-        source: source,
-        target: target,
-        useGrants: false,
-      ) ==
-      null;
-
-  /// The `allow` filter of a Mozhi request whose first instance [checked]
-  /// was already checked (and possibly let through by [allowOnce]): other
-  /// instances need the rules' approval on their own.
-  bool Function(MozhiInstance) _mozhiFilter(
-    MozhiInstance? checked,
-    String engine, {
-    required String engineId,
-    required String source,
-    required String target,
-  }) =>
-      (instance) =>
-          instance.url == checked?.url ||
-          _mozhiAllows(
-            instance,
-            engine,
-            engineId: engineId,
-            source: source,
-            target: target,
-          );
+  /// The `allow` filter of a Mozhi request that passed the consent check:
+  /// the consent for a Mozhi request covers the instances in the user's
+  /// list (the failover may try them in order), unless the user turned on
+  /// [PrivacyMode.offlineOnly] meanwhile.
+  bool _mozhiFailoverAllowed(MozhiInstance _) =>
+      _privacyMode != PrivacyMode.offlineOnly;
 
   /// Engines: Mozhi engines advertised by the active instance (via
   /// `/api/engines`, `subtitle` = instance display name, i.e. its label or
@@ -576,13 +570,17 @@ class TranslationRepository {
   ///
   /// In [PrivacyMode.offlineOnly] nothing is loaded over the network: the
   /// Mozhi engines are listed only when their list is in memory or stored
-  /// (without revalidation), and so are the Mozhi language lists; machine
-  /// translation services' lists only when in memory. A list that would
-  /// need the network fails with a [ConsentRequiredException] of
-  /// [ConsentKind.offlineOnly] (for [getEngines] only when there are no
-  /// other engines).
+  /// (of any age, without revalidation), and so are the Mozhi language
+  /// lists; machine translation services' lists only when in memory. A
+  /// list that would need the network fails with a
+  /// [ConsentRequiredException] of [ConsentKind.offlineOnly] (for
+  /// [getEngines] only when there are no other engines). In
+  /// [PrivacyMode.offlineFirst] the Mozhi lists behave the same while
+  /// [metadataDeferred] (the exception is then a [ConsentKind.pair] one
+  /// without a language pair); `refresh: true` ends that.
   Future<List<TranslationEngine>> getEngines({bool refresh = false}) async {
     if (refresh) {
+      _metadataUnlocked = true;
       _clearMozhiCaches();
       _mozhi.resetPreferred();
       _mt.clearLanguages();
@@ -716,15 +714,16 @@ class TranslationRepository {
   }
 
   /// The first usable stored list [name] (see [_storedCandidates]) built
-  /// with [build], or null.
+  /// with [build] (of any age with [anyAge]), or null.
   Future<({StoredMetadata stored, T value})?> _readStored<T>(
     String name,
-    T Function(Object? json, MozhiInstance instance) build,
-  ) async {
+    T Function(Object? json, MozhiInstance instance) build, {
+    bool anyAge = false,
+  }) async {
     final metadata = _metadata;
     if (metadata == null) return null;
     for (final instance in _storedCandidates) {
-      final stored = await metadata.read(instance.url, name);
+      final stored = await metadata.read(instance.url, name, anyAge: anyAge);
       if (stored == null) continue;
       try {
         return (stored: stored, value: build(stored.data, instance));
@@ -746,10 +745,12 @@ class TranslationRepository {
   /// later failover back to the first instance does not serve the other
   /// instance's list. Failed loads are evicted so the next call retries.
   ///
-  /// In [PrivacyMode.offlineOnly] only the memory and the store are asked
-  /// (the stored list is not revalidated nor kept in memory, so that it is
-  /// reloaded once the network may be used); without either, a
-  /// [ConsentRequiredException] for [engineId] (`mozhi:<engine>`).
+  /// When lists may not be loaded over the network ([PrivacyMode
+  /// .offlineOnly], or offline first while [metadataDeferred]) only the
+  /// memory and the store are asked (the stored list, of any age, is not
+  /// revalidated nor kept in memory, so that it is reloaded once the
+  /// network may be used); without either, a [ConsentRequiredException]
+  /// for [engineId] (`mozhi:<engine>`, see [_listsUnavailable]).
   Future<T> _cachedMozhi<T>(
     Map<String, Future<T>> cache,
     String suffix, {
@@ -763,9 +764,7 @@ class TranslationRepository {
     final key = keyFor(_mozhi.active?.url ?? '');
     final cached = cache[key];
     if (cached != null) return cached;
-    if (_privacyMode == PrivacyMode.offlineOnly) {
-      return _storedOnly(name, build, engineId);
-    }
+    if (!_metadataNetworkAllowed) return _storedOnly(name, build, engineId);
     final generation = _metadataGeneration;
     late final Future<T> future;
 
@@ -827,27 +826,69 @@ class TranslationRepository {
     return future;
   }
 
-  /// The stored list [name] (see [_cachedMozhi] in offline-only mode).
+  /// The stored list [name] (see [_cachedMozhi] while lists may not be
+  /// loaded over the network).
   Future<T> _storedOnly<T>(
     String name,
     T Function(Object? json, MozhiInstance instance) build,
     String engineId,
   ) async {
-    final stored = await _readStored(name, build);
+    final stored = await _readStored(name, build, anyAge: true);
     if (stored != null) return stored.value;
-    throw _offlineOnlyMetadata(engineId);
+    throw _listsUnavailable(engineId);
   }
 
-  /// The [ConsentRequiredException] of a list of [engineId] that would need
-  /// the network in [PrivacyMode.offlineOnly].
-  ConsentRequiredException _offlineOnlyMetadata(String engineId) =>
+  /// Why a list of [engineId] cannot be loaded now: [ConsentKind
+  /// .offlineOnly], or (offline first, [metadataDeferred]) a
+  /// [ConsentKind.pair] exception without a language pair, which
+  /// [allowMetadataRequests] lifts.
+  ConsentRequiredException _listsUnavailable(String engineId) =>
       ConsentRequiredException(
-        kind: ConsentKind.offlineOnly,
+        kind: _privacyMode == PrivacyMode.offlineOnly
+            ? ConsentKind.offlineOnly
+            : ConsentKind.pair,
         destination: engineId.startsWith('mozhi:')
             ? _mozhiDestination(engineId.substring('mozhi:'.length))
             : destinationOf(engineId),
         engineId: engineId,
       );
+
+  /// Whether engine and language lists may be loaded over the network now
+  /// (see [metadataDeferred]).
+  bool get _metadataNetworkAllowed => switch (_privacyMode) {
+    PrivacyMode.online => true,
+    PrivacyMode.offlineOnly => false,
+    PrivacyMode.offlineFirst => _metadataUnlocked,
+  };
+
+  /// In [PrivacyMode.offlineFirst], whether Mozhi engine and language lists
+  /// are still only served from memory and the [MetadataStore] (stored
+  /// lists of any age, not refreshed at launch), so that the app does not
+  /// contact a server before the user lets it. The lists are loaded over
+  /// the network again, for the rest of the session, after
+  /// [allowMetadataRequests], `getEngines(refresh: true)`, or a request the
+  /// privacy settings let leave the device (then [metadataChanged] fires so
+  /// that the lists are reloaded). Machine translation services' lists are
+  /// not deferred (they are loaded only for a service the user set up and
+  /// picked).
+  bool get metadataDeferred =>
+      _privacyMode == PrivacyMode.offlineFirst && !_metadataUnlocked;
+
+  /// Lets offline-first mode load engine and language lists over the
+  /// network for the rest of the session (see [metadataDeferred]), e.g. when
+  /// the user opens the engine picker. The caller reloads the lists.
+  void allowMetadataRequests() => _metadataUnlocked = true;
+
+  /// A request may leave the device: in offline-first mode, the lists may
+  /// be refreshed from now on ([metadataChanged] fires once).
+  void _unlockMetadata() {
+    if (_metadataUnlocked) return;
+    _metadataUnlocked = true;
+    if (_privacyMode == PrivacyMode.offlineFirst &&
+        !_metadataChanges.isClosed) {
+      _metadataChanges.add(null);
+    }
+  }
 
   /// Mozhi: `/api/source_languages` mapped to [Language] (id `auto` ->
   /// [Language.auto] first, names from the engine, `nativeName` from
@@ -892,7 +933,7 @@ class TranslationRepository {
   /// service's language list that is not in memory; else null.
   Object Function()? _mtOffline(TranslationEngine engine) =>
       _privacyMode == PrivacyMode.offlineOnly
-      ? () => _offlineOnlyMetadata(engine.id)
+      ? () => _listsUnavailable(engine.id)
       : null;
 
   Future<List<Language>> _mozhiLanguages(
@@ -1004,15 +1045,13 @@ class TranslationRepository {
     if (safe == null) return Stream.error(_emptyCustomLanguage(request));
     // Checked before the cache too: a network engine is not used (not even
     // its cached results) without the user's consent.
-    final checked = engine.isMozhi ? _mozhi.active : null;
     final denied = _consentFor(
       engine,
       source: safe.source.code,
       target: safe.target.code,
     );
     if (denied != null) return Stream.error(denied);
-    Stream<TranslationResult> fetch() =>
-        _translateUncached(engine, safe, checked: checked);
+    Stream<TranslationResult> fetch() => _translateUncached(engine, safe);
     final key = _cacheKeyOf(engine, safe);
     if (refresh) _cache.remove(engine, key);
     if (!_wantsDetectionHint(engine, safe)) {
@@ -1136,18 +1175,14 @@ class TranslationRepository {
   }
 
   /// The engine's translation of [request], every result with its
-  /// [TranslationResult.destination]. [checked] is the Mozhi instance the
-  /// consent check looked at (see [_mozhiFilter]).
+  /// [TranslationResult.destination].
   Stream<TranslationResult> _translateUncached(
     TranslationEngine engine,
-    TranslationRequest request, {
-    MozhiInstance? checked,
-  }) {
+    TranslationRequest request,
+  ) {
     final destination = _destinationFor(engine);
     final results = switch (engine.kind) {
-      EngineKind.mozhi => Stream.fromFuture(
-        _translateMozhi(engine, request, checked: checked),
-      ),
+      EngineKind.mozhi => Stream.fromFuture(_translateMozhi(engine, request)),
       EngineKind.ai => _translateAi(engine, request),
       EngineKind.offline => Stream.fromFuture(
         Future.sync(() => _offlineFor(engine).translate(engine, request)),
@@ -1208,9 +1243,8 @@ class TranslationRepository {
 
   Future<TranslationResult> _translateMozhi(
     TranslationEngine engine,
-    TranslationRequest request, {
-    MozhiInstance? checked,
-  }) async {
+    TranslationRequest request,
+  ) async {
     _checkMozhiLanguages(request.source, request.target);
     final id = mozhiEngineId(engine);
     final stopwatch = Stopwatch()..start();
@@ -1233,13 +1267,7 @@ class TranslationRepository {
         return (result, instance);
       },
       failOverOnTimeout: false,
-      allow: _mozhiFilter(
-        checked,
-        id,
-        engineId: engine.id,
-        source: request.source.code,
-        target: request.target.code,
-      ),
+      allow: _mozhiFailoverAllowed,
     );
     return mapMozhiTranslation(
       engine,
@@ -1421,11 +1449,7 @@ class TranslationRepository {
         failure = denied;
       } else {
         try {
-          return (await _detectWithMozhi(
-            text,
-            checked: active,
-            target: target,
-          )).code;
+          return (await _detectWithMozhi(text)).code;
         } on Object catch (error) {
           failure = error;
         }
@@ -2166,7 +2190,6 @@ class TranslationRepository {
     }
     final offline = _offline;
     final onDevice = offline != null && offline.isAvailable;
-    final checked = _mozhi.active;
     // Checked first, but only used up when Mozhi is asked.
     ConsentRequiredException? mozhiDenial({bool useGrants = false}) => _denial(
       _mozhiDestination(_detectionEngine),
@@ -2195,20 +2218,12 @@ class TranslationRepository {
     }
     final denied = mozhiDenial(useGrants: true);
     if (denied != null) throw denied;
-    return await _detectWithMozhi(
-      text,
-      checked: checked,
-      target: Language.auto.code,
-    );
+    return await _detectWithMozhi(text);
   }
 
-  /// Detects the language of [text] (to be translated into [target]) with
-  /// Mozhi google; [checked] is the instance the consent check looked at.
-  Future<DetectedLanguage> _detectWithMozhi(
-    String text, {
-    required MozhiInstance? checked,
-    required String target,
-  }) async {
+  /// Detects the language of [text] with Mozhi google (the consent was
+  /// checked by the caller).
+  Future<DetectedLanguage> _detectWithMozhi(String text) async {
     final translation = await _mozhi.run(
       (client, _) => client.translate(
         engine: _detectionEngine,
@@ -2217,13 +2232,7 @@ class TranslationRepository {
         text: text,
       ),
       failOverOnTimeout: false,
-      allow: _mozhiFilter(
-        checked,
-        _detectionEngine,
-        engineId: 'mozhi:$_detectionEngine',
-        source: Language.auto.code,
-        target: target,
-      ),
+      allow: _mozhiFailoverAllowed,
     );
     final code = normalizeDetected(translation.detectedLanguage);
     if (code == null) {
@@ -2240,13 +2249,13 @@ class TranslationRepository {
   /// The privacy settings apply with the pair `<languageCode>><languageCode>`
   /// ([pairKey]): a [ConsentRequiredException] before any request when the
   /// text may not go to the instance (callers fall back to the device's
-  /// voice); Reverso and other instances are only tried when allowed too.
+  /// voice); Reverso is only tried when the settings allow it on its own
+  /// (an [allowOnce] approval for Google does not cover it).
   Future<Uint8List> textToSpeech({
     required String text,
     required String languageCode,
     String engine = 'google',
   }) async {
-    final checked = _mozhi.active;
     ConsentRequiredException? denial(String ttsEngine, {bool once = true}) =>
         _denial(
           _mozhiDestination(ttsEngine),
@@ -2257,24 +2266,17 @@ class TranslationRepository {
         );
     final denied = denial(engine);
     if (denied != null) throw denied;
-    Future<Uint8List> speak(String ttsEngine, MozhiInstance? first) =>
-        _mozhi.run(
-          (client, _) => client.textToSpeech(
-            engine: ttsEngine,
-            language: languageCode,
-            text: text,
-          ),
-          failOverOnTimeout: false,
-          allow: _mozhiFilter(
-            first,
-            ttsEngine,
-            engineId: 'mozhi:$ttsEngine',
-            source: languageCode,
-            target: languageCode,
-          ),
-        );
+    Future<Uint8List> speak(String ttsEngine) => _mozhi.run(
+      (client, _) => client.textToSpeech(
+        engine: ttsEngine,
+        language: languageCode,
+        text: text,
+      ),
+      failOverOnTimeout: false,
+      allow: _mozhiFailoverAllowed,
+    );
     try {
-      return await speak(engine, checked);
+      return await speak(engine);
     } on Object catch (error, stackTrace) {
       if (engine != 'google' ||
           _mozhi.instances.isEmpty ||
@@ -2282,7 +2284,7 @@ class TranslationRepository {
         rethrow;
       }
       try {
-        return await speak('reverso', null);
+        return await speak('reverso');
       } on Object {
         Error.throwWithStackTrace(error, stackTrace);
       }
@@ -2356,7 +2358,6 @@ class TranslationRepository {
       );
     }
     // Mozhi translates images with Google, whichever engine was picked.
-    final checked = _mozhi.active;
     const engineId = 'mozhi:$_imageEngine';
     final denied = _denial(
       _mozhiDestination(_imageEngine),
@@ -2375,13 +2376,7 @@ class TranslationRepository {
         instance,
       ),
       failOverOnTimeout: false,
-      allow: _mozhiFilter(
-        checked,
-        _imageEngine,
-        engineId: engineId,
-        source: source.code,
-        target: target.code,
-      ),
+      allow: _mozhiFailoverAllowed,
     );
     return ImageTranslationResult(
       translatedImage: decodeBase64Image(translation.translatedImageBase64),
@@ -2579,10 +2574,22 @@ class TranslationRepository {
 }
 
 /// An [TranslationRepository.allowOnce] approval.
-typedef _OnceGrant = ({
-  ConsentKind kind,
-  String engineId,
-  DataDestination destination,
-  String pair,
-  DateTime expires,
-});
+class _OnceGrant {
+  new({
+    required this.kind,
+    required this.engineId,
+    required this.destination,
+    required this.pair,
+    required this.expires,
+    required this.remaining,
+  });
+
+  final ConsentKind kind;
+  final String engineId;
+  final DataDestination destination;
+  final String pair;
+  DateTime expires;
+
+  /// Requests it still lets through.
+  int remaining;
+}

@@ -40,6 +40,10 @@ class ImageTranslateMethod extends Equatable {
   /// Whether the result can contain a re-rendered image.
   bool get rendersImage => kind == ImageTranslateMethodKind.mozhiLens;
 
+  /// Whether the photo itself is sent off the device (Mozhi / Google Lens,
+  /// AI vision): only on the user's explicit Translate.
+  bool get uploadsImage => kind != ImageTranslateMethodKind.onDevice;
+
   /// The methods available for [engines]:
   ///
   /// * Mozhi (Google Lens) when an engine with id `mozhi:google` exists.
@@ -76,12 +80,18 @@ class ImageTranslateMethod extends Equatable {
     ]);
   }
 
-  /// The method to start with: the AI vision method of [translateEngine]
-  /// when it has one, else Mozhi (Google Lens), else the first one.
+  /// The method to start with: on-device recognition when available (the
+  /// photo never leaves the device; only the recognised text is translated,
+  /// with the translator's engine), else the AI vision method of
+  /// [translateEngine] when it has one, else Mozhi (Google Lens), else the
+  /// first one.
   static ImageTranslateMethod? preferred(
     List<ImageTranslateMethod> methods, {
     TranslationEngine? translateEngine,
   }) =>
+      methods
+          .where((method) => method.kind == ImageTranslateMethodKind.onDevice)
+          .firstOrNull ??
       methods
           .where(
             (method) =>

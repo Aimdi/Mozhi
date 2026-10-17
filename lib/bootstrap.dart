@@ -10,6 +10,7 @@ import 'package:mozhi/app/fallback_key_value_store.dart';
 import 'package:mozhi/app/third_party_licenses.dart';
 import 'package:mozhi/core/key_value_metadata_store.dart';
 import 'package:mozhi/core/key_value_store.dart';
+import 'package:mozhi/core/network/network_session.dart';
 import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/platform/mlkit_bindings.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
@@ -84,10 +85,16 @@ Future<void> bootstrap(
 /// [AppDependencies.secretsInMemory]). [offlineTranslator] defaults to
 /// [createOfflineTranslator]: ML Kit (Android and iOS only), or an engine
 /// that is never available in the build without ML Kit (F-Droid).
+///
+/// Every backend client of the [TranslationRepository] comes from one
+/// [NetworkSession] built from the saved `httpProxy` (a later change
+/// applies after a restart), which becomes [NetworkSession.current].
+/// [network] replaces it (tests).
 Future<AppDependencies> createDependencies({
   KeyValueStore? prefs,
   KeyValueStore? secrets,
   OfflineTranslator? offlineTranslator,
+  NetworkSession Function(String? proxy)? network,
 }) async {
   final preferences = prefs ?? PreferencesStore();
   final secretStore = secrets ?? await _secureStore();
@@ -98,9 +105,16 @@ Future<AppDependencies> createDependencies({
   );
   final settings = await settingsRepository.load();
 
+  final session = (network ?? _networkSession)(settings.httpProxy);
+  NetworkSession.current = session;
+
   final offline = offlineTranslator ?? createOfflineTranslator();
   final translationRepository =
       TranslationRepository(
+        mozhiClientFactory: session.mozhiClient,
+        llmClientFactory: session.llmClient,
+        deeplClientFactory: session.deeplClient,
+        libreTranslateClientFactory: session.libreClient,
         offline: offline,
         // Engine and language lists survive restarts: instant start, offline.
         metadataStore: KeyValueMetadataStore(preferences),
@@ -124,8 +138,11 @@ Future<AppDependencies> createDependencies({
     speechInputService: SpeechInputService(store: preferences),
     offlineTranslator: offline,
     usageTracker: UsageTracker(store: preferences),
+    network: session,
   );
 }
+
+NetworkSession _networkSession(String? proxy) => NetworkSession(proxy: proxy);
 
 /// Options of the platform secure storage.
 ///

@@ -5,10 +5,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:mozhi/app/app_dependencies.dart';
 import 'package:mozhi/app/fallback_key_value_store.dart';
 import 'package:mozhi/bootstrap.dart';
 import 'package:mozhi/core/key_value_store.dart';
+import 'package:mozhi/core/network/network_session.dart';
 import 'package:mozhi/platform/mlkit_bindings.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
@@ -126,6 +129,79 @@ void main() {
       expect(dependencies.translationRepository.instances, const [instance]);
       expect(dependencies.translationRepository.providers, const [provider]);
       await dependencies.settingsRepository.save(dependencies.settings);
+    });
+  });
+
+  group('createDependencies network', () {
+    late NetworkSession previous;
+
+    setUp(() => previous = NetworkSession.current);
+    tearDown(() => NetworkSession.current = previous);
+
+    test('builds the session from the saved proxy', () async {
+      final prefs = MemoryStore();
+      final secrets = MemoryStore();
+      await SettingsRepository(
+        prefs: prefs,
+        secrets: secrets,
+      ).save(const AppSettings(httpProxy: '127.0.0.1:8118'));
+      String? proxy;
+
+      final dependencies = await createDependencies(
+        prefs: prefs,
+        secrets: secrets,
+        network: (value) {
+          proxy = value;
+          return NetworkSession(proxy: value);
+        },
+      );
+
+      expect(proxy, '127.0.0.1:8118');
+      expect(dependencies.network.proxy, '127.0.0.1:8118');
+      expect(NetworkSession.current, same(dependencies.network));
+    });
+
+    test('defaults to a session without a proxy', () async {
+      final dependencies = await createDependencies(
+        prefs: MemoryStore(),
+        secrets: MemoryStore(),
+      );
+
+      expect(dependencies.network.hasProxy, isFalse);
+      expect(NetworkSession.current, same(dependencies.network));
+    });
+
+    test('every repository client uses the session client', () async {
+      final requests = <http.BaseRequest>[];
+      final client = MockClient((request) async {
+        requests.add(request);
+        return http.Response('{"fiberversion":"v2","goversion":"go1"}', 200);
+      });
+
+      final dependencies = await createDependencies(
+        prefs: MemoryStore(),
+        secrets: MemoryStore(),
+        network: (proxy) => NetworkSession(proxy: proxy, httpClient: client),
+      );
+      await dependencies.translationRepository.pingInstance(
+        const MozhiInstance(url: 'https://mozhi.example'),
+      );
+      await expectLater(
+        dependencies.translationRepository.pingInstance(
+          const MozhiInstance(url: 'http://mozhi.example'),
+        ),
+        throwsA(
+          isA<MozhiApiException>().having(
+            (e) => e.message,
+            'message',
+            startsWith('Use https for public servers'),
+          ),
+        ),
+      );
+
+      expect(requests.map((r) => r.url.toString()), [
+        'https://mozhi.example/api/version',
+      ]);
     });
   });
 

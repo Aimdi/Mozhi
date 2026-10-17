@@ -36,7 +36,7 @@ void main() {
 
     testWidgets('shows the stored preference', (tester) async {
       await pump(tester);
-      expect(find.text('Use device voice'), findsOneWidget);
+      expect(find.text('Device voice only'), findsOneWidget);
 
       await tester.pump();
 

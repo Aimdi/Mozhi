@@ -1,5 +1,6 @@
 import 'package:mozhi/app/fallback_key_value_store.dart';
 import 'package:mozhi/core/key_value_store.dart';
+import 'package:mozhi/core/network/network_session.dart';
 import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
@@ -24,6 +25,7 @@ class AppDependencies {
     required this.speechInputService,
     required this.offlineTranslator,
     required this.usageTracker,
+    this._network,
   });
 
   final TranslationRepository translationRepository;
@@ -52,6 +54,13 @@ class AppDependencies {
 
   /// Per-provider AI usage counters and budgets.
   final UsageTracker usageTracker;
+
+  final NetworkSession? _network;
+
+  /// The proxy and HTTP client of this run, shared by every backend client
+  /// of [translationRepository] ([NetworkSession.current] when none was
+  /// given).
+  NetworkSession get network => _network ?? NetworkSession.current;
 
   /// Whether API keys are only kept in memory for this session because the
   /// platform's secure storage is unavailable.

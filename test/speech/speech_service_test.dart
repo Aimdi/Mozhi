@@ -53,9 +53,10 @@ class _FakeAudioOutput implements AudioOutput {
 }
 
 /// Records calls; [gates] hold the named step (`available`, `language`,
-/// `rate`, `speak`) until completed.
+/// `rate`, `speak`) until completed. Without a speech engine by default, so
+/// that Mozhi reads; tests about the device turn [supported] on.
 class _FakeDeviceTts implements DeviceTts {
-  bool supported = true;
+  bool supported = false;
   Set<String> languages = {'fr', 'en', 'he'};
   Map<String, List<DeviceVoice>> voicesByTag = {};
   Error? voicesError;
@@ -195,11 +196,11 @@ void main() {
     });
 
     test('reports whether the device has a speech engine', () {
-      expect(service.deviceVoiceSupported, isTrue);
-
-      device.supported = false;
-
       expect(service.deviceVoiceSupported, isFalse);
+
+      device.supported = true;
+
+      expect(service.deviceVoiceSupported, isTrue);
     });
 
     group('with Mozhi', () {
@@ -366,10 +367,10 @@ void main() {
       });
     });
 
-    group('device fallback', () {
-      test('speaks on the device without Mozhi instances', () async {
-        when(() => repository.instances).thenReturn(const []);
+    group('device voice first', () {
+      setUp(() => device.supported = true);
 
+      test('speaks on the device and never asks Mozhi', () async {
         await service.toggle(id: 'target', text: 'Bonjour', languageCode: 'fr');
 
         expect(device.calls, [
@@ -389,8 +390,6 @@ void main() {
       });
 
       test('uses the slow device rate', () async {
-        when(() => repository.instances).thenReturn(const []);
-
         await service.toggle(
           id: 'target',
           text: 'Bonjour',
@@ -402,30 +401,33 @@ void main() {
       });
 
       test('passes the BCP-47 tag to the device', () async {
-        when(() => repository.instances).thenReturn(const []);
-
         await service.toggle(id: 'target', text: 'Shalom', languageCode: 'iw');
 
         expect(device.calls.first, 'available he');
       });
 
-      test('takes over when the Mozhi fetch fails', () async {
-        stubTts(answer: StateError('offline'));
+      test('uses Mozhi for a language without a device voice', () async {
+        await service.toggle(id: 'target', text: 'Hallo', languageCode: 'de');
 
-        await service.toggle(id: 'target', text: 'Bonjour', languageCode: 'fr');
-
-        expect(device.calls.last, 'speak Bonjour');
-        expect(output.played, isEmpty);
-        expect(service.current, 'target');
+        expect(device.calls, ['available de']);
+        expect(output.played, [_clip(1)]);
       });
 
-      test('takes over when Mozhi playback fails', () async {
-        output.playError = StateError('codec');
+      test('does not fall back to Mozhi when the device voice fails', () async {
+        device.speakError = StateError('engine');
 
-        await service.toggle(id: 'target', text: 'Bonjour', languageCode: 'fr');
+        await expectLater(
+          service.toggle(id: 'target', text: 'Bonjour', languageCode: 'fr'),
+          throwsA(unavailable('fr', cause: isStateError)),
+        );
 
-        expect(device.calls.last, 'speak Bonjour');
-        expect(service.current, 'target');
+        expect(service.current, isNull);
+        verifyNever(
+          () => repository.textToSpeech(
+            text: any(named: 'text'),
+            languageCode: any(named: 'languageCode'),
+          ),
+        );
       });
 
       test('skips Mozhi for codes it cannot speak', () async {
@@ -443,12 +445,13 @@ void main() {
           repository: repository,
           output: output,
           deviceTts: device,
-          mozhiSupportsLanguage: (code) => code != 'fr',
+          mozhiSupportsLanguage: (code) => code != 'de',
         );
 
-        await service.toggle(id: 'target', text: 'Bonjour', languageCode: 'fr');
-
-        expect(device.calls.last, 'speak Bonjour');
+        await expectLater(
+          service.toggle(id: 'target', text: 'Hallo', languageCode: 'de'),
+          throwsA(unavailable('de')),
+        );
         expect(output.played, isEmpty);
       });
 
@@ -465,7 +468,6 @@ void main() {
       });
 
       test('becomes idle when the utterance completes', () async {
-        when(() => repository.instances).thenReturn(const []);
         await service.toggle(id: 'target', text: 'Bonjour', languageCode: 'fr');
 
         output.complete();
@@ -479,7 +481,6 @@ void main() {
       });
 
       test('handles an utterance that ends before speak returns', () async {
-        when(() => repository.instances).thenReturn(const []);
         device.gates['speak'] = Completer<void>();
 
         final toggle = service.toggle(
@@ -498,8 +499,141 @@ void main() {
       });
     });
 
+    group('privacy', () {
+      const consent = ConsentRequiredException(
+        kind: ConsentKind.pair,
+        destination: PublicInstanceDestination(
+          'mozhi.example',
+          engine: 'google',
+        ),
+        engineId: 'mozhi:google',
+        source: 'fr',
+        target: 'fr',
+      );
+      const offlineOnly = ConsentRequiredException(
+        kind: ConsentKind.offlineOnly,
+        destination: PublicInstanceDestination('mozhi.example'),
+        engineId: 'mozhi:google',
+        source: 'fr',
+        target: 'fr',
+      );
+
+      setUpAll(() => registerFallbackValue(consent));
+      setUp(() {
+        when(() => repository.allowOnce(any())).thenAnswer((_) {});
+      });
+
+      test('reports the consent the privacy settings ask for', () async {
+        when(
+          () => repository.textToSpeech(
+            text: any(named: 'text'),
+            languageCode: any(named: 'languageCode'),
+          ),
+        ).thenThrow(consent);
+
+        final error = await service
+            .toggle(id: 'target', text: 'Bonjour', languageCode: 'fr')
+            .then<Object?>((_) => null, onError: (Object e) => e);
+
+        expect(error, unavailable('fr', cause: consent));
+        expect((error! as SpeechUnavailableException).onlineConsent, consent);
+        expect(service.current, isNull);
+      });
+
+      test('offers nothing in offline-only mode', () {
+        expect(
+          const SpeechUnavailableException(
+            'fr',
+            cause: offlineOnly,
+          ).onlineConsent,
+          isNull,
+        );
+        expect(
+          SpeechUnavailableException(
+            'fr',
+            cause: StateError('x'),
+          ).onlineConsent,
+          isNull,
+        );
+      });
+
+      test('allowOnline grants the approval right before the clip', () async {
+        await service.toggle(
+          id: 'target',
+          text: 'Bonjour',
+          languageCode: 'fr',
+          allowOnline: consent,
+        );
+
+        verifyInOrder([
+          () => repository.allowOnce(consent),
+          () => repository.textToSpeech(text: 'Bonjour', languageCode: 'fr'),
+        ]);
+        expect(output.played, [_clip(1)]);
+      });
+
+      test('every chunk of a long text gets the approval', () async {
+        final sentences = ['${'un ' * 60}fin.', '${'deux ' * 30}fin.'];
+
+        await service.speak(
+          id: 'target',
+          text: sentences.join(' '),
+          languageCode: 'fr',
+          allowOnline: consent,
+        );
+        await flush();
+
+        verify(() => repository.allowOnce(consent)).called(2);
+      });
+
+      test('cached clips and replays need no new request', () async {
+        await service.toggle(
+          id: 'target',
+          text: 'Bonjour',
+          languageCode: 'fr',
+          allowOnline: consent,
+        );
+        output.complete();
+        await flush();
+
+        expect(await service.replaySlowly(), isTrue);
+
+        verify(() => repository.allowOnce(consent)).called(1);
+        expect(output.played, [_clip(1), _clip(1)]);
+      });
+
+      test('ignores an offline-only approval', () async {
+        await service.toggle(
+          id: 'target',
+          text: 'Bonjour',
+          languageCode: 'fr',
+          allowOnline: offlineOnly,
+        );
+
+        verifyNever(() => repository.allowOnce(any()));
+      });
+
+      test('a device voice needs no approval', () async {
+        device.supported = true;
+
+        await service.toggle(
+          id: 'target',
+          text: 'Bonjour',
+          languageCode: 'fr',
+          allowOnline: consent,
+        );
+
+        expect(device.calls.last, 'speak Bonjour');
+        verifyNever(() => repository.allowOnce(any()));
+      });
+    });
+
     group('failures', () {
-      setUp(() => device.languages = {});
+      setUp(
+        () => device
+          ..supported = true
+          ..languages = {},
+      );
 
       test('throws SpeechUnavailableException with the Mozhi error', () async {
         stubTts(answer: StateError('offline'));
@@ -671,12 +805,13 @@ void main() {
         expect(service.preferDeviceVoice, isTrue);
       });
 
-      test('tries the device first', () async {
+      test('device only: never uses Mozhi', () async {
         await service.setPreferDeviceVoice(enabled: true);
 
-        await service.toggle(id: 'target', text: 'Bonjour', languageCode: 'fr');
-
-        expect(device.calls.last, 'speak Bonjour');
+        await expectLater(
+          service.toggle(id: 'target', text: 'Bonjour', languageCode: 'fr'),
+          throwsA(unavailable('fr')),
+        );
         verifyNever(
           () => repository.textToSpeech(
             text: any(named: 'text'),
@@ -685,14 +820,13 @@ void main() {
         );
       });
 
-      test('falls back to Mozhi without a device voice', () async {
+      test('device only still reads with a device voice', () async {
+        device.supported = true;
         await store.write(SpeechService.preferDeviceKey, 'true');
-        device.languages = {};
 
-        await service.toggle(id: 'target', text: 'Hallo', languageCode: 'de');
+        await service.toggle(id: 'target', text: 'Bonjour', languageCode: 'fr');
 
-        expect(device.calls, ['available de']);
-        expect(output.played, [_clip(1)]);
+        expect(device.calls.last, 'speak Bonjour');
       });
     });
 
@@ -812,7 +946,9 @@ void main() {
         'stops a late clip when the newer request uses the device',
         () async {
           output.playGate = Completer<void>();
-          await service.setPreferDeviceVoice(enabled: false);
+          device
+            ..supported = true
+            ..languages = {'en'};
 
           final first = service.toggle(
             id: 'target',
@@ -851,7 +987,10 @@ void main() {
       });
 
       group('on the device', () {
-        setUp(() => when(() => repository.instances).thenReturn(const []));
+        setUp(() {
+          device.supported = true;
+          when(() => repository.instances).thenReturn(const []);
+        });
 
         for (final (step, next) in [
           ('available', 'language fr'),
@@ -948,7 +1087,8 @@ void main() {
           await flush();
           when(() => repository.instances).thenReturn(const [_instance]);
           stubTts(answer: _clip(2));
-          await service.toggle(id: 'source', text: 'Hello', languageCode: 'en');
+          // No device voice for German: Mozhi reads it.
+          await service.toggle(id: 'source', text: 'Hallo', languageCode: 'de');
           gate.complete();
           await first;
 
@@ -1163,73 +1303,53 @@ void main() {
         });
       });
 
-      group('device fallback', () {
-        test('reads the whole text when the first chunk fails', () async {
+      group('a failing chunk', () {
+        test('makes the first one throw', () async {
           stubTts(text: sentences[0], answer: StateError('offline'));
 
-          await speak();
+          await expectLater(
+            speak(),
+            throwsA(unavailable('en', cause: isStateError)),
+          );
 
-          expect(device.calls.last, 'speak $text');
           expect(output.played, isEmpty);
-          expect(service.current, 'target');
+          expect(service.current, isNull);
         });
 
-        test('reads the whole text when a later chunk fails', () async {
+        test('ends the playback after the current chunk', () async {
           stubTts(text: sentences[1], answer: StateError('offline'));
 
           await speak();
           await flush();
 
-          expect(output.played, [_clip(1)]);
-          expect(output.stops, 1); // The first chunk is cut short.
-          expect(device.calls, [
-            'available en',
-            'language en',
-            'rate normal',
-            'speak $text',
-          ]);
+          expect(output.stops, 0);
           expect(service.current, 'target');
 
           output.complete();
           await flush();
-          expect(service.current, 'target');
 
-          device.complete();
-          await flush();
+          expect(output.played, [_clip(1)]);
+          expect(device.calls, isEmpty);
           expect(service.current, isNull);
           expect(emitted, ['target', null]);
         });
 
-        test('uses the slow device rate for slow text', () async {
-          stubTts(text: sentences[1], answer: StateError('offline'));
+        test('that fails between chunks ends the playback', () async {
+          final fetch = Completer<Uint8List>();
+          stubTts(text: sentences[1], answer: () => fetch.future);
+          await speak();
+          output.complete();
+          await flush();
+          expect(service.current, 'target');
 
-          await speak(slow: true);
+          fetch.completeError(StateError('offline'));
           await flush();
 
-          expect(device.calls, contains('rate slow'));
+          expect(output.stops, 0);
+          expect(service.current, isNull);
         });
 
-        test(
-          'reads the whole text when a chunk fails between chunks',
-          () async {
-            final fetch = Completer<Uint8List>();
-            stubTts(text: sentences[1], answer: () => fetch.future);
-            await speak();
-            output.complete();
-            await flush();
-
-            fetch.completeError(StateError('offline'));
-            await flush();
-
-            expect(output.stops, 0);
-            expect(device.calls.where((c) => c.startsWith('speak')), [
-              'speak $text',
-            ]);
-            expect(service.current, 'target');
-          },
-        );
-
-        test('reads the whole text when a later chunk cannot play', () async {
+        test('that cannot play ends the playback', () async {
           await speak();
           output
             ..playError = StateError('codec')
@@ -1237,45 +1357,25 @@ void main() {
           await flush();
 
           expect(output.played, [_clip(1)]);
-          expect(device.calls.last, 'speak $text');
-          expect(service.current, 'target');
+          expect(service.current, isNull);
         });
 
-        test(
-          'finishes the current chunk without a device voice, then stops',
-          () async {
-            device.languages = {};
-            stubTts(text: sentences[1], answer: StateError('offline'));
-
-            await speak();
-            await flush();
-
-            expect(output.stops, 0);
-            expect(service.current, 'target');
-
-            output.complete();
-            await flush();
-
-            expect(output.played, [_clip(1)]);
-            expect(device.calls, everyElement('available en'));
-            expect(service.current, isNull);
-            expect(emitted, ['target', null]);
-          },
-        );
-
-        test('becomes idle when the device fails to take over', () async {
-          device.speakError = StateError('engine');
-          stubTts(text: sentences[1], answer: StateError('offline'));
-
+        test('that cannot play after stop changes nothing', () async {
           await speak();
+          output
+            ..playGate = Completer<void>()
+            ..playError = StateError('codec')
+            ..complete();
+          await flush();
+          await service.stop();
+          output.playGate!.complete();
           await flush();
 
-          expect(device.calls.last, 'speak $text');
           expect(service.current, isNull);
           expect(emitted, ['target', null]);
         });
 
-        test('ignores a later chunk failing after stop', () async {
+        test('is ignored after stop', () async {
           final fetch = Completer<Uint8List>();
           stubTts(text: sentences[1], answer: () => fetch.future);
           await speak();
@@ -1287,44 +1387,6 @@ void main() {
           expect(device.calls, isEmpty);
           expect(service.current, isNull);
         });
-
-        test(
-          'does not take over when stopped during the voice check',
-          () async {
-            final available = device.gates['available'] = Completer<void>();
-            stubTts(text: sentences[1], answer: StateError('offline'));
-            await speak();
-            await flush();
-
-            await service.stop();
-            available.complete();
-            await flush();
-
-            expect(device.calls, ['available en']);
-            expect(service.current, isNull);
-          },
-        );
-
-        test(
-          'takes over once when the chunk ends during the voice check',
-          () async {
-            final available = device.gates['available'] = Completer<void>();
-            stubTts(text: sentences[1], answer: StateError('offline'));
-            await speak();
-            await flush();
-
-            output.complete(); // Ends before the device answers.
-            await flush();
-            available.complete();
-            await flush();
-
-            expect(output.stops, 0);
-            expect(device.calls.where((c) => c.startsWith('speak')), [
-              'speak $text',
-            ]);
-            expect(service.current, 'target');
-          },
-        );
       });
     });
 
@@ -1487,7 +1549,7 @@ void main() {
       });
 
       test('the device speaks at the chosen rate', () async {
-        when(() => repository.instances).thenReturn(const []);
+        device.supported = true;
         await service.setSpeechRate(1.4);
 
         await service.toggle(
@@ -1500,7 +1562,8 @@ void main() {
         expect(device.calls, contains('rate slow x1.4'));
       });
 
-      test('a chosen voice reads its language on the device first', () async {
+      test('a chosen voice reads its language on the device', () async {
+        device.supported = true;
         await service.setVoice('fr', amelie);
 
         await service.toggle(id: 'target', text: 'Bonjour', languageCode: 'fr');
@@ -1520,6 +1583,7 @@ void main() {
       });
 
       test('voices are looked up by the device tag', () async {
+        device.supported = true;
         await service.setVoice('he', amelie);
 
         await service.toggle(id: 'target', text: 'שלום', languageCode: 'iw');
@@ -1527,9 +1591,9 @@ void main() {
         expect(device.calls, contains('language he voice Amélie'));
       });
 
-      test('other languages keep Mozhi and the default voice', () async {
+      test('other languages keep the default voice', () async {
+        device.supported = true;
         await service.setVoice('fr', amelie);
-        when(() => repository.instances).thenReturn(const []);
 
         await service.toggle(id: 'target', text: 'Hello', languageCode: 'en');
 
@@ -1537,6 +1601,7 @@ void main() {
       });
 
       test('Mozhi reads the language when the voice is unavailable', () async {
+        device.supported = true;
         await service.setVoice('de', amelie);
 
         await service.toggle(id: 'target', text: 'Hallo', languageCode: 'de');
@@ -1544,38 +1609,17 @@ void main() {
         expect(device.calls, ['available de']);
         expect(output.played, [_clip(1)]);
       });
-
-      test('the device takeover of a failed chunk uses the voice', () async {
-        final sentences = ['${'un ' * 60}fin.', '${'deux ' * 30}fin.'];
-        final fetch = Completer<Uint8List>();
-        stubTts(text: sentences[0], answer: _clip(1));
-        stubTts(text: sentences[1], answer: () => fetch.future);
-        // Without a device voice yet, Mozhi starts reading.
-        device.languages = {};
-        await service.setVoice('fr', amelie);
-
-        await service.toggle(
-          id: 'target',
-          text: sentences.join(' '),
-          languageCode: 'fr',
-        );
-        device.languages = {'fr'};
-        fetch.completeError(StateError('offline'));
-        await flush();
-
-        expect(output.played, [_clip(1)]);
-        expect(device.calls.last, 'speak ${sentences.join(' ')}');
-        expect(device.calls, contains('language fr voice Amélie'));
-      });
     });
 
     group('deviceVoices', () {
       const voice = DeviceVoice(name: 'Amélie', locale: 'fr-CA');
 
       test('lists the device voices by device tag', () async {
-        device.voicesByTag = {
-          'he': [voice],
-        };
+        device
+          ..supported = true
+          ..voicesByTag = {
+            'he': [voice],
+          };
 
         expect(await service.deviceVoices('iw'), [voice]);
         expect(device.calls, ['voices he']);
@@ -1590,7 +1634,9 @@ void main() {
       });
 
       test('is empty when the engine fails', () async {
-        device.voicesError = StateError('engine');
+        device
+          ..supported = true
+          ..voicesError = StateError('engine');
 
         expect(await service.deviceVoices('fr'), isEmpty);
       });
@@ -1685,7 +1731,7 @@ void main() {
       );
 
       test('is set once the device engine has started', () async {
-        when(() => repository.instances).thenReturn(const []);
+        device.supported = true;
 
         await service.speak(id: 'target', text: 'Bonjour', languageCode: 'fr');
 
@@ -1751,6 +1797,8 @@ void main() {
 
     group('previewVoice', () {
       const amelie = DeviceVoice(name: 'Amélie', locale: 'fr-CA');
+
+      setUp(() => device.supported = true);
 
       test('reads with the given voice on the device only', () async {
         await service.previewVoice(

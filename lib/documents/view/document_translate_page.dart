@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/documents/core/core.dart';
 import 'package:mozhi/documents/cubit/document_translate_cubit.dart';
@@ -130,31 +133,44 @@ class DocumentTranslateView extends StatelessWidget {
           listener: (context, state) => _showNotice(context, state.notice!),
         ),
       ],
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(l10n.documentsTitle),
-          actions: [
-            if (hasDocument)
-              IconButton(
-                key: const Key('documents_clear'),
-                tooltip: l10n.documentsRemove,
-                onPressed: translating
-                    ? null
-                    : context.read<DocumentTranslateCubit>().clear,
-                icon: const Icon(Icons.close),
+      // Translating a document is the user's own action: when the privacy
+      // settings stop it, ask right away (the parts are retried after).
+      child:
+          ConsentDialogListener<DocumentTranslateCubit, DocumentTranslateState>(
+            consentOf: (state) => state.isTranslating
+                ? null
+                : state.failures.values
+                      .whereType<ConsentRequiredException>()
+                      .firstOrNull,
+            requestsOf: documentRequests,
+            onGranted: (context) =>
+                unawaited(context.read<DocumentTranslateCubit>().retryFailed()),
+            child: Scaffold(
+              appBar: AppBar(
+                title: Text(l10n.documentsTitle),
+                actions: [
+                  if (hasDocument)
+                    IconButton(
+                      key: const Key('documents_clear'),
+                      tooltip: l10n.documentsRemove,
+                      onPressed: translating
+                          ? null
+                          : context.read<DocumentTranslateCubit>().clear,
+                      icon: const Icon(Icons.close),
+                    ),
+                ],
               ),
-          ],
-        ),
-        body: SafeArea(
-          top: false,
-          child: LayoutBuilder(
-            builder: (context, constraints) =>
-                constraints.maxWidth >= wideBreakpoint
-                ? const _WideLayout()
-                : const _NarrowLayout(),
+              body: SafeArea(
+                top: false,
+                child: LayoutBuilder(
+                  builder: (context, constraints) =>
+                      constraints.maxWidth >= wideBreakpoint
+                      ? const _WideLayout()
+                      : const _NarrowLayout(),
+                ),
+              ),
+            ),
           ),
-        ),
-      ),
     );
   }
 }

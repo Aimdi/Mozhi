@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
+import 'package:mozhi/core/network/network_policy.dart';
 import 'package:mozhi/core/widgets/local_overlay.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
@@ -130,9 +131,6 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
   final _apiKeyFocus = FocusNode();
   final _modelFocus = FocusNode();
 
-  /// The plain-http base URL the user agreed to use without encryption.
-  String? _insecureConfirmedFor;
-
   AiProviderConfig? _existing;
   AiProviderPreset? _preset;
   UsageTracker? _usageTracker;
@@ -243,7 +241,12 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
 
   bool get _showTemperature => _provider != LlmProvider.anthropic;
 
-  bool get _insecure => isInsecureHttp(Uri.tryParse(_baseUrl.text.trim()));
+  /// Plain http to a public host, which the app refuses to send anything
+  /// to ([isCleartextAllowed]).
+  bool get _insecure => switch (Uri.tryParse(_baseUrl.text.trim())) {
+    final uri? when uri.host.isNotEmpty => !isCleartextAllowed(uri),
+    _ => false,
+  };
 
   static String _hostOf(String url) =>
       (Uri.tryParse(url.trim())?.host ?? '').toLowerCase();
@@ -293,6 +296,7 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
         uri.host.isEmpty) {
       return l10n.settingsProviderUrlInvalid;
     }
+    if (!isCleartextAllowed(uri)) return l10n.commonHttpsRequired;
     // Secrets in the URL would be stored in plain preferences and shown in
     // errors; keys belong in the API key field (secure storage).
     return switch (urlSecretProblem(text)) {
@@ -389,49 +393,8 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
     return false;
   }
 
-  /// Plain http to a non-local host sends the text (and API key) readable
-  /// by anyone on the way, so it needs an explicit confirmation once per
-  /// URL before anything is saved or sent.
-  Future<bool> _confirmInsecure() async {
-    if (!_insecure) return true;
-    final url = _normalizedBaseUrl();
-    if (_insecureConfirmedFor == url) return true;
-    final l10n = context.l10n;
-    final host = Uri.tryParse(url)?.host ?? url;
-    final hasKey = _apiKey.text.trim().isNotEmpty;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        icon: const Icon(Icons.no_encryption_outlined),
-        title: Text(l10n.settingsProviderInsecureConfirmTitle),
-        content: Text(
-          hasKey
-              ? l10n.settingsProviderInsecureConfirmBodyKey(host)
-              : l10n.settingsProviderInsecureConfirmBody(host),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(l10n.commonCancel),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.error,
-            ),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(l10n.settingsProviderInsecureConfirmAction),
-          ),
-        ],
-      ),
-    );
-    if (!(confirmed ?? false) || !mounted) return false;
-    _insecureConfirmedFor = url;
-    return true;
-  }
-
   Future<void> _save() async {
     if (!_validate()) return;
-    if (!await _confirmInsecure() || !mounted) return;
     final config = _buildConfig(
       id: _existing?.id ?? 'p${DateTime.now().microsecondsSinceEpoch}',
     );
@@ -478,14 +441,14 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
 
   Future<void> _testConnection() async {
     if (!_validate()) return;
-    if (!await _confirmInsecure() || !mounted) return;
+    final l10n = context.l10n;
     final repository = context.read<TranslationRepository>();
     setState(() => _test = const _TestRunning());
     _TestResult result;
     try {
       result = _TestSuccess(await repository.testProvider(_buildConfig()));
     } on Object catch (error) {
-      result = _TestFailure(describeError(error));
+      result = _TestFailure(describeErrorLocalized(l10n, error));
     }
     if (mounted) setState(() => _test = result);
   }
@@ -505,7 +468,7 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
         setState(() {
           _loadingModels = false;
           _modelsError = l10n.settingsProviderModelsFailed(
-            describeError(error),
+            describeErrorLocalized(l10n, error),
           );
         });
       }
@@ -694,7 +657,7 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
             child: InsecureHttpWarning(
               key: const Key('provider_insecure_warning'),
               title: l10n.settingsProviderInsecureTitle,
-              text: l10n.settingsProviderInsecureWarning,
+              text: l10n.commonErrorCleartextRefused,
             ),
           ),
         if (_presetHeadersDropped case final dropped when dropped.isNotEmpty)

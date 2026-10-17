@@ -64,6 +64,9 @@ class _AppState extends State<App> {
       repository: _deps.historyRepository,
       maxAge: _settingsCubit.state.historyRetention.maxAge,
     );
+    // Before anything can send text: the privacy settings guard every
+    // request of the repository.
+    _applyPrivacy(_settingsCubit.state);
     _translateCubit = TranslateCubit(
       repository: _deps.translationRepository,
       settings: _settingsCubit,
@@ -177,6 +180,25 @@ class _AppState extends State<App> {
 
   // ---------------------------------------------------------------------
 
+  /// The privacy mode last pushed to the repository.
+  PrivacyMode? _privacyMode;
+
+  void _applyPrivacy(AppSettings settings) {
+    _privacyMode = settings.privacyMode;
+    _deps.translationRepository.updatePrivacy(
+      mode: settings.privacyMode,
+      approvedPairs: settings.networkPairs,
+      consentedProviders: settings.consentedProviders,
+    );
+  }
+
+  void _onPrivacyChanged(AppSettings settings) {
+    final modeChanged = settings.privacyMode != _privacyMode;
+    _applyPrivacy(settings);
+    // The mode decides which engine and language lists may be loaded.
+    if (modeChanged) unawaited(_translateCubit.loadEngines());
+  }
+
   void _applyEngineConfiguration(AppSettings settings) {
     _deps.translationRepository.updateConfiguration(
       instances: settings.instances,
@@ -221,10 +243,18 @@ class _AppState extends State<App> {
         child: PresetsProviders(
           store: _deps.preferences,
           child: HistoryRetentionListener(
-            child: BlocListener<SettingsCubit, AppSettings>(
-              listenWhen: engineConfigurationChanged,
-              listener: (context, settings) =>
-                  _applyEngineConfiguration(settings),
+            child: MultiBlocListener(
+              listeners: [
+                BlocListener<SettingsCubit, AppSettings>(
+                  listenWhen: privacyChanged,
+                  listener: (context, settings) => _onPrivacyChanged(settings),
+                ),
+                BlocListener<SettingsCubit, AppSettings>(
+                  listenWhen: engineConfigurationChanged,
+                  listener: (context, settings) =>
+                      _applyEngineConfiguration(settings),
+                ),
+              ],
               child: BlocBuilder<SettingsCubit, AppSettings>(
                 buildWhen: appearanceChanged,
                 builder: (context, settings) => DynamicColorBuilder(
@@ -281,6 +311,14 @@ bool engineConfigurationChanged(AppSettings previous, AppSettings current) {
   return !sameList(previous.instances, current.instances, sameInstance) ||
       !sameList(previous.providers, current.providers, sameProvider);
 }
+
+/// Whether [current] changes what the [TranslationRepository] enforces
+/// before text leaves the device (privacy mode, approved language pairs,
+/// consented providers).
+bool privacyChanged(AppSettings previous, AppSettings current) =>
+    previous.privacyMode != current.privacyMode ||
+    !listEquals(previous.networkPairs, current.networkPairs) ||
+    !listEquals(previous.consentedProviders, current.consentedProviders);
 
 /// Whether [current] changes how the app looks.
 bool appearanceChanged(AppSettings previous, AppSettings current) =>

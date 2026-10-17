@@ -18,6 +18,10 @@ enum QuickTranslateStatus {
 
   /// No Mozhi instance is reachable and no AI provider is enabled.
   noEngines,
+
+  /// Engines are available, but the one in settings is not, and the text
+  /// is never sent to another destination by itself: the user picks one.
+  chooseEngine,
 }
 
 /// State of `QuickTranslateCubit`: one incoming text, always translated
@@ -53,7 +57,9 @@ class QuickTranslateState extends Equatable {
   /// Latest (possibly partial, while streaming) translation.
   final TranslationResult? result;
 
-  /// Last error (`MozhiApiException`, `LlmApiException`, ...).
+  /// Last error (`MozhiApiException`, `LlmApiException`, ...). A
+  /// `ConsentRequiredException` means nothing was sent: the privacy
+  /// settings want the user's say first.
   final Object? error;
 
   /// The translated text so far ('' when none).

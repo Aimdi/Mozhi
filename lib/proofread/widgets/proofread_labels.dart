@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/proofread/models/writing_stats.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -104,6 +105,7 @@ extension ProofreadLabels on AppLocalizations {
 
   /// User-facing message for a proofreading error.
   String proofreadError(Object? error) => switch (error) {
+    final ConsentRequiredException consent => consentMessage(this, consent),
     LlmRefusalException() => proofreadErrorRefused,
     LlmApiException(isAuthError: true) => proofreadErrorAuth,
     LlmApiException(isRateLimited: true) => proofreadErrorRateLimited,

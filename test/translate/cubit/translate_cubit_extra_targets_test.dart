@@ -1392,7 +1392,13 @@ void main() {
 
       Future<TranslateCubit> share(TranslationEngine engine) async {
         mocks
-          ..stubSettings(const AppSettings(extraTargets: [fr, es], target: de))
+          ..stubSettings(
+            AppSettings(
+              extraTargets: const [fr, es],
+              target: de,
+              engineId: engine.id,
+            ),
+          )
           ..stubTranslate();
         when(() => mocks.repository.getEngines(refresh: any(named: 'refresh')))
             .thenAnswer((_) async => [engine]);

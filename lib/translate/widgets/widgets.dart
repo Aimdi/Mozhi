@@ -2,6 +2,7 @@ export 'active_options_bar.dart';
 export 'ai_generated_header.dart';
 export 'alignment_highlight.dart';
 export 'compare_panel.dart';
+export 'consent_listener.dart';
 export 'dictionary_card.dart';
 export 'engine_selector.dart';
 export 'explain_sheet.dart';

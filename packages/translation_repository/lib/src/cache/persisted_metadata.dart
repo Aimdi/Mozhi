@@ -51,8 +51,13 @@ class PersistedMetadata {
   /// The store key of list [name] of the instance at [url].
   static String keyFor(String url, String name) => '$keyPrefix|$url|$name';
 
-  /// The stored, unexpired value of [name] for [url], or null.
-  Future<StoredMetadata?> read(String url, String name) async {
+  /// The stored, unexpired value of [name] for [url] (of any age with
+  /// [anyAge]), or null.
+  Future<StoredMetadata?> read(
+    String url,
+    String name, {
+    bool anyAge = false,
+  }) async {
     final String? raw;
     try {
       raw = await _store.read(keyFor(url, name));
@@ -76,7 +81,7 @@ class PersistedMetadata {
         }
         when storedUrl == url && storedName == name) {
       final savedAt = DateTime.fromMillisecondsSinceEpoch(savedAtMs);
-      if (_clock().difference(savedAt) >= maxAge) return null;
+      if (!anyAge && _clock().difference(savedAt) >= maxAge) return null;
       return StoredMetadata(
         url: url,
         data: data,

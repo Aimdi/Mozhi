@@ -16,9 +16,18 @@ export 'quick_translate_state.dart';
 ///
 /// * [start] loads the engines and the target languages of the selected
 ///   engine, then translates right away (auto-detected source).
-/// * The engine is the one selected in settings (`engineId`), else
-///   `mozhi:google`, else the first available engine. The target defaults
-///   to the settings target.
+/// * The engine is the one selected in settings (`engineId`). Text never
+///   goes to another destination by itself: when that engine is gone, only
+///   the on-device engine replaces it, else the user picks one
+///   ([QuickTranslateStatus.chooseEngine]). Without a saved engine: the
+///   on-device engine (unless the privacy mode is online), `mozhi:google`,
+///   then the first engine that is not a cloud provider. The target
+///   defaults to the settings target.
+/// * The privacy settings apply as everywhere (the repository enforces
+///   them): when they stop the translation, the state is a
+///   [QuickTranslateStatus.failure] with a `ConsentRequiredException`
+///   (nothing was sent) and the sheet asks inline; [retry] translates once
+///   consent is given.
 /// * [setTarget] / [selectEngine] re-translate and are remembered in
 ///   settings (target + recent languages / engine), like the translate
 ///   screen does.
@@ -27,7 +36,7 @@ export 'quick_translate_state.dart';
 ///   language (or English) without persisting that switch.
 /// * AI engines stream partial results; each new translation cancels the
 ///   previous one. Completed translations are added to [HistoryCubit] when
-///   one is given and `saveHistory` is on.
+///   one is given and `saveHistory` is on (never in incognito mode).
 class QuickTranslateCubit extends Cubit<QuickTranslateState> {
   /// [target] overrides the initial target (default: settings target).
   new({
@@ -88,6 +97,17 @@ class QuickTranslateCubit extends Cubit<QuickTranslateState> {
         return;
       }
       final engine = _pickEngine(engines);
+      if (engine == null) {
+        emit(
+          state.copyWith(
+            status: QuickTranslateStatus.chooseEngine,
+            engines: engines,
+            engine: () => null,
+            targetLanguages: const [],
+          ),
+        );
+        return;
+      }
       final targets = await _repository.getTargetLanguages(engine);
       if (!_isCurrentLoad(request)) return;
       emit(
@@ -346,7 +366,9 @@ class QuickTranslateCubit extends Cubit<QuickTranslateState> {
     return null;
   }
 
-  TranslationEngine _pickEngine(List<TranslationEngine> engines) {
+  /// The engine to translate with (see the class documentation), or null
+  /// when the user has to pick one.
+  TranslationEngine? _pickEngine(List<TranslationEngine> engines) {
     TranslationEngine? byId(String? id) {
       if (id == null) return null;
       for (final engine in engines) {
@@ -355,10 +377,25 @@ class QuickTranslateCubit extends Cubit<QuickTranslateState> {
       return null;
     }
 
-    return byId(state.engine?.id) ??
-        byId(_settings.state.engineId) ??
+    final settings = _settings.state;
+    final offline = engines.where((e) => e.isOffline).firstOrNull;
+    final chosen = byId(state.engine?.id) ?? byId(settings.engineId);
+    if (chosen != null) return chosen;
+    if (settings.engineId != null) return offline;
+    return (settings.privacyMode == PrivacyMode.online ? null : offline) ??
         byId(_defaultEngineId) ??
-        engines.first;
+        offline ??
+        engines.where((e) => !_isCloud(e)).firstOrNull;
+  }
+
+  /// Whether [engine] sends text to a cloud provider.
+  bool _isCloud(TranslationEngine engine) {
+    try {
+      return _repository.destinationOf(engine.id) is CloudProviderDestination;
+    } on Object {
+      // Unknown (or a repository test double): judge by the engine.
+      return (engine.isAi || engine.isMt) && !engine.isLocal;
+    }
   }
 
   /// Maps [wanted] onto [targets] (custom targets survive on AI engines),
@@ -388,6 +425,7 @@ class QuickTranslateCubit extends Cubit<QuickTranslateState> {
     final history = _history;
     if (history == null ||
         !_settings.state.saveHistory ||
+        _settings.state.incognito ||
         result.text.trim().isEmpty) {
       return;
     }

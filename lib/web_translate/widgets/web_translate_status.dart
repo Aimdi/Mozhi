@@ -2,9 +2,19 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/web_translate/cubit/web_translate_cubit.dart';
 import 'package:mozhi/web_translate/widgets/web_translate_messages.dart';
+import 'package:translation_repository/translation_repository.dart'
+    show ConsentRequiredException;
+
+/// How many translation requests the rest of the page needs at most (one
+/// per untranslated block and the title): what a one-time consent covers.
+int webTranslateRequests(WebTranslateState state) {
+  final missing = state.totalItems - state.doneItems;
+  return missing < 1 ? 1 : missing;
+}
 
 /// Loading / translating progress (with a stop button), the stopped state
 /// (with "continue"), errors (with retry) and "no engine" information.
@@ -94,6 +104,16 @@ class WebTranslateStatusPanel extends StatelessWidget {
           key: const Key('web_translate_no_engine'),
           icon: Icons.info_outline,
           message: l10n.webTranslateNoEngine,
+        );
+
+      case WebTranslateStatus.failure
+          when state.error is ConsentRequiredException:
+        // Nothing was sent: once allowed, the page is translated.
+        return ConsentInlinePrompt(
+          key: const Key('web_translate_consent'),
+          consent: state.error! as ConsentRequiredException,
+          requests: webTranslateRequests(state),
+          onGranted: () => unawaited(cubit.resume()),
         );
 
       case WebTranslateStatus.failure:

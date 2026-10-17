@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import 'package:translation_repository/translation_repository.dart'
+    show DataDestination;
 
 /// The outcome of translating an image (possibly still streaming the text
 /// translation of on-device recognised text).
@@ -11,7 +13,11 @@ class ImageTranslation {
     this.notes = '',
     this.detectedSource,
     this.isComplete = true,
+    this.destination,
   });
+
+  /// Where the image (or its recognised text) was sent, when known.
+  final DataDestination? destination;
 
   /// Re-rendered image with the text replaced (Mozhi / Google Lens only).
   final Uint8List? translatedImage;
@@ -36,6 +42,7 @@ class ImageTranslation {
     String? translatedText,
     String? detectedSource,
     bool? isComplete,
+    DataDestination? destination,
   }) => ImageTranslation(
     translatedImage: translatedImage,
     sourceText: sourceText ?? this.sourceText,
@@ -43,6 +50,7 @@ class ImageTranslation {
     notes: notes,
     detectedSource: detectedSource ?? this.detectedSource,
     isComplete: isComplete ?? this.isComplete,
+    destination: destination ?? this.destination,
   );
 
   /// The image bytes are compared by identity (they never change in
@@ -56,7 +64,8 @@ class ImageTranslation {
           other.translatedText == translatedText &&
           other.notes == notes &&
           other.detectedSource == detectedSource &&
-          other.isComplete == isComplete;
+          other.isComplete == isComplete &&
+          other.destination == destination;
 
   @override
   int get hashCode => Object.hash(
@@ -66,6 +75,7 @@ class ImageTranslation {
     notes,
     detectedSource,
     isComplete,
+    destination,
   );
 
   @override

@@ -209,7 +209,7 @@ void main() {
       .translate(engine, request)
       .lastWhere((result) => result.isComplete);
 
-  Matcher consent(
+  TypeMatcher<ConsentRequiredException> consent(
     ConsentKind kind, {
     String? engineId,
     DataDestination? destination,
@@ -901,6 +901,118 @@ void main() {
     });
   });
 
+  group('offline-first lists', () {
+    late MemoryMetadataStore store;
+
+    Future<void> storeLists() async {
+      repository.dispose();
+      store = MemoryMetadataStore();
+      repository = newRepository(store: store)
+        ..updateConfiguration(instances: [instanceA], providers: [])
+        ..updatePrivacy(mode: PrivacyMode.online);
+      when(a().getEngines).thenAnswer((_) async => {'google': 'Google'});
+      when(() => a().getSourceLanguages('google')).thenAnswer(
+        (_) async => const [MozhiLanguage(id: 'en', name: 'English')],
+      );
+      when(() => a().getTargetLanguages('google')).thenAnswer(
+        (_) async => const [MozhiLanguage(id: 'de', name: 'German')],
+      );
+      await repository.getEngines();
+      await repository.getSourceLanguages(googleEngine);
+      await repository.getTargetLanguages(googleEngine);
+      await pumpEventQueue();
+      repository.dispose();
+      clientsBuilt.clear();
+      reset(a());
+    }
+
+    TranslationRepository relaunch({
+      PrivacyMode mode = PrivacyMode.offlineFirst,
+    }) => repository = newRepository(store: store)
+      ..updateConfiguration(instances: [instanceA], providers: [])
+      ..updatePrivacy(mode: mode);
+
+    test('are served from storage, of any age, without a request', () async {
+      await storeLists();
+      now = now.add(const Duration(days: 30));
+      relaunch();
+      expect(repository.metadataDeferred, isTrue);
+      expect((await repository.getEngines()).map((e) => e.id), [
+        'mozhi:google',
+      ]);
+      expect(
+        (await repository.getTargetLanguages(googleEngine)).map((l) => l.code),
+        ['de'],
+      );
+      await pumpEventQueue();
+      expectNoNetwork();
+    });
+
+    test('without stored lists, Mozhi engines are left out', () async {
+      expect(repository.metadataDeferred, isTrue);
+      final engines = await repository.getEngines();
+      expect(engines.map((e) => e.id), isNot(contains('mozhi:google')));
+      await expectLater(
+        repository.getSourceLanguages(googleEngine),
+        throwsA(
+          consent(ConsentKind.pair, engineId: 'mozhi:google')
+              .having((e) => e.source, 'source', isNull)
+              .having((e) => e.target, 'target', isNull),
+        ),
+      );
+      expectNoNetwork();
+    });
+
+    test('allowMetadataRequests lets them load', () async {
+      when(a().getEngines).thenAnswer((_) async => {'google': 'Google'});
+      repository.allowMetadataRequests();
+      expect(repository.metadataDeferred, isFalse);
+      expect(
+        (await repository.getEngines()).map((e) => e.id),
+        contains('mozhi:google'),
+      );
+    });
+
+    test('a refresh lets them load', () async {
+      when(a().getEngines).thenAnswer((_) async => {'google': 'Google'});
+      expect(
+        (await repository.getEngines(refresh: true)).map((e) => e.id),
+        contains('mozhi:google'),
+      );
+      expect(repository.metadataDeferred, isFalse);
+    });
+
+    test('an approved request lets them load and announces it', () async {
+      await storeLists();
+      relaunch();
+      final changes = <void>[];
+      repository.metadataChanged.listen(changes.add);
+      repository.updatePrivacy(
+        mode: PrivacyMode.offlineFirst,
+        approvedPairs: ['en>de'],
+      );
+      stubMozhi(a());
+      await finalResult(googleEngine, englishToGerman);
+      await pumpEventQueue();
+      expect(repository.metadataDeferred, isFalse);
+      expect(changes, hasLength(1));
+      when(a().getEngines).thenAnswer((_) async => {'deepl': 'DeepL'});
+      await repository.getEngines();
+      await pumpEventQueue();
+      verify(a().getEngines).called(1);
+    });
+
+    test('are not deferred online', () async {
+      await storeLists();
+      relaunch(mode: PrivacyMode.online);
+      when(a().getEngines).thenAnswer((_) async => {'google': 'Google'});
+      expect(repository.metadataDeferred, isFalse);
+      await repository.getEngines();
+      await pumpEventQueue();
+      verify(a().getEngines).called(1);
+    });
+  });
+
   group('cloud providers', () {
     for (final mode in PrivacyMode.values.where(
       (m) => m != PrivacyMode.offlineOnly,
@@ -1015,6 +1127,25 @@ void main() {
       expect((await finalResult(googleEngine, englishToGerman)).text, 'Hallo');
     });
 
+    test('lets a job of several requests through', () async {
+      stubMozhi(a());
+      final denied = await denial(googleEngine, englishToGerman);
+      repository.allowOnce(denied, requests: 2);
+      now = now.add(const Duration(minutes: 1));
+      await finalResult(googleEngine, englishToGerman);
+      // Each use keeps the approval alive.
+      now = now.add(const Duration(minutes: 1, seconds: 30));
+      await finalResult(
+        googleEngine,
+        englishToGerman.copyWith(text: 'Second part'),
+      );
+      await expectLater(
+        repository.translate(googleEngine, englishToGerman),
+        emitsError(consent(ConsentKind.pair)),
+      );
+      expect(() => repository.allowOnce(denied, requests: 0), throwsRangeError);
+    });
+
     test('expires', () async {
       final denied = await denial(googleEngine, englishToGerman);
       repository.allowOnce(denied);
@@ -1048,15 +1179,15 @@ void main() {
       expect((await finalResult(claude, englishToGerman)).text, 'Hallo');
     });
 
-    test('does not cover a failover to another destination', () async {
+    test("covers the failover within the user's list", () async {
       whenTranslate(a()).thenThrow(serverError());
       stubMozhi(b());
       repository.allowOnce(await denial(googleEngine, englishToGerman));
-      await expectLater(
-        repository.translate(googleEngine, englishToGerman),
-        emitsError(isA<MozhiApiException>()),
+      final result = await finalResult(googleEngine, englishToGerman);
+      expect(
+        result.destination,
+        const PublicInstanceDestination('b.example', engine: 'google'),
       );
-      verifyZeroInteractions(b());
     });
 
     test('works for the other request methods', () async {
@@ -1080,22 +1211,18 @@ void main() {
   });
 
   group('Mozhi failover', () {
-    test('skips instances the settings do not allow', () async {
-      configure(instances: [lanInstance, instanceA]);
-      repository.updatePrivacy(mode: PrivacyMode.offlineFirst);
-      whenTranslate(lan()).thenThrow(serverError());
-      stubMozhi(a());
-      try {
-        await repository.translate(googleEngine, englishToGerman).drain<void>();
-      } on ConsentRequiredException catch (error) {
-        expect(error.destination, const SelfHostedDestination('192.168.1.10'));
-        repository.allowOnce(error);
-      }
+    test('stops when offline only is turned on meanwhile', () async {
+      repository.updatePrivacy(mode: PrivacyMode.online);
+      whenTranslate(a()).thenAnswer((_) async {
+        repository.updatePrivacy(mode: PrivacyMode.offlineOnly);
+        throw serverError();
+      });
+      stubMozhi(b());
       await expectLater(
         repository.translate(googleEngine, englishToGerman),
         emitsError(isA<MozhiApiException>()),
       );
-      verifyZeroInteractions(a());
+      verifyZeroInteractions(b());
     });
 
     test('moves on to allowed instances', () async {
@@ -1200,9 +1327,6 @@ void main() {
       verifyNever(
         () =>
             a().textToSpeech(engine: 'reverso', language: 'de', text: 'Hallo'),
-      );
-      verifyNever(
-        () => b().textToSpeech(engine: 'google', language: 'de', text: 'Hallo'),
       );
     });
 

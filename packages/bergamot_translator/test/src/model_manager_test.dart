@@ -1,0 +1,460 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:bergamot_translator/bergamot_translator.dart';
+import 'package:crypto/crypto.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:path/path.dart' as p;
+
+import '../helpers/fake_models.dart';
+
+void main() {
+  late Directory root;
+  late FakeModel ende;
+  late FakeModel deen;
+  late FakeModel enzh;
+  late FakeModelServer server;
+  late BergamotModelManager manager;
+
+  setUp(() {
+    root = Directory.systemTemp.createTempSync('bergamot_manager_');
+    ende = FakeModel('en', 'de');
+    deen = FakeModel('de', 'en');
+    enzh = FakeModel('en', 'zh', splitVocab: true);
+    server = FakeModelServer([ende, deen, enzh]);
+    manager = BergamotModelManager(root: root, httpClient: server.client);
+  });
+
+  tearDown(() => root.deleteSync(recursive: true));
+
+  String installedPath(FakeModel model, String name) => p.join(
+    root.path,
+    'models',
+    '${model.source}-${model.target}',
+    model.version,
+    name,
+  );
+
+  group('install', () {
+    test('verifies, decompresses and installs every file', () async {
+      final progress = <ModelDownloadProgress>[];
+      final installed = await manager.install(
+        ende.catalog,
+        onProgress: progress.add,
+      );
+
+      expect(installed.pair, 'en-de');
+      expect(installed.version, 'run1');
+      for (final file in ende.files) {
+        expect(
+          File(installedPath(ende, file.name)).readAsBytesSync(),
+          file.raw,
+        );
+      }
+      expect(installed.sizeBytes, ende.catalog.installedSize);
+      expect(progress.last.receivedBytes, ende.catalog.downloadSize);
+      expect(progress.last.totalBytes, ende.catalog.downloadSize);
+      expect(progress.last.fraction, 1);
+      expect(progress.last.model, ende.catalog);
+
+      final paths = installed.paths;
+      expect(paths.key, 'en-de/run1');
+      expect(paths.model, installedPath(ende, 'model.ende.intgemm.alphas.bin'));
+      expect(paths.shortlist, installedPath(ende, 'lex.50.50.ende.s2t.bin'));
+      expect(paths.sourceVocab, installedPath(ende, 'vocab.ende.spm'));
+      expect(paths.targetVocab, isNull);
+
+      final manifest = jsonDecode(
+        File(installedPath(ende, BergamotModelManager.manifestName))
+            .readAsStringSync(),
+      ) as Map<String, Object?>;
+      expect(manifest['version'], 'run1');
+
+      // Nothing is left in staging or downloads.
+      final leftovers = [
+        for (final dir in ['.staging', '.downloads'])
+          ...Directory(p.join(root.path, 'models', dir))
+              .listSync(recursive: true)
+              .whereType<File>(),
+      ];
+      expect(leftovers, isEmpty);
+    });
+
+    test('installs split vocabularies', () async {
+      final installed = await manager.install(enzh.catalog);
+      expect(installed.paths.sourceVocab, endsWith('srcvocab.enzh.spm'));
+      expect(installed.paths.targetVocab, endsWith('trgvocab.enzh.spm'));
+    });
+
+    test('returns at once when already installed', () async {
+      await manager.install(ende.catalog);
+      final requests = server.requests.length;
+      final again = await manager.install(ende.catalog);
+      expect(again.version, 'run1');
+      expect(server.requests.length, requests);
+      expect(await manager.isInstalled(ende.catalog), isTrue);
+    });
+
+    test('shares one download between concurrent calls', () async {
+      final results = await Future.wait([
+        manager.install(ende.catalog),
+        manager.install(ende.catalog),
+      ]);
+      expect(results[0].pair, results[1].pair);
+      expect(server.requests, hasLength(ende.files.length));
+    });
+
+    test('rejects a download whose SHA-256 differs', () async {
+      final file = ende.files.first;
+      final corrupt = List.of(file.gz)..[20] ^= 0xFF;
+      server.overrides[file.entry.url.toString()] = corrupt;
+
+      await expectLater(
+        manager.install(ende.catalog),
+        throwsA(
+          isA<ModelChecksumException>()
+              .having((e) => e.model, 'model', 'en-de')
+              .having((e) => e.toString(), 'toString', contains('SHA-256')),
+        ),
+      );
+      expect(
+        Directory(p.join(root.path, 'models', 'en-de')).existsSync(),
+        isFalse,
+      );
+      expect(await manager.installed(), isEmpty);
+      // The corrupt part is deleted, so a retry downloads it again.
+      final part = File(
+        p.join(
+          root.path,
+          'models',
+          '.downloads',
+          'en-de',
+          'run1',
+          '${file.name}.gz.part',
+        ),
+      );
+      expect(part.existsSync(), isFalse);
+      expect(
+        Directory(p.join(root.path, 'models', '.staging')).listSync(),
+        isEmpty,
+      );
+    });
+
+    test('rejects a download that is too long', () async {
+      final file = ende.files.first;
+      server.overrides[file.entry.url.toString()] = [...file.gz, 1, 2, 3];
+      await expectLater(
+        manager.install(ende.catalog),
+        throwsA(isA<ModelChecksumException>()),
+      );
+    });
+
+    test('rejects a file that decompresses to something else', () async {
+      final model = FakeModel('de', 'en');
+      final file = model.files.first;
+      final entry = CatalogFile(
+        kind: file.kind,
+        name: file.name,
+        url: file.entry.url,
+        size: file.entry.size,
+        sha256: file.entry.sha256,
+        uncompressedSize: file.entry.uncompressedSize,
+        uncompressedSha256: 'a' * 64,
+      );
+      final catalog = CatalogModel(
+        source: 'de',
+        target: 'en',
+        version: 'run1',
+        files: {...model.catalog.files, file.kind: entry},
+      );
+      await expectLater(
+        manager.install(catalog),
+        throwsA(
+          isA<ModelChecksumException>().having(
+            (e) => e.message,
+            'message',
+            contains('decompressed'),
+          ),
+        ),
+      );
+      expect(await manager.installed(), isEmpty);
+    });
+
+    test('rejects a verified download that is not gzip', () async {
+      final model = FakeModel('de', 'en');
+      final file = model.files.first;
+      final notGzip = utf8.encode('definitely not gzip data');
+      server.overrides[file.entry.url.toString()] = notGzip;
+      final entry = CatalogFile(
+        kind: file.kind,
+        name: file.name,
+        url: file.entry.url,
+        size: notGzip.length,
+        sha256: _sha(notGzip),
+        uncompressedSize: 10,
+        uncompressedSha256: 'b' * 64,
+      );
+      final catalog = CatalogModel(
+        source: 'de',
+        target: 'en',
+        version: 'run1',
+        files: {...model.catalog.files, file.kind: entry},
+      );
+      await expectLater(
+        manager.install(catalog),
+        throwsA(isA<ModelChecksumException>()),
+      );
+    });
+
+    test('reports HTTP errors', () async {
+      server.failures[ende.files.last.entry.url.toString()] = 503;
+      await expectLater(
+        manager.install(ende.catalog),
+        throwsA(
+          isA<ModelDownloadException>()
+              .having((e) => e.statusCode, 'statusCode', 503)
+              .having((e) => e.toString(), 'toString', contains('503')),
+        ),
+      );
+      expect(await manager.installed(), isEmpty);
+    });
+
+    test('reports connection failures', () async {
+      final failing = BergamotModelManager(
+        root: root,
+        httpClient: _ThrowingClient(),
+      );
+      await expectLater(
+        failing.install(ende.catalog),
+        throwsA(isA<ModelDownloadException>()),
+      );
+    });
+
+    test('resumes an interrupted download with a Range request', () async {
+      server.cutAfter = 1000;
+      await expectLater(
+        manager.install(ende.catalog),
+        throwsA(isA<ModelDownloadException>()),
+      );
+      final installed = await manager.install(ende.catalog);
+      expect(installed.pair, 'en-de');
+      final model = ende.files.first;
+      expect(
+        File(installedPath(ende, model.name)).readAsBytesSync(),
+        model.raw,
+      );
+      expect(server.requests.last.headers['Range'], isNull);
+      expect(
+        server.requests.where((r) => r.headers['Range'] == 'bytes=1000-'),
+        hasLength(1),
+      );
+    });
+
+    test('restarts when the server ignores the Range request', () async {
+      server.cutAfter = 1000;
+      await expectLater(
+        manager.install(ende.catalog),
+        throwsA(isA<ModelDownloadException>()),
+      );
+      server.ignoreRange = true;
+      final installed = await manager.install(ende.catalog);
+      expect(
+        File(installed.paths.model).readAsBytesSync(),
+        ende.files.first.raw,
+      );
+    });
+
+    test('uses a complete part file without downloading it again', () async {
+      final file = ende.files.first;
+      File(
+          p.join(
+            root.path,
+            'models',
+            '.downloads',
+            'en-de',
+            'run1',
+            '${file.name}.gz.part',
+          ),
+        )
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(file.gz);
+      await manager.install(ende.catalog);
+      expect(
+        server.requests.map((r) => r.url),
+        isNot(contains(file.entry.url)),
+      );
+    });
+
+    test('discards a part file longer than the file', () async {
+      final file = ende.files.first;
+      File(
+          p.join(
+            root.path,
+            'models',
+            '.downloads',
+            'en-de',
+            'run1',
+            '${file.name}.gz.part',
+          ),
+        )
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(List.filled(file.gz.length + 5, 1));
+      final installed = await manager.install(ende.catalog);
+      expect(File(installed.paths.model).readAsBytesSync(), file.raw);
+    });
+
+    test('replaces an older version atomically', () async {
+      await manager.install(ende.catalog);
+      final newer = FakeModel('en', 'de', version: 'run2', seed: 7);
+      final newServer = FakeModelServer([newer]);
+      final updater = BergamotModelManager(
+        root: root,
+        httpClient: newServer.client,
+      );
+
+      final installed = await updater.install(newer.catalog);
+      expect(installed.version, 'run2');
+      expect(
+        Directory(p.join(root.path, 'models', 'en-de'))
+            .listSync()
+            .map((e) => p.basename(e.path)),
+        ['run2'],
+      );
+      expect(await updater.installed(), hasLength(1));
+    });
+
+    test('reinstalling the same version over a broken install', () async {
+      // A directory without a valid manifest is not an install...
+      final broken = Directory(installedPath(ende, ''))
+        ..createSync(recursive: true);
+      File(p.join(broken.path, 'junk')).writeAsStringSync('x');
+      expect(await manager.installed(), isEmpty);
+      // ...and is replaced by a real one.
+      final installed = await manager.install(ende.catalog);
+      expect(File(p.join(installed.directory, 'junk')).existsSync(), isFalse);
+    });
+
+    test('rejects unsafe pairs', () async {
+      final evil = CatalogModel(
+        source: 'en',
+        target: 'de',
+        version: 'run1',
+        files: ende.catalog.files,
+      );
+      expect(evil.pair, 'en-de');
+      expect(() => manager.delete('..', 'x'), throwsArgumentError);
+    });
+  });
+
+  group('installed', () {
+    test('lists complete installs only, sorted by pair', () async {
+      await manager.install(ende.catalog);
+      await manager.install(deen.catalog);
+      // A model directory with a missing file is ignored.
+      Directory(p.join(root.path, 'models', 'en-fr', 'x'))
+          .createSync(recursive: true);
+      File(p.join(root.path, 'models', 'en-fr', 'x', 'manifest.json'))
+          .writeAsStringSync(
+            jsonEncode({
+              'schemaVersion': 1,
+              'source': 'en',
+              'target': 'fr',
+              'version': 'x',
+              'files': {
+                'model': {'name': 'model.bin', 'size': 3},
+              },
+            }),
+          );
+
+      final fresh = BergamotModelManager(root: root);
+      addTearDown(fresh.close);
+      final installed = await fresh.installed();
+      expect(installed.map((m) => m.pair), ['de-en', 'en-de']);
+      expect((await fresh.installedModel('de', 'en'))?.version, 'run1');
+      expect(await fresh.installedModel('en', 'fr'), isNull);
+      expect(
+        await fresh.totalSize(),
+        ende.catalog.installedSize + deen.catalog.installedSize,
+      );
+    });
+
+    test('ignores manifests that do not match their directory', () async {
+      final installed = await manager.install(ende.catalog);
+      final manifest = File(
+        p.join(installed.directory, BergamotModelManager.manifestName),
+      );
+      final json =
+          jsonDecode(manifest.readAsStringSync()) as Map<String, Object?>;
+      manifest.writeAsStringSync(jsonEncode({...json, 'version': 'other'}));
+      expect(await BergamotModelManager(root: root).installed(), isEmpty);
+      manifest.writeAsStringSync('not json');
+      expect(await BergamotModelManager(root: root).installed(), isEmpty);
+    });
+
+    test('is empty without a models directory', () async {
+      expect(await manager.installed(), isEmpty);
+      expect(await manager.totalSize(), 0);
+    });
+  });
+
+  group('delete', () {
+    test('removes every version and partial download of a pair', () async {
+      await manager.install(ende.catalog);
+      await manager.install(deen.catalog);
+      Directory(p.join(root.path, 'models', '.downloads', 'en-de', 'old'))
+          .createSync(recursive: true);
+
+      await manager.delete('en', 'de');
+
+      expect((await manager.installed()).map((m) => m.pair), ['de-en']);
+      expect(
+        Directory(p.join(root.path, 'models', 'en-de')).existsSync(),
+        isFalse,
+      );
+      expect(
+        Directory(p.join(root.path, 'models', '.downloads', 'en-de'))
+            .existsSync(),
+        isFalse,
+      );
+    });
+
+    test('is a no-op for pairs that are not installed', () async {
+      await manager.delete('en', 'fr');
+      expect(await manager.installed(), isEmpty);
+    });
+  });
+
+  test('cleanUp removes staging and trash but keeps downloads', () async {
+    for (final dir in ['.staging/a', '.trash/b', '.downloads/en-de/run1']) {
+      Directory(p.join(root.path, 'models', dir)).createSync(recursive: true);
+    }
+    await manager.cleanUp();
+    expect(
+      Directory(p.join(root.path, 'models', '.staging')).existsSync(),
+      isFalse,
+    );
+    expect(
+      Directory(p.join(root.path, 'models', '.trash')).existsSync(),
+      isFalse,
+    );
+    expect(
+      Directory(p.join(root.path, 'models', '.downloads', 'en-de', 'run1'))
+          .existsSync(),
+      isTrue,
+    );
+  });
+
+  test('close only closes a client it created', () {
+    BergamotModelManager(root: root).close();
+    manager.close();
+  });
+}
+
+String _sha(List<int> bytes) => sha256.convert(bytes).toString();
+
+class _ThrowingClient extends http.BaseClient {
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) =>
+      Future.error(const SocketException('No network'));
+}

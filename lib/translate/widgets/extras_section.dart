@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -72,13 +73,26 @@ class ExtrasSection extends StatelessWidget {
 
   static void _showRefinementError(BuildContext context, TranslateState state) {
     final l10n = context.l10n;
-    final reason = describeTranslateError(l10n, state.refinementError).message;
+    final error = state.refinementError;
+    final reason = describeTranslateError(l10n, error).message;
     ScaffoldMessenger.maybeOf(context)
       ?..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
           key: const Key('translate_refinement_error'),
-          content: Text(l10n.translateRefinementFailed(reason)),
+          content: Text(
+            error is ConsentRequiredException
+                ? reason
+                : l10n.translateRefinementFailed(reason),
+          ),
+          // Nothing was sent: the user may allow it, then tap the chip
+          // again.
+          action: error is ConsentRequiredException
+              ? SnackBarAction(
+                  label: l10n.commonConsentReview,
+                  onPressed: () => unawaited(askConsent(context, error)),
+                )
+              : null,
         ),
       );
   }

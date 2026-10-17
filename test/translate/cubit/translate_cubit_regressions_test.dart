@@ -50,7 +50,7 @@ void main() {
     }
 
     blocTest<TranslateCubit, TranslateState>(
-      'falls back to the next engine, on every load',
+      'never switches to another network engine, on every load',
       setUp: breakDeepl,
       build: () => mocks.build(),
       act: (cubit) async {
@@ -59,31 +59,45 @@ void main() {
       },
       errors: () => [languagesError, languagesError],
       verify: (cubit) {
-        expect(cubit.state.enginesStatus, EnginesStatus.ready);
+        expect(cubit.state.enginesStatus, EnginesStatus.failure);
         expect(cubit.state.engines, allEngines);
-        expect(cubit.state.engine, google);
-        expect(cubit.state.targetLanguages, targets);
-        expect(cubit.state.error, isNull);
+        expect(cubit.state.engine, deepl);
+        expect(cubit.state.error, languagesError);
+        verifyNever(() => mocks.repository.getSourceLanguages(google));
         // The saved choice is kept for when DeepL recovers.
         verifyNever(() => mocks.settings.setEngine(any()));
       },
     );
 
     blocTest<TranslateCubit, TranslateState>(
-      'keeps the engine list reachable when every candidate fails',
+      'falls back to the on-device engine only',
       setUp: () {
         breakDeepl();
-        when(() => mocks.repository.getSourceLanguages(google))
-            .thenThrow(languagesError);
+        when(
+          () => mocks.repository.getEngines(refresh: any(named: 'refresh')),
+        ).thenAnswer((_) async => [...allEngines, TranslationEngine.offline()]);
       },
       build: () => mocks.build(),
       act: (cubit) => cubit.loadEngines(),
-      errors: () => [languagesError, languagesError],
+      errors: () => [languagesError],
       verify: (cubit) {
-        expect(cubit.state.enginesStatus, EnginesStatus.failure);
+        expect(cubit.state.enginesStatus, EnginesStatus.ready);
+        expect(cubit.state.engine, TranslationEngine.offline());
+        expect(cubit.state.error, isNull);
+        verifyNever(() => mocks.settings.setEngine(any()));
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'a saved engine that is gone is not replaced by another one',
+      setUp: () => mocks.stubSettings(const AppSettings(engineId: 'ai:gone')),
+      build: () => mocks.build(),
+      act: (cubit) => cubit.loadEngines(),
+      verify: (cubit) {
+        expect(cubit.state.enginesStatus, EnginesStatus.ready);
         expect(cubit.state.engines, allEngines);
-        expect(cubit.state.engine, deepl);
-        expect(cubit.state.error, languagesError);
+        expect(cubit.state.engine, isNull);
+        verifyNever(() => mocks.repository.getSourceLanguages(any()));
       },
     );
 

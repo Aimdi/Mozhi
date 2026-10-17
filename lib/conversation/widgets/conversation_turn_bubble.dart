@@ -8,8 +8,11 @@ import 'package:mozhi/conversation/models/conversation_turn.dart';
 import 'package:mozhi/conversation/widgets/conversation_listen_button.dart';
 import 'package:mozhi/conversation/widgets/conversation_orientation.dart';
 import 'package:mozhi/conversation/widgets/side_colors.dart';
+import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:translation_repository/translation_repository.dart'
+    show ConsentRequiredException;
 
 /// Formats [time] as the locale's short time of day.
 String formatConversationTime(BuildContext context, DateTime time) =>
@@ -171,7 +174,20 @@ class ConversationTurnBubble extends StatelessWidget {
                 children: texts,
               ),
             ),
-            if (turn.isFailed)
+            if (turn.error case final ConsentRequiredException consent
+                when turn.isFailed)
+              // Nothing was sent: the user decides, then it is translated.
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: ConsentInlinePrompt(
+                  key: Key('conversation_consent_${turn.id}'),
+                  consent: consent,
+                  onGranted: () => unawaited(
+                    context.read<ConversationCubit>().retry(turn.id),
+                  ),
+                ),
+              )
+            else if (turn.isFailed)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: TextButton.icon(
