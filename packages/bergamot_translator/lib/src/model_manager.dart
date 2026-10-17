@@ -130,6 +130,84 @@ final class InstalledModel {
   String toString() => 'InstalledModel($pair, $version)';
 }
 
+/// The name of a [CatalogFile] as published, for downloading it by hand
+/// (see [BergamotModelManager.importFiles]).
+extension CatalogFileDownload on CatalogFile {
+  /// The last segment of [CatalogFile.url]: the gzip-compressed file, e.g.
+  /// `vocab.ende.spm.gz`.
+  String get downloadName => url.pathSegments.last;
+}
+
+/// What [BergamotModelManager.importFiles] did with one catalog model.
+enum ModelImportStatus {
+  /// Every file was there and verified: the model is installed now.
+  installed,
+
+  /// This version was installed already (its files were not read again).
+  alreadyInstalled,
+
+  /// Some files of the model were not among the imported ones
+  /// ([ModelImportOutcome.missing]); nothing was installed.
+  incomplete,
+
+  /// A file named like one of the model's did not match the catalog's
+  /// size and SHA-256 (damaged, truncated or another model version:
+  /// [ModelImportOutcome.damaged]); nothing was installed.
+  checksumMismatch,
+
+  /// Installing failed, e.g. on a full disk ([ModelImportOutcome.error]).
+  failed,
+}
+
+/// The result of [BergamotModelManager.importFiles] for one model.
+@immutable
+final class ModelImportOutcome {
+  const new({
+    required this.model,
+    required this.status,
+    this.missing = const [],
+    this.damaged = const [],
+    this.error,
+  });
+
+  final CatalogModel model;
+  final ModelImportStatus status;
+
+  /// Files of [model] without a verified copy among the imported files
+  /// ([ModelImportStatus.incomplete], [ModelImportStatus.checksumMismatch]).
+  final List<CatalogFile> missing;
+
+  /// Imported files named like a file of [model] that did not match its
+  /// checksum ([ModelImportStatus.checksumMismatch]).
+  final List<File> damaged;
+
+  /// Why installing failed ([ModelImportStatus.failed], or a
+  /// [ModelChecksumException] found while installing).
+  final Object? error;
+
+  @override
+  String toString() => 'ModelImportOutcome(${model.pair}, ${status.name})';
+}
+
+/// The result of [BergamotModelManager.importFiles].
+@immutable
+final class ModelImportResult {
+  const new({this.models = const [], this.unmatched = const []});
+
+  /// One outcome per catalog model that an imported file belongs to,
+  /// sorted by pair.
+  final List<ModelImportOutcome> models;
+
+  /// Imported files that belong to no catalog model.
+  final List<File> unmatched;
+
+  /// The models this import installed.
+  List<CatalogModel> get installed => [
+    for (final outcome in models)
+      if (outcome.status == ModelImportStatus.installed) outcome.model,
+  ];
+}
+
 /// Downloads, verifies, installs and deletes models in an app-private
 /// directory ([root], passed in by the app).
 ///
@@ -147,6 +225,8 @@ final class InstalledModel {
 /// Every download is checked against the catalog's size and SHA-256 before
 /// it is decompressed, and the decompressed file against its own size and
 /// SHA-256. The [http.Client] is injectable (tests use `MockClient`).
+/// [importFiles] installs files copied to the device by hand instead,
+/// through the same checks and staging, without any network request.
 class BergamotModelManager {
   new({
     required this.root,
@@ -210,12 +290,132 @@ class BergamotModelManager {
     CatalogModel model, {
     void Function(ModelDownloadProgress progress)? onProgress,
   }) {
-    final key = '${model.pair}/${model.version}';
-    // The callback must not return the removed future: whenComplete would
-    // then wait for itself.
-    return _installing[key] ??= _install(model, onProgress).whenComplete(() {
-      unawaited(_installing.remove(key));
-    });
+    return _exclusive(model, () => _install(model, onProgress));
+  }
+
+  /// Installs models from files copied to the device by hand (downloaded
+  /// elsewhere from [CatalogFile.url]), without any network request.
+  ///
+  /// Each of [files] is matched to a file of [catalog] by name, as
+  /// published (`<name>.gz`, see [CatalogFileDownload.downloadName]) or
+  /// decompressed (`<name>`), ignoring case; a renamed copy (e.g.
+  /// `vocab.ende (1).spm.gz`) by its size and SHA-256. A named file is
+  /// verified like a download: the size and SHA-256 of the gzip file or of
+  /// the decompressed file must match the catalog. A model whose files are
+  /// all there and verified is installed through the same staging,
+  /// decompression checks and atomic rename as [install] (replacing another
+  /// version of the pair); other models are left alone. A language pair
+  /// that pivots through English (de -> fr) needs both of its models
+  /// (de -> en, en -> fr); each is imported on its own.
+  ///
+  /// [files] are only read, never moved or deleted. Problems with a file or
+  /// a model do not throw: they are reported in the [ModelImportResult].
+  Future<ModelImportResult> importFiles(
+    Iterable<File> files, {
+    required ModelCatalog catalog,
+  }) async {
+    final byName = <String, (CatalogModel, CatalogFile)>{};
+    final bySize = <int, List<(CatalogModel, CatalogFile)>>{};
+    for (final model in catalog.models) {
+      for (final file in model.files.values) {
+        byName[file.name.toLowerCase()] = (model, file);
+        for (final size in {file.size, file.uncompressedSize}) {
+          (bySize[size] ??= []).add((model, file));
+        }
+      }
+    }
+    final versions = {
+      for (final model in await installed()) model.pair: model.version,
+    };
+    bool isCurrent(CatalogModel model) => versions[model.pair] == model.version;
+
+    final touched = <CatalogModel>{};
+    final verified = <CatalogModel, Map<ModelFileKind, _ImportedFile>>{};
+    final damaged = <CatalogModel, Map<ModelFileKind, List<File>>>{};
+    final unmatched = <File>[];
+
+    for (final input in files) {
+      if (byName[_importName(input.path)] case (final model, final file)) {
+        touched.add(model);
+        if (isCurrent(model) ||
+            (verified[model]?.containsKey(file.kind) ?? false)) {
+          continue;
+        }
+        final compressed = await _identify(input, file);
+        if (compressed == null) {
+          ((damaged[model] ??= {})[file.kind] ??= []).add(input);
+        } else {
+          (verified[model] ??= {})[file.kind] = (
+            file: input,
+            compressed: compressed,
+          );
+        }
+        continue;
+      }
+      // A renamed copy: the catalog file with its size and SHA-256.
+      final candidates = bySize[await _lengthOf(input)];
+      final fingerprint = candidates == null ? null : await _fingerprint(input);
+      (CatalogModel, CatalogFile, bool)? match;
+      for (final (model, file) in candidates ?? const <Never>[]) {
+        if (_formOf(file, fingerprint) case final compressed?) {
+          match = (model, file, compressed);
+          break;
+        }
+      }
+      if (match == null) {
+        unmatched.add(input);
+        continue;
+      }
+      final (model, file, compressed) = match;
+      touched.add(model);
+      if (!isCurrent(model)) {
+        (verified[model] ??= {}).putIfAbsent(
+          file.kind,
+          () => (file: input, compressed: compressed),
+        );
+      }
+    }
+
+    final outcomes = <ModelImportOutcome>[];
+    for (final model
+        in touched.toList()..sort((a, b) => a.pair.compareTo(b.pair))) {
+      if (isCurrent(model)) {
+        outcomes.add(
+          ModelImportOutcome(
+            model: model,
+            status: ModelImportStatus.alreadyInstalled,
+          ),
+        );
+        continue;
+      }
+      final found = verified[model] ?? const {};
+      final missing = [
+        for (final file in model.files.values)
+          if (!found.containsKey(file.kind)) file,
+      ];
+      if (missing.isEmpty) {
+        outcomes.add(await _importModel(model, found));
+        continue;
+      }
+      final bad = [
+        for (final MapEntry(:key, :value) in (damaged[model] ?? {}).entries)
+          if (!found.containsKey(key)) ...value,
+      ];
+      outcomes.add(
+        ModelImportOutcome(
+          model: model,
+          status: bad.isEmpty
+              ? ModelImportStatus.incomplete
+              : ModelImportStatus.checksumMismatch,
+          missing: List.unmodifiable(missing),
+          damaged: List.unmodifiable(bad),
+        ),
+      );
+    }
+    return ModelImportResult(
+      models: List.unmodifiable(outcomes),
+      unmatched: List.unmodifiable(unmatched),
+    );
   }
 
   /// Deletes every installed version of `source -> target`, plus partial
@@ -252,6 +452,62 @@ class BergamotModelManager {
       p.join(_downloadsDirectory.path, model.pair, model.version),
     );
     await downloads.create(recursive: true);
+
+    final received = <ModelFileKind, int>{};
+    void report(ModelFileKind kind, int bytes) {
+      received[kind] = bytes;
+      onProgress?.call(
+        ModelDownloadProgress(
+          model: model,
+          receivedBytes: received.values.fold(0, (a, b) => a + b),
+          totalBytes: model.downloadSize,
+        ),
+      );
+    }
+
+    return await _installStaged(model, (staging) async {
+      for (final file in model.files.values) {
+        final gz = await _download(model, file, downloads, report);
+        try {
+          await _writeVerified(
+            model,
+            file,
+            gz.openRead().transform(gzip.decoder),
+            staging,
+          );
+        } on ModelChecksumException {
+          // A verified download that does not decompress to the catalog's
+          // file: download it again next time.
+          await _deleteQuietly(gz);
+          rethrow;
+        }
+      }
+    });
+  }
+
+  /// Runs [run] (installing [model]) unless an install of the same model is
+  /// already running, which is then shared.
+  Future<InstalledModel> _exclusive(
+    CatalogModel model,
+    Future<InstalledModel> Function() run,
+  ) {
+    final key = '${model.pair}/${model.version}';
+    // The callback must not return the removed future: whenComplete would
+    // then wait for itself.
+    return _installing[key] ??= run().whenComplete(() {
+      unawaited(_installing.remove(key));
+    });
+  }
+
+  /// Installs [model] from a fresh staging directory that [fill] writes
+  /// every verified file of [model] into (see [_writeVerified]): writes
+  /// `manifest.json`, moves the directory into place atomically, removes
+  /// other versions of the pair and partial downloads of [model]. The
+  /// staging directory is removed in any case.
+  Future<InstalledModel> _installStaged(
+    CatalogModel model,
+    Future<void> Function(Directory staging) fill,
+  ) async {
     final staging = Directory(
       p.join(
         _stagingDirectory.path,
@@ -259,25 +515,8 @@ class BergamotModelManager {
       ),
     );
     await staging.create(recursive: true);
-
     try {
-      final received = <ModelFileKind, int>{};
-      void report(ModelFileKind kind, int bytes) {
-        received[kind] = bytes;
-        onProgress?.call(
-          ModelDownloadProgress(
-            model: model,
-            receivedBytes: received.values.fold(0, (a, b) => a + b),
-            totalBytes: model.downloadSize,
-          ),
-        );
-      }
-
-      final files = <ModelFileKind, File>{};
-      for (final file in model.files.values) {
-        final gz = await _download(model, file, downloads, report);
-        files[file.kind] = await _gunzip(model, file, gz, staging);
-      }
+      await fill(staging);
       await File(p.join(staging.path, manifestName))
           .writeAsString(jsonEncode(_manifest(model)), flush: true);
 
@@ -291,7 +530,9 @@ class BergamotModelManager {
           await _deleteQuietly(entry);
         }
       }
-      await _deleteQuietly(downloads);
+      await _deleteQuietly(
+        Directory(p.join(_downloadsDirectory.path, model.pair, model.version)),
+      );
       _installedCache = null;
       return (await installedModel(model.source, model.target))!;
     } finally {
@@ -393,12 +634,13 @@ class BergamotModelManager {
     return part;
   }
 
-  /// Decompresses a verified download into [staging] and verifies the
-  /// result's size and SHA-256.
-  Future<File> _gunzip(
+  /// Writes [contents] (the decompressed bytes of [file]: a verified
+  /// download through `gzip.decoder`, or an imported decompressed file)
+  /// into [staging] and verifies their size and SHA-256.
+  Future<File> _writeVerified(
     CatalogModel model,
     CatalogFile file,
-    File gz,
+    Stream<List<int>> contents,
     Directory staging,
   ) async {
     final output = File(p.join(staging.path, file.name));
@@ -407,23 +649,20 @@ class BergamotModelManager {
     var size = 0;
     final sink = output.openWrite();
     try {
-      await for (final chunk in gz.openRead().transform(gzip.decoder)) {
+      await for (final chunk in contents) {
         size += chunk.length;
         if (size > file.uncompressedSize) break;
         hasher.add(chunk);
         sink.add(chunk);
       }
     } on FormatException catch (error) {
-      await sink.close();
-      await _deleteQuietly(gz);
       throw ModelChecksumException(model.pair, '${file.name}: $error');
+    } finally {
+      await sink.close();
     }
-    await sink.flush();
-    await sink.close();
     hasher.close();
     final digest = digestSink.value.toString();
     if (size != file.uncompressedSize || digest != file.uncompressedSha256) {
-      await _deleteQuietly(gz);
       throw ModelChecksumException(
         model.pair,
         '${file.name}: decompressed to $size bytes with SHA-256 $digest, '
@@ -534,6 +773,112 @@ class BergamotModelManager {
     }
   }
 
+  /// Installs [model] from its verified imported [files].
+  Future<ModelImportOutcome> _importModel(
+    CatalogModel model,
+    Map<ModelFileKind, _ImportedFile> files,
+  ) async {
+    CatalogFile? writing;
+    try {
+      _checkSafe(model.pair);
+      await _exclusive(
+        model,
+        () => _installStaged(model, (staging) async {
+          for (final file in model.files.values) {
+            writing = file;
+            final source = files[file.kind]!;
+            final contents = source.file.openRead();
+            await _writeVerified(
+              model,
+              file,
+              source.compressed ? contents.transform(gzip.decoder) : contents,
+              staging,
+            );
+          }
+        }),
+      );
+      return ModelImportOutcome(
+        model: model,
+        status: ModelImportStatus.installed,
+      );
+    } on ModelChecksumException catch (error) {
+      // Changed since it was verified, or a gzip file that does not
+      // decompress to the catalog's file.
+      final file = writing;
+      return ModelImportOutcome(
+        model: model,
+        status: ModelImportStatus.checksumMismatch,
+        missing: [?file],
+        damaged: [?files[file?.kind]?.file],
+        error: error,
+      );
+    } on Object catch (error) {
+      return ModelImportOutcome(
+        model: model,
+        status: ModelImportStatus.failed,
+        error: error,
+      );
+    }
+  }
+
+  /// Whether [input] is [file] as published (true: gzip) or decompressed
+  /// (false); null when it is neither or cannot be read.
+  static Future<bool?> _identify(File input, CatalogFile file) async {
+    final length = await _lengthOf(input);
+    // Only a file of the right size is worth hashing.
+    if (length != file.size && length != file.uncompressedSize) return null;
+    return _formOf(file, await _fingerprint(input));
+  }
+
+  /// Whether [fingerprint] is that of [file] as published (true: gzip) or
+  /// decompressed (false); null when it is neither.
+  static bool? _formOf(
+    CatalogFile file,
+    ({int size, String sha256})? fingerprint,
+  ) => switch (fingerprint) {
+    (:final size, :final sha256)
+        when size == file.size && sha256 == file.sha256 =>
+      true,
+    (:final size, :final sha256)
+        when size == file.uncompressedSize &&
+            sha256 == file.uncompressedSha256 =>
+      false,
+    _ => null,
+  };
+
+  /// Size and SHA-256 of [file]'s contents; null when it cannot be read.
+  static Future<({int size, String sha256})?> _fingerprint(File file) async {
+    final digestSink = _DigestSink();
+    final hasher = sha256.startChunkedConversion(digestSink);
+    var size = 0;
+    try {
+      await for (final chunk in file.openRead()) {
+        size += chunk.length;
+        hasher.add(chunk);
+      }
+    } on FileSystemException {
+      return null;
+    }
+    hasher.close();
+    return (size: size, sha256: digestSink.value.toString());
+  }
+
+  /// The length of [file]; -1 when it cannot be read.
+  static Future<int> _lengthOf(File file) async {
+    try {
+      return await file.length();
+    } on FileSystemException {
+      return -1;
+    }
+  }
+
+  /// The catalog name an imported file at [path] stands for: its base
+  /// name in lower case, without a `.gz` extension.
+  static String _importName(String path) {
+    final name = p.basename(path).toLowerCase();
+    return name.endsWith('.gz') ? name.substring(0, name.length - 3) : name;
+  }
+
   static void _checkSafe(String pair) {
     if (!RegExp(r'^[a-z_]+-[a-z_]+$').hasMatch(pair)) {
       throw ArgumentError.value(pair, 'pair', 'Invalid language pair');
@@ -553,6 +898,9 @@ class BergamotModelManager {
     }
   }
 }
+
+/// A verified imported file: gzip-compressed as published, or decompressed.
+typedef _ImportedFile = ({File file, bool compressed});
 
 class _DigestSink implements Sink<Digest> {
   late Digest value;

@@ -28,6 +28,9 @@ import java.util.Locale
  *   answer with `returnResult(text)` to replace the selection. The call is
  *   refused unless the current intent is that writable request and the
  *   activity was started for a result.
+ * - `ACTION_PROCESS_TEXT` through the exported alias [TRANSLATE_OFFLINE_ALIAS]
+ *   ("Translate offline", see [isTranslateOffline]): the same request, which
+ *   Dart translates with the on-device engine only. Replace works the same.
  * - [ACTION_TRANSLATE_CLIPBOARD] from the Quick Settings tile
  *   ([TranslateTileService]), the home-screen widget ([MozhiWidgetProvider])
  *   and the "Translate clipboard" launcher shortcut. It is only honoured when
@@ -35,10 +38,11 @@ import java.util.Locale
  *   (see [isTranslateClipboard]): this activity is exported, so any app could
  *   otherwise make Mozhi read, translate and save the clipboard.
  *
- * Payloads are maps `{text: String, readOnly: Boolean, processText: Boolean}`.
- * Clipboard requests are always sent on the event channel, once the window
- * has input focus (Android 10+ only lets the focused app read the
- * clipboard), as `{action: "translateClipboard"}` plus, when the clipboard
+ * Payloads are maps `{text: String, readOnly: Boolean, processText: Boolean}`;
+ * a selection that arrived through [TRANSLATE_OFFLINE_ALIAS] also carries
+ * `action: "translateOffline"`. Clipboard requests are always sent on the
+ * event channel, once the window has input focus (Android 10+ only lets the
+ * focused app read the clipboard), as `{action: "translateClipboard"}` plus, when the clipboard
  * holds text, `text`/`readOnly: true`/`processText: false`. Readers that
  * ignore `action` therefore treat clipboard text like shared text, and an
  * empty clipboard (no `text`) is ignored.
@@ -309,7 +313,13 @@ class MainActivity : FlutterActivity() {
             Intent.ACTION_PROCESS_TEXT -> {
                 val text = intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString()
                 val readOnly = isProcessTextReadOnly(intent)
-                if (text.isNullOrBlank()) null else payload(text, readOnly, processText = true)
+                when {
+                    text.isNullOrBlank() -> null
+                    isTranslateOffline(intent) ->
+                        payload(text, readOnly, processText = true) +
+                            (KEY_ACTION to ACTION_VALUE_TRANSLATE_OFFLINE)
+                    else -> payload(text, readOnly, processText = true)
+                }
             }
             Intent.ACTION_SEND -> {
                 val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()
@@ -339,6 +349,18 @@ class MainActivity : FlutterActivity() {
             intent.component?.let {
                 it.packageName == packageName && it.className == TRANSLATE_CLIPBOARD_ALIAS
             } == true
+
+    /**
+     * Whether [intent] arrived through the exported alias
+     * [TRANSLATE_OFFLINE_ALIAS] ("Translate offline" in the text selection
+     * toolbar), whose selection Dart translates on the device only. Any app
+     * may start the alias directly; that can only make a request more
+     * private, so unlike [isTranslateClipboard] it needs no protection.
+     */
+    private fun isTranslateOffline(intent: Intent?): Boolean =
+        intent?.component?.let {
+            it.packageName == packageName && it.className == TRANSLATE_OFFLINE_ALIAS
+        } == true
 
     /**
      * The `readOnly` flag sent to Dart for a PROCESS_TEXT [intent]. A missing
@@ -375,6 +397,14 @@ class MainActivity : FlutterActivity() {
          */
         const val TRANSLATE_CLIPBOARD_ALIAS = "io.github.aimdi.mozhi.TranslateClipboardActivity"
 
+        /**
+         * Class name of the exported `<activity-alias>` of this activity
+         * (AndroidManifest.xml) behind the "Translate offline" text selection
+         * action (see [isTranslateOffline]). Like
+         * [TRANSLATE_CLIPBOARD_ALIAS], the same for every flavour.
+         */
+        const val TRANSLATE_OFFLINE_ALIAS = "io.github.aimdi.mozhi.TranslateOfflineActivity"
+
         /** Scheme of the deep links handled by [deepLinkRoute]. */
         const val DEEP_LINK_SCHEME = "mozhi"
 
@@ -383,6 +413,7 @@ class MainActivity : FlutterActivity() {
         private const val PRIVACY_CHANNEL = "io.github.aimdi.mozhi/privacy"
         private const val KEY_ACTION = "action"
         private const val ACTION_VALUE_TRANSLATE_CLIPBOARD = "translateClipboard"
+        private const val ACTION_VALUE_TRANSLATE_OFFLINE = "translateOffline"
         private const val DEFAULT_ROUTE = "/"
 
         /**

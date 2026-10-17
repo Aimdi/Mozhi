@@ -17,6 +17,12 @@ class SharedText {
   /// to translate the clipboard.
   static const translateClipboardAction = 'translateClipboard';
 
+  /// [action] of a selection made with "Translate offline" in Android's
+  /// text selection toolbar (PROCESS_TEXT through the
+  /// `.TranslateOfflineActivity` alias): it is translated with the
+  /// on-device engine only, whatever the privacy mode.
+  static const translateOfflineAction = 'translateOffline';
+
   /// The shared text. Empty when the payload only carried an [action].
   final String text;
 
@@ -31,6 +37,10 @@ class SharedText {
 
   /// Whether this asks to translate the clipboard ([text] may be empty).
   bool get isTranslateClipboard => action == translateClipboardAction;
+
+  /// Whether this selection is to be translated on the device only
+  /// ([translateOfflineAction]).
+  bool get isTranslateOffline => action == translateOfflineAction;
 
   @override
   bool operator ==(Object other) =>
@@ -56,8 +66,11 @@ class SharedText {
 /// Platform side (`MainActivity.kt`) exposes:
 /// * MethodChannel `io.github.aimdi.mozhi/shared_text`:
 ///   `getInitialText` -> `{text, readOnly, processText, action}` | null
-///   (`action` is optional, e.g. `translateClipboard` from the
-///   quick-settings tile / app shortcut, which may omit `text`),
+///   (`action` is optional: `translateClipboard` from the quick-settings
+///   tile / app shortcut, which may omit `text`, or `translateOffline` for
+///   a PROCESS_TEXT selection made with "Translate offline", which keeps
+///   `text`, `readOnly` and `processText: true` and is to be translated on
+///   the device only, see [SharedText.isTranslateOffline]),
 ///   `returnResult(text)` -> finishes a PROCESS_TEXT activity with
 ///   `EXTRA_PROCESS_TEXT` = text (the argument is the plain string).
 /// * EventChannel `io.github.aimdi.mozhi/shared_text_events` streaming the

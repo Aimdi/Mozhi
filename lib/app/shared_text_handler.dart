@@ -7,12 +7,21 @@ import 'package:mozhi/platform/shared_text_service.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 
 /// Text selected in another app (Android `PROCESS_TEXT`, "Translate with
-/// Mozhi") to show in the quick translate UI.
+/// Mozhi" or "Translate offline") to show in the quick translate UI.
 @immutable
 class QuickTranslateRequest {
-  const new({required this.text, required this.onOpenInApp, this.onReplace});
+  const new({
+    required this.text,
+    required this.onOpenInApp,
+    this.onReplace,
+    this.offlineOnly = false,
+  });
 
   final String text;
+
+  /// "Translate offline": translate with the on-device engine only, whatever
+  /// the privacy mode; the text never goes to a network engine.
+  final bool offlineOnly;
 
   /// Opens [text] in the translate tab ("Open in app").
   final VoidCallback onOpenInApp;
@@ -40,7 +49,9 @@ Future<String?> readClipboardText() async {
 /// Routes text handed over by the OS to the right screen:
 ///
 /// * a selection in another app (`PROCESS_TEXT`) opens the quick translate
-///   UI via [onQuickTranslate], with Replace for writable selections;
+///   UI via [onQuickTranslate], with Replace for writable selections; one
+///   made with "Translate offline" ([SharedText.isTranslateOffline]) is
+///   marked [QuickTranslateRequest.offlineOnly];
 /// * the "translate clipboard" action (quick-settings tile / app shortcut)
 ///   reads the clipboard ([readClipboard]) and opens it in the translate
 ///   tab;
@@ -66,7 +77,10 @@ class SharedTextHandler {
   final VoidCallback onShowTranslate;
 
   /// Shows the quick translate UI for a `PROCESS_TEXT` selection. Without
-  /// it, selections open in the translate tab like shared text.
+  /// it, selections open in the translate tab like shared text, except
+  /// "Translate offline" ones: the translate tab could send them to its
+  /// (network) engine, so only the translate screen is shown, without the
+  /// text.
   final void Function(QuickTranslateRequest request)? onQuickTranslate;
 
   /// Reads the clipboard for [SharedText.isTranslateClipboard].
@@ -103,7 +117,8 @@ class SharedTextHandler {
     final text = shared.text;
     if (text.trim().isEmpty) return;
     final quick = onQuickTranslate;
-    if (shared.isProcessText && quick != null) {
+    final offlineOnly = shared.isTranslateOffline;
+    if ((shared.isProcessText || offlineOnly) && quick != null) {
       quick(
         QuickTranslateRequest(
           text: text,
@@ -111,8 +126,13 @@ class SharedTextHandler {
           onReplace: shared.readOnly
               ? null
               : (translation) => unawaited(replaceSelection(translation)),
+          offlineOnly: offlineOnly,
         ),
       );
+      return;
+    }
+    if (offlineOnly) {
+      onShowTranslate();
       return;
     }
     await openInApp(text);

@@ -125,6 +125,33 @@
                 android:name="flutter_deeplinking_enabled"
                 android:value="true" />
         </activity-alias>
+        <!-- Text selection toolbar: "Translate offline", a second
+             PROCESS_TEXT entry that translates the selection with the
+             on-device engine only, whatever the privacy mode. MainActivity
+             adds action "translateOffline" to selections arriving through
+             this alias (isTranslateOffline). Exported, because other apps
+             start it from their selection toolbar; reaching it directly
+             can only make a request more private. Aliases don't inherit
+             the target's meta-data (see .TranslateClipboardActivity), so
+             the Flutter ones are repeated here. -->
+        <activity-alias
+            android:name=".TranslateOfflineActivity"
+            android:targetActivity=".MainActivity"
+            android:exported="true"
+            android:label="@string/translate_offline">
+            <meta-data
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/NormalTheme"
+                />
+            <meta-data
+                android:name="flutter_deeplinking_enabled"
+                android:value="true" />
+            <intent-filter android:label="@string/translate_offline">
+                <action android:name="android.intent.action.PROCESS_TEXT"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="text/plain"/>
+            </intent-filter>
+        </activity-alias>
         <!-- Quick Settings tile "Translate": opens Mozhi and translates the
              clipboard (through .TranslateClipboardActivity). -->
         <service

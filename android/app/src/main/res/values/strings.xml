@@ -2,6 +2,10 @@
 <resources>
     <!-- Label of the text selection action (ACTION_PROCESS_TEXT). -->
     <string name="translate_with_mozhi">Translate with Mozhi</string>
+    <!-- Label of the second text selection action, which translates on the
+         device only (.TranslateOfflineActivity). Keep it short: the
+         selection toolbar truncates long labels. -->
+    <string name="translate_offline">Translate offline</string>
 
     <!-- Quick Settings tile (TranslateTileService). -->
     <string name="tile_translate_label">Translate</string>
