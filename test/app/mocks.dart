@@ -125,6 +125,7 @@ void stubTranslationRepository(MockTranslationRepository repository) {
 void stubSpeechService(MockSpeechService speech) {
   when(() => speech.speaking).thenAnswer((_) => const Stream.empty());
   when(() => speech.current).thenReturn(null);
+  when(() => speech.preferDeviceVoice).thenReturn(false);
   when(speech.stop).thenAnswer((_) async {});
   when(speech.dispose).thenAnswer((_) async {});
 }

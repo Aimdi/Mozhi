@@ -340,6 +340,32 @@ void main() {
         expect(translateCubit(tester).state.input, 'hola');
         verifyNever(() => env.sharedTextService.returnResult(any()));
       });
+
+      testWidgets('"Translate offline" never uses a network engine', (
+        tester,
+      ) async {
+        when(env.sharedTextService.initialText).thenAnswer(
+          (_) async => const SharedText(
+            'hola',
+            readOnly: false,
+            isProcessText: true,
+            action: SharedText.translateOfflineAction,
+          ),
+        );
+        when(() => env.translationRepository.hasOfflineEngine)
+            .thenReturn(false);
+        await pumpApp(tester);
+        await tester.pump(const Duration(seconds: 1));
+
+        final sheet = tester.widget<QuickTranslateSheet>(
+          find.byType(QuickTranslateSheet),
+        );
+        expect(sheet.offlineOnly, isTrue);
+        // The test app has no on-device engine: nothing is translated.
+        expect(find.text('Can’t translate on this device'), findsOneWidget);
+        expect(translateCubit(tester).state.input, isEmpty);
+        verifyNever(() => env.translationRepository.translate(any(), any()));
+      });
     });
 
     testWidgets('does not auto-run AI translations of shared text', (

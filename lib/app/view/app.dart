@@ -145,7 +145,9 @@ class _AppState extends State<App> {
       context = _navigatorKey.currentContext;
     }
     if (!mounted || context == null || !context.mounted) {
-      request.onOpenInApp();
+      // A "Translate offline" selection never goes to the translate tab,
+      // whose engines could send it over the network.
+      if (!request.offlineOnly) request.onOpenInApp();
       return;
     }
     // coverage:ignore-end
@@ -155,6 +157,7 @@ class _AppState extends State<App> {
       canReplace: request.canReplace,
       onReplace: request.onReplace,
       onOpenInApp: request.onOpenInApp,
+      offlineOnly: request.offlineOnly,
     );
   }
 
