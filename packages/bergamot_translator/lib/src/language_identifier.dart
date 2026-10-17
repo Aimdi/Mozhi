@@ -2,10 +2,10 @@ import 'package:translation_repository/translation_repository.dart'
     show OfflineTranslator;
 
 /// A small, dependency-free language identifier for
-/// [OfflineTranslator.identifyLanguage]: the fallback where the native
-/// identifier (CLD2, see `Cld2Decision`) is not available (web, devices
-/// that cannot run the engine), and a second opinion for CLD2's guesses on
-/// short text.
+/// [OfflineTranslator.identifyLanguage], used where the native identifier
+/// (CLD2, see `Cld2Decision`) is not available (web, devices that cannot
+/// run the engine) and as a second opinion on CLD2's guesses for short
+/// text.
 ///
 /// It answers only when it is confident and returns null otherwise (the
 /// app then asks for the source language):

@@ -116,7 +116,6 @@ final class Cld2Detection {
 /// The on-device language identifier compiled into `libmozhi_bergamot`
 /// (CLD2, `mozhi_bergamot_detect`). Implementations run it off the UI
 /// isolate.
-// ignore: one_member_abstracts, an interface so tests can fake the engine.
 abstract interface class NativeLanguageIdentifier {
   /// CLD2's [Cld2Detection] of [text], or null when there is no native
   /// identifier here (web, a library built without it, a library that
@@ -151,9 +150,10 @@ abstract final class Cld2Decision {
   /// does not confirm. Wrong guesses on single words mostly score lower.
   static const minGuessScore = 500;
 
-  /// The app's code for [text]'s language, or null when undetermined.
-  /// [heuristic] is `LanguageIdentifier.identify(text)`; [preferred]
-  /// languages may be answered on weaker evidence (empty: every language).
+  /// The app's code for the language of the text CLD2 saw in [detection],
+  /// or null when undetermined. [heuristic] is
+  /// `LanguageIdentifier.identify` of the same text; [preferred] languages
+  /// may be answered on weaker evidence (empty: every language).
   static String? choose(
     Cld2Detection detection, {
     required String? heuristic,

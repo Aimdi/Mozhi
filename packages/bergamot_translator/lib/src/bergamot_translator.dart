@@ -7,6 +7,7 @@ import 'package:bergamot_translator/src/engine/engine_factory.dart';
 import 'package:bergamot_translator/src/language_identifier.dart';
 import 'package:bergamot_translator/src/model_manager.dart';
 import 'package:bergamot_translator/src/model_router.dart';
+import 'package:bergamot_translator/src/native_language_identifier.dart';
 import 'package:bergamot_translator/src/text_chunker.dart';
 import 'package:http/http.dart' as http;
 import 'package:translation_repository/translation_repository.dart';
@@ -34,7 +35,9 @@ final class MeteredConnectionException implements Exception {
 ///   with the languages to download.
 /// * Long text is translated in pieces of at most [maxChunkLength]
 ///   characters, split at paragraph, line and sentence boundaries.
-/// * [identifyLanguage] is a heuristic ([LanguageIdentifier]).
+/// * [identifyLanguage] runs CLD2 from the native library ([languageId],
+///   in a background isolate) and decides with [Cld2Decision]; where the
+///   engine cannot run it falls back to the [LanguageIdentifier] heuristic.
 ///
 /// [isAvailable] is true on Android (arm64-v8a, x86_64, armeabi-v7a with
 /// VFPv4) and false elsewhere (web, desktop) unless overridden.
@@ -45,6 +48,7 @@ class BergamotTranslator implements OfflineTranslator {
     required this._isMeteredConnection,
     http.Client? httpClient,
     BergamotEngine? engine,
+    NativeLanguageIdentifier? languageId,
     BergamotModelManager? models,
     this._isAvailable,
     this.maxChunkLength = 2000,
@@ -52,6 +56,7 @@ class BergamotTranslator implements OfflineTranslator {
        models =
            models ?? BergamotModelManager(root: root, httpClient: httpClient),
        engine = engine ?? createBergamotEngine(),
+       languageId = languageId ?? createNativeLanguageIdentifier(),
        router = ModelRouter(catalog);
 
   /// Whether the native engine runs on this device (see
@@ -61,7 +66,14 @@ class BergamotTranslator implements OfflineTranslator {
   final ModelCatalog catalog;
   final BergamotModelManager models;
   final BergamotEngine engine;
+
+  /// CLD2 in the native library (see [identifyLanguage]).
+  final NativeLanguageIdentifier languageId;
   final ModelRouter router;
+
+  /// Characters of a text that [identifyLanguage] looks at: plenty for
+  /// identification, and keeps long documents cheap.
+  static const identificationSampleLength = 4096;
 
   /// Longest piece of text sent to the engine at once.
   final int maxChunkLength;
@@ -226,12 +238,35 @@ class BergamotTranslator implements OfflineTranslator {
     return output.toString();
   }
 
-  /// BCP-47 code of [text]'s language, or null when undetermined (see
-  /// [LanguageIdentifier]; works on every platform). The result may be a
-  /// language without a model.
+  /// BCP-47 code of [text]'s language, or null when undetermined. The
+  /// result may be a language without a model; Traditional Chinese is
+  /// `zh-Hant`.
+  ///
+  /// Looks at the first [identificationSampleLength] characters. Where the
+  /// engine runs ([isAvailable]) CLD2 identifies them in a background
+  /// isolate and [Cld2Decision.choose] decides, preferring the languages
+  /// this engine translates from on weak evidence. Elsewhere (web, CPUs
+  /// the engine does not support), or when the native identifier is
+  /// missing or fails, the [LanguageIdentifier] heuristic answers alone.
   @override
-  Future<String?> identifyLanguage(String text) async =>
-      text.trim().isEmpty ? null : LanguageIdentifier.identify(text);
+  Future<String?> identifyLanguage(String text) async {
+    if (text.trim().isEmpty) return null;
+    final sample = _sample(text);
+    final heuristic = LanguageIdentifier.identify(sample);
+    if (!isAvailable) return heuristic;
+    final Cld2Detection? detection;
+    try {
+      detection = await languageId.identify(sample);
+    } on Object {
+      return heuristic;
+    }
+    if (detection == null) return heuristic;
+    return Cld2Decision.choose(
+      detection,
+      heuristic: heuristic,
+      preferred: sourceLanguages,
+    );
+  }
 
   /// Unloads every model and stops the translation isolate. The instance
   /// stays usable.
@@ -254,6 +289,16 @@ class BergamotTranslator implements OfflineTranslator {
         'Offline translation is not available on this device',
       );
     }
+  }
+
+  /// The first [identificationSampleLength] UTF-16 code units of [text],
+  /// without splitting a surrogate pair.
+  static String _sample(String text) {
+    if (text.length <= identificationSampleLength) return text;
+    var end = identificationSampleLength;
+    final last = text.codeUnitAt(end - 1);
+    if (last >= 0xD800 && last <= 0xDBFF) end--;
+    return text.substring(0, end);
   }
 
   static bool _isAuto(String code) {

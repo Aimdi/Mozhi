@@ -14,11 +14,14 @@ import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/platform/clipboard_service.dart';
 import 'package:mozhi/platform/privacy_channel.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
+import 'package:mozhi/settings/view/about_page.dart';
 import 'package:mozhi/settings/view/settings_page.dart';
 import 'package:mozhi/settings/view/widgets/history_data_actions.dart';
+import 'package:mozhi/settings/view/widgets/link_launcher.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:mozhi/settings/view/widgets/speech_settings_section.dart';
 import 'package:mozhi/speech/speech_service.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 import 'helpers.dart';
@@ -40,6 +43,18 @@ const _local = AiProviderConfig(
   baseUrl: 'http://localhost:11434',
   model: 'qwen3',
   enabled: false,
+);
+
+/// The heading of the section titled [title] (the first text of the
+/// section).
+Finder sectionTitled(String title) => find
+    .descendant(of: find.byType(SettingsSection), matching: find.text(title))
+    .first;
+
+/// The [SettingsSection] titled [title].
+Finder sectionOf(String title) => find.ancestor(
+  of: sectionTitled(title),
+  matching: find.byType(SettingsSection),
 );
 
 void main() {
@@ -84,11 +99,55 @@ void main() {
     testWidgets('renders all sections', (tester) async {
       await pump(tester);
       expect(find.text('Settings'), findsOneWidget);
-      expect(find.text('Translation services'), findsOneWidget);
-      expect(find.text('Translation'), findsOneWidget);
-      expect(find.text('Appearance'), findsOneWidget);
-      expect(find.text('Data'), findsOneWidget);
+      for (final title in [
+        'Privacy',
+        'Offline languages',
+        'Online engines',
+        'Appearance',
+        'About',
+      ]) {
+        expect(sectionTitled(title), findsOneWidget, reason: title);
+      }
+      // The section heading and its first row.
+      expect(sectionTitled('AI providers'), findsOneWidget);
       expect(find.text('About Mozhi'), findsOneWidget);
+      // The old groups are gone.
+      expect(find.text('Translation tools'), findsNothing);
+      expect(find.text('Data'), findsNothing);
+    });
+
+    testWidgets('orders the sections from privacy to about', (tester) async {
+      await pump(tester, size: const Size(600, 6000));
+      final tops = [
+        for (final title in [
+          'Privacy',
+          'Offline languages',
+          'Online engines',
+          'AI providers',
+          'Appearance',
+          'About',
+        ])
+          tester.getTopLeft(sectionTitled(title)).dy,
+      ];
+      expect(tops, orderedEquals([...tops]..sort()));
+    });
+
+    testWidgets('marks the AI providers as advanced', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pump(tester);
+      expect(
+        find.descendant(
+          of: sectionOf('AI providers'),
+          matching: find.text('Advanced'),
+        ),
+        findsOneWidget,
+      );
+      // Read with the heading.
+      expect(
+        tester.getSemantics(find.text('Advanced')),
+        isSemantics(label: 'AI providers\nAdvanced', isHeader: true),
+      );
+      handle.dispose();
     });
 
     testWidgets('summarises instances and providers', (tester) async {
@@ -124,7 +183,14 @@ void main() {
           extra: any(named: 'extra'),
         ),
       ).called(1);
-      await tester.tap(find.text('AI providers'));
+      await tester.tap(find.byKey(const Key('settings_ai_providers')));
+      verify(
+        () => router.push<Object?>(
+          '/settings/providers',
+          extra: any(named: 'extra'),
+        ),
+      ).called(1);
+      await tester.tap(find.text('Translation services'));
       verify(
         () => router.push<Object?>(
           '/settings/providers',
@@ -154,7 +220,11 @@ void main() {
         tester,
       ) async {
         await pump(tester);
-        await expectPush(tester, 'Offline languages', '/settings/offline');
+        await expectPush(
+          tester,
+          'Languages on this device',
+          '/settings/offline',
+        );
         await expectPush(tester, 'Usage & costs', '/settings/usage');
         await expectPush(tester, 'Presets', '/settings/presets');
         await expectPush(tester, 'Glossaries', '/settings/glossaries');
@@ -163,26 +233,67 @@ void main() {
 
       testWidgets('groups the entries into sections', (tester) async {
         await pump(tester);
-        Finder inSection(String section, String title) => find.descendant(
-          of: find.ancestor(
-            of: find.text(section),
-            matching: find.byType(SettingsSection),
+        Finder inSection(String section, String title) =>
+            find.descendant(of: sectionOf(section), matching: find.text(title));
+        for (final (section, rows) in [
+          (
+            'Privacy',
+            [
+              'Privacy mode',
+              'Incognito',
+              'Save history',
+              'Delete history automatically',
+              'Export history',
+              'Import history',
+              'Clear recent language pairs',
+              'HTTP proxy',
+              'Clear history',
+              'Delete all local data',
+            ],
           ),
-          matching: find.text(title),
-        );
+          ('Offline languages', ['Languages on this device']),
+          (
+            'Online engines',
+            [
+              'Mozhi instances',
+              'Translation services',
+              'Quality modes',
+              'Instant translate',
+            ],
+          ),
+          (
+            'AI providers',
+            [
+              'AI assistant for insights',
+              'Instant translate with AI',
+              'Presets',
+              'Glossaries',
+              'Usage & costs',
+            ],
+          ),
+          ('Appearance', ['Theme', 'Dark theme', 'Show romanization']),
+          (
+            'About',
+            [
+              'About Mozhi',
+              'Version',
+              'Source code',
+              'Open-source licenses',
+              'Run setup again',
+            ],
+          ),
+        ]) {
+          for (final row in rows) {
+            expect(inSection(section, row), findsOne, reason: '$section: $row');
+          }
+        }
         expect(
-          inSection('Translation services', 'Offline languages'),
+          find.descendant(
+            of: sectionOf('AI providers'),
+            matching: find.byKey(const Key('settings_ai_providers')),
+          ),
           findsOne,
         );
-        expect(inSection('Translation services', 'Usage & costs'), findsOne);
-        expect(inSection('Translation tools', 'Presets'), findsOne);
-        expect(inSection('Translation tools', 'Glossaries'), findsOne);
-        expect(inSection('Translation tools', 'Quality modes'), findsOne);
-        expect(inSection('Privacy', 'Save history'), findsOne);
-        expect(inSection('Privacy', 'Incognito'), findsOne);
-        expect(inSection('Privacy', 'Delete all local data'), findsOne);
-        expect(inSection('Data', 'Export history'), findsOne);
-        expect(inSection('About', 'Run setup again'), findsOne);
       });
 
       for (final platform in [TargetPlatform.android, TargetPlatform.iOS]) {
@@ -191,7 +302,8 @@ void main() {
         ) async {
           debugDefaultTargetPlatformOverride = platform;
           await pump(tester);
-          expect(find.text('Offline languages'), findsOneWidget);
+          expect(find.text('Languages on this device'), findsOneWidget);
+          expect(find.text('Not available here'), findsNothing);
           expect(SettingsView.offlineSupported, isTrue);
           debugDefaultTargetPlatformOverride = null;
         });
@@ -202,12 +314,16 @@ void main() {
         TargetPlatform.macOS,
         TargetPlatform.windows,
       ]) {
-        testWidgets('hides offline languages on ${platform.name}', (
-          tester,
-        ) async {
+        testWidgets('says offline languages are unavailable on '
+            '${platform.name}', (tester) async {
           debugDefaultTargetPlatformOverride = platform;
           await pump(tester);
-          expect(find.text('Offline languages'), findsNothing);
+          expect(find.text('Languages on this device'), findsNothing);
+          expect(find.text('Not available here'), findsOneWidget);
+          expect(
+            find.text('On-device translation needs the Android app.'),
+            findsOneWidget,
+          );
           expect(find.text('Usage & costs'), findsOneWidget);
           expect(SettingsView.offlineSupported, isFalse);
           debugDefaultTargetPlatformOverride = null;
@@ -846,14 +962,14 @@ void main() {
           ],
           ['French voice', 'German voice', 'Spanish voice'],
         );
-        // In the first column, after the translation settings.
+        // After the appearance, before About.
         expect(
           tester.getTopLeft(find.text('Read aloud')).dy,
-          greaterThan(tester.getTopLeft(find.text('Translation')).dy),
+          greaterThan(tester.getTopLeft(find.text('Appearance')).dy),
         );
         expect(
           tester.getTopLeft(find.text('Read aloud')).dy,
-          lessThan(tester.getTopLeft(find.text('Appearance')).dy),
+          lessThan(tester.getTopLeft(sectionTitled('About')).dy),
         );
       });
 
@@ -910,14 +1026,11 @@ void main() {
         ).called(1);
       });
 
-      testWidgets('lives in the translation tools section', (tester) async {
+      testWidgets('lives in the online engines section', (tester) async {
         await pump(tester);
         expect(
           find.descendant(
-            of: find.ancestor(
-              of: find.text('Translation tools'),
-              matching: find.byType(SettingsSection),
-            ),
+            of: sectionOf('Online engines'),
             matching: find.text('Quality modes'),
           ),
           findsOne,
@@ -1223,9 +1336,14 @@ void main() {
     group('layout', () {
       testWidgets('uses two columns on wide screens', (tester) async {
         await pump(tester, size: const Size(1400, 1600));
-        final services = tester.getTopLeft(find.text('Translation services'));
+        final privacy = tester.getTopLeft(sectionTitled('Privacy'));
+        final online = tester.getTopLeft(sectionTitled('Online engines'));
+        final ai = tester.getTopLeft(sectionTitled('AI providers'));
         final appearance = tester.getTopLeft(find.text('Appearance'));
-        expect(appearance.dx, greaterThan(services.dx));
+        expect(online.dx, privacy.dx);
+        expect(ai.dx, greaterThan(privacy.dx));
+        expect(appearance.dx, ai.dx);
+        expect(appearance.dy, greaterThan(ai.dy));
       });
 
       testWidgets('fits 320dp with large text', (tester) async {
@@ -1282,6 +1400,192 @@ void main() {
           theme: ThemeData(brightness: Brightness.dark),
         );
         expect(find.byType(SettingsView), findsOneWidget);
+      });
+    });
+
+    group('online engines', () {
+      const deepl = AiProviderConfig(
+        id: 'd1',
+        name: 'DeepL',
+        provider: LlmProvider.openAiCompatible,
+        baseUrl: '',
+        model: '',
+        service: MtService.deepl,
+      );
+
+      testWidgets('counts machine translation services apart from AI', (
+        tester,
+      ) async {
+        await pump(
+          tester,
+          state: const AppSettings(providers: [_claude, _local, deepl]),
+        );
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('settings_mt_services')),
+            matching: find.text('1 of 1 enabled'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('settings_ai_providers')),
+            matching: find.text('1 of 2 enabled'),
+          ),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('explains the services when none is set up', (tester) async {
+        await pump(tester, state: const AppSettings());
+        expect(
+          find.text('DeepL or LibreTranslate with your own key or server'),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('the AI assistant offers AI providers only', (tester) async {
+        await pump(
+          tester,
+          state: const AppSettings(providers: [_claude, deepl]),
+        );
+        await tester.tap(find.text('AI assistant for insights'));
+        await tester.pumpAndSettle();
+        expect(
+          find.descendant(
+            of: find.byType(AlertDialog),
+            matching: find.text('DeepL'),
+          ),
+          findsNothing,
+        );
+        expect(
+          find.descendant(
+            of: find.byType(AlertDialog),
+            matching: find.text('Claude'),
+          ),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('with only machine translation services the assistant '
+          'asks for an AI provider', (tester) async {
+        await pump(tester, state: const AppSettings(providers: [deepl]));
+        expect(
+          find.text(
+            'Add an AI provider for alternatives, insights and explanations',
+          ),
+          findsOneWidget,
+        );
+      });
+    });
+
+    group('about', () {
+      late Future<bool> Function(Uri uri) launcher;
+      final opened = <Uri>[];
+
+      setUp(() {
+        opened.clear();
+        launcher = LinkLauncher.launcher;
+        LinkLauncher.launcher = (uri) async {
+          opened.add(uri);
+          return true;
+        };
+        PackageInfo.setMockInitialValues(
+          appName: 'Mozhi',
+          packageName: 'io.github.aimdi.mozhi',
+          version: '2.1.0',
+          buildNumber: '42',
+          buildSignature: '',
+        );
+      });
+
+      tearDown(() => LinkLauncher.launcher = launcher);
+
+      testWidgets('shows the version', (tester) async {
+        await pump(tester);
+        await tester.pumpAndSettle();
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('settings_version')),
+            matching: find.text('2.1.0 (42)'),
+          ),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('opens the source code', (tester) async {
+        await pump(tester);
+        await tester.tap(find.text('Source code'));
+        await tester.pumpAndSettle();
+        expect(opened, [AboutView.sourceCodeUrl]);
+      });
+
+      testWidgets('opens the licenses with the offline models notice', (
+        tester,
+      ) async {
+        await pump(tester);
+        expect(
+          find.text(
+            'Including the MPL-2.0 license of the offline translation '
+            'models',
+          ),
+          findsOneWidget,
+        );
+        await tester.tap(find.text('Open-source licenses'));
+        await tester.pumpAndSettle();
+        expect(find.byType(LicensePage), findsOneWidget);
+      });
+
+      testWidgets('describes the setup steps', (tester) async {
+        await pump(tester);
+        expect(
+          find.text('Privacy, languages and an online service, step by step'),
+          findsOneWidget,
+        );
+      });
+    });
+
+    group('accessibility', () {
+      testWidgets('fits a 360dp phone at 200% text and meets the tap target '
+          'guidelines', (tester) async {
+        final handle = tester.ensureSemantics();
+        await pump(
+          tester,
+          state: const AppSettings(
+            dynamicColor: false,
+            providers: [_claude],
+            recentPairs: [
+              LanguagePair(
+                source: Language.auto,
+                target: Language(code: 'en', name: 'English'),
+              ),
+            ],
+            networkPairs: ['en>fr'],
+            consentedProviders: ['p1'],
+          ),
+          size: const Size(360, 760),
+          textScale: 2,
+        );
+        final scrollable = find.byType(Scrollable).first;
+        for (var i = 0; i < 200; i++) {
+          expect(tester.takeException(), isNull);
+          await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+          await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+          final position = tester.state<ScrollableState>(scrollable).position;
+          if (position.pixels >= position.maxScrollExtent) break;
+          await tester.drag(scrollable, const Offset(0, -500));
+          await tester.pumpAndSettle();
+        }
+        final position = tester.state<ScrollableState>(scrollable).position;
+        expect(position.pixels, position.maxScrollExtent);
+        expect(find.text('Run setup again'), findsOneWidget);
+        handle.dispose();
+      });
+
+      testWidgets('meets the text contrast guideline', (tester) async {
+        await pump(tester, size: const Size(800, 2000));
+        await tester.pumpAndSettle();
+        await expectLater(tester, meetsGuideline(textContrastGuideline));
       });
     });
   });

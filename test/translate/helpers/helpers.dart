@@ -265,6 +265,9 @@ class TranslateHarness {
   /// Provided above the app when set (voice input needs it).
   final SpeechInputService? speechInput;
 
+  /// The open "More" area of the last [pump] with `more: true`.
+  TranslateMoreController? moreController;
+
   void setState(TranslateState state) =>
       when(() => translate.state).thenReturn(state);
 
@@ -273,6 +276,9 @@ class TranslateHarness {
   /// [supportsAnnounce] overrides whether the platform supports semantic
   /// announcements (false in tests by default, like Android), [locale] the
   /// UI locale and [disableAnimations] the reduced-motion setting.
+  ///
+  /// With [more], [child] gets an open "More" area ([TranslateMoreScope];
+  /// the translate screen provides its own, closed at first).
   Future<void> pump(
     WidgetTester tester, {
     Widget child = const TranslateView(),
@@ -283,6 +289,8 @@ class TranslateHarness {
     bool disableAnimations = false,
     Locale? locale,
     TargetPlatform? platform,
+    bool more = false,
+    OfflineTranslator? offline,
   }) async {
     if (size != null) {
       tester.view
@@ -290,6 +298,16 @@ class TranslateHarness {
         ..physicalSize = size;
       addTearDown(tester.view.reset);
     }
+    if (more) {
+      final controller = moreController = TranslateMoreController(
+        expanded: true,
+      );
+      addTearDown(controller.dispose);
+    }
+    final moreController = this.moreController;
+    final home = child is TranslateView || child is TranslatePage
+        ? child
+        : Scaffold(body: SingleChildScrollView(child: child));
     await tester.pumpWidget(
       InheritedGoRouter(
         goRouter: router,
@@ -297,6 +315,8 @@ class TranslateHarness {
           providers: [
             RepositoryProvider<SpeechService>.value(value: speech),
             RepositoryProvider<TranslationRepository>.value(value: repository),
+            if (offline != null)
+              RepositoryProvider<OfflineTranslator>.value(value: offline),
             if (speechInput case final speechInput?)
               RepositoryProvider<SpeechInputService>.value(value: speechInput),
           ],
@@ -330,9 +350,9 @@ class TranslateHarness {
                   child: child!,
                 );
               },
-              home: child is TranslateView || child is TranslatePage
-                  ? child
-                  : Scaffold(body: SingleChildScrollView(child: child)),
+              home: more && moreController != null
+                  ? TranslateMoreScope(controller: moreController, child: home)
+                  : home,
             ),
           ),
         ),
@@ -340,6 +360,21 @@ class TranslateHarness {
     );
   }
 }
+
+/// Opens the "More" area under the translation (tapping its toggle) and
+/// lets it settle.
+Future<void> openMore(WidgetTester tester) async {
+  final toggle = find.byKey(const Key('translate_more_toggle'));
+  await tester.ensureVisible(toggle);
+  await tester.pump();
+  await tester.tap(toggle);
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 300));
+}
+
+/// Lets a delayed progress indicator ([DelayedReveal]) appear.
+Future<void> pumpPastLoadingDelay(WidgetTester tester) =>
+    tester.pump(loadingRevealDelay);
 
 /// The tooltip of a `ListenButton` whose action is [label] ("Listen",
 /// "Stop", "Listen to German"…): the label and how to listen slowly.

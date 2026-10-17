@@ -56,6 +56,23 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# --- Reproducible builds -------------------------------------------------------
+# __FILE__ (Marian's ABORT/logging macros, asserts) would embed ~200
+# absolute source paths, which differ between machines (CI, F-Droid, a
+# developer's checkout). Map the repository root (three levels up) to "."
+# and the build directory to "build" for every target below, vendored ones
+# included (directory options reach every add_subdirectory). The last
+# matching map wins in GCC and clang, so the more specific ones come last.
+# -ffile-prefix-map also covers debug info (-fdebug-prefix-map).
+get_filename_component(_mozhi_repo_root "${CMAKE_CURRENT_SOURCE_DIR}/../../.."
+  ABSOLUTE)
+add_compile_options(
+  "-ffile-prefix-map=${_mozhi_repo_root}=."
+  "-ffile-prefix-map=${CMAKE_BINARY_DIR}=build")
+if(ANDROID AND ANDROID_NDK)
+  add_compile_options("-ffile-prefix-map=${ANDROID_NDK}=ndk")
+endif()
+
 # --- Target CPU --------------------------------------------------------------
 # Marian replaces CMAKE_CXX_FLAGS with "-march=${BUILD_ARCH} ..." in its
 # directories, so the target CPU (and FPU on 32-bit ARM) goes through

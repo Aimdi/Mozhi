@@ -3,24 +3,26 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/on_device_ml.dart';
-import 'package:mozhi/core/undo_snack_bar.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
-import 'package:mozhi/history/view/widgets/clear_history_dialog.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
+import 'package:mozhi/settings/view/about_page.dart' show AboutView;
 import 'package:mozhi/settings/view/widgets/accent_color_picker.dart';
 import 'package:mozhi/settings/view/widgets/choice_dialog.dart';
-import 'package:mozhi/settings/view/widgets/history_data_actions.dart';
+import 'package:mozhi/settings/view/widgets/link_launcher.dart';
 import 'package:mozhi/settings/view/widgets/privacy_settings_section.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:mozhi/settings/view/widgets/speech_settings_section.dart';
 import 'package:mozhi/speech/speech_service.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 export 'widgets/privacy_settings_section.dart' show historyRetentionLabel;
 
-/// App settings. Reads [SettingsCubit] (and `HistoryCubit` for the data
-/// actions) from the app-wide providers.
+/// App settings, in sections: Privacy, Offline languages, Online engines,
+/// AI providers (advanced), Appearance, Read aloud and About. Reads
+/// [SettingsCubit] (and `HistoryCubit` for the history rows) from the
+/// app-wide providers.
 class SettingsPage extends StatelessWidget {
   const new({super.key});
 
@@ -43,9 +45,12 @@ class SettingsView extends StatelessWidget {
     final settings = context.watch<SettingsCubit>().state;
     final primary = [
       PrivacySettingsSection(settings: settings),
-      _ServicesSection(settings: settings),
-      _TranslationSection(settings: settings),
-      const _ToolsSection(),
+      const _OfflineSection(),
+      _OnlineSection(settings: settings),
+    ];
+    final secondary = [
+      _AiSection(settings: settings),
+      _AppearanceSection(settings: settings),
       if (_hasSpeechService(context))
         SpeechSettingsSection(
           languages: [
@@ -54,10 +59,6 @@ class SettingsView extends StatelessWidget {
             ...settings.recentLanguages,
           ],
         ),
-    ];
-    final secondary = [
-      _AppearanceSection(settings: settings),
-      _DataSection(settings: settings),
       const _AboutSection(),
     ];
     // Each column is its own focus traversal group and semantics container,
@@ -106,7 +107,40 @@ bool _hasSpeechService(BuildContext context) {
   }
 }
 
-class _ServicesSection extends StatelessWidget {
+/// The on-device models (where the platform runs them).
+class _OfflineSection extends StatelessWidget {
+  const new();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return SettingsSection(
+      title: l10n.offlineTitle,
+      children: [
+        if (SettingsView.offlineSupported)
+          ListTile(
+            key: const Key('settings_offline_languages'),
+            leading: const SettingsIcon(Icons.download_for_offline_outlined),
+            title: Text(l10n.settingsOfflineManage),
+            subtitle: Text(l10n.settingsOfflineSubtitle),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/offline'),
+          )
+        else
+          ListTile(
+            key: const Key('settings_offline_unavailable'),
+            leading: const SettingsIcon(Icons.cloud_off_outlined),
+            title: Text(l10n.settingsOfflineUnavailable),
+            subtitle: Text(l10n.settingsOfflineUnavailableSubtitle),
+          ),
+      ],
+    );
+  }
+}
+
+/// Mozhi instances, machine translation services (DeepL, LibreTranslate),
+/// the quality modes and instant translation.
+class _OnlineSection extends StatelessWidget {
   const new({required this.settings});
 
   final AppSettings settings;
@@ -114,11 +148,12 @@ class _ServicesSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final cubit = context.read<SettingsCubit>();
     final instances = settings.instances;
-    final providers = settings.providers;
-    final enabled = providers.where((p) => p.enabled).length;
+    final services = settings.providers.where((p) => p.isMtService).toList();
+    final enabled = services.where((p) => p.enabled).length;
     return SettingsSection(
-      title: l10n.settingsSectionServices,
+      title: l10n.settingsSectionOnline,
       children: [
         ListTile(
           leading: const SettingsIcon(Icons.dns_outlined),
@@ -135,30 +170,30 @@ class _ServicesSection extends StatelessWidget {
           onTap: () => context.push('/settings/instances'),
         ),
         ListTile(
-          leading: const SettingsIcon(Icons.auto_awesome_outlined),
-          title: Text(l10n.settingsProvidersTitle),
+          key: const Key('settings_mt_services'),
+          leading: const SettingsIcon(Icons.g_translate_outlined),
+          title: Text(l10n.settingsMtServicesTitle),
           subtitle: Text(
-            providers.isEmpty
-                ? l10n.settingsProvidersNone
-                : l10n.settingsProvidersSummary(enabled, providers.length),
+            services.isEmpty
+                ? l10n.settingsMtServicesNone
+                : l10n.settingsMtServicesSummary(enabled, services.length),
           ),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => context.push('/settings/providers'),
         ),
-        if (SettingsView.offlineSupported)
-          ListTile(
-            leading: const SettingsIcon(Icons.download_for_offline_outlined),
-            title: Text(l10n.offlineTitle),
-            subtitle: Text(l10n.settingsOfflineSubtitle),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.push('/settings/offline'),
-          ),
         ListTile(
-          leading: const SettingsIcon(Icons.insights_outlined),
-          title: Text(l10n.settingsUsageTitle),
-          subtitle: Text(l10n.settingsUsageSubtitle),
+          leading: const SettingsIcon(Icons.speed_outlined),
+          title: Text(l10n.settingsQualityTitle),
+          subtitle: Text(l10n.settingsQualitySubtitle),
           trailing: const Icon(Icons.chevron_right),
-          onTap: () => context.push('/settings/usage'),
+          onTap: () => context.push('/settings/quality'),
+        ),
+        SwitchListTile(
+          secondary: const SettingsIcon(Icons.bolt_outlined),
+          title: Text(l10n.settingsInstantTranslate),
+          subtitle: Text(l10n.settingsInstantTranslateSubtitle),
+          value: settings.instantTranslate,
+          onChanged: (value) => cubit.setInstantTranslate(enabled: value),
         ),
       ],
     );
@@ -170,7 +205,9 @@ class _ServicesSection extends StatelessWidget {
   }
 }
 
-class _TranslationSection extends StatelessWidget {
+/// AI providers and what uses them (insights, instant AI translation,
+/// presets, glossaries, usage), marked as advanced.
+class _AiSection extends StatelessWidget {
   const new({required this.settings});
 
   final AppSettings settings;
@@ -179,52 +216,31 @@ class _TranslationSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final cubit = context.read<SettingsCubit>();
+    final providers = settings.providers.where((p) => !p.isMtService).toList();
+    final enabled = providers.where((p) => p.enabled).length;
     return SettingsSection(
-      title: l10n.settingsSectionTranslation,
+      title: l10n.settingsProvidersTitle,
+      badge: l10n.settingsAdvancedBadge,
       children: [
-        SwitchListTile(
-          secondary: const SettingsIcon(Icons.bolt_outlined),
-          title: Text(l10n.settingsInstantTranslate),
-          subtitle: Text(l10n.settingsInstantTranslateSubtitle),
-          value: settings.instantTranslate,
-          onChanged: (value) => cubit.setInstantTranslate(enabled: value),
+        ListTile(
+          key: const Key('settings_ai_providers'),
+          leading: const SettingsIcon(Icons.auto_awesome_outlined),
+          title: Text(l10n.settingsProvidersTitle),
+          subtitle: Text(
+            providers.isEmpty
+                ? l10n.settingsProvidersNone
+                : l10n.settingsProvidersSummary(enabled, providers.length),
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => context.push('/settings/providers'),
         ),
+        _AssistEngineTile(settings: settings),
         SwitchListTile(
           secondary: const SettingsIcon(Icons.electric_bolt_outlined),
           title: Text(l10n.settingsInstantTranslateAi),
           subtitle: Text(l10n.settingsInstantTranslateAiSubtitle),
           value: settings.instantTranslateAi,
           onChanged: (value) => cubit.setInstantTranslateAi(enabled: value),
-        ),
-        SwitchListTile(
-          secondary: const SettingsIcon(Icons.abc),
-          title: Text(l10n.settingsShowTransliteration),
-          subtitle: Text(l10n.settingsShowTransliterationSubtitle),
-          value: settings.showTransliteration,
-          onChanged: (value) => cubit.setShowTransliteration(enabled: value),
-        ),
-        _AssistEngineTile(settings: settings),
-      ],
-    );
-  }
-}
-
-/// Quality modes, presets and glossaries.
-class _ToolsSection extends StatelessWidget {
-  const new();
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    return SettingsSection(
-      title: l10n.settingsSectionTools,
-      children: [
-        ListTile(
-          leading: const SettingsIcon(Icons.speed_outlined),
-          title: Text(l10n.settingsQualityTitle),
-          subtitle: Text(l10n.settingsQualitySubtitle),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => context.push('/settings/quality'),
         ),
         ListTile(
           leading: const SettingsIcon(Icons.tune),
@@ -239,6 +255,13 @@ class _ToolsSection extends StatelessWidget {
           subtitle: Text(l10n.settingsGlossariesSubtitle),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => context.push('/settings/glossaries'),
+        ),
+        ListTile(
+          leading: const SettingsIcon(Icons.insights_outlined),
+          title: Text(l10n.settingsUsageTitle),
+          subtitle: Text(l10n.settingsUsageSubtitle),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => context.push('/settings/usage'),
         ),
       ],
     );
@@ -259,7 +282,7 @@ class _AssistEngineTile extends StatelessWidget {
     final selected = settings.providers
         .where((p) => 'ai:${p.id}' == current)
         .firstOrNull;
-    final hasProviders = settings.providers.isNotEmpty;
+    final hasProviders = settings.providers.any((p) => !p.isMtService);
     return ListTile(
       leading: const SettingsIcon(Icons.lightbulb_outline),
       title: Text(l10n.settingsAssistEngine),
@@ -280,7 +303,9 @@ class _AssistEngineTile extends StatelessWidget {
     final cubit = context.read<SettingsCubit>();
     final current = settings.assistEngineId ?? _automatic;
     final providers = settings.providers
-        .where((p) => p.enabled || 'ai:${p.id}' == current)
+        .where(
+          (p) => !p.isMtService && (p.enabled || 'ai:${p.id}' == current),
+        )
         .toList();
     final choice = await showDialog<String>(
       context: context,
@@ -339,6 +364,13 @@ class _AppearanceSection extends StatelessWidget {
           lightsOut: settings.pureBlack,
           enabled: settings.themeMode != ThemeMode.light,
           onChanged: (value) => cubit.setPureBlack(enabled: value),
+        ),
+        SwitchListTile(
+          secondary: const SettingsIcon(Icons.abc),
+          title: Text(l10n.settingsShowTransliteration),
+          subtitle: Text(l10n.settingsShowTransliterationSubtitle),
+          value: settings.showTransliteration,
+          onChanged: (value) => cubit.setShowTransliteration(enabled: value),
         ),
         if (showAccent)
           Padding(
@@ -566,95 +598,84 @@ class _LookSwatch extends StatelessWidget {
   );
 }
 
-class _DataSection extends StatelessWidget {
-  const new({required this.settings});
-
-  final AppSettings settings;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    final error = Theme.of(context).colorScheme.error;
-    final pairs = settings.recentPairs.length;
-    return SettingsSection(
-      title: l10n.settingsSectionData,
-      children: [
-        ListTile(
-          leading: const SettingsIcon(Icons.upload_outlined),
-          title: Text(l10n.settingsExportHistory),
-          subtitle: Text(l10n.settingsExportHistorySubtitle),
-          onTap: () => showExportHistorySheet(context),
-        ),
-        ListTile(
-          leading: const SettingsIcon(Icons.download_outlined),
-          title: Text(l10n.settingsImportHistory),
-          subtitle: Text(l10n.settingsImportHistorySubtitle),
-          onTap: () => showImportHistoryDialog(context),
-        ),
-        ListTile(
-          leading: const SettingsIcon(Icons.swap_horiz),
-          title: Text(l10n.settingsClearRecentPairs),
-          subtitle: Text(l10n.settingsRecentPairsSummary(pairs)),
-          enabled: pairs > 0,
-          onTap: () => _clearRecentPairs(context),
-        ),
-        const SettingsDangerDivider(),
-        ListTile(
-          leading: SettingsIcon(Icons.delete_sweep_outlined, color: error),
-          title: Text(l10n.historyClearMenu, style: TextStyle(color: error)),
-          subtitle: Text(l10n.settingsClearHistorySubtitle),
-          onTap: () => confirmClearHistory(context),
-        ),
-      ],
-    );
-  }
-
-  void _clearRecentPairs(BuildContext context) {
-    final l10n = context.l10n;
-    final cubit = context.read<SettingsCubit>();
-    final previous = cubit.state.recentPairs;
-    cubit.clearRecentPairs();
-    showUndoSnackBar(
-      context,
-      message: l10n.settingsRecentPairsCleared,
-      onUndo: () => cubit.update(
-        (current) => current.copyWith(
-          recentPairs: List.unmodifiable(
-            [
-              ...current.recentPairs,
-              ...previous.where((p) => !current.recentPairs.contains(p)),
-            ].take(SettingsCubit.maxRecentPairs),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AboutSection extends StatelessWidget {
+/// About Mozhi, the version, the source code, the licences (with the
+/// offline models' MPL-2.0 notice) and "Run setup again".
+class _AboutSection extends StatefulWidget {
   const new();
 
   @override
+  State<_AboutSection> createState() => _AboutSectionState();
+}
+
+class _AboutSectionState extends State<_AboutSection> {
+  late final Future<PackageInfo> _info = PackageInfo.fromPlatform();
+
+  @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    return SettingsSection(
-      title: l10n.settingsSectionAbout,
-      children: [
-        ListTile(
-          leading: const SettingsIcon(Icons.info_outline),
-          title: Text(l10n.settingsAbout),
-          subtitle: Text(l10n.settingsAboutSubtitle),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => context.push('/settings/about'),
-        ),
-        ListTile(
-          leading: const SettingsIcon(Icons.restart_alt),
-          title: Text(l10n.settingsRunSetup),
-          subtitle: Text(l10n.settingsRunSetupSubtitle),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => context.push('/onboarding'),
-        ),
-      ],
+    return FutureBuilder<PackageInfo>(
+      future: _info,
+      builder: (context, snapshot) {
+        final info = snapshot.data;
+        final version = info == null
+            ? null
+            : info.buildNumber.isEmpty
+            ? info.version
+            : '${info.version} (${info.buildNumber})';
+        return SettingsSection(
+          title: l10n.settingsSectionAbout,
+          children: [
+            ListTile(
+              leading: const SettingsIcon(Icons.info_outline),
+              title: Text(l10n.settingsAbout),
+              subtitle: Text(l10n.settingsAboutSubtitle),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/settings/about'),
+            ),
+            ListTile(
+              key: const Key('settings_version'),
+              leading: const SettingsIcon(Icons.tag),
+              title: Text(l10n.settingsVersion),
+              subtitle: version == null ? null : Text(version),
+            ),
+            ListTile(
+              key: const Key('settings_source_code'),
+              leading: const SettingsIcon(Icons.code),
+              title: Text(l10n.settingsAboutSource),
+              subtitle: Text(AboutView.sourceCodeUrl.host),
+              trailing: const Icon(Icons.open_in_new),
+              onTap: () => LinkLauncher.open(context, AboutView.sourceCodeUrl),
+            ),
+            ListTile(
+              key: const Key('settings_licenses'),
+              leading: const SettingsIcon(Icons.description_outlined),
+              title: Text(l10n.settingsAboutLicenses),
+              subtitle: Text(l10n.settingsAboutLicensesSubtitle),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => showLicensePage(
+                context: context,
+                applicationName: l10n.appTitle,
+                applicationVersion: version,
+                applicationIcon: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Icon(
+                    Icons.translate,
+                    size: 40,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ),
+            ),
+            ListTile(
+              leading: const SettingsIcon(Icons.restart_alt),
+              title: Text(l10n.settingsRunSetup),
+              subtitle: Text(l10n.settingsRunSetupSteps),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/onboarding'),
+            ),
+          ],
+        );
+      },
     );
   }
 }

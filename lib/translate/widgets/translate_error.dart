@@ -304,7 +304,10 @@ class TranslateErrorView extends StatelessWidget {
         ? onSwitchInstance
         : null;
     final showFix =
-        fixRoute != null && fixLabel != null && !dense && switchInstance == null;
+        fixRoute != null &&
+        fixLabel != null &&
+        !dense &&
+        switchInstance == null;
     final details = info.details;
     return Column(
       key: const Key('translate_error_view'),
@@ -386,7 +389,9 @@ class TranslateErrorView extends StatelessWidget {
         if (offlineLanguageKey(code) != 'en') code,
     };
     if (codes.isEmpty) return null;
-    final details = translator == null ? null : offlineModelDetailsOf(translator);
+    final details = translator == null
+        ? null
+        : offlineModelDetailsOf(translator);
     return offlineDownloadLabel(l10n, [
       for (final code in codes)
         (

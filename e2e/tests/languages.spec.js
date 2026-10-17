@@ -1,8 +1,10 @@
 // Language pairs: the swap button swaps; a long press on it (or the More
 // tools menu) lists the recently used pairs, which can be picked again.
+// The language picker searches without diacritics.
 const { expect } = require('@playwright/test');
 const {
   copiedTranslation,
+  fillField,
   openApp,
   seedSettings,
   test,
@@ -110,5 +112,41 @@ test('recent pairs open with a long press and from the menu', async ({
   ).toBeVisible();
   await expect(
     page.getByRole('button', { name: 'Target language: German' }),
+  ).toBeVisible();
+});
+
+test('the picker finds a language without its diacritics', async ({
+  page,
+}) => {
+  await page.getByRole('button', { name: 'Target language: German' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Translate to' }),
+  ).toBeVisible();
+
+  // "francais" finds French by its native name, Français.
+  await fillField(page.getByRole('textbox', { name: /Search/ }), 'francais');
+  const french = page.getByRole('button', { name: /^French/ }).first();
+  await expect(french).toBeVisible();
+  await french.click();
+
+  await expect(
+    page.getByRole('heading', { name: 'Translate to' }),
+  ).toBeHidden();
+  await expect(
+    page.getByRole('button', { name: 'Target language: French' }),
+  ).toBeVisible();
+});
+
+test('the picker closes without changing the language', async ({ page }) => {
+  await page.getByRole('button', { name: 'Source language: English' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Translate from' }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Close' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Translate from' }),
+  ).toBeHidden();
+  await expect(
+    page.getByRole('button', { name: 'Source language: English' }),
   ).toBeVisible();
 });

@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:bergamot_translator/src/engine/bergamot_engine.dart';
 import 'package:bergamot_translator/src/engine/ffi/isolate_engine.dart';
+import 'package:bergamot_translator/src/engine/ffi/isolate_language_identifier.dart';
+import 'package:bergamot_translator/src/native_language_identifier.dart';
 
 /// Whether the native engine can run here: Android on arm64-v8a, x86_64 or
 /// armeabi-v7a with VFPv4 (the library is built with NEON + VFPv4; older
@@ -41,3 +43,9 @@ BergamotEngine createBergamotEngine({
   libraryPath: libraryPath,
   maxLoadedModels: maxLoadedModels,
 );
+
+/// The language identifier: CLD2 in `libmozhi_bergamot`, run in a
+/// background isolate per call.
+NativeLanguageIdentifier createNativeLanguageIdentifier({
+  String? libraryPath,
+}) => IsolateLanguageIdentifier(libraryPath: libraryPath);

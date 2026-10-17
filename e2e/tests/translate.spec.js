@@ -1,5 +1,6 @@
 // Translating with the (mock) AI provider: instant translation, a
-// refinement chip and the meaning check.
+// refinement chip and the meaning check (both in the "More" area under the
+// translation, closed by default).
 const { expect } = require('@playwright/test');
 const {
   copiedTranslation,
@@ -19,6 +20,13 @@ test.beforeEach(async ({ page }) => {
   await seedSettings(page, 'settings-ai');
   await openApp(page, '/translate');
 });
+
+/** Opens the "More" area under the translation. */
+async function openMore(page) {
+  const more = page.getByRole('button', { name: 'More', exact: true });
+  await more.click();
+  await expect(more).toHaveAttribute('aria-expanded', 'true');
+}
 
 /** Types [TEXT] and waits until the AI translation is shown. */
 async function translate(page) {
@@ -45,10 +53,20 @@ test('typing translates with the AI provider', async ({ page }) => {
   expect(requests.length).toBeGreaterThanOrEqual(1);
   expect(requests[0].model).toBe('mock-translator-8b');
   expect(requests[0].stream).toBe(true);
+
+  // One task on screen: the tools wait behind "More".
+  await expect(
+    page.getByRole('button', { name: 'More', exact: true }),
+  ).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByRole('heading', { name: 'Refine & learn' }))
+    .toHaveCount(0);
+  await expect(page.getByRole('checkbox', { name: 'Check meaning' }))
+    .toHaveCount(0);
 });
 
 test('a refine chip refines the translation', async ({ page }) => {
   await translate(page);
+  await openMore(page);
 
   const refine = page.getByRole('group', { name: 'Refine' });
   await refine.getByRole('checkbox', { name: 'More formal' }).click();
@@ -71,6 +89,7 @@ test('a refine chip refines the translation', async ({ page }) => {
 
 test('meaning check shows a verdict and its differences', async ({ page }) => {
   await translate(page);
+  await openMore(page);
 
   await page.getByRole('checkbox', { name: 'Check meaning' }).click();
 
@@ -86,4 +105,23 @@ test('meaning check shows a verdict and its differences', async ({ page }) => {
       name: /^Omission The time reference is weaker in the translation\./,
     }),
   ).toBeVisible();
+});
+
+test('the More area stays open for the next translation', async ({
+  page,
+}) => {
+  await translate(page);
+  await openMore(page);
+  await expect(page.getByRole('heading', { name: 'Refine & learn' }))
+    .toBeVisible();
+
+  await typeSource(page, 'See you tomorrow');
+  await expect
+    .poll(() => copiedTranslation(page))
+    .toBe('[AI→French (Français)] See you tomorrow');
+  await expect(
+    page.getByRole('button', { name: 'More', exact: true }),
+  ).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByRole('heading', { name: 'Refine & learn' }))
+    .toBeVisible();
 });

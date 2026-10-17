@@ -1,14 +1,22 @@
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/offline/widgets/offline_engine_badge.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/translate/widgets/language_search.dart';
 import 'package:mozhi/translate/widgets/language_text.dart';
+import 'package:mozhi/translate/widgets/offline_offer.dart';
 import 'package:mozhi/translate/widgets/shortcuts_help.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
 import 'package:translation_repository/translation_repository.dart';
+
+/// Largest size of the picker as a dialog (wide windows).
+const languagePickerDialogSize = Size(560, 720);
 
 /// Opens the searchable language picker; resolves to the chosen language
 /// (null when dismissed). [source] picks the source list (with "Detect
@@ -16,6 +24,11 @@ import 'package:translation_repository/translation_repository.dart';
 /// offer a free-form custom language for AI engines that take them.
 /// [autofocusSearch] focuses the search field (keyboard users can type to
 /// filter right away).
+///
+/// Full screen on phones, a dialog from [TranslateLayout.wideBreakpoint]
+/// (tapping outside or Esc closes both, as does the close button). The
+/// offline engine provided above [context] (if any) marks the languages
+/// that work offline.
 Future<Language?> showLanguagePicker(
   BuildContext context, {
   required bool source,
@@ -23,26 +36,45 @@ Future<Language?> showLanguagePicker(
 }) {
   final translate = context.read<TranslateCubit>();
   final settings = context.read<SettingsCubit>();
-  return showModalBottomSheet<Language>(
+  final offline = maybeOfflineTranslator(context);
+  final wide =
+      MediaQuery.sizeOf(context).width >= TranslateLayout.wideBreakpoint;
+  return showDialog<Language>(
     context: context,
-    isScrollControlled: true,
-    useSafeArea: true,
-    showDragHandle: true,
-    builder: (_) => MultiBlocProvider(
-      providers: [
-        BlocProvider.value(value: translate),
-        BlocProvider.value(value: settings),
-      ],
-      child: LanguagePickerSheet(
-        source: source,
-        autofocusSearch: autofocusSearch,
-      ),
-    ),
+    builder: (_) {
+      final picker = MultiBlocProvider(
+        providers: [
+          BlocProvider.value(value: translate),
+          BlocProvider.value(value: settings),
+        ],
+        child: LanguagePickerSheet(
+          source: source,
+          autofocusSearch: autofocusSearch,
+          offlineTranslator: offline,
+        ),
+      );
+      if (!wide) return Dialog.fullscreen(child: picker);
+      return Dialog(
+        clipBehavior: Clip.antiAlias,
+        child: ConstrainedBox(
+          constraints: BoxConstraints.loose(languagePickerDialogSize),
+          child: picker,
+        ),
+      );
+    },
   );
 }
 
-/// Sections: Detect (source), Recent, Pinned, Styles (AI target) and All.
-/// Searching filters by English name, native name and code.
+/// Sections: Detect language and Detected (source: the language detected
+/// in the input, and other likely ones), Recent, Pinned, Downloaded
+/// (offline), Styles (AI target) and All. Searching filters by English
+/// name, native name and code, ignoring case and diacritics
+/// ([matchLanguages]: "francais" finds Français).
+///
+/// Languages whose offline models are on the device
+/// ([offlineReadyLanguages] of the [offlineTranslator]) carry an offline
+/// badge ("Works offline") and are listed under "Downloaded (offline)".
+/// A long press (or the pin button) pins or unpins a language.
 ///
 /// The target list's Pinned section is `TranslateState.pinnedTargets` (the
 /// pins the engine offers, matched like everywhere else); on desktop its
@@ -55,12 +87,20 @@ Future<Language?> showLanguagePicker(
 /// language" (Enter picks it) in both lists, e.g. "Gen Z slang" as the
 /// source or "Pirate speak" as the target.
 class LanguagePickerSheet extends StatefulWidget {
-  const new({required this.source, this.autofocusSearch = false, super.key});
+  const new({
+    required this.source,
+    this.autofocusSearch = false,
+    this.offlineTranslator,
+    super.key,
+  });
 
   final bool source;
 
-  /// Focus the search field when the sheet opens.
+  /// Focus the search field when the picker opens.
   final bool autofocusSearch;
+
+  /// The device's offline engine (defaults to the one provided above).
+  final OfflineTranslator? offlineTranslator;
 
   @override
   State<LanguagePickerSheet> createState() => _LanguagePickerSheetState();
@@ -70,11 +110,35 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
   final _search = TextEditingController();
   String _query = '';
 
+  /// [offlineLanguageKey]s of the languages that work offline.
+  Set<String> _offline = const {};
+  bool _offlineRequested = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_offlineRequested) return;
+    _offlineRequested = true;
+    final translator =
+        widget.offlineTranslator ?? maybeOfflineTranslator(context);
+    if (translator == null || !translator.isAvailable) return;
+    unawaited(
+      offlineReadyLanguages(translator).then((ready) {
+        if (mounted && ready.isNotEmpty) setState(() => _offline = ready);
+      }),
+    );
+  }
+
   @override
   void dispose() {
     _search.dispose();
     super.dispose();
   }
+
+  bool _worksOffline(Language language) =>
+      !language.isCustom &&
+      !language.isAuto &&
+      _offline.contains(offlineLanguageKey(language.code));
 
   void _pick(Language language) => Navigator.of(context).pop(language);
 
@@ -98,31 +162,37 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
       allowCustom: allowCustom,
     );
 
-    final background =
-        theme.bottomSheetTheme.modalBackgroundColor ??
-        theme.bottomSheetTheme.backgroundColor ??
-        theme.colorScheme.surfaceContainerLow;
-
-    final header = ColoredBox(
-      color: background,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
-              child: Semantics(
-                header: true,
-                child: Text(
-                  source
-                      ? l10n.translatePickerSourceTitle
-                      : l10n.translatePickerTargetTitle,
-                  style: theme.textTheme.titleLarge,
+    final header = Padding(
+      padding: const EdgeInsets.fromLTRB(4, 4, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              IconButton(
+                key: const Key('translate_language_close'),
+                tooltip: l10n.commonClose,
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.of(context).maybePop(),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Semantics(
+                  header: true,
+                  child: Text(
+                    source
+                        ? l10n.translatePickerSourceTitle
+                        : l10n.translatePickerTargetTitle,
+                    style: theme.textTheme.titleLarge,
+                  ),
                 ),
               ),
-            ),
-            Semantics(
+            ],
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsetsDirectional.only(start: 12),
+            child: Semantics(
               label: l10n.commonSearch,
               child: TextField(
                 key: const Key('translate_language_search'),
@@ -153,24 +223,21 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
 
     // The header sits outside the scroll view so it can never cover the
     // focused row while keyboard focus moves through the list.
-    return DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.85,
-      minChildSize: 0.4,
-      builder: (context, controller) => Column(
+    return Material(
+      type: MaterialType.transparency,
+      child: Column(
         children: [
           header,
           Expanded(
             child: CustomScrollView(
               key: const Key('translate_language_list'),
-              controller: controller,
               slivers: [
                 SliverList.list(children: items),
                 SliverPadding(
@@ -190,30 +257,12 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
   void _submitSearch(List<Language> languages, bool allowCustom) {
     final query = _query.trim();
     if (query.isEmpty) return;
-    final matches = _matches(languages, query);
+    final matches = matchLanguages(languages, query);
     if (matches.isNotEmpty) {
       _pick(matches.first);
     } else if (allowCustom) {
       _pick(Language.custom(query));
     }
-  }
-
-  static List<Language> _matches(List<Language> languages, String query) {
-    final q = query.toLowerCase();
-    final starts = <Language>[];
-    final contains = <Language>[];
-    for (final language in languages) {
-      if (language.isAuto) continue;
-      final name = language.name.toLowerCase();
-      final native = language.nativeName?.toLowerCase() ?? '';
-      final code = language.code.toLowerCase();
-      if (name.startsWith(q) || native.startsWith(q) || code == q) {
-        starts.add(language);
-      } else if (name.contains(q) || native.contains(q)) {
-        contains.add(language);
-      }
-    }
-    return [...starts, ...contains];
   }
 
   List<Widget> _buildItems(
@@ -233,24 +282,22 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
       language: language,
       selected: language == selected,
       pinned: pinned.contains(language),
+      offline: _worksOffline(language),
       onTap: () => _pick(language),
     );
 
     // Style suggestions are target languages ("Translate into Pirate
     // speak"); a custom source is typed.
+    final folded = foldForSearch(query);
     final styles = allowCustom && !widget.source
         ? LanguageCatalog.customSuggestions
-              .where(
-                (s) =>
-                    query.isEmpty ||
-                    s.toLowerCase().contains(query.toLowerCase()),
-              )
+              .where((s) => query.isEmpty || foldForSearch(s).contains(folded))
               .map(Language.custom)
               .toList()
         : const <Language>[];
 
     if (query.isNotEmpty) {
-      final matches = _matches(regular, query);
+      final matches = matchLanguages(regular, query);
       return [
         if (matches.isEmpty && allowCustom)
           ListTile(
@@ -311,6 +358,7 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
       language: language,
       selected: language == selected,
       pinned: true,
+      offline: _worksOffline(language),
       pin: pinOf(language),
       shortcut: hints
           ? translatePinnedShortcut(
@@ -324,6 +372,10 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
         ? languages.where((l) => l.isAuto).firstOrNull
         : null;
     final detected = state.result?.detectedSource;
+    final detectedLanguages = widget.source
+        ? _detected(state, regular)
+        : const <Language>[];
+    final downloaded = regular.where(_worksOffline).toList();
 
     return [
       if (auto != null)
@@ -349,6 +401,13 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
           trailing: selected.isAuto ? const Icon(Icons.check) : null,
           onTap: () => _pick(auto),
         ),
+      if (detectedLanguages.isNotEmpty) ...[
+        _Header(
+          l10n.translatePickerDetected,
+          key: const Key('translate_language_section_detected'),
+        ),
+        ...detectedLanguages.map(tile),
+      ],
       if (recents.isNotEmpty) ...[
         _Header(l10n.translatePickerRecent),
         ...recents.map(tile),
@@ -357,6 +416,13 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
         _Header(l10n.translatePickerPinned),
         for (final (index, language) in pinnedAvailable.indexed)
           pinnedTile(index, language),
+      ],
+      if (downloaded.isNotEmpty) ...[
+        _Header(
+          l10n.translatePickerDownloaded,
+          key: const Key('translate_language_section_downloaded'),
+        ),
+        ...downloaded.map(tile),
       ],
       if (styles.isNotEmpty) ...[
         _Header(l10n.translatePickerStyles),
@@ -375,10 +441,29 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
       ...regular.map(tile),
     ];
   }
+
+  /// The language detected in the input, then the other likely ones (an
+  /// uncertain detection), as [regular] lists them.
+  static List<Language> _detected(
+    TranslateState state,
+    List<Language> regular,
+  ) {
+    final code = state.result?.detectedSource;
+    if (code == null || code.isEmpty) return const [];
+    final detected = LanguageMatcher.match(
+      Language(code: code, name: code),
+      regular,
+    );
+    return [
+      ?detected,
+      for (final language in state.detectedAlternativeLanguages)
+        if (language != detected && regular.contains(language)) language,
+    ];
+  }
 }
 
 class _Header extends StatelessWidget {
-  const new(this.title);
+  const new(this.title, {super.key});
 
   final String title;
 
@@ -459,12 +544,15 @@ class _DetectedChip extends StatelessWidget {
   }
 }
 
+/// A language: its name (with the offline badge when it works offline)
+/// and native name; a long press or the pin button pins or unpins it.
 class _LanguageTile extends StatelessWidget {
   const new({
     required this.language,
     required this.selected,
     required this.pinned,
     required this.onTap,
+    this.offline = false,
     this.pin,
     this.shortcut,
   });
@@ -473,6 +561,9 @@ class _LanguageTile extends StatelessWidget {
   final bool selected;
   final bool pinned;
   final VoidCallback onTap;
+
+  /// Whether its offline models are on the device.
+  final bool offline;
 
   /// The stored pin that [language] stands for ([language] itself when
   /// null); the pin button (un)pins it.
@@ -489,11 +580,36 @@ class _LanguageTile extends StatelessWidget {
     final shortcut = this.shortcut;
     void togglePin() =>
         context.read<SettingsCubit>().togglePinnedLanguage(pin ?? language);
+    final title = offline
+        ? Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(text: language.name),
+                const TextSpan(text: ' '),
+                WidgetSpan(
+                  alignment: PlaceholderAlignment.middle,
+                  child: Tooltip(
+                    message: l10n.translateOfflineWorks,
+                    child: Icon(
+                      OfflineEngineBadge.icon,
+                      key: ValueKey(
+                        'translate_language_offline:${language.code}',
+                      ),
+                      size: 18,
+                      color: theme.colorScheme.tertiary,
+                      semanticLabel: l10n.translateOfflineWorks,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          )
+        : Text(language.name);
     return ListTile(
       contentPadding: const EdgeInsetsDirectional.only(start: 24, end: 8),
       selected: selected,
       leading: language.isCustom ? const Icon(Icons.auto_awesome) : null,
-      title: Text(language.name),
+      title: title,
       subtitle: language.isCustom
           ? Text(l10n.translatePickerCustomBadge)
           : (native != null && native.isNotEmpty && native != language.name)

@@ -12,11 +12,7 @@ const loadingRevealDelay = Duration(milliseconds: 300);
 /// empty box) before. Put it where progress is shown only while work is
 /// running: removing it cancels the wait.
 class DelayedReveal extends StatefulWidget {
-  const new({
-    required this.child,
-    this.delay = loadingRevealDelay,
-    super.key,
-  });
+  const new({required this.child, this.delay = loadingRevealDelay, super.key});
 
   final Widget child;
   final Duration delay;
@@ -64,7 +60,10 @@ class TranslateOutputSkeleton extends StatelessWidget {
         children: [
           SkeletonBox(height: 18),
           SizedBox(height: 10),
-          FractionallySizedBox(widthFactor: 0.6, child: SkeletonBox(height: 18)),
+          FractionallySizedBox(
+            widthFactor: 0.6,
+            child: SkeletonBox(height: 18),
+          ),
         ],
       ),
     );

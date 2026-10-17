@@ -502,9 +502,8 @@ class _OutputCardState extends State<OutputCard> {
             ConsentInlinePrompt(
               key: const Key('translate_consent_prompt'),
               consent: consent.exception,
-              onGranted: () => unawaited(
-                context.read<TranslateCubit>().retryAfterConsent(),
-              ),
+              onGranted: () =>
+                  unawaited(context.read<TranslateCubit>().retryAfterConsent()),
             ),
             OfflinePairOffer(consent: consent.exception),
           ],

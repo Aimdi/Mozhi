@@ -1,0 +1,242 @@
+# Short phrases for the native language identification test
+# (test/src/native_language_identification_test.dart): accepted codes
+# (|-separated), a tab, the phrase. One to six words in the 55 offline
+# languages; several are ambiguous by nature (hr/bs/sr/sl, id/ms, da/no).
+af	Goeie môre
+af	Dankie
+af	Hoe gaan dit met jou?
+af	Ek is lief vir jou
+ar	مرحبا
+ar	شكرا جزيلا
+ar	كيف حالك؟
+ar	صباح الخير
+be	Добрай раніцы
+be	Дзякуй
+be	Як справы?
+be	Я цябе кахаю
+bg	Здравейте
+bg	Благодаря
+bg	Как си?
+bg	Добро утро
+bn	নমস্কার
+bn	ধন্যবাদ
+bn	আপনি কেমন আছেন?
+ca	Bon dia a tothom
+ca	Gràcies
+ca	Com estàs?
+ca	Bona nit
+cs	Dobrý den
+cs	Děkuji
+cs	Jak se máš?
+cs	Dobrou noc
+da	Godmorgen
+da|no	Tak
+da|no	Hvordan har du det?
+da	Jeg elsker dig
+de	Guten Morgen
+de	Danke
+de	Wie geht es dir?
+de	Ich liebe dich
+el	Καλημέρα
+el	Ευχαριστώ
+el	Τι κάνεις;
+es	Hola, ¿cómo estás?
+es	Gracias
+es	Buenos días
+es	Te quiero
+et	Tere hommikust
+et	Aitäh
+et	Kuidas läheb?
+et	Head ööd
+eu	Egun on
+eu	Eskerrik asko
+eu	Zer moduz?
+eu	Maite zaitut
+fa	سلام
+fa	متشکرم
+fa	حالت چطوره؟
+fa|ur	صبح بخیر
+fi	Hyvää huomenta
+fi	Kiitos
+fi	Mitä kuuluu?
+fi	Minä rakastan sinua
+fr	Bonjour tout le monde
+fr	Merci
+fr	Comment ça va ?
+fr	Je t'aime
+gl	Bos días
+gl	Grazas
+gl|es|pt	Como estás?
+gl	Boas noites
+gu	નમસ્તે
+gu	આભાર
+gu	તમે કેમ છો?
+he	שלום
+he	תודה רבה
+he	מה שלומך?
+he	בוקר טוב
+hi	नमस्ते
+hi|mr	धन्यवाद
+hi	आप कैसे हैं?
+hi	सुप्रभात
+hr|bs|sr|sl	Dobro jutro
+hr|bs|sr|sl	Hvala
+hr|bs|sr|sl	Kako si?
+hr|bs|sr	Volim te
+hu	Jó reggelt
+hu	Köszönöm
+hu	Hogy vagy?
+hu	Szeretlek
+id|ms	Selamat pagi
+id|ms	Terima kasih
+id	Apa kabar?
+id	Aku cinta kamu
+is	Góðan daginn
+is	Takk fyrir
+is	Hvað segirðu?
+is	Ég elska þig
+it	Buongiorno a tutti
+it	Grazie
+it	Come stai?
+it	Ti amo
+ja	こんにちは
+ja	ありがとう
+ja	お元気ですか？
+ja	おはようございます
+kn	ನಮಸ್ಕಾರ
+kn	ಧನ್ಯವಾದಗಳು
+ko	안녕하세요
+ko	감사합니다
+ko	잘 지내요?
+lt	Labas rytas
+lt	Ačiū
+lt	Kaip sekasi?
+lt	Aš tave myliu
+lv	Labrīt
+lv	Paldies
+lv	Kā tev iet?
+lv	Es tevi mīlu
+ml	നമസ്കാരം
+ml	നന്ദി
+mr	नमस्कार, तुम्ही कसे आहात?
+mr	धन्यवाद, मी ठीक आहे
+ms	Apa khabar?
+ms	Terima kasih banyak
+nl	Goedemorgen
+nl	Dank je wel
+nl	Hoe gaat het?
+nl	Ik hou van jou
+no	God morgen
+no	Takk
+no	Jeg elsker deg
+pl	Dzień dobry
+pl	Dziękuję
+pl	Jak się masz?
+pl	Kocham cię
+pt	Bom dia
+pt	Obrigado
+pt	Como vai você?
+pt	Eu te amo
+ro	Bună dimineața
+ro	Mulțumesc
+ro	Ce mai faci?
+ro	Te iubesc
+ru	Добрый день
+ru	Спасибо
+ru|bg	Как дела?
+ru	Я тебя люблю
+sk	Dobré ráno
+sk	Ďakujem
+sk	Ako sa máš?
+sk	Ľúbim ťa
+sl	Hvala lepa
+sl	Rad te imam
+sq	Mirëmëngjes
+sq	Faleminderit
+sq	Si jeni?
+sq	Të dua
+sr	Добро јутро
+sr	Хвала
+sr|bg|ru|uk	Како си?
+sr	Волим те
+sv	God morgon
+sv	Tack
+sv	Hur mår du?
+sv	Jag älskar dig
+ta	வணக்கம்
+ta	நன்றி
+te	నమస్కారం
+te	ధన్యవాదాలు
+th	สวัสดี
+th	ขอบคุณ
+tl	Magandang umaga po
+tl	Salamat
+tl	Kumusta ka?
+tl	Mahal kita
+tr	Günaydın
+tr	Teşekkür ederim
+tr	Nasılsın?
+tr	Seni seviyorum
+ug	ياخشىمۇسىز
+ug	رەھمەت
+uk	Добрий ранок
+uk	Дякую
+uk	Як справи?
+uk	Я тебе кохаю
+ur	ہیلو، آپ کیسے ہیں؟
+ur	شکریہ
+vi	Xin chào
+vi	Cảm ơn
+vi	Bạn khỏe không?
+vi	Tôi yêu bạn
+zh|zh-Hant	你好
+zh	谢谢
+zh	我爱你
+zh	今天天气很好
+zh-Hant	謝謝
+zh-Hant	我愛你
+zh-Hant	今天天氣很好
+en	Good morning
+en	Thank you
+en	How are you?
+en	I love you
+en	Hello
+en	Where is the train station?
+de	Wo ist der Bahnhof?
+fr	Où est la gare ?
+es	¿Dónde está la estación de tren?
+it	Dov'è la stazione?
+pt	Onde fica a estação de trem?
+nl	Waar is het station?
+pl	Gdzie jest dworzec?
+tr	Tren istasyonu nerede?
+sv	Var är tågstationen?
+fi	Missä on rautatieasema?
+cs	Kde je nádraží?
+hu	Hol van a vasútállomás?
+ro	Unde este gara?
+id	Di mana stasiun kereta?
+vi	Ga tàu ở đâu?
+ru	Где находится вокзал?
+uk	Де знаходиться вокзал?
+en	The quick brown fox jumps over the lazy dog.
+de	Ich möchte bitte ein Glas Wasser.
+fr	Je voudrais un verre d'eau, s'il vous plaît.
+es	Quisiera un vaso de agua, por favor.
+it	Vorrei un bicchiere d'acqua, per favore.
+pt	Eu gostaria de um copo de água, por favor.
+nl	Ik wil graag een glas water.
+da	Jeg vil gerne have et glas vand.
+no	Jeg vil gjerne ha et glass vann.
+sv	Jag skulle vilja ha ett glas vatten.
+en	OK
+en	Thanks!
+de	Hallo
+it	Ciao
+es	Sí
+fr	Oui
+de	Ja
+es	Adiós
+de	Tschüss
+fr	Salut
+pt	Olá
