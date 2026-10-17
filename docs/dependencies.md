@@ -148,7 +148,7 @@ Dev dependencies (not shipped):
 
 | Component | Source | Commit | Licence | Why |
 | --- | --- | --- | --- | --- |
-| `cld2` | https://github.com/CLD2Owners/cld2 | `b56fa78a2fe4` | Apache-2.0 (**not in THIRD_PARTY_NOTICES.md**) | Compact Language Detector 2: on-device language identification. |
+| `cld2` | https://github.com/CLD2Owners/cld2 | `b56fa78a2fe4` | Apache-2.0 | Compact Language Detector 2: on-device language identification. |
 | `pcre2` | https://github.com/PCRE2Project/pcre2 | `f454e231fe50` | BSD-3-Clause | Regular expressions for ssplit (sentence splitting). |
 | `translations` | https://github.com/mozilla/translations | `69455acaecbe` | MPL-2.0 | mozilla/translations; `inference/` is bergamot-translator and its Marian fork, the engine itself. |
 | `ssplit-cpp` | `translations/inference/3rd_party/ssplit-cpp` | `a311f9865ade` | Apache-2.0 | Sentence splitter. |
