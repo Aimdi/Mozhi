@@ -449,6 +449,215 @@ void main() {
         expect(await repository.load(), equals(next));
       });
     });
+    group('secrets in the settings', () {
+      const headers = {'X-Auth': 'secret-header'};
+      const credentials = 'user:p%40ss';
+      const plainUrl = 'https://mozhi.example.org';
+      const securedUrl = 'https://$credentials@mozhi.example.org';
+      final instances = [
+        MozhiInstance.publicInstances.first,
+        const MozhiInstance(url: securedUrl, label: 'Mine'),
+      ];
+
+      Map<String, dynamic> storedJson() =>
+          jsonDecode(prefs.values[SettingsRepository.settingsKey]!)
+              as Map<String, dynamic>;
+
+      test('namespace their keys', () {
+        expect(SettingsRepository.headersKey('abc'), 'apiheaders.abc');
+        expect(SettingsRepository.instanceCredentialsKey, 'instancecreds');
+      });
+
+      test('are saved to the secret store, not the settings JSON', () async {
+        await repository.save(
+          AppSettings(
+            instances: instances,
+            providers: [_provider('a').copyWith(headers: headers)],
+          ),
+        );
+
+        final raw = prefs.values[SettingsRepository.settingsKey]!;
+        expect(raw, isNot(contains('secret-header')));
+        expect(raw, isNot(contains(credentials)));
+        expect(raw, contains(plainUrl));
+        expect(
+          (storedJson()['providers'] as List).single,
+          isNot(contains('headers')),
+        );
+        expect(secrets.values, {
+          'apiheaders.a': jsonEncode(headers),
+          'instancecreds': jsonEncode({plainUrl: credentials}),
+        });
+      });
+
+      test('round-trip with load', () async {
+        final settings = AppSettings(
+          instances: instances,
+          providers: [
+            _provider('a', apiKey: 'key-a').copyWith(headers: headers),
+            _provider('b'),
+          ],
+        );
+
+        await repository.save(settings);
+        final loaded = await SettingsRepository(
+          prefs: prefs,
+          secrets: secrets,
+        ).load();
+
+        expect(loaded, equals(settings));
+        expect(loaded.instances.last.url, securedUrl);
+        expect(loaded.providers.first.headers, headers);
+      });
+
+      test('move from the plain JSON of older versions to the secret store '
+          'on load', () async {
+        prefs.values[SettingsRepository.settingsKey] = jsonEncode({
+          'onboardingComplete': true,
+          'privacyMode': 'online',
+          'instances': [
+            {'url': securedUrl, 'label': 'Mine', 'isCustom': true},
+          ],
+          'providers': [
+            {..._provider('a').toJson(), 'headers': headers},
+          ],
+        });
+        secrets.values['apikey.a'] = 'key-a';
+
+        final loaded = await repository.load();
+
+        expect(loaded.instances.single.url, securedUrl);
+        expect(loaded.providers.single.headers, headers);
+        expect(loaded.providers.single.apiKey, 'key-a');
+        final raw = prefs.values[SettingsRepository.settingsKey]!;
+        expect(raw, isNot(contains('secret-header')));
+        expect(raw, isNot(contains(credentials)));
+        expect(secrets.values, {
+          'apikey.a': 'key-a',
+          'apiheaders.a': jsonEncode(headers),
+          'instancecreds': jsonEncode({plainUrl: credentials}),
+        });
+        expect(
+          await SettingsRepository(prefs: prefs, secrets: secrets).load(),
+          equals(loaded),
+        );
+      });
+
+      test('are not migrated when the secret store fails', () async {
+        final stored = jsonEncode({
+          'onboardingComplete': true,
+          'instances': [
+            {'url': securedUrl, 'isCustom': true},
+          ],
+        });
+        prefs.values[SettingsRepository.settingsKey] = stored;
+        final repository = SettingsRepository(
+          prefs: prefs,
+          secrets: _FailingStore(),
+        );
+
+        final loaded = await repository.load();
+
+        expect(loaded.instances.single.url, securedUrl);
+        expect(prefs.values[SettingsRepository.settingsKey], stored);
+      });
+
+      test('are deleted with their provider or instance', () async {
+        await repository.save(
+          AppSettings(
+            instances: instances,
+            providers: [
+              _provider('a', apiKey: 'key-a').copyWith(headers: headers),
+              _provider('b').copyWith(headers: headers),
+            ],
+          ),
+        );
+
+        await repository.save(
+          AppSettings(
+            instances: [instances.first],
+            providers: [_provider('b')],
+          ),
+        );
+
+        expect(secrets.values, isEmpty);
+      });
+
+      test('orphans are found from previously stored settings', () async {
+        prefs.values[SettingsRepository.settingsKey] = jsonEncode(
+          AppSettings(
+            instances: [instances.last],
+            providers: [_provider('old')],
+          ).toJson(),
+        );
+        secrets.values
+          ..['apiheaders.old'] = jsonEncode(headers)
+          ..['instancecreds'] = jsonEncode({plainUrl: credentials});
+
+        await repository.save(const AppSettings());
+
+        expect(secrets.values, isEmpty);
+      });
+
+      test('drop the attribution headers older versions added for '
+          'OpenRouter', () async {
+        prefs.values[SettingsRepository.settingsKey] = jsonEncode({
+          'onboardingComplete': true,
+          'providers': [
+            {
+              ..._provider('or').toJson(),
+              'headers': {
+                ...SettingsRepository.legacyAttributionHeaders,
+                'X-Own': 'kept',
+              },
+            },
+          ],
+        });
+
+        final loaded = await repository.load();
+
+        expect(loaded.providers.single.headers, {'X-Own': 'kept'});
+        expect(secrets.values, {
+          'apiheaders.or': jsonEncode({'X-Own': 'kept'}),
+        });
+        expect(
+          prefs.values[SettingsRepository.settingsKey],
+          isNot(contains('X-Title')),
+        );
+      });
+
+      test('drop attribution headers from the secret store too', () async {
+        prefs.values[SettingsRepository.settingsKey] = jsonEncode(
+          AppSettings(providers: [_provider('or')]).toJson(),
+        );
+        secrets.values['apiheaders.or'] = jsonEncode(
+          SettingsRepository.legacyAttributionHeaders,
+        );
+
+        final loaded = await repository.load();
+
+        expect(loaded.providers.single.headers, isEmpty);
+        expect(secrets.values, isEmpty);
+      });
+
+      test('ignore corrupt stored values', () async {
+        prefs.values[SettingsRepository.settingsKey] = jsonEncode(
+          AppSettings(
+            instances: const [MozhiInstance(url: plainUrl)],
+            providers: [_provider('a'), _provider('b')],
+          ).toJson(),
+        );
+        secrets.values
+          ..['apiheaders.a'] = 'not json'
+          ..['apiheaders.b'] = '[1]'
+          ..['instancecreds'] = jsonEncode({plainUrl: 1});
+
+        final loaded = await repository.load();
+
+        expect(loaded.providers.map((p) => p.headers), [isEmpty, isEmpty]);
+        expect(loaded.instances.single.url, plainUrl);
+      });
+    });
   });
 
   group(SettingsUnavailableException, () {

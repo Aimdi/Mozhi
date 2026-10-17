@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mozhi/core/on_device_ml.dart';
+import 'package:mozhi/platform/mlkit_bindings.dart' as bindings;
 
 void main() {
   tearDown(() {
@@ -11,10 +12,10 @@ void main() {
 
   group('on-device ML', () {
     test('follows the bindings unless overridden', () {
-      // The default build has no ML Kit (tool/play_prepare.sh adds it).
-      expect(mlKitIncluded, isFalse);
-      debugMlKitIncludedOverride = true;
-      expect(mlKitIncluded, isTrue);
+      // False in the default build, true in the Play variant.
+      expect(mlKitIncluded, bindings.mlKitIncluded);
+      debugMlKitIncludedOverride = !bindings.mlKitIncluded;
+      expect(mlKitIncluded, !bindings.mlKitIncluded);
     });
 
     test('always includes the offline engine unless overridden', () {

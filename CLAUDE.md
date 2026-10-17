@@ -9,8 +9,15 @@ self-hostable **Mozhi** translation instances plus an **AI translator**
 - `packages/llm_api` – pure Dart streaming LLM clients.
 - `packages/translation_repository` – domain models, language catalogue,
   prompts, parsers, and `TranslationRepository` (unifies both backends).
-- `packages/mlkit_translator` – Flutter package: offline ML Kit engine
-  implementing `OfflineTranslator` (from translation_repository).
+- `packages/bergamot_translator` – Flutter FFI package: the offline engine
+  of every build (Mozilla's Bergamot + Firefox Translations models),
+  implementing `OfflineTranslator`; C++ sources are pinned submodules
+  (`tool/fetch_native_deps.sh` before any Android build). Created in
+  `lib/platform/offline_engine.dart`.
+- `packages/mlkit_translator` – ML Kit translation; no build uses it (kept
+  for reference). The default build has no Google code; the optional Play
+  variant (`tool/play_prepare.sh`) only adds ML Kit OCR from the overlay in
+  `tool/play/` (excluded from analysis; never import ML Kit elsewhere).
 - `lib/` – the app: `app/` (shell, router, theme), `settings/`, `history/`,
   `translate/`, `proofread/`, `speech/`, `platform/`, `core/`, and round-2
   features `image_translate/`, `voice/`, `documents/`, `onboarding/`,

@@ -13,6 +13,7 @@ import 'package:mozhi/app/third_party_licenses.dart';
 import 'package:mozhi/bootstrap.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/network/network_session.dart';
+import 'package:mozhi/core/on_device_ml.dart';
 import 'package:mozhi/offline/data/unavailable_offline_translator.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
@@ -296,8 +297,8 @@ void main() {
       expect(presented, hasLength(1));
       expect(Bloc.observer, isA<AppBlocObserver>());
 
-      // The default build has no ML Kit, so its notice is left out; the
-      // offline engine's notices are always there.
+      // The ML Kit notice only in the Play variant; the offline engine's
+      // notices always.
       final packages = await tester.runAsync(
         () async => {
           for (final entry in await LicenseRegistry.licenses.toList())
@@ -305,7 +306,7 @@ void main() {
         },
       );
       expect(packages, contains(bergamotEngineLicensePackage));
-      expect(packages, isNot(contains(mlKitLicensePackage)));
+      expect(packages?.contains(mlKitLicensePackage), mlKitIncluded);
     });
   });
 

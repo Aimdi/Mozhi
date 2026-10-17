@@ -17,14 +17,52 @@ env:
   # The release's web zip is built for the root of a web server. To serve it
   # from a sub-path, change <base href> in its index.html (e.g. "/mozhi/").
   WEB_BASE_HREF: /
+  # The offline engine (packages/bergamot_translator) is C++ built by the
+  # Android jobs. Keep in sync with packages/bergamot_translator/android/
+  # build.gradle and .github/workflows/main.yaml.
+  NDK_VERSION: "28.2.13676358"
+  CMAKE_VERSION: "3.22.1"
 
 jobs:
+  # The default build: no Google code; offline translation with Mozilla's
+  # Bergamot engine (compiled here for the three ABIs). Every APK and the
+  # app bundle must pass tool/check_no_google.sh.
   android:
     name: Build Android APKs and app bundle
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 150
+    env:
+      # CMake (>= 3.17) reads the compiler launcher from the environment, so
+      # the plugin's Gradle externalNativeBuild compiles through ccache.
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_COMPRESS: "true"
+      CCACHE_MAXSIZE: 2G
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # Only the submodules the engine compiles, then native/patches/.
+      - name: Fetch the offline engine's sources
+        run: bash packages/bergamot_translator/tool/fetch_native_deps.sh
+
+      - name: Install the NDK, CMake and ccache
+        run: |
+          sdk="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          sdkmanager="$sdk/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$sdkmanager" --licenses > /dev/null || true
+          "$sdkmanager" --install "ndk;$NDK_VERSION" "cmake;$CMAKE_VERSION" > /dev/null
+          sudo apt-get install -y -q ccache > /dev/null
+
+      # Warm from the CI runs on the branches (same sources).
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .ccache
+          key: bergamot-ccache-${{ env.NDK_VERSION }}-release-default-${{ github.sha }}
+          restore-keys: |
+            bergamot-ccache-${{ env.NDK_VERSION }}-default-
+            bergamot-ccache-${{ env.NDK_VERSION }}-
 
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
         with:
@@ -76,13 +114,15 @@ jobs:
           out=build/app/outputs/flutter-apk
           mkdir -p dist
 
+          set -o pipefail
           # Obfuscated Dart code; the symbols needed to read stack traces
           # (`flutter symbolize`) go to build/symbols and are uploaded as a
           # private workflow artifact, not attached to the release.
           # One APK per ABI (smaller downloads).
           flutter build apk --release --flavor production \
             -t lib/main_production.dart --split-per-abi \
-            --obfuscate --split-debug-info=build/symbols/apk-split-per-abi
+            --obfuscate --split-debug-info=build/symbols/apk-split-per-abi \
+            2>&1 | tee build-android.log
           for abi in arm64-v8a armeabi-v7a x86_64; do
             cp "$out/app-$abi-production-release.apk" "dist/mozhi-$TAG-$abi.apk"
           done
@@ -90,10 +130,12 @@ jobs:
           # Universal APK (all ABIs).
           flutter build apk --release --flavor production \
             -t lib/main_production.dart \
-            --obfuscate --split-debug-info=build/symbols/apk-universal
+            --obfuscate --split-debug-info=build/symbols/apk-universal \
+            2>&1 | tee -a build-android.log
           cp "$out/app-production-release.apk" "dist/mozhi-$TAG-universal.apk"
 
           ls -lh dist
+          ccache --show-stats || true
 
       # Android App Bundle for Google Play (upload it with the keystore above
       # as the upload key; see docs/store/README.md).
@@ -104,12 +146,54 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           TAG: ${{ github.ref_name }}
         run: |
+          set -o pipefail
           flutter build appbundle --release --flavor production \
             -t lib/main_production.dart \
-            --obfuscate --split-debug-info=build/symbols/aab
+            --obfuscate --split-debug-info=build/symbols/aab \
+            2>&1 | tee -a build-android.log
           cp build/app/outputs/bundle/productionRelease/app-production-release.aab \
             "dist/mozhi-$TAG.aab"
           ls -lh dist
+
+      # The release must not contain ML Kit, Play services, Firebase or
+      # data transport code (classes or ML Kit native libraries/models).
+      - name: Check the APKs and the app bundle have no Google code
+        run: |
+          for file in dist/*.apk dist/*.aab; do
+            sh tool/check_no_google.sh "$file"
+          done
+
+      - name: Check the offline engine is in the APK
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          apk="dist/mozhi-$TAG-universal.apk"
+          entries=$(unzip -l "$apk")
+          failed=0
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            if ! printf '%s\n' "$entries" | grep -q "lib/$abi/libmozhi_bergamot\.so"; then
+              echo "::error::$apk has no lib/$abi/libmozhi_bergamot.so"
+              failed=1
+            fi
+          done
+          if printf '%s\n' "$entries" | grep -q 'libc++_shared\.so'; then
+            echo "::error::$apk contains libc++_shared.so"
+            failed=1
+          fi
+          [ "$failed" = 0 ]
+
+      - name: Summarize native build errors
+        if: failure()
+        run: |
+          [ -f build-android.log ] || exit 0
+          {
+            echo "### Native build errors"
+            echo
+            echo '```text'
+            grep -E "Execution failed for task|(error|fatal error): |^FAILED: " build-android.log |
+              sort -u | head -n 200 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload APKs and app bundle
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -174,9 +258,115 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  # The Play variant (tool/play_prepare.sh): the default app plus Google ML
+  # Kit's on-device text recognition (closed source). Published next to the
+  # default APKs as mozhi-<tag>-play-universal.apk; not checked for Google
+  # code (it contains ML Kit by design).
+  android-play:
+    name: Build Play variant APK (ML Kit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      # CMake (>= 3.17) reads the compiler launcher from the environment, so
+      # the plugin's Gradle externalNativeBuild compiles through ccache.
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_COMPRESS: "true"
+      CCACHE_MAXSIZE: 2G
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      # Only the submodules the engine compiles, then native/patches/.
+      - name: Fetch the offline engine's sources
+        run: bash packages/bergamot_translator/tool/fetch_native_deps.sh
+
+      - name: Install the NDK, CMake and ccache
+        run: |
+          sdk="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          sdkmanager="$sdk/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$sdkmanager" --licenses > /dev/null || true
+          "$sdkmanager" --install "ndk;$NDK_VERSION" "cmake;$CMAKE_VERSION" > /dev/null
+          sudo apt-get install -y -q ccache > /dev/null
+
+      # Warm from the CI runs on the branches (same sources).
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .ccache
+          key: bergamot-ccache-${{ env.NDK_VERSION }}-release-play-${{ github.sha }}
+          restore-keys: |
+            bergamot-ccache-${{ env.NDK_VERSION }}-play-
+            bergamot-ccache-${{ env.NDK_VERSION }}-
+
+      - name: Add ML Kit
+        run: |
+          sh tool/play_prepare.sh
+          git status --short
+
+      - name: Install dependencies
+        run: |
+          flutter pub get
+          flutter gen-l10n
+
+      - name: Decode signing key
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret: the Play variant is signed with a debug key."
+            exit 0
+          fi
+          keystore="$RUNNER_TEMP/release.jks"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode --ignore-garbage > "$keystore"
+          echo "ANDROID_KEYSTORE_PATH=$keystore" >> "$GITHUB_ENV"
+
+      - name: Build APK
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          mkdir -p dist
+          flutter build apk --release --flavor production \
+            -t lib/main_production.dart \
+            --obfuscate --split-debug-info=build/symbols/apk-play-universal
+          cp build/app/outputs/flutter-apk/app-production-release.apk \
+            "dist/mozhi-$TAG-play-universal.apk"
+          ls -lh dist
+
+      - name: Upload APK
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-android-play
+          path: dist/*.apk
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload debug symbols
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: debug-symbols-android-play-${{ github.ref_name }}
+          path: build/symbols
+          if-no-files-found: error
+          retention-days: 90
+
   publish:
     name: Publish GitHub release
-    needs: [android, web]
+    needs: [android, android-play, web]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -209,7 +399,8 @@ jobs:
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, '-') }}
           body: |
-            - **Android**: `arm64-v8a` fits almost every modern phone, `armeabi-v7a` old 32-bit devices, `x86_64` emulators and Chromebooks; `universal` works everywhere but is larger.
+            - **Android**: `arm64-v8a` fits almost every modern phone, `armeabi-v7a` old 32-bit devices, `x86_64` emulators and Chromebooks; `universal` works everywhere but is larger. These builds contain no Google code; offline translation uses Mozilla's open Firefox Translations models (downloaded per language when you choose it).
+            - **Play variant**: `mozhi-${{ github.ref_name }}-play-universal.apk` adds Google ML Kit's on-device text recognition (closed source) for camera and image translation; otherwise the same app.
             - **Google Play bundle**: `mozhi-${{ github.ref_name }}.aab` is the Android App Bundle uploaded to Play; it can't be installed directly.
             - **Web**: `mozhi-${{ github.ref_name }}-web.zip` is a static build for the root of any web server (edit `<base href>` in `index.html` to serve it from a sub-path).
             - Verify downloads against `SHA256SUMS.txt`.

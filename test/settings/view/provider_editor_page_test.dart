@@ -480,58 +480,28 @@ void main() {
         });
       });
 
-      group('preset headers', () {
-        Map<String, String> openRouterHeaders() =>
-            AiProviderPreset.byId('openrouter')!.headers;
-
-        testWidgets('are kept on the preset host', (tester) async {
+      group('headers', () {
+        testWidgets('OpenRouter gets no attribution headers', (tester) async {
           await pump(tester, presetId: 'openrouter');
-          expect(openRouterHeaders(), isNotEmpty);
-          await tester.enterText(field('API key'), 'sk-or');
-          await tester.tap(find.text('Save'));
-          await tester.pumpAndSettle();
-          expect(savedConfig().headers, openRouterHeaders());
-        });
-
-        testWidgets('are dropped with a note for another host', (tester) async {
-          await pump(tester, presetId: 'openrouter');
-          expect(find.textContaining("This server isn't"), findsNothing);
-          await tester.enterText(
-            field('Base URL'),
-            'https://llm.example.com/v1',
-          );
-          await tester.pump();
-          expect(
-            find.text(
-              "This server isn't OpenRouter, so the headers added for "
-              'OpenRouter (${openRouterHeaders().keys.join(', ')}) '
-              "won't be sent.",
-            ),
-            findsOneWidget,
-          );
           await tester.enterText(field('API key'), 'sk-or');
           await tester.tap(find.text('Save'));
           await tester.pumpAndSettle();
           expect(savedConfig().headers, isEmpty);
         });
 
-        testWidgets('of a saved provider are dropped when the host changes', (
-          tester,
-        ) async {
-          final saved = AiProviderConfig(
-            id: 'or',
-            name: 'OpenRouter',
+        testWidgets('of a saved provider are kept', (tester) async {
+          const saved = AiProviderConfig(
+            id: 'gw',
+            name: 'Gateway',
             provider: LlmProvider.openAiCompatible,
-            baseUrl: 'https://openrouter.ai/api/v1',
-            model: 'openrouter/auto',
-            apiKey: 'sk-or',
-            presetId: 'openrouter',
-            headers: {...openRouterHeaders(), 'X-Own': 'kept'},
+            baseUrl: 'https://gateway.example/v1',
+            model: 'gpt-5-mini',
+            apiKey: 'sk-gw',
+            headers: {'X-Own': 'kept'},
           );
           when(() => settings.state)
-              .thenReturn(AppSettings(providers: [saved]));
-          await pump(tester, providerId: 'or');
-          await tester.enterText(field('Base URL'), 'https://proxy.example/v1');
+              .thenReturn(const AppSettings(providers: [saved]));
+          await pump(tester, providerId: 'gw');
           await tester.tap(find.text('Save'));
           await tester.pumpAndSettle();
           expect(savedConfig().headers, {'X-Own': 'kept'});

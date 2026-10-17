@@ -454,14 +454,20 @@ void main() {
       expect(preset.defaultModel, 'gemini-flash-latest');
     });
 
-    test('openrouter preset sends attribution headers', () {
+    test('openrouter preset sends no attribution headers', () {
       final preset = AiProviderPreset.byId('openrouter')!;
       expect(preset.baseUrl, 'https://openrouter.ai/api/v1');
-      expect(preset.headers, {
-        'HTTP-Referer': 'https://github.com/Aimdi/Mozhi',
-        'X-Title': 'Mozhi',
-      });
-      expect(preset.toConfig(id: 'x').toEndpoint().headers, preset.headers);
+      expect(preset.headers, isEmpty);
+      expect(preset.toConfig(id: 'x').toEndpoint().headers, isEmpty);
+    });
+
+    test('no preset identifies the app with extra headers', () {
+      for (final preset in [
+        ...AiProviderPreset.all,
+        ...AiProviderPreset.mtServices,
+      ]) {
+        expect(preset.headers, isEmpty, reason: preset.id);
+      }
     });
 
     test('local presets', () {

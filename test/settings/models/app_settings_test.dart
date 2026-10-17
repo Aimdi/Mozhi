@@ -240,6 +240,29 @@ void main() {
         expect(jsonEncode(json), isNot(contains('sk-secret')));
       });
 
+      test('never contains custom headers or instance credentials', () {
+        final json = _custom
+            .copyWith(
+              providers: [
+                _provider.copyWith(headers: {'Authorization': 'Bearer hdr'}),
+              ],
+              instances: const [
+                MozhiInstance(
+                  url: 'https://me:pw@mozhi.example.org',
+                  label: 'L',
+                ),
+              ],
+            )
+            .toJson();
+
+        final encoded = jsonEncode(json);
+        expect(encoded, isNot(contains('hdr')));
+        expect(encoded, isNot(contains('me:pw')));
+        expect(json['instances'], [
+          {'url': 'https://mozhi.example.org', 'label': 'L', 'isCustom': true},
+        ]);
+      });
+
       test('does not persist one-off instructions', () {
         final settings = _custom.copyWith(
           options: const TranslationOptions(instructions: 'Make it shorter'),

@@ -2,13 +2,25 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:mozhi/core/key_value_store.dart';
+import 'package:mozhi/core/network/url_credentials.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-/// Loads/saves [AppSettings]: JSON under key `settings.v1` in [prefs];
-/// each provider's API key under `apikey.<providerId>` in [secrets].
-/// Missing or corrupt JSON falls back to defaults (never throws from
-/// [load]). [save] deletes keys of providers that no longer exist.
+/// Loads/saves [AppSettings]: JSON under key `settings.v1` in [prefs],
+/// without secrets ([AppSettings.toJson]). The secrets live in [secrets]:
+/// each provider's API key under `apikey.<providerId>` ([apiKeyKey]), its
+/// custom headers as a JSON object under `apiheaders.<providerId>`
+/// ([headersKey]), and the user names and passwords of instance URLs
+/// (`https://user:password@host`) as one JSON object (URL without them →
+/// `user:password`) under [instanceCredentialsKey]. Missing or corrupt JSON
+/// falls back to defaults (never throws from [load]). [save] deletes the
+/// secrets of providers and instances that no longer exist.
+///
+/// Settings written by older versions kept headers and instance
+/// credentials in the plain JSON: [load] moves them to [secrets] and
+/// rewrites the JSON without them. It also drops the attribution headers
+/// older versions added to OpenRouter providers
+/// ([legacyAttributionHeaders]).
 ///
 /// A storage error while reading is not treated as "nothing stored": [load]
 /// then returns defaults but sets [loadFailed], and [save] never overwrites
@@ -29,12 +41,33 @@ class SettingsRepository {
   /// Key of the API key of provider [providerId] in [secrets].
   static String apiKeyKey(String providerId) => 'apikey.$providerId';
 
+  /// Key of the custom headers (a JSON object) of provider [providerId] in
+  /// [secrets].
+  static String headersKey(String providerId) => 'apiheaders.$providerId';
+
+  /// Headers older versions of the OpenRouter preset added to identify the
+  /// app; [load] removes them from saved providers.
+  static const legacyAttributionHeaders = {
+    'HTTP-Referer': 'https://github.com/Aimdi/Mozhi',
+    'X-Title': 'Mozhi',
+  };
+
+  /// Key of the instance credentials in [secrets]: a JSON object from
+  /// instance URL (without credentials) to its user-info
+  /// ([urlCredentials]).
+  static const instanceCredentialsKey = 'instancecreds';
+
   final KeyValueStore prefs;
   final KeyValueStore secrets;
 
   /// Provider ids known to have (had) a stored key, from the last
   /// load/save. Used together with the stored JSON to find orphan keys.
   final Set<String> _knownProviderIds = {};
+
+  /// What [instanceCredentialsKey] holds (null: nothing), as last read or
+  /// written; unknown until then ([_credentialsKnown]).
+  String? _storedCredentials;
+  bool _credentialsKnown = false;
 
   Future<void> _pendingSave = Future.value();
 
@@ -55,15 +88,53 @@ class SettingsRepository {
     }
     final settings = stored ?? const AppSettings();
     _knownProviderIds.addAll(settings.providers.map((p) => p.id));
-    if (settings.providers.isEmpty) return settings;
+    // Written by an older version: secrets in the plain JSON.
+    var outdated =
+        settings.providers.any((p) => p.headers.isNotEmpty) ||
+        settings.instances.any((i) => urlCredentials(i.url) != null);
+
     final providers = <AiProviderConfig>[];
     for (final provider in settings.providers) {
-      final apiKey = await _readApiKey(provider.id);
+      final apiKey = await _readSecret(apiKeyKey(provider.id));
+      final stored = provider.headers.isNotEmpty
+          ? provider.headers
+          : _decodeStrings(await _readSecret(headersKey(provider.id))) ??
+                const <String, String>{};
+      final headers = {
+        for (final MapEntry(:key, :value) in stored.entries)
+          if (legacyAttributionHeaders[key] != value) key: value,
+      };
+      if (headers.length != stored.length) outdated = true;
       providers.add(
-        apiKey == null ? provider : provider.copyWith(apiKey: apiKey),
+        provider.copyWith(apiKey: apiKey, headers: Map.unmodifiable(headers)),
       );
     }
-    return settings.copyWith(providers: List.unmodifiable(providers));
+    final storedCredentials = await _readCredentials();
+    final instances = <MozhiInstance>[
+      for (final instance in settings.instances)
+        switch (storedCredentials[instance.url]) {
+          final credentials? when urlCredentials(instance.url) == null =>
+            MozhiInstance(
+              url: urlWithCredentials(instance.url, credentials),
+              label: instance.label,
+              isCustom: instance.isCustom,
+            ),
+          _ => instance,
+        },
+    ];
+    final loaded = settings.copyWith(
+      providers: List.unmodifiable(providers),
+      instances: List.unmodifiable(instances),
+    );
+    if (outdated && !_loadFailed) {
+      try {
+        // Moves secrets to [secrets] and drops them from the JSON.
+        await save(loaded);
+      } on Object {
+        // Tried again on the next load or save.
+      }
+    }
+    return loaded;
   }
 
   Future<void> save(AppSettings settings) {
@@ -85,28 +156,58 @@ class SettingsRepository {
       ..._knownProviderIds,
       ...?previous?.providers.map((p) => p.id),
     };
+    // Secrets first: the JSON written below no longer holds the headers
+    // and credentials that older versions kept there.
+    for (final provider in settings.providers) {
+      staleIds.remove(provider.id);
+      await _writeSecret(apiKeyKey(provider.id), provider.apiKey);
+      await _writeSecret(
+        headersKey(provider.id),
+        provider.headers.isEmpty ? null : jsonEncode(provider.headers),
+      );
+    }
+    final credentials = <String, String>{
+      for (final instance in settings.instances)
+        urlWithoutCredentials(instance.url): ?urlCredentials(instance.url),
+    };
+    final encodedCredentials = credentials.isEmpty
+        ? null
+        : jsonEncode(credentials);
+    final credentialsChanged =
+        !_credentialsKnown || encodedCredentials != _storedCredentials;
+    if (credentialsChanged && encodedCredentials != null) {
+      await secrets.write(instanceCredentialsKey, encodedCredentials);
+    }
 
     await prefs.write(settingsKey, jsonEncode(settings.toJson()));
 
-    for (final provider in settings.providers) {
-      staleIds.remove(provider.id);
-      final apiKey = provider.apiKey;
-      if (apiKey == null || apiKey.isEmpty) {
-        await secrets.delete(apiKeyKey(provider.id));
-      } else {
-        await secrets.write(apiKeyKey(provider.id), apiKey);
-      }
+    if (credentialsChanged && encodedCredentials == null) {
+      await secrets.delete(instanceCredentialsKey);
     }
+    _storedCredentials = encodedCredentials;
+    _credentialsKnown = true;
     for (final id in staleIds) {
       await secrets.delete(apiKeyKey(id));
+      await secrets.delete(headersKey(id));
     }
     _knownProviderIds
       ..clear()
       ..addAll(settings.providers.map((p) => p.id));
   }
 
-  /// The settings (without API keys) stored as [raw], or null when nothing
-  /// (valid) is stored.
+  /// Stores [value] under [key] in [secrets], or deletes it when [value]
+  /// is null or empty.
+  Future<void> _writeSecret(String key, String? value) async {
+    if (value == null || value.isEmpty) {
+      await secrets.delete(key);
+    } else {
+      await secrets.write(key, value);
+    }
+  }
+
+  /// The settings (without the secrets kept in [secrets], unless an older
+  /// version wrote them) stored as [raw], or null when nothing (valid) is
+  /// stored.
   static AppSettings? _decode(String? raw) {
     if (raw == null) return null;
     try {
@@ -129,11 +230,45 @@ class SettingsRepository {
     }
   }
 
-  Future<String?> _readApiKey(String providerId) async {
+  /// The non-empty value of [key] in [secrets], or null (also when the
+  /// store fails).
+  Future<String?> _readSecret(String key) async {
     try {
-      final key = await secrets.read(apiKeyKey(providerId));
-      return (key?.isEmpty ?? true) ? null : key;
+      final value = await secrets.read(key);
+      return (value?.isEmpty ?? true) ? null : value;
     } on Object {
+      return null;
+    }
+  }
+
+  /// The stored instance credentials ([instanceCredentialsKey]); empty
+  /// when there are none or they cannot be read.
+  Future<Map<String, String>> _readCredentials() async {
+    final String? raw;
+    try {
+      raw = await secrets.read(instanceCredentialsKey);
+    } on Object {
+      return const {};
+    }
+    _storedCredentials = raw;
+    _credentialsKnown = true;
+    return _decodeStrings(raw) ?? const {};
+  }
+
+  /// The string values of the JSON object [raw] (headers, credentials as
+  /// written by [_save]), or null when there are none (or [raw] is not a
+  /// JSON object).
+  static Map<String, String>? _decodeStrings(String? raw) {
+    if (raw == null) return null;
+    try {
+      final json = jsonDecode(raw);
+      if (json is! Map<String, dynamic>) return null;
+      final values = {
+        for (final MapEntry(:key, :value) in json.entries)
+          if (value is String) key: value,
+      };
+      return values.isEmpty ? null : Map.unmodifiable(values);
+    } on FormatException {
       return null;
     }
   }

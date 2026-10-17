@@ -1,20 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Mozhi is a client for self-hosted servers: Mozhi instances and local AI
-     runtimes (Ollama, LM Studio, llama.cpp) are commonly reached over plain
-     http on the LAN, so cleartext stays permitted.
-
-     Release builds trust the system CAs only (reviews/security.md W8): a
+<!-- Release builds trust the system CAs only (reviews/security.md W8): a
      user-, MDM- or malware-installed CA must not be able to intercept TLS to
      every host (api.openai.com, api.anthropic.com, model downloads, ...).
      User CAs are trusted in debuggable builds only (debug-overrides), e.g. to
      inspect traffic with a proxy during development.
 
-     This file governs platform networking (Java/Kotlin, plugins). Dart's
-     HttpClient (package:http IOClient) loads only the system trust store and
-     ignores this file, including cleartextTrafficPermitted; the app-level
-     http guard is the real control for Dart traffic. -->
+     This file governs platform networking (Java/Kotlin, plugins such as ML
+     Kit model downloads), none of which needs plain http, so cleartext is
+     off. Dart's HttpClient (package:http IOClient) ignores this file,
+     including cleartextTrafficPermitted and the trust anchors. For Dart
+     traffic the control is the app's network policy
+     (lib/core/network/network_policy.dart, BackendHttpClient): before
+     anything is sent it refuses plain http to any host that is not this
+     device, a private network, a .onion or a .i2p address. The Mozhi,
+     LibreTranslate, DeepL and AI provider clients only follow redirects
+     through it, never from https to http. -->
 <network-security-config>
-    <base-config cleartextTrafficPermitted="true">
+    <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>

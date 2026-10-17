@@ -1,7 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/network/url_credentials.dart';
 import 'package:mozhi/settings/models/language_pair.dart';
-import 'package:mozhi/settings/models/url_credentials.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 export 'language_pair.dart';

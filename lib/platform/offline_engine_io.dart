@@ -78,7 +78,10 @@ Future<OfflineTranslator> createBergamotOfflineTranslator({
 Future<void> _cleanUp(BergamotTranslator translator) async {
   try {
     await translator.models.cleanUp();
+    // coverage:ignore-start
   } on Object catch (error, stackTrace) {
+    // cleanUp() already ignores file system errors; this is a safety net
+    // so that a start-up chore can never become an uncaught error.
     log(
       'Offline model clean-up failed',
       name: 'mozhi',
@@ -86,6 +89,7 @@ Future<void> _cleanUp(BergamotTranslator translator) async {
       stackTrace: stackTrace,
     );
   }
+  // coverage:ignore-end
 }
 
 /// An [http.Client] that sends every request with the client of

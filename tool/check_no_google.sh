@@ -1,8 +1,9 @@
 #!/bin/sh
 # Fails when an Android APK (or app bundle) contains classes from Google ML
 # Kit, Google Play services, Firebase or Google's data transport (Firelog)
-# library: the closed-source / tracking code the F-Droid variant must not
-# ship (docs/audit/2026-audit.md).
+# library: the closed-source / tracking code the default build (GitHub
+# releases, F-Droid) must not ship (docs/audit/2026-audit.md,
+# docs/contributing.md "Build variants").
 #
 #   tool/check_no_google.sh [options] <app.apk|app.aab>
 #
@@ -17,9 +18,10 @@
 # Without python3 it falls back to a byte scan of the dex files (unzip and
 # grep), which cannot tell the two apart.
 #
-# Like the CI job "Check the APK has no ML Kit" (.github/workflows/main.yaml)
-# it also fails on zip entries that look like ML Kit's native libraries or
-# models (mlkit, translate_jni, language_id, text_recognition). Mentions of
+# CI runs it on every APK of the default build (job "Build Android APKs" in
+# .github/workflows/main.yaml, and the release workflow). It also fails on
+# zip entries that look like ML Kit's native libraries or models (mlkit,
+# translate_jni, language_id, text_recognition). Mentions of
 # those packages in AndroidManifest.xml (for example image_picker's disabled
 # com.google.android.gms.metadata.ModuleDependencies service) are only
 # reported as warnings: a manifest entry is not code.

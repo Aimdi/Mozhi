@@ -43,17 +43,16 @@ SOFTWARE.''';
 /// ML Kit is a closed-source Google SDK (not a pub package), so Flutter's
 /// generated NOTICES do not cover it.
 const mlKitLicenseText = '''
-On-device text recognition, translation and language identification use
-Google ML Kit (com.google.mlkit:text-recognition, translate, language-id on
-Android; the GoogleMLKit pods on iOS).
+On-device text recognition (camera and image translation) uses Google ML
+Kit (com.google.mlkit:text-recognition and its Chinese, Devanagari,
+Japanese and Korean script models). Only this build variant includes it.
 
 ML Kit is provided by Google LLC and its use is subject to the ML Kit Terms
 of Service: https://developers.google.com/ml-kit/terms
 
-Text recognition and translation run on this device; the text and images
-are not sent to Google. ML Kit downloads language packs and models from
-Google and, according to the terms above, sends metrics about the
-performance and use of its APIs to Google.
+Text recognition runs on this device; the images are not sent to Google.
+According to the terms above, ML Kit sends metrics about the performance
+and use of its APIs to Google.
 
 ML Kit includes open-source components (for example TensorFlow Lite,
 Apache License 2.0). Their notices are published at

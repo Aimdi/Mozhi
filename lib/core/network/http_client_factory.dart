@@ -31,8 +31,9 @@ const connectTimeout = Duration(seconds: 30);
 /// the client then refuses every request with an [InvalidProxyException].
 ///
 /// On the web it is the browser's `fetch` client: [proxy] is ignored (the
-/// browser's own proxy applies), cross-origin requests carry no cookies, and
-/// the browser decides the `User-Agent` and `Referer`.
+/// browser's own proxy applies), cross-origin requests carry no cookies, the
+/// browser decides the `User-Agent`, and the page's referrer policy
+/// (`no-referrer`, web/index.html) keeps it from sending a `Referer`.
 http.Client createHttpClient({String? proxy}) =>
     platform.createPlatformHttpClient(proxy: proxy);
 

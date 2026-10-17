@@ -23,6 +23,12 @@ env:
   # server. To host it under a sub-path, set the repository variable
   # WEB_BASE_HREF (for example "/app/").
   WEB_BASE_HREF: ${{ vars.WEB_BASE_HREF || '/' }}
+  # The offline engine (packages/bergamot_translator) is C++ built by every
+  # Android job. Keep in sync with ndkVersion and the CMake version in
+  # packages/bergamot_translator/android/build.gradle (= Flutter's default
+  # NDK, also used by the app).
+  NDK_VERSION: "28.2.13676358"
+  CMAKE_VERSION: "3.22.1"
 
 jobs:
   analyze-test:
@@ -68,12 +74,22 @@ jobs:
       - name: Bloc lint
         run: dart run bloc_tools:bloc lint lib
 
-      # Every package under packages/ (llm_api, mlkit_translator, mozhi_api,
-      # mozhi_cli, mt_api, translation_repository): pure Dart packages and
-      # the CLI use dart test, Flutter packages (mlkit_translator) flutter
-      # test. Packages without tests are skipped.
+      # Every package under packages/ (bergamot_translator, llm_api,
+      # mlkit_translator, mozhi_api, mozhi_cli, mt_api,
+      # translation_repository): pure Dart packages and the CLI use dart
+      # test, Flutter packages (bergamot_translator, mlkit_translator)
+      # flutter test. bergamot_translator's real-engine tests are skipped
+      # without BERGAMOT_TEST_MODELS=1, so no native library is needed here.
+      # Packages without tests are skipped.
       - name: Test packages
         run: bash .github/scripts/packages.sh test
+
+      # tool/play_prepare.sh and tool/fdroid_prepare.sh on scratch copies
+      # (idempotent, fail loudly), and the APK checker on synthetic APKs.
+      - name: Test build scripts
+        run: |
+          sh tool/variant_prepare_test.sh
+          sh tool/check_no_google_test.sh
 
       - name: Test app
         run: flutter test --coverage
@@ -85,13 +101,31 @@ jobs:
           path: coverage/lcov.info
           if-no-files-found: ignore
 
+  # The default build: no Google code (no ML Kit, Play services, Firebase or
+  # data transport); offline translation with Mozilla's Bergamot engine,
+  # compiled here by Gradle for the three ABIs (~25-30 minutes cold, a few
+  # minutes with a warm ccache). Every APK must pass tool/check_no_google.sh.
   build-android:
     name: Build Android APKs
     needs: analyze-test
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 120
+    env:
+      # CMake (>= 3.17) reads the compiler launcher from the environment, so
+      # the plugin's Gradle externalNativeBuild compiles through ccache.
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_COMPRESS: "true"
+      CCACHE_MAXSIZE: 2G
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # Only the submodules the engine compiles (not mozilla/translations'
+      # training tools), then native/patches/.
+      - name: Fetch the offline engine's sources
+        run: bash packages/bergamot_translator/tool/fetch_native_deps.sh
 
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
         with:
@@ -105,6 +139,24 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+
+      - name: Install the NDK, CMake and ccache
+        run: |
+          sdk="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          sdkmanager="$sdk/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$sdkmanager" --licenses > /dev/null || true
+          "$sdkmanager" --install "ndk;$NDK_VERSION" "cmake;$CMAKE_VERSION" > /dev/null
+          sudo apt-get install -y -q ccache > /dev/null
+          echo "ANDROID_NDK=$sdk/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+
+      # Restores the newest cache of any Android job (the same sources).
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .ccache
+          key: bergamot-ccache-${{ env.NDK_VERSION }}-default-${{ github.sha }}
+          restore-keys: |
+            bergamot-ccache-${{ env.NDK_VERSION }}-default-
+            bergamot-ccache-${{ env.NDK_VERSION }}-
 
       - name: Install dependencies
         run: |
@@ -131,23 +183,77 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
+          set -o pipefail
           out=build/app/outputs/flutter-apk
           mkdir -p dist
 
           # One APK per ABI (smaller downloads).
           flutter build apk --release --flavor production \
-            -t lib/main_production.dart --split-per-abi
+            -t lib/main_production.dart --split-per-abi 2>&1 | tee build-android.log
           for abi in arm64-v8a armeabi-v7a x86_64; do
             cp "$out/app-$abi-production-release.apk" "dist/mozhi-$abi.apk"
           done
 
           # Universal APK (all ABIs).
           flutter build apk --release --flavor production \
-            -t lib/main_production.dart
+            -t lib/main_production.dart 2>&1 | tee -a build-android.log
           cp "$out/app-production-release.apk" dist/mozhi-universal.apk
 
           (cd dist && sha256sum -- *.apk > SHA256SUMS.txt)
           ls -l dist
+          ccache --show-stats || true
+
+      - name: Summarize native build errors
+        if: failure()
+        run: |
+          log=build-android.log
+          [ -f "$log" ] || exit 0
+          {
+            echo "### Native build errors"
+            echo
+            echo "Failed Gradle tasks:"
+            echo
+            echo '```text'
+            grep -E "Execution failed for task|> Task .*(CMake|Cxx).* FAILED" "$log" | sort -u || true
+            echo '```'
+            echo
+            echo "Compiler errors (first 200; the job *Build Bergamot native (Android)* lists all, per ABI):"
+            echo
+            echo '```text'
+            grep -E "(error|fatal error): |^FAILED: " "$log" | sort -u | head -n 200 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Fails on any class under com/google/mlkit, com/google/android/gms,
+      # com/google/firebase or com/google/android/datatransport, and on ML
+      # Kit native libraries or models.
+      - name: Check the APKs have no Google code
+        run: |
+          for apk in dist/*.apk; do
+            sh tool/check_no_google.sh "$apk"
+          done
+
+      # The engine as shipped (stripped by Gradle): every ABI is in the
+      # universal APK and libc++ is linked statically (no libc++_shared.so).
+      # Exports, dependencies and 16 KB alignment are checked by the job
+      # "Build Bergamot native (Android)".
+      - name: Check the offline engine is in the APK
+        run: |
+          set -euo pipefail
+          apk=dist/mozhi-universal.apk
+          entries=$(unzip -l "$apk")
+          failed=0
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            if ! printf '%s\n' "$entries" | grep -q "lib/$abi/libmozhi_bergamot\.so"; then
+              echo "::error::$apk has no lib/$abi/libmozhi_bergamot.so"
+              failed=1
+            fi
+          done
+          if printf '%s\n' "$entries" | grep -q 'libc++_shared\.so'; then
+            echo "::error::$apk contains libc++_shared.so"
+            failed=1
+          fi
+          [ "$failed" = 0 ]
 
       - name: Size report
         run: |
@@ -157,9 +263,9 @@ jobs:
             signing="debug key (no signing secrets)"
           fi
           {
-            echo "### Android APKs"
+            echo "### Android APKs (default, no Google code)"
             echo
-            echo "Signed with the $signing."
+            echo "Signed with the $signing. tool/check_no_google.sh passed on every APK."
             echo
             echo "| APK | Size |"
             echo "| --- | ---: |"
@@ -184,16 +290,32 @@ jobs:
             dist/SHA256SUMS.txt
           if-no-files-found: error
 
-  # The F-Droid variant: the same app without Google ML Kit (closed source),
-  # prepared by tool/fdroid_prepare.sh exactly as the F-Droid recipe does.
-  # Keeps that build compiling and proves the APK has no ML Kit code.
-  build-fdroid:
-    name: Build F-Droid variant (no ML Kit)
+  # The Play variant: the default app plus Google ML Kit's on-device text
+  # recognition (closed source) for camera and image translation, prepared
+  # by tool/play_prepare.sh. Keeps that variant analyzing, testing and
+  # building. Its APK contains Google code by design, so it is not checked
+  # with tool/check_no_google.sh.
+  build-play:
+    name: Build Play variant (ML Kit)
     needs: analyze-test
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 120
+    env:
+      # CMake (>= 3.17) reads the compiler launcher from the environment, so
+      # the plugin's Gradle externalNativeBuild compiles through ccache.
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_COMPRESS: "true"
+      CCACHE_MAXSIZE: 2G
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # Only the submodules the engine compiles (not mozilla/translations'
+      # training tools), then native/patches/.
+      - name: Fetch the offline engine's sources
+        run: bash packages/bergamot_translator/tool/fetch_native_deps.sh
 
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
         with:
@@ -201,18 +323,38 @@ jobs:
           java-version: "17"
           cache: gradle
 
+      # cache: true caches the Flutter SDK and the pub cache.
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
 
-      # Edits this job's checkout only (pubspec.yaml, lib/platform bindings,
-      # ML Kit files, android/app/build.gradle.kts, android/gradle.properties).
-      - name: Strip ML Kit
+      - name: Install the NDK, CMake and ccache
         run: |
-          sh tool/fdroid_prepare.sh
-          sh tool/fdroid_prepare.sh # idempotent: a second run only checks
+          sdk="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          sdkmanager="$sdk/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$sdkmanager" --licenses > /dev/null || true
+          "$sdkmanager" --install "ndk;$NDK_VERSION" "cmake;$CMAKE_VERSION" > /dev/null
+          sudo apt-get install -y -q ccache > /dev/null
+          echo "ANDROID_NDK=$sdk/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+
+      # Restores the newest cache of any Android job (the same sources).
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .ccache
+          key: bergamot-ccache-${{ env.NDK_VERSION }}-play-${{ github.sha }}
+          restore-keys: |
+            bergamot-ccache-${{ env.NDK_VERSION }}-play-
+            bergamot-ccache-${{ env.NDK_VERSION }}-
+
+      # Edits this job's checkout only (pubspec.yaml, the ML Kit overlay
+      # from tool/play/, android/app/build.gradle.kts and
+      # android/gradle.properties).
+      - name: Add ML Kit
+        run: |
+          sh tool/play_prepare.sh
+          sh tool/play_prepare.sh # idempotent: a second run only checks
           git status --short
 
       - name: Install dependencies
@@ -220,66 +362,26 @@ jobs:
           flutter pub get
           bash .github/scripts/packages.sh get
           flutter gen-l10n
-          if grep -n 'mlkit' pubspec.lock; then
-            echo "::error::pubspec.lock still resolves an ML Kit package"
-            exit 1
-          fi
 
+      # The overlay is excluded from the default analysis (tool/play/**);
+      # here it is in lib/ and test/.
       - name: Analyze
         run: flutter analyze
 
+      - name: Test the ML Kit bindings and image translation
+        run: flutter test test/platform/mlkit_bindings_test.dart test/image_translate
+
       - name: Build APK
         run: |
+          set -o pipefail
           flutter build apk --release --flavor production \
-            -t lib/main_production.dart --android-project-arg=noMlkit=true
+            -t lib/main_production.dart 2>&1 | tee build-android.log
           mkdir -p dist
           cp build/app/outputs/flutter-apk/app-production-release.apk \
-            dist/mozhi-fdroid-universal.apk
-
-      - name: Check the APK has no ML Kit
-        run: |
-          apk=dist/mozhi-fdroid-universal.apk
-          work="$RUNNER_TEMP/apk"
-          rm -rf "$work"
-          mkdir -p "$work"
-          unzip -q -o "$apk" -d "$work"
-          failed=0
-
-          # ML Kit's classes (R8 keeps their names: ML Kit ships keep rules
-          # and the native code looks them up by name).
-          if grep -l -a 'Lcom/google/mlkit/' "$work"/classes*.dex; then
-            echo "::error::$apk contains com/google/mlkit classes"
-            failed=1
-          fi
-          # ML Kit's native libraries and bundled models.
-          if unzip -l "$apk" | grep -i -E 'mlkit|translate_jni|language_id|text_recognition'; then
-            echo "::error::$apk contains ML Kit native libraries or models"
-            failed=1
-          fi
-          # Independent of R8: nothing in the runtime classpath may come from
-          # com.google.mlkit (the Gradle build also excludes the group).
-          if [ -x android/gradlew ]; then
-            deps=$(cd android && ./gradlew -q :app:dependencies \
-              --configuration productionReleaseRuntimeClasspath -PnoMlkit=true)
-            if printf '%s\n' "$deps" | grep 'com.google.mlkit'; then
-              echo "::error::the Gradle runtime classpath contains ML Kit"
-              failed=1
-            fi
-            # Reported, not fatal: other Google artifacts F-Droid's scanner
-            # may flag.
-            printf '%s\n' "$deps" |
-              grep -E 'com\.google\.(android\.gms|android\.datatransport|firebase|android\.play)' |
-              sed 's/^/::warning::Google artifact in the classpath: /' || true
-          else
-            echo "::warning::android/gradlew missing: dependency check skipped"
-          fi
-          [ "$failed" = 0 ] || exit 1
-
+            dist/mozhi-play-universal.apk
           (cd dist && sha256sum -- *.apk > SHA256SUMS.txt)
           {
-            echo "### F-Droid variant (no ML Kit)"
-            echo
-            echo "No ML Kit classes, libraries or dependencies found."
+            echo "### Play variant (ML Kit text recognition)"
             echo
             echo '```text'
             ls -lh dist
@@ -287,10 +389,31 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Summarize native build errors
+        if: failure()
+        run: |
+          log=build-android.log
+          [ -f "$log" ] || exit 0
+          {
+            echo "### Native build errors"
+            echo
+            echo "Failed Gradle tasks:"
+            echo
+            echo '```text'
+            grep -E "Execution failed for task|> Task .*(CMake|Cxx).* FAILED" "$log" | sort -u || true
+            echo '```'
+            echo
+            echo "Compiler errors (first 200; the job *Build Bergamot native (Android)* lists all, per ABI):"
+            echo
+            echo '```text'
+            grep -E "(error|fatal error): |^FAILED: " "$log" | sort -u | head -n 200 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload APK
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: mozhi-android-fdroid
+          name: mozhi-android-play
           path: |
             dist/*.apk
             dist/SHA256SUMS.txt
@@ -393,19 +516,20 @@ jobs:
           if-no-files-found: ignore
 
   # libmozhi_bergamot.so (packages/bergamot_translator/native: Mozilla's open
-  # Firefox Translations engine, the planned replacement for ML Kit) for the
-  # three release ABIs, built exactly like the plugin's Gradle build does
-  # (same NDK, CMake, toolchain file and arguments; see
-  # packages/bergamot_translator/android/build.gradle). It does not need the
-  # app, so it runs in parallel with the other jobs.
+  # Firefox Translations engine, the app's offline translator) for the three
+  # release ABIs, built exactly like the plugin's Gradle build does (same
+  # NDK, CMake, toolchain file and arguments; see
+  # packages/bergamot_translator/android/build.gradle). The APK jobs build
+  # it again through Gradle; this job exists for diagnostics: it needs
+  # nothing else, so it starts at once, keeps going after compile errors
+  # (ninja -k 0, every ABI) so one run lists all of them, prints a per-ABI
+  # summary, checks exports, dependencies and 16 KB alignment, and uploads
+  # the libraries and the benchmark CLI (mozhi_bergamot_cli, for adb shell).
   build-bergamot-android:
     name: Build Bergamot native (Android)
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     env:
-      # Keep in sync with packages/bergamot_translator/android/build.gradle.
-      NDK_VERSION: "28.2.13676358"
-      CMAKE_VERSION: "3.22.1"
       ANDROID_PLATFORM: android-24
       CCACHE_DIR: ${{ github.workspace }}/.ccache
       CCACHE_BASEDIR: ${{ github.workspace }}
@@ -433,19 +557,36 @@ jobs:
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: .ccache
-          key: bergamot-ccache-${{ env.NDK_VERSION }}-${{ github.sha }}
+          key: bergamot-ccache-${{ env.NDK_VERSION }}-native-${{ github.sha }}
           restore-keys: |
+            bergamot-ccache-${{ env.NDK_VERSION }}-native-
             bergamot-ccache-${{ env.NDK_VERSION }}-
 
+      # Every ABI is configured and built even when another one fails, and
+      # ninja keeps going after errors (-k 0), so a single run reports all
+      # compile errors. The step fails at the end if any ABI failed.
       - name: Build arm64-v8a, armeabi-v7a and x86_64
         run: |
-          set -euo pipefail
+          set -uo pipefail
           cmake --version | head -1
           native=packages/bergamot_translator/native
+          logs="$RUNNER_TEMP/bergamot-logs"
+          mkdir -p "$logs" dist
+          : > "$RUNNER_TEMP/bergamot-built"
+          : > "$RUNNER_TEMP/bergamot-failed"
+          failed=0
+          {
+            echo "### Bergamot native build (NDK $NDK_VERSION)"
+            echo
+            echo "| ABI | Configure | Build | Compile errors |"
+            echo "| --- | --- | --- | ---: |"
+          } >> "$GITHUB_STEP_SUMMARY"
           for abi in arm64-v8a armeabi-v7a x86_64; do
             echo "::group::$abi"
             build="$RUNNER_TEMP/bergamot-$abi"
-            cmake -S "$native" -B "$build" -G Ninja \
+            configure=failed
+            result=skipped
+            if cmake -S "$native" -B "$build" -G Ninja \
               -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK/build/cmake/android.toolchain.cmake" \
               -DANDROID_ABI="$abi" \
               -DANDROID_PLATFORM="$ANDROID_PLATFORM" \
@@ -453,28 +594,77 @@ jobs:
               -DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON \
               -DCMAKE_BUILD_TYPE=Release \
               -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-              -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-            cmake --build "$build" --target mozhi_bergamot mozhi_bergamot_cli --parallel
-            mkdir -p "dist/$abi"
-            cp "$build/libmozhi_bergamot.so" "$build/mozhi_bergamot_cli" "dist/$abi/"
+              -DCMAKE_CXX_COMPILER_LAUNCHER=ccache 2>&1 | tee "$logs/$abi-configure.log"; then
+              configure=ok
+              if cmake --build "$build" --target mozhi_bergamot mozhi_bergamot_cli \
+                --parallel -- -k 0 2>&1 | tee "$logs/$abi-build.log"; then
+                result=ok
+                mkdir -p "dist/$abi"
+                cp "$build/libmozhi_bergamot.so" "$build/mozhi_bergamot_cli" "dist/$abi/"
+                echo "$abi" >> "$RUNNER_TEMP/bergamot-built"
+              else
+                result=failed
+              fi
+            fi
+            errors=$(cat "$logs/$abi-configure.log" "$logs/$abi-build.log" 2>/dev/null |
+              grep -E '(error|fatal error): |CMake Error' | sort -u | wc -l)
             echo "::endgroup::"
+            if [ "$configure" != ok ] || [ "$result" != ok ]; then
+              failed=1
+              echo "::error title=Bergamot $abi::configure $configure, build $result, $errors compile errors"
+              # Every distinct error once, annotated, so the run page lists them.
+              cat "$logs/$abi-configure.log" "$logs/$abi-build.log" 2>/dev/null |
+                grep -E '(error|fatal error): |CMake Error' | sort -u | head -n 50 |
+                sed "s/^/::error title=Bergamot $abi::/" || true
+            fi
+            echo "| $abi | $configure | $result | $errors |" >> "$GITHUB_STEP_SUMMARY"
+            if [ "$result" != ok ]; then echo "$abi" >> "$RUNNER_TEMP/bergamot-failed"; fi
           done
           ccache --show-stats || true
+          if [ "$failed" != 0 ]; then
+            {
+              echo
+              echo "#### Errors (each once, per ABI)"
+              for abi in $(cat "$RUNNER_TEMP/bergamot-failed"); do
+                echo
+                echo "**$abi**"
+                echo
+                echo '```text'
+                cat "$logs/$abi-configure.log" "$logs/$abi-build.log" 2>/dev/null |
+                  grep -E '(error|fatal error): |CMake Error|^FAILED: ' | sort -u | head -n 200 || true
+                echo '```'
+              done
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$failed"
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: bergamot-android-logs
+          path: ${{ runner.temp }}/bergamot-logs
+          if-no-files-found: ignore
+          retention-days: 14
 
       # Only the C API may be exported, libc++ must be static (no
       # libc++_shared.so in the APK), and LOAD segments 16 KB aligned.
+      # Checks every ABI that built, also when another one failed.
       - name: Check the libraries
+        if: always()
         run: |
           set -euo pipefail
           bin="$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
           failed=0
           {
-            echo "### Bergamot native libraries (NDK $NDK_VERSION)"
+            echo "### Bergamot native libraries"
             echo
             echo "| ABI | Unstripped | Stripped |"
             echo "| --- | ---: | ---: |"
           } >> "$GITHUB_STEP_SUMMARY"
-          for abi in arm64-v8a armeabi-v7a x86_64; do
+          built=$(cat "$RUNNER_TEMP/bergamot-built" 2>/dev/null || true)
+          [ -n "$built" ] || { echo "No ABI built."; exit 1; }
+          for abi in $built; do
             lib="dist/$abi/libmozhi_bergamot.so"
             exports=$("$bin/llvm-nm" -D --defined-only "$lib" | awk '{print $NF}' | sort)
             unexpected=$(printf '%s\n' "$exports" | grep -v '^mozhi_bergamot_' || true)

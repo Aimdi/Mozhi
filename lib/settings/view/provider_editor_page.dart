@@ -249,36 +249,10 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
     _ => false,
   };
 
-  static String _hostOf(String url) =>
-      (Uri.tryParse(url.trim())?.host ?? '').toLowerCase();
-
-  /// Headers the preset adds for its own service (e.g. OpenRouter's
-  /// `HTTP-Referer` and `X-Title`) that must not follow the provider to
-  /// another host (they identify the app to whoever runs that server).
-  Map<String, String> get _presetHeadersDropped {
-    final preset = _preset;
-    if (preset == null || preset.headers.isEmpty) return const {};
-    final host = _hostOf(_baseUrl.text);
-    if (host.isEmpty || host == _hostOf(preset.baseUrl)) return const {};
-    return preset.headers;
-  }
-
-  Map<String, String> get _headers {
-    final preset = _preset;
-    final headers = _existing?.headers ?? preset?.headers ?? const {};
-    final dropped = _presetHeadersDropped;
-    if (dropped.isNotEmpty) {
-      return {
-        for (final MapEntry(:key, :value) in headers.entries)
-          if (!dropped.containsKey(key)) key: value,
-      };
-    }
-    // Back on the preset's own host: its headers apply again.
-    if (preset != null && preset.headers.isNotEmpty) {
-      return {...preset.headers, ...headers};
-    }
-    return headers;
-  }
+  /// Custom headers: the saved provider's, else the preset's (no built-in
+  /// preset adds any).
+  Map<String, String> get _headers =>
+      _existing?.headers ?? _preset?.headers ?? const {};
 
   String? _required(String? value) => (value == null || value.trim().isEmpty)
       ? context.l10n.settingsProviderRequired
@@ -662,14 +636,6 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
               key: const Key('provider_insecure_warning'),
               title: l10n.settingsProviderInsecureTitle,
               text: l10n.commonErrorCleartextRefused,
-            ),
-          ),
-        if (_presetHeadersDropped case final dropped when dropped.isNotEmpty)
-          _Note(
-            icon: Icons.info_outline,
-            text: l10n.settingsProviderPresetHeadersDropped(
-              _preset!.name,
-              dropped.keys.join(', '),
             ),
           ),
       ],

@@ -1,13 +1,15 @@
 # Offline engine: Mozilla Firefox Translations (Bergamot)
 
-Status: **engine chosen, built and proven on Linux x86_64 (real models) and on
-ARM (aarch64 and armv7 under qemu); Android packaging written but only
-verifiable on CI. Not wired into the app yet.** Package:
+Status: **the app's offline engine in every build** (wave B). Built and
+proven on Linux x86_64 (real models) and on ARM (aarch64 and armv7 under
+qemu); the Android build runs on CI (no device run yet). Package:
 [`packages/bergamot_translator`](../packages/bergamot_translator/).
 
-The goal is to replace Google ML Kit (proprietary, Google Play services
-adjacent, missing from the F-Droid build) with Mozilla's open models, the
-ones Firefox uses for its built-in translation.
+It replaced Google ML Kit (proprietary, Google Play services adjacent,
+missing from the F-Droid build) with Mozilla's open models, the ones
+Firefox uses for its built-in translation. The default build now contains
+no Google code at all; ML Kit survives only as on-device text recognition
+in the optional Play variant ([build variants](contributing.md#build-variants)).
 
 ## Decision
 
@@ -163,8 +165,17 @@ restarts it. The `http.Client` is injectable (tests use `MockClient`).
   `.github/workflows/main.yaml` builds the three ABIs with the pinned NDK
   and CMake exactly like Gradle does, checks exports, dependencies (no
   `libc++_shared.so`) and 16 KB alignment, and uploads
-  `bergamot-android-native`. Expect ~10 minutes per ABI cold (ccache
-  afterwards).
+  `bergamot-android-native` (libraries and the benchmark CLI). It is the
+  diagnostics job: it starts at once, builds every ABI even when one fails,
+  runs ninja with `-k 0` so one run lists every compile error, and prints a
+  per-ABI table (configure, build, number of errors) plus the distinct
+  errors in the run summary; logs are uploaded as `bergamot-android-logs`.
+  The APK jobs (*Build Android APKs*, *Build Play variant (ML Kit)*, the
+  release jobs) compile the engine again through the plugin's Gradle
+  `externalNativeBuild`, which stops at the first failing ABI; on failure
+  they list the compiler errors of their log. All of them use ccache
+  (`CMAKE_<LANG>_COMPILER_LAUNCHER` from the environment), restored from
+  any earlier Android job. Expect ~10 minutes per ABI cold.
 * Linux (tests): `packages/bergamot_translator/tool/build_native_linux.sh`
   -> `build/native/linux/libmozhi_bergamot.so` (~6 minutes on 4 cores).
   `native/tool/mozhi_bergamot_cli.c` (target `mozhi_bergamot_cli`) is a
@@ -215,45 +226,65 @@ against the catalog:
   text of a few words is often undetermined (the app then asks for the
   source language).
 
-## App integration (wave B)
+## App integration (wave B, done)
 
-1. `pubspec.yaml`: `bergamot_translator: {path: packages/bergamot_translator}`.
-2. Create it in `lib/platform/` (both the regular and the F-Droid bindings
-   can use it; it has no Google code):
-   ```dart
-   final catalog = await loadBundledCatalog();
-   final translator = BergamotTranslator(
-     catalog: catalog,
-     root: await getApplicationSupportDirectory(), // app-private, no backup
-     isMeteredConnection: () => privacyChannel.isActiveNetworkMetered(),
-   );
-   unawaited(translator.models.cleanUp());
-   ```
-   `isMeteredConnection` is required: add a platform-channel call to
-   `ConnectivityManager.isActiveNetworkMetered()` (or use a connectivity
-   plugin). `downloadLanguage(wifiOnly: true)` throws
-   `MeteredConnectionException` on a metered network instead of waiting (ML
-   Kit waited); the UI should explain and offer "download anyway".
-3. Pass it as `offline:` to `TranslationRepository`; `isAvailable` is true
-   on Android arm64/x86_64/armv7+VFPv4, false on the web.
-4. Offline models page: `supportedLanguages`, `downloadedLanguages()`,
-   `downloadSize(code)` (bytes, both directions), `installedSize()`,
-   `downloadProgress` (stream), `outdatedModels()` (newer catalog
-   versions), `deleteLanguage`. English is always "downloaded".
-   Exceptions: `ModelChecksumException`, `ModelDownloadException`
-   (`statusCode`), `MeteredConnectionException`,
-   `OfflineModelMissingException` (lists the languages to download, e.g.
-   `[es, de]` for es->de), `BergamotEngineException`.
-5. Licenses page: add `packages/bergamot_translator/native/THIRD_PARTY_NOTICES.md`
-   (MPL-2.0 engine, MIT Marian, Apache-2.0/BSD components, MPL-2.0 models).
-6. CI/F-Droid: every job that builds the APK must run
-   `bash packages/bergamot_translator/tool/fetch_native_deps.sh` after
-   checkout (the F-Droid recipe: in `prebuild`, with `submodules: false`)
-   and will compile the engine (~25-30 min for three ABIs on 4 cores; cache
-   `.cxx`/ccache). Once ML Kit is gone, `tool/fdroid_prepare.sh` and the
-   ML Kit bindings can be simplified.
-7. Privacy docs: downloads go to `storage.googleapis.com` (Mozilla's
-   bucket); no other network use; models stay on the device.
+1. `pubspec.yaml`: `bergamot_translator: {path: packages/bergamot_translator}`
+   and `path_provider` (BSD-3-Clause, already resolved transitively). The
+   default `pubspec.yaml` has no ML Kit package any more.
+2. `lib/platform/offline_engine.dart` creates the engine for every variant
+   (`dart.library.io`; the web gets `offline_engine_web.dart`, an
+   `UnavailableOfflineTranslator`, so `dart:ffi` is never compiled for the
+   web: `flutter build web` passes). `createBergamotOfflineTranslator`:
+   * `loadBundledCatalog()` and `getApplicationSupportDirectory()` in
+     parallel; models go to `<support>/bergamot/models/<pair>/<version>/`
+     (app-private, no backup: `allowBackup="false"` and
+     `data_extraction_rules.xml`);
+   * `isMeteredConnection`: `MeteredNetwork` (`lib/platform/metered_network.dart`)
+     calls `isActiveNetworkMetered` on the privacy channel
+     (`MainActivity.kt`: `ConnectivityManager.isActiveNetworkMetered()`,
+     permission `ACCESS_NETWORK_STATE`). Unknown counts as metered;
+   * downloads use `CurrentSessionClient`, i.e. the client of
+     `NetworkSession.current`, so the proxy setting (e.g. Orbot) and the
+     network policy apply to model downloads too;
+   * `models.cleanUp()` runs unawaited (never blocks the first frame);
+   * any failure (no catalog, no directory: e.g. a desktop test host) logs
+     and returns an `UnavailableOfflineTranslator`.
+   `bootstrap.dart` starts it before the stores open and passes it as
+   `offline:` to `TranslationRepository` and as
+   `AppDependencies.offlineTranslator`.
+3. Offline languages screen (`lib/offline/`): `OfflineModelDetails`
+   (`BergamotModelDetails` adapts the translator) adds per-language download
+   and installed sizes (both directions), the total storage used, updates
+   (`outdatedModels()`: an *Update* pill), download progress in percent, a
+   "via English" note and where the models come from. English is shown as
+   built in (no download, not counted). A Wi-Fi-only download on a metered
+   network (`MeteredConnectionException`) opens *Download over mobile
+   data?* with *Download anyway*; checksum, server (HTTP status), network
+   (including the app's proxy/https rules), storage, engine and
+   unsupported-language errors each have their own message and a *Retry*
+   action. On a device whose CPU cannot run the engine (armv7 without
+   VFPv4) the screen says so; on the web it points to the Android app.
+4. Licences page (`lib/app/third_party_licenses.dart`): *Firefox
+   Translations engine (Bergamot)* lists every component of
+   `native/THIRD_PARTY_NOTICES.md` with its licence and where the MPL-2.0
+   source is (a test keeps the two in sync), *Firefox Translations models*
+   states the MPL-2.0 model licence. The ML Kit notice is only shown in the
+   Play variant.
+5. CI and releases build the engine (see *Native build* above) after
+   `fetch_native_deps.sh`; the F-Droid recipe runs it in `prebuild` with
+   `submodules: false`, then `tool/fdroid_prepare.sh`.
+
+**Privacy note (for docs/privacy.md).** Model downloads go to
+`storage.googleapis.com`: Mozilla's Firefox Translations bucket
+(`moz-fx-translations-data--303e-prod-translations-data`) is hosted on
+Google Cloud Storage, so Google, as the host, sees the device's IP address,
+the time and which model files are fetched (i.e. which languages were
+downloaded). Only static files are requested (HTTPS `GET`, optionally with
+`Range` to resume); no text, identifiers or cookies are sent, and
+downloads only happen when the user taps *Download* or *Update*. They go
+through the app's proxy setting when one is set. Translation itself never
+touches the network; models stay on the device and are verified against
+the SHA-256 checksums bundled with the app.
 
 ## Follow-ups
 

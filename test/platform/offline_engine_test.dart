@@ -101,7 +101,10 @@ void main() {
         )..createSync(recursive: true);
 
         await create();
-        await pumpEventQueue();
+        // Deleting runs on the I/O thread: wait for it (up to 5 s).
+        for (var i = 0; i < 250 && staging.existsSync(); i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        }
 
         expect(staging.existsSync(), isFalse);
         // Partial downloads are kept for resuming.
@@ -115,7 +118,7 @@ void main() {
       )..createSync(recursive: true);
 
       final translator = await create(isAvailable: false);
-      await pumpEventQueue();
+      await Future<void>.delayed(const Duration(milliseconds: 200));
 
       expect(translator.isAvailable, isFalse);
       expect(staging.existsSync(), isTrue);
@@ -187,6 +190,23 @@ void main() {
         );
         expect(requested, isEmpty);
       });
+    });
+
+    test('checks the network with MeteredNetwork by default', () async {
+      final translator = await createBergamotOfflineTranslator(
+        bundle: bundle,
+        supportDirectory: () async => support,
+        httpClient: MockClient((request) async => http.Response('', 404)),
+        isAvailable: true,
+        engine: _Engine(),
+      );
+
+      // Off Android MeteredNetwork reports unmetered, so a Wi-Fi-only
+      // download goes ahead (and fails at the mock server).
+      await expectLater(
+        translator.downloadLanguage('de'),
+        throwsA(isA<ModelDownloadException>()),
+      );
     });
 
     test('is unavailable when the catalog cannot be loaded', () async {

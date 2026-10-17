@@ -512,10 +512,6 @@ class AiProviderPreset {
       suggestedModels: ['openrouter/auto', 'openai/gpt-5-mini'],
       apiKeyUrl: 'https://openrouter.ai/keys',
       description: 'One key for hundreds of models from many providers.',
-      headers: {
-        'HTTP-Referer': 'https://github.com/Aimdi/Mozhi',
-        'X-Title': 'Mozhi',
-      },
     ),
     AiProviderPreset(
       id: 'groq',

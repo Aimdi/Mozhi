@@ -42,8 +42,8 @@ class LlmEndpoint {
   /// Optional for local servers. Never logged.
   final String? apiKey;
 
-  /// Extra headers sent with every request (e.g. OpenRouter's
-  /// `HTTP-Referer` / `X-Title`).
+  /// Extra headers sent with every request (e.g. the authentication
+  /// header of a gateway in front of the provider).
   final Map<String, String> headers;
 }
 

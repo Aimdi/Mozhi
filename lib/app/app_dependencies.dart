@@ -49,7 +49,9 @@ class AppDependencies {
   /// Speech-to-text (voice input).
   final SpeechInputService speechInputService;
 
-  /// On-device translation engine (also used by [translationRepository]).
+  /// On-device translation engine (also used by [translationRepository]):
+  /// Mozilla's Bergamot engine (`lib/platform/offline_engine.dart`), or an
+  /// engine that is never available where it cannot run (web).
   final OfflineTranslator offlineTranslator;
 
   /// Per-provider AI usage counters and budgets.

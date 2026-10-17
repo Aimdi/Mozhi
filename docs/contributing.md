@@ -9,7 +9,7 @@ first.
 - [Get the code running](#get-the-code-running)
 - [Flavors](#flavors)
 - [Building releases](#building-releases)
-- [F-Droid variant (no ML Kit)](#f-droid-variant-no-ml-kit)
+- [Build variants](#build-variants)
 - [Tests and checks](#tests-and-checks)
 - [Web end-to-end tests](#web-end-to-end-tests)
 - [Code style](#code-style)
@@ -21,7 +21,10 @@ first.
 ## Toolchain
 
 - **Flutter 3.47** (stable; CI uses 3.47.7) with **Dart 3.13**.
-- Android: JDK 17 and the Android SDK.
+- Android: JDK 17 and the Android SDK, plus the NDK `28.2.13676358` and
+  CMake `3.22.1` from the SDK manager for the offline engine (Gradle
+  installs them on first use if the licences are accepted). `ccache` is
+  optional and makes rebuilds of the engine fast.
 - Optional: [Very Good CLI](https://cli.vgv.dev) (`very_good test`).
 
 ## Get the code running
@@ -31,8 +34,18 @@ git clone https://github.com/Aimdi/Mozhi.git
 cd Mozhi
 flutter pub get                 # also generates lib/l10n/gen
 for p in packages/*/; do (cd "$p" && flutter pub get); done
+# Android only: the offline engine's C++ sources (pinned submodules, only
+# what the engine needs; never `git submodule update --init --recursive`)
+packages/bergamot_translator/tool/fetch_native_deps.sh
 flutter run --flavor development -t lib/main_development.dart
 ```
+
+The first Android build compiles the offline engine (Mozilla's Bergamot,
+`packages/bergamot_translator`) for every ABI, which takes 25-30 minutes on
+four cores; later builds reuse it. To compile it through ccache, export
+`CMAKE_C_COMPILER_LAUNCHER=ccache CMAKE_CXX_COMPILER_LAUNCHER=ccache` before
+building (CMake reads them from the environment). Web builds and all tests
+need neither the native sources nor the NDK.
 
 The app needs no server of its own: by default it uses the public Mozhi
 instances. For development against your own back ends, run Mozhi and Ollama
@@ -81,71 +94,92 @@ flutter build web --release -t lib/main_production.dart \
 Release signing for Android, the CI artifacts and tagged releases are
 described in the [README](../README.md).
 
-## F-Droid variant (no ML Kit)
+## Build variants
 
-Offline translation, language identification and on-device text
-recognition use Google ML Kit, which is closed source. F-Droid only accepts
-free software, so the F-Droid build is the same app without ML Kit. It is
-made from the normal source tree by one script:
+There are two Android variants. Both translate offline with Mozilla's
+open Firefox Translations models on the Bergamot engine
+(`packages/bergamot_translator`, see [Offline engine](offline-engine.md));
+they differ only in on-device text recognition (OCR) for camera and image
+translation.
+
+| | Default | Play variant |
+| --- | --- | --- |
+| Google code (ML Kit, Play services, Firebase) | **none** | ML Kit text recognition |
+| Offline translation | Bergamot | Bergamot |
+| On-device OCR | no (image translation uses the other methods and says why) | ML Kit |
+| Made by | the source tree as committed | `tool/play_prepare.sh` |
+| Used for | GitHub releases, F-Droid, the Play bundle | optional APK next to the releases |
+| CI job | *Build Android APKs* (`mozhi-android`) | *Build Play variant (ML Kit)* (`mozhi-android-play`) |
+
+**Default build.** `pubspec.yaml` has no ML Kit package,
+`lib/platform/mlkit_bindings.dart` returns the unavailable text recognizer
+and `android/app/build.gradle.kts` excludes the groups `com.google.mlkit`,
+`com.google.android.gms`, `com.google.firebase` and
+`com.google.android.datatransport` from every configuration (property
+`noMlkit`, default `true`), so a dependency that pulls them in fails the
+release build. CI runs `tool/check_no_google.sh` on every APK (and, in the
+release workflow, on the app bundle); it must pass.
+
+**Play variant.** The ML Kit code lives in an overlay, `tool/play/`, which
+mirrors the paths it is copied to and is excluded from the default
+analysis (`analysis_options.yaml`):
 
 ```sh
-tool/fdroid_prepare.sh        # edits the working tree: use a scratch copy
+tool/play_prepare.sh           # edits the working tree: use a scratch copy
 flutter pub get
-flutter build apk --release --flavor production -t lib/main_production.dart \
-  --android-project-arg=noMlkit=true
+flutter build apk --release --flavor production -t lib/main_production.dart
 ```
 
 The script (POSIX `sh` plus `python3`):
 
-1. removes `google_mlkit_text_recognition` and `mlkit_translator` from
-   `pubspec.yaml` (Flutter registers every plugin listed there, whatever the
-   flavor, so a Gradle flavor alone cannot drop them);
-2. copies `lib/platform/mlkit_bindings_stub.dart` over
-   `lib/platform/mlkit_bindings.dart`;
-3. deletes the files that import ML Kit:
-   `lib/image_translate/data/mlkit_text_recognition_service.dart`,
-   `packages/mlkit_translator` and their tests;
-4. deletes the `// BEGIN mlkit` … `// END mlkit` block (the
-   `com.google.mlkit:text-recognition-*` script models) from
-   `android/app/build.gradle.kts` and writes `noMlkit=true` to
-   `android/gradle.properties`; with that property Gradle also excludes the
-   whole `com.google.mlkit` group, so a stray ML Kit dependency fails the
-   build instead of ending up in the APK;
-5. checks that nothing in `pubspec.yaml`, `lib/`, `test/`, `packages/` or
-   the Gradle build still refers to ML Kit.
+1. adds `google_mlkit_text_recognition` (pinned) to `pubspec.yaml`;
+2. copies `tool/play/lib/platform/mlkit_bindings.dart` over the default
+   bindings, adds `lib/image_translate/data/mlkit_text_recognition_service.dart`
+   and the two matching tests;
+3. appends the `// BEGIN mlkit` … `// END mlkit` block (ML Kit's Chinese,
+   Devanagari, Japanese and Korean script models) to
+   `android/app/build.gradle.kts` and writes `noMlkit=false` to
+   `android/gradle.properties`;
+4. checks the result (ML Kit may only be imported by the two overlay files).
 
-It is idempotent (a second run only checks) and exits with an error when a
-pattern it edits is missing, so a refactoring that moves the ML Kit code
-breaks it loudly. Don't commit the prepared tree.
+ML Kit *translation* (`packages/mlkit_translator`) is not part of any
+variant: the repository takes a single offline engine, and a second,
+closed one would add ~30 MB per language for no gain over Bergamot. The
+package is kept in the tree for reference; no build depends on it.
 
-**Keeping the variant working.** ML Kit may only be imported from
-`lib/platform/mlkit_bindings.dart`,
-`lib/image_translate/data/mlkit_text_recognition_service.dart` and
-`packages/mlkit_translator`. Everything else gets the engines through the
-bindings (`createOfflineTranslator()`, `createTextRecognitionService()`) or
-the interfaces (`OfflineTranslator` in translation_repository,
-`TextRecognitionService` in `lib/image_translate/data`). The stub keeps the
-same public API and returns `UnavailableOfflineTranslator` and
-`UnavailableTextRecognitionService`. Code that needs to know whether ML Kit
-is there uses `lib/core/on_device_ml.dart` (`mlKitIncluded`,
-`onDeviceMlSupported`; tests flip `debugMlKitIncludedOverride`). Without ML
-Kit the app shows *Offline languages* in Settings as disabled with an
-explanation, the offline engine is not offered, the on-device text
-recognition method is hidden on the image screen and the ML Kit notice is
-left out of the licenses page.
+**F-Droid.** The default build is the F-Droid build. `tool/fdroid_prepare.sh`
+changes nothing about the app: for F-Droid's source scanner it deletes the
+Play-only sources (`tool/play/`, `tool/play_prepare.sh`,
+`packages/mlkit_translator`), refuses a tree that `play_prepare.sh`
+already changed, and checks that nothing refers to ML Kit and that the
+Gradle exclusions are in place. The recipe's `prebuild` runs
+`packages/bergamot_translator/tool/fetch_native_deps.sh` (with
+`submodules: false`) and then `tool/fdroid_prepare.sh`; the old
+`--android-project-arg=noMlkit=true` is accepted and changes nothing.
 
-The CI job *Build F-Droid variant (no ML Kit)* (`.github/workflows/main.yaml`)
-runs the script on its checkout, analyzes, builds the universal production
-APK and fails if the APK contains `com/google/mlkit` classes or ML Kit
-native libraries, or if the Gradle runtime classpath has a
-`com.google.mlkit` artifact. Its APK is uploaded as `mozhi-android-fdroid`.
-To check the variant locally without touching your checkout:
+Both scripts are idempotent (a second run only checks) and exit with an
+error when a pattern they rely on is missing, so a refactoring that moves
+the ML Kit code breaks them loudly. `tool/variant_prepare_test.sh` tests
+both on scratch copies (CI runs it in *Analyze and test*). Don't commit a
+prepared tree.
+
+**Keeping the variants working.** ML Kit may only be imported from the
+overlay. Everything else gets the engines through the bindings
+(`createTextRecognitionService()`, `mlKitIncluded`) or the interfaces
+(`OfflineTranslator` in translation_repository, `TextRecognitionService`
+in `lib/image_translate/data`); both bindings files keep the same public
+API. The offline translator is created in `lib/platform/offline_engine.dart`
+for every variant. Code that needs to know what the build has uses
+`lib/core/on_device_ml.dart` (`mlKitIncluded`, `onDeviceMlSupported`; tests
+flip `debugMlKitIncludedOverride` and `debugOfflineEngineIncludedOverride`).
+The ML Kit notice appears on the licences page only in the Play variant.
+
+To check the Play variant locally without touching your checkout:
 
 ```sh
 tmp=$(mktemp -d)
 git ls-files -z | xargs -0 cp --parents -t "$tmp"   # or git worktree add
-(cd "$tmp" && sh tool/fdroid_prepare.sh && flutter pub get &&
-  bash .github/scripts/packages.sh get && flutter analyze)
+(cd "$tmp" && sh tool/play_prepare.sh && flutter pub get && flutter analyze)
 ```
 
 ## Tests and checks
@@ -155,7 +189,7 @@ open one:
 
 ```sh
 # Formatting (the same file list as CI: generated code and build output excluded)
-find lib test packages -name '*.dart' -not -path 'lib/l10n/gen/*' \
+find lib test packages tool -name '*.dart' -not -path 'lib/l10n/gen/*' \
   -not -path '*/.dart_tool/*' -not -path '*/build/*' -print0 \
   | xargs -0 dart format --output=none --set-exit-if-changed
 
@@ -163,10 +197,15 @@ flutter analyze
 dart run bloc_tools:bloc lint lib
 
 # Packages: `dart test` for pure Dart ones, `flutter test` for Flutter ones
-# (mlkit_translator)
+# (bergamot_translator, mlkit_translator). bergamot_translator's real-engine
+# tests only run with BERGAMOT_TEST_MODELS=1 (see its README).
 for p in packages/*/; do
   (cd "$p" && if grep -q 'sdk: flutter' pubspec.yaml; then flutter test; else dart test; fi)
 done
+
+# Build scripts: the variant scripts and the APK checker
+sh tool/variant_prepare_test.sh
+sh tool/check_no_google_test.sh
 
 # App
 flutter test --coverage
