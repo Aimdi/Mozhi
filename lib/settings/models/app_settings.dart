@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/settings/models/language_pair.dart';
+import 'package:mozhi/settings/models/url_credentials.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 export 'language_pair.dart';
@@ -336,8 +337,12 @@ class AppSettings extends Equatable {
     );
   }
 
-  /// Excludes API keys (and the one-off [TranslationOptions.instructions]).
-  /// Unknown/missing fields fall back to defaults so old JSON keeps loading.
+  /// Excludes secrets: API keys, custom provider headers
+  /// ([AiProviderConfig.headers]) and user names and passwords in instance
+  /// URLs ([urlCredentials]), which `SettingsRepository` keeps in the
+  /// secret store. Also excludes the one-off
+  /// [TranslationOptions.instructions]. Unknown/missing fields fall back to
+  /// defaults so old JSON keeps loading.
   Map<String, dynamic> toJson() {
     return {
       'version': schemaVersion,
@@ -345,10 +350,15 @@ class AppSettings extends Equatable {
       'dynamicColor': dynamicColor,
       'pureBlack': pureBlack,
       'seedColor': seedColor,
-      'instances': [for (final instance in instances) instance.toJson()],
+      'instances': [
+        for (final instance in instances)
+          {...instance.toJson(), 'url': urlWithoutCredentials(instance.url)},
+      ],
       'providers': [
         for (final provider in providers)
-          {...provider.toJson()}..remove('apiKey'),
+          {...provider.toJson()}
+            ..remove('apiKey')
+            ..remove('headers'),
       ],
       'engineId': engineId,
       'assistEngineId': assistEngineId,
