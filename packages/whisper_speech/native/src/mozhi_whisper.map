@@ -1,0 +1,9 @@
+/* Export only the C API; everything else (whisper.cpp, ggml, libc++ when
+ * linked statically) stays local so the linker can drop unused code and
+ * nothing clashes with other native libraries (e.g. another ggml). */
+{
+  global:
+    mozhi_whisper_*;
+  local:
+    *;
+};

@@ -1,0 +1,484 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:path/path.dart' as p;
+import 'package:whisper_speech/whisper_speech.dart';
+
+import '../helpers/fake_models.dart';
+
+/// Serves [files] by URL path, honouring `Range: bytes=N-` unless
+/// [ignoreRange]. [failAfter] cuts a response after that many bytes;
+/// [status] replaces the status code; [corrupt] flips the last byte.
+class _Server {
+  new(this.files);
+
+  final Map<String, Uint8List> files;
+  final List<http.BaseRequest> requests = [];
+  bool ignoreRange = false;
+  int? failAfter;
+  int? status;
+  bool corrupt = false;
+  List<int> extra = const [];
+  Completer<void>? gate;
+
+  late final MockClient client = MockClient.streaming((request, _) async {
+    requests.add(request);
+    if (gate case final gate?) await gate.future;
+    final body = files[request.url.path];
+    if (status case final status?) {
+      return http.StreamedResponse(Stream.value(utf8.encode('error')), status);
+    }
+    if (body == null) {
+      return http.StreamedResponse(Stream.value(utf8.encode('missing')), 404);
+    }
+    var bytes = Uint8List.fromList([...body, ...extra]);
+    if (corrupt) bytes[bytes.length - 1] ^= 0xff;
+    var code = 200;
+    final range = request.headers['Range'];
+    if (range != null && !ignoreRange) {
+      final start = int.parse(RegExp(r'bytes=(\d+)-').firstMatch(range)![1]!);
+      bytes = bytes.sublist(start);
+      code = 206;
+    }
+    final cut = failAfter;
+    Stream<List<int>> stream() async* {
+      if (cut == null) {
+        yield bytes;
+        return;
+      }
+      yield bytes.sublist(0, cut.clamp(0, bytes.length));
+      throw const SocketException('connection reset');
+    }
+
+    return http.StreamedResponse(stream(), code);
+  });
+}
+
+void main() {
+  late Directory root;
+  late Uint8List tinyBytes;
+  late Uint8List baseBytes;
+  late WhisperCatalogModel tiny;
+  late WhisperCatalogModel base;
+  late WhisperModelCatalog catalog;
+  late _Server server;
+  late WhisperModelManager manager;
+
+  setUp(() {
+    root = Directory.systemTemp.createTempSync('whisper_models_');
+    tinyBytes = fakeModelBytes(5000);
+    baseBytes = fakeModelBytes(9000, seed: 2);
+    tiny = fakeModel('tiny', tinyBytes);
+    base = fakeModel('base', baseBytes);
+    catalog = WhisperModelCatalog(models: [tiny, base]);
+    server = _Server({
+      '/ggml-tiny.bin': tinyBytes,
+      '/ggml-base.bin': baseBytes,
+    });
+    manager = WhisperModelManager(root: root, httpClient: server.client);
+  });
+
+  tearDown(() {
+    manager.close();
+    if (root.existsSync()) root.deleteSync(recursive: true);
+  });
+
+  File part(WhisperCatalogModel model) => File(
+    p.join(root.path, 'models', '.downloads', model.id, '${model.name}.part'),
+  );
+
+  group('install', () {
+    test('downloads, verifies and installs a model atomically', () async {
+      final progress = <WhisperDownloadProgress>[];
+      final installed = await manager.install(tiny, onProgress: progress.add);
+
+      expect(installed.id, 'tiny');
+      expect(installed.sizeBytes, tinyBytes.length);
+      expect(installed.sha1, tiny.sha1);
+      expect(installed.matches(tiny), isTrue);
+      expect(installed.matches(base), isFalse);
+      expect(File(installed.path).readAsBytesSync(), tinyBytes);
+      expect(
+        installed.path,
+        p.join(root.path, 'models', 'tiny', 'ggml-tiny.bin'),
+      );
+      expect(progress.first.receivedBytes, 0);
+      expect(progress.last.receivedBytes, tinyBytes.length);
+      expect(progress.last.totalBytes, tinyBytes.length);
+      expect(progress.last.fraction, 1);
+      expect(await manager.isInstalled(tiny), isTrue);
+      expect(await manager.installed(), [installed]);
+      expect(installed.toString(), 'InstalledWhisperModel(tiny)');
+      expect(part(tiny).existsSync(), isFalse);
+      expect(
+        Directory(p.join(root.path, 'models', '.staging')).listSync().isEmpty,
+        isTrue,
+      );
+      final manifest = jsonDecode(
+        File(p.join(root.path, 'models', 'tiny', 'manifest.json'))
+            .readAsStringSync(),
+      ) as Map<String, Object?>;
+      expect(manifest['sha1'], tiny.sha1);
+      expect(server.requests.single.headers, isNot(contains('Range')));
+    });
+
+    test('returns at once when the model is installed', () async {
+      await manager.install(tiny);
+      await manager.install(tiny);
+      expect(server.requests, hasLength(1));
+    });
+
+    test('shares one download between concurrent calls', () async {
+      server.gate = Completer();
+      final first = manager.install(tiny);
+      final second = manager.install(tiny);
+      server.gate!.complete();
+      expect(await first, await second);
+      expect(server.requests, hasLength(1));
+    });
+
+    test('keeps an interrupted download and resumes it with Range', () async {
+      server.failAfter = 1200;
+      await expectLater(
+        manager.install(tiny),
+        throwsA(isA<WhisperDownloadException>()),
+      );
+      expect(part(tiny).lengthSync(), 1200);
+      expect(await manager.partialBytes(tiny), 1200);
+      expect(await manager.isInstalled(tiny), isFalse);
+
+      server.failAfter = null;
+      final progress = <int>[];
+      final installed = await manager.install(
+        tiny,
+        onProgress: (event) => progress.add(event.receivedBytes),
+      );
+      expect(server.requests.last.headers['Range'], 'bytes=1200-');
+      expect(progress.first, 1200);
+      expect(File(installed.path).readAsBytesSync(), tinyBytes);
+      expect(await manager.partialBytes(tiny), 0);
+    });
+
+    test('starts over when the server ignores Range', () async {
+      part(tiny)
+        ..parent.createSync(recursive: true)
+        ..writeAsBytesSync(tinyBytes.sublist(0, 100));
+      server.ignoreRange = true;
+      final installed = await manager.install(tiny);
+      expect(File(installed.path).readAsBytesSync(), tinyBytes);
+    });
+
+    test('installs a complete partial download without a request', () async {
+      part(tiny)
+        ..parent.createSync(recursive: true)
+        ..writeAsBytesSync(tinyBytes);
+      await manager.install(tiny);
+      expect(server.requests, isEmpty);
+      expect(await manager.isInstalled(tiny), isTrue);
+    });
+
+    test('discards a partial download longer than the model', () async {
+      part(tiny)
+        ..parent.createSync(recursive: true)
+        ..writeAsBytesSync(Uint8List(tinyBytes.length + 1));
+      await manager.install(tiny);
+      expect(server.requests.single.headers, isNot(contains('Range')));
+    });
+
+    test('rejects and discards a corrupt download', () async {
+      server.corrupt = true;
+      await expectLater(
+        manager.install(tiny),
+        throwsA(
+          isA<WhisperChecksumException>().having(
+            (error) => error.toString(),
+            'toString',
+            startsWith('WhisperChecksumException(tiny: '),
+          ),
+        ),
+      );
+      expect(part(tiny).existsSync(), isFalse);
+      expect(await manager.installed(), isEmpty);
+    });
+
+    test('rejects a download with too many bytes', () async {
+      server.extra = [1, 2, 3];
+      await expectLater(
+        manager.install(tiny),
+        throwsA(isA<WhisperChecksumException>()),
+      );
+      expect(part(tiny).existsSync(), isFalse);
+    });
+
+    test('reports HTTP errors with their status', () async {
+      server.status = 503;
+      await expectLater(
+        manager.install(tiny),
+        throwsA(
+          isA<WhisperDownloadException>()
+              .having((error) => error.statusCode, 'statusCode', 503)
+              .having(
+                (error) => error.toString(),
+                'toString',
+                contains('WhisperDownloadException(tiny: HTTP 503'),
+              ),
+        ),
+      );
+    });
+
+    test('reports connection failures', () async {
+      final failing = WhisperModelManager(
+        root: root,
+        httpClient: MockClient((_) async => throw const SocketException('x')),
+      );
+      await expectLater(
+        failing.install(tiny),
+        throwsA(isA<WhisperDownloadException>()),
+      );
+    });
+
+    test('times out a stalled server', () async {
+      final stalled = WhisperModelManager(
+        root: root,
+        httpClient: MockClient.streaming(
+          (_, _) => Completer<http.StreamedResponse>().future,
+        ),
+        requestTimeout: const Duration(milliseconds: 10),
+      );
+      await expectLater(
+        stalled.install(tiny),
+        throwsA(isA<WhisperDownloadException>()),
+      );
+    });
+
+    test('replaces another file installed under the same id', () async {
+      await manager.install(tiny);
+      final newer = fakeModel('tiny', baseBytes);
+      server.files['/ggml-tiny.bin'] = baseBytes;
+      final installed = await manager.install(newer);
+      expect(installed.matches(newer), isTrue);
+      expect(await manager.isInstalled(tiny), isFalse);
+      expect(File(installed.path).readAsBytesSync(), baseBytes);
+      expect(
+        Directory(p.join(root.path, 'models', '.trash')).listSync(),
+        isEmpty,
+      );
+    });
+
+    test('rejects unsafe ids', () async {
+      final unsafe = WhisperCatalogModel(
+        id: '..',
+        name: 'x.bin',
+        url: Uri.parse('https://models.example/x.bin'),
+        size: 1,
+        sha1: 'a' * 40,
+      );
+      await expectLater(manager.install(unsafe), throwsArgumentError);
+      expect(() => manager.delete('../x'), throwsArgumentError);
+      expect(() => manager.partialBytes(unsafe), throwsArgumentError);
+    });
+  });
+
+  group('installed', () {
+    test('is empty without a models directory', () async {
+      expect(await manager.installed(), isEmpty);
+      expect(await manager.installedModel('tiny'), isNull);
+      expect(await manager.isInstalled(tiny), isFalse);
+    });
+
+    test('ignores incomplete or foreign installs', () async {
+      await manager.install(tiny);
+      await manager.install(base);
+      final models = Directory(p.join(root.path, 'models'));
+      // A truncated file.
+      File(p.join(models.path, 'base', 'ggml-base.bin'))
+          .writeAsBytesSync([1, 2, 3]);
+      // A folder without a manifest, one with a bad manifest and one whose
+      // manifest names another id.
+      Directory(p.join(models.path, 'small')).createSync();
+      Directory(p.join(models.path, 'bad')).createSync();
+      File(p.join(models.path, 'bad', 'manifest.json')).writeAsStringSync('[');
+      Directory(p.join(models.path, 'other')).createSync();
+      File(p.join(models.path, 'other', 'manifest.json')).writeAsStringSync(
+        jsonEncode({
+          'schemaVersion': 1,
+          'id': 'tiny',
+          'name': 'ggml-tiny.bin',
+          'size': 1,
+          'sha1': 'a' * 40,
+        }),
+      );
+      File(p.join(models.path, 'stray.txt')).writeAsStringSync('x');
+
+      final fresh = WhisperModelManager(root: root, httpClient: server.client);
+      expect((await fresh.installed()).map((m) => m.id), ['tiny']);
+    });
+  });
+
+  group('delete and cleanUp', () {
+    test('delete removes the model and its partial download', () async {
+      await manager.install(tiny);
+      server.failAfter = 10;
+      await expectLater(manager.install(base), throwsA(anything));
+      expect(part(base).existsSync(), isTrue);
+
+      await manager.delete('tiny');
+      await manager.delete('base');
+      expect(await manager.installed(), isEmpty);
+      expect(part(base).existsSync(), isFalse);
+      // Deleting what is not there is fine.
+      await manager.delete('tiny');
+    });
+
+    test('cleanUp removes staging and trash but keeps downloads', () async {
+      final models = p.join(root.path, 'models');
+      Directory(p.join(models, '.staging', 'tiny-1'))
+          .createSync(recursive: true);
+      Directory(p.join(models, '.trash', '1')).createSync(recursive: true);
+      part(tiny)
+        ..parent.createSync(recursive: true)
+        ..writeAsBytesSync([1]);
+      await manager.cleanUp();
+      expect(Directory(p.join(models, '.staging')).existsSync(), isFalse);
+      expect(Directory(p.join(models, '.trash')).existsSync(), isFalse);
+      expect(part(tiny).existsSync(), isTrue);
+    });
+
+    test('close leaves an injected client open', () async {
+      manager.close();
+      expect(await manager.install(tiny), isNotNull);
+      WhisperModelManager(root: root).close();
+    });
+  });
+
+  group('importFiles', () {
+    late Directory picked;
+
+    setUp(() {
+      picked = Directory(p.join(root.path, 'picked'))..createSync();
+    });
+
+    File write(String name, List<int> bytes) =>
+        File(p.join(picked.path, name))..writeAsBytesSync(bytes);
+
+    test('installs files named like the catalog, ignoring case', () async {
+      final file = write('GGML-Tiny.BIN', tinyBytes);
+      final result = await manager.importFiles([file], catalog: catalog);
+
+      expect(result.models.single.status, WhisperImportStatus.installed);
+      expect(result.installed, [tiny]);
+      expect(result.unmatched, isEmpty);
+      expect(await manager.isInstalled(tiny), isTrue);
+      expect(file.existsSync(), isTrue, reason: 'imported files are kept');
+      expect(server.requests, isEmpty);
+      expect(
+        result.models.single.toString(),
+        'WhisperImportOutcome(tiny, installed)',
+      );
+    });
+
+    test('recognises a renamed copy by size and SHA-1', () async {
+      final result = await manager.importFiles([
+        write('ggml-base (1).bin', baseBytes),
+      ], catalog: catalog);
+      expect(result.installed, [base]);
+    });
+
+    test('reports a damaged file named like a model', () async {
+      final damaged = Uint8List.fromList(tinyBytes)..[0] ^= 1;
+      final file = write('ggml-tiny.bin', damaged);
+      final short = write('ggml-tiny.bin.bak', [1, 2]);
+      final result = await manager.importFiles([file, short], catalog: catalog);
+      final outcome = result.models.single;
+      expect(outcome.status, WhisperImportStatus.checksumMismatch);
+      expect(outcome.damaged, [file]);
+      expect(result.unmatched, [short]);
+      expect(await manager.installed(), isEmpty);
+    });
+
+    test('reports a named file of the wrong size as damaged', () async {
+      final file = write('ggml-tiny.bin', [1, 2, 3]);
+      final result = await manager.importFiles([file], catalog: catalog);
+      expect(result.models.single.status, WhisperImportStatus.checksumMismatch);
+      expect(result.models.single.damaged, [file]);
+    });
+
+    test('a same-size file that is something else is unmatched', () async {
+      final other = Uint8List.fromList(tinyBytes)..[10] ^= 1;
+      final file = write('recording.bin', other);
+      final result = await manager.importFiles([file], catalog: catalog);
+      expect(result.unmatched, [file]);
+      expect(result.models, isEmpty);
+    });
+
+    test('uses the first verified candidate', () async {
+      final damaged = Uint8List.fromList(tinyBytes)..[0] ^= 1;
+      final result = await manager.importFiles([
+        write('ggml-tiny.bin', damaged),
+        write('copy.bin', tinyBytes),
+      ], catalog: catalog);
+      expect(result.models.single.status, WhisperImportStatus.installed);
+    });
+
+    test('skips models that are installed already', () async {
+      await manager.install(tiny);
+      final result = await manager.importFiles([
+        write('ggml-tiny.bin', tinyBytes),
+      ], catalog: catalog);
+      expect(result.models.single.status, WhisperImportStatus.alreadyInstalled);
+      expect(result.installed, isEmpty);
+    });
+
+    test('lists unreadable and unknown files as unmatched', () async {
+      final missing = File(p.join(picked.path, 'gone.bin'));
+      final unknown = write('notes.txt', [1, 2, 3]);
+      final result = await manager.importFiles([
+        missing,
+        unknown,
+      ], catalog: catalog);
+      expect(result.models, isEmpty);
+      expect(result.unmatched, [missing, unknown]);
+    });
+
+    test('waits for a running download of the same model', () async {
+      server.gate = Completer();
+      final download = manager.install(tiny);
+      final import = manager.importFiles([
+        write('ggml-tiny.bin', tinyBytes),
+      ], catalog: catalog);
+      server.gate!.complete();
+      await download;
+      final result = await import;
+      expect(result.models.single.status, WhisperImportStatus.alreadyInstalled);
+    });
+
+    test('installs the file when a running download fails', () async {
+      server
+        ..gate = Completer()
+        ..status = 500;
+      final download = manager.install(tiny);
+      final import = manager.importFiles([
+        write('ggml-tiny.bin', tinyBytes),
+      ], catalog: catalog);
+      server.gate!.complete();
+      await expectLater(download, throwsA(isA<WhisperDownloadException>()));
+      expect((await import).installed, [tiny]);
+    });
+
+    test('reports a failed install', () async {
+      // A file where the models directory should be: staging fails.
+      File(p.join(root.path, 'models')).writeAsStringSync('x');
+      final result = await manager.importFiles([
+        write('ggml-tiny.bin', tinyBytes),
+      ], catalog: catalog);
+      final outcome = result.models.single;
+      expect(outcome.status, WhisperImportStatus.failed);
+      expect(outcome.error, isA<FileSystemException>());
+    });
+  });
+}

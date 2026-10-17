@@ -13,6 +13,12 @@ enum SpeechRecognizerStatus {
 
   /// All results of the session have been delivered.
   done,
+
+  /// The microphone closed and the recording is being transcribed: a final
+  /// result (or an error) follows. Reported by engines that recognise
+  /// after recording ([OfflineSpeechRecognizerAdapter]), also when they
+  /// stop on their own (at their maximum length or after a pause).
+  transcribing,
 }
 
 /// An error reported by the platform recognizer.
@@ -126,6 +132,28 @@ abstract interface class SpeechRecognizerAdapter {
 
   /// Stops listening and discards the session's results.
   Future<void> cancel();
+}
+
+/// A recogniser that runs entirely on this device (no audio ever leaves
+/// it), with a model that must be downloaded or imported first, e.g.
+/// Whisper (`WhisperSpeechRecognizerAdapter`).
+///
+/// Such engines usually transcribe after recording: after [stop] (or when
+/// they stop on their own) they report
+/// [SpeechRecognizerStatus.transcribing], then one final result.
+/// [initialize] reports the error code [modelMissingCode] when no model is
+/// installed.
+abstract interface class OfflineSpeechRecognizerAdapter
+    implements SpeechRecognizerAdapter {
+  /// Error code of an [initialize] without an installed model.
+  static const modelMissingCode = 'error_offline_model_missing';
+
+  /// Error code of a transcription the engine failed.
+  static const engineErrorCode = 'error_offline_engine';
+
+  /// Whether a model is installed and the engine runs on this device,
+  /// without prompting for anything.
+  Future<bool> isReady();
 }
 
 /// [SpeechRecognizerAdapter] backed by `speech_to_text`.

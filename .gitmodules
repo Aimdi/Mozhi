@@ -11,3 +11,15 @@
 	path = packages/bergamot_translator/native/third_party/cld2
 	url = https://github.com/CLD2Owners/cld2
 	shallow = true
+[submodule "packages/tesseract_ocr/native/third_party/tesseract"]
+	path = packages/tesseract_ocr/native/third_party/tesseract
+	url = https://github.com/tesseract-ocr/tesseract
+	shallow = true
+[submodule "packages/tesseract_ocr/native/third_party/leptonica"]
+	path = packages/tesseract_ocr/native/third_party/leptonica
+	url = https://github.com/DanBloomberg/leptonica
+	shallow = true
+[submodule "packages/whisper_speech/native/third_party/whisper.cpp"]
+	path = packages/whisper_speech/native/third_party/whisper.cpp
+	url = https://github.com/ggml-org/whisper.cpp
+	shallow = true

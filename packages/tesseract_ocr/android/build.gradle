@@ -1,0 +1,80 @@
+// Builds libmozhi_tesseract.so (../native/CMakeLists.txt: the Tesseract OCR
+// engine with Leptonica + the C API the Dart code calls through dart:ffi)
+// with the NDK, once per ABI. Flutter packs it into the APK under lib/<abi>/.
+//
+// Needs the native sources first: ../tool/fetch_native_deps.sh (initialises
+// the pinned submodules; nothing is downloaded during the build).
+
+group = "io.github.aimdi.mozhi.tesseract_ocr"
+version = "1.0"
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        // Same Android Gradle Plugin as the app (android/settings.gradle.kts).
+        classpath("com.android.tools.build:gradle:8.12.0")
+    }
+}
+
+rootProject.allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+apply plugin: "com.android.library"
+
+android {
+    namespace = "io.github.aimdi.mozhi.tesseract_ocr"
+
+    compileSdk = 36
+
+    // Pinned for reproducible builds (F-Droid). It is Flutter 3.47's default
+    // (flutter.ndkVersion) and the offline translation engine's, so the app
+    // needs no second NDK. Bump together with packages/bergamot_translator.
+    ndkVersion = "28.2.13676358"
+
+    defaultConfig {
+        minSdk = 24
+
+        ndk {
+            // 32-bit x86 is not built (no Flutter release ABI). armeabi-v7a
+            // needs NEON; Dart checks the CPU before loading.
+            abiFilters "arm64-v8a", "armeabi-v7a", "x86_64"
+        }
+
+        externalNativeBuild {
+            cmake {
+                targets "mozhi_tesseract"
+                arguments(
+                    // Always optimised: a Debug (-O0) engine is unusably
+                    // slow, also in debug builds of the app.
+                    "-DCMAKE_BUILD_TYPE=Release",
+                    // The C API is the only interface, so libc++ is linked
+                    // statically and hidden by the version script.
+                    "-DANDROID_STL=c++_static",
+                    // 16 KB page sizes (Android 15+).
+                    "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
+                )
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = "../native/CMakeLists.txt"
+            // The Android SDK's CMake; ../native needs >= 3.22.
+            version = "3.22.1"
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+}

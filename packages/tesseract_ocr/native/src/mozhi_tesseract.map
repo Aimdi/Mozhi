@@ -1,0 +1,9 @@
+/* Export only the C API; everything else (Tesseract, Leptonica, libc++
+ * when linked statically) stays local so the linker can drop unused code
+ * and nothing clashes with other native libraries. */
+{
+  global:
+    mozhi_tesseract_*;
+  local:
+    *;
+};

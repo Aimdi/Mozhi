@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "_provenance": [
+    "OpenAI Whisper models converted to whisper.cpp's ggml format by the whisper.cpp project, published at https://huggingface.co/ggerganov/whisper.cpp (downloaded from there at run time, never bundled).",
+    "sha1: the SHA-1 published in whisper.cpp v1.9.5's models/README.md (native/third_party/whisper.cpp/models/README.md, 'Available models'): tiny bd577a113a864445d4c299885e0cb97d4ba92b5f, base 465707469ff3a37a2b9b8d8f89f2f99de7299dac.",
+    "size: exact bytes of the published files (75 MiB / 141 MiB). Hugging Face could not be reached when this file was written; the sizes were checked against the files' layout: the tensors convert-pt-to-ggml.py writes for tiny and base (whisper.cpp v1.9.5) differ by exactly 70259752 bytes, as these sizes do.",
+    "Weights: MIT License, Copyright (c) 2022 OpenAI (https://github.com/openai/whisper/blob/main/LICENSE). The files are F16 and multilingual (99 languages)."
+  ],
+  "source": "https://huggingface.co/ggerganov/whisper.cpp",
+  "license": "OpenAI Whisper model weights: MIT License (Copyright (c) 2022 OpenAI)",
+  "models": [
+    {
+      "id": "tiny",
+      "name": "ggml-tiny.bin",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin",
+      "size": 77691713,
+      "sha1": "bd577a113a864445d4c299885e0cb97d4ba92b5f",
+      "multilingual": true,
+      "parameters": 39000000
+    },
+    {
+      "id": "base",
+      "name": "ggml-base.bin",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin",
+      "size": 147951465,
+      "sha1": "465707469ff3a37a2b9b8d8f89f2f99de7299dac",
+      "multilingual": true,
+      "parameters": 74000000
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Builds libmozhi_whisper.so for the host (Linux) so the Dart tests can load
+# the real engine.
+#
+# Usage: packages/whisper_speech/tool/build_native_linux.sh [build-dir]
+#
+# Output: <build-dir>/libmozhi_whisper.so, by default
+#   packages/whisper_speech/build/native/linux/libmozhi_whisper.so
+# which is where the tests look unless WHISPER_LIBRARY_PATH is set. The
+# host build uses the same portable CPU baseline as Android (x86-64 with
+# SSE4.2, or ARMv8.0-A), so it is slower than a -march=native build.
+#
+# Needs cmake (>= 3.22), a C++17 compiler (gcc >= 9 or clang >= 10) and,
+# optionally, ninja. Environment:
+#   WHISPER_JOBS  parallel jobs (default: all cores)
+#   CMAKE_ARGS    extra cmake arguments (e.g. -DCMAKE_CXX_COMPILER=clang++)
+set -euo pipefail
+
+package_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+build_dir="${1:-${package_dir}/build/native/linux}"
+jobs="${WHISPER_JOBS:-$(nproc 2>/dev/null || echo 4)}"
+
+"${package_dir}/tool/fetch_native_deps.sh" >/dev/null
+
+generator=()
+if command -v ninja >/dev/null 2>&1; then
+  generator=(-G Ninja)
+fi
+
+# shellcheck disable=SC2206 # CMAKE_ARGS is split on purpose.
+extra=(${CMAKE_ARGS:-})
+
+cmake -S "${package_dir}/native" -B "$build_dir" "${generator[@]}" \
+  -DCMAKE_BUILD_TYPE=Release "${extra[@]}"
+cmake --build "$build_dir" --target mozhi_whisper mozhi_whisper_cli \
+  --parallel "$jobs"
+
+library="${build_dir}/libmozhi_whisper.so"
+if [ ! -f "$library" ]; then
+  echo "error: ${library} was not produced" >&2
+  exit 1
+fi
+echo "Built ${library} ($(du -h "$library" | cut -f1))"

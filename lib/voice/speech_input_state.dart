@@ -24,6 +24,14 @@ enum SpeechInputFailure {
   /// The recogniser is busy with another request.
   busy,
 
+  /// The offline speech model (Whisper) is needed but not installed: it
+  /// was chosen in the settings, or the privacy mode is Offline only.
+  offlineModelMissing,
+
+  /// The privacy mode is Offline only and no recogniser that is certain to
+  /// stay on this device can run here (the browser, an unsupported CPU).
+  offlineUnavailable,
+
   /// Anything else.
   unknown;
 
@@ -31,7 +39,7 @@ enum SpeechInputFailure {
   /// something (permissions, language, device settings).
   bool get isPermanent => switch (this) {
     permissionDenied || languageUnavailable || recognizerUnavailable => true,
-    audio => true,
+    audio || offlineModelMissing || offlineUnavailable => true,
     noMatch || network || busy || unknown => false,
   };
 }
@@ -99,6 +107,21 @@ final class SpeechInputListening extends SpeechInputState {
 
   @override
   List<Object?> get props => [level, partialText, owner];
+}
+
+/// The microphone closed and the recording is being transcribed (offline
+/// engines recognise after recording); the final result follows on
+/// `SpeechInputService.results`.
+final class SpeechInputTranscribing extends SpeechInputState {
+  const new({this.owner});
+
+  final Object? owner;
+
+  @override
+  bool isOwnedBy(Object? candidate) => identical(owner, candidate);
+
+  @override
+  List<Object?> get props => [owner];
 }
 
 /// The last session failed. Voice input can be retried (unless the state
