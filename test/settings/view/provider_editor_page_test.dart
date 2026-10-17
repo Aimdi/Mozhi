@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/core/key_value_store.dart';
+import 'package:mozhi/core/network/network_policy.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/provider_editor_page.dart';
 import 'package:mozhi/settings/view/widgets/link_launcher.dart';
@@ -353,10 +354,11 @@ void main() {
 
       testWidgets('warns about plain http to remote hosts', (tester) async {
         await pump(tester, presetId: 'custom');
-        expect(find.textContaining('Not encrypted'), findsNothing);
+        const refused = 'Use https for public servers';
+        expect(find.textContaining(refused), findsNothing);
         await tester.enterText(field('Base URL'), 'http://llm.example.com/v1');
         await tester.pump();
-        expect(find.textContaining('Not encrypted'), findsOneWidget);
+        expect(find.textContaining(refused), findsOneWidget);
         // Prominent: an error-container banner with a title.
         final banner = find.byKey(const Key('provider_insecure_warning'));
         expect(banner, findsOneWidget);
@@ -372,83 +374,59 @@ void main() {
         expect(tester.widget<Card>(card).color, colors.errorContainer);
         await tester.enterText(field('Base URL'), 'http://192.168.1.5:8080/v1');
         await tester.pump();
-        expect(find.textContaining('Not encrypted'), findsNothing);
+        expect(find.textContaining(refused), findsNothing);
       });
 
       group('plain http to a remote host', () {
-        Future<void> fill(WidgetTester tester, {String key = ''}) async {
+        Future<void> fill(WidgetTester tester) async {
           await pump(tester, presetId: 'custom');
           await tester.enterText(
             field('Base URL'),
             'http://llm.example.com/v1',
           );
           await tester.enterText(field('Model'), 'm');
-          await tester.enterText(field('API key (optional)'), key);
           await tester.pump();
         }
 
-        testWidgets('needs confirmation before saving', (tester) async {
+        testWidgets('is refused when saving', (tester) async {
           await fill(tester);
           await tester.tap(find.text('Save'));
           await tester.pumpAndSettle();
-          expect(find.text('Send without encryption?'), findsOneWidget);
-          expect(
-            find.text(
-              'llm.example.com uses plain HTTP. Anyone on the network '
-              'between you and this server can read your text.',
-            ),
-            findsOneWidget,
-          );
-          await tester.tap(find.text('Cancel'));
-          await tester.pumpAndSettle();
+
+          expect(find.text('Use https:// for public servers.'), findsOne);
           verifyNever(() => settings.saveProvider(any()));
-
-          await tester.tap(find.text('Save'));
-          await tester.pumpAndSettle();
-          await tester.tap(find.text('Send without encryption'));
-          await tester.pumpAndSettle();
-          expect(savedConfig().baseUrl, 'http://llm.example.com/v1');
         });
 
-        testWidgets('mentions the API key when one is set', (tester) async {
-          await fill(tester, key: 'sk-1');
-          await tester.tap(find.text('Save'));
-          await tester.pumpAndSettle();
-          expect(find.textContaining('your text and your API key'), findsOne);
-        });
-
-        testWidgets('asks once per URL, also before testing', (tester) async {
-          when(() => repository.testProvider(any()))
-              .thenAnswer((_) async => 'Bonjour');
-          await fill(tester, key: 'sk-1');
+        testWidgets('is refused before testing', (tester) async {
+          await fill(tester);
           await tester.tap(find.text('Test connection'));
           await tester.pumpAndSettle();
-          expect(find.text('Send without encryption?'), findsOneWidget);
-          await tester.tap(find.text('Cancel'));
-          await tester.pumpAndSettle();
+
           verifyNever(() => repository.testProvider(any()));
-
-          await tester.tap(find.text('Test connection'));
-          await tester.pumpAndSettle();
-          await tester.tap(find.text('Send without encryption'));
-          await tester.pumpAndSettle();
-          verify(() => repository.testProvider(any())).called(1);
-
-          // Already confirmed for this URL: saving does not ask again.
-          await tester.tap(find.text('Save'));
-          await tester.pumpAndSettle();
-          expect(find.text('Send without encryption?'), findsNothing);
-          verify(() => settings.saveProvider(any())).called(1);
         });
 
-        testWidgets('local hosts and https need no confirmation', (
-          tester,
-        ) async {
+        testWidgets('local hosts and https are accepted', (tester) async {
           await pump(tester, presetId: 'ollama');
           await tester.tap(find.text('Save'));
           await tester.pumpAndSettle();
-          expect(find.text('Send without encryption?'), findsNothing);
           verify(() => settings.saveProvider(any())).called(1);
+        });
+
+        testWidgets('a refused request is explained', (tester) async {
+          when(() => repository.testProvider(any())).thenThrow(
+            const LlmApiException(
+              'Could not reach llm.example.com: '
+              '${CleartextRefusedException.defaultMessage}',
+            ),
+          );
+          await pump(tester, presetId: 'ollama');
+          await tester.tap(find.text('Test connection'));
+          await tester.pumpAndSettle();
+
+          expect(
+            find.textContaining('Use https for public servers. Plain http'),
+            findsOneWidget,
+          );
         });
       });
 
@@ -885,7 +863,7 @@ void main() {
           expect(config.baseUrl, '');
         });
 
-        testWidgets('asks before using a plain http proxy', (tester) async {
+        testWidgets('refuses a plain http proxy', (tester) async {
           await pump(tester, providerId: 'mt1');
           await tester.enterText(
             field('Server URL (optional)'),
@@ -898,10 +876,8 @@ void main() {
           );
           await tester.tap(find.text('Save'));
           await tester.pumpAndSettle();
-          expect(find.textContaining('your text and your API key'), findsOne);
-          await tester.tap(find.text('Send without encryption'));
-          await tester.pumpAndSettle();
-          expect(savedConfig().service, MtService.deepl);
+          expect(find.text('Use https:// for public servers.'), findsOne);
+          verifyNever(() => settings.saveProvider(any()));
         });
       });
 

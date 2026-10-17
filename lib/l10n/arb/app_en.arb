@@ -6788,5 +6788,45 @@
   "settingsInstanceNeedsProxyNote": "Tor and I2P addresses only work through a proxy. Set one in the privacy settings, then restart the app.",
   "@settingsInstanceNeedsProxyNote": {
     "description": "Note in the add instance dialog for a .onion or .i2p address without an active proxy."
+  },
+  "onboardingPrivacyTitle": "How private should translations be?",
+  "@onboardingPrivacyTitle": {
+    "description": "onboardingPrivacyTitle"
+  },
+  "onboardingPrivacySubtitle": "Choose where your text may go. You can change this any time in Settings.",
+  "@onboardingPrivacySubtitle": {
+    "description": "onboardingPrivacySubtitle"
+  },
+  "onboardingPrivacyOfflineOnly": "Offline only",
+  "@onboardingPrivacyOfflineOnly": {
+    "description": "onboardingPrivacyOfflineOnly"
+  },
+  "onboardingPrivacyOfflineOnlyBody": "Everything is translated on this device. Nothing you type is sent anywhere, and the app doesn’t connect to any server. Download the languages you need first.",
+  "@onboardingPrivacyOfflineOnlyBody": {
+    "description": "onboardingPrivacyOfflineOnlyBody"
+  },
+  "onboardingPrivacyOfflineFirst": "Offline first (recommended)",
+  "@onboardingPrivacyOfflineFirst": {
+    "description": "onboardingPrivacyOfflineFirst"
+  },
+  "onboardingPrivacyOfflineFirstBody": "Translates on this device when it can. Before your text goes to a server, even your own, Mozhi asks you, once for each language pair.",
+  "@onboardingPrivacyOfflineFirstBody": {
+    "description": "onboardingPrivacyOfflineFirstBody"
+  },
+  "onboardingPrivacyOnline": "Online",
+  "@onboardingPrivacyOnline": {
+    "description": "onboardingPrivacyOnline"
+  },
+  "onboardingPrivacyOnlineBody": "Uses the servers and AI providers you set up without asking each time. Each cloud AI provider still asks once before its first use.",
+  "@onboardingPrivacyOnlineBody": {
+    "description": "onboardingPrivacyOnlineBody"
+  },
+  "onboardingPrivacyNoOfflineEngine": "This device can’t translate on its own, so with Offline only there would be no engine to translate with.",
+  "@onboardingPrivacyNoOfflineEngine": {
+    "description": "onboardingPrivacyNoOfflineEngine"
+  },
+  "onboardingPrivacyGroup": "Privacy mode",
+  "@onboardingPrivacyGroup": {
+    "description": "onboardingPrivacyGroup"
   }
 }

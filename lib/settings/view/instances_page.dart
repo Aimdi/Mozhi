@@ -918,7 +918,7 @@ class InstanceTestDialog extends StatefulWidget {
 
 class _InstanceTestDialogState extends State<InstanceTestDialog> {
   InstanceTestResult? _result;
-  String? _error;
+  Object? _error;
 
   @override
   void initState() {
@@ -927,17 +927,11 @@ class _InstanceTestDialogState extends State<InstanceTestDialog> {
   }
 
   Future<void> _run() async {
-    final l10n = context.l10n;
     try {
       final result = await widget.checker.test(widget.instance.url);
       if (mounted) setState(() => _result = result);
-    } on InstanceHasNoEnginesException {
-      if (mounted) setState(() => _error = l10n.settingsInstancesNoEngines);
     } on Object catch (error) {
-      final message = l10n.settingsInstanceTestFailed(
-        describeErrorLocalized(l10n, error),
-      );
-      if (mounted) setState(() => _error = message);
+      if (mounted) setState(() => _error = error);
     }
   }
 
@@ -957,7 +951,16 @@ class _InstanceTestDialogState extends State<InstanceTestDialog> {
           result.latency.inMilliseconds,
         ),
       ),
-      (_, final error?) => (Icons.error_outline, colors.error, error),
+      (_, InstanceHasNoEnginesException()) => (
+        Icons.error_outline,
+        colors.error,
+        l10n.settingsInstancesNoEngines,
+      ),
+      (_, final error?) => (
+        Icons.error_outline,
+        colors.error,
+        l10n.settingsInstanceTestFailed(describeErrorLocalized(l10n, error)),
+      ),
       _ => (null, null, null),
     };
     return AlertDialog(

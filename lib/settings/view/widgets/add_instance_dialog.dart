@@ -177,7 +177,9 @@ class _AddInstanceDialogState extends State<AddInstanceDialog> {
     } on InstanceHasNoEnginesException {
       result = _TestFailed(l10n.settingsInstancesNoEngines);
     } on Object catch (error) {
-      result = _TestFailed(describeErrorLocalized(l10n, error));
+      result = _TestFailed(
+        l10n.settingsInstanceTestFailed(describeErrorLocalized(l10n, error)),
+      );
     }
     if (mounted) setState(() => _test = result);
   }
@@ -279,7 +281,7 @@ class _AddInstanceDialogState extends State<AddInstanceDialog> {
                 _TestFailed(:final message) => _TestMessage(
                   icon: Icons.error_outline,
                   color: colors.error,
-                  text: l10n.settingsInstanceTestFailed(message),
+                  text: message,
                 ),
               },
             ],

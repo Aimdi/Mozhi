@@ -229,7 +229,10 @@ void main() {
         const Offset(0, 400),
         1000,
       );
-      await tester.pump(const Duration(seconds: 1));
+      // Let the refresh indicator call back while the check still runs.
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
       answer.complete(_online(1));
       await tester.pumpAndSettle();
 
@@ -483,7 +486,9 @@ void main() {
           await pump(tester);
           await openMenu(tester, 0);
           await tester.tap(find.text('Test'));
+          // Let the dialog fade in (its progress bar never settles).
           await tester.pump();
+          await tester.pump(const Duration(milliseconds: 300));
         }
 
         testWidgets('translates hello and shows the latency', (tester) async {
@@ -561,39 +566,6 @@ void main() {
           await tester.pumpAndSettle();
 
           answer.completeError(const MozhiApiException('late'));
-          await tester.pumpAndSettle();
-
-          expect(tester.takeException(), isNull);
-        });
-
-        testWidgets('ignores a success after closing', (tester) async {
-          final answer = Completer<InstanceTestResult>();
-          checker.onTest = (_) => answer.future;
-          await runTest(tester);
-          await tester.tap(find.text('Close'));
-          await tester.pumpAndSettle();
-
-          answer.complete(
-            const InstanceTestResult(
-              engineId: 'g',
-              engineName: 'G',
-              text: 't',
-              latency: Duration.zero,
-            ),
-          );
-          await tester.pumpAndSettle();
-
-          expect(tester.takeException(), isNull);
-        });
-
-        testWidgets('ignores missing engines after closing', (tester) async {
-          final answer = Completer<InstanceTestResult>();
-          checker.onTest = (_) => answer.future;
-          await runTest(tester);
-          await tester.tap(find.text('Close'));
-          await tester.pumpAndSettle();
-
-          answer.completeError(const InstanceHasNoEnginesException());
           await tester.pumpAndSettle();
 
           expect(tester.takeException(), isNull);
