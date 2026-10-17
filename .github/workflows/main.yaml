@@ -85,11 +85,13 @@ jobs:
         run: bash .github/scripts/packages.sh test
 
       # tool/play_prepare.sh and tool/fdroid_prepare.sh on scratch copies
-      # (idempotent, fail loudly), and the APK checker on synthetic APKs.
+      # (idempotent, fail loudly), and the APK checkers (Google code,
+      # trackers) on synthetic APKs.
       - name: Test build scripts
         run: |
           sh tool/variant_prepare_test.sh
           sh tool/check_no_google_test.sh
+          python3 tool/check_trackers_test.py
 
       - name: Test app
         run: flutter test --coverage
@@ -255,6 +257,12 @@ jobs:
           for apk in dist/*.apk; do
             sh tool/check_no_google.sh "$apk"
           done
+
+      # The εxodus scan: every class against the code signatures of the
+      # trackers εxodus knows (its public list; a warning when it can't be
+      # fetched, the Google check above is the hard one).
+      - name: Scan the APKs for trackers (εxodus signatures)
+        run: python3 tool/check_trackers.py dist/*.apk
 
       # The engine as shipped (stripped by Gradle): every ABI is in the
       # universal APK and libc++ is linked statically (no libc++_shared.so).

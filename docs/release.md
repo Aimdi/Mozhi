@@ -190,7 +190,13 @@ the same value in lowercase hex without colons.
 [εxodus Privacy](https://reports.exodus-privacy.eu.org) looks for known
 tracker signatures in an APK. The default build must show **0 trackers**.
 
-Before publishing, scan the APK locally with
+CI does this on every build: `tool/check_trackers.py` matches every class
+of each default APK against the code signatures in εxodus' public tracker
+list (the release workflow too, and the step fails when one matches). It
+only warns when the list can't be fetched; `tool/check_no_google.sh` is
+the hard check for Google code.
+
+For the official report, scan the APK locally with
 [exodus-standalone](https://github.com/Exodus-Privacy/exodus-standalone)
 (Docker):
 

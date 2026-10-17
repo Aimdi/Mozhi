@@ -164,6 +164,10 @@ jobs:
             sh tool/check_no_google.sh "$file"
           done
 
+      # The εxodus scan of the APKs (see the CI workflow).
+      - name: Scan the APKs for trackers (εxodus signatures)
+        run: python3 tool/check_trackers.py dist/*.apk
+
       - name: Check the on-device engines are in the APK
         env:
           TAG: ${{ github.ref_name }}
