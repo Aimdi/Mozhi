@@ -196,7 +196,8 @@ commit.
   dependency and 16 KB alignment checks), and a CI job compares the sizes
   (and the Whisper SHA-256) Hugging Face and GitHub serve with the
   catalogues. **Delete all local data** removes their files.
-- GitHub Actions moved to their Node 24 releases (`e2a438a`).
+- GitHub Actions moved to their Node 24 releases (`e2a438a`), Gradle to
+  9.8.1 and Kotlin to 2.4.21 (`31e441c`).
 
 ## Phase 6: release and build documentation (done, 2026-10-17)
 
@@ -241,6 +242,8 @@ commit.
   Dependabot targets the `claude/*` branch.
 - **Releases**:
   - the signing secrets and the published certificate fingerprint;
-  - a byte-for-byte comparison of two builds;
-  - an εxodus scan of a default APK. CI artifacts couldn't be downloaded
-    from this session, so none of these was run.
+  - a byte-for-byte comparison of two builds (CI artifacts couldn't be
+    downloaded from this session).
+- **Tracker scan**: CI matches every class of each default APK against
+  εxodus' tracker signatures (`tool/check_trackers.py`, `410dc6b`); the
+  official εxodus report needs the published APK.
