@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mozhi/offline/data/offline_model_details.dart';
+import 'package:mozhi/offline/data/offline_model_error.dart';
 import 'package:mozhi/offline/offline.dart';
 
 void main() {
@@ -38,6 +40,35 @@ void main() {
     });
   });
 
+  group('OfflineModelOutcome', () {
+    test('asks for consent only after a metered network', () {
+      const metered = OfflineModelOutcome(
+        language: german,
+        operation: OfflineModelOperation.download,
+        succeeded: false,
+        error: OfflineModelError(OfflineModelErrorKind.metered),
+      );
+      expect(metered.needsMeteredConsent, isTrue);
+      expect(
+        const OfflineModelOutcome(
+          language: german,
+          operation: OfflineModelOperation.download,
+          succeeded: false,
+          error: OfflineModelError(OfflineModelErrorKind.network),
+        ).needsMeteredConsent,
+        isFalse,
+      );
+      expect(
+        const OfflineModelOutcome(
+          language: german,
+          operation: OfflineModelOperation.download,
+          succeeded: true,
+        ).needsMeteredConsent,
+        isFalse,
+      );
+    });
+  });
+
   group('OfflineModelsState', () {
     const state = OfflineModelsState(
       status: OfflineModelsStatus.ready,
@@ -68,6 +99,42 @@ void main() {
       expect(filtered.visible, [french]);
       expect(filtered.visibleDownloaded, isEmpty);
       expect(filtered.visibleAvailable, [french]);
+    });
+
+    test('knows nothing about sizes without details', () {
+      expect(state.hasDetails, isFalse);
+      expect(state.isBuiltIn('de'), isFalse);
+      expect(state.downloadSizeOf('de'), isNull);
+      expect(state.installedSizeOf('de'), isNull);
+      expect(state.isOutdated('de'), isFalse);
+    });
+
+    test('reports sizes, built-in languages and updates with details', () {
+      final detailed = state.copyWith(
+        languages: [french, german, unknown],
+        downloaded: {'de', 'en'},
+        downloadSizes: {'de': 50, 'fr': 40, 'en': 0},
+        storage: () => const OfflineStorage(
+          installedBytes: {'de': 70},
+          totalBytes: 70,
+          outdated: {'de', 'fr'},
+        ),
+        progress: {'fr': 0.5},
+      );
+      expect(detailed.hasDetails, isTrue);
+      expect(detailed.isBuiltIn('en'), isTrue);
+      expect(detailed.isBuiltIn('de'), isFalse);
+      // English needs no download, so it is not counted.
+      expect(detailed.downloadedCount, 1);
+      expect(detailed.downloadSizeOf('fr'), 40);
+      expect(detailed.installedSizeOf('de'), 70);
+      expect(detailed.installedSizeOf('fr'), isNull);
+      expect(detailed.isOutdated('de'), isTrue);
+      // Only downloaded languages can be outdated.
+      expect(detailed.isOutdated('fr'), isFalse);
+      expect(detailed.progress, {'fr': 0.5});
+      expect(detailed.copyWith(storage: () => null).storage, isNull);
+      expect(detailed.copyWith(), detailed);
     });
 
     test('copyWith keeps or replaces values', () {

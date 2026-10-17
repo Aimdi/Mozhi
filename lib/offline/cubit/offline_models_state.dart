@@ -1,9 +1,11 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
+import 'package:mozhi/offline/data/offline_model_details.dart';
+import 'package:mozhi/offline/data/offline_model_error.dart';
 
 enum OfflineModelsStatus { initial, loading, ready, failure }
 
-enum OfflineModelOperation { download, delete }
+enum OfflineModelOperation { download, update, delete }
 
 /// A language the offline engine has a model for.
 @immutable
@@ -27,21 +29,30 @@ class OfflineLanguage extends Equatable {
   List<Object?> get props => [code, name, nativeName];
 }
 
-/// Result of a finished download or deletion, shown once by the view.
+/// Result of a finished download, update or deletion, shown once by the
+/// view.
 @immutable
 class OfflineModelOutcome extends Equatable {
   const new({
     required this.language,
     required this.operation,
     required this.succeeded,
+    this.error,
   });
 
   final OfflineLanguage language;
   final OfflineModelOperation operation;
   final bool succeeded;
 
+  /// Why it failed (null on success).
+  final OfflineModelError? error;
+
+  /// Whether a Wi-Fi-only download stopped because the network is metered
+  /// (the view asks whether to download anyway).
+  bool get needsMeteredConsent => error?.kind == OfflineModelErrorKind.metered;
+
   @override
-  List<Object?> get props => [language, operation, succeeded];
+  List<Object?> get props => [language, operation, succeeded, error];
 }
 
 class OfflineModelsState extends Equatable {
@@ -54,11 +65,15 @@ class OfflineModelsState extends Equatable {
     this.wifiOnly = true,
     this.query = '',
     this.outcome,
+    this.downloadSizes = const {},
+    this.storage,
+    this.progress = const {},
   });
 
   final OfflineModelsStatus status;
 
-  /// False on platforms without an offline engine (web, desktop).
+  /// False where the offline engine cannot run (web, desktop, an
+  /// unsupported CPU).
   final bool isAvailable;
 
   /// Every supported language, sorted by name.
@@ -67,19 +82,48 @@ class OfflineModelsState extends Equatable {
   /// Codes of the languages whose models are on the device.
   final Set<String> downloaded;
 
-  /// Downloads and deletions in progress, by language code.
+  /// Downloads, updates and deletions in progress, by language code.
   final Map<String, OfflineModelOperation> pending;
 
-  /// Downloads wait for Wi-Fi (persisted).
+  /// Downloads on a metered network ask first (persisted).
   final bool wifiOnly;
   final String query;
 
   /// The latest finished operation (null once a new one starts).
   final OfflineModelOutcome? outcome;
 
-  int get downloadedCount => downloaded.length;
+  /// Bytes to download per language (both directions), when the engine
+  /// reports sizes ([hasDetails]); 0 for languages that need no download.
+  final Map<String, int> downloadSizes;
+
+  /// Disk usage and updates of the installed models, when known.
+  final OfflineStorage? storage;
+
+  /// Fraction (0 to 1) of each running download received so far.
+  final Map<String, double> progress;
+
+  /// Whether the engine reports sizes (and with them which languages are
+  /// built in).
+  bool get hasDetails => downloadSizes.isNotEmpty;
+
+  /// Whether [code] works without any download (English with Mozilla's
+  /// models, which all translate to or from English).
+  bool isBuiltIn(String code) => hasDetails && downloadSizes[code] == 0;
+
+  /// Downloaded languages, not counting built-in ones.
+  int get downloadedCount => downloaded.where((c) => !isBuiltIn(c)).length;
 
   bool isDownloaded(String code) => downloaded.contains(code);
+
+  /// Whether a newer model exists for downloaded [code].
+  bool isOutdated(String code) =>
+      isDownloaded(code) && (storage?.outdated.contains(code) ?? false);
+
+  /// Bytes to download for [code], or null when unknown.
+  int? downloadSizeOf(String code) => downloadSizes[code];
+
+  /// Bytes [code]'s models use on this device, or null when unknown.
+  int? installedSizeOf(String code) => storage?.installedBytes[code];
 
   /// [languages] matching [query] (name, native name or exact code).
   List<OfflineLanguage> get visible {
@@ -110,6 +154,9 @@ class OfflineModelsState extends Equatable {
     bool? wifiOnly,
     String? query,
     ValueGetter<OfflineModelOutcome?>? outcome,
+    Map<String, int>? downloadSizes,
+    ValueGetter<OfflineStorage?>? storage,
+    Map<String, double>? progress,
   }) => OfflineModelsState(
     status: status ?? this.status,
     isAvailable: isAvailable ?? this.isAvailable,
@@ -119,6 +166,9 @@ class OfflineModelsState extends Equatable {
     wifiOnly: wifiOnly ?? this.wifiOnly,
     query: query ?? this.query,
     outcome: outcome != null ? outcome() : this.outcome,
+    downloadSizes: downloadSizes ?? this.downloadSizes,
+    storage: storage != null ? storage() : this.storage,
+    progress: progress ?? this.progress,
   );
 
   @override
@@ -131,5 +181,8 @@ class OfflineModelsState extends Equatable {
     wifiOnly,
     query,
     outcome,
+    downloadSizes,
+    storage,
+    progress,
   ];
 }

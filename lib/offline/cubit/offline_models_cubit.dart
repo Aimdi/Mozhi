@@ -1,6 +1,8 @@
 import 'package:bloc/bloc.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/offline/cubit/offline_models_state.dart';
+import 'package:mozhi/offline/data/offline_model_details.dart';
+import 'package:mozhi/offline/data/offline_model_error.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 export 'offline_models_state.dart';
@@ -8,16 +10,26 @@ export 'offline_models_state.dart';
 /// Describes an offline language code for display.
 typedef OfflineLanguageDescriber = OfflineLanguage Function(String code);
 
-/// Lists the offline engine's languages and downloads/deletes their models.
+/// Lists the offline engine's languages and downloads, updates and deletes
+/// their models.
+///
+/// With `details` (Mozilla's Bergamot engine, see `offlineModelDetailsOf`)
+/// it also reports download sizes, disk usage, updates and download
+/// progress, and re-reads the downloaded languages after each operation
+/// (models can be shared between languages).
 ///
 /// The "Wi-Fi only" choice is persisted in `store` under [wifiOnlyKey]
-/// (default on). Failures never throw: [load] switches to
-/// [OfflineModelsStatus.failure], downloads and deletions report an
-/// [OfflineModelOutcome]; all errors also go to `addError`.
+/// (default on): a download on a metered network then fails with
+/// [OfflineModelErrorKind.metered] and [download] with
+/// `overMeteredNetwork` retries it anyway. Failures never throw: [load]
+/// switches to [OfflineModelsStatus.failure], operations report an
+/// [OfflineModelOutcome] with an [OfflineModelError]; errors other than a
+/// metered network also go to `addError`.
 class OfflineModelsCubit extends Cubit<OfflineModelsState> {
   new({
     required this._translator,
     required this._store,
+    this._details,
     this._describe = describeOfflineLanguage,
   }) : super(const OfflineModelsState());
 
@@ -25,6 +37,7 @@ class OfflineModelsCubit extends Cubit<OfflineModelsState> {
 
   final OfflineTranslator _translator;
   final KeyValueStore _store;
+  final OfflineModelDetails? _details;
   final OfflineLanguageDescriber _describe;
 
   Future<void> load() async {
@@ -32,12 +45,17 @@ class OfflineModelsCubit extends Cubit<OfflineModelsState> {
     final wifiOnly = await _readWifiOnly();
     try {
       final available = _translator.isAvailable;
-      final languages = [
-        for (final code in _translator.supportedLanguages) _describe(code),
-      ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      final codes = _translator.supportedLanguages;
+      final languages = [for (final code in codes) _describe(code)]
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      final details = _details;
+      final sizes = details == null
+          ? const <String, int>{}
+          : {for (final code in codes) code: details.downloadSize(code)};
       final downloaded = available
           ? await _translator.downloadedLanguages()
           : const <String>{};
+      final storage = available ? await _readStorage() : null;
       if (isClosed) return;
       emit(
         state.copyWith(
@@ -46,6 +64,8 @@ class OfflineModelsCubit extends Cubit<OfflineModelsState> {
           languages: languages,
           downloaded: downloaded,
           wifiOnly: wifiOnly,
+          downloadSizes: sizes,
+          storage: () => storage,
         ),
       );
     } on Object catch (error, stackTrace) {
@@ -57,13 +77,27 @@ class OfflineModelsCubit extends Cubit<OfflineModelsState> {
     }
   }
 
-  /// Downloads the model for [code], honouring [OfflineModelsState.wifiOnly].
-  Future<void> download(String code) => _run(
-    code,
-    OfflineModelOperation.download,
-    () => _translator.downloadLanguage(code, wifiOnly: state.wifiOnly),
-    (downloaded) => {...downloaded, code},
-  );
+  /// Downloads the models for [code] (or updates them when a newer version
+  /// exists), honouring [OfflineModelsState.wifiOnly] unless
+  /// [overMeteredNetwork] (the user chose "Download anyway").
+  Future<void> download(String code, {bool overMeteredNetwork = false}) {
+    final wifiOnly = state.wifiOnly && !overMeteredNetwork;
+    final details = _details;
+    return _run(
+      code,
+      state.isOutdated(code)
+          ? OfflineModelOperation.update
+          : OfflineModelOperation.download,
+      () => details == null
+          ? _translator.downloadLanguage(code, wifiOnly: wifiOnly)
+          : details.download(
+              code,
+              wifiOnly: wifiOnly,
+              onProgress: (fraction) => _reportProgress(code, fraction),
+            ),
+      (downloaded) => {...downloaded, code},
+    );
+  }
 
   Future<void> delete(String code) => _run(
     code,
@@ -97,25 +131,70 @@ class OfflineModelsCubit extends Cubit<OfflineModelsState> {
         outcome: () => null,
       ),
     );
-    var succeeded = true;
+    OfflineModelError? failure;
     try {
       await action();
     } on Object catch (error, stackTrace) {
-      succeeded = false;
-      addError(error, stackTrace);
+      failure = OfflineModelError.of(error);
+      if (failure.kind != OfflineModelErrorKind.metered) {
+        addError(error, stackTrace);
+      }
     }
+    final succeeded = failure == null;
+    // With details the engine knows best what is downloaded now; reading
+    // the storage again also refreshes sizes and updates after a failure
+    // (e.g. a discarded download).
+    final fallback = succeeded ? update(state.downloaded) : null;
+    final downloaded = _details != null
+        ? await _readDownloaded() ?? fallback
+        : fallback;
+    final storage = _details != null ? await _readStorage() : state.storage;
     if (isClosed) return;
     emit(
       state.copyWith(
-        downloaded: succeeded ? update(state.downloaded) : null,
+        downloaded: downloaded,
+        storage: () => storage,
         pending: {...state.pending}..remove(code),
+        progress: {...state.progress}..remove(code),
         outcome: () => OfflineModelOutcome(
           language: _languageOf(code),
           operation: operation,
           succeeded: succeeded,
+          error: failure,
         ),
       ),
     );
+  }
+
+  /// Emits download progress in whole percent steps only.
+  void _reportProgress(String code, double fraction) {
+    if (isClosed || !state.pending.containsKey(code)) return;
+    final previous = state.progress[code];
+    if (previous != null &&
+        (previous * 100).floor() == (fraction * 100).floor()) {
+      return;
+    }
+    emit(state.copyWith(progress: {...state.progress, code: fraction}));
+  }
+
+  Future<Set<String>?> _readDownloaded() async {
+    try {
+      return await _translator.downloadedLanguages();
+    } on Object catch (error, stackTrace) {
+      addError(error, stackTrace);
+      return null;
+    }
+  }
+
+  Future<OfflineStorage?> _readStorage() async {
+    final details = _details;
+    if (details == null) return null;
+    try {
+      return await details.storage(_translator.supportedLanguages);
+    } on Object catch (error, stackTrace) {
+      addError(error, stackTrace);
+      return null;
+    }
   }
 
   OfflineLanguage _languageOf(String code) {

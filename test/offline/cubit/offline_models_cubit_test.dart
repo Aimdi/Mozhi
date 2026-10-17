@@ -1,9 +1,13 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:bergamot_translator/bergamot_translator.dart';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/core/key_value_store.dart';
+import 'package:mozhi/offline/data/offline_model_details.dart';
+import 'package:mozhi/offline/data/offline_model_error.dart';
 import 'package:mozhi/offline/offline.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -189,6 +193,7 @@ void main() {
               language: french,
               operation: OfflineModelOperation.download,
               succeeded: false,
+              error: const OfflineModelError(OfflineModelErrorKind.unknown),
             ),
           ),
         ],
@@ -296,6 +301,7 @@ void main() {
               language: german,
               operation: OfflineModelOperation.delete,
               succeeded: false,
+              error: const OfflineModelError(OfflineModelErrorKind.unknown),
             ),
           ),
         ],
@@ -335,6 +341,237 @@ void main() {
       act: (cubit) => cubit.search('ger'),
       expect: () => [ready().copyWith(query: 'ger')],
     );
+  });
+
+  group('OfflineModelsCubit with details', () {
+    late FakeOfflineModelDetails details;
+
+    setUp(() => details = FakeOfflineModelDetails());
+
+    OfflineModelsCubit buildWithDetails() => OfflineModelsCubit(
+      translator: translator,
+      store: store,
+      details: details,
+      describe: _describe,
+    );
+
+    OfflineModelsState readyWithDetails({
+      Set<String> downloaded = const {'en', 'de'},
+      OfflineStorage? storage = testStorage,
+    }) => ready(downloaded: downloaded).copyWith(
+      downloadSizes: testDownloadSizes,
+      storage: () => storage,
+    );
+
+    blocTest<OfflineModelsCubit, OfflineModelsState>(
+      'loads download sizes and the storage',
+      build: buildWithDetails,
+      act: (cubit) => cubit.load(),
+      skip: 1,
+      expect: () => [readyWithDetails()],
+      verify: (cubit) {
+        expect(cubit.state.isBuiltIn('en'), isTrue);
+        expect(cubit.state.downloadedCount, 1);
+        expect(cubit.state.installedSizeOf('de'), testStorage.totalBytes);
+      },
+    );
+
+    blocTest<OfflineModelsCubit, OfflineModelsState>(
+      'stays usable when the storage cannot be read',
+      setUp: () => details.storageError = const FileSystemException('denied'),
+      build: buildWithDetails,
+      act: (cubit) => cubit.load(),
+      skip: 1,
+      expect: () => [readyWithDetails(storage: null)],
+      errors: () => [isA<FileSystemException>()],
+    );
+
+    blocTest<OfflineModelsCubit, OfflineModelsState>(
+      'reads no storage where the engine is unavailable',
+      setUp: () => translator = stubOfflineTranslator(available: false),
+      build: buildWithDetails,
+      act: (cubit) => cubit.load(),
+      skip: 1,
+      expect: () => [
+        readyWithDetails(
+          downloaded: const {},
+          storage: null,
+        ).copyWith(isAvailable: false),
+      ],
+      verify: (_) => expect(details.storageCalls, 0),
+    );
+
+    blocTest<OfflineModelsCubit, OfflineModelsState>(
+      'reports progress in whole percents and re-reads the models',
+      setUp: () {
+        details
+          ..progressSteps = [0.001, 0.005, 0.5, 0.504, 1]
+          ..storageAfterDownload = const OfflineStorage(
+            installedBytes: {'de': 70, 'fr': 50},
+            totalBytes: 120,
+          );
+        when(
+          translator.downloadedLanguages,
+        ).thenAnswer((_) async => {'en', 'de', 'fr'});
+      },
+      build: buildWithDetails,
+      seed: readyWithDetails,
+      act: (cubit) => cubit.download('fr'),
+      expect: () {
+        final pending = readyWithDetails().copyWith(
+          pending: {'fr': OfflineModelOperation.download},
+        );
+        return [
+          pending,
+          pending.copyWith(progress: {'fr': 0.001}),
+          pending.copyWith(progress: {'fr': 0.5}),
+          pending.copyWith(progress: {'fr': 1}),
+          readyWithDetails(
+            downloaded: {'en', 'de', 'fr'},
+            storage: const OfflineStorage(
+              installedBytes: {'de': 70, 'fr': 50},
+              totalBytes: 120,
+            ),
+          ).copyWith(
+            outcome: () => OfflineModelOutcome(
+              language: french,
+              operation: OfflineModelOperation.download,
+              succeeded: true,
+            ),
+          ),
+        ];
+      },
+      verify: (_) {
+        expect(details.downloads, [('fr', true)]);
+        verifyNever(
+          () => translator.downloadLanguage(
+            any(),
+            wifiOnly: any(named: 'wifiOnly'),
+          ),
+        );
+      },
+    );
+
+    blocTest<OfflineModelsCubit, OfflineModelsState>(
+      'updates outdated languages',
+      build: buildWithDetails,
+      seed: () => readyWithDetails(
+        storage: const OfflineStorage(
+          installedBytes: {'de': 70},
+          totalBytes: 70,
+          outdated: {'de'},
+        ),
+      ),
+      act: (cubit) => cubit.download('de'),
+      expect: () => [
+        isA<OfflineModelsState>().having(
+          (s) => s.pending,
+          'pending',
+          {'de': OfflineModelOperation.update},
+        ),
+        isA<OfflineModelsState>()
+            .having(
+              (s) => s.outcome?.operation,
+              'operation',
+              OfflineModelOperation.update,
+            )
+            .having((s) => s.isOutdated('de'), 'outdated', isFalse),
+      ],
+    );
+
+    blocTest<OfflineModelsCubit, OfflineModelsState>(
+      'asks before a download over a metered network, then downloads anyway',
+      setUp: () => details.error = const MeteredConnectionException(),
+      build: buildWithDetails,
+      seed: readyWithDetails,
+      act: (cubit) async {
+        await cubit.download('ja');
+        expect(cubit.state.outcome?.needsMeteredConsent, isTrue);
+        details.error = null;
+        await cubit.download('ja', overMeteredNetwork: true);
+      },
+      skip: 1,
+      expect: () => [
+        readyWithDetails().copyWith(
+          outcome: () => OfflineModelOutcome(
+            language: japanese,
+            operation: OfflineModelOperation.download,
+            succeeded: false,
+            error: const OfflineModelError(OfflineModelErrorKind.metered),
+          ),
+        ),
+        readyWithDetails().copyWith(
+          pending: {'ja': OfflineModelOperation.download},
+        ),
+        isA<OfflineModelsState>().having(
+          (s) => s.outcome?.succeeded,
+          'succeeded',
+          isTrue,
+        ),
+      ],
+      // A metered network is not an error.
+      errors: () => <Object>[],
+      verify: (_) => expect(details.downloads, [('ja', true), ('ja', false)]),
+    );
+
+    blocTest<OfflineModelsCubit, OfflineModelsState>(
+      'classifies download failures',
+      setUp: () =>
+          details.error = const ModelChecksumException('en-fr', 'bad hash'),
+      build: buildWithDetails,
+      seed: readyWithDetails,
+      act: (cubit) => cubit.download('fr'),
+      skip: 1,
+      expect: () => [
+        readyWithDetails().copyWith(
+          outcome: () => OfflineModelOutcome(
+            language: french,
+            operation: OfflineModelOperation.download,
+            succeeded: false,
+            error: const OfflineModelError(OfflineModelErrorKind.checksum),
+          ),
+        ),
+      ],
+      errors: () => [isA<ModelChecksumException>()],
+    );
+
+    blocTest<OfflineModelsCubit, OfflineModelsState>(
+      'falls back to its own bookkeeping when the models cannot be re-read',
+      setUp: () => when(
+        translator.downloadedLanguages,
+      ).thenThrow(StateError('gone')),
+      build: buildWithDetails,
+      seed: readyWithDetails,
+      act: (cubit) => cubit.delete('de'),
+      skip: 1,
+      expect: () => [
+        readyWithDetails(downloaded: {'en'}).copyWith(
+          outcome: () => OfflineModelOutcome(
+            language: german,
+            operation: OfflineModelOperation.delete,
+            succeeded: true,
+          ),
+        ),
+      ],
+      errors: () => [isStateError],
+    );
+
+    test('ignores progress after a download or once closed', () async {
+      final cubit = buildWithDetails()..emit(readyWithDetails());
+      await cubit.download('fr');
+      final done = cubit.state;
+      details.lastOnProgress!(0.7);
+      expect(cubit.state, done);
+
+      details.hold = Completer<void>();
+      final download = cubit.download('ja');
+      await pumpEventQueue();
+      await cubit.close();
+      details.lastOnProgress!(0.3);
+      details.hold!.complete();
+      await download;
+      expect(cubit.state.progress, isEmpty);
+    });
   });
 
   group('describeOfflineLanguage', () {

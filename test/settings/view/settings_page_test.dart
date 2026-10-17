@@ -202,7 +202,7 @@ void main() {
         tester,
       ) async {
         debugDefaultTargetPlatformOverride = TargetPlatform.android;
-        debugMlKitIncludedOverride = false;
+        debugOfflineEngineIncludedOverride = false;
         await pump(tester);
         expect(SettingsView.offlineSupported, isFalse);
         final tile = tester.widget<ListTile>(
@@ -220,7 +220,7 @@ void main() {
           ),
           findsOneWidget,
         );
-        debugMlKitIncludedOverride = null;
+        debugOfflineEngineIncludedOverride = null;
         debugDefaultTargetPlatformOverride = null;
       });
 

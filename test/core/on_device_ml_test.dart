@@ -5,23 +5,35 @@ import 'package:mozhi/core/on_device_ml.dart';
 void main() {
   tearDown(() {
     debugMlKitIncludedOverride = null;
+    debugOfflineEngineIncludedOverride = null;
     debugDefaultTargetPlatformOverride = null;
   });
 
   group('on-device ML', () {
     test('follows the bindings unless overridden', () {
-      expect(mlKitIncluded, isTrue);
-      debugMlKitIncludedOverride = false;
+      // The default build has no ML Kit (tool/play_prepare.sh adds it).
       expect(mlKitIncluded, isFalse);
+      debugMlKitIncludedOverride = true;
+      expect(mlKitIncluded, isTrue);
+    });
+
+    test('always includes the offline engine unless overridden', () {
+      expect(offlineEngineIncluded, isTrue);
+      debugOfflineEngineIncludedOverride = false;
+      expect(offlineEngineIncluded, isFalse);
     });
 
     for (final platform in [TargetPlatform.android, TargetPlatform.iOS]) {
-      test('is supported on ${platform.name} when ML Kit is included', () {
+      test('supports offline translation on ${platform.name}', () {
         debugDefaultTargetPlatformOverride = platform;
         expect(onDeviceMlPlatform, isTrue);
         expect(onDeviceMlSupported, isTrue);
 
-        debugMlKitIncludedOverride = false;
+        // Independent of ML Kit (the engine is Mozilla's Bergamot).
+        debugMlKitIncludedOverride = true;
+        expect(onDeviceMlSupported, isTrue);
+
+        debugOfflineEngineIncludedOverride = false;
         expect(onDeviceMlPlatform, isTrue);
         expect(onDeviceMlSupported, isFalse);
       });

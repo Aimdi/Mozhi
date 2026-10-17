@@ -9,10 +9,10 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:mozhi/app/app_dependencies.dart';
 import 'package:mozhi/app/fallback_key_value_store.dart';
+import 'package:mozhi/app/third_party_licenses.dart';
 import 'package:mozhi/bootstrap.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/network/network_session.dart';
-import 'package:mozhi/app/third_party_licenses.dart';
 import 'package:mozhi/offline/data/unavailable_offline_translator.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
@@ -260,9 +260,12 @@ void main() {
         PlatformDispatcher.instance.onError = platformOnError;
         Bloc.observer = observer;
       });
+      // The real engine loads its catalog with compute(), which never
+      // completes under testWidgets' fake async.
       final dependencies = await createDependencies(
         prefs: MemoryStore(),
         secrets: MemoryStore(),
+        offlineTranslator: FakeOfflineTranslator(),
       );
       AppDependencies? received;
 
