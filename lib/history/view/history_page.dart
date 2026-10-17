@@ -544,6 +544,7 @@ class _HistoryFilterBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final colors = Theme.of(context).colorScheme;
     final cubit = context.read<HistoryCubit>();
     final pair = state.pair;
     final destination = state.destination;
@@ -565,13 +566,31 @@ class _HistoryFilterBar extends StatelessWidget {
           spacing: 8,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
+            // A plain button styled like the chips (it opens the list of
+            // pairs, it is not a toggle), tinted while a pair is set; the
+            // label names the pair.
             if (showPairs)
-              FilterChip(
+              OutlinedButton.icon(
                 key: HistoryView.pairFilterKey,
-                materialTapTargetSize: MaterialTapTargetSize.padded,
-                selected: pair != null,
-                showCheckmark: false,
-                avatar: const Icon(Icons.translate, size: 18),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(0, 32),
+                  tapTargetSize: MaterialTapTargetSize.padded,
+                  padding: const EdgeInsetsDirectional.only(start: 8, end: 4),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  backgroundColor: pair == null
+                      ? null
+                      : colors.secondaryContainer,
+                  foregroundColor: pair == null
+                      ? colors.onSurfaceVariant
+                      : colors.onSecondaryContainer,
+                  side: pair == null
+                      ? BorderSide(color: colors.outlineVariant)
+                      : BorderSide.none,
+                ),
+                onPressed: onPickPair,
+                icon: const Icon(Icons.translate, size: 18),
                 label: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -588,7 +607,6 @@ class _HistoryFilterBar extends StatelessWidget {
                     ),
                   ],
                 ),
-                onSelected: (_) => onPickPair(),
               ),
             if (showDestinations)
               for (final value in shown)

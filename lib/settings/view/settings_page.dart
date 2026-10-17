@@ -303,9 +303,7 @@ class _AssistEngineTile extends StatelessWidget {
     final cubit = context.read<SettingsCubit>();
     final current = settings.assistEngineId ?? _automatic;
     final providers = settings.providers
-        .where(
-          (p) => !p.isMtService && (p.enabled || 'ai:${p.id}' == current),
-        )
+        .where((p) => !p.isMtService && (p.enabled || 'ai:${p.id}' == current))
         .toList();
     final choice = await showDialog<String>(
       context: context,

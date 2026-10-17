@@ -1,5 +1,5 @@
 // History: translations are saved on the device and can be starred,
-// searched and deleted (with Undo).
+// searched, filtered by language pair and deleted (with Undo).
 const { expect } = require('@playwright/test');
 const {
   collectPageErrors,
@@ -131,4 +131,38 @@ test('a deleted entry comes back with Undo', async ({ page }) => {
   await page.reload();
   await openApp(page, '/history');
   await expect(entry(page, FIRST)).toBeVisible();
+});
+
+test('the language pair filter narrows the history', async ({ page }) => {
+  await translate(page, FIRST);
+  // Swapping moves the finished translation into the input and translates
+  // it back: a second, French → English entry.
+  await page.getByRole('button', { name: 'Swap languages' }).click();
+  await expect(
+    page.getByRole('button', { name: 'Target language: English' }),
+  ).toBeVisible();
+  await expect.poll(() => copiedTranslation(page)).toMatch(/^\[AI→English/);
+  await page.getByRole('tab', { name: 'History' }).click();
+
+  const english = page.getByRole('group', {
+    name: /English \(detected\).*→.*French/,
+  });
+  const french = page.getByRole('group', { name: /French.*→.*English/ });
+  await expect(english).toBeVisible();
+  await expect(french).toBeVisible();
+
+  const pairs = page.getByRole('button', { name: /All language pairs/ });
+  await pairs.click();
+  const sheet = page.getByRole('group').filter({
+    has: page.getByRole('heading', { name: 'Language pair' }),
+  });
+  await expect(sheet).toBeVisible();
+  await sheet.getByRole('button', { name: /French.*→.*English/ }).click();
+  await expect(sheet).toBeHidden();
+  await expect(english).toBeHidden();
+  await expect(french).toBeVisible();
+
+  await page.getByRole('button', { name: 'Clear filters' }).click();
+  await expect(english).toBeVisible();
+  await expect(pairs).toBeVisible();
 });

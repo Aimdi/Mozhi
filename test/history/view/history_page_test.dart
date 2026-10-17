@@ -943,13 +943,25 @@ void main() {
           'history', (tester) async {
         final handle = tester.ensureSemantics();
         await pump(tester);
-        expect(chip('All language pairs'), findsOneWidget);
+        expect(
+          find.widgetWithText(OutlinedButton, 'All language pairs'),
+          findsOneWidget,
+        );
         expect(chip('Public server'), findsOneWidget);
         expect(chip('Cloud'), findsOneWidget);
         expect(chip('On device'), findsNothing);
         expect(chip('Self-hosted'), findsNothing);
         expect(find.text('Clear filters'), findsNothing);
         expect(find.bySemanticsLabel('Filters'), findsOneWidget);
+        // The pair chip opens a list: a button, not a toggle.
+        expect(
+          tester.getSemantics(find.byKey(HistoryView.pairFilterKey)),
+          isSemantics(
+            isButton: true,
+            hasCheckedState: false,
+            hasSelectedState: false,
+          ),
+        );
         handle.dispose();
       });
 
@@ -1099,6 +1111,7 @@ void main() {
           ),
         );
         expect(find.byType(FilterChip), findsNothing);
+        expect(find.byKey(HistoryView.pairFilterKey), findsNothing);
         await pump(
           tester,
           state: const HistoryState(status: HistoryStatus.ready),

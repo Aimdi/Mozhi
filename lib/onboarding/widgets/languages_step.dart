@@ -246,6 +246,9 @@ class _OfflineDownloads extends StatelessWidget {
       }
     }
     final cubit = context.read<OfflineModelsCubit>();
+    final byCode = {
+      for (final language in state.languages) language.code: language,
+    };
     return OnboardingSection(
       title: l10n.onboardingLanguagesOfflineTitle,
       child: Column(
@@ -261,7 +264,7 @@ class _OfflineDownloads extends StatelessWidget {
           for (final code in codes)
             OnboardingOfflineLanguageRow(
               key: ValueKey('onboarding_offline_$code'),
-              language: _languageOf(state, code),
+              language: byCode[code]!,
               downloaded: state.isDownloaded(code),
               pending: state.pending[code],
               progress: state.progress[code],
@@ -298,13 +301,6 @@ class _OfflineDownloads extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  static OfflineLanguage _languageOf(OfflineModelsState state, String code) {
-    for (final language in state.languages) {
-      if (language.code == code) return language;
-    }
-    return describeOfflineLanguage(code); // coverage:ignore-line
   }
 }
 
