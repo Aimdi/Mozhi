@@ -275,7 +275,9 @@ class BergamotModelManager {
       final files = <ModelFileKind, File>{};
       for (final file in model.files.values) {
         final gz = await _download(model, file, downloads, report);
+        print('gunzip ${file.name}');
         files[file.kind] = await _gunzip(model, file, gz, staging);
+        print('gunzipped ${file.name}');
       }
       await File(p.join(staging.path, manifestName))
           .writeAsString(jsonEncode(_manifest(model)), flush: true);
@@ -283,14 +285,18 @@ class BergamotModelManager {
       final destination = Directory(
         p.join(modelsDirectory.path, model.pair, model.version),
       );
+      print('replace');
       await _replaceAtomically(staging, destination);
+      print('replaced');
       // Other versions of the pair are obsolete now.
       await for (final entry in destination.parent.list()) {
         if (entry is Directory && p.basename(entry.path) != model.version) {
           await _deleteQuietly(entry);
         }
       }
+      print('del downloads');
       await _deleteQuietly(downloads);
+      print('deleted');
       _installedCache = null;
       return (await installedModel(model.source, model.target))!;
     } finally {
@@ -470,13 +476,17 @@ class BergamotModelManager {
     final directory = modelsDirectory;
     if (!directory.existsSync()) return const [];
     final models = <InstalledModel>[];
+    print('scan');
     await for (final pairDir in directory.list()) {
+      print('entry $pairDir');
       if (pairDir is! Directory || p.basename(pairDir.path).startsWith('.')) {
         continue;
       }
       await for (final versionDir in pairDir.list()) {
         if (versionDir is! Directory) continue;
+        print('read $versionDir');
         final model = await _readInstalled(versionDir);
+        print('read done $model');
         if (model != null) models.add(model);
       }
     }

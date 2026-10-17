@@ -7,6 +7,7 @@ import 'package:mozhi/onboarding/onboarding_redirect.dart';
 import 'package:mozhi/onboarding/widgets/ai_step.dart';
 import 'package:mozhi/onboarding/widgets/done_step.dart';
 import 'package:mozhi/onboarding/widgets/onboarding_nav_bar.dart';
+import 'package:mozhi/onboarding/widgets/privacy_step.dart';
 import 'package:mozhi/onboarding/widgets/service_step.dart';
 import 'package:mozhi/onboarding/widgets/step_layout.dart';
 import 'package:mozhi/onboarding/widgets/welcome_step.dart';
@@ -116,6 +117,7 @@ class _OnboardingViewState extends State<OnboardingView> {
               physics: const NeverScrollableScrollPhysics(),
               children: const [
                 WelcomeStep(),
+                PrivacyStep(),
                 OnboardingKeepAlive(child: ServiceStep()),
                 OnboardingKeepAlive(child: AiStep()),
                 DoneStep(),

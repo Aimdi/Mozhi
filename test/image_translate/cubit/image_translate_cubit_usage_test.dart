@@ -71,7 +71,28 @@ void main() {
       usageTracker: withTracker ? usageTracker ?? tracker : null,
     );
     addTearDown(cubit.close);
+    // These tests are about the uploading methods: the translator's AI
+    // vision method, else Mozhi (on-device recognition comes first).
+    final methods = cubit.state.methods;
+    final upload =
+        methods
+            .where(
+              (m) =>
+                  m.kind == ImageTranslateMethodKind.aiVision &&
+                  m.engine?.id == translateEngine?.id,
+            )
+            .firstOrNull ??
+        methods
+            .where((m) => m.kind == ImageTranslateMethodKind.mozhiLens)
+            .firstOrNull;
+    if (upload != null) unawaited(cubit.selectMethod(upload));
     return cubit;
+  }
+
+  /// Shows [image] and asks for the translation (the user's Translate).
+  Future<void> load(ImageTranslateCubit cubit, PickedImage image) {
+    unawaited(cubit.setImage(image));
+    return cubit.translate();
   }
 
   void stubImage(Future<ImageTranslationResult> Function() answer) => when(
@@ -185,7 +206,7 @@ void main() {
       final cubit = build(options: options);
       expect(cubit.state.method, claudeMethod);
 
-      await cubit.setImage(jpegImage);
+      await load(cubit, jpegImage);
       await pumpEventQueue();
 
       expect(cubit.state.status, ImageTranslateStatus.success);
@@ -201,7 +222,7 @@ void main() {
           translatedText: 'Bonjour',
         ),
       );
-      await build().setImage(jpegImage);
+      await load(build(), jpegImage);
       await pumpEventQueue();
 
       expect(recorded(), [('claude', 'Hola', 'Bonjour')]);
@@ -211,7 +232,7 @@ void main() {
       stubImage(() async => const ImageTranslationResult());
       final cubit = build();
 
-      await cubit.setImage(jpegImage);
+      await load(cubit, jpegImage);
       await pumpEventQueue();
 
       expect(cubit.state.status, ImageTranslateStatus.failure);
@@ -222,7 +243,7 @@ void main() {
       stubImage(() async => throw const LlmApiException('Overloaded'));
       final cubit = build();
 
-      await cubit.setImage(jpegImage);
+      await load(cubit, jpegImage);
       await pumpEventQueue();
 
       expect(cubit.state.status, ImageTranslateStatus.failure);
@@ -235,7 +256,7 @@ void main() {
       stubImage(() => answer.future);
       final cubit = build();
 
-      final running = cubit.setImage(jpegImage);
+      final running = load(cubit, jpegImage);
       await pumpEventQueue();
       cubit.cancel();
       answer.complete(const ImageTranslationResult(translatedText: 'Bonjour'));
@@ -254,9 +275,10 @@ void main() {
       stubImage(() => answers.removeAt(0).future);
       final cubit = build();
 
-      final running = cubit.setImage(jpegImage);
+      final running = load(cubit, jpegImage);
       await pumpEventQueue();
-      final replacing = cubit.setTarget(german);
+      await cubit.setTarget(german);
+      final replacing = cubit.translate();
       await pumpEventQueue();
       first.complete(const ImageTranslationResult(translatedText: 'Bonjour'));
       second.complete(const ImageTranslationResult(translatedText: 'Hallo'));
@@ -273,7 +295,7 @@ void main() {
       stubImage(() => answer.future);
       final cubit = build();
 
-      final running = cubit.setImage(jpegImage);
+      final running = load(cubit, jpegImage);
       await pumpEventQueue();
       await cubit.close();
       answer.complete(const ImageTranslationResult(translatedText: 'Bonjour'));
@@ -288,7 +310,7 @@ void main() {
       stubImage(() => answer.future);
       final cubit = build();
 
-      final running = cubit.setImage(jpegImage);
+      final running = load(cubit, jpegImage);
       await pumpEventQueue();
       cubit.cancel();
       answer.completeError(const LlmApiException('Overloaded'));
@@ -306,7 +328,7 @@ void main() {
       final cubit = build(translateEngine: _keyless);
       expect(cubit.state.method, const ImageTranslateMethod.aiVision(_keyless));
 
-      await cubit.setImage(jpegImage);
+      await load(cubit, jpegImage);
       await pumpEventQueue();
 
       expect(cubit.state.status, ImageTranslateStatus.success);
@@ -325,7 +347,7 @@ void main() {
       final cubit = build(translateEngine: deepl);
       expect(cubit.state.method, mozhiMethod);
 
-      await cubit.setImage(pngImage);
+      await load(cubit, pngImage);
       await pumpEventQueue();
 
       expect(cubit.state.status, ImageTranslateStatus.success);
@@ -470,7 +492,7 @@ void main() {
       );
       final cubit = build(withTracker: false);
 
-      await cubit.setImage(jpegImage);
+      await load(cubit, jpegImage);
 
       expect(cubit.state.status, ImageTranslateStatus.success);
       verifyNothingRecorded();
@@ -489,7 +511,7 @@ void main() {
         ),
       ).thenThrow(StateError('broken'));
       final cubit = build(usageTracker: throwing);
-      await cubit.setImage(jpegImage);
+      await load(cubit, jpegImage);
       expect(cubit.state.status, ImageTranslateStatus.success);
 
       final failing = _MockUsageTracker();
@@ -501,7 +523,7 @@ void main() {
         ),
       ).thenAnswer((_) async => throw StateError('disk full'));
       final other = build(usageTracker: failing);
-      await other.setImage(jpegImage);
+      await load(other, jpegImage);
       await pumpEventQueue();
       expect(other.state.status, ImageTranslateStatus.success);
     });

@@ -27,9 +27,10 @@ Uri? normalizeOwnInstanceUrl(String input) {
   }
 }
 
-/// Drives the first-run flow: step navigation, finding the fastest Mozhi
-/// instance, adding the user's own instance and setting up an optional AI
-/// provider. Every choice is applied to [SettingsCubit] right away.
+/// Drives the first-run flow: step navigation, the privacy mode, finding
+/// the fastest Mozhi instance, adding the user's own instance and setting
+/// up an optional AI provider. Every choice is applied to [SettingsCubit]
+/// right away.
 class OnboardingCubit extends Cubit<OnboardingState> {
   /// `pingTimeout` bounds each instance ping, `testTimeout` the provider
   /// test and the model list. `clock` stamps new provider ids (tests).
@@ -78,6 +79,13 @@ class OnboardingCubit extends Cubit<OnboardingState> {
 
   /// Marks onboarding as complete in the settings.
   void finish() => _settings.completeOnboarding();
+
+  // Privacy
+
+  /// How willing the app is to send text over the network (saved at once).
+  void setPrivacyMode(PrivacyMode mode) {
+    if (_settings.state.privacyMode != mode) _settings.setPrivacyMode(mode);
+  }
 
   // Translation service
 

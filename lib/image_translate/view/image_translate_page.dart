@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/image_translate/cubit/image_translate_cubit.dart';
 import 'package:mozhi/image_translate/data/data.dart';
@@ -239,7 +240,7 @@ class _Status extends StatelessWidget {
     final l10n = context.l10n;
     final state = context.watch<ImageTranslateCubit>().state;
     final cubit = context.read<ImageTranslateCubit>();
-    return Column(
+    final column = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -276,6 +277,19 @@ class _Status extends StatelessWidget {
         ],
         const ImageTranslateResultSection(),
       ],
+    );
+    // Translating is the user's own action here: when the privacy settings
+    // stop it, ask right away, and translate once allowed.
+    return ConsentDialogListener<ImageTranslateCubit, ImageTranslateState>(
+      consentOf: (state) => state.status == ImageTranslateStatus.failure
+          ? switch (state.error) {
+              final ConsentRequiredException consent => consent,
+              _ => null,
+            }
+          : null,
+      onGranted: (context) =>
+          unawaited(context.read<ImageTranslateCubit>().translate()),
+      child: column,
     );
   }
 }

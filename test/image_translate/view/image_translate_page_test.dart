@@ -17,6 +17,15 @@ import 'package:translation_repository/translation_repository.dart';
 
 import '../helpers/helpers.dart';
 
+/// Taps Translate: methods that upload the image wait for it.
+Future<void> translateNow(WidgetTester tester) async {
+  final button = find.byKey(const Key('image_translate_translate_button'));
+  await tester.ensureVisible(button);
+  await tester.pumpAndSettle();
+  await tester.tap(button);
+  await tester.pumpAndSettle();
+}
+
 void main() {
   setUpAll(registerImageTranslateFallbacks);
 
@@ -106,6 +115,7 @@ void main() {
 
       await tester.tap(find.byKey(const Key('image_translate_gallery_button')));
       await tester.pumpAndSettle();
+      await translateNow(tester);
 
       expect(harness.picker.picks, [ImagePickSource.gallery]);
       expect(find.byKey(const Key('image_translate_toggle')), findsOneWidget);
@@ -117,6 +127,8 @@ void main() {
       expect(find.byKey(const Key('image_translate_share_button')), findsOne);
       expect(find.byKey(const Key('image_translate_open_button')), findsOne);
 
+      await tester.ensureVisible(find.text('Original'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Original'));
       await tester.pump();
       expect(find.bySemanticsLabel('Selected image'), findsOneWidget);
@@ -149,6 +161,7 @@ void main() {
 
       await tester.tap(find.byKey(const Key('image_translate_gallery_button')));
       await tester.pumpAndSettle();
+      await translateNow(tester);
 
       expect(find.text('Salut'), findsOneWidget);
       verify(() => tracker.recordText('claude', input: 'Hola', output: 'Salut'))
@@ -160,6 +173,7 @@ void main() {
       stubImage(() async => lensResult());
       await harness.pumpPage(tester, initialSource: ImagePickSource.camera);
       await tester.pumpAndSettle();
+      await translateNow(tester);
       expect(harness.picker.picks, [ImagePickSource.camera]);
       expect(find.text('Bonjour le monde'), findsOneWidget);
     });
@@ -181,6 +195,10 @@ void main() {
       await harness.pumpPage(tester);
 
       await tester.tap(find.byKey(const Key('image_translate_gallery_button')));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const Key('image_translate_translate_button')),
+      );
       await tester.pump();
       await tester.pump();
       expect(find.byKey(const Key('image_translate_progress')), findsOne);
@@ -210,6 +228,7 @@ void main() {
       await harness.pumpPage(tester);
       await tester.tap(find.byKey(const Key('image_translate_gallery_button')));
       await tester.pumpAndSettle();
+      await translateNow(tester);
       expect(find.textContaining('too large'), findsOneWidget);
 
       stubImage(() async => lensResult());
@@ -243,12 +262,13 @@ void main() {
   });
 
   group('options', () {
-    testWidgets('changing the target re-translates', (tester) async {
+    testWidgets('changing the target waits for Translate', (tester) async {
       harness.picker.image = jpegImage;
       stubImage(() async => lensResult());
       await harness.pumpPage(tester);
       await tester.tap(find.byKey(const Key('image_translate_gallery_button')));
       await tester.pumpAndSettle();
+      await translateNow(tester);
 
       await tester.tap(find.byKey(const Key('image_translate_target_button')));
       await tester.pumpAndSettle();
@@ -262,6 +282,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('German'), findsOneWidget);
+      await translateNow(tester);
       verify(
         () => harness.repository.translateImage(
           google,
@@ -304,6 +325,7 @@ void main() {
 
       await tester.tap(find.byKey(const Key('image_translate_gallery_button')));
       await tester.pumpAndSettle();
+      await translateNow(tester);
       expect(find.text('Salut'), findsOneWidget);
       expect(find.byKey(const Key('image_translate_toggle')), findsNothing);
       verify(
@@ -403,6 +425,7 @@ void main() {
       expect(find.byKey(const Key('image_translate_wide')), findsOneWidget);
       await tester.tap(find.byKey(const Key('image_translate_gallery_button')));
       await tester.pumpAndSettle();
+      await translateNow(tester);
       expect(find.text('Bonjour le monde'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
@@ -421,6 +444,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(gallery);
       await tester.pumpAndSettle();
+      await translateNow(tester);
       expect(harness.picker.picks, [ImagePickSource.gallery]);
       expect(find.byKey(const Key('image_translate_toggle')), findsOneWidget);
       expect(tester.takeException(), isNull);

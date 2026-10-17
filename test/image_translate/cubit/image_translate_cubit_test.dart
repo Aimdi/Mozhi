@@ -42,19 +42,47 @@ void main() {
     Language target = french,
     TranslationOptions options = const TranslationOptions(),
     Duration slowThreshold = const Duration(minutes: 1),
-  }) => ImageTranslateCubit(
-    repository: repository,
-    picker: picker,
-    encoder: encoder,
-    recognizer: recognizer,
-    engines: engines,
-    providers: providers,
-    translateEngine: translateEngine,
-    source: source,
-    target: target,
-    options: options,
-    slowThreshold: slowThreshold,
-  );
+    bool uploadMethod = true,
+  }) {
+    final cubit = ImageTranslateCubit(
+      repository: repository,
+      picker: picker,
+      encoder: encoder,
+      recognizer: recognizer,
+      engines: engines,
+      providers: providers,
+      translateEngine: translateEngine,
+      source: source,
+      target: target,
+      options: options,
+      slowThreshold: slowThreshold,
+    );
+    if (uploadMethod) {
+      // Most tests are about the uploading methods: the translator's AI
+      // vision method, else Mozhi (on-device recognition comes first).
+      final methods = cubit.state.methods;
+      final upload =
+          methods
+              .where(
+                (m) =>
+                    m.kind == ImageTranslateMethodKind.aiVision &&
+                    m.engine?.id == translateEngine?.id,
+              )
+              .firstOrNull ??
+          methods
+              .where((m) => m.kind == ImageTranslateMethodKind.mozhiLens)
+              .firstOrNull;
+      if (upload != null) unawaited(cubit.selectMethod(upload));
+    }
+    return cubit;
+  }
+
+  /// Shows [image] and asks for the translation, as the user's Translate
+  /// does with a method that uploads the image.
+  Future<void> load(ImageTranslateCubit cubit, PickedImage image) {
+    unawaited(cubit.setImage(image));
+    return cubit.translate();
+  }
 
   void stubImage(Future<ImageTranslationResult> Function() answer) => when(
     () => repository.translateImage(
@@ -90,14 +118,23 @@ void main() {
   );
 
   group('initial state', () {
-    test('lists methods and prefers Mozhi', () {
-      expect(build().state, base);
+    test('lists methods and prefers on-device recognition', () {
+      expect(
+        build(uploadMethod: false).state,
+        base.copyWith(method: () => onDeviceMethod),
+      );
     });
 
-    test("prefers the translator's vision engine", () {
-      final state = build(translateEngine: claude).state;
+    test("then prefers the translator's vision engine", () {
+      recognizer.isSupported = false;
+      final state = build(translateEngine: claude, uploadMethod: false).state;
       expect(state.method, claudeMethod);
       expect(state.translateEngine, claude);
+    });
+
+    test('then Mozhi', () {
+      recognizer.isSupported = false;
+      expect(build(uploadMethod: false).state.method, mozhiMethod);
     });
 
     test('never starts from a custom source', () {
@@ -171,13 +208,46 @@ void main() {
 
   group('pickImage', () {
     blocTest<ImageTranslateCubit, ImageTranslateState>(
-      'translates the picked image with Mozhi (Google Lens)',
+      'shows the picked image; Mozhi (Google Lens) waits for Translate',
       setUp: () {
         picker.image = jpegImage;
         stubImage(() async => lensResult());
       },
       build: build,
       act: (cubit) => cubit.pickImage(ImagePickSource.gallery),
+      expect: () => [
+        base.copyWith(
+          status: ImageTranslateStatus.ready,
+          image: () => jpegImage,
+        ),
+      ],
+      verify: (_) {
+        expect(picker.picks, [ImagePickSource.gallery]);
+        expect(encoder.inputs, isEmpty);
+        verifyNever(
+          () => repository.translateImage(
+            any(),
+            any(),
+            mimeType: any(named: 'mimeType'),
+            source: any(named: 'source'),
+            target: any(named: 'target'),
+            options: any(named: 'options'),
+          ),
+        );
+      },
+    );
+
+    blocTest<ImageTranslateCubit, ImageTranslateState>(
+      'translates the image with Mozhi (Google Lens) on Translate',
+      setUp: () {
+        picker.image = jpegImage;
+        stubImage(() async => lensResult());
+      },
+      build: build,
+      act: (cubit) async {
+        await cubit.pickImage(ImagePickSource.gallery);
+        await cubit.translate();
+      },
       expect: () {
         final ready = base.copyWith(
           status: ImageTranslateStatus.ready,
@@ -202,7 +272,6 @@ void main() {
         ];
       },
       verify: (_) {
-        expect(picker.picks, [ImagePickSource.gallery]);
         expect(encoder.inputs, [jpegBytes]);
         verify(
           () => repository.translateImage(
@@ -213,6 +282,20 @@ void main() {
             target: french,
           ),
         ).called(1);
+      },
+    );
+
+    blocTest<ImageTranslateCubit, ImageTranslateState>(
+      'translates a picked image right away with on-device recognition',
+      setUp: () {
+        picker.image = pngImage;
+        stubText(() => Stream.value(text('Hello')));
+      },
+      build: () => build(uploadMethod: false),
+      act: (cubit) => cubit.pickImage(ImagePickSource.gallery),
+      verify: (cubit) {
+        expect(cubit.state.status, ImageTranslateStatus.success);
+        expect(cubit.state.result?.translatedText, 'Hello');
       },
     );
 
@@ -264,7 +347,7 @@ void main() {
         ),
       ),
       build: build,
-      act: (cubit) => cubit.setImage(jpegImage),
+      act: (cubit) => load(cubit, jpegImage),
       verify: (cubit) {
         final result = cubit.state.result!;
         expect(cubit.state.status, ImageTranslateStatus.success);
@@ -282,7 +365,7 @@ void main() {
         ),
       ),
       build: build,
-      act: (cubit) => cubit.setImage(jpegImage),
+      act: (cubit) => load(cubit, jpegImage),
       verify: (cubit) {
         expect(cubit.state.status, ImageTranslateStatus.success);
         expect(cubit.state.result!.hasImage, isFalse);
@@ -294,7 +377,7 @@ void main() {
       'fails when nothing was translated',
       setUp: () => stubImage(() async => const ImageTranslationResult()),
       build: build,
-      act: (cubit) => cubit.setImage(jpegImage),
+      act: (cubit) => load(cubit, jpegImage),
       verify: (cubit) {
         expect(cubit.state.status, ImageTranslateStatus.failure);
         expect(
@@ -311,7 +394,7 @@ void main() {
         () async => throw const MozhiApiException('big', statusCode: 413),
       ),
       build: build,
-      act: (cubit) => cubit.setImage(jpegImage),
+      act: (cubit) => load(cubit, jpegImage),
       verify: (cubit) => expect(
         cubit.state.error,
         const ImageTranslateException(ImageTranslateErrorKind.tooLarge),
@@ -324,7 +407,7 @@ void main() {
         ImageTranslateErrorKind.invalidImage,
       ),
       build: build,
-      act: (cubit) => cubit.setImage(jpegImage),
+      act: (cubit) => load(cubit, jpegImage),
       expect: () {
         final ready = base.copyWith(
           status: ImageTranslateStatus.ready,
@@ -360,7 +443,7 @@ void main() {
         stubImage(() => pending.future);
       },
       build: () => build(slowThreshold: const Duration(milliseconds: 10)),
-      act: (cubit) => unawaited(cubit.setImage(jpegImage)),
+      act: (cubit) => unawaited(load(cubit, jpegImage)),
       wait: const Duration(milliseconds: 60),
       verify: (cubit) {
         expect(cubit.state.isWorking, isTrue);
@@ -382,7 +465,7 @@ void main() {
         translateEngine: claude,
         options: const TranslationOptions(context: 'Menu'),
       ),
-      act: (cubit) => cubit.setImage(jpegImage),
+      act: (cubit) => load(cubit, jpegImage),
       expect: () {
         final ready = base.copyWith(
           status: ImageTranslateStatus.ready,
@@ -429,7 +512,7 @@ void main() {
         () async => const ImageTranslationResult(translatedText: 'Hello'),
       ),
       build: () => build(translateEngine: claude),
-      act: (cubit) => cubit.setImage(heicImage),
+      act: (cubit) => load(cubit, heicImage),
       verify: (cubit) {
         expect(cubit.state.status, ImageTranslateStatus.success);
         expect(encoder.inputs, [heicBytes]);
@@ -452,7 +535,7 @@ void main() {
         () async => const ImageTranslationResult(translatedText: '  '),
       ),
       build: () => build(translateEngine: claude),
-      act: (cubit) => cubit.setImage(pngImage),
+      act: (cubit) => load(cubit, pngImage),
       verify: (cubit) => expect(
         cubit.state.error,
         const ImageTranslateException(ImageTranslateErrorKind.noText),
@@ -465,7 +548,7 @@ void main() {
         () async => throw const LlmApiException('nope', statusCode: 401),
       ),
       build: () => build(translateEngine: claude),
-      act: (cubit) => cubit.setImage(pngImage),
+      act: (cubit) => load(cubit, pngImage),
       verify: (cubit) => expect(cubit.state.error, isA<LlmApiException>()),
     );
   });
@@ -708,32 +791,42 @@ void main() {
     );
 
     blocTest<ImageTranslateCubit, ImageTranslateState>(
-      'selectMethod re-runs with the new method',
+      'selectMethod waits for Translate with a method that uploads',
       setUp: () => stubImage(
         () async => const ImageTranslationResult(translatedText: 'Hi'),
       ),
       build: build,
       seed: () => success,
       act: (cubit) => cubit.selectMethod(claudeMethod),
-      expect: () {
-        final ready = success.copyWith(
+      expect: () => [
+        success.copyWith(
           status: ImageTranslateStatus.ready,
           method: () => claudeMethod,
           result: () => null,
-        );
-        return [
-          ready,
-          ready.copyWith(status: ImageTranslateStatus.working),
-          ready.copyWith(
-            status: ImageTranslateStatus.working,
-            phase: ImageTranslatePhase.uploading,
-          ),
-          ready.copyWith(
-            status: ImageTranslateStatus.success,
-            phase: ImageTranslatePhase.uploading,
-            result: () => const ImageTranslation(translatedText: 'Hi'),
-          ),
-        ];
+        ),
+      ],
+      verify: (_) => verifyNever(
+        () => repository.translateImage(
+          any(),
+          any(),
+          mimeType: any(named: 'mimeType'),
+          source: any(named: 'source'),
+          target: any(named: 'target'),
+          options: any(named: 'options'),
+        ),
+      ),
+    );
+
+    blocTest<ImageTranslateCubit, ImageTranslateState>(
+      'selectMethod re-runs with on-device recognition',
+      setUp: () => stubText(() => Stream.value(text('Hello'))),
+      build: build,
+      seed: () => success,
+      act: (cubit) => cubit.selectMethod(onDeviceMethod),
+      verify: (cubit) {
+        expect(cubit.state.method, onDeviceMethod);
+        expect(cubit.state.status, ImageTranslateStatus.success);
+        expect(cubit.state.result?.translatedText, 'Hello');
       },
     );
 
@@ -755,13 +848,30 @@ void main() {
     );
 
     blocTest<ImageTranslateCubit, ImageTranslateState>(
-      'setTarget re-runs the translation',
+      'setTarget waits for Translate with a method that uploads',
+      build: build,
+      seed: () => success,
+      act: (cubit) => cubit.setTarget(german),
+      expect: () => [
+        success.copyWith(
+          target: german,
+          status: ImageTranslateStatus.ready,
+          result: () => null,
+        ),
+      ],
+    );
+
+    blocTest<ImageTranslateCubit, ImageTranslateState>(
+      'setTarget then Translate uses the new target',
       setUp: () => stubImage(
         () async => const ImageTranslationResult(translatedText: 'Hallo'),
       ),
       build: build,
       seed: () => success,
-      act: (cubit) => cubit.setTarget(german),
+      act: (cubit) async {
+        await cubit.setTarget(german);
+        await cubit.translate();
+      },
       verify: (cubit) {
         expect(cubit.state.target, german);
         expect(cubit.state.result?.translatedText, 'Hallo');
@@ -795,24 +905,29 @@ void main() {
     );
 
     blocTest<ImageTranslateCubit, ImageTranslateState>(
-      'setSource re-runs the translation',
-      setUp: () => stubImage(
-        () async => const ImageTranslationResult(translatedText: 'Hello'),
-      ),
+      'setSource waits for Translate with a method that uploads',
       build: build,
       seed: () => success,
       act: (cubit) => cubit.setSource(japanese),
+      expect: () => [
+        success.copyWith(
+          source: japanese,
+          status: ImageTranslateStatus.ready,
+          result: () => null,
+        ),
+      ],
+    );
+
+    blocTest<ImageTranslateCubit, ImageTranslateState>(
+      'setSource re-runs on-device recognition',
+      setUp: () => stubText(() => Stream.value(text('Hello'))),
+      build: build,
+      seed: () => success.copyWith(method: () => onDeviceMethod),
+      act: (cubit) => cubit.setSource(japanese),
       verify: (cubit) {
         expect(cubit.state.source, japanese);
-        verify(
-          () => repository.translateImage(
-            google,
-            any(),
-            mimeType: any(named: 'mimeType'),
-            source: japanese,
-            target: french,
-          ),
-        ).called(1);
+        expect(cubit.state.status, ImageTranslateStatus.success);
+        expect(recognizer.sources, contains(japanese));
       },
     );
 
@@ -851,7 +966,7 @@ void main() {
       act: (cubit) async {
         final pending = Completer<ImageTranslationResult>();
         stubImage(() => pending.future);
-        unawaited(cubit.setImage(jpegImage));
+        unawaited(load(cubit, jpegImage));
         await Future<void>.delayed(Duration.zero);
         cubit.cancel();
         pending.complete(lensResult());
@@ -878,7 +993,7 @@ void main() {
       'drops a stale encoder result',
       build: build,
       act: (cubit) async {
-        unawaited(cubit.setImage(jpegImage));
+        unawaited(load(cubit, jpegImage));
         cubit.cancel();
         await Future<void>.delayed(Duration.zero);
       },
@@ -903,13 +1018,13 @@ void main() {
       act: (cubit) async {
         final pending = Completer<ImageTranslationResult>();
         stubImage(() => pending.future);
-        unawaited(cubit.setImage(pngImage));
+        unawaited(load(cubit, pngImage));
         await Future<void>.delayed(Duration.zero);
         cubit.cancel();
         pending.complete(const ImageTranslationResult(translatedText: 'late'));
         await Future<void>.delayed(Duration.zero);
 
-        unawaited(cubit.setImage(heicImage));
+        unawaited(load(cubit, heicImage));
         cubit.cancel();
         await Future<void>.delayed(Duration.zero);
 
@@ -938,7 +1053,7 @@ void main() {
       final pending = Completer<ImageTranslationResult>();
       stubImage(() => pending.future);
       final cubit = build(slowThreshold: Duration.zero);
-      unawaited(cubit.setImage(jpegImage));
+      unawaited(load(cubit, jpegImage));
       await Future<void>.delayed(Duration.zero);
       await cubit.close();
       pending.complete(lensResult());

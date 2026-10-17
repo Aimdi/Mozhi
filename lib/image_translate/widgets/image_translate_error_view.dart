@@ -1,12 +1,16 @@
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/image_translate/widgets/image_translate_labels.dart';
 import 'package:mozhi/image_translate/widgets/image_translate_links.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/widgets/translate_error.dart';
+import 'package:translation_repository/translation_repository.dart'
+    show ConsentRequiredException;
 
 /// Error message with a retry button and, when useful, a shortcut to the
-/// settings page that fixes it.
+/// settings page that fixes it. A `ConsentRequiredException` is shown as
+/// the consent prompt instead.
 class ImageTranslateErrorView extends StatelessWidget {
   const new({required this.error, this.onRetry, super.key});
 
@@ -15,6 +19,15 @@ class ImageTranslateErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final consent = error;
+    if (consent is ConsentRequiredException) {
+      // Nothing was sent: once allowed, Retry translates the image.
+      return ConsentInlinePrompt(
+        key: const Key('image_translate_consent'),
+        consent: consent,
+        onGranted: onRetry ?? () {},
+      );
+    }
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final info = describeImageTranslateError(l10n, error);

@@ -8,7 +8,7 @@ import 'package:mozhi/onboarding/widgets/provider_grid.dart';
 import 'package:mozhi/onboarding/widgets/step_layout.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-/// Step 3 (optional): why AI helps, preset grid and the provider form.
+/// Step 4 (optional): why AI helps, preset grid and the provider form.
 class AiStep extends StatelessWidget {
   const new({super.key});
 

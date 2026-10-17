@@ -10,7 +10,7 @@ import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/view/widgets/insecure_http_warning.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-/// Step 2: find the fastest public Mozhi instance or add your own.
+/// Step 3: find the fastest public Mozhi instance or add your own.
 class ServiceStep extends StatelessWidget {
   const new({super.key});
 

@@ -165,31 +165,64 @@ void main() {
     group('preferred', () {
       const methods = [mozhiMethod, claudeMethod, onDeviceMethod];
 
-      test('prefers the vision method of the translate engine', () {
+      test('prefers on-device recognition (the photo stays here)', () {
         expect(
           ImageTranslateMethod.preferred(methods, translateEngine: claude),
+          onDeviceMethod,
+        );
+      });
+
+      test('then the vision method of the translate engine', () {
+        expect(
+          ImageTranslateMethod.preferred(const [
+            mozhiMethod,
+            claudeMethod,
+          ], translateEngine: claude),
           claudeMethod,
         );
       });
 
       test('then Mozhi', () {
         expect(
-          ImageTranslateMethod.preferred(methods, translateEngine: deepl),
+          ImageTranslateMethod.preferred(const [
+            claudeMethod,
+            mozhiMethod,
+          ], translateEngine: deepl),
           mozhiMethod,
         );
       });
 
       test('then the first method', () {
         expect(
-          ImageTranslateMethod.preferred(const [onDeviceMethod]),
-          onDeviceMethod,
+          ImageTranslateMethod.preferred(const [claudeMethod]),
+          claudeMethod,
         );
         expect(ImageTranslateMethod.preferred(const []), isNull);
+      });
+
+      test('only on-device recognition keeps the photo here', () {
+        expect(onDeviceMethod.uploadsImage, isFalse);
+        expect(mozhiMethod.uploadsImage, isTrue);
+        expect(claudeMethod.uploadsImage, isTrue);
       });
     });
   });
 
   group('ImageTranslation', () {
+    test('compares destinations', () {
+      const sent = ImageTranslation(
+        translatedText: 'a',
+        destination: OnDeviceDestination(),
+      );
+      expect(sent, isNot(const ImageTranslation(translatedText: 'a')));
+      expect(
+        const ImageTranslation(translatedText: 'a')
+            .copyWith(destination: const OnDeviceDestination()),
+        sent,
+      );
+      expect(sent.hashCode, isNot(const ImageTranslation().hashCode));
+    });
+
     test('compares images by identity', () {
       final image = Uint8List.fromList([1, 2]);
       expect(

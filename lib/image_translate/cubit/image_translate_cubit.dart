@@ -230,28 +230,22 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
   Future<void> setSource(Language language) async {
     if (language == state.source || language.isCustom) return;
     _cancelRun();
-    emit(state.copyWith(source: language));
-    await _again();
+    emit(_awaitingUpload(state.copyWith(source: language)));
+    await _translateUnlessUpload();
   }
 
-  /// After a language change: translate again right away with on-device
-  /// recognition; an uploading method shows the image ready to translate.
-  Future<void> _again() async {
-    if (state.method?.uploadsImage ?? true) {
-      if (state.hasImage && state.status != ImageTranslateStatus.initial) {
-        emit(
-          state.copyWith(
-            status: ImageTranslateStatus.ready,
-            result: () => null,
-            error: () => null,
-            slow: false,
-            showOriginal: false,
-          ),
-        );
-      }
-      return;
-    }
-    await translate();
+  /// [next] (after a language change) waiting for the user's Translate
+  /// when the selected method uploads the image: ready, without the old
+  /// result.
+  ImageTranslateState _awaitingUpload(ImageTranslateState next) {
+    if (!(next.method?.uploadsImage ?? true) || !next.hasImage) return next;
+    return next.copyWith(
+      status: ImageTranslateStatus.ready,
+      result: () => null,
+      error: () => null,
+      slow: false,
+      showOriginal: false,
+    );
   }
 
   Future<void> setTarget(Language language) async {
@@ -260,11 +254,12 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
         ? state.result!.sourceText
         : null;
     _cancelRun();
-    emit(state.copyWith(target: language));
     if (recognized != null) {
+      emit(state.copyWith(target: language));
       await translateText(recognized);
     } else {
-      await _again();
+      emit(_awaitingUpload(state.copyWith(target: language)));
+      await _translateUnlessUpload();
     }
   }
 

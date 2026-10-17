@@ -1,8 +1,9 @@
 import 'package:equatable/equatable.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-/// The pages of the first-run flow, in order.
-enum OnboardingStep { welcome, service, ai, done }
+/// The pages of the first-run flow, in order: the privacy mode is chosen
+/// right after the welcome, before anything else.
+enum OnboardingStep { welcome, privacy, service, ai, done }
 
 /// Outcome of pinging one Mozhi instance.
 enum PingStatus { pending, success, failure, timedOut }
