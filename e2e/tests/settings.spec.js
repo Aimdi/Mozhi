@@ -69,6 +69,7 @@ test('the dark theme and its look persist after a reload', async ({
   const darkLook = page.getByRole('group', { name: 'Dark theme' });
   const lightsOut = darkLook.getByRole('radio', { name: 'Lights out' });
   const dim = darkLook.getByRole('radio', { name: 'Dim' });
+  await scrollTo(page, lightsOut);
   await expect(lightsOut).toBeDisabled();
   const light = await meanLuminance(page);
   expect(light).toBeGreaterThan(150);
@@ -87,12 +88,11 @@ test('the dark theme and its look persist after a reload', async ({
 
   await page.reload();
   await openApp(page, '/settings');
-  await scrollTo(page, page.getByRole('group', { name: 'Dark theme' }));
-  await expect(
-    page
-      .getByRole('group', { name: 'Dark theme' })
-      .getByRole('radio', { name: 'Lights out' }),
-  ).toBeChecked();
+  const lightsOutAfterReload = page
+    .getByRole('group', { name: 'Dark theme' })
+    .getByRole('radio', { name: 'Lights out' });
+  await scrollTo(page, lightsOutAfterReload);
+  await expect(lightsOutAfterReload).toBeChecked();
   await expect.poll(() => meanLuminance(page)).toBeLessThan(100);
 
   // Other screens use it too.

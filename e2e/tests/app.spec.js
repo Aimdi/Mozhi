@@ -1,7 +1,13 @@
 // Smoke tests: the app starts, the More tools menu opens and the main
 // (including deferred, separately downloaded) routes render.
 const { expect } = require('@playwright/test');
-const { collectPageErrors, openApp, seedSettings, test } = require('./helpers');
+const {
+  collectPageErrors,
+  openApp,
+  scrollTo,
+  seedSettings,
+  test,
+} = require('./helpers');
 
 test.beforeEach(async ({ page }) => {
   await seedSettings(page, 'settings-ai');
@@ -49,9 +55,12 @@ test.describe('routes render', () => {
     await expect(
       page.getByRole('button', { name: /^AI providers/ }),
     ).toBeVisible();
-    await expect(
-      page.getByRole('switch', { name: /^Instant translate with AI/ }),
-    ).toBeVisible();
+    // Below the Privacy section: scroll it into the semantics tree.
+    const instantAi = page.getByRole('switch', {
+      name: /^Instant translate with AI/,
+    });
+    await scrollTo(page, instantAi);
+    await expect(instantAi).toBeVisible();
   });
 
   test('quality modes', async ({ page }) => {
