@@ -46,7 +46,7 @@ sdkmanager --install "ndk;28.2.13676358" "cmake;3.22.1"
 ```sh
 git clone https://github.com/Aimdi/Mozhi.git && cd Mozhi
 git checkout v0.1.0                       # the tag you want to reproduce
-bash packages/bergamot_translator/tool/fetch_native_deps.sh
+bash tool/fetch_native_deps.sh            # every on-device engine
 flutter pub get --enforce-lockfile        # fails if pubspec.lock would change
 ```
 
@@ -55,7 +55,9 @@ flutter pub get --enforce-lockfile        # fails if pubspec.lock would change
   `packages/`. `--enforce-lockfile` refuses to build from anything else.
   The packages' own lock files are git-ignored, and the app build doesn't
   read them.
-- **Native engine**: `fetch_native_deps.sh` checks out the pinned
+- **Native engines**: `tool/fetch_native_deps.sh` runs each engine
+  package's own `tool/fetch_native_deps.sh`. The offline translation
+  engine's one checks out the pinned
   submodules (`mozilla/translations`, PCRE2 and CLD2) and, inside
   `translations`, only the nested submodules the engine compiles. Everything is shallow, at
   the commits recorded in git. It then applies

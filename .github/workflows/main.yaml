@@ -122,10 +122,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Only the submodules the engine compiles (not mozilla/translations'
-      # training tools), then native/patches/.
-      - name: Fetch the offline engine's sources
-        run: bash packages/bergamot_translator/tool/fetch_native_deps.sh
+      # The pinned sources of every on-device engine (translation, text
+      # recognition, voice): only the submodules they compile, then their
+      # patches. The Gradle build compiles them; it downloads nothing.
+      - name: Fetch the on-device engines' sources
+        run: bash tool/fetch_native_deps.sh
 
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
@@ -334,10 +335,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Only the submodules the engine compiles (not mozilla/translations'
-      # training tools), then native/patches/.
-      - name: Fetch the offline engine's sources
-        run: bash packages/bergamot_translator/tool/fetch_native_deps.sh
+      # The pinned sources of every on-device engine (translation, text
+      # recognition, voice): only the submodules they compile, then their
+      # patches. The Gradle build compiles them; it downloads nothing.
+      - name: Fetch the on-device engines' sources
+        run: bash tool/fetch_native_deps.sh
 
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:

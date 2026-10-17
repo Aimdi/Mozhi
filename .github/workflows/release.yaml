@@ -43,9 +43,10 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Only the submodules the engine compiles, then native/patches/.
-      - name: Fetch the offline engine's sources
-        run: bash packages/bergamot_translator/tool/fetch_native_deps.sh
+      # The pinned sources of every on-device engine (translation, text
+      # recognition, voice), then their patches.
+      - name: Fetch the on-device engines' sources
+        run: bash tool/fetch_native_deps.sh
 
       - name: Install the NDK, CMake and ccache
         run: |
@@ -290,9 +291,10 @@ jobs:
           channel: stable
           cache: true
 
-      # Only the submodules the engine compiles, then native/patches/.
-      - name: Fetch the offline engine's sources
-        run: bash packages/bergamot_translator/tool/fetch_native_deps.sh
+      # The pinned sources of every on-device engine (translation, text
+      # recognition, voice), then their patches.
+      - name: Fetch the on-device engines' sources
+        run: bash tool/fetch_native_deps.sh
 
       - name: Install the NDK, CMake and ccache
         run: |

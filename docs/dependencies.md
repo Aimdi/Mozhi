@@ -39,7 +39,7 @@ pub cache and the submodule checkouts.
 ```sh
 flutter pub get                               # root lock and pub cache
 bash .github/scripts/packages.sh get          # each package's (git-ignored) lock
-bash packages/bergamot_translator/tool/fetch_native_deps.sh   # native checkouts
+bash tool/fetch_native_deps.sh                # native checkouts
 python3 tool/list_dependencies.py --write     # update this page
 python3 tool/list_dependencies.py --check     # exit 1 if this page is stale
 ```

@@ -21,9 +21,9 @@
 #     com.google.mlkit, com.google.android.gms, com.google.firebase and
 #     com.google.android.datatransport.
 #
-# It does not fetch the offline engine's native sources: run
-# packages/bergamot_translator/tool/fetch_native_deps.sh first (the recipe
-# checks out with `submodules: false`; see docs/offline-engine.md).
+# It does not fetch the on-device engines' native sources: run
+# tool/fetch_native_deps.sh first (the recipe checks out with
+# `submodules: false`; see docs/store/README.md).
 #
 # Idempotent: a second run only checks. It fails loudly (exit 1) when an
 # expected pattern is missing, i.e. when the files changed and this script

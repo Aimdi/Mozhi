@@ -34,9 +34,10 @@ git clone https://github.com/Aimdi/Mozhi.git
 cd Mozhi
 flutter pub get                 # also generates lib/l10n/gen
 for p in packages/*/; do (cd "$p" && flutter pub get); done
-# Android only: the offline engine's C++ sources (pinned submodules, only
-# what the engine needs; never `git submodule update --init --recursive`)
-packages/bergamot_translator/tool/fetch_native_deps.sh
+# Android only: the on-device engines' C++ sources (translation, text
+# recognition, voice: pinned submodules, only what each engine needs;
+# never `git submodule update --init --recursive`)
+tool/fetch_native_deps.sh
 flutter run --flavor development -t lib/main_development.dart
 ```
 

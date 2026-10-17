@@ -306,8 +306,9 @@ and so is the build: the default build contains no Google code.
    Kit and that the Gradle exclusions are in place. The native engine's
    sources are git submodules: the recipe disables F-Droid's recursive
    submodule checkout (`submodules: false`) and runs
-   `packages/bergamot_translator/tool/fetch_native_deps.sh`, which fetches
-   only the pinned sources the engine needs and applies its patches. See
+   `tool/fetch_native_deps.sh`, which fetches only the pinned sources each
+   on-device engine (translation, text recognition, voice) needs and
+   applies their patches. See
    docs/contributing.md, "Build variants".
 
 2. **Flutter's Play Core references.** Flutter's Android embedding contains
@@ -376,7 +377,7 @@ Builds:
     srclibs:
       - flutter@3.47.0         # match the version CI uses
     prebuild:
-      - bash packages/bergamot_translator/tool/fetch_native_deps.sh
+      - bash tool/fetch_native_deps.sh
       - tool/fdroid_prepare.sh # removes the Play-only sources, checks the tree
       - $$flutter$$/bin/flutter config --no-analytics
       - $$flutter$$/bin/flutter pub get
