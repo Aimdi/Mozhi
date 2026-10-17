@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tamil translation. Mirrors values/strings.xml: keep the same
+     string names and translate every string there. -->
+<resources>
+    <string name="translate_with_mozhi">Mozhi மூலம் மொழிபெயர்</string>
+    <string name="translate_offline">ஆஃப்லைனில் மொழிபெயர்</string>
+    <string name="tile_translate_label">மொழிபெயர்ப்பு</string>
+    <string name="tile_translate_description">Mozhi மூலம் கிளிப்போர்டை மொழிபெயர்</string>
+    <string name="shortcut_clipboard_short">கிளிப்போர்டு</string>
+    <string name="shortcut_clipboard_long">கிளிப்போர்டை மொழிபெயர்</string>
+    <string name="shortcut_camera_short">கேமரா</string>
+    <string name="shortcut_camera_long">கேமரா மூலம் மொழிபெயர்</string>
+    <string name="shortcut_conversation_short">உரையாடல்</string>
+    <string name="shortcut_conversation_long">உரையாடல்</string>
+    <string name="shortcut_proofread_short">பிழைதிருத்தம்</string>
+    <string name="shortcut_proofread_long">பிழைதிருத்தம்</string>
+    <string name="widget_label">Mozhi</string>
+    <string name="widget_description">கிளிப்போர்டை மொழிபெயர்க்கவும், உரையைத் தட்டச்சு செய்யவும் அல்லது கேமரா மூலம் மொழிபெயர்க்கவும்</string>
+    <string name="widget_clipboard_label">கிளிப்போர்டு</string>
+    <string name="widget_clipboard_description">கிளிப்போர்டை மொழிபெயர்</string>
+    <string name="widget_type_label">தட்டச்சு</string>
+    <string name="widget_type_description">மொழிபெயர்க்க வேண்டிய உரையைத் தட்டச்சு செய்யவும்</string>
+    <string name="widget_camera_label">கேமரா</string>
+    <string name="widget_camera_description">கேமரா மூலம் மொழிபெயர்</string>
+</resources>

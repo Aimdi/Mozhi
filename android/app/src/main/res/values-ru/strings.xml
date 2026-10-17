@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Russian translation. Mirrors values/strings.xml: keep the same
+     string names and translate every string there. -->
+<resources>
+    <string name="translate_with_mozhi">Перевести в Mozhi</string>
+    <string name="translate_offline">Перевести офлайн</string>
+    <string name="tile_translate_label">Перевод</string>
+    <string name="tile_translate_description">Перевести буфер обмена с помощью Mozhi</string>
+    <string name="shortcut_clipboard_short">Буфер обмена</string>
+    <string name="shortcut_clipboard_long">Перевести буфер обмена</string>
+    <string name="shortcut_camera_short">Камера</string>
+    <string name="shortcut_camera_long">Перевод с камеры</string>
+    <string name="shortcut_conversation_short">Разговор</string>
+    <string name="shortcut_conversation_long">Разговор</string>
+    <string name="shortcut_proofread_short">Проверка</string>
+    <string name="shortcut_proofread_long">Проверка текста</string>
+    <string name="widget_label">Mozhi</string>
+    <string name="widget_description">Перевести буфер обмена, ввести текст или перевести с камеры</string>
+    <string name="widget_clipboard_label">Буфер</string>
+    <string name="widget_clipboard_description">Перевести буфер обмена</string>
+    <string name="widget_type_label">Ввод</string>
+    <string name="widget_type_description">Ввести текст для перевода</string>
+    <string name="widget_camera_label">Камера</string>
+    <string name="widget_camera_description">Перевод с камеры</string>
+</resources>

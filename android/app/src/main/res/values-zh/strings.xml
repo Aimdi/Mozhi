@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Simplified Chinese translation. Mirrors values/strings.xml: keep the same
+     string names and translate every string there. -->
+<resources>
+    <string name="translate_with_mozhi">使用 Mozhi 翻译</string>
+    <string name="translate_offline">离线翻译</string>
+    <string name="tile_translate_label">翻译</string>
+    <string name="tile_translate_description">使用 Mozhi 翻译剪贴板</string>
+    <string name="shortcut_clipboard_short">剪贴板</string>
+    <string name="shortcut_clipboard_long">翻译剪贴板</string>
+    <string name="shortcut_camera_short">相机</string>
+    <string name="shortcut_camera_long">相机翻译</string>
+    <string name="shortcut_conversation_short">对话</string>
+    <string name="shortcut_conversation_long">对话</string>
+    <string name="shortcut_proofread_short">校对</string>
+    <string name="shortcut_proofread_long">校对</string>
+    <string name="widget_label">Mozhi</string>
+    <string name="widget_description">翻译剪贴板、输入文本或使用相机翻译</string>
+    <string name="widget_clipboard_label">剪贴板</string>
+    <string name="widget_clipboard_description">翻译剪贴板</string>
+    <string name="widget_type_label">输入</string>
+    <string name="widget_type_description">输入要翻译的文本</string>
+    <string name="widget_camera_label">相机</string>
+    <string name="widget_camera_description">相机翻译</string>
+</resources>

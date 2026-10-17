@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Korean translation. Mirrors values/strings.xml: keep the same
+     string names and translate every string there. -->
+<resources>
+    <string name="translate_with_mozhi">Mozhi로 번역</string>
+    <string name="translate_offline">오프라인 번역</string>
+    <string name="tile_translate_label">번역</string>
+    <string name="tile_translate_description">Mozhi로 클립보드 번역</string>
+    <string name="shortcut_clipboard_short">클립보드</string>
+    <string name="shortcut_clipboard_long">클립보드 번역</string>
+    <string name="shortcut_camera_short">카메라</string>
+    <string name="shortcut_camera_long">카메라 번역</string>
+    <string name="shortcut_conversation_short">대화</string>
+    <string name="shortcut_conversation_long">대화</string>
+    <string name="shortcut_proofread_short">교정</string>
+    <string name="shortcut_proofread_long">교정</string>
+    <string name="widget_label">Mozhi</string>
+    <string name="widget_description">클립보드 번역, 텍스트 입력 또는 카메라로 번역</string>
+    <string name="widget_clipboard_label">클립보드</string>
+    <string name="widget_clipboard_description">클립보드 번역</string>
+    <string name="widget_type_label">입력</string>
+    <string name="widget_type_description">번역할 텍스트 입력</string>
+    <string name="widget_camera_label">카메라</string>
+    <string name="widget_camera_description">카메라 번역</string>
+</resources>

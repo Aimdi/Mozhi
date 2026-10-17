@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Hindi translation. Mirrors values/strings.xml: keep the same
+     string names and translate every string there. -->
+<resources>
+    <string name="translate_with_mozhi">Mozhi से अनुवाद करें</string>
+    <string name="translate_offline">ऑफ़लाइन अनुवाद करें</string>
+    <string name="tile_translate_label">अनुवाद</string>
+    <string name="tile_translate_description">Mozhi से क्लिपबोर्ड का अनुवाद करें</string>
+    <string name="shortcut_clipboard_short">क्लिपबोर्ड</string>
+    <string name="shortcut_clipboard_long">क्लिपबोर्ड का अनुवाद</string>
+    <string name="shortcut_camera_short">कैमरा</string>
+    <string name="shortcut_camera_long">कैमरे से अनुवाद</string>
+    <string name="shortcut_conversation_short">बातचीत</string>
+    <string name="shortcut_conversation_long">बातचीत</string>
+    <string name="shortcut_proofread_short">प्रूफ़रीड</string>
+    <string name="shortcut_proofread_long">प्रूफ़रीड</string>
+    <string name="widget_label">Mozhi</string>
+    <string name="widget_description">क्लिपबोर्ड का अनुवाद करें, टेक्स्ट टाइप करें या कैमरे से अनुवाद करें</string>
+    <string name="widget_clipboard_label">क्लिपबोर्ड</string>
+    <string name="widget_clipboard_description">क्लिपबोर्ड का अनुवाद</string>
+    <string name="widget_type_label">टाइप करें</string>
+    <string name="widget_type_description">अनुवाद के लिए टेक्स्ट टाइप करें</string>
+    <string name="widget_camera_label">कैमरा</string>
+    <string name="widget_camera_description">कैमरे से अनुवाद</string>
+</resources>

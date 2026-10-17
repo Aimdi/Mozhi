@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Arabic translation. Mirrors values/strings.xml: keep the same
+     string names and translate every string there. -->
+<resources>
+    <string name="translate_with_mozhi">ترجمة باستخدام Mozhi</string>
+    <string name="translate_offline">ترجمة بلا اتصال</string>
+    <string name="tile_translate_label">ترجمة</string>
+    <string name="tile_translate_description">ترجمة الحافظة باستخدام Mozhi</string>
+    <string name="shortcut_clipboard_short">الحافظة</string>
+    <string name="shortcut_clipboard_long">ترجمة الحافظة</string>
+    <string name="shortcut_camera_short">الكاميرا</string>
+    <string name="shortcut_camera_long">ترجمة بالكاميرا</string>
+    <string name="shortcut_conversation_short">محادثة</string>
+    <string name="shortcut_conversation_long">محادثة</string>
+    <string name="shortcut_proofread_short">تدقيق</string>
+    <string name="shortcut_proofread_long">تدقيق</string>
+    <string name="widget_label">Mozhi</string>
+    <string name="widget_description">ترجمة الحافظة أو كتابة نص أو الترجمة بالكاميرا</string>
+    <string name="widget_clipboard_label">الحافظة</string>
+    <string name="widget_clipboard_description">ترجمة الحافظة</string>
+    <string name="widget_type_label">كتابة</string>
+    <string name="widget_type_description">كتابة نص لترجمته</string>
+    <string name="widget_camera_label">الكاميرا</string>
+    <string name="widget_camera_description">ترجمة بالكاميرا</string>
+</resources>

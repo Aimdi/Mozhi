@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ukrainian translation. Mirrors values/strings.xml: keep the same
+     string names and translate every string there. -->
+<resources>
+    <string name="translate_with_mozhi">Перекласти в Mozhi</string>
+    <string name="translate_offline">Перекласти офлайн</string>
+    <string name="tile_translate_label">Переклад</string>
+    <string name="tile_translate_description">Перекласти буфер обміну за допомогою Mozhi</string>
+    <string name="shortcut_clipboard_short">Буфер обміну</string>
+    <string name="shortcut_clipboard_long">Перекласти буфер обміну</string>
+    <string name="shortcut_camera_short">Камера</string>
+    <string name="shortcut_camera_long">Переклад з камери</string>
+    <string name="shortcut_conversation_short">Розмова</string>
+    <string name="shortcut_conversation_long">Розмова</string>
+    <string name="shortcut_proofread_short">Перевірка</string>
+    <string name="shortcut_proofread_long">Перевірка тексту</string>
+    <string name="widget_label">Mozhi</string>
+    <string name="widget_description">Перекласти буфер обміну, ввести текст або перекласти з камери</string>
+    <string name="widget_clipboard_label">Буфер</string>
+    <string name="widget_clipboard_description">Перекласти буфер обміну</string>
+    <string name="widget_type_label">Введення</string>
+    <string name="widget_type_description">Ввести текст для перекладу</string>
+    <string name="widget_camera_label">Камера</string>
+    <string name="widget_camera_description">Переклад з камери</string>
+</resources>

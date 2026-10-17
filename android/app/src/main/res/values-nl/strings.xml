@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dutch translation. Mirrors values/strings.xml: keep the same
+     string names and translate every string there. -->
+<resources>
+    <string name="translate_with_mozhi">Vertalen met Mozhi</string>
+    <string name="translate_offline">Offline vertalen</string>
+    <string name="tile_translate_label">Vertalen</string>
+    <string name="tile_translate_description">Klembord vertalen met Mozhi</string>
+    <string name="shortcut_clipboard_short">Klembord</string>
+    <string name="shortcut_clipboard_long">Klembord vertalen</string>
+    <string name="shortcut_camera_short">Camera</string>
+    <string name="shortcut_camera_long">Vertalen met camera</string>
+    <string name="shortcut_conversation_short">Gesprek</string>
+    <string name="shortcut_conversation_long">Gesprek</string>
+    <string name="shortcut_proofread_short">Nakijken</string>
+    <string name="shortcut_proofread_long">Nakijken</string>
+    <string name="widget_label">Mozhi</string>
+    <string name="widget_description">Klembord vertalen, tekst typen of vertalen met de camera</string>
+    <string name="widget_clipboard_label">Klembord</string>
+    <string name="widget_clipboard_description">Klembord vertalen</string>
+    <string name="widget_type_label">Typen</string>
+    <string name="widget_type_description">Tekst typen om te vertalen</string>
+    <string name="widget_camera_label">Camera</string>
+    <string name="widget_camera_description">Vertalen met camera</string>
+</resources>

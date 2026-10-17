@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Japanese translation. Mirrors values/strings.xml: keep the same
+     string names and translate every string there. -->
+<resources>
+    <string name="translate_with_mozhi">Mozhi で翻訳</string>
+    <string name="translate_offline">オフラインで翻訳</string>
+    <string name="tile_translate_label">翻訳</string>
+    <string name="tile_translate_description">クリップボードを Mozhi で翻訳</string>
+    <string name="shortcut_clipboard_short">クリップボード</string>
+    <string name="shortcut_clipboard_long">クリップボードを翻訳</string>
+    <string name="shortcut_camera_short">カメラ</string>
+    <string name="shortcut_camera_long">カメラで翻訳</string>
+    <string name="shortcut_conversation_short">会話</string>
+    <string name="shortcut_conversation_long">会話</string>
+    <string name="shortcut_proofread_short">校正</string>
+    <string name="shortcut_proofread_long">校正</string>
+    <string name="widget_label">Mozhi</string>
+    <string name="widget_description">クリップボードを翻訳、テキストを入力、またはカメラで翻訳</string>
+    <string name="widget_clipboard_label">貼り付け</string>
+    <string name="widget_clipboard_description">クリップボードを翻訳</string>
+    <string name="widget_type_label">入力</string>
+    <string name="widget_type_description">翻訳するテキストを入力</string>
+    <string name="widget_camera_label">カメラ</string>
+    <string name="widget_camera_description">カメラで翻訳</string>
+</resources>

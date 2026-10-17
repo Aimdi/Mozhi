@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Portuguese translation. Mirrors values/strings.xml: keep the same
+     string names and translate every string there. -->
+<resources>
+    <string name="translate_with_mozhi">Traduzir com o Mozhi</string>
+    <string name="translate_offline">Traduzir off-line</string>
+    <string name="tile_translate_label">Traduzir</string>
+    <string name="tile_translate_description">Traduzir a área de transferência com o Mozhi</string>
+    <string name="shortcut_clipboard_short">Colar</string>
+    <string name="shortcut_clipboard_long">Traduzir texto copiado</string>
+    <string name="shortcut_camera_short">Câmera</string>
+    <string name="shortcut_camera_long">Traduzir com a câmera</string>
+    <string name="shortcut_conversation_short">Conversa</string>
+    <string name="shortcut_conversation_long">Conversa</string>
+    <string name="shortcut_proofread_short">Revisar</string>
+    <string name="shortcut_proofread_long">Revisar</string>
+    <string name="widget_label">Mozhi</string>
+    <string name="widget_description">Traduzir a área de transferência, digitar texto ou traduzir com a câmera</string>
+    <string name="widget_clipboard_label">Colar</string>
+    <string name="widget_clipboard_description">Traduzir a área de transferência</string>
+    <string name="widget_type_label">Digitar</string>
+    <string name="widget_type_description">Digitar texto para traduzir</string>
+    <string name="widget_camera_label">Câmera</string>
+    <string name="widget_camera_description">Traduzir com a câmera</string>
+</resources>

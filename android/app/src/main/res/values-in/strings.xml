@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Indonesian translation. Mirrors values/strings.xml: keep the same
+     string names and translate every string there. -->
+<resources>
+    <string name="translate_with_mozhi">Terjemahkan di Mozhi</string>
+    <string name="translate_offline">Terjemahkan offline</string>
+    <string name="tile_translate_label">Terjemahkan</string>
+    <string name="tile_translate_description">Terjemahkan papan klip dengan Mozhi</string>
+    <string name="shortcut_clipboard_short">Papan klip</string>
+    <string name="shortcut_clipboard_long">Terjemahkan papan klip</string>
+    <string name="shortcut_camera_short">Kamera</string>
+    <string name="shortcut_camera_long">Terjemahkan dengan kamera</string>
+    <string name="shortcut_conversation_short">Percakapan</string>
+    <string name="shortcut_conversation_long">Percakapan</string>
+    <string name="shortcut_proofread_short">Koreksi</string>
+    <string name="shortcut_proofread_long">Koreksi</string>
+    <string name="widget_label">Mozhi</string>
+    <string name="widget_description">Terjemahkan papan klip, ketik teks, atau terjemahkan dengan kamera</string>
+    <string name="widget_clipboard_label">Papan klip</string>
+    <string name="widget_clipboard_description">Terjemahkan papan klip</string>
+    <string name="widget_type_label">Ketik</string>
+    <string name="widget_type_description">Ketik teks yang akan diterjemahkan</string>
+    <string name="widget_camera_label">Kamera</string>
+    <string name="widget_camera_description">Terjemahkan dengan kamera</string>
+</resources>

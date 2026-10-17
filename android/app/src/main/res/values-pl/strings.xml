@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Polish translation. Mirrors values/strings.xml: keep the same
+     string names and translate every string there. -->
+<resources>
+    <string name="translate_with_mozhi">Przetłumacz w Mozhi</string>
+    <string name="translate_offline">Przetłumacz offline</string>
+    <string name="tile_translate_label">Tłumacz</string>
+    <string name="tile_translate_description">Przetłumacz schowek za pomocą Mozhi</string>
+    <string name="shortcut_clipboard_short">Schowek</string>
+    <string name="shortcut_clipboard_long">Przetłumacz schowek</string>
+    <string name="shortcut_camera_short">Aparat</string>
+    <string name="shortcut_camera_long">Tłumaczenie z aparatu</string>
+    <string name="shortcut_conversation_short">Rozmowa</string>
+    <string name="shortcut_conversation_long">Rozmowa</string>
+    <string name="shortcut_proofread_short">Korekta</string>
+    <string name="shortcut_proofread_long">Korekta</string>
+    <string name="widget_label">Mozhi</string>
+    <string name="widget_description">Przetłumacz schowek, wpisz tekst albo przetłumacz za pomocą aparatu</string>
+    <string name="widget_clipboard_label">Schowek</string>
+    <string name="widget_clipboard_description">Przetłumacz schowek</string>
+    <string name="widget_type_label">Wpisz</string>
+    <string name="widget_type_description">Wpisz tekst do przetłumaczenia</string>
+    <string name="widget_camera_label">Aparat</string>
+    <string name="widget_camera_description">Tłumaczenie z aparatu</string>
+</resources>

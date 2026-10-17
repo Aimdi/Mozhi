@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Vietnamese translation. Mirrors values/strings.xml: keep the same
+     string names and translate every string there. -->
+<resources>
+    <string name="translate_with_mozhi">Dịch bằng Mozhi</string>
+    <string name="translate_offline">Dịch ngoại tuyến</string>
+    <string name="tile_translate_label">Dịch</string>
+    <string name="tile_translate_description">Dịch bảng nhớ tạm bằng Mozhi</string>
+    <string name="shortcut_clipboard_short">Bảng nhớ tạm</string>
+    <string name="shortcut_clipboard_long">Dịch bảng nhớ tạm</string>
+    <string name="shortcut_camera_short">Máy ảnh</string>
+    <string name="shortcut_camera_long">Dịch bằng máy ảnh</string>
+    <string name="shortcut_conversation_short">Hội thoại</string>
+    <string name="shortcut_conversation_long">Hội thoại</string>
+    <string name="shortcut_proofread_short">Soát lỗi</string>
+    <string name="shortcut_proofread_long">Soát lỗi</string>
+    <string name="widget_label">Mozhi</string>
+    <string name="widget_description">Dịch bảng nhớ tạm, nhập văn bản hoặc dịch bằng máy ảnh</string>
+    <string name="widget_clipboard_label">Dán</string>
+    <string name="widget_clipboard_description">Dịch bảng nhớ tạm</string>
+    <string name="widget_type_label">Nhập</string>
+    <string name="widget_type_description">Nhập văn bản cần dịch</string>
+    <string name="widget_camera_label">Máy ảnh</string>
+    <string name="widget_camera_description">Dịch bằng máy ảnh</string>
+</resources>

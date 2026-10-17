@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Turkish translation. Mirrors values/strings.xml: keep the same
+     string names and translate every string there. -->
+<resources>
+    <string name="translate_with_mozhi">Mozhi ile çevir</string>
+    <string name="translate_offline">Çevrimdışı çevir</string>
+    <string name="tile_translate_label">Çeviri</string>
+    <string name="tile_translate_description">Panoyu Mozhi ile çevir</string>
+    <string name="shortcut_clipboard_short">Pano</string>
+    <string name="shortcut_clipboard_long">Panoyu çevir</string>
+    <string name="shortcut_camera_short">Kamera</string>
+    <string name="shortcut_camera_long">Kamerayla çevir</string>
+    <string name="shortcut_conversation_short">Sohbet</string>
+    <string name="shortcut_conversation_long">Sohbet</string>
+    <string name="shortcut_proofread_short">Düzeltme</string>
+    <string name="shortcut_proofread_long">Düzeltme</string>
+    <string name="widget_label">Mozhi</string>
+    <string name="widget_description">Panoyu çevir, metin yaz veya kamerayla çevir</string>
+    <string name="widget_clipboard_label">Pano</string>
+    <string name="widget_clipboard_description">Panoyu çevir</string>
+    <string name="widget_type_label">Yaz</string>
+    <string name="widget_type_description">Çevrilecek metni yaz</string>
+    <string name="widget_camera_label">Kamera</string>
+    <string name="widget_camera_description">Kamerayla çevir</string>
+</resources>
