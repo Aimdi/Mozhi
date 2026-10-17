@@ -1,0 +1,8 @@
+[submodule "packages/bergamot_translator/native/third_party/translations"]
+	path = packages/bergamot_translator/native/third_party/translations
+	url = https://github.com/mozilla/translations
+	shallow = true
+[submodule "packages/bergamot_translator/native/third_party/pcre2"]
+	path = packages/bergamot_translator/native/third_party/pcre2
+	url = https://github.com/PCRE2Project/pcre2
+	shallow = true
