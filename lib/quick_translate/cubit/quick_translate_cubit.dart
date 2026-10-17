@@ -6,6 +6,12 @@ import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/quick_translate/cubit/quick_translate_state.dart';
 import 'package:mozhi/quick_translate/models/quick_languages.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/translate/widgets/offline_offer.dart'
+    show
+        OfflineDownload,
+        offlineDownloadsFor,
+        offlineLanguageKey,
+        offlineReadyLanguages;
 import 'package:translation_repository/translation_repository.dart';
 
 export 'quick_translate_state.dart';
@@ -37,19 +43,36 @@ export 'quick_translate_state.dart';
 /// * AI engines stream partial results; each new translation cancels the
 ///   previous one. Completed translations are added to [HistoryCubit] when
 ///   one is given and `saveHistory` is on (never in incognito mode).
+/// * Offline only ([QuickTranslateState.offlineOnly], "Translate offline"
+///   in Android's selection toolbar): only the on-device engine
+///   ([TranslationEngine.offline], with the given [OfflineTranslator])
+///   translates, whatever the privacy mode. No engine list is loaded; the
+///   source is identified on the device
+///   ([OfflineTranslator.identifyLanguage]) and, when a model of the pair
+///   is not downloaded, the state lists what to download
+///   ([QuickTranslateStatus.offlineModelsMissing]) instead of translating.
+///   The text never goes to a network engine: no consent is asked and
+///   nothing falls back to another engine
+///   ([QuickTranslateStatus.offlineUnsupported], or
+///   [QuickTranslateStatus.offlineUnavailable] without an on-device engine).
 class QuickTranslateCubit extends Cubit<QuickTranslateState> {
   /// [target] overrides the initial target (default: settings target).
+  /// `offline` is the device's on-device engine (the one the repository
+  /// translates with); [offlineOnly] translates with nothing else.
   new({
     required this._repository,
     required SettingsCubit settings,
     required String text,
     this._history,
+    this._offline,
+    bool offlineOnly = false,
     Language? target,
   }) : _settings = settings,
        super(
          QuickTranslateState(
            text: text,
            target: target ?? settings.state.target,
+           offlineOnly: offlineOnly,
          ),
        );
 
@@ -59,6 +82,7 @@ class QuickTranslateCubit extends Cubit<QuickTranslateState> {
   final TranslationRepository _repository;
   final SettingsCubit _settings;
   final HistoryCubit? _history;
+  final OfflineTranslator? _offline;
 
   int _loadRequest = 0;
   StreamSubscription<TranslationResult>? _translation;
@@ -82,6 +106,10 @@ class QuickTranslateCubit extends Cubit<QuickTranslateState> {
       error: () => null,
     );
     if (loading != state) emit(loading);
+    if (state.offlineOnly) {
+      await _startOffline(request);
+      return;
+    }
     try {
       final engines = await _repository.getEngines(refresh: refresh);
       if (!_isCurrentLoad(request)) return;
@@ -142,7 +170,9 @@ class QuickTranslateCubit extends Cubit<QuickTranslateState> {
 
   /// Translates the text with the current engine and target. The future
   /// completes when the translation finished, failed or was superseded.
-  Future<void> translate() => _translate(smartSwap: !_targetPicked);
+  Future<void> translate() => state.offlineOnly
+      ? _translateOffline(smartSwap: !_targetPicked)
+      : _translate(smartSwap: !_targetPicked);
 
   /// Switches the target (persisted in settings) and re-translates.
   Future<void> setTarget(Language language) {
@@ -165,8 +195,10 @@ class QuickTranslateCubit extends Cubit<QuickTranslateState> {
   }
 
   /// Switches the engine (persisted in settings), re-maps the target onto
-  /// its languages and re-translates.
+  /// its languages and re-translates. Does nothing offline only: the
+  /// on-device engine is the only one.
   Future<void> selectEngine(TranslationEngine engine) async {
+    if (state.offlineOnly) return;
     if (engine.id == state.engine?.id &&
         state.status != QuickTranslateStatus.failure) {
       return;
@@ -224,6 +256,153 @@ class QuickTranslateCubit extends Cubit<QuickTranslateState> {
 
   // ---------------------------------------------------------------------
 
+  /// [start] offline only: the on-device engine and its languages, both
+  /// known on the device (no engine list is loaded over the network).
+  Future<void> _startOffline(int request) async {
+    final offline = _offline;
+    if (offline == null ||
+        !offline.isAvailable ||
+        !_repository.hasOfflineEngine) {
+      emit(
+        state.copyWith(
+          status: QuickTranslateStatus.offlineUnavailable,
+          engines: const [],
+          engine: () => null,
+          targetLanguages: const [],
+        ),
+      );
+      return;
+    }
+    final engine = TranslationEngine.offline();
+    try {
+      final targets = await _repository.getTargetLanguages(engine);
+      if (!_isCurrentLoad(request)) return;
+      emit(
+        state.copyWith(
+          engines: [engine],
+          engine: () => engine,
+          targetLanguages: targets,
+          target: _mapTarget(state.target, engine, targets),
+        ),
+      );
+    } on Object catch (error) {
+      if (!_isCurrentLoad(request)) return;
+      emit(
+        state.copyWith(
+          status: QuickTranslateStatus.failure,
+          error: () => error,
+        ),
+      );
+      return;
+    }
+    await translate();
+  }
+
+  /// [translate] offline only: identifies the source language on the
+  /// device (once), switches the target like [_smartSwapTarget] does,
+  /// checks that the models of the pair are downloaded and only then
+  /// translates with the on-device engine ([_translate]).
+  Future<void> _translateOffline({required bool smartSwap}) async {
+    final offline = _offline;
+    if (offline == null || state.engine == null || isClosed) return;
+    if (state.text.trim().isEmpty) {
+      await _translate(smartSwap: false);
+      return;
+    }
+    _cancelTranslation();
+    final id = _translationRequest;
+    emit(
+      state.copyWith(
+        status: QuickTranslateStatus.translating,
+        result: () => null,
+        error: () => null,
+        offlineDownloads: const [],
+      ),
+    );
+    final String? source;
+    final List<OfflineDownload>? downloads;
+    try {
+      source =
+          state.identifiedSource ??
+          _usableCode(await offline.identifyLanguage(state.text));
+      if (!_isCurrentTranslation(id)) return;
+      if (source == null) {
+        emit(state.copyWith(status: QuickTranslateStatus.offlineUnsupported));
+        return;
+      }
+      emit(
+        state.copyWith(
+          identifiedSource: () => source,
+          target: smartSwap ? _swapTargetFor(source, state.target) : null,
+        ),
+      );
+      final ready = await offlineReadyLanguages(offline);
+      if (!_isCurrentTranslation(id)) return;
+      downloads = offlineDownloadsFor(
+        offline,
+        source: source,
+        target: state.target.code,
+        ready: ready,
+      );
+    } on Object catch (error) {
+      if (_isCurrentTranslation(id)) emit(_failed(error));
+      return;
+    }
+    if (downloads == null) {
+      emit(state.copyWith(status: QuickTranslateStatus.offlineUnsupported));
+      return;
+    }
+    if (downloads.isNotEmpty) {
+      emit(
+        state.copyWith(
+          status: QuickTranslateStatus.offlineModelsMissing,
+          offlineDownloads: downloads,
+        ),
+      );
+      return;
+    }
+    await _translate(smartSwap: false);
+  }
+
+  /// [code] normalised, or null when it is empty or a placeholder (`und`).
+  static String? _usableCode(String? code) {
+    final trimmed = code?.trim() ?? '';
+    if (ResponseParsers.isPlaceholderLanguageCode(trimmed)) return null;
+    return LanguageMatcher.normalize(trimmed);
+  }
+
+  /// The state after a translation failed with [error]. Offline only, the
+  /// on-device engine's "model missing" and "unsupported language" errors
+  /// become [QuickTranslateStatus.offlineModelsMissing] and
+  /// [QuickTranslateStatus.offlineUnsupported].
+  QuickTranslateState _failed(Object error) {
+    final failed = state.copyWith(result: () => null, error: () => null);
+    if (state.offlineOnly) {
+      switch (error) {
+        case OfflineLanguageUnsupportedException():
+          return failed.copyWith(
+            status: QuickTranslateStatus.offlineUnsupported,
+          );
+        case OfflineModelMissingException(:final languages):
+          final downloads = <OfflineDownload>[
+            for (final code in languages)
+              if (offlineLanguageKey(code) != _english.code)
+                (code: code, name: LanguageCatalog.nameOf(code), bytes: null),
+          ];
+          if (downloads.isNotEmpty) {
+            return failed.copyWith(
+              status: QuickTranslateStatus.offlineModelsMissing,
+              offlineDownloads: downloads,
+            );
+          }
+      }
+    }
+    return failed.copyWith(
+      status: QuickTranslateStatus.failure,
+      error: () => error,
+    );
+  }
+
   Future<void> _translate({required bool smartSwap}) {
     final engine = state.engine;
     if (engine == null || isClosed) return Future.value();
@@ -256,13 +435,7 @@ class QuickTranslateCubit extends Cubit<QuickTranslateState> {
 
     void fail(Object error) {
       _translation = null;
-      emit(
-        state.copyWith(
-          status: QuickTranslateStatus.failure,
-          result: () => null,
-          error: () => error,
-        ),
-      );
+      emit(_failed(error));
       _complete(done);
     }
 
@@ -336,13 +509,16 @@ class QuickTranslateCubit extends Cubit<QuickTranslateState> {
   Language? _smartSwapTarget(
     TranslationRequest request,
     TranslationResult result,
-  ) {
-    final detected = result.detectedSource;
-    if (request.target.isCustom || detected == null || detected.isEmpty) {
+  ) => _swapTargetFor(result.detectedSource, request.target);
+
+  /// The language to switch to when [detected] (a language code) equals
+  /// [target], else null.
+  Language? _swapTargetFor(String? detected, Language target) {
+    if (target.isCustom || detected == null || detected.isEmpty) {
       return null;
     }
     final detectedCode = LanguageMatcher.normalize(detected);
-    if (detectedCode != LanguageMatcher.normalize(request.target.code)) {
+    if (detectedCode != LanguageMatcher.normalize(target.code)) {
       return null;
     }
     final targets = state.targetLanguages;

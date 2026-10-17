@@ -781,6 +781,21 @@ class BergamotModelManager {
     CatalogFile? writing;
     try {
       _checkSafe(model.pair);
+      // A download of the same model that is running finishes first; when
+      // it fails, the files are installed instead.
+      if (_installing['${model.pair}/${model.version}'] case final running?) {
+        try {
+          await running;
+        } on Object {
+          // Installed from the files below.
+        }
+      }
+      if (await isInstalled(model)) {
+        return ModelImportOutcome(
+          model: model,
+          status: ModelImportStatus.alreadyInstalled,
+        );
+      }
       await _exclusive(
         model,
         () => _installStaged(model, (staging) async {

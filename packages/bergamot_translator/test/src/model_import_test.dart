@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -229,9 +230,11 @@ void main() {
 
     test('ignores duplicates and a damaged copy next to a good one', () async {
       final model = deen.files.first;
-      final damaged = put('damaged/${model.name}', List.filled(5, 0));
       Directory(p.join(inbox.path, 'damaged')).createSync();
-      damaged.writeAsBytesSync(List.filled(model.gz.length, 0));
+      final damaged = put(
+        p.join('damaged', model.entry.downloadName),
+        List.filled(model.gz.length, 0),
+      );
       final files = [damaged, ...published(deen), ...published(deen)];
 
       final result = await manager.importFiles(files, catalog: catalog);
@@ -370,22 +373,60 @@ void main() {
       expect(result.installed, isEmpty);
     });
 
-    test('shares an install that is already running', () async {
-      final server = FakeModelServer([ende]);
-      final downloader = BergamotModelManager(
-        root: Directory(p.join(root.path, 'shared')),
-        httpClient: server.client,
-      );
-      final download = downloader.install(ende.catalog);
+    group('while a download of the model is running', () {
+      late Completer<void> requested;
+      late Completer<int> status;
+      late BergamotModelManager downloader;
 
-      final result = await downloader.importFiles(
-        published(ende),
-        catalog: catalog,
-      );
+      setUp(() {
+        requested = Completer();
+        status = Completer();
+        final served = {for (final file in ende.files) file.entry.url: file.gz};
+        // Holds every request until [status] says how to answer.
+        downloader = BergamotModelManager(
+          root: Directory(p.join(root.path, 'busy')),
+          httpClient: MockClient.streaming((request, _) async {
+            if (!requested.isCompleted) requested.complete();
+            final code = await status.future;
+            return code == 200
+                ? http.StreamedResponse(Stream.value(served[request.url]!), 200)
+                : http.StreamedResponse(const Stream.empty(), code);
+          }),
+        );
+      });
 
-      expect(result.installed, [ende.catalog]);
-      expect((await download).pair, 'en-de');
-      expect(await downloader.installed(), hasLength(1));
+      Future<ModelImportResult> importDuring(int answer) async {
+        final importing = downloader.importFiles(
+          published(ende),
+          catalog: catalog,
+        );
+        // Give the import time to find the download.
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        status.complete(answer);
+        return await importing;
+      }
+
+      test('installs the files when the download fails', () async {
+        final download = downloader.install(ende.catalog);
+        await requested.future;
+
+        final result = await importDuring(503);
+
+        await expectLater(download, throwsA(isA<ModelDownloadException>()));
+        expect(result.installed, [ende.catalog]);
+        expect(await downloader.isInstalled(ende.catalog), isTrue);
+      });
+
+      test('keeps the downloaded model when the download succeeds', () async {
+        final download = downloader.install(ende.catalog);
+        await requested.future;
+
+        final result = await importDuring(200);
+
+        expect((await download).pair, 'en-de');
+        expect(result.models.single.status, ModelImportStatus.alreadyInstalled);
+        expect(await downloader.isInstalled(ende.catalog), isTrue);
+      });
     });
 
     test('reports nothing for no files', () async {
