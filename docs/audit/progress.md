@@ -137,8 +137,13 @@ commit.
 - `6cff411`: CLD2 language identification in the engine (`detect` in the
   C API), so Detect language works offline; the native build is
   reproducible (`-ffile-prefix-map`, fixed build info).
+- Import from files: **Settings > Offline languages > Import from files**
+  installs model files copied to the device (checked against the
+  catalogue's sizes and SHA-256, installed like a download) without the
+  app contacting any server, so **Offline only** users can get models
+  too; tapping a language lists its files and links.
 
-## Phase 4: UI/UX (mostly done, 2026-10-17)
+## Phase 4: UI/UX (done, 2026-10-17)
 
 - `2a9c517`: a calm translate screen. Only the languages, the input and
   the translation show by default; **More** opens the other tools. The
@@ -158,7 +163,25 @@ commit.
 - Accessibility: widget tests at 200 % text on a 360 dp phone check
   onboarding, settings and the history filters for overflow, tap-target
   size, labels and (settings) text contrast.
-- All 18 languages are complete; 60 unused strings were removed.
+- Foldables: a hinge or a half-opened fold splits the translate,
+  settings and proofread screens at the fold (book posture side by side,
+  tabletop input above output); nothing sits under a hinge.
+- Golden tests: 15 screenshots (translate, history, settings, onboarding;
+  phone light and dark, tablet, a two-screen device) with real fonts and a
+  0.5 % tolerance, see [building.md](../building.md).
+- `2337151`: the history offer ("From your history") also appears when the
+  translation is saved after the text was typed again.
+- All 18 languages are complete, including the Android labels (selection
+  actions, Quick Settings tile, shortcuts, widget); 60 unused strings were
+  removed.
+
+## Phase 5: extras (in progress, 2026-10-17)
+
+- **Translate offline**: a second entry in Android's text selection
+  toolbar that translates with the on-device engine only, whatever the
+  privacy mode. A missing model shows the download it needs; the text is
+  never sent anywhere (the app shell passes the request on since
+  `4440abe`).
 
 ## Phase 6: release and build documentation (done, 2026-10-17)
 
@@ -194,7 +217,8 @@ commit.
   x86_64 and under qemu (aarch64, armv7), never on a phone.
 - **Not done**: Tesseract (on-device OCR for the default build) and offline
   voice input.
-- **Phase 4 leftovers**: golden tests and foldable layouts.
+- **Not verified on Android**: the Kotlin side of **Translate offline** and
+  the translated Android labels compile only on CI (no Android SDK here).
 - **Dependabot PRs #1, #2 and #5** are waiting for the owner's decision.
   #2 and #5 need a pre-release tag to be exercised
   ([release.md](../release.md#before-the-first-release)).
