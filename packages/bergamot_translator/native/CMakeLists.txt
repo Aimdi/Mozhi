@@ -225,11 +225,12 @@ foreach(_target marian intgemm)
   endif()
 endforeach()
 
-# faiss uses SSE types under `#ifdef __SSE__` without including the SSE
-# header; glibc's headers pull it in transitively, the NDK's do not (Android
-# x86_64 failed with "unknown type name '__m128'").
+# faiss uses SSE/SSE3 intrinsics (__m128, _mm_hadd_ps) under `#ifdef __SSE__`
+# but only includes <x86intrin.h> on Apple; libstdc++ pulls the headers in
+# transitively, the NDK's libc++ does not (Android x86_64 failed with
+# "unknown type name '__m128'"). SSE3 itself is enabled by -msse4.1.
 if(TARGET faiss AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64|i.86)$")
-  target_compile_options(faiss PRIVATE -include xmmintrin.h)
+  target_compile_options(faiss PRIVATE -include immintrin.h)
 endif()
 
 if(ANDROID AND TARGET pathie-cpp)
