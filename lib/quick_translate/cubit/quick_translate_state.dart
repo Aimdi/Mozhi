@@ -1,4 +1,6 @@
 import 'package:equatable/equatable.dart';
+import 'package:mozhi/translate/widgets/offline_offer.dart'
+    show OfflineDownload;
 import 'package:translation_repository/translation_repository.dart';
 
 /// Lifecycle of a quick translation.
@@ -22,6 +24,21 @@ enum QuickTranslateStatus {
   /// Engines are available, but the one in settings is not, and the text
   /// is never sent to another destination by itself: the user picks one.
   chooseEngine,
+
+  /// [QuickTranslateState.offlineOnly]: this device has no on-device
+  /// engine (e.g. the web). Nothing was translated or sent.
+  offlineUnavailable,
+
+  /// [QuickTranslateState.offlineOnly]: the models of the language pair
+  /// are not all on the device; [QuickTranslateState.offlineDownloads]
+  /// lists the languages to download. Nothing was translated or sent.
+  offlineModelsMissing,
+
+  /// [QuickTranslateState.offlineOnly]: the on-device engine cannot
+  /// translate the identified language into the target, or could not
+  /// identify the text's language ([QuickTranslateState.identifiedSource]
+  /// is null then). Nothing was translated or sent.
+  offlineUnsupported,
 }
 
 /// State of `QuickTranslateCubit`: one incoming text, always translated
@@ -36,10 +53,26 @@ class QuickTranslateState extends Equatable {
     this.targetLanguages = const [],
     this.result,
     this.error,
+    this.offlineOnly = false,
+    this.identifiedSource,
+    this.offlineDownloads = const [],
   });
 
   /// The text handed to the app (selection / share).
   final String text;
+
+  /// "Translate offline": only the on-device engine translates, whatever
+  /// the privacy mode, and the text never goes to a network engine. Fixed
+  /// for the lifetime of the cubit.
+  final bool offlineOnly;
+
+  /// [offlineOnly]: the language the on-device engine identified the text
+  /// as (normalised code), known before (or without) a translation.
+  final String? identifiedSource;
+
+  /// [QuickTranslateStatus.offlineModelsMissing]: the languages to
+  /// download (with their download sizes when known), else empty.
+  final List<OfflineDownload> offlineDownloads;
 
   /// Language the text is translated into.
   final Language target;
@@ -66,10 +99,12 @@ class QuickTranslateState extends Equatable {
   String get translation => result?.text ?? '';
 
   /// Code of the auto-detected source language, when the engine reported
-  /// one.
+  /// one (or, offline only, the on-device engine identified it).
   String? get detectedSource {
-    final detected = result?.detectedSource;
-    return detected == null || detected.trim().isEmpty ? null : detected;
+    for (final detected in [result?.detectedSource, identifiedSource]) {
+      if (detected != null && detected.trim().isNotEmpty) return detected;
+    }
+    return null;
   }
 
   bool get isLoading => status == QuickTranslateStatus.loading;
@@ -96,6 +131,8 @@ class QuickTranslateState extends Equatable {
     List<Language>? targetLanguages,
     TranslationResult? Function()? result,
     Object? Function()? error,
+    String? Function()? identifiedSource,
+    List<OfflineDownload>? offlineDownloads,
   }) {
     return QuickTranslateState(
       text: text,
@@ -106,6 +143,11 @@ class QuickTranslateState extends Equatable {
       targetLanguages: targetLanguages ?? this.targetLanguages,
       result: result != null ? result() : this.result,
       error: error != null ? error() : this.error,
+      offlineOnly: offlineOnly,
+      identifiedSource: identifiedSource != null
+          ? identifiedSource()
+          : this.identifiedSource,
+      offlineDownloads: offlineDownloads ?? this.offlineDownloads,
     );
   }
 
@@ -119,5 +161,8 @@ class QuickTranslateState extends Equatable {
     targetLanguages,
     result,
     error,
+    offlineOnly,
+    identifiedSource,
+    offlineDownloads,
   ];
 }
