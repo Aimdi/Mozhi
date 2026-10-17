@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/on_device_ml.dart';
+import 'package:mozhi/core/widgets/fold_aware_split.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
@@ -33,7 +34,8 @@ class SettingsPage extends StatelessWidget {
 class SettingsView extends StatelessWidget {
   const new({super.key});
 
-  /// Width from which the sections are laid out in two columns.
+  /// Width from which the sections are laid out in two columns (also at
+  /// any width on either side of a vertical hinge or half-opened fold).
   static const twoPaneBreakpoint = 840.0;
 
   /// Whether on-device (offline) translation can run on this platform:
@@ -74,16 +76,20 @@ class SettingsView extends StatelessWidget {
       body: LayoutBuilder(
         builder: (context, constraints) {
           final width = constraints.maxWidth;
-          if (width >= twoPaneBreakpoint) {
+          final bookPosture =
+              FoldAwareSplit.featureDirectionOf(context) == Axis.horizontal;
+          if (width >= twoPaneBreakpoint || bookPosture) {
             return SingleChildScrollView(
               padding: centeredPadding(width, maxWidth: 1200),
-              child: Row(
+              // The columns split at a vertical hinge or fold (inside the
+              // scroll view horizontal ones are not followed).
+              child: FoldAwareSplit(
+                key: const Key('settings_columns'),
+                gap: 24,
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: column(primary)),
-                  const SizedBox(width: 24),
-                  Expanded(child: column(secondary)),
-                ],
+                foldDirections: const {Axis.horizontal},
+                first: column(primary),
+                second: column(secondary),
               ),
             );
           }

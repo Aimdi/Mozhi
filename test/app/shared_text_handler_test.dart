@@ -138,6 +138,7 @@ void main() {
         final request = quick.single;
         expect(request.canReplace, isFalse);
         expect(request.onReplace, isNull);
+        expect(request.offlineOnly, isFalse);
       });
 
       test('"Open in app" opens the translate tab', () async {
@@ -163,6 +164,100 @@ void main() {
 
         expect(shown, 1);
         verifyExternal('hola');
+      });
+    });
+
+    group('Translate offline', () {
+      const offline = SharedText(
+        'hola',
+        readOnly: false,
+        isProcessText: true,
+        action: SharedText.translateOfflineAction,
+      );
+
+      test('shows the selection in quick translate, offline only', () async {
+        await handler.handle(offline);
+
+        expect(shown, 0);
+        verifyNoInput();
+        final request = quick.single;
+        expect(request.text, 'hola');
+        expect(request.offlineOnly, isTrue);
+        expect(request.canReplace, isTrue);
+
+        request.onReplace!('hello');
+        await pumpEventQueue();
+        verify(() => service.returnResult('hello')).called(1);
+      });
+
+      test('a read-only selection cannot be replaced', () async {
+        await handler.handle(
+          const SharedText(
+            'hola',
+            isProcessText: true,
+            action: SharedText.translateOfflineAction,
+          ),
+        );
+
+        final request = quick.single;
+        expect(request.offlineOnly, isTrue);
+        expect(request.canReplace, isFalse);
+      });
+
+      test('arrives on the event channel too', () async {
+        await handler.start();
+
+        texts.add(offline);
+        await pumpEventQueue();
+
+        expect(quick.single.offlineOnly, isTrue);
+        verifyNoInput();
+      });
+
+      test('also without the PROCESS_TEXT flag', () async {
+        await handler.handle(
+          const SharedText('hola', action: SharedText.translateOfflineAction),
+        );
+
+        expect(quick.single.offlineOnly, isTrue);
+        verifyNoInput();
+      });
+
+      test('"Open in app" opens the translate tab', () async {
+        await handler.handle(offline);
+
+        quick.single.onOpenInApp();
+        await pumpEventQueue();
+
+        expect(shown, 1);
+        verifyExternal('hola');
+      });
+
+      test('never hands the text to the translate tab without the quick '
+          'translate UI', () async {
+        handler = SharedTextHandler(
+          service: service,
+          translateCubit: cubit,
+          onShowTranslate: () => shown++,
+        );
+
+        await handler.handle(offline);
+
+        expect(shown, 1);
+        verifyNoInput();
+      });
+
+      test('ignores a blank selection', () async {
+        await handler.handle(
+          const SharedText(
+            '  ',
+            isProcessText: true,
+            action: SharedText.translateOfflineAction,
+          ),
+        );
+
+        expect(shown, 0);
+        expect(quick, isEmpty);
       });
     });
 
@@ -297,5 +392,14 @@ void main() {
 
     expect(readOnly.canReplace, isFalse);
     expect(writable.canReplace, isTrue);
+    expect(readOnly.offlineOnly, isFalse);
+    expect(
+      QuickTranslateRequest(
+        text: 'a',
+        onOpenInApp: () {},
+        offlineOnly: true,
+      ).offlineOnly,
+      isTrue,
+    );
   });
 }

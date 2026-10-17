@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
+import 'package:mozhi/offline/data/offline_model_error.dart';
 
 /// What an import did with one translation direction.
 enum OfflineImportStatus {
@@ -29,7 +30,7 @@ class OfflineImportedModel extends Equatable {
     required this.target,
     required this.status,
     this.missingFiles = const [],
-    this.storageError = false,
+    this.error,
   });
 
   /// Language codes of the direction (as the engine reports languages).
@@ -41,18 +42,12 @@ class OfflineImportedModel extends Equatable {
   /// needed: missing or damaged ones.
   final List<String> missingFiles;
 
-  /// Whether a [OfflineImportStatus.failed] model could not be written
-  /// (usually a full disk).
-  final bool storageError;
+  /// Why a [OfflineImportStatus.failed] (or, found while installing,
+  /// [OfflineImportStatus.damaged]) model was not installed, when known.
+  final OfflineModelError? error;
 
   @override
-  List<Object?> get props => [
-    source,
-    target,
-    status,
-    missingFiles,
-    storageError,
-  ];
+  List<Object?> get props => [source, target, status, missingFiles, error];
 }
 
 /// The result of [OfflineModelImport.importFiles].

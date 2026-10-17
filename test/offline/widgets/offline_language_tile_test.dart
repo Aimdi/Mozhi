@@ -29,6 +29,7 @@ void main() {
       bool builtIn = false,
       bool enabled = true,
       OfflineLanguage language = german,
+      bool showFiles = false,
     }) => tester.pumpApp(
       Scaffold(
         body: OfflineLanguageTile(
@@ -43,6 +44,7 @@ void main() {
           enabled: enabled,
           onDownload: () => taps.add('download'),
           onDelete: () => taps.add('delete'),
+          onShowFiles: showFiles ? () => taps.add('files') : null,
         ),
       ),
     );
@@ -64,6 +66,29 @@ void main() {
       expect(find.byIcon(Icons.offline_pin), findsOneWidget);
       await tester.tap(find.byTooltip('Delete German'));
       expect(taps, ['delete']);
+    });
+
+    testWidgets('shows the files to download by hand on a tap', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pump(tester, showFiles: true);
+      expect(
+        tester.getSemantics(find.byType(ListTile)),
+        isSemantics(
+          hasTapAction: true,
+          onTapHint: 'Show the files to download by hand',
+        ),
+      );
+      await tester.tap(find.text('German'));
+      expect(taps, ['files']);
+      // The pill keeps its own action.
+      await tester.tap(find.byTooltip('Download German'));
+      expect(taps, ['files', 'download']);
+      handle.dispose();
+    });
+
+    testWidgets('is not tappable without files', (tester) async {
+      await pump(tester);
+      expect(tester.widget<ListTile>(find.byType(ListTile)).onTap, isNull);
     });
 
     testWidgets('uses an inverse pill to download', (tester) async {

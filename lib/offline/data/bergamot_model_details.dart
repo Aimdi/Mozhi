@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:bergamot_translator/bergamot_translator.dart';
 import 'package:mozhi/offline/data/offline_model_details.dart';
+import 'package:mozhi/offline/data/offline_model_error.dart';
 import 'package:mozhi/offline/data/offline_model_import.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -96,7 +97,10 @@ class BergamotModelDetails implements OfflineModelDetails, OfflineModelImport {
             missingFiles: [
               for (final file in outcome.missing) file.downloadName,
             ],
-            storageError: outcome.error is FileSystemException,
+            error: switch (outcome.error) {
+              final Object error => OfflineModelError.of(error),
+              null => null,
+            },
           ),
       ],
       unmatchedFiles: [

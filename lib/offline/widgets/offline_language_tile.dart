@@ -11,6 +11,7 @@ import 'package:mozhi/settings/view/widgets/delete_local_data.dart'
 /// turns into "Delete" on hover/focus and deletes) for downloaded ones, an
 /// "Update" pill plus a delete button when a newer model exists, nothing
 /// for built-in languages, and accent progress while an operation runs.
+/// With [onShowFiles], tapping the row shows the files to download by hand.
 class OfflineLanguageTile extends StatelessWidget {
   const new({
     required this.language,
@@ -24,6 +25,7 @@ class OfflineLanguageTile extends StatelessWidget {
     this.outdated = false,
     this.builtIn = false,
     this.enabled = true,
+    this.onShowFiles,
     super.key,
   });
 
@@ -52,6 +54,9 @@ class OfflineLanguageTile extends StatelessWidget {
   /// Downloads or, when [outdated], updates the language.
   final VoidCallback onDownload;
   final VoidCallback onDelete;
+
+  /// Shows the language's files for a manual download (the row's tap).
+  final VoidCallback? onShowFiles;
 
   String? _status(AppLocalizations l10n) {
     final percent = progress == null ? null : (progress! * 100).floor();
@@ -93,8 +98,9 @@ class OfflineLanguageTile extends StatelessWidget {
     final status = _status(l10n);
     final subtitle = status ?? _details(l10n);
     final accent = status != null || (outdated && pending == null);
-    return ListTile(
+    final tile = ListTile(
       enabled: enabled,
+      onTap: onShowFiles,
       contentPadding: const EdgeInsetsDirectional.only(start: 16, end: 12),
       minVerticalPadding: 12,
       leading: _Avatar(code: language.code, downloaded: downloaded),
@@ -159,6 +165,9 @@ class OfflineLanguageTile extends StatelessWidget {
         ),
       },
     );
+    return onShowFiles == null
+        ? tile
+        : Semantics(onTapHint: l10n.offlineManualHint, child: tile);
   }
 }
 

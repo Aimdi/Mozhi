@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mozhi/offline/data/offline_model_details.dart';
 import 'package:mozhi/offline/data/offline_model_error.dart';
+import 'package:mozhi/offline/data/offline_model_import.dart';
 import 'package:mozhi/offline/offline.dart';
 
 void main() {
@@ -65,6 +66,63 @@ void main() {
           succeeded: true,
         ).needsMeteredConsent,
         isFalse,
+      );
+    });
+  });
+
+  group('OfflineImportOutcome', () {
+    const english = OfflineLanguage(code: 'en', name: 'English');
+
+    OfflineImportEntry entry(OfflineImportStatus status) =>
+        OfflineImportEntry(source: german, target: english, status: status);
+
+    test('knows whether anything was installed', () {
+      expect(const OfflineImportOutcome().installedAny, isFalse);
+      expect(
+        OfflineImportOutcome(
+          entries: [entry(OfflineImportStatus.alreadyInstalled)],
+        ).installedAny,
+        isFalse,
+      );
+      expect(
+        OfflineImportOutcome(
+          entries: [
+            entry(OfflineImportStatus.incomplete),
+            entry(OfflineImportStatus.installed),
+          ],
+        ).installedAny,
+        isTrue,
+      );
+    });
+
+    test('supports value equality', () {
+      expect(
+        OfflineImportOutcome(
+          entries: [entry(OfflineImportStatus.installed)],
+          unmatchedFiles: const ['a.txt'],
+        ),
+        OfflineImportOutcome(
+          entries: [entry(OfflineImportStatus.installed)],
+          unmatchedFiles: const ['a.txt'],
+        ),
+      );
+      expect(
+        const OfflineImportOutcome(
+          error: OfflineModelError(OfflineModelErrorKind.storage),
+        ),
+        isNot(const OfflineImportOutcome()),
+      );
+      expect(
+        const OfflineManualDirection(
+          source: german,
+          target: english,
+          files: [],
+        ),
+        const OfflineManualDirection(
+          source: german,
+          target: english,
+          files: [],
+        ),
       );
     });
   });
@@ -156,6 +214,43 @@ void main() {
       expect(copy.languages, state.languages);
       expect(copy.copyWith(), copy);
       expect(copy.copyWith(outcome: () => null).outcome, isNull);
+      expect(copy, isNot(state));
+    });
+
+    test('copyWith keeps or replaces the import values', () {
+      const english = OfflineLanguage(code: 'en', name: 'English');
+      const direction = OfflineManualDirection(
+        source: german,
+        target: english,
+        files: [
+          OfflineModelFile(
+            source: 'de',
+            target: 'en',
+            name: 'vocab.deen.spm.gz',
+            url: 'https://models.test/vocab.deen.spm.gz',
+            size: 1,
+          ),
+        ],
+      );
+      const outcome = OfflineImportOutcome(unmatchedFiles: ['a.txt']);
+      expect(state.canImport, isFalse);
+      expect(state.importing, isFalse);
+      expect(state.manualDownloadsOf('de'), isEmpty);
+      final copy = state.copyWith(
+        canImport: true,
+        importing: true,
+        importOutcome: () => outcome,
+        manualDownloads: {
+          'de': [direction],
+        },
+      );
+      expect(copy.canImport, isTrue);
+      expect(copy.importing, isTrue);
+      expect(copy.importOutcome, outcome);
+      expect(copy.manualDownloadsOf('de'), [direction]);
+      expect(copy.manualDownloadsOf('fr'), isEmpty);
+      expect(copy.copyWith(), copy);
+      expect(copy.copyWith(importOutcome: () => null).importOutcome, isNull);
       expect(copy, isNot(state));
     });
   });

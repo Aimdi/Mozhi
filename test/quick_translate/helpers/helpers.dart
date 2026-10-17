@@ -23,6 +23,11 @@ class MockSpeechService extends Mock implements SpeechService;
 class MockQuickTranslateCubit extends MockCubit<QuickTranslateState>
     implements QuickTranslateCubit;
 
+class MockOfflineTranslator extends Mock implements OfflineTranslator;
+
+/// The on-device engine ([TranslationEngine.offline]).
+final offlineEngine = TranslationEngine.offline();
+
 const google = TranslationEngine(
   id: 'mozhi:google',
   kind: EngineKind.mozhi,
@@ -146,6 +151,7 @@ Widget quickView(
   bool canReplace = false,
   ValueChanged<String>? onReplace,
   VoidCallback? onOpenInApp,
+  VoidCallback? onOpenOfflineModels,
   VoidCallback? onClose,
 }) {
   Widget child = BlocProvider<QuickTranslateCubit>.value(
@@ -154,6 +160,7 @@ Widget quickView(
       canReplace: canReplace,
       onReplace: onReplace,
       onOpenInApp: onOpenInApp,
+      onOpenOfflineModels: onOpenOfflineModels,
       onClose: onClose ?? () {},
     ),
   );

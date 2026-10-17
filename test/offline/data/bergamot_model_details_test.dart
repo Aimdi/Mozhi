@@ -8,6 +8,8 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:mozhi/offline/data/bergamot_model_details.dart';
 import 'package:mozhi/offline/data/offline_model_details.dart';
+import 'package:mozhi/offline/data/offline_model_error.dart';
+import 'package:mozhi/offline/data/offline_model_import.dart';
 import 'package:mozhi/offline/data/unavailable_offline_translator.dart';
 
 class _Engine implements BergamotEngine {
@@ -202,6 +204,128 @@ void main() {
       );
       expect(fractions.last, 1);
       expect((await details.storage(['de'])).outdated, isEmpty);
+    });
+
+    group('imports', () {
+      late Directory inbox;
+
+      setUp(() => inbox = Directory('${root.path}/inbox')..createSync());
+
+      /// Writes the published files of `source -> target` into the inbox
+      /// (all of them, or the first [count]) and returns their paths.
+      List<String> publish(String source, String target, {int? count}) {
+        final model = catalog.build().model(source, target)!;
+        final files = model.files.values.take(count ?? model.files.length);
+        return [
+          for (final file in files)
+            (File(
+              '${inbox.path}/${file.name}.gz',
+            )..writeAsBytesSync(catalog.bodies[file.url]!)).path,
+        ];
+      }
+
+      test('installs complete directions and reports the rest', () async {
+        final details = BergamotModelDetails(translator());
+        final notes = File('${inbox.path}/notes.txt')
+          ..writeAsStringSync('hello');
+
+        final report = await details.importFiles([
+          ...publish('de', 'en'),
+          ...publish('en', 'de', count: 1),
+          notes.path,
+        ]);
+
+        expect(
+          report,
+          const OfflineImportReport(
+            models: [
+              OfflineImportedModel(
+                source: 'de',
+                target: 'en',
+                status: OfflineImportStatus.installed,
+              ),
+              OfflineImportedModel(
+                source: 'en',
+                target: 'de',
+                status: OfflineImportStatus.incomplete,
+                missingFiles: ['lexicalShortlist.gz', 'vocab.gz'],
+              ),
+            ],
+            unmatchedFiles: ['notes.txt'],
+          ),
+        );
+        expect(requests, isEmpty);
+        expect(
+          (await details.storage(['de'])).totalBytes,
+          catalog.installedSizes['de-en'],
+        );
+      });
+
+      test('reports installed models and engine codes', () async {
+        await catalog.add('zh_hant', 'en', 'v1');
+        final details = BergamotModelDetails(translator());
+        await details.importFiles(publish('fr', 'en'));
+        final damaged = publish('zh_hant', 'en', count: 1).single;
+        File(damaged).writeAsBytesSync([1, 2, 3]);
+
+        final report = await details.importFiles([
+          ...publish('fr', 'en'),
+          damaged,
+        ]);
+
+        expect(report.models, const [
+          OfflineImportedModel(
+            source: 'fr',
+            target: 'en',
+            status: OfflineImportStatus.alreadyInstalled,
+          ),
+          OfflineImportedModel(
+            source: 'zh-Hant',
+            target: 'en',
+            status: OfflineImportStatus.damaged,
+            missingFiles: ['model.gz', 'lexicalShortlist.gz', 'vocab.gz'],
+          ),
+        ]);
+      });
+
+      test('classifies why a model could not be installed', () async {
+        File('${root.path}/models/.staging')
+          ..createSync(recursive: true)
+          ..writeAsStringSync('in the way');
+        final details = BergamotModelDetails(translator());
+
+        final report = await details.importFiles(publish('de', 'en'));
+
+        expect(report.models.single.status, OfflineImportStatus.failed);
+        expect(
+          report.models.single.error,
+          const OfflineModelError(OfflineModelErrorKind.storage),
+        );
+      });
+
+      test('lists the files to download by hand', () {
+        final details = BergamotModelDetails(translator());
+        final model = catalog.build().model('de', 'en')!;
+
+        final files = details.manualFiles('de');
+
+        expect(files, hasLength(6));
+        expect(
+          files.first,
+          OfflineModelFile(
+            source: 'de',
+            target: 'en',
+            name: 'model.gz',
+            url: 'https://models.example/de-en/v1/model.gz',
+            size: model.files.values.first.size,
+          ),
+        );
+        expect(files.map((file) => '${file.source}-${file.target}').toSet(), {
+          'de-en',
+          'en-de',
+        });
+        expect(details.manualFiles('en'), isEmpty);
+      });
     });
 
     test('passes download errors on', () async {

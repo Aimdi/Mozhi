@@ -116,6 +116,76 @@ and SHA-256 match -> write `manifest.json` -> one `rename()` into
 resumes with an HTTP `Range` request (the existing bytes are re-hashed, so
 the final check covers the whole file); a server that ignores `Range`
 restarts it. The `http.Client` is injectable (tests use `MockClient`).
+An import from files ([below](#import-models-without-the-app-downloading-them))
+goes through the same checks, staging and rename, with no download step.
+
+## Import models without the app downloading them
+
+A download makes the phone contact `storage.googleapis.com`, which
+Google hosts. To avoid that, for example in **Offline only**, download
+the files on another computer, copy them to the phone and import them.
+The import contacts nothing, so it works in every privacy mode.
+
+**Which files.** Each direction has three files (four for the few models
+with split vocabularies): the model, the lexical shortlist and the
+vocabulary, e.g. for German to English:
+
+```
+model.deen.intgemm.alphas.bin.gz
+lex.50.50.deen.s2t.bin.gz
+vocab.deen.spm.gz
+```
+
+A language needs both of its directions (German: de-en and en-de, six
+files). Between two other languages Mozhi goes through English, so
+Spanish to German needs Spanish and German. English needs nothing.
+
+**Where to get them.** From Mozilla's bucket:
+
+```
+https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/<source>-<target>/<version>/exported/<file>.gz
+```
+
+`<version>` is the training run in the catalog bundled with your app
+version (`packages/bergamot_translator/assets/catalog.json`, the `url`
+of each file). The easiest way: on **Settings > Offline languages**, tap
+a language. **Files for German** lists its files with their sizes; copy
+one link, or **Copy all links** and send them to the other computer. Use
+the links of your app version: files of another model version don't
+match the checksums and are rejected.
+
+**Download them** in a browser, or with `wget -i links.txt` (one link
+per line). Keep the names. Decompressing them (`gunzip`) is fine too:
+both forms are accepted. A renamed copy (`vocab.deen (1).spm.gz`) is
+recognised by its size and checksum.
+
+**Copy them to the phone** over USB (file transfer mode), on an SD card
+or from a network share: anywhere the Android file picker can open.
+
+**Import them:** **Settings > Offline languages > Import from files**,
+then select all the files at once. Every file is checked against the
+SHA-256 bundled with the app, like a download. Every complete direction
+is installed; nothing else changes. A summary follows, for example
+**Installed German → English**, **Missing 1 file for English → German**
+(with the missing file names), **2 files didn't match any model** or
+**A file for German → English is damaged (checksum mismatch)**. Import
+the missing files later; directions already installed are skipped. You
+can delete the copies afterwards: the app keeps its own.
+
+How it works (`BergamotModelManager.importFiles(files, catalog:)`): each
+file is matched to a catalog file by name (`<name>.gz` as published,
+`CatalogFileDownload.downloadName`, or `<name>` decompressed; case is
+ignored), otherwise by size and SHA-256. A named file must match the
+size and SHA-256 of the gzip file or of the decompressed file; a gzip
+file is decompressed into staging and checked again, a decompressed one
+is copied and checked again. Complete models go through the downloader's
+staging and atomic install (replacing another version of the pair); an
+install of the same model that is running finishes first. The result
+lists per model: installed, already installed, incomplete (missing
+files), checksum mismatch (the damaged files) or failed (the error), and
+the files that matched nothing. The imported files are only read. On
+Android `file_picker` copies the picked files into the app's cache; the
+app deletes those copies after the import.
 
 ## Language identification
 
@@ -366,7 +436,10 @@ at 100% (the rest of the gap is the translation FFI path).
    data?* with *Download anyway*; checksum, server (HTTP status), network
    (including the app's proxy/https rules), storage, engine and
    unsupported-language errors each have their own message and a *Retry*
-   action. On a device whose CPU cannot run the engine (armv7 without
+   action. *Import from files* installs models copied to the phone
+   (`OfflineModelImport`, see
+   [above](#import-models-without-the-app-downloading-them)); tapping a
+   language lists its files and download links. On a device whose CPU cannot run the engine (armv7 without
    VFPv4) the screen says so; on the web it points to the Android app.
 4. Licences page (`lib/app/third_party_licenses.dart`): *Firefox
    Translations engine (Bergamot)* lists every component of

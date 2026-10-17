@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/fold_aware_split.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/proofread/cubit/proofread_cubit.dart';
@@ -101,7 +102,8 @@ String proofreadUiLanguage(Locale locale) {
 class ProofreadView extends StatelessWidget {
   const new({super.key});
 
-  /// Width from which input and result are shown side by side.
+  /// Width from which input and result are shown side by side (also at
+  /// any width on either side of a vertical hinge or half-opened fold).
   static const wideBreakpoint = 840.0;
 
   @override
@@ -117,7 +119,8 @@ class ProofreadView extends StatelessWidget {
     if (hasEngines) {
       body = LayoutBuilder(
         builder: (context, constraints) =>
-            constraints.maxWidth >= wideBreakpoint
+            constraints.maxWidth >= wideBreakpoint ||
+                FoldAwareSplit.featureDirectionOf(context) == Axis.horizontal
             ? const _WideLayout()
             : const _NarrowLayout(),
       );
@@ -183,32 +186,28 @@ class _WideLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(
-          child: SingleChildScrollView(
-            padding: EdgeInsets.fromLTRB(24, 16, 12, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: 16,
-              children: [
-                ProofreadInputCard(),
-                ProofreadControls(initiallyExpanded: true),
-                ProofreadButton(),
-              ],
-            ),
-          ),
+    // Side by side, split exactly at a vertical hinge or half-opened fold.
+    return const FoldAwareSplit(
+      // The panes are divided by a hairline, not boxed.
+      gap: 1,
+      divider: Hairline(vertical: true),
+      foldDirections: {Axis.horizontal},
+      first: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(24, 16, 12, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: 16,
+          children: [
+            ProofreadInputCard(),
+            ProofreadControls(initiallyExpanded: true),
+            ProofreadButton(),
+          ],
         ),
-        // The panes are divided by a hairline, not boxed.
-        Hairline(vertical: true),
-        Expanded(
-          child: SingleChildScrollView(
-            padding: EdgeInsets.fromLTRB(12, 16, 24, 24),
-            child: ProofreadResultSection(showPlaceholder: true),
-          ),
-        ),
-      ],
+      ),
+      second: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(12, 16, 24, 24),
+        child: ProofreadResultSection(showPlaceholder: true),
+      ),
     );
   }
 }

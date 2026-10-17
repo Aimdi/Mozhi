@@ -3,6 +3,8 @@ import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/offline/cubit/offline_models_state.dart';
 import 'package:mozhi/offline/data/offline_model_details.dart';
 import 'package:mozhi/offline/data/offline_model_error.dart';
+import 'package:mozhi/offline/data/offline_model_file_picker.dart';
+import 'package:mozhi/offline/data/offline_model_import.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 export 'offline_models_state.dart';
@@ -18,6 +20,11 @@ typedef OfflineLanguageDescriber = OfflineLanguage Function(String code);
 /// progress, and re-reads the downloaded languages after each operation
 /// (models can be shared between languages).
 ///
+/// With `importer` (default: `details` when it is an [OfflineModelImport])
+/// it installs models from files the user picks ([importFromFiles], with
+/// `picker`) and lists the files to download by hand per language
+/// ([OfflineModelsState.manualDownloads]). Imports never use the network.
+///
 /// The "Wi-Fi only" choice is persisted in `store` under [wifiOnlyKey]
 /// (default on): a download on a metered network then fails with
 /// [OfflineModelErrorKind.metered] and [download] with
@@ -30,14 +37,24 @@ class OfflineModelsCubit extends Cubit<OfflineModelsState> {
     required this._translator,
     required this._store,
     this._details,
+    OfflineModelImport? importer,
+    this._picker = const OfflineModelFilePicker(),
     this._describe = describeOfflineLanguage,
-  }) : super(const OfflineModelsState());
+  }) : _importer =
+           importer ??
+           switch (_details) {
+             final OfflineModelImport details => details,
+             _ => null,
+           },
+       super(const OfflineModelsState());
 
   static const wifiOnlyKey = 'offline.wifiOnly';
 
   final OfflineTranslator _translator;
   final KeyValueStore _store;
   final OfflineModelDetails? _details;
+  final OfflineModelImport? _importer;
+  final OfflineModelFilePicker _picker;
   final OfflineLanguageDescriber _describe;
 
   Future<void> load() async {
@@ -52,6 +69,16 @@ class OfflineModelsCubit extends Cubit<OfflineModelsState> {
       final sizes = details == null
           ? const <String, int>{}
           : {for (final code in codes) code: details.downloadSize(code)};
+      final importer = _importer;
+      final named = {for (final language in languages) language.code: language};
+      OfflineLanguage name(String code) => named[code] ?? _describe(code);
+      final manual = <String, List<OfflineManualDirection>>{
+        if (importer != null)
+          for (final code in codes)
+            if (_directions(importer.manualFiles(code), name)
+                case final directions when directions.isNotEmpty)
+              code: directions,
+      };
       final downloaded = available
           ? await _translator.downloadedLanguages()
           : const <String>{};
@@ -66,6 +93,8 @@ class OfflineModelsCubit extends Cubit<OfflineModelsState> {
           wifiOnly: wifiOnly,
           downloadSizes: sizes,
           storage: () => storage,
+          canImport: available && importer != null,
+          manualDownloads: manual,
         ),
       );
     } on Object catch (error, stackTrace) {
@@ -113,6 +142,51 @@ class OfflineModelsCubit extends Cubit<OfflineModelsState> {
     } on Object catch (error, stackTrace) {
       addError(error, stackTrace);
     }
+  }
+
+  /// Lets the user pick model files (downloaded by hand, see
+  /// [OfflineModelsState.manualDownloads]) and installs every model they
+  /// complete. Nothing is sent over the network, so this works in every
+  /// privacy mode. Reports an [OfflineImportOutcome] and refreshes the
+  /// downloaded languages; cancelling the picker changes nothing.
+  Future<void> importFromFiles() async {
+    final importer = _importer;
+    if (importer == null || !state.canImport || state.importing) return;
+    void start() {
+      if (isClosed || state.importing) return;
+      emit(state.copyWith(importing: true, importOutcome: () => null));
+    }
+
+    OfflineImportOutcome outcome;
+    try {
+      final paths = await _picker.pick(onCopying: start);
+      if (paths.isEmpty) {
+        if (!isClosed && state.importing) {
+          emit(state.copyWith(importing: false));
+        }
+        return;
+      }
+      start();
+      try {
+        outcome = _outcomeOf(await importer.importFiles(paths));
+      } finally {
+        await _clearPickedCopies();
+      }
+    } on Object catch (error, stackTrace) {
+      outcome = OfflineImportOutcome(error: OfflineModelError.of(error));
+      addError(error, stackTrace);
+    }
+    final downloaded = await _readDownloaded();
+    final storage = _details != null ? await _readStorage() : state.storage;
+    if (isClosed) return;
+    emit(
+      state.copyWith(
+        importing: false,
+        downloaded: downloaded,
+        storage: () => storage,
+        importOutcome: () => outcome,
+      ),
+    );
   }
 
   /// Filters [OfflineModelsState.visible] (case-insensitive).
@@ -164,6 +238,50 @@ class OfflineModelsCubit extends Cubit<OfflineModelsState> {
         ),
       ),
     );
+  }
+
+  OfflineImportOutcome _outcomeOf(OfflineImportReport report) =>
+      OfflineImportOutcome(
+        entries: [
+          for (final model in report.models)
+            OfflineImportEntry(
+              source: _languageOf(model.source),
+              target: _languageOf(model.target),
+              status: model.status,
+              missingFiles: model.missingFiles,
+              error: model.error,
+            ),
+        ],
+        unmatchedFiles: report.unmatchedFiles,
+      );
+
+  /// [files] grouped by direction, in their order.
+  static List<OfflineManualDirection> _directions(
+    List<OfflineModelFile> files,
+    OfflineLanguage Function(String code) name,
+  ) {
+    final groups = <(String, String), List<OfflineModelFile>>{};
+    for (final file in files) {
+      (groups[(file.source, file.target)] ??= []).add(file);
+    }
+    return [
+      for (final MapEntry(key: (source, target), value: files)
+          in groups.entries)
+        OfflineManualDirection(
+          source: name(source),
+          target: name(target),
+          files: List.unmodifiable(files),
+        ),
+    ];
+  }
+
+  /// The picker's copies are only needed during the import.
+  Future<void> _clearPickedCopies() async {
+    try {
+      await _picker.clearCopies();
+    } on Object catch (error, stackTrace) {
+      addError(error, stackTrace);
+    }
   }
 
   /// Emits download progress in whole percent steps only.

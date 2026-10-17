@@ -42,6 +42,24 @@ void main() {
       expect(const SharedText('', action: 'other').isTranslateClipboard, false);
     });
 
+    test('recognises the translate-offline action', () {
+      const text = SharedText(
+        'hola',
+        readOnly: false,
+        isProcessText: true,
+        action: 'translateOffline',
+      );
+
+      expect(SharedText.translateOfflineAction, 'translateOffline');
+      expect(text.isTranslateOffline, isTrue);
+      expect(text.isTranslateClipboard, isFalse);
+      expect(const SharedText('hola').isTranslateOffline, isFalse);
+      expect(
+        const SharedText('', action: 'translateClipboard').isTranslateOffline,
+        isFalse,
+      );
+    });
+
     test('supports value equality', () {
       expect(const SharedText('a'), equals(const SharedText('a')));
       expect(const SharedText('a').hashCode, const SharedText('a').hashCode);
@@ -132,6 +150,26 @@ void main() {
         );
       });
 
+      test('reads a translate-offline selection', () {
+        final text = SharedTextService.parse({
+          'text': 'Hola',
+          'readOnly': false,
+          'processText': true,
+          'action': 'translateOffline',
+        });
+
+        expect(
+          text,
+          const SharedText(
+            'Hola',
+            readOnly: false,
+            isProcessText: true,
+            action: 'translateOffline',
+          ),
+        );
+        expect(text!.isTranslateOffline, isTrue);
+      });
+
       test('drops blank text next to an action', () {
         expect(
           SharedTextService.parse({
@@ -193,6 +231,29 @@ void main() {
           await service.initialText(),
           const SharedText('', action: 'translateClipboard'),
         );
+      });
+
+      test('returns a translate-offline selection', () async {
+        messenger.setMockMethodCallHandler(
+          methods,
+          (call) async => {
+            'text': 'Bonjour',
+            'readOnly': true,
+            'processText': true,
+            'action': 'translateOffline',
+          },
+        );
+
+        final text = await service.initialText();
+        expect(
+          text,
+          const SharedText(
+            'Bonjour',
+            isProcessText: true,
+            action: SharedText.translateOfflineAction,
+          ),
+        );
+        expect(text!.isTranslateOffline, isTrue);
       });
 
       test('returns null when nothing was shared', () async {
@@ -261,6 +322,12 @@ void main() {
                 })
                 ..success({'action': 'translateClipboard'})
                 ..success({'action': ''})
+                ..success({
+                  'text': 'four',
+                  'readOnly': false,
+                  'processText': true,
+                  'action': 'translateOffline',
+                })
                 ..endOfStream();
             },
           ),
@@ -276,7 +343,14 @@ void main() {
           SharedText('two'),
           SharedText('three', readOnly: false, isProcessText: true),
           SharedText('', action: 'translateClipboard'),
+          SharedText(
+            'four',
+            readOnly: false,
+            isProcessText: true,
+            action: 'translateOffline',
+          ),
         ]);
+        expect(received.last.isTranslateOffline, isTrue);
       });
 
       test('is a cached broadcast stream', () {

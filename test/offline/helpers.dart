@@ -2,9 +2,31 @@ import 'dart:async';
 
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/offline/data/offline_model_details.dart';
+import 'package:mozhi/offline/data/offline_model_file_picker.dart';
+import 'package:mozhi/offline/data/offline_model_import.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 class MockOfflineTranslator extends Mock implements OfflineTranslator;
+
+class MockOfflineModelFilePicker extends Mock implements OfflineModelFilePicker;
+
+/// A picker that returns [paths] (cancelled when empty), calling
+/// `onCopying` first when [copies] is set.
+MockOfflineModelFilePicker stubOfflineModelFilePicker({
+  List<String> paths = const ['/picked/model.deen.intgemm.alphas.bin.gz'],
+  bool copies = false,
+}) {
+  final picker = MockOfflineModelFilePicker();
+  when(() => picker.pick(onCopying: any(named: 'onCopying')))
+      .thenAnswer((invocation) async {
+        if (copies) {
+          (invocation.namedArguments[#onCopying] as void Function()?)?.call();
+        }
+        return paths;
+      });
+  when(picker.clearCopies).thenAnswer((_) async {});
+  return picker;
+}
 
 /// Supported languages of [stubOfflineTranslator], deliberately unsorted.
 const testOfflineLanguages = {'fr', 'de', 'en', 'ja', 'xx'};
@@ -90,4 +112,54 @@ class FakeOfflineModelDetails implements OfflineModelDetails {
     if (error case final error?) throw error;
     if (storageAfterDownload case final after?) storageValue = after;
   }
+}
+
+/// The files to download by hand for German in
+/// [FakeImportingModelDetails] (two directions, one file each).
+const testManualFiles = {
+  'de': [
+    OfflineModelFile(
+      source: 'de',
+      target: 'en',
+      name: 'model.deen.intgemm.alphas.bin.gz',
+      url: 'https://models.test/de-en/model.deen.intgemm.alphas.bin.gz',
+      size: 25 * _mb,
+    ),
+    OfflineModelFile(
+      source: 'en',
+      target: 'de',
+      name: 'model.ende.intgemm.alphas.bin.gz',
+      url: 'https://models.test/en-de/model.ende.intgemm.alphas.bin.gz',
+      size: 25 * _mb,
+    ),
+  ],
+};
+
+/// [FakeOfflineModelDetails] that also imports: [importFiles] waits for
+/// [importHold] (if set), throws [importError] (if set) or returns
+/// [report], and then reports [storageAfterImport] (if set).
+class FakeImportingModelDetails extends FakeOfflineModelDetails
+    implements OfflineModelImport {
+  new({this.manual = testManualFiles});
+
+  Map<String, List<OfflineModelFile>> manual;
+  OfflineImportReport report = const OfflineImportReport();
+  Exception? importError;
+  Completer<void>? importHold;
+  OfflineStorage? storageAfterImport;
+
+  /// The paths of every import.
+  final imports = <List<String>>[];
+
+  @override
+  Future<OfflineImportReport> importFiles(List<String> paths) async {
+    imports.add(paths);
+    if (importHold case final hold?) await hold.future;
+    if (importError case final error?) throw error;
+    if (storageAfterImport case final after?) storageValue = after;
+    return report;
+  }
+
+  @override
+  List<OfflineModelFile> manualFiles(String code) => manual[code] ?? const [];
 }

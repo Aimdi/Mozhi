@@ -6889,5 +6889,137 @@
   "quickTranslateOfflineUndetected": "Couldn’t tell on this device which language this is. Your text wasn’t sent anywhere.",
   "@quickTranslateOfflineUndetected": {
     "description": "Translate offline sheet: the on-device engine could not identify the language of the selected text."
+  },
+  "offlineImportAction": "Import from files",
+  "@offlineImportAction": {
+    "description": "offlineImportAction"
+  },
+  "offlineImportSubtitle": "Install model files you copied to this device. Mozhi doesn’t go online for this.",
+  "@offlineImportSubtitle": {
+    "description": "offlineImportSubtitle"
+  },
+  "offlineImporting": "Importing…",
+  "@offlineImporting": {
+    "description": "offlineImporting"
+  },
+  "offlineImportTitleDone": "Models imported",
+  "@offlineImportTitleDone": {
+    "description": "offlineImportTitleDone"
+  },
+  "offlineImportTitleNothing": "Nothing was installed",
+  "@offlineImportTitleNothing": {
+    "description": "offlineImportTitleNothing"
+  },
+  "offlineModelDirection": "{source} → {target}",
+  "@offlineModelDirection": {
+    "description": "A translation direction of an offline model, e.g. German → English",
+    "placeholders": {
+      "source": {
+        "type": "String"
+      },
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineImportInstalled": "Installed {direction}",
+  "@offlineImportInstalled": {
+    "description": "Import result: a model was installed",
+    "placeholders": {
+      "direction": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineImportAlreadyInstalled": "{direction} was already installed",
+  "@offlineImportAlreadyInstalled": {
+    "description": "Import result: the model was on the device already",
+    "placeholders": {
+      "direction": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineImportMissing": "{count, plural, =1{Missing 1 file for {direction}} other{Missing {count} files for {direction}}}",
+  "@offlineImportMissing": {
+    "description": "Import result: files of a model were not selected; their names follow",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "direction": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineImportDamaged": "A file for {direction} is damaged (checksum mismatch)",
+  "@offlineImportDamaged": {
+    "description": "Import result: a file did not match its SHA-256 checksum",
+    "placeholders": {
+      "direction": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineImportFailed": "Couldn’t install {direction}",
+  "@offlineImportFailed": {
+    "description": "Import result: installing a model failed",
+    "placeholders": {
+      "direction": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineImportUnmatched": "{count, plural, =1{1 file didn’t match any model} other{{count} files didn’t match any model}}",
+  "@offlineImportUnmatched": {
+    "description": "Import result: selected files that are no model file",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "offlineImportError": "Couldn’t import the files",
+  "@offlineImportError": {
+    "description": "offlineImportError"
+  },
+  "offlineImportMissingHint": "Tap a language in the list to see the files it needs.",
+  "@offlineImportMissingHint": {
+    "description": "offlineImportMissingHint"
+  },
+  "offlineManualTitle": "Files for {language}",
+  "@offlineManualTitle": {
+    "description": "Title of the sheet listing the model files to download by hand",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineManualBody": "To install {language} without Mozhi going online, download these files on another device, copy them to this phone and choose “Import from files”. Keep the file names.",
+  "@offlineManualBody": {
+    "description": "How to install models by hand",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineManualCopyLink": "Copy link to {file}",
+  "@offlineManualCopyLink": {
+    "description": "Tooltip: copies the download link of one model file",
+    "placeholders": {
+      "file": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineManualCopyAll": "Copy all links",
+  "@offlineManualCopyAll": {
+    "description": "offlineManualCopyAll"
+  },
+  "offlineManualHint": "Show the files to download by hand",
+  "@offlineManualHint": {
+    "description": "offlineManualHint"
   }
 }

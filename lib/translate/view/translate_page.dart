@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/fold_aware_split.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
@@ -283,13 +284,20 @@ class TranslateView extends StatelessWidget {
                           return const ChooseEngineView();
                         }
                         // Measure the pane itself: the shell's navigation rail
-                        // takes part of the window on large screens.
+                        // takes part of the window on large screens. A hinge
+                        // or half-opened fold makes two panes at any width.
                         return LayoutBuilder(
-                          builder: (context, constraints) =>
-                              constraints.maxWidth >=
-                                  TranslateLayout.wideBreakpoint
-                              ? const _WideLayout()
-                              : const _NarrowLayout(),
+                          builder: (context, constraints) {
+                            final wide =
+                                constraints.maxWidth >=
+                                TranslateLayout.wideBreakpoint;
+                            final fold = FoldAwareSplit.featureDirectionOf(
+                              context,
+                            );
+                            return wide || fold != null
+                                ? _WideLayout(fold: fold, wide: wide)
+                                : const _NarrowLayout();
+                          },
                         );
                       },
                     ),
@@ -615,57 +623,92 @@ class _NarrowLayout extends StatelessWidget {
 
 /// Input and output side by side, like X's web columns: flat panes
 /// separated by a vertical hairline.
+///
+/// On a foldable the panes split exactly at a hinge or half-opened fold
+/// ([FoldAwareSplit]), also below [TranslateLayout.wideBreakpoint]: side
+/// by side at a vertical one (book posture; the languages then head the
+/// input pane, so nothing sits under the hinge), the input above the
+/// output at a horizontal one (tabletop posture).
 class _WideLayout extends StatelessWidget {
-  const new();
+  const new({this.fold, this.wide = true});
+
+  /// How a hinge or half-opened fold splits the screen
+  /// ([FoldAwareSplit.featureDirectionOf]), or null.
+  final Axis? fold;
+
+  /// Whether the pane is at least [TranslateLayout.wideBreakpoint] wide
+  /// (narrower ones only get here because of a fold: phone gutters).
+  final bool wide;
+
+  static const List<Widget> _languages = [
+    LanguageBar(),
+    ActiveOptionsBar(),
+    SizedBox(height: TranslateLayout.gap),
+    Hairline(),
+  ];
 
   @override
   Widget build(BuildContext context) {
+    final stacked = fold == Axis.vertical;
+    final bookPosture = fold == Axis.horizontal;
+    final input = SingleChildScrollView(
+      key: const Key('translate_input_pane'),
+      padding: stacked
+          ? const EdgeInsetsDirectional.only(top: 8, bottom: 16)
+          : const EdgeInsetsDirectional.only(
+              top: 8,
+              end: TranslateLayout.paneGap / 2,
+              bottom: 32,
+            ),
+      child: _InputThread(connector: false, minLines: stacked ? 4 : 8),
+    );
+    const output = SingleChildScrollView(
+      key: Key('translate_output_pane'),
+      padding: EdgeInsetsDirectional.only(
+        top: 8,
+        start: TranslateLayout.paneGap / 2,
+        bottom: 32,
+      ),
+      child: _OutputSection(separated: false),
+    );
+    const stackedOutput = SingleChildScrollView(
+      key: Key('translate_output_pane'),
+      padding: EdgeInsetsDirectional.only(top: 16, bottom: 32),
+      child: _OutputSection(separated: false),
+    );
+    final split = FoldAwareSplit(
+      key: const Key('translate_pane_split'),
+      direction: stacked ? Axis.vertical : Axis.horizontal,
+      // The hairline between the panes (a hinge or fold replaces it).
+      gap: 1,
+      divider: Hairline(vertical: !stacked),
+      first: bookPosture
+          ? Column(
+              children: [
+                ..._languages,
+                Expanded(child: input),
+              ],
+            )
+          : input,
+      second: stacked ? stackedOutput : output,
+    );
+    final side = wide ? 24.0 : TranslateLayout.gutter;
     return Center(
       key: const Key('translate_wide_layout'),
       child: ConstrainedBox(
         constraints: const BoxConstraints(
           maxWidth: TranslateLayout.maxWideWidth,
         ),
-        child: const Padding(
-          padding: EdgeInsets.fromLTRB(24, 4, 24, 0),
-          child: Column(
-            children: [
-              LanguageBar(),
-              ActiveOptionsBar(),
-              SizedBox(height: TranslateLayout.gap),
-              Hairline(),
-              Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(side, 4, side, 0),
+          child: bookPosture
+              ? split
+              : Column(
                   children: [
-                    Expanded(
-                      child: SingleChildScrollView(
-                        key: Key('translate_input_pane'),
-                        padding: EdgeInsetsDirectional.only(
-                          top: 8,
-                          end: TranslateLayout.paneGap / 2,
-                          bottom: 32,
-                        ),
-                        child: _InputThread(connector: false, minLines: 8),
-                      ),
-                    ),
-                    Hairline(vertical: true),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        key: Key('translate_output_pane'),
-                        padding: EdgeInsetsDirectional.only(
-                          top: 8,
-                          start: TranslateLayout.paneGap / 2,
-                          bottom: 32,
-                        ),
-                        child: _OutputSection(separated: false),
-                      ),
-                    ),
+                    ..._languages,
+                    Expanded(child: split),
                   ],
                 ),
-              ),
-            ],
-          ),
         ),
       ),
     );

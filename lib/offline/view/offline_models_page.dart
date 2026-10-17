@@ -11,8 +11,11 @@ import 'package:mozhi/offline/cubit/offline_models_cubit.dart';
 import 'package:mozhi/offline/data/bergamot_model_details.dart';
 import 'package:mozhi/offline/data/offline_model_details.dart';
 import 'package:mozhi/offline/data/offline_model_error.dart';
+import 'package:mozhi/offline/data/offline_model_file_picker.dart';
 import 'package:mozhi/offline/data/unavailable_offline_translator.dart';
+import 'package:mozhi/offline/widgets/offline_import_summary.dart';
 import 'package:mozhi/offline/widgets/offline_language_tile.dart';
+import 'package:mozhi/offline/widgets/offline_manual_files_sheet.dart';
 import 'package:mozhi/settings/view/widgets/delete_local_data.dart'
     show formatStoredSize;
 import 'package:mozhi/settings/view/widgets/empty_state_view.dart';
@@ -20,19 +23,28 @@ import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Manage the on-device (offline) translation models: Mozilla's Firefox
-/// Translations models, with sizes, progress, updates and the metered
-/// network prompt.
+/// Translations models, with sizes, progress, updates, the metered network
+/// prompt, and imports from files (no network) with the files to download
+/// by hand per language.
 ///
 /// Uses [translator] and [store] when given, otherwise the
 /// [OfflineTranslator] and [KeyValueStore] provided above (falling back to
 /// an [UnavailableOfflineTranslator] and the platform preferences).
-/// [details] defaults to [offlineModelDetailsOf] the translator.
+/// [details] defaults to [offlineModelDetailsOf] the translator (which also
+/// imports), [picker] to the platform file picker.
 class OfflineModelsPage extends StatelessWidget {
-  const new({super.key, this.translator, this.store, this.details});
+  const new({
+    super.key,
+    this.translator,
+    this.store,
+    this.details,
+    this.picker,
+  });
 
   final OfflineTranslator? translator;
   final KeyValueStore? store;
   final OfflineModelDetails? details;
+  final OfflineModelFilePicker? picker;
 
   @override
   Widget build(BuildContext context) {
@@ -47,6 +59,7 @@ class OfflineModelsPage extends StatelessWidget {
           store:
               store ?? _maybeRead<KeyValueStore>(context) ?? PreferencesStore(),
           details: details ?? offlineModelDetailsOf(engine),
+          picker: picker ?? const OfflineModelFilePicker(),
         );
         unawaited(cubit.load());
         return cubit;
@@ -107,11 +120,27 @@ class OfflineModelsView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    return BlocListener<OfflineModelsCubit, OfflineModelsState>(
-      listenWhen: (previous, current) =>
-          current.outcome != null && previous.outcome != current.outcome,
-      listener: (context, state) =>
-          unawaited(_onOutcome(context, state.outcome!)),
+    return MultiBlocListener(
+      listeners: [
+        BlocListener<OfflineModelsCubit, OfflineModelsState>(
+          listenWhen: (previous, current) =>
+              current.outcome != null && previous.outcome != current.outcome,
+          listener: (context, state) =>
+              unawaited(_onOutcome(context, state.outcome!)),
+        ),
+        BlocListener<OfflineModelsCubit, OfflineModelsState>(
+          listenWhen: (previous, current) =>
+              current.importOutcome != null &&
+              previous.importOutcome != current.importOutcome,
+          listener: (context, state) {
+            showDialog<void>(
+              context: context,
+              builder: (_) =>
+                  OfflineImportSummaryDialog(outcome: state.importOutcome!),
+            );
+          },
+        ),
+      ],
       child: Scaffold(
         appBar: AppBar(title: Text(l10n.offlineTitle)),
         body: BlocBuilder<OfflineModelsCubit, OfflineModelsState>(
@@ -278,6 +307,16 @@ class _ModelsList extends StatelessWidget {
         enabled: state.isAvailable,
         onDownload: () => unawaited(cubit.download(code)),
         onDelete: () => unawaited(_delete(context, language)),
+        onShowFiles: switch (state.manualDownloadsOf(code)) {
+          final directions when directions.isNotEmpty => () => unawaited(
+            showOfflineManualFilesSheet(
+              context,
+              language: language,
+              directions: directions,
+            ),
+          ),
+          _ => null,
+        },
       );
     }
 
@@ -459,8 +498,48 @@ class _Overview extends StatelessWidget {
                 )
               : null,
         ),
+        if (state.canImport) _ImportTile(importing: state.importing),
         const Hairline(),
       ],
+    );
+  }
+}
+
+/// "Import from files": picks model files and installs them, without the
+/// network.
+class _ImportTile extends StatelessWidget {
+  const new({required this.importing});
+
+  final bool importing;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final palette = AppPalette.of(context);
+    return ListTile(
+      key: const Key('offline_import'),
+      leading: const Icon(Icons.file_open_outlined),
+      title: Text(l10n.offlineImportAction),
+      subtitle: Text(
+        importing ? l10n.offlineImporting : l10n.offlineImportSubtitle,
+        style: TextStyle(
+          color: importing ? theme.colorScheme.primary : palette.secondaryText,
+        ),
+      ),
+      trailing: importing
+          ? SizedBox.square(
+              dimension: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                semanticsLabel: l10n.offlineImporting,
+              ),
+            )
+          : null,
+      onTap: importing
+          ? null
+          : () =>
+                unawaited(context.read<OfflineModelsCubit>().importFromFiles()),
     );
   }
 }

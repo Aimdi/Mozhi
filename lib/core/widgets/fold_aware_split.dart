@@ -205,52 +205,36 @@ class _FoldAwareSplitLayout
 }
 
 /// Where the panes of a [RenderFoldAwareSplit] go along its main axis
-/// ([axis]). Extents are null along an unbounded main axis (the panes take
-/// their natural size there).
-@immutable
-class _Split {
-  const new({
-    required this.axis,
-    required this.atFeature,
-    this.firstStart = 0,
-    this.firstExtent,
-    this.secondStart = 0,
-    this.secondExtent,
-    this.dividerStart = 0,
-  });
+/// (`axis`); `atFeature` tells whether they split at a display feature.
+/// Extents are null along an unbounded main axis (the panes take their
+/// natural size there). A record, so splits compare by value.
+typedef _Split = ({
+  Axis axis,
+  bool atFeature,
+  double firstStart,
+  double? firstExtent,
+  double secondStart,
+  double? secondExtent,
+  double dividerStart,
+});
 
-  final Axis axis;
-
-  /// Whether the panes split at a display feature.
-  final bool atFeature;
-  final double firstStart;
-  final double? firstExtent;
-  final double secondStart;
-  final double? secondExtent;
-  final double dividerStart;
-
-  @override
-  bool operator ==(Object other) =>
-      other is _Split &&
-      other.axis == axis &&
-      other.atFeature == atFeature &&
-      other.firstStart == firstStart &&
-      other.firstExtent == firstExtent &&
-      other.secondStart == secondStart &&
-      other.secondExtent == secondExtent &&
-      other.dividerStart == dividerStart;
-
-  @override
-  int get hashCode => Object.hash(
-    axis,
-    atFeature,
-    firstStart,
-    firstExtent,
-    secondStart,
-    secondExtent,
-    dividerStart,
-  );
-}
+_Split _splitOf({
+  required Axis axis,
+  required bool atFeature,
+  double firstStart = 0,
+  double? firstExtent,
+  double secondStart = 0,
+  double? secondExtent,
+  double dividerStart = 0,
+}) => (
+  axis: axis,
+  atFeature: atFeature,
+  firstStart: firstStart,
+  firstExtent: firstExtent,
+  secondStart: secondStart,
+  secondExtent: secondExtent,
+  dividerStart: dividerStart,
+);
 
 /// The outcome of laying out a [RenderFoldAwareSplit] (or of a dry run).
 typedef _SplitLayout = ({
@@ -425,7 +409,7 @@ class RenderFoldAwareSplit extends RenderBox
     final after = mainExtent - end;
     if (before <= 0 || after <= 0) return null;
     if (horizontal && _textDirection == TextDirection.rtl) {
-      return _Split(
+      return _splitOf(
         axis: axis,
         atFeature: true,
         firstStart: end,
@@ -433,7 +417,7 @@ class RenderFoldAwareSplit extends RenderBox
         secondExtent: before,
       );
     }
-    return _Split(
+    return _splitOf(
       axis: axis,
       atFeature: true,
       firstExtent: before,
@@ -450,13 +434,13 @@ class RenderFoldAwareSplit extends RenderBox
         ? constraints.maxWidth
         : constraints.maxHeight;
     if (!mainExtent.isFinite) {
-      return _Split(axis: _direction, atFeature: false);
+      return _splitOf(axis: _direction, atFeature: false);
     }
     final available = math.max(0, mainExtent - _gap).toDouble();
     final firstExtent = available * _firstFlex / (_firstFlex + _secondFlex);
     final secondExtent = available - firstExtent;
     if (horizontal && _textDirection == TextDirection.rtl) {
-      return _Split(
+      return _splitOf(
         axis: _direction,
         atFeature: false,
         firstStart: secondExtent + _gap,
@@ -465,7 +449,7 @@ class RenderFoldAwareSplit extends RenderBox
         dividerStart: secondExtent,
       );
     }
-    return _Split(
+    return _splitOf(
       axis: _direction,
       atFeature: false,
       firstExtent: firstExtent,

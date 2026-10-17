@@ -209,7 +209,11 @@ The models are downloaded from Mozilla's bucket on Google Cloud Storage
 (see the table above), only when you tap **Download** or **Update**, are
 checked against the SHA-256 checksums bundled with the app, and are never
 sent your text. With **Download over Wi-Fi only** on (the default), the app
-asks before using mobile data or a metered network.
+asks before using mobile data or a metered network. To keep the phone from
+contacting Google's servers at all, download the files on another computer
+and use **Import from files** on **Settings > Offline languages** instead
+([how](offline-engine.md#import-models-without-the-app-downloading-them)):
+an import contacts nothing, so it also works in **Offline only**.
 
 An optional **Play variant** adds Google's ML Kit for on-device text
 recognition in image translation. The recognition runs on the phone, but

@@ -12,6 +12,7 @@ import 'package:mozhi/core/network/network_policy.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/data/offline_model_details.dart';
 import 'package:mozhi/offline/data/offline_model_error.dart';
+import 'package:mozhi/offline/data/offline_model_import.dart';
 import 'package:mozhi/offline/offline.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -380,6 +381,141 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Retry'), findsOneWidget);
+    });
+  });
+
+  group('OfflineModelsPage imports', () {
+    late FakeImportingModelDetails details;
+    late MockOfflineModelFilePicker picker;
+
+    setUp(() {
+      details = FakeImportingModelDetails();
+      picker = stubOfflineModelFilePicker();
+    });
+
+    Future<void> pumpImporting(
+      WidgetTester tester, {
+      OfflineModelDetails? withDetails,
+    }) async {
+      useTallView(tester);
+      await tester.pumpApp(
+        OfflineModelsPage(
+          translator: translator,
+          store: store,
+          details: withDetails ?? details,
+          picker: picker,
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('offers an import from files', (tester) async {
+      await pumpImporting(tester);
+      expect(find.text('Import from files'), findsOneWidget);
+      expect(
+        find.text(
+          'Install model files you copied to this device. Mozhi doesn’t go '
+          'online for this.',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('offers no import where it is impossible', (tester) async {
+      await pumpImporting(tester, withDetails: FakeOfflineModelDetails());
+      expect(find.text('Import from files'), findsNothing);
+
+      translator = stubOfflineTranslator(available: false);
+      await pumpImporting(tester);
+      expect(find.text('Import from files'), findsNothing);
+    });
+
+    testWidgets('imports the picked files and summarises', (tester) async {
+      details
+        ..report = const OfflineImportReport(
+          models: [
+            OfflineImportedModel(
+              source: 'fr',
+              target: 'en',
+              status: OfflineImportStatus.installed,
+            ),
+            OfflineImportedModel(
+              source: 'en',
+              target: 'fr',
+              status: OfflineImportStatus.incomplete,
+              missingFiles: ['vocab.enfr.spm.gz'],
+            ),
+          ],
+          unmatchedFiles: ['notes.txt'],
+        )
+        ..importHold = Completer<void>();
+      await pumpImporting(tester);
+
+      await tester.tap(find.text('Import from files'));
+      await tester.pump();
+      expect(find.text('Importing…'), findsOneWidget);
+      expect(
+        tester.widget<ListTile>(find.byKey(const Key('offline_import'))).onTap,
+        isNull,
+      );
+
+      when(translator.downloadedLanguages)
+          .thenAnswer((_) async => {'en', 'de', 'fr'});
+      details.importHold!.complete();
+      await tester.pumpAndSettle();
+
+      expect(details.imports, [
+        ['/picked/model.deen.intgemm.alphas.bin.gz'],
+      ]);
+      verify(picker.clearCopies).called(1);
+      expect(find.text('Models imported'), findsOneWidget);
+      expect(
+        find.text('Installed \u2068French\u2069 → \u2068English\u2069'),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'Missing 1 file for \u2068English\u2069 → \u2068French\u2069',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('vocab.enfr.spm.gz'), findsOneWidget);
+      expect(find.text('1 file didn’t match any model'), findsOneWidget);
+
+      await tester.tap(find.text('Close'));
+      await tester.pumpAndSettle();
+      expect(find.text('Import from files'), findsOneWidget);
+      expect(find.text('Importing…'), findsNothing);
+      // French is downloaded now (English needs no download).
+      expect(find.text('2 languages downloaded'), findsOneWidget);
+    });
+
+    testWidgets('does nothing when the picker is cancelled', (tester) async {
+      picker = stubOfflineModelFilePicker(paths: const []);
+      await pumpImporting(tester);
+      await tester.tap(find.text('Import from files'));
+      await tester.pumpAndSettle();
+      expect(find.byType(OfflineImportSummaryDialog), findsNothing);
+      expect(details.imports, isEmpty);
+    });
+
+    testWidgets('shows the files of a language to download by hand', (
+      tester,
+    ) async {
+      await pumpImporting(tester);
+
+      await tester.tap(find.text('German'));
+      await tester.pumpAndSettle();
+      expect(find.text('Files for German'), findsOneWidget);
+      expect(find.text('model.deen.intgemm.alphas.bin.gz'), findsOneWidget);
+      expect(find.text('model.ende.intgemm.alphas.bin.gz'), findsOneWidget);
+
+      Navigator.of(tester.element(find.text('Files for German'))).pop();
+      await tester.pumpAndSettle();
+      // French has no files listed, so its row does nothing.
+      await tester.tap(find.text('French'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Files for'), findsNothing);
     });
   });
 

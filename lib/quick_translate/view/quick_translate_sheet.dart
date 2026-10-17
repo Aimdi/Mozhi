@@ -435,7 +435,8 @@ class _QuickTranslateViewState extends State<QuickTranslateView> {
                                         _withoutConsent(error),
                                       )
                                     : speechErrorMessage(context.l10n, error),
-                                action: listenOnline == null || state.offlineOnly
+                                action:
+                                    listenOnline == null || state.offlineOnly
                                     ? null
                                     : (
                                         label: speechListenOnlineLabel(
