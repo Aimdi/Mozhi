@@ -567,7 +567,9 @@ jobs:
       # compile errors. The step fails at the end if any ABI failed.
       - name: Build arm64-v8a, armeabi-v7a and x86_64
         run: |
-          set -uo pipefail
+          # GitHub runs steps with bash -e: turn it off, every ABI must be
+          # attempted and the step decides at the end (exit "$failed").
+          set +e -uo pipefail
           cmake --version | head -1
           native=packages/bergamot_translator/native
           logs="$RUNNER_TEMP/bergamot-logs"
@@ -606,8 +608,10 @@ jobs:
                 result=failed
               fi
             fi
+            # `|| true`: the step shell runs with -e and pipefail, and grep
+            # exits 1 when a clean build has no errors to count.
             errors=$(cat "$logs/$abi-configure.log" "$logs/$abi-build.log" 2>/dev/null |
-              grep -E '(error|fatal error): |CMake Error' | sort -u | wc -l)
+              { grep -E '(error|fatal error): |CMake Error' || true; } | sort -u | wc -l)
             echo "::endgroup::"
             if [ "$configure" != ok ] || [ "$result" != ok ]; then
               failed=1
