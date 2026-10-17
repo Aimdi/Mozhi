@@ -57,10 +57,7 @@ MockOnboardingCubit createOnboardingCubit([
   final cubit = MockOnboardingCubit();
   when(() => cubit.state).thenReturn(state);
   when(cubit.findFastestInstance).thenAnswer((_) async {});
-  when(
-    () =>
-        cubit.addOwnInstance(any(), allowInsecure: any(named: 'allowInsecure')),
-  ).thenAnswer((_) async {});
+  when(() => cubit.addOwnInstance(any())).thenAnswer((_) async {});
   when(cubit.testProvider).thenAnswer((_) async {});
   when(cubit.loadModels).thenAnswer((_) async {});
   return cubit;

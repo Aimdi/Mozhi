@@ -1,9 +1,9 @@
 import 'dart:async';
 
 import 'package:bloc/bloc.dart';
+import 'package:mozhi/core/network/network.dart' show isCleartextAllowed;
 import 'package:mozhi/onboarding/cubit/onboarding_state.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
-import 'package:mozhi/settings/view/widgets/insecure_http_warning.dart';
 import 'package:mozhi_api/mozhi_api.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -34,14 +34,21 @@ Uri? normalizeOwnInstanceUrl(String input) {
 class OnboardingCubit extends Cubit<OnboardingState> {
   /// `pingTimeout` bounds each instance ping, `testTimeout` the provider
   /// test and the model list. `clock` stamps new provider ids (tests).
+  /// `describeError` words failures for the user (default:
+  /// [onboardingErrorMessage]; the page puts the network policy's reasons
+  /// first).
   new({
     required this._repository,
     required this._settings,
     this._pingTimeout = const Duration(seconds: 6),
     this._testTimeout = const Duration(seconds: 90),
     DateTime Function()? clock,
+    String Function(Object error)? describeError,
   }) : _clock = clock ?? DateTime.now,
+       _describe = describeError ?? onboardingErrorMessage,
        super(const OnboardingState());
+
+  final String Function(Object error) _describe;
 
   final TranslationRepository _repository;
   final SettingsCubit _settings;
@@ -127,7 +134,7 @@ class OnboardingCubit extends Cubit<OnboardingState> {
     } on TimeoutException {
       result = const InstancePing.timedOut();
     } on Object catch (error) {
-      result = InstancePing.failure(onboardingErrorMessage(error));
+      result = InstancePing.failure(_describe(error));
     }
     if (isClosed || run != _pingRun) return;
     emit(state.copyWith(pings: {...state.pings, instance.url: result}));
@@ -202,13 +209,9 @@ class OnboardingCubit extends Cubit<OnboardingState> {
   /// on success adds it (unless already configured) and prefers it.
   ///
   /// A plain `http://` address outside this device and the local network
-  /// ([isInsecureHttp]) is refused with [OwnInstanceError.insecure] unless
-  /// [allowInsecure]: the user must confirm first, because the translated
-  /// text would travel unencrypted.
-  Future<void> addOwnInstance(
-    String input, {
-    bool allowInsecure = false,
-  }) async {
+  /// is refused with [OwnInstanceError.insecure] ([isCleartextAllowed]): the
+  /// app never sends text unencrypted to a public server.
+  Future<void> addOwnInstance(String input) async {
     _ownRun++;
     if (input.trim().isEmpty) {
       _ownFailed(OwnInstanceError.empty);
@@ -220,7 +223,7 @@ class OnboardingCubit extends Cubit<OnboardingState> {
       return;
     }
     final url = uri.toString();
-    if (!allowInsecure && isInsecureHttp(uri)) {
+    if (!isCleartextAllowed(uri)) {
       _ownFailed(OwnInstanceError.insecure);
       return;
     }
@@ -258,7 +261,7 @@ class OnboardingCubit extends Cubit<OnboardingState> {
       _ownFailed(OwnInstanceError.timedOut);
     } on Object catch (error) {
       if (isClosed || run != _ownRun) return;
-      _ownFailed(OwnInstanceError.unreachable, onboardingErrorMessage(error));
+      _ownFailed(OwnInstanceError.unreachable, _describe(error));
     }
   }
 
@@ -346,7 +349,7 @@ class OnboardingCubit extends Cubit<OnboardingState> {
         state.copyWith(
           modelsStatus: ProviderTestStatus.failure,
           modelsError: () =>
-              error is TimeoutException ? null : onboardingErrorMessage(error),
+              error is TimeoutException ? null : _describe(error),
         ),
       );
     }
@@ -384,8 +387,7 @@ class OnboardingCubit extends Cubit<OnboardingState> {
       emit(
         state.copyWith(
           testStatus: ProviderTestStatus.failure,
-          testError: () =>
-              error is TimeoutException ? null : onboardingErrorMessage(error),
+          testError: () => error is TimeoutException ? null : _describe(error),
         ),
       );
     }

@@ -78,6 +78,7 @@ class WebTranslateCubit extends Cubit<WebTranslateState> {
       return false;
     }
   }
+
   _TranslationJob? _job;
 
   /// Updates the address field.

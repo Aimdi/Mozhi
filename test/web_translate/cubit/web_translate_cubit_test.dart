@@ -89,6 +89,48 @@ void main() {
       ],
     );
 
+    test('offline only never downloads the page', () async {
+      var fetched = 0;
+      final repository = _OfflineOnlyRepository();
+      final cubit = buildCubit(
+        repository: repository,
+        client: MockClient((request) async {
+          fetched++;
+          return http.Response(samplePageHtml, 200);
+        }),
+      )..setMode(ReaderMode.original);
+      await cubit.load(selection: googleToSpanish);
+      expect(fetched, 0);
+      expect(repository.requests, isEmpty);
+      final state = cubit.state;
+      expect(state.status, WebTranslateStatus.failure);
+      expect(state.url, 'https://example.com/sample');
+      expect(state.selection, googleToSpanish);
+      expect(state.mode, ReaderMode.original);
+      expect(
+        state.error,
+        isA<ConsentRequiredException>()
+            .having((e) => e.kind, 'kind', ConsentKind.offlineOnly)
+            .having((e) => e.engineId, 'engineId', googleEngine.id)
+            .having(
+              (e) => e.destination,
+              'destination',
+              const PublicInstanceDestination('example.com'),
+            ),
+      );
+      await cubit.close();
+    });
+
+    test('offline only without a selection names no engine', () async {
+      final cubit = buildCubit(repository: _OfflineOnlyRepository());
+      await cubit.load();
+      expect(
+        (cubit.state.error! as ConsentRequiredException).engineId,
+        isEmpty,
+      );
+      await cubit.close();
+    });
+
     test('load without a selection only loads the page', () async {
       final repository = FakeTranslationRepository();
       final cubit = buildCubit(repository: repository);
@@ -497,4 +539,10 @@ void main() {
       await cubit.close();
     });
   });
+}
+
+/// A repository whose privacy settings keep everything on the device.
+class _OfflineOnlyRepository extends FakeTranslationRepository {
+  @override
+  PrivacyMode get privacyMode => PrivacyMode.offlineOnly;
 }

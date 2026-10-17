@@ -9,6 +9,7 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/quick_translate/cubit/quick_translate_cubit.dart';
 import 'package:mozhi/quick_translate/widgets/widgets.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/speech/speech_error_message.dart';
 import 'package:mozhi/speech/speech_service.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -190,6 +191,7 @@ class _QuickTranslateViewState extends State<QuickTranslateView> {
   bool _picking = false;
   bool _copied = false;
   String? _notice;
+  _NoticeAction? _noticeAction;
   Timer? _copiedTimer;
   Timer? _noticeTimer;
 
@@ -215,13 +217,34 @@ class _QuickTranslateViewState extends State<QuickTranslateView> {
     }
   }
 
-  void _showNotice(String message) {
+  void _showNotice(String message, {_NoticeAction? action}) {
     _noticeTimer?.cancel();
-    setState(() => _notice = message);
-    _noticeTimer = Timer(_noticeDuration, () {
-      if (mounted) setState(() => _notice = null);
+    setState(() {
+      _notice = message;
+      _noticeAction = action;
     });
+    // Long enough to read the offer and decide.
+    _noticeTimer = Timer(
+      action == null ? _noticeDuration : _noticeDuration * 3,
+      () {
+        if (mounted) {
+          setState(() {
+            _notice = null;
+            _noticeAction = null;
+          });
+        }
+      },
+    );
   }
+
+  /// [error] as reported when nothing can be offered: without the Mozhi
+  /// instance it could have used.
+  static Object _withoutConsent(Object error) => switch (error) {
+    SpeechUnavailableException(:final languageCode)
+        when error.onlineConsent != null =>
+      SpeechUnavailableException(languageCode),
+    _ => error,
+  };
 
   Future<void> _copy(String translation) async {
     final message = context.l10n.commonCopied;
@@ -332,8 +355,22 @@ class _QuickTranslateViewState extends State<QuickTranslateView> {
                               languageCode: target.isCustom
                                   ? null
                                   : target.code,
-                              onError: () => _showNotice(
-                                context.l10n.translateSpeechError,
+                              onError: (error, listenOnline) => _showNotice(
+                                listenOnline == null
+                                    ? speechErrorMessage(
+                                        context.l10n,
+                                        _withoutConsent(error),
+                                      )
+                                    : speechErrorMessage(context.l10n, error),
+                                action: listenOnline == null
+                                    ? null
+                                    : (
+                                        label: speechListenOnlineLabel(
+                                          context.l10n,
+                                          error,
+                                        )!,
+                                        onPressed: listenOnline,
+                                      ),
                               ),
                             ),
                       onReplace: replaceAvailable
@@ -344,7 +381,7 @@ class _QuickTranslateViewState extends State<QuickTranslateView> {
                           : _openInApp,
                     ),
                   ],
-                  _Notice(message: _notice),
+                  _Notice(message: _notice, action: _noticeAction),
                 ],
               ),
             ),
@@ -444,31 +481,48 @@ class _ResultBody extends StatelessWidget {
   }
 }
 
+/// An action offered with a notice ("Listen via (host)").
+typedef _NoticeAction = ({String label, VoidCallback onPressed});
+
 class _Notice extends StatelessWidget {
-  const new({required this.message});
+  const new({required this.message, this.action});
 
   final String? message;
+  final _NoticeAction? action;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final text = message;
+    final action = this.action;
     return AnimatedSize(
       duration: const Duration(milliseconds: 150),
       child: text == null
           ? const SizedBox(width: double.infinity)
           : Padding(
               padding: const EdgeInsets.only(top: 8),
-              child: Semantics(
-                liveRegion: true,
-                child: Text(
-                  text,
-                  key: const Key('quick_translate_notice'),
-                  textAlign: TextAlign.end,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppPalette.of(context).secondaryText,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      text,
+                      key: const Key('quick_translate_notice'),
+                      textAlign: TextAlign.end,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: AppPalette.of(context).secondaryText,
+                      ),
+                    ),
                   ),
-                ),
+                  if (action != null)
+                    TextButton(
+                      key: const Key('quick_translate_notice_action'),
+                      onPressed: action.onPressed,
+                      child: Text(action.label),
+                    ),
+                ],
               ),
             ),
     );

@@ -78,8 +78,10 @@ void main() {
         ..next()
         ..next()
         ..next()
+        ..next()
         ..next(),
       expect: () => [
+        const OnboardingState(step: OnboardingStep.privacy),
         const OnboardingState(step: OnboardingStep.service),
         const OnboardingState(step: OnboardingStep.ai),
         const OnboardingState(step: OnboardingStep.done),
@@ -89,12 +91,33 @@ void main() {
     blocTest<OnboardingCubit, OnboardingState>(
       'back returns and stops at welcome',
       build: build,
-      seed: () => const OnboardingState(step: OnboardingStep.service),
+      seed: () => const OnboardingState(step: OnboardingStep.privacy),
       act: (cubit) => cubit
         ..back()
         ..back(),
       expect: () => [const OnboardingState()],
     );
+
+    test('setPrivacyMode saves the mode once', () {
+      final cubit = build()..setPrivacyMode(PrivacyMode.online);
+      expect(settings.state.privacyMode, PrivacyMode.online);
+      cubit.setPrivacyMode(PrivacyMode.online);
+      expect(settings.state.privacyMode, PrivacyMode.online);
+    });
+
+    test('describes failures with the injected wording', () async {
+      when(
+        () => repository.pingInstance(any()),
+      ).thenAnswer((_) async => throw const MozhiApiException('down'));
+      final cubit = OnboardingCubit(
+        repository: repository,
+        settings: settings,
+        describeError: (error) => 'policy: $error',
+      );
+      addTearDown(cubit.close);
+      await cubit.addOwnInstance('https://down.example');
+      expect(cubit.state.ownInstanceMessage, startsWith('policy: '));
+    });
 
     blocTest<OnboardingCubit, OnboardingState>(
       'goTo jumps and ignores the current step',
@@ -342,7 +365,8 @@ void main() {
       expect(settings.state.instances.first.isCustom, isTrue);
     });
 
-    test('refuses plain http to a remote host without confirmation', () async {
+    test('refuses plain http to a remote host', () async {
+      stubLatencies({'http://mozhi.example.com': 50});
       final cubit = build();
 
       await cubit.addOwnInstance('http://mozhi.example.com');
@@ -351,17 +375,6 @@ void main() {
       expect(cubit.state.ownInstanceError, OwnInstanceError.insecure);
       verifyNever(() => repository.pingInstance(any()));
       expect(urlsOf(settings), [for (final i in testInstances) i.url]);
-    });
-
-    test('adds confirmed plain http instances', () async {
-      const url = 'http://mozhi.example.com';
-      stubLatencies({url: 50});
-      final cubit = build();
-
-      await cubit.addOwnInstance(url, allowInsecure: true);
-
-      expect(cubit.state.ownInstanceStatus, OwnInstanceStatus.success);
-      expect(urlsOf(settings).first, url);
     });
 
     test('adds plain http on the local network without confirmation', () async {

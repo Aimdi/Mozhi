@@ -1,6 +1,8 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/network/network.dart'
+    show describeNetworkPolicyError;
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/onboarding/cubit/onboarding_cubit.dart';
 import 'package:mozhi/onboarding/onboarding_redirect.dart';
@@ -28,6 +30,14 @@ class OnboardingPage extends StatelessWidget {
       create: (context) => OnboardingCubit(
         repository: context.read<TranslationRepository>(),
         settings: context.read<SettingsCubit>(),
+        // The network policy's refusals (plain http to a public server,
+        // .onion without a proxy) say what is wrong. Looked up when a
+        // failure is described (not while the cubit is created).
+        describeError: (error) =>
+            (context.mounted
+                ? describeNetworkPolicyError(context.l10n, error)
+                : null) ??
+            onboardingErrorMessage(error),
       ),
       child: OnboardingView(finishLocation: finishLocation),
     );

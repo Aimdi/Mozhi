@@ -284,6 +284,7 @@ void main() {
         from: any(named: 'from'),
         to: any(named: 'to'),
         text: any(named: 'text'),
+        abortTrigger: any(named: 'abortTrigger'),
       ),
     );
 
@@ -301,6 +302,7 @@ void main() {
           from: 'fr',
           to: 'en',
           text: translation,
+          abortTrigger: any(named: 'abortTrigger'),
         ),
       ).called(1);
     });
@@ -337,6 +339,7 @@ void main() {
           from: any(named: 'from'),
           to: any(named: 'to'),
           text: any(named: 'text'),
+          abortTrigger: any(named: 'abortTrigger'),
         ),
       ).called(1);
     });
@@ -357,6 +360,7 @@ void main() {
           from: any(named: 'from'),
           to: any(named: 'to'),
           text: any(named: 'text'),
+          abortTrigger: any(named: 'abortTrigger'),
         ),
       ).called(2);
     });

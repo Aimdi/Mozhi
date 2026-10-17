@@ -110,14 +110,60 @@ void main() {
       );
 
       blocTest<QuickTranslateCubit, QuickTranslateState>(
-        'falls back to the first engine without google',
+        'without google, the first engine that is not a cloud provider',
         setUp: () {
           when(() => repository.getEngines(refresh: any(named: 'refresh')))
               .thenAnswer((_) async => const [claude, deepl]);
         },
         build: build,
         act: (cubit) => cubit.start(),
-        verify: (cubit) => expect(cubit.state.engine, claude),
+        verify: (cubit) => expect(cubit.state.engine, deepl),
+      );
+
+      blocTest<QuickTranslateCubit, QuickTranslateState>(
+        'never picks a cloud provider by itself',
+        setUp: () {
+          when(() => repository.getEngines(refresh: any(named: 'refresh')))
+              .thenAnswer((_) async => const [claude]);
+        },
+        build: build,
+        act: (cubit) => cubit.start(),
+        verify: (cubit) {
+          expect(cubit.state.status, QuickTranslateStatus.chooseEngine);
+          expect(cubit.state.engine, isNull);
+          expect(cubit.state.engines, const [claude]);
+          verifyNever(() => repository.translate(any(), any()));
+        },
+      );
+
+      blocTest<QuickTranslateCubit, QuickTranslateState>(
+        'replaces a saved engine that is gone by the on-device one only',
+        setUp: () {
+          when(() => settings.state)
+              .thenReturn(const AppSettings(engineId: 'mozhi:gone'));
+          when(() => repository.getEngines(refresh: any(named: 'refresh')))
+              .thenAnswer((_) async => [deepl, TranslationEngine.offline()]);
+          when(() => repository.translate(any(), any()))
+              .thenAnswer((_) => const Stream.empty());
+        },
+        build: build,
+        act: (cubit) => cubit.start(),
+        verify: (cubit) =>
+            expect(cubit.state.engine, TranslationEngine.offline()),
+      );
+
+      blocTest<QuickTranslateCubit, QuickTranslateState>(
+        'prefers the on-device engine without a saved one (offline first)',
+        setUp: () {
+          when(() => repository.getEngines(refresh: any(named: 'refresh')))
+              .thenAnswer((_) async => [google, TranslationEngine.offline()]);
+          when(() => repository.translate(any(), any()))
+              .thenAnswer((_) => const Stream.empty());
+        },
+        build: build,
+        act: (cubit) => cubit.start(),
+        verify: (cubit) =>
+            expect(cubit.state.engine, TranslationEngine.offline()),
       );
 
       blocTest<QuickTranslateCubit, QuickTranslateState>(
@@ -777,6 +823,17 @@ void main() {
           when(
             () => settings.state,
           ).thenReturn(const AppSettings(target: french, saveHistory: false));
+        },
+        build: build,
+        act: (cubit) => cubit.start(),
+        verify: (_) => verifyNever(() => history.add(any())),
+      );
+
+      blocTest<QuickTranslateCubit, QuickTranslateState>(
+        'skips history in incognito mode',
+        setUp: () {
+          when(() => settings.state)
+              .thenReturn(const AppSettings(target: french, incognito: true));
         },
         build: build,
         act: (cubit) => cubit.start(),

@@ -11,6 +11,8 @@ import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/proofread/proofread.dart';
 import 'package:mozhi/proofread/widgets/widgets.dart';
+import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -45,6 +47,8 @@ void main() {
     Stream<TranslateState>? translateStream,
     Size size = const Size(800, 2400),
     ThemeData? theme,
+    TranslationRepository? repository,
+    SettingsCubit? settings,
   }) async {
     setSurface(tester, size);
     whenListen(
@@ -63,6 +67,8 @@ void main() {
       proofreadCubit: cubit,
       router: router,
       theme: theme,
+      repository: repository,
+      settings: settings,
     );
   }
 
@@ -1305,6 +1311,77 @@ void main() {
           find.text('Something went wrong. Please try again.'),
           findsOneWidget,
         );
+      });
+    });
+
+    group('privacy', () {
+      const consent = ConsentRequiredException(
+        kind: ConsentKind.cloudProvider,
+        destination: CloudProviderDestination('OpenAI', host: 'api.openai.com'),
+        engineId: 'ai:openai',
+      );
+
+      late MockTranslationRepository repository;
+      late MockSettingsCubit settings;
+
+      setUp(() {
+        repository = MockTranslationRepository();
+        settings = MockSettingsCubit();
+        when(() => settings.state).thenReturn(const AppSettings());
+        when(() => repository.instances).thenReturn(const []);
+      });
+
+      testWidgets('proofreading asks right away, then proofreads', (
+        tester,
+      ) async {
+        final loading = readyState.copyWith(
+          input: 'text',
+          status: ProofreadStatus.loading,
+        );
+        await pumpView(
+          tester,
+          loading,
+          stream: Stream.value(
+            loading.copyWith(
+              status: ProofreadStatus.failure,
+              error: () => consent,
+            ),
+          ),
+          repository: repository,
+          settings: settings,
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Send your text to OpenAI?'), findsOneWidget);
+        await tester.tap(
+          find.descendant(
+            of: find.byType(AlertDialog),
+            matching: find.text('Allow'),
+          ),
+        );
+        await tester.pumpAndSettle();
+        verify(() => settings.consentToProvider('openai')).called(1);
+        verify(() => repository.allowOnce(consent)).called(1);
+        verify(() => cubit.proofread()).called(1);
+      });
+
+      testWidgets('a refusal waiting for an answer asks inline', (
+        tester,
+      ) async {
+        await pumpView(
+          tester,
+          readyState.copyWith(
+            input: 'text',
+            status: ProofreadStatus.failure,
+            error: () => consent,
+          ),
+          repository: repository,
+          settings: settings,
+        );
+        expect(find.byKey(const Key('proofread_consent')), findsOneWidget);
+        await tester.tap(find.text('Allow'));
+        await tester.pump();
+        verify(() => repository.allowOnce(consent)).called(1);
+        verify(() => cubit.proofread()).called(1);
       });
     });
 

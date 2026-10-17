@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/network/network.dart' show describeNetworkPolicyError;
 import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -50,6 +51,9 @@ TranslateErrorInfo describeTranslateError(
   if (error is ConsentRequiredException) {
     return TranslateErrorInfo(consentMessage(l10n, error), consent: error);
   }
+  // Refused by the network policy before anything was sent: say why.
+  final policy = describeNetworkPolicyError(l10n, error);
+  if (policy != null) return TranslateErrorInfo(policy);
   final info = switch (error) {
     OfflineModelMissingException(:final languages) => TranslateErrorInfo(
       languages.isEmpty

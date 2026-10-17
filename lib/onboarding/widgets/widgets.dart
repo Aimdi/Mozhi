@@ -3,6 +3,7 @@ export 'done_step.dart';
 export 'instance_tile.dart';
 export 'onboarding_badge.dart';
 export 'onboarding_nav_bar.dart';
+export 'privacy_step.dart';
 export 'progress_dots.dart';
 export 'provider_form.dart';
 export 'provider_grid.dart';

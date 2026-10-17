@@ -11,6 +11,7 @@ class ConversationState extends Equatable {
     this.faceToFace = false,
     this.speakingTurnId,
     this.speechFailures = 0,
+    this.lastSpeechFailure,
   });
 
   /// Language spoken by [ConversationSide.a] (the phone's owner).
@@ -36,6 +37,11 @@ class ConversationState extends Equatable {
   /// included), so the UI can report it.
   final int speechFailures;
 
+  /// The last failed read-aloud: which turn, how, what went wrong
+  /// (`SpeechService` errors), and whether the user had already allowed a
+  /// Mozhi instance to read it (`asked`: then nothing more is offered).
+  final ConversationSpeechFailure? lastSpeechFailure;
+
   /// Language spoken by [side].
   Language languageOf(ConversationSide side) =>
       side == ConversationSide.a ? languageA : languageB;
@@ -58,6 +64,7 @@ class ConversationState extends Equatable {
     bool? faceToFace,
     int? Function()? speakingTurnId,
     int? speechFailures,
+    ConversationSpeechFailure? lastSpeechFailure,
   }) => ConversationState(
     languageA: languageA ?? this.languageA,
     languageB: languageB ?? this.languageB,
@@ -68,6 +75,7 @@ class ConversationState extends Equatable {
         ? speakingTurnId()
         : this.speakingTurnId,
     speechFailures: speechFailures ?? this.speechFailures,
+    lastSpeechFailure: lastSpeechFailure ?? this.lastSpeechFailure,
   );
 
   @override
@@ -79,5 +87,14 @@ class ConversationState extends Equatable {
     faceToFace,
     speakingTurnId,
     speechFailures,
+    lastSpeechFailure,
   ];
 }
+
+/// See [ConversationState.lastSpeechFailure].
+typedef ConversationSpeechFailure = ({
+  int turnId,
+  bool slow,
+  Object error,
+  bool asked,
+});

@@ -1,8 +1,11 @@
+import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/web_translate/web_translate.dart';
 import 'package:mozhi/web_translate/widgets/readable_block_view.dart';
 import 'package:mozhi/web_translate/widgets/web_reader.dart';
@@ -26,7 +29,7 @@ Future<void> pumpWithCubit(
   Widget child,
 ) => tester.pumpWidget(
   MaterialApp(
-    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    localizationsDelegates: appLocalizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
     home: Scaffold(
       body: BlocProvider<WebTranslateCubit>.value(value: cubit, child: child),
@@ -36,7 +39,7 @@ Future<void> pumpWithCubit(
 
 Future<void> pumpBlock(WidgetTester tester, Widget child) => tester.pumpWidget(
   MaterialApp(
-    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    localizationsDelegates: appLocalizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
     home: Scaffold(body: child),
   ),
@@ -163,6 +166,76 @@ void main() {
       expect(find.text(l10n.translateErrorRateLimited), findsOneWidget);
       await tester.tap(find.byKey(const Key('web_translate_retry_button')));
       verify(() => cubit.resume()).called(1);
+    });
+
+    testWidgets('a refusal for consent asks inline, then continues', (
+      tester,
+    ) async {
+      const consent = ConsentRequiredException(
+        kind: ConsentKind.pair,
+        destination: PublicInstanceDestination('mozhi.example.org'),
+        engineId: 'mozhi:google',
+        source: 'en',
+        target: 'es',
+      );
+      final repository = _MockTranslationRepository();
+      final settings = _MockSettingsCubit();
+      when(() => settings.state).thenReturn(const AppSettings());
+      when(() => cubit.state).thenReturn(
+        const WebTranslateState(
+          status: WebTranslateStatus.failure,
+          page: page,
+          selection: googleToSpanish,
+          translations: ['One', null],
+          error: consent,
+        ),
+      );
+      await tester.pumpWidget(
+        MultiRepositoryProvider(
+          providers: [
+            RepositoryProvider<TranslationRepository>.value(value: repository),
+          ],
+          child: BlocProvider<SettingsCubit>.value(
+            value: settings,
+            child: MaterialApp(
+              localizationsDelegates: appLocalizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: Scaffold(
+                body: BlocProvider<WebTranslateCubit>.value(
+                  value: cubit,
+                  child: WebTranslateStatusPanel(onRetryLoad: () {}),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(find.byKey(const Key('web_translate_consent')), findsOneWidget);
+      await tester.tap(find.text(l10n.commonConsentOnce));
+      await tester.pump();
+      // The title and the second block are left.
+      verify(() => repository.allowOnce(consent, requests: 2)).called(1);
+      verify(() => cubit.resume()).called(1);
+    });
+
+    test('a one-time consent covers what is left of the page', () {
+      expect(webTranslateRequests(const WebTranslateState()), 1);
+      expect(
+        webTranslateRequests(
+          const WebTranslateState(page: page, translations: ['One', null]),
+        ),
+        2,
+      );
+      expect(
+        webTranslateRequests(
+          const WebTranslateState(
+            page: page,
+            translatedTitle: 'Titre',
+            translations: ['Un', 'Deux'],
+          ),
+        ),
+        1,
+      );
     });
 
     testWidgets('a download failure reloads on retry', (tester) async {
@@ -463,3 +536,8 @@ void main() {
     expect(isRtlLanguage('UR'), isTrue);
   });
 }
+
+class _MockTranslationRepository extends Mock implements TranslationRepository;
+
+class _MockSettingsCubit extends MockCubit<AppSettings>
+    implements SettingsCubit;

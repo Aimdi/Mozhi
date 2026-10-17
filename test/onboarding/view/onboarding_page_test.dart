@@ -72,8 +72,12 @@ void main() {
       await pumpPage(tester);
 
       await tapNext(tester);
+      expect(find.byType(PrivacyStep), findsOneWidget);
+      expect(find.bySemanticsLabel('Step 2 of 5'), findsOneWidget);
+
+      await tapNext(tester);
       expect(find.byType(ServiceStep), findsOneWidget);
-      expect(find.bySemanticsLabel('Step 2 of 4'), findsOneWidget);
+      expect(find.bySemanticsLabel('Step 3 of 5'), findsOneWidget);
 
       await tapNext(tester);
       expect(find.byType(AiStep), findsOneWidget);
@@ -91,12 +95,25 @@ void main() {
 
     testWidgets('Start translating completes onboarding', (tester) async {
       await pumpPage(tester);
-      for (var i = 0; i < 3; i++) {
+      for (var i = 0; i < 4; i++) {
         await tapNext(tester);
       }
       await tester.tap(find.text('Start translating'));
       expect(settings.state.onboardingComplete, isTrue);
       verify(() => router.go('/translate')).called(1);
+    });
+
+    testWidgets('asks how private translations should be', (tester) async {
+      await pumpPage(tester);
+      await tapNext(tester);
+      expect(find.text('How private should translations be?'), findsOneWidget);
+      expect(find.text('Offline first (recommended)'), findsOneWidget);
+      expect(settings.state.privacyMode, PrivacyMode.offlineFirst);
+
+      await tapVisible(tester, find.text('Online'));
+      expect(settings.state.privacyMode, PrivacyMode.online);
+      await tapVisible(tester, find.text('Offline only'));
+      expect(settings.state.privacyMode, PrivacyMode.offlineOnly);
     });
 
     testWidgets('Skip completes onboarding right away', (tester) async {
@@ -110,6 +127,7 @@ void main() {
       await pumpPage(tester);
       await tapNext(tester);
       await tapNext(tester);
+      await tapNext(tester);
 
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
@@ -121,6 +139,7 @@ void main() {
           .thenAnswer((_) async => const Duration(milliseconds: 20));
       await pumpPage(tester);
       await tapNext(tester);
+      await tapNext(tester);
 
       await tester.tap(find.text('Find the fastest public instance'));
       await tester.pumpAndSettle();
@@ -131,6 +150,7 @@ void main() {
 
     testWidgets('keeps form input when moving between steps', (tester) async {
       await pumpPage(tester, size: const Size(420, 2400));
+      await tapNext(tester);
       await tapNext(tester);
       await tester.enterText(find.byType(TextField), 'my.instance');
       await tapNext(tester);
@@ -151,7 +171,7 @@ void main() {
 
       await tester.tap(find.text('Next'));
       await tester.pump();
-      expect(find.byType(ServiceStep), findsOneWidget);
+      expect(find.byType(PrivacyStep), findsOneWidget);
       expect(find.byType(WelcomeStep), findsNothing);
     });
 
@@ -178,6 +198,7 @@ void main() {
       }
 
       await tapNext(tester);
+      await tapNext(tester);
       final findFastest = find.text('Find the fastest public instance');
       await reveal(findFastest, ServiceStep);
       await tester.tap(findFastest);
@@ -201,6 +222,7 @@ void main() {
       when(() => repository.testProvider(any()))
           .thenAnswer((_) async => 'Bonjour !');
       await pumpPage(tester, size: const Size(420, 1600));
+      await tapNext(tester);
       await tapNext(tester);
       await tapNext(tester);
 

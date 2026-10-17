@@ -19,10 +19,7 @@ import '../helpers/helpers.dart';
 
 /// Taps Translate: methods that upload the image wait for it.
 Future<void> translateNow(WidgetTester tester) async {
-  final button = find.byKey(const Key('image_translate_translate_button'));
-  await tester.ensureVisible(button);
-  await tester.pumpAndSettle();
-  await tester.tap(button);
+  await tester.tap(find.byKey(const Key('image_translate_translate_button')));
   await tester.pumpAndSettle();
 }
 
@@ -127,11 +124,17 @@ void main() {
       expect(find.byKey(const Key('image_translate_share_button')), findsOne);
       expect(find.byKey(const Key('image_translate_open_button')), findsOne);
 
-      await tester.ensureVisible(find.text('Original'));
-      await tester.pumpAndSettle();
       await tester.tap(find.text('Original'));
       await tester.pump();
-      expect(find.bySemanticsLabel('Selected image'), findsOneWidget);
+      // The picked image was shown (and failed to decode: test bytes)
+      // before it was translated, so look at the widget, not its semantics.
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Image && widget.semanticLabel == 'Selected image',
+        ),
+        findsOneWidget,
+      );
       await tester.tap(find.text('Translated'));
       await tester.pump();
       expect(find.bySemanticsLabel('Translated image'), findsOneWidget);
@@ -236,6 +239,94 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('image_translate_error')), findsNothing);
       expect(find.text('Bonjour le monde'), findsOneWidget);
+    });
+
+    group('privacy', () {
+      const consent = ConsentRequiredException(
+        kind: ConsentKind.pair,
+        destination: PublicInstanceDestination(
+          'mozhi.example',
+          engine: 'google',
+        ),
+        engineId: 'mozhi:google',
+        target: 'fr',
+      );
+
+      setUp(() {
+        when(() => harness.repository.instances).thenReturn(const []);
+        var calls = 0;
+        stubImage(() async {
+          if (calls++ == 0) throw consent;
+          return ImageTranslationResult(
+            translatedImage: pngBytes,
+            sourceText: 'Hola mundo',
+            translatedText: 'Bonjour le monde',
+            destination: consent.destination,
+          );
+        });
+      });
+
+      Future<void> refuse(WidgetTester tester) async {
+        harness.picker.image = jpegImage;
+        await harness.pumpPage(tester);
+        await tester.tap(
+          find.byKey(const Key('image_translate_gallery_button')),
+        );
+        await tester.pumpAndSettle();
+        await translateNow(tester);
+      }
+
+      testWidgets('asks before uploading, then translates', (tester) async {
+        await refuse(tester);
+        expect(
+          find.text('Send this text to Google via mozhi.example?'),
+          findsOneWidget,
+        );
+        await tester.tap(
+          find.descendant(
+            of: find.byType(AlertDialog),
+            matching: find.text('Once'),
+          ),
+        );
+        await tester.pumpAndSettle();
+        verify(() => harness.repository.allowOnce(consent)).called(1);
+        expect(find.text('Bonjour le monde'), findsOneWidget);
+        expect(
+          find.byKey(const Key('image_translate_destination')),
+          findsOneWidget,
+        );
+        expect(find.text('Google via mozhi.example'), findsOneWidget);
+      });
+
+      testWidgets('after Cancel, the inline prompt translates', (tester) async {
+        await refuse(tester);
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const Key('image_translate_consent')),
+          findsOneWidget,
+        );
+        await tester.tap(find.text('Once'));
+        await tester.pumpAndSettle();
+        expect(find.text('Bonjour le monde'), findsOneWidget);
+      });
+    });
+
+    testWidgets('a consent prompt without retry only records the answer', (
+      tester,
+    ) async {
+      const consent = ConsentRequiredException(
+        kind: ConsentKind.pair,
+        destination: PublicInstanceDestination('mozhi.example'),
+        engineId: 'mozhi:google',
+        target: 'fr',
+      );
+      await harness.pump(
+        tester,
+        const Scaffold(body: ImageTranslateErrorView(error: consent)),
+      );
+      await tester.tap(find.text('Once'));
+      verify(() => harness.repository.allowOnce(consent)).called(1);
     });
 
     testWidgets('app bar actions replace and remove the image', (tester) async {
@@ -491,7 +582,7 @@ void main() {
             ],
             child: MaterialApp.router(
               routerConfig: router,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
             ),
           ),

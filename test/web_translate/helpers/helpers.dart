@@ -160,7 +160,7 @@ extension PumpWebTranslate on WidgetTester {
           value: translateCubit,
           child: MaterialApp(
             theme: ThemeData(useMaterial3: true),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: child,
           ),

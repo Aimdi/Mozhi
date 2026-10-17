@@ -112,6 +112,7 @@ void main() {
           from: any(named: 'from'),
           to: any(named: 'to'),
           text: any(named: 'text'),
+          abortTrigger: any(named: 'abortTrigger'),
         ),
       );
 
@@ -740,6 +741,7 @@ void main() {
           from: 'auto',
           to: 'de',
           text: 'Hello world',
+          abortTrigger: any(named: 'abortTrigger'),
         ),
       ).called(1);
     });
@@ -810,6 +812,7 @@ void main() {
           from: any(named: 'from'),
           to: any(named: 'to'),
           text: any(named: 'text'),
+          abortTrigger: any(named: 'abortTrigger'),
         ),
       ).called(1);
       verify(
@@ -818,6 +821,7 @@ void main() {
           from: any(named: 'from'),
           to: any(named: 'to'),
           text: any(named: 'text'),
+          abortTrigger: any(named: 'abortTrigger'),
         ),
       ).called(2);
       expect(repository.activeInstance, instanceC);
@@ -970,6 +974,7 @@ void main() {
           from: 'en',
           to: 'en',
           text: 'Hello world',
+          abortTrigger: any(named: 'abortTrigger'),
         ),
       ).called(1);
     });
@@ -1000,6 +1005,7 @@ void main() {
           from: any(named: 'from'),
           to: any(named: 'to'),
           text: any(named: 'text'),
+          abortTrigger: any(named: 'abortTrigger'),
         ),
       ).called(1);
     });
@@ -1043,6 +1049,7 @@ void main() {
           from: any(named: 'from'),
           to: any(named: 'to'),
           text: any(named: 'text'),
+          abortTrigger: any(named: 'abortTrigger'),
         ),
       ).called(2);
     });
@@ -1088,6 +1095,7 @@ void main() {
           from: any(named: 'from'),
           to: any(named: 'to'),
           text: any(named: 'text'),
+          abortTrigger: any(named: 'abortTrigger'),
         ),
       ).called(2);
     });
@@ -1307,6 +1315,7 @@ void main() {
             from: 'en',
             to: 'de',
             text: 'Hello world',
+            abortTrigger: any(named: 'abortTrigger'),
           ),
         ).called(1);
       }
@@ -1330,6 +1339,7 @@ void main() {
           from: any(named: 'from'),
           to: any(named: 'to'),
           text: any(named: 'text'),
+          abortTrigger: any(named: 'abortTrigger'),
         ),
       ).captured.cast<String>();
       expect(
@@ -1655,6 +1665,7 @@ void main() {
           from: 'auto',
           to: 'en',
           text: 'Hello world',
+          abortTrigger: any(named: 'abortTrigger'),
         ),
       ).called(1);
     });
@@ -2739,6 +2750,7 @@ void main() {
           from: 'auto',
           to: any(named: 'to'),
           text: 'שלום',
+          abortTrigger: any(named: 'abortTrigger'),
         ),
       ).called(1);
     });
@@ -2763,6 +2775,7 @@ void main() {
           from: 'auto',
           to: any(named: 'to'),
           text: 'Bonjour',
+          abortTrigger: any(named: 'abortTrigger'),
         ),
       ).called(1);
     });

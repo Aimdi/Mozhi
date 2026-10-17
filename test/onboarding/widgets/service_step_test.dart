@@ -230,43 +230,24 @@ void main() {
           expect(find.byKey(warning), findsNothing);
         });
 
-        testWidgets('cancelling the confirmation adds nothing', (tester) async {
-          final cubit = await pump(tester);
-          await tester.enterText(find.byType(TextField), url);
-          await tester.tap(find.text('Test & add'));
-          await tester.pumpAndSettle();
-
-          expect(find.text('Add without encryption?'), findsOneWidget);
-          expect(find.textContaining('mozhi.example.com uses plain'), findsOne);
-          await tester.tap(find.text('Cancel'));
-          await tester.pumpAndSettle();
-
-          verifyNever(
-            () => cubit.addOwnInstance(
-              any(),
-              allowInsecure: any(named: 'allowInsecure'),
-            ),
-          );
-        });
-
-        testWidgets('adds after confirming, and asks once per url', (
+        testWidgets('public plain http is refused: https is required', (
           tester,
         ) async {
-          final cubit = await pump(tester);
+          final cubit = await pump(
+            tester,
+            const OnboardingState(
+              ownInstanceStatus: OwnInstanceStatus.failure,
+              ownInstanceError: OwnInstanceError.insecure,
+            ),
+          );
           await tester.enterText(find.byType(TextField), url);
+          await tester.pump();
+          expect(find.text('Use https:// for public servers.'), findsWidgets);
           await tester.tap(find.text('Test & add'));
           await tester.pumpAndSettle();
-          await tester.tap(find.text('Add without encryption'));
-          await tester.pumpAndSettle();
-          verify(() => cubit.addOwnInstance(url, allowInsecure: true))
-              .called(1);
-
-          // Confirmed already: no second dialog for the same url.
-          await tester.tap(find.text('Test & add'));
-          await tester.pumpAndSettle();
+          // No confirmation: the cubit refuses it.
           expect(find.text('Add without encryption?'), findsNothing);
-          verify(() => cubit.addOwnInstance(url, allowInsecure: true))
-              .called(1);
+          verify(() => cubit.addOwnInstance(url)).called(1);
         });
 
         testWidgets('local addresses are added without asking', (tester) async {
@@ -317,8 +298,7 @@ void main() {
         ),
         (
           OwnInstanceError.insecure,
-          'This instance uses plain HTTP. Confirm that you want to add it '
-              'without encryption.',
+          'Use https:// for public servers.',
         ),
       ]) {
         testWidgets('shows ${error.name} errors', (tester) async {

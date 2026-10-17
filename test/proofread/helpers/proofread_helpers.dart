@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/proofread/proofread.dart';
+import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -20,6 +22,8 @@ class MockTranslateCubit extends MockCubit<TranslateState>
 class MockTranslationRepository extends Mock implements TranslationRepository;
 
 class MockGoRouter extends Mock implements GoRouter;
+
+class MockSettingsCubit extends MockCubit<AppSettings> implements SettingsCubit;
 
 const openAiEngine = TranslationEngine(
   id: 'ai:openai',
@@ -133,6 +137,7 @@ extension PumpProofread on WidgetTester {
     TranslationRepository? repository,
     GoRouter? router,
     ThemeData? theme,
+    SettingsCubit? settings,
   }) {
     Widget tree = BlocProvider<TranslateCubit>.value(
       value: translateCubit,
@@ -143,6 +148,9 @@ extension PumpProofread on WidgetTester {
               child: child,
             ),
     );
+    if (settings != null) {
+      tree = BlocProvider<SettingsCubit>.value(value: settings, child: tree);
+    }
     if (repository != null) {
       tree = RepositoryProvider<TranslationRepository>.value(
         value: repository,

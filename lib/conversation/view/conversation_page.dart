@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/conversation/cubit/conversation_cubit.dart';
@@ -7,6 +9,7 @@ import 'package:mozhi/conversation/widgets/widgets.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/speech/speech_service.dart';
+import 'package:mozhi/speech/widgets/speech_error_snack_bar.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/engine_selector.dart';
 import 'package:mozhi/translate/widgets/no_engines_view.dart';
@@ -104,9 +107,31 @@ class ConversationView extends StatelessWidget {
     return BlocListener<ConversationCubit, ConversationState>(
       listenWhen: (previous, current) =>
           current.speechFailures > previous.speechFailures,
-      listener: (context, state) => ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(l10n.conversationSpeechError))),
+      listener: (context, state) {
+        final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
+        final failure = state.lastSpeechFailure;
+        if (failure == null) {
+          messenger.showSnackBar(
+            SnackBar(content: Text(l10n.conversationSpeechError)),
+          );
+          return;
+        }
+        final cubit = context.read<ConversationCubit>();
+        showSpeechErrorSnackBar(
+          context,
+          failure.error,
+          // Asked once: a refusal after consent only says why.
+          onListenOnline: failure.asked
+              ? null
+              : (consent) => unawaited(
+                  cubit.speak(
+                    failure.turnId,
+                    slow: failure.slow,
+                    allowOnline: consent,
+                  ),
+                ),
+        );
+      },
       child: Scaffold(
         appBar: faceToFace && !noEngines
             ? null

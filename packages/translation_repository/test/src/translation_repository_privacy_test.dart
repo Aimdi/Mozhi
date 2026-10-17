@@ -130,6 +130,7 @@ void main() {
           from: any(named: 'from'),
           to: any(named: 'to'),
           text: any(named: 'text'),
+          abortTrigger: any(named: 'abortTrigger'),
         ),
       );
 
@@ -231,6 +232,28 @@ void main() {
     verifyZeroInteractions(deepl);
     verifyZeroInteractions(libre);
   }
+
+  test('cancelling a Mozhi translation aborts its request', () async {
+    repository.updatePrivacy(mode: PrivacyMode.online);
+    Future<void>? abort;
+    final pending = Completer<MozhiTranslation>();
+    whenTranslate(a()).thenAnswer((invocation) {
+      abort = invocation.namedArguments[#abortTrigger] as Future<void>?;
+      return pending.future;
+    });
+    final subscription = repository
+        .translate(googleEngine, englishToGerman)
+        .listen((_) {});
+    await pumpEventQueue();
+    var aborted = false;
+    unawaited(abort!.then((_) => aborted = true));
+    await subscription.cancel();
+    await pumpEventQueue();
+    expect(aborted, isTrue);
+    pending.completeError(const MozhiRequestCancelledException());
+    await pumpEventQueue();
+    verifyZeroInteractions(b());
+  });
 
   group('pairKey and providerIdOf', () {
     test('pairKey joins the codes', () {
@@ -1107,6 +1130,7 @@ void main() {
           from: 'en',
           to: 'de',
           text: 'Hello world',
+          abortTrigger: any(named: 'abortTrigger'),
         ),
       ).called(1);
     });

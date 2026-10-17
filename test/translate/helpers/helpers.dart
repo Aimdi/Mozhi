@@ -29,6 +29,8 @@ class MockSpeechService extends Mock implements SpeechService;
 
 class MockGoRouter extends Mock implements GoRouter;
 
+class MockTranslationRepository extends Mock implements TranslationRepository;
+
 class MockPresetsCubit extends MockCubit<PresetsState> implements PresetsCubit;
 
 class MockSpeechInputService extends Mock implements SpeechInputService;
@@ -254,6 +256,9 @@ class TranslateHarness {
   final speech = MockSpeechService();
   final router = MockGoRouter();
 
+  /// Records consent given in prompts (`allowOnce`, ...).
+  final repository = MockTranslationRepository();
+
   /// Provided above the app when set (the preset picker needs it).
   final PresetsCubit? presets;
 
@@ -291,6 +296,7 @@ class TranslateHarness {
         child: MultiRepositoryProvider(
           providers: [
             RepositoryProvider<SpeechService>.value(value: speech),
+            RepositoryProvider<TranslationRepository>.value(value: repository),
             if (speechInput case final speechInput?)
               RepositoryProvider<SpeechInputService>.value(value: speechInput),
           ],

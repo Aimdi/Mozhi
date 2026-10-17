@@ -324,9 +324,16 @@ class ConversationCubit extends Cubit<ConversationState> {
 
   /// Reads [turnId]'s translation aloud in its target language, or stops it
   /// when it is already playing. With [slow] it is read slowly from the
-  /// start instead, also while it plays. Failures increment
-  /// [ConversationState.speechFailures].
-  Future<void> speak(int turnId, {bool slow = false}) async {
+  /// start instead, also while it plays. [allowOnline] is the consent the
+  /// user gave for a Mozhi instance to read it (see
+  /// `SpeechUnavailableException.onlineConsent`). Failures increment
+  /// [ConversationState.speechFailures] and are kept in
+  /// [ConversationState.lastSpeechFailure].
+  Future<void> speak(
+    int turnId, {
+    bool slow = false,
+    ConsentRequiredException? allowOnline,
+  }) async {
     final turn = state.turnById(turnId);
     if (turn == null || turn.translation.trim().isEmpty || isClosed) return;
     try {
@@ -336,17 +343,29 @@ class ConversationCubit extends Cubit<ConversationState> {
           text: turn.translation,
           languageCode: turn.target.code,
           slow: true,
+          allowOnline: allowOnline,
         );
       } else {
         await _speech.toggle(
           id: speechIdOf(turnId),
           text: turn.translation,
           languageCode: turn.target.code,
+          allowOnline: allowOnline,
         );
       }
-    } on Object {
+    } on Object catch (error) {
       if (!isClosed) {
-        emit(state.copyWith(speechFailures: state.speechFailures + 1));
+        emit(
+          state.copyWith(
+            speechFailures: state.speechFailures + 1,
+            lastSpeechFailure: (
+              turnId: turnId,
+              slow: slow,
+              error: error,
+              asked: allowOnline != null,
+            ),
+          ),
+        );
       }
     }
   }

@@ -9,6 +9,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/documents/documents.dart';
+import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -18,6 +20,8 @@ class MockTranslationRepository extends Mock implements TranslationRepository;
 
 class MockTranslateCubit extends MockCubit<TranslateState>
     implements TranslateCubit;
+
+class MockSettingsCubit extends MockCubit<AppSettings> implements SettingsCubit;
 
 const googleEngine = TranslationEngine(
   id: 'mozhi:google',
@@ -197,19 +201,23 @@ extension PumpDocuments on WidgetTester {
     DocumentTranslator? translator,
     PickedFile? initialFile,
     String? initialText,
+    SettingsCubit? settings,
   }) {
+    final page = BlocProvider<TranslateCubit>.value(
+      value: translateCubit,
+      child: DocumentTranslatePage(
+        initialFile: initialFile,
+        initialText: initialText,
+        fileService: files,
+        translator: translator,
+      ),
+    );
     return pumpApp(
       RepositoryProvider<TranslationRepository>.value(
         value: repository,
-        child: BlocProvider<TranslateCubit>.value(
-          value: translateCubit,
-          child: DocumentTranslatePage(
-            initialFile: initialFile,
-            initialText: initialText,
-            fileService: files,
-            translator: translator,
-          ),
-        ),
+        child: settings == null
+            ? page
+            : BlocProvider<SettingsCubit>.value(value: settings, child: page),
       ),
     );
   }

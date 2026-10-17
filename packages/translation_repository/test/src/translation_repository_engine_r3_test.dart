@@ -85,6 +85,7 @@ void main() {
           from: any(named: 'from'),
           to: any(named: 'to'),
           text: any(named: 'text'),
+          abortTrigger: any(named: 'abortTrigger'),
         ),
       ).thenAnswer(
         (_) async => MozhiTranslation(
@@ -162,6 +163,7 @@ void main() {
           from: any(named: 'from'),
           to: any(named: 'to'),
           text: any(named: 'text'),
+          abortTrigger: any(named: 'abortTrigger'),
         ),
       ).thenAnswer(
         (_) async =>
@@ -887,6 +889,7 @@ void main() {
             from: any(named: 'from'),
             to: any(named: 'to'),
             text: any(named: 'text'),
+            abortTrigger: any(named: 'abortTrigger'),
           ),
         ).thenAnswer(
           (_) async => const MozhiTranslation(

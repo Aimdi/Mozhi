@@ -8,21 +8,26 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/speech/speech_service.dart';
+import 'package:mozhi/speech/widgets/speech_error_snack_bar.dart';
+import 'package:translation_repository/translation_repository.dart'
+    show ConsentRequiredException;
 
 /// Reads [text] aloud in [languageCode] with the [SpeechService] of
 /// [context]: toggles the clip [id] at normal speed (`SpeechService.toggle`),
 /// or with [slow] reads it slowly from the start (`SpeechService.speak`).
-/// A failure shows a snack bar.
+/// A failure shows a snack bar ([showSpeechErrorSnackBar]); when a Mozhi
+/// instance could read the text with the user's consent, it offers "Listen
+/// via (host)", which reads it again with [allowOnline] set to that
+/// consent.
 Future<void> readAloud(
   BuildContext context, {
   required String id,
   required String text,
   required String languageCode,
   bool slow = false,
+  ConsentRequiredException? allowOnline,
 }) async {
   final speech = context.read<SpeechService>();
-  final messenger = ScaffoldMessenger.maybeOf(context);
-  final message = context.l10n.translateSpeechError;
   try {
     if (slow) {
       await speech.speak(
@@ -30,14 +35,38 @@ Future<void> readAloud(
         text: text,
         languageCode: languageCode,
         slow: true,
+        allowOnline: allowOnline,
       );
     } else {
-      await speech.toggle(id: id, text: text, languageCode: languageCode);
+      await speech.toggle(
+        id: id,
+        text: text,
+        languageCode: languageCode,
+        allowOnline: allowOnline,
+      );
     }
-  } on Object {
-    messenger
-      ?..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+  } on Object catch (error) {
+    if (!context.mounted) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) return;
+    messenger.hideCurrentSnackBar();
+    showSpeechErrorSnackBar(
+      context,
+      error,
+      // Asked once: a second refusal only says why.
+      onListenOnline: allowOnline != null
+          ? null
+          : (consent) => unawaited(
+              readAloud(
+                context,
+                id: id,
+                text: text,
+                languageCode: languageCode,
+                slow: slow,
+                allowOnline: consent,
+              ),
+            ),
+    );
   }
 }
 

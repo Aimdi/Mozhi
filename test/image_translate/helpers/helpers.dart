@@ -283,7 +283,7 @@ class ImageTranslateHarness {
                 brightness: Brightness.dark,
               ),
               themeMode: themeMode,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: child,
             ),

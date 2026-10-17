@@ -207,6 +207,55 @@ void main() {
           .called(1);
     });
 
+    testWidgets('pushes the privacy settings before anything starts', (
+      tester,
+    ) async {
+      await pumpApp(
+        tester,
+        settings: const AppSettings(
+          onboardingComplete: true,
+          instances: [testInstance],
+          privacyMode: PrivacyMode.offlineOnly,
+          networkPairs: ['de>en'],
+          consentedProviders: ['claude'],
+        ),
+      );
+      verify(
+        () => env.translationRepository.updatePrivacy(
+          mode: PrivacyMode.offlineOnly,
+          approvedPairs: const ['de>en'],
+          consentedProviders: const ['claude'],
+        ),
+      ).called(1);
+    });
+
+    testWidgets('pushes privacy changes, reloading engines on a new mode', (
+      tester,
+    ) async {
+      await pumpApp(tester);
+      clearInteractions(env.translationRepository);
+      final settings = shellContext(tester).read<SettingsCubit>()
+        ..approveNetworkPair('de>en');
+      await tester.pump();
+      verify(
+        () => env.translationRepository.updatePrivacy(
+          mode: settings.state.privacyMode,
+          approvedPairs: const ['de>en'],
+        ),
+      ).called(1);
+      verifyNever(() => env.translationRepository.getEngines());
+
+      settings.setPrivacyMode(PrivacyMode.offlineOnly);
+      await tester.pump();
+      verify(
+        () => env.translationRepository.updatePrivacy(
+          mode: PrivacyMode.offlineOnly,
+          approvedPairs: const ['de>en'],
+        ),
+      ).called(1);
+      verify(() => env.translationRepository.getEngines()).called(1);
+    });
+
     testWidgets('translates text shared at launch', (tester) async {
       when(env.sharedTextService.initialText)
           .thenAnswer((_) async => const SharedText('hola'));
@@ -514,6 +563,44 @@ void main() {
         changed([
           provider.copyWith(headers: {'X-Key': '1'}),
         ]),
+        isTrue,
+      );
+    });
+  });
+
+  group('privacyChanged', () {
+    test('compares the mode, approved pairs and consented providers', () {
+      const base = AppSettings(networkPairs: ['de>en']);
+      expect(
+        privacyChanged(base, const AppSettings(networkPairs: ['de>en'])),
+        isFalse,
+      );
+      expect(
+        privacyChanged(
+          base,
+          const AppSettings(networkPairs: ['de>en'], saveHistory: false),
+        ),
+        isFalse,
+      );
+      expect(
+        privacyChanged(
+          base,
+          const AppSettings(
+            networkPairs: ['de>en'],
+            privacyMode: PrivacyMode.online,
+          ),
+        ),
+        isTrue,
+      );
+      expect(privacyChanged(base, const AppSettings()), isTrue);
+      expect(
+        privacyChanged(
+          base,
+          const AppSettings(
+            networkPairs: ['de>en'],
+            consentedProviders: ['claude'],
+          ),
+        ),
         isTrue,
       );
     });

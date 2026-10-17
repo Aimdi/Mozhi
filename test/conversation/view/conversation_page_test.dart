@@ -8,6 +8,7 @@ import 'package:mozhi/conversation/conversation.dart';
 import 'package:mozhi/conversation/widgets/widgets.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
+import 'package:mozhi/speech/speech_service.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/no_engines_view.dart';
 import 'package:mozhi/usage/usage.dart';
@@ -700,6 +701,75 @@ void main() {
         ),
       ).called(1);
       expect(find.text("Couldn't play audio."), findsOneWidget);
+    });
+
+    testWidgets('a message the privacy settings stopped asks inline', (
+      tester,
+    ) async {
+      const consent = ConsentRequiredException(
+        kind: ConsentKind.pair,
+        destination: PublicInstanceDestination(
+          'mozhi.example.org',
+          engine: 'google',
+        ),
+        engineId: 'mozhi:google',
+        source: 'en',
+        target: 'es',
+      );
+      var refused = false;
+      when(() => repository.translate(any(), any())).thenAnswer((_) {
+        if (refused) return Stream.value(resultOf('Hola'));
+        refused = true;
+        return Stream.error(consent);
+      });
+      when(() => repository.instances).thenReturn(const []);
+      await pumpPage(tester);
+      await send(tester, ConversationSide.a, 'Hello');
+      expect(find.byKey(const Key('conversation_consent_0')), findsOneWidget);
+      await tester.tap(find.text('Once'));
+      await tester.pumpAndSettle();
+      verify(() => repository.allowOnce(consent)).called(1);
+      expect(find.byKey(const Key('conversation_consent_0')), findsNothing);
+      expect(find.text('Hola'), findsWidgets);
+    });
+
+    testWidgets('a voice the privacy settings stopped can be allowed', (
+      tester,
+    ) async {
+      const online = ConsentRequiredException(
+        kind: ConsentKind.pair,
+        destination: PublicInstanceDestination('mozhi.example.org'),
+        engineId: 'mozhi:google',
+        source: 'es',
+        target: 'es',
+      );
+      when(
+        () => speech.toggle(
+          id: any(named: 'id'),
+          text: any(named: 'text'),
+          languageCode: any(named: 'languageCode'),
+          allowOnline: any(named: 'allowOnline'),
+        ),
+      ).thenAnswer((invocation) async {
+        if (invocation.namedArguments[#allowOnline] == null) {
+          throw const SpeechUnavailableException('es', cause: online);
+        }
+      });
+      await pumpPage(tester, size: const Size(800, 800));
+      await send(tester, ConversationSide.a, 'Hello');
+      await tester.tap(find.byKey(const Key('conversation_listen_0')));
+      await tester.pumpAndSettle();
+      expect(find.text('Listen via mozhi.example.org'), findsOneWidget);
+      await tester.tap(find.text('Listen via mozhi.example.org'));
+      await tester.pumpAndSettle();
+      verify(
+        () => speech.toggle(
+          id: any(named: 'id'),
+          text: 'Hola',
+          languageCode: 'es',
+          allowOnline: online,
+        ),
+      ).called(1);
     });
 
     testWidgets('copy puts the translation on the clipboard', (tester) async {

@@ -203,19 +203,16 @@ bool grantConsent({
     return true;
   }
   if (choice == ConsentChoice.always) {
-    switch (consent.kind) {
-      case ConsentKind.pair:
-        settings.approveNetworkPair(
-          TranslationRepository.pairKey(
-            consent.source ?? Language.auto.code,
-            consent.target ?? Language.auto.code,
-          ),
-        );
-      case ConsentKind.cloudProvider:
-        final provider = TranslationRepository.providerIdOf(consent.engineId);
-        if (provider != null) settings.consentToProvider(provider);
-      case ConsentKind.offlineOnly:
-        break;
+    if (consent.kind == ConsentKind.cloudProvider) {
+      final provider = TranslationRepository.providerIdOf(consent.engineId);
+      if (provider != null) settings.consentToProvider(provider);
+    } else {
+      settings.approveNetworkPair(
+        TranslationRepository.pairKey(
+          consent.source ?? Language.auto.code,
+          consent.target ?? Language.auto.code,
+        ),
+      );
     }
   }
   repository.allowOnce(consent, requests: requests);

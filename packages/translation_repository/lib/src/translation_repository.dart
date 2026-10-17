@@ -1182,7 +1182,9 @@ class TranslationRepository {
   ) {
     final destination = _destinationFor(engine);
     final results = switch (engine.kind) {
-      EngineKind.mozhi => Stream.fromFuture(_translateMozhi(engine, request)),
+      EngineKind.mozhi => _abortable(
+        (abort) => _translateMozhi(engine, request, abort: abort),
+      ),
       EngineKind.ai => _translateAi(engine, request),
       EngineKind.offline => Stream.fromFuture(
         Future.sync(() => _offlineFor(engine).translate(engine, request)),
@@ -1241,10 +1243,14 @@ class TranslationRepository {
     return controller.stream;
   }
 
+  /// Completing [abort] (the subscription was cancelled, e.g. the input
+  /// changed) cancels the request, which is not sent to another instance
+  /// then.
   Future<TranslationResult> _translateMozhi(
     TranslationEngine engine,
-    TranslationRequest request,
-  ) async {
+    TranslationRequest request, {
+    Future<void>? abort,
+  }) async {
     _checkMozhiLanguages(request.source, request.target);
     final id = mozhiEngineId(engine);
     final stopwatch = Stopwatch()..start();
@@ -1255,6 +1261,7 @@ class TranslationRepository {
           from: request.source.code,
           to: mozhiTargetCode(id, request.target.code),
           text: request.text,
+          abortTrigger: abort,
         );
         if (result.translatedText.trim().isEmpty) {
           // DeepL (DeepLX) reports upstream failures as 200 with an empty

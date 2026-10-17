@@ -9,6 +9,8 @@ import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/documents/documents.dart';
 import 'package:mozhi/documents/widgets/widgets.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -39,6 +41,7 @@ void main() {
     Size size = const Size(600, 3000),
     PickedFile? initialFile,
     String? initialText,
+    SettingsCubit? settings,
   }) async {
     setSurface(tester, size);
     whenListen(
@@ -52,6 +55,7 @@ void main() {
       files: files,
       initialFile: initialFile,
       initialText: initialText,
+      settings: settings,
       translator: DocumentTranslator(
         repository: repository,
         maxAttempts: 1,
@@ -346,6 +350,82 @@ void main() {
       expect(find.text('Translation complete'), findsOneWidget);
     });
 
+    group('privacy', () {
+      const consent = ConsentRequiredException(
+        kind: ConsentKind.pair,
+        destination: PublicInstanceDestination(
+          'mozhi.example',
+          engine: 'google',
+        ),
+        engineId: 'mozhi:google',
+        target: 'de',
+      );
+
+      late MockSettingsCubit settings;
+      late bool refusing;
+
+      setUp(() {
+        settings = MockSettingsCubit();
+        when(() => settings.state).thenReturn(const AppSettings());
+        when(() => repository.instances).thenReturn(const []);
+        refusing = true;
+        stubTranslate(
+          repository,
+          respond: (request) => refusing
+              ? Stream.error(consent)
+              : Stream.value(result(request.text.toUpperCase())),
+        );
+        when(
+          () => repository.allowOnce(consent, requests: any(named: 'requests')),
+        ).thenAnswer((_) => refusing = false);
+      });
+
+      testWidgets('translating asks right away, then translates', (
+        tester,
+      ) async {
+        await pumpPage(tester, settings: settings);
+        await pickFile(tester, 'a.txt', 'hello');
+        await tester.tap(find.byKey(const Key('documents_translate')));
+        await tester.pumpAndSettle();
+        expect(
+          find.text('Send this text to Google via mozhi.example?'),
+          findsOneWidget,
+        );
+        // The inline prompt waits behind the dialog.
+        expect(find.byKey(const Key('documents_consent')), findsOneWidget);
+        await tester.tap(
+          find.descendant(
+            of: find.byType(AlertDialog),
+            matching: find.text('Once'),
+          ),
+        );
+        await tester.pumpAndSettle();
+        verify(() => repository.allowOnce(consent)).called(1);
+        expect(find.text('Translation complete'), findsOneWidget);
+      });
+
+      testWidgets('after Cancel, the parts wait for an inline answer', (
+        tester,
+      ) async {
+        await pumpPage(tester, settings: settings);
+        await pickFile(tester, 'a.txt', 'hello');
+        await tester.tap(find.byKey(const Key('documents_translate')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('documents_consent')), findsOneWidget);
+        expect(find.byKey(const Key('documents_failures')), findsNothing);
+        await tester.tap(
+          find.descendant(
+            of: find.byKey(const Key('documents_consent')),
+            matching: find.text('Once'),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Translation complete'), findsOneWidget);
+      });
+    });
+
     testWidgets('partial translations warn that parts stay original', (
       tester,
     ) async {
@@ -600,5 +680,33 @@ void main() {
       }
       expect(documentFormatIcon(null), Icons.insert_drive_file_outlined);
     });
+  });
+
+  test('documentRequests counts what retrying the failed parts sends', () {
+    expect(documentRequests(const DocumentTranslateState()), 1);
+    Chunk chunk(int index, int units) => Chunk(
+      index: index,
+      encoding: ChunkEncoding.markers,
+      units: [
+        for (var i = 0; i < units; i++)
+          TranslationUnit(segment: i, part: 0, text: 'unit $i'),
+      ],
+    );
+    final plan = ChunkPlan(
+      chunks: [chunk(0, 1), chunk(1, 3)],
+      separators: const [],
+    );
+    final error = Exception('stopped');
+    // One request for a single unit; a batch of three may be retried unit
+    // by unit; a part the plan does not know is one request.
+    expect(
+      documentRequests(
+        DocumentTranslateState(
+          plan: plan,
+          failures: {0: error, 1: error, 5: error},
+        ),
+      ),
+      1 + 4 + 1,
+    );
   });
 }

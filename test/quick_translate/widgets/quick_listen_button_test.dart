@@ -7,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/quick_translate/quick_translate.dart';
+import 'package:mozhi/speech/speech_service.dart';
+import 'package:translation_repository/translation_repository.dart';
 
 import '../helpers/helpers.dart';
 
@@ -23,11 +25,13 @@ void main() {
   late MockSpeechService speech;
   late StreamController<String?> speaking;
   late int errors;
+  VoidCallback? lastListenOnline;
 
   setUp(() {
     speech = MockSpeechService();
     speaking = StreamController<String?>.broadcast();
     errors = 0;
+    lastListenOnline = null;
     when(() => speech.speaking).thenAnswer((_) => speaking.stream);
     when(
       () => speech.toggle(
@@ -58,7 +62,10 @@ void main() {
         speech: speech,
         text: text,
         languageCode: languageCode,
-        onError: () => errors++,
+        onError: (_, listenOnline) {
+          errors++;
+          lastListenOnline = listenOnline;
+        },
       ),
     ),
   );
@@ -150,6 +157,45 @@ void main() {
       await tester.pumpAndSettle();
       verifySlow();
       verifyNoToggle();
+    });
+
+    testWidgets('offers to listen through Mozhi with consent, once', (
+      tester,
+    ) async {
+      const consent = ConsentRequiredException(
+        kind: ConsentKind.pair,
+        destination: PublicInstanceDestination('mozhi.example.org'),
+        engineId: 'mozhi:google',
+        source: 'fr',
+        target: 'fr',
+      );
+      when(
+        () => speech.toggle(
+          id: any(named: 'id'),
+          text: any(named: 'text'),
+          languageCode: any(named: 'languageCode'),
+          allowOnline: any(named: 'allowOnline'),
+        ),
+      ).thenThrow(const SpeechUnavailableException('fr', cause: consent));
+      await pump(tester);
+      await tester.tap(_button());
+      await tester.pumpAndSettle();
+      expect(errors, 1);
+      expect(lastListenOnline, isNotNull);
+
+      lastListenOnline!();
+      await tester.pumpAndSettle();
+      verify(
+        () => speech.toggle(
+          id: any(named: 'id'),
+          text: 'Bonjour',
+          languageCode: 'fr',
+          allowOnline: consent,
+        ),
+      ).called(1);
+      // Refused again with consent: nothing more is offered.
+      expect(errors, 2);
+      expect(lastListenOnline, isNull);
     });
 
     testWidgets('a failing slow read reports the error', (tester) async {

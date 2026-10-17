@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/network/network.dart' show isCleartextAllowed;
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/onboarding/cubit/onboarding_cubit.dart';
@@ -163,61 +164,22 @@ class OwnInstanceForm extends StatefulWidget {
 class _OwnInstanceFormState extends State<OwnInstanceForm> {
   final _controller = TextEditingController();
 
-  /// The plain-http URL the user agreed to add without encryption.
-  String? _insecureConfirmedFor;
-
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
   }
 
+  /// A plain-http address of a public server: refused (the app only sends
+  /// text unencrypted inside this device or the local network).
   Uri? get _insecureUri {
     final uri = normalizeOwnInstanceUrl(_controller.text);
-    return isInsecureHttp(uri) ? uri : null;
+    return uri == null || isCleartextAllowed(uri) ? null : uri;
   }
 
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
-    final cubit = context.read<OnboardingCubit>();
-    final insecure = _insecureUri;
-    if (insecure != null && !await _confirmInsecure(insecure)) return;
-    await cubit.addOwnInstance(
-      _controller.text,
-      allowInsecure: insecure != null,
-    );
-  }
-
-  /// Asks once per URL before a plain-http instance outside the local
-  /// network is added (same dialog as Settings); true when it may be added.
-  Future<bool> _confirmInsecure(Uri uri) async {
-    final url = uri.toString();
-    if (_insecureConfirmedFor == url) return true;
-    final l10n = context.l10n;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        icon: const Icon(Icons.no_encryption_outlined),
-        title: Text(l10n.settingsInstanceInsecureConfirmTitle),
-        content: Text(l10n.settingsInstanceInsecureConfirmBody(uri.host)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(l10n.commonCancel),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.error,
-            ),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(l10n.settingsInstanceInsecureConfirmAction),
-          ),
-        ],
-      ),
-    );
-    if (!(confirmed ?? false) || !mounted) return false;
-    _insecureConfirmedFor = url;
-    return true;
+    await context.read<OnboardingCubit>().addOwnInstance(_controller.text);
   }
 
   @override
@@ -246,7 +208,7 @@ class _OwnInstanceFormState extends State<OwnInstanceForm> {
         message ?? '',
       ),
       OwnInstanceError.timedOut => l10n.onboardingServiceOwnTimedOut,
-      OwnInstanceError.insecure => l10n.onboardingServiceOwnInsecure,
+      OwnInstanceError.insecure => l10n.commonHttpsRequired,
     };
     return OnboardingSection(
       title: l10n.onboardingServiceOwnTitle,
@@ -286,7 +248,7 @@ class _OwnInstanceFormState extends State<OwnInstanceForm> {
             InsecureHttpWarning(
               key: const Key('onboarding_insecure_warning'),
               title: l10n.settingsInstanceInsecureTitle,
-              text: l10n.settingsInstanceInsecureWarning,
+              text: l10n.commonHttpsRequired,
             ),
           ],
           const SizedBox(height: 12),

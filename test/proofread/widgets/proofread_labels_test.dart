@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/network/network.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/proofread/models/writing_stats.dart';
 import 'package:mozhi/proofread/widgets/proofread_labels.dart';
@@ -140,6 +141,22 @@ void main() {
       expect(
         l10n.proofreadError(const LlmApiException(' timeout ')),
         'The AI provider returned an error: timeout',
+      );
+      expect(
+        l10n.proofreadError(
+          const ConsentRequiredException(
+            kind: ConsentKind.offlineOnly,
+            destination: CloudProviderDestination('OpenAI'),
+            engineId: 'ai:openai',
+          ),
+        ),
+        l10n.commonConsentErrorOfflineOnly,
+      );
+      expect(
+        l10n.proofreadError(
+          CleartextRefusedException(Uri.parse('http://llm.example.org')),
+        ),
+        l10n.commonErrorCleartextRefused,
       );
       expect(l10n.proofreadError(null), l10n.proofreadErrorGeneric);
       expect(l10n.proofreadError(StateError('x')), l10n.proofreadErrorGeneric);
