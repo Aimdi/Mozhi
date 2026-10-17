@@ -28,6 +28,26 @@ void main() {
       verify(() => harness.translate.setInput('Hello')).called(1);
     });
 
+    group('keyboard learning', () {
+      bool learning(WidgetTester tester) => tester
+          .widget<TextField>(find.byKey(const Key('translate_input_field')))
+          .enableIMEPersonalizedLearning;
+
+      testWidgets('is allowed normally', (tester) async {
+        final harness = TranslateHarness();
+        await harness.pump(tester, child: const InputCard());
+        expect(learning(tester), isTrue);
+      });
+
+      testWidgets('is off while incognito', (tester) async {
+        final harness = TranslateHarness(
+          settings: const AppSettings(incognito: true),
+        );
+        await harness.pump(tester, child: const InputCard());
+        expect(learning(tester), isFalse);
+      });
+    });
+
     testWidgets('shows the hint and a paste button when empty', (tester) async {
       final harness = TranslateHarness();
       await harness.pump(tester, child: const InputCard());

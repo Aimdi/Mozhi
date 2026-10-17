@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -149,6 +150,8 @@ class _ExplainSheetState extends State<ExplainSheet> {
                                 child: TextField(
                                   key: const Key('translate_explain_question'),
                                   controller: _question,
+                                  enableIMEPersonalizedLearning:
+                                      imeLearningAllowed(context),
                                   textInputAction: TextInputAction.send,
                                   onSubmitted: (_) => _send(),
                                   minLines: 1,

@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
@@ -126,6 +127,7 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
               child: TextField(
                 key: const Key('translate_language_search'),
                 controller: _search,
+                enableIMEPersonalizedLearning: imeLearningAllowed(context),
                 autofocus: widget.autofocusSearch,
                 onChanged: (value) => setState(() => _query = value),
                 textInputAction: TextInputAction.search,

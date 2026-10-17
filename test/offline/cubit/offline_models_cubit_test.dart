@@ -358,10 +358,9 @@ void main() {
     OfflineModelsState readyWithDetails({
       Set<String> downloaded = const {'en', 'de'},
       OfflineStorage? storage = testStorage,
-    }) => ready(downloaded: downloaded).copyWith(
-      downloadSizes: testDownloadSizes,
-      storage: () => storage,
-    );
+    }) =>
+        ready(downloaded: downloaded)
+            .copyWith(downloadSizes: testDownloadSizes, storage: () => storage);
 
     blocTest<OfflineModelsCubit, OfflineModelsState>(
       'loads download sizes and the storage',
@@ -410,9 +409,8 @@ void main() {
             installedBytes: {'de': 70, 'fr': 50},
             totalBytes: 120,
           );
-        when(
-          translator.downloadedLanguages,
-        ).thenAnswer((_) async => {'en', 'de', 'fr'});
+        when(translator.downloadedLanguages)
+            .thenAnswer((_) async => {'en', 'de', 'fr'});
       },
       build: buildWithDetails,
       seed: readyWithDetails,
@@ -464,11 +462,9 @@ void main() {
       ),
       act: (cubit) => cubit.download('de'),
       expect: () => [
-        isA<OfflineModelsState>().having(
-          (s) => s.pending,
-          'pending',
-          {'de': OfflineModelOperation.update},
-        ),
+        isA<OfflineModelsState>().having((s) => s.pending, 'pending', {
+          'de': OfflineModelOperation.update,
+        }),
         isA<OfflineModelsState>()
             .having(
               (s) => s.outcome?.operation,
@@ -537,9 +533,8 @@ void main() {
 
     blocTest<OfflineModelsCubit, OfflineModelsState>(
       'falls back to its own bookkeeping when the models cannot be re-read',
-      setUp: () => when(
-        translator.downloadedLanguages,
-      ).thenThrow(StateError('gone')),
+      setUp: () =>
+          when(translator.downloadedLanguages).thenThrow(StateError('gone')),
       build: buildWithDetails,
       seed: readyWithDetails,
       act: (cubit) => cubit.delete('de'),

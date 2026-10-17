@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/l10n/l10n.dart';
 
 /// Address field with paste and clear buttons. Submitting (keyboard "go")
@@ -43,6 +44,7 @@ class WebUrlField extends StatelessWidget {
         return TextField(
           key: const Key('web_translate_url_field'),
           controller: controller,
+          enableIMEPersonalizedLearning: imeLearningAllowed(context),
           enabled: enabled,
           keyboardType: TextInputType.url,
           textInputAction: TextInputAction.go,

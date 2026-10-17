@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/presets/widgets/preset_labels.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -112,6 +113,7 @@ class _PresetOptionsFormState extends State<PresetOptionsForm> {
         TextField(
           key: const Key('preset_form_context'),
           controller: _context,
+          enableIMEPersonalizedLearning: imeLearningAllowed(context),
           minLines: 1,
           maxLines: 4,
           textCapitalization: TextCapitalization.sentences,

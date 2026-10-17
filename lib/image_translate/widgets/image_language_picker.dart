@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/image_translate/widgets/image_translate_labels.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -91,6 +92,7 @@ class _ImageLanguagePickerSheetState extends State<ImageLanguagePickerSheet> {
             child: TextField(
               key: const Key('image_language_search'),
               controller: _search,
+              enableIMEPersonalizedLearning: imeLearningAllowed(context),
               onChanged: (value) => setState(() => _query = value),
               textInputAction: TextInputAction.search,
               decoration: InputDecoration(

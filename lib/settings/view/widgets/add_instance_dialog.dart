@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/network/network.dart';
+import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/view/widgets/insecure_http_warning.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
@@ -220,6 +221,8 @@ class _AddInstanceDialogState extends State<AddInstanceDialog> {
             TextFormField(
               controller: _urlController,
               focusNode: _urlFocus,
+              enableIMEPersonalizedLearning: imeLearningAllowed(context),
+              enableSuggestions: false,
               autofocus: true,
               keyboardType: TextInputType.url,
               autocorrect: false,
@@ -255,6 +258,7 @@ class _AddInstanceDialogState extends State<AddInstanceDialog> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _labelController,
+              enableIMEPersonalizedLearning: imeLearningAllowed(context),
               textInputAction: TextInputAction.done,
               decoration: InputDecoration(
                 labelText: l10n.settingsInstanceLabel,

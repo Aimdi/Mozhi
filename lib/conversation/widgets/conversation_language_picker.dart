@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/conversation/widgets/conversation_orientation.dart';
+import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -104,6 +105,7 @@ class _ConversationLanguagePickerState
               child: TextField(
                 key: const Key('conversation_language_search'),
                 controller: _search,
+                enableIMEPersonalizedLearning: imeLearningAllowed(context),
                 onChanged: (value) => setState(() => _query = value),
                 textInputAction: TextInputAction.search,
                 onSubmitted: (_) {

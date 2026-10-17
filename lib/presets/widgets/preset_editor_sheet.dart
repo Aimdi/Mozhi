@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/presets/cubit/presets_cubit.dart';
 import 'package:mozhi/presets/models/preset.dart';
@@ -125,6 +126,9 @@ class _PresetEditorSheetState extends State<PresetEditorSheet> {
                     TextFormField(
                       key: const Key('preset_editor_name'),
                       controller: _name,
+                      enableIMEPersonalizedLearning: imeLearningAllowed(
+                        context,
+                      ),
                       autofocus: widget.preset == null,
                       textCapitalization: TextCapitalization.sentences,
                       textInputAction: TextInputAction.done,

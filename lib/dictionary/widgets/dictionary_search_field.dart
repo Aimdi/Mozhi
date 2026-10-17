@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/dictionary/cubit/dictionary_cubit.dart';
 import 'package:mozhi/l10n/l10n.dart';
 
@@ -82,6 +83,7 @@ class _DictionarySearchFieldState extends State<DictionarySearchField> {
         key: const Key('dictionary_search_field'),
         controller: _controller,
         focusNode: _focusNode,
+        enableIMEPersonalizedLearning: imeLearningAllowed(context),
         autofocus: widget.autofocus,
         onChanged: cubit.setWord,
         // Enter looks up. Not via onSubmitted: without onEditingComplete

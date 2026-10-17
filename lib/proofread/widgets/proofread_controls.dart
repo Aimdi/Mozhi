@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/proofread/cubit/proofread_cubit.dart';
@@ -305,6 +306,7 @@ class _ProofreadControlsState extends State<ProofreadControls> {
     return TextField(
       key: const Key('proofread_context'),
       controller: _contextController,
+      enableIMEPersonalizedLearning: imeLearningAllowed(context),
       onChanged: cubit.setContext,
       textCapitalization: TextCapitalization.sentences,
       decoration: InputDecoration(

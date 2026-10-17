@@ -47,10 +47,7 @@ const testStorage = OfflineStorage(
 /// [progressSteps], then wait for [hold] (if set) and throw [error] (if
 /// set).
 class FakeOfflineModelDetails implements OfflineModelDetails {
-  new({
-    this.sizes = testDownloadSizes,
-    this.storageValue = testStorage,
-  });
+  new({this.sizes = testDownloadSizes, this.storageValue = testStorage});
 
   Map<String, int> sizes;
   OfflineStorage storageValue;

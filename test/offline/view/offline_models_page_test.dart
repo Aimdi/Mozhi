@@ -1,12 +1,17 @@
 import 'dart:async';
+import 'dart:io';
 
-import 'package:flutter/foundation.dart';
-
+import 'package:bergamot_translator/bergamot_translator.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/core/key_value_store.dart';
+import 'package:mozhi/core/network/http_client_factory.dart';
+import 'package:mozhi/core/network/network_policy.dart';
+import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/offline/data/offline_model_details.dart';
+import 'package:mozhi/offline/data/offline_model_error.dart';
 import 'package:mozhi/offline/offline.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -105,7 +110,7 @@ void main() {
       );
     }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
 
-    testWidgets("falls back to an unavailable engine", (tester) async {
+    testWidgets('falls back to an unavailable engine', (tester) async {
       useTallView(tester);
       await tester.pumpApp(OfflineModelsPage(store: store));
       await tester.pumpAndSettle();
@@ -258,5 +263,257 @@ void main() {
       );
       expect(find.byType(SwitchListTile), findsOneWidget);
     }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
+  });
+
+  group('OfflineModelsPage with Mozilla models', () {
+    late FakeOfflineModelDetails details;
+
+    setUp(() => details = FakeOfflineModelDetails());
+
+    Future<void> pumpDetailed(WidgetTester tester) async {
+      useTallView(tester);
+      await tester.pumpApp(
+        OfflineModelsPage(
+          translator: translator,
+          store: store,
+          details: details,
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('shows sizes, the storage and how pairs work', (tester) async {
+      await pumpDetailed(tester);
+      // English needs no download, so only German counts.
+      expect(find.text('1 language downloaded'), findsOneWidget);
+      expect(find.text('70.0 MB used on this device'), findsOneWidget);
+      expect(find.text('Deutsch · 70.0 MB on this device'), findsOneWidget);
+      expect(find.text('Français · 40.0 MB download'), findsOneWidget);
+      expect(find.text('No download needed'), findsOneWidget);
+      expect(find.byTooltip('Delete English'), findsNothing);
+      expect(find.textContaining('through English'), findsOneWidget);
+      expect(find.textContaining('storage.googleapis.com'), findsOneWidget);
+      expect(
+        find.text(
+          'On mobile data or a metered network, Mozhi asks before downloading',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('downloads with a percentage', (tester) async {
+      details
+        ..progressSteps = [0.42]
+        ..hold = Completer<void>();
+      await pumpDetailed(tester);
+
+      await tester.tap(find.byTooltip('Download French'));
+      await tester.pump();
+      expect(find.text('Downloading… 42%'), findsOneWidget);
+
+      when(translator.downloadedLanguages)
+          .thenAnswer((_) async => {'en', 'de', 'fr'});
+      details.hold!.complete();
+      await tester.pumpAndSettle();
+      expect(find.text('French is ready for offline use'), findsOneWidget);
+      expect(find.text('2 languages downloaded'), findsOneWidget);
+      expect(details.downloads, [('fr', true)]);
+    });
+
+    testWidgets('updates outdated languages', (tester) async {
+      details
+        ..storageValue = const OfflineStorage(
+          installedBytes: {'de': 70 * 1024 * 1024},
+          totalBytes: 70 * 1024 * 1024,
+          outdated: {'de'},
+        )
+        ..storageAfterDownload = testStorage;
+      await pumpDetailed(tester);
+      expect(find.text('Deutsch · Update available · 50.0 MB'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Update German'));
+      await tester.pumpAndSettle();
+      expect(details.downloads, [('de', true)]);
+      expect(find.text('German is up to date'), findsOneWidget);
+      expect(find.byTooltip('Update German'), findsNothing);
+    });
+
+    testWidgets('asks before downloading over mobile data', (tester) async {
+      details.error = const MeteredConnectionException();
+      await pumpDetailed(tester);
+
+      await tester.tap(find.byTooltip('Download Japanese'));
+      await tester.pumpAndSettle();
+      expect(find.text('Download over mobile data?'), findsOneWidget);
+      expect(
+        find.text(
+          'You’re on mobile data or a metered network. Japanese needs about '
+          '60.0 MB.',
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(details.downloads, [('ja', true)]);
+      expect(find.byType(SnackBar), findsNothing);
+
+      await tester.tap(find.byTooltip('Download Japanese'));
+      await tester.pumpAndSettle();
+      details.error = null;
+      await tester.tap(find.text('Download anyway'));
+      await tester.pumpAndSettle();
+      expect(details.downloads, [('ja', true), ('ja', true), ('ja', false)]);
+      expect(find.text('Japanese is ready for offline use'), findsOneWidget);
+    });
+
+    testWidgets('explains why a download failed', (tester) async {
+      details.error = const ModelChecksumException('en-fr', 'bad hash');
+      await pumpDetailed(tester);
+
+      await tester.tap(find.byTooltip('Download French'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(
+          'French didn’t download correctly (a file was damaged or '
+          'incomplete), so it was discarded. Try again.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Retry'), findsOneWidget);
+    });
+  });
+
+  group('MeteredDownloadDialog', () {
+    testWidgets('works without a known size', (tester) async {
+      await tester.pumpApp(
+        const MeteredDownloadDialog(
+          language: OfflineLanguage(code: 'de', name: 'German'),
+        ),
+      );
+      expect(
+        find.text(
+          'You’re on mobile data or a metered network, and downloading '
+          'German may use a lot of data.',
+        ),
+        findsOneWidget,
+      );
+    });
+  });
+
+  group('offlineOutcomeMessage', () {
+    final l10n = lookupAppLocalizations(const Locale('en'));
+    const german = OfflineLanguage(code: 'de', name: 'German');
+
+    String message(
+      OfflineModelOperation operation, {
+      bool succeeded = false,
+      OfflineModelError? error,
+    }) => offlineOutcomeMessage(
+      l10n,
+      OfflineModelOutcome(
+        language: german,
+        operation: operation,
+        succeeded: succeeded,
+        error: error,
+      ),
+    );
+
+    test('describes successes', () {
+      expect(
+        message(OfflineModelOperation.download, succeeded: true),
+        'German is ready for offline use',
+      );
+      expect(
+        message(OfflineModelOperation.update, succeeded: true),
+        'German is up to date',
+      );
+      expect(
+        message(OfflineModelOperation.delete, succeeded: true),
+        'German deleted',
+      );
+    });
+
+    test('falls back to a generic failure', () {
+      for (final error in [
+        null,
+        const OfflineModelError(OfflineModelErrorKind.unknown),
+      ]) {
+        expect(
+          message(OfflineModelOperation.download, error: error),
+          'Couldn’t download German',
+        );
+        expect(
+          message(OfflineModelOperation.update, error: error),
+          'Couldn’t update German',
+        );
+        expect(
+          message(OfflineModelOperation.delete, error: error),
+          'Couldn’t delete German',
+        );
+      }
+    });
+
+    test('explains each kind of failure', () {
+      String of(Object error) => message(
+        OfflineModelOperation.download,
+        error: OfflineModelError.of(error),
+      );
+
+      expect(
+        of(const ModelDownloadException('de-en', 'HTTP 503', statusCode: 503)),
+        'Couldn’t download German: the server answered with error 503.',
+      );
+      expect(
+        of(const ModelDownloadException('de-en', 'offline')),
+        'Couldn’t download German. Check your connection and try again.',
+      );
+      expect(
+        of(
+          const ModelDownloadException(
+            'de-en',
+            InvalidProxyException.defaultMessage,
+          ),
+        ),
+        l10n.commonErrorInvalidProxy,
+      );
+      expect(
+        of(const FileSystemException('full')),
+        'Couldn’t save German. Free up some storage and try again.',
+      );
+      expect(
+        of(const BergamotEngineException('boom')),
+        'The offline engine reported an error with German. Try again, or '
+        'restart Mozhi.',
+      );
+      expect(
+        of(UnsupportedError('no')),
+        'German can’t be translated offline on this device.',
+      );
+      expect(
+        message(
+          OfflineModelOperation.download,
+          error: const OfflineModelError(OfflineModelErrorKind.server),
+        ),
+        contains('error 0'),
+      );
+    });
+
+    test('names the network rule that refused a download', () {
+      for (final (policy, text) in [
+        (NetworkPolicyError.cleartext, l10n.commonErrorCleartextRefused),
+        (NetworkPolicyError.proxyRequired, l10n.commonErrorProxyRequired),
+      ]) {
+        expect(
+          message(
+            OfflineModelOperation.download,
+            error: OfflineModelError(
+              OfflineModelErrorKind.network,
+              networkPolicy: policy,
+            ),
+          ),
+          text,
+        );
+      }
+    });
   });
 }

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/core/network/network_policy.dart';
+import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/core/widgets/local_overlay.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
@@ -540,6 +541,7 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
               TextFormField(
                 controller: _name,
                 focusNode: _nameFocus,
+                enableIMEPersonalizedLearning: imeLearningAllowed(context),
                 textInputAction: TextInputAction.next,
                 textCapitalization: TextCapitalization.words,
                 decoration: InputDecoration(
@@ -631,6 +633,8 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
         TextFormField(
           controller: _baseUrl,
           focusNode: _baseUrlFocus,
+          enableIMEPersonalizedLearning: imeLearningAllowed(context),
+          enableSuggestions: false,
           keyboardType: TextInputType.url,
           autocorrect: false,
           textInputAction: TextInputAction.next,
@@ -681,6 +685,8 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
         TextFormField(
           controller: _apiKey,
           focusNode: _apiKeyFocus,
+          // Never let the keyboard learn a secret.
+          enableIMEPersonalizedLearning: false,
           obscureText: _obscureKey,
           autocorrect: false,
           enableSuggestions: false,
@@ -732,6 +738,7 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
       TextFormField(
         controller: _model,
         focusNode: _modelFocus,
+        enableIMEPersonalizedLearning: imeLearningAllowed(context),
         autocorrect: false,
         textInputAction: TextInputAction.done,
         decoration: InputDecoration(

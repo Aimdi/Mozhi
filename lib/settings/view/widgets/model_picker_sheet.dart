@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -38,6 +39,7 @@ class _ModelPickerSheetState extends State<ModelPickerSheet> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: TextField(
+              enableIMEPersonalizedLearning: imeLearningAllowed(context),
               autofocus: widget.models.length > 8,
               // A label (not only a hint) keeps the field named once text
               // is typed (WCAG 3.3.2, 4.1.2).

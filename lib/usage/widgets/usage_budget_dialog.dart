@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/usage/models/models.dart';
@@ -70,6 +71,7 @@ class _UsageBudgetDialogState extends State<UsageBudgetDialog> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _controller,
+              enableIMEPersonalizedLearning: imeLearningAllowed(context),
               autofocus: true,
               keyboardType: TextInputType.number,
               textInputAction: TextInputAction.done,

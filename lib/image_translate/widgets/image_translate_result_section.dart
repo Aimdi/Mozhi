@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/image_translate/cubit/image_translate_cubit.dart';
@@ -189,6 +190,7 @@ class _SourceTextCardState extends State<_SourceTextCard> {
             TextField(
               key: const Key('image_translate_source_field'),
               controller: _controller,
+              enableIMEPersonalizedLearning: imeLearningAllowed(context),
               minLines: 2,
               maxLines: 8,
               keyboardType: TextInputType.multiline,

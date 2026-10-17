@@ -17,11 +17,14 @@ void main() {
         const ModelChecksumException('en-de', 'bad'): const OfflineModelError(
           OfflineModelErrorKind.checksum,
         ),
-        const ModelDownloadException('en-de', 'HTTP 503', statusCode: 503):
-            const OfflineModelError(
-              OfflineModelErrorKind.server,
-              statusCode: 503,
-            ),
+        const ModelDownloadException(
+          'en-de',
+          'HTTP 503',
+          statusCode: 503,
+        ): const OfflineModelError(
+          OfflineModelErrorKind.server,
+          statusCode: 503,
+        ),
         const ModelDownloadException('en-de', 'SocketException: offline'):
             const OfflineModelError(OfflineModelErrorKind.network),
         const FileSystemException('No space left on device'):
@@ -34,9 +37,7 @@ void main() {
         UnsupportedError('not here'): const OfflineModelError(
           OfflineModelErrorKind.unsupported,
         ),
-        StateError('?'): const OfflineModelError(
-          OfflineModelErrorKind.unknown,
-        ),
+        StateError('?'): const OfflineModelError(OfflineModelErrorKind.unknown),
       };
       for (final MapEntry(key: error, value: expected) in cases.entries) {
         expect(OfflineModelError.of(error), expected, reason: '$error');

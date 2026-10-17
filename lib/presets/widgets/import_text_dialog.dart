@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/l10n/l10n.dart';
 
 /// Shows [ImportTextDialog]; completes with [onImport]'s result, or `null`
@@ -113,6 +114,7 @@ class _ImportTextDialogState<T> extends State<ImportTextDialog<T>> {
             TextField(
               key: const Key('presets_import_field'),
               controller: _controller,
+              enableIMEPersonalizedLearning: imeLearningAllowed(context),
               minLines: 4,
               maxLines: 10,
               keyboardType: TextInputType.multiline,

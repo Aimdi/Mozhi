@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/documents/core/core.dart';
 import 'package:mozhi/documents/cubit/document_translate_cubit.dart';
@@ -206,6 +207,7 @@ class _TextInputState extends State<_TextInput> {
           TextField(
             key: const Key('documents_text_field'),
             controller: _controller,
+            enableIMEPersonalizedLearning: imeLearningAllowed(context),
             readOnly: context.select<DocumentTranslateCubit, bool>(
               (cubit) => cubit.state.isTranslating,
             ),

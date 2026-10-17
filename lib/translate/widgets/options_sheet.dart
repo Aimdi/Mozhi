@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/presets/presets.dart' show PresetPicker, PresetsCubit;
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -317,6 +318,9 @@ class _TranslationOptionsSheetState extends State<TranslationOptionsSheet> {
                       TextField(
                         key: const Key('translate_options_formality_notes'),
                         controller: _formalityNotes,
+                        enableIMEPersonalizedLearning: imeLearningAllowed(
+                          context,
+                        ),
                         minLines: 1,
                         maxLines: 3,
                         maxLength:
@@ -390,6 +394,9 @@ class _TranslationOptionsSheetState extends State<TranslationOptionsSheet> {
                       child: TextField(
                         key: const Key('translate_options_context'),
                         controller: _context,
+                        enableIMEPersonalizedLearning: imeLearningAllowed(
+                          context,
+                        ),
                         minLines: 1,
                         maxLines: 4,
                         onChanged: _onContextChanged,
@@ -444,6 +451,9 @@ class _TranslationOptionsSheetState extends State<TranslationOptionsSheet> {
                           child: TextField(
                             key: const Key('translate_glossary_source'),
                             controller: _term,
+                            enableIMEPersonalizedLearning: imeLearningAllowed(
+                              context,
+                            ),
                             textInputAction: TextInputAction.next,
                             decoration: InputDecoration(
                               labelText: l10n.translateGlossarySource,
@@ -459,6 +469,9 @@ class _TranslationOptionsSheetState extends State<TranslationOptionsSheet> {
                           child: TextField(
                             key: const Key('translate_glossary_target'),
                             controller: _termTarget,
+                            enableIMEPersonalizedLearning: imeLearningAllowed(
+                              context,
+                            ),
                             onSubmitted: (_) => _addTerm(),
                             decoration: InputDecoration(
                               labelText: l10n.translateGlossaryTarget,

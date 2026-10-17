@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/image_translate/widgets/image_translate_button.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -299,6 +300,9 @@ class _InputCardState extends State<InputCard> {
                       key: const Key('translate_input_field'),
                       controller: _controller,
                       focusNode: _focusNode,
+                      enableIMEPersonalizedLearning: imeLearningAllowed(
+                        context,
+                      ),
                       onChanged: _onChanged,
                       maxLength: TranslateCubit.maxInputLength,
                       inputFormatters: [

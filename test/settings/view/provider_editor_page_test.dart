@@ -338,6 +338,23 @@ void main() {
         expect(find.byTooltip('Hide API key'), findsOneWidget);
       });
 
+      testWidgets('keeps keyboards from learning the key and the URL', (
+        tester,
+      ) async {
+        await pump(tester, presetId: 'openai');
+        TextField input(String label) => tester.widget<TextField>(
+          find.descendant(of: field(label), matching: find.byType(TextField)),
+        );
+        final key = input('API key');
+        expect(key.enableIMEPersonalizedLearning, isFalse);
+        expect(key.autocorrect, isFalse);
+        expect(key.enableSuggestions, isFalse);
+        final url = input('Base URL');
+        expect(url.enableIMEPersonalizedLearning, isTrue);
+        expect(url.autocorrect, isFalse);
+        expect(url.enableSuggestions, isFalse);
+      });
+
       testWidgets('opens the API key page', (tester) async {
         final opened = <Uri>[];
         final original = LinkLauncher.launcher;

@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/conversation/cubit/conversation_cubit.dart';
 import 'package:mozhi/conversation/models/conversation_mic.dart';
 import 'package:mozhi/conversation/models/conversation_turn.dart';
+import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -81,6 +82,7 @@ class _ConversationComposerState extends State<ConversationComposer> {
               child: TextField(
                 key: Key('conversation_input_${side.name}'),
                 controller: _controller,
+                enableIMEPersonalizedLearning: imeLearningAllowed(context),
                 minLines: 1,
                 maxLines: 4,
                 textInputAction: TextInputAction.send,

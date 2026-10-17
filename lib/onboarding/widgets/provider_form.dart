@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/onboarding/cubit/onboarding_cubit.dart';
@@ -101,6 +102,8 @@ class _ProviderFormState extends State<ProviderForm> {
               TextField(
                 key: const Key('onboarding-api-key'),
                 controller: _apiKey,
+                // Never let the keyboard learn a secret.
+                enableIMEPersonalizedLearning: false,
                 obscureText: _obscureKey,
                 autocorrect: false,
                 enableSuggestions: false,
@@ -149,6 +152,7 @@ class _ProviderFormState extends State<ProviderForm> {
               TextField(
                 key: const Key('onboarding-base-url'),
                 controller: _baseUrl,
+                enableIMEPersonalizedLearning: imeLearningAllowed(context),
                 keyboardType: TextInputType.url,
                 autocorrect: false,
                 enableSuggestions: false,
@@ -175,6 +179,7 @@ class _ProviderFormState extends State<ProviderForm> {
             TextField(
               key: const Key('onboarding-model'),
               controller: _model,
+              enableIMEPersonalizedLearning: imeLearningAllowed(context),
               autocorrect: false,
               enableSuggestions: false,
               decoration: InputDecoration(

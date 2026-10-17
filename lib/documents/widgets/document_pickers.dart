@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/documents/widgets/document_labels.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -183,6 +184,7 @@ class _DocumentLanguageSheetState extends State<DocumentLanguageSheet> {
             child: TextField(
               key: const Key('documents_language_search'),
               controller: _search,
+              enableIMEPersonalizedLearning: imeLearningAllowed(context),
               onChanged: (value) => setState(() => _query = value),
               textInputAction: TextInputAction.search,
               decoration: InputDecoration(

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/presets/models/glossary.dart';
 import 'package:mozhi/presets/widgets/language_scope_picker.dart';
@@ -79,6 +80,7 @@ class _GlossaryDetailsDialogState extends State<GlossaryDetailsDialog> {
               TextFormField(
                 key: const Key('glossary_details_name'),
                 controller: _name,
+                enableIMEPersonalizedLearning: imeLearningAllowed(context),
                 autofocus: widget.glossary == null,
                 textCapitalization: TextCapitalization.sentences,
                 decoration: InputDecoration(
@@ -227,6 +229,7 @@ class _GlossaryTermDialogState extends State<GlossaryTermDialog> {
               TextFormField(
                 key: const Key('glossary_term_source'),
                 controller: _source,
+                enableIMEPersonalizedLearning: imeLearningAllowed(context),
                 autofocus: widget.term == null,
                 textInputAction: TextInputAction.next,
                 decoration: InputDecoration(
@@ -239,6 +242,7 @@ class _GlossaryTermDialogState extends State<GlossaryTermDialog> {
               TextFormField(
                 key: const Key('glossary_term_target'),
                 controller: _target,
+                enableIMEPersonalizedLearning: imeLearningAllowed(context),
                 textInputAction: TextInputAction.next,
                 decoration: InputDecoration(
                   labelText: l10n.glossaryEditorTarget,
@@ -250,6 +254,7 @@ class _GlossaryTermDialogState extends State<GlossaryTermDialog> {
               TextFormField(
                 key: const Key('glossary_term_note'),
                 controller: _note,
+                enableIMEPersonalizedLearning: imeLearningAllowed(context),
                 textCapitalization: TextCapitalization.sentences,
                 decoration: InputDecoration(
                   labelText: l10n.glossaryEditorNote,

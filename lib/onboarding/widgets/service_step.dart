@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/network/network.dart' show isCleartextAllowed;
+import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/onboarding/cubit/onboarding_cubit.dart';
@@ -224,6 +225,7 @@ class _OwnInstanceFormState extends State<OwnInstanceForm> {
           const SizedBox(height: 16),
           TextField(
             controller: _controller,
+            enableIMEPersonalizedLearning: imeLearningAllowed(context),
             keyboardType: TextInputType.url,
             autocorrect: false,
             enableSuggestions: false,

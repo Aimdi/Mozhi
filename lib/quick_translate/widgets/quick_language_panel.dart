@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/quick_translate/models/quick_languages.dart';
@@ -88,6 +89,7 @@ class _QuickLanguagePanelState extends State<QuickLanguagePanel> {
         TextField(
           key: const Key('quick_translate_language_search'),
           controller: _search,
+          enableIMEPersonalizedLearning: imeLearningAllowed(context),
           onChanged: (value) => setState(() => _query = value),
           onSubmitted: (_) => _submit(),
           textInputAction: TextInputAction.search,
