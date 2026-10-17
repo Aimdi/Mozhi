@@ -313,7 +313,10 @@ class _ModelsList extends StatelessWidget {
             _SectionHeading(title: l10n.offlineSectionAvailable),
             ...rows(available),
           ],
-          if (downloaded.isEmpty && available.isEmpty)
+          // An engine without languages (web, desktop) only shows the banner.
+          if (downloaded.isEmpty &&
+              available.isEmpty &&
+              state.languages.isNotEmpty)
             Padding(
               padding: const EdgeInsets.all(24),
               child: Text(

@@ -1,11 +1,11 @@
 import 'dart:async';
 
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/platform/clipboard_service.dart';
 import 'package:mozhi/quick_translate/cubit/quick_translate_cubit.dart';
 import 'package:mozhi/quick_translate/widgets/widgets.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
@@ -248,11 +248,12 @@ class _QuickTranslateViewState extends State<QuickTranslateView> {
 
   Future<void> _copy(String translation) async {
     final message = context.l10n.commonCopied;
-    await Clipboard.setData(ClipboardData(text: translation));
+    await copyText(translation);
     if (!mounted) return;
     _copiedTimer?.cancel();
     setState(() => _copied = true);
-    _showNotice(message);
+    // Android 13+ confirms copies itself.
+    if (!systemShowsCopyConfirmation) _showNotice(message);
     _copiedTimer = Timer(_copiedDuration, () {
       if (mounted) setState(() => _copied = false);
     });

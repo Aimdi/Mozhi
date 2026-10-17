@@ -45,7 +45,7 @@ void main() {
 
     test('recognises downloads the network policy refused', () {
       final error = OfflineModelError.of(
-        ModelDownloadException(
+        const ModelDownloadException(
           'en-de',
           'ClientException: ${InvalidProxyException.defaultMessage}',
         ),

@@ -1,12 +1,12 @@
 import 'dart:async';
 
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/conversation/cubit/conversation_cubit.dart';
 import 'package:mozhi/conversation/models/conversation_transcript.dart';
 import 'package:mozhi/conversation/widgets/conversation_turn_bubble.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/platform/clipboard_service.dart';
 import 'package:share_plus/share_plus.dart';
 
 /// Hands the formatted transcript to the platform share sheet. [origin] is
@@ -109,7 +109,9 @@ class ConversationMenuButton extends StatelessWidget {
   Future<void> _copy(BuildContext context, ConversationState state) async {
     final messenger = ScaffoldMessenger.maybeOf(context);
     final message = context.l10n.commonCopied;
-    await Clipboard.setData(ClipboardData(text: _transcript(context, state)));
+    await copyText(_transcript(context, state));
+    // Android 13+ confirms copies itself.
+    if (systemShowsCopyConfirmation) return;
     messenger
       ?..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));

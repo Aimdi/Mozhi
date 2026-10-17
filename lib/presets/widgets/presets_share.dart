@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/platform/clipboard_service.dart';
 import 'package:share_plus/share_plus.dart';
 
 /// Signature of [PresetsShare.share].
@@ -108,8 +108,11 @@ Future<void> exportText(
   try {
     final text = build();
     if (copy) {
-      await Clipboard.setData(ClipboardData(text: text));
-      messenger?.showSnackBar(SnackBar(content: Text(l10n.commonCopied)));
+      await copyText(text);
+      // Android 13+ confirms copies itself.
+      if (!systemShowsCopyConfirmation) {
+        messenger?.showSnackBar(SnackBar(content: Text(l10n.commonCopied)));
+      }
     } else {
       await PresetsShare.share(text, fileName: fileName, mimeType: mimeType);
     }

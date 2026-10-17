@@ -7,7 +7,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/core/key_value_store.dart';
-import 'package:mozhi/core/on_device_ml.dart';
 import 'package:mozhi/offline/offline.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -60,7 +59,7 @@ void main() {
       expect(find.text('Downloaded'), findsNWidgets(3)); // header + 2 badges
       expect(find.text('Available to download'), findsOneWidget);
       expect(
-        find.text('Offline translation is available on Android and iOS'),
+        find.text('Offline translation is available in the Android app'),
         findsNothing,
       );
 
@@ -78,8 +77,11 @@ void main() {
     ) async {
       translator = stubOfflineTranslator(available: false);
       await pumpPage(tester);
+      // On Android only the CPU can be the reason.
       expect(
-        find.text('Offline translation is available on Android and iOS'),
+        find.text(
+          'This device’s processor can’t run the offline translation engine',
+        ),
         findsOneWidget,
       );
       expect(find.text('No languages downloaded'), findsOneWidget);
@@ -94,38 +96,27 @@ void main() {
       );
     });
 
-    testWidgets('explains a build without ML Kit', (tester) async {
-      debugMlKitIncludedOverride = false;
-      addTearDown(() => debugMlKitIncludedOverride = null);
+    testWidgets('points to the Android app elsewhere', (tester) async {
       translator = stubOfflineTranslator(available: false);
       await pumpPage(tester);
       expect(
-        find.text(
-          'This build has no offline translation: it needs Google ML Kit, '
-          'which is not free software',
-        ),
+        find.text('Offline translation is available in the Android app'),
         findsOneWidget,
       );
-      expect(
-        find.text('Offline translation is available on Android and iOS'),
-        findsNothing,
-      );
-    });
+    }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
 
-    testWidgets("falls back to the build's offline translator", (tester) async {
-      // On desktop the build's (ML Kit) translator is unavailable and
-      // answers without a platform channel.
-      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+    testWidgets("falls back to an unavailable engine", (tester) async {
       useTallView(tester);
       await tester.pumpApp(OfflineModelsPage(store: store));
       await tester.pumpAndSettle();
       expect(find.text('Offline languages'), findsOneWidget);
       expect(
-        find.text('Offline translation is available on Android and iOS'),
+        find.text('Offline translation is available in the Android app'),
         findsOneWidget,
       );
-      debugDefaultTargetPlatformOverride = null;
-    });
+      expect(find.byType(OfflineLanguageTile), findsNothing);
+      expect(find.textContaining('No languages match'), findsNothing);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
 
     testWidgets('shows a retry button when loading fails', (tester) async {
       when(translator.downloadedLanguages).thenThrow(StateError('plugin'));
@@ -154,7 +145,7 @@ void main() {
 
       await tester.tap(find.byTooltip('Download French'));
       await tester.pump();
-      expect(find.text('Downloading when on Wi-Fi…'), findsOneWidget);
+      expect(find.text('Downloading…'), findsOneWidget);
       verify(() => translator.downloadLanguage('fr')).called(1);
 
       completer.complete();
@@ -176,6 +167,12 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Couldn’t download Japanese'), findsOneWidget);
       expect(find.byTooltip('Download Japanese'), findsOneWidget);
+
+      // The snack bar retries.
+      clearInteractions(translator);
+      await tester.tap(find.text('Retry'));
+      await tester.pumpAndSettle();
+      verify(() => translator.downloadLanguage('ja')).called(1);
     });
 
     testWidgets('deletes a language after confirmation', (tester) async {
@@ -252,14 +249,14 @@ void main() {
       expect(toggle.value, isFalse);
     });
 
-    testWidgets('falls back to ML Kit and the preferences', (tester) async {
+    testWidgets('falls back to the preferences', (tester) async {
       await tester.pumpApp(const OfflineModelsPage());
       await tester.pumpAndSettle();
       expect(
-        find.text('Offline translation is available on Android and iOS'),
+        find.text('Offline translation is available in the Android app'),
         findsOneWidget,
       );
-      expect(find.byType(OfflineLanguageTile), findsWidgets);
+      expect(find.byType(SwitchListTile), findsOneWidget);
     }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
   });
 }

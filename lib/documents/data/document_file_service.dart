@@ -1,6 +1,7 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:mozhi/platform/clipboard_service.dart';
 import 'package:share_plus/share_plus.dart';
 
 /// A file chosen by the user.
@@ -122,7 +123,7 @@ class PlatformDocumentFileService implements DocumentFileService {
 
   @override
   Future<void> copyText(String text) =>
-      Clipboard.setData(ClipboardData(text: text));
+      ClipboardService.instance.copyText(text);
 
   @override
   Future<String?> pasteText() async {

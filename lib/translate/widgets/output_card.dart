@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/widgets/consent_prompt.dart';
@@ -9,6 +8,7 @@ import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/offline.dart' show OfflineEngineBadge;
+import 'package:mozhi/platform/clipboard_service.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -35,11 +35,13 @@ export 'package:mozhi/translate/widgets/detection_chips.dart';
 export 'package:mozhi/translate/widgets/empty_output.dart';
 export 'package:mozhi/translate/widgets/romanization_line.dart';
 
-/// Copies [text] and confirms with a snackbar.
+/// Copies [text] (marked as sensitive, see [copyText]) and confirms with a
+/// snackbar, unless the system confirms copies itself (Android 13+).
 Future<void> copyToClipboard(BuildContext context, String text) async {
   final messenger = ScaffoldMessenger.maybeOf(context);
   final message = context.l10n.commonCopied;
-  await Clipboard.setData(ClipboardData(text: text));
+  await copyText(text);
+  if (systemShowsCopyConfirmation) return;
   messenger
     ?..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(content: Text(message)));

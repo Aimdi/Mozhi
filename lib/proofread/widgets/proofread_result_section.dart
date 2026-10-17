@@ -1,12 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/semantics.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/platform/clipboard_service.dart';
 import 'package:mozhi/proofread/cubit/proofread_cubit.dart';
 import 'package:mozhi/proofread/models/proofread_diff.dart';
 import 'package:mozhi/proofread/widgets/proofread_diff_text.dart';
@@ -166,7 +166,9 @@ class _ProofreadResultCardState extends State<ProofreadResultCard> {
   Future<void> _copy(String text) async {
     final messenger = ScaffoldMessenger.of(context);
     final message = context.l10n.commonCopied;
-    await Clipboard.setData(ClipboardData(text: text));
+    await copyText(text);
+    // Android 13+ confirms copies itself.
+    if (systemShowsCopyConfirmation) return;
     messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));

@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/conversation/cubit/conversation_cubit.dart';
@@ -11,6 +10,7 @@ import 'package:mozhi/conversation/widgets/side_colors.dart';
 import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/platform/clipboard_service.dart';
 import 'package:translation_repository/translation_repository.dart'
     show ConsentRequiredException;
 
@@ -50,7 +50,9 @@ class ConversationTurnBubble extends StatelessWidget {
   Future<void> _copy(BuildContext context, String text) async {
     final messenger = ScaffoldMessenger.maybeOf(context);
     final message = context.l10n.commonCopied;
-    await Clipboard.setData(ClipboardData(text: text));
+    await copyText(text);
+    // Android 13+ confirms copies itself.
+    if (systemShowsCopyConfirmation) return;
     messenger
       ?..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));

@@ -9,6 +9,8 @@ import 'package:mozhi/documents/cubit/document_translate_cubit.dart';
 import 'package:mozhi/documents/data/document_file_service.dart';
 import 'package:mozhi/documents/widgets/widgets.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/platform/clipboard_service.dart'
+    show systemShowsCopyConfirmation;
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/usage/usage.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -89,6 +91,8 @@ class DocumentTranslateView extends StatelessWidget {
   }
 
   void _showNotice(BuildContext context, DocumentNotice notice) {
+    // Android 13+ confirms copies itself.
+    if (notice == DocumentNotice.copied && systemShowsCopyConfirmation) return;
     final l10n = context.l10n;
     final message = switch (notice) {
       DocumentNotice.saved => l10n.documentsSaved,
