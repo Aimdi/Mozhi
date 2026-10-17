@@ -1395,5 +1395,6 @@
   "offlineErrorUnsupported": "لا يمكن ترجمة {language} بلا اتصال على هذا الجهاز.",
   "offlineUnavailableApp": "الترجمة بلا اتصال متاحة في تطبيق Android",
   "offlineUnavailableDevice": "لا يستطيع معالج هذا الجهاز تشغيل محرّك الترجمة بلا اتصال",
-  "speechListenOnline": "الاستماع عبر الإنترنت"
+  "speechListenOnline": "الاستماع عبر الإنترنت",
+  "commonConsentAlwaysInto": "دائمًا إلى {language}"
 }

@@ -1395,5 +1395,6 @@
   "offlineErrorUnsupported": "इस डिवाइस पर {language} का ऑफ़लाइन अनुवाद नहीं किया जा सकता।",
   "offlineUnavailableApp": "ऑफ़लाइन अनुवाद Android ऐप में उपलब्ध है",
   "offlineUnavailableDevice": "इस डिवाइस का प्रोसेसर ऑफ़लाइन अनुवाद इंजन नहीं चला सकता",
-  "speechListenOnline": "ऑनलाइन सुनें"
+  "speechListenOnline": "ऑनलाइन सुनें",
+  "commonConsentAlwaysInto": "हमेशा {language} में"
 }

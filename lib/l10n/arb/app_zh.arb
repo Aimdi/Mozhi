@@ -1395,5 +1395,6 @@
   "offlineErrorUnsupported": "此设备无法离线翻译{language}。",
   "offlineUnavailableApp": "可在 Android 应用中使用离线翻译",
   "offlineUnavailableDevice": "此设备的处理器无法运行离线翻译引擎",
-  "speechListenOnline": "在线朗读"
+  "speechListenOnline": "在线朗读",
+  "commonConsentAlwaysInto": "始终译为{language}"
 }

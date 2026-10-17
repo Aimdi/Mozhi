@@ -126,8 +126,8 @@ String consentPairLabel(AppLocalizations l10n, String source, String target) {
 }
 
 /// The "Always" button label for [consent]: "Always for German → English",
-/// "Always for Japanese" (one language), or just "Always" (proofreading,
-/// detection).
+/// "Always into English" (detected source), "Always for Japanese" (one
+/// language), or just "Always" (proofreading, detection).
 String consentAlwaysLabel(
   AppLocalizations l10n,
   ConsentRequiredException consent,
@@ -139,6 +139,11 @@ String consentAlwaysLabel(
   }
   if (source == target) {
     return l10n.commonConsentAlwaysFor(LanguageCatalog.nameOf(source));
+  }
+  // An auto-detected source approves every source language into [target]
+  // (the pair key is `auto>target`): "Always into French".
+  if (source == Language.auto.code) {
+    return l10n.commonConsentAlwaysInto(LanguageCatalog.nameOf(target));
   }
   return l10n.commonConsentAlwaysFor(consentPairLabel(l10n, source, target));
 }

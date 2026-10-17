@@ -1395,5 +1395,6 @@
   "offlineErrorUnsupported": "இந்தச் சாதனத்தில் {language}-ஐ ஆஃப்லைனில் மொழிபெயர்க்க முடியாது.",
   "offlineUnavailableApp": "ஆஃப்லைன் மொழிபெயர்ப்பு Android ஆப்பில் கிடைக்கும்",
   "offlineUnavailableDevice": "இந்தச் சாதனத்தின் செயலியால் ஆஃப்லைன் மொழிபெயர்ப்பு இன்ஜினை இயக்க முடியாது",
-  "speechListenOnline": "ஆன்லைனில் கேள்"
+  "speechListenOnline": "ஆன்லைனில் கேள்",
+  "commonConsentAlwaysInto": "எப்போதும் இதற்கு: {language}"
 }

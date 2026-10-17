@@ -252,6 +252,19 @@ void main() {
         ),
         'Always',
       );
+      expect(
+        consentAlwaysLabel(
+          l10n,
+          const ConsentRequiredException(
+            kind: ConsentKind.pair,
+            destination: _public,
+            engineId: 'mozhi:google',
+            source: 'auto',
+            target: 'fr',
+          ),
+        ),
+        'Always into French',
+      );
       expect(isListConsent(_listConsent), isTrue);
       expect(isListConsent(_pairConsent), isFalse);
     });

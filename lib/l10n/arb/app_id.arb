@@ -1395,5 +1395,6 @@
   "offlineErrorUnsupported": "{language} tidak dapat diterjemahkan secara offline di perangkat ini.",
   "offlineUnavailableApp": "Terjemahan offline tersedia di aplikasi Android",
   "offlineUnavailableDevice": "Prosesor perangkat ini tidak dapat menjalankan mesin terjemahan offline",
-  "speechListenOnline": "Dengarkan online"
+  "speechListenOnline": "Dengarkan online",
+  "commonConsentAlwaysInto": "Selalu ke {language}"
 }

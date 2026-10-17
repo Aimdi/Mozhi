@@ -1395,5 +1395,6 @@
   "offlineErrorUnsupported": "Мову «{language}» не можна перекладати офлайн на цьому пристрої.",
   "offlineUnavailableApp": "Офлайн-переклад доступний у застосунку для Android",
   "offlineUnavailableDevice": "Процесор цього пристрою не може запустити офлайн-перекладач",
-  "speechListenOnline": "Прослухати онлайн"
+  "speechListenOnline": "Прослухати онлайн",
+  "commonConsentAlwaysInto": "Завжди на: {language}"
 }

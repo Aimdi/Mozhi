@@ -1395,5 +1395,6 @@
   "offlineErrorUnsupported": "{language} kan op dit apparaat niet offline worden vertaald.",
   "offlineUnavailableApp": "Offline vertalen is beschikbaar in de Android-app",
   "offlineUnavailableDevice": "De processor van dit apparaat kan de offline vertaalengine niet uitvoeren",
-  "speechListenOnline": "Online beluisteren"
+  "speechListenOnline": "Online beluisteren",
+  "commonConsentAlwaysInto": "Altijd naar: {language}"
 }

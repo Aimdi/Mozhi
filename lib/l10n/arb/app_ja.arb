@@ -1395,5 +1395,6 @@
   "offlineErrorUnsupported": "このデバイスでは{language}をオフラインで翻訳できません。",
   "offlineUnavailableApp": "オフライン翻訳は Android アプリで利用できます",
   "offlineUnavailableDevice": "このデバイスのプロセッサではオフライン翻訳エンジンを実行できません",
-  "speechListenOnline": "オンラインで読み上げ"
+  "speechListenOnline": "オンラインで読み上げ",
+  "commonConsentAlwaysInto": "常に{language}へ"
 }

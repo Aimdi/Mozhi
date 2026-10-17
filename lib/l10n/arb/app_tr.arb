@@ -1395,5 +1395,6 @@
   "offlineErrorUnsupported": "{language} bu cihazda çevrimdışı çevrilemiyor.",
   "offlineUnavailableApp": "Çevrimdışı çeviri Android uygulamasında kullanılabilir",
   "offlineUnavailableDevice": "Bu cihazın işlemcisi çevrimdışı çeviri motorunu çalıştıramıyor",
-  "speechListenOnline": "Çevrimiçi dinle"
+  "speechListenOnline": "Çevrimiçi dinle",
+  "commonConsentAlwaysInto": "Her zaman şu dile: {language}"
 }

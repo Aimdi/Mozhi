@@ -1395,5 +1395,6 @@
   "offlineErrorUnsupported": "{language} no se puede traducir sin conexión en este dispositivo.",
   "offlineUnavailableApp": "La traducción sin conexión está disponible en la app para Android",
   "offlineUnavailableDevice": "El procesador de este dispositivo no puede ejecutar el motor de traducción sin conexión",
-  "speechListenOnline": "Escuchar en línea"
+  "speechListenOnline": "Escuchar en línea",
+  "commonConsentAlwaysInto": "Siempre a: {language}"
 }

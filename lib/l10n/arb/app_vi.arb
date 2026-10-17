@@ -1395,5 +1395,6 @@
   "offlineErrorUnsupported": "Không thể dịch ngoại tuyến {language} trên thiết bị này.",
   "offlineUnavailableApp": "Tính năng dịch ngoại tuyến có trên ứng dụng Android",
   "offlineUnavailableDevice": "Bộ xử lý của thiết bị này không thể chạy công cụ dịch ngoại tuyến",
-  "speechListenOnline": "Nghe trực tuyến"
+  "speechListenOnline": "Nghe trực tuyến",
+  "commonConsentAlwaysInto": "Luôn dịch sang {language}"
 }

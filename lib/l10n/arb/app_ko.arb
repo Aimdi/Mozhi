@@ -1395,5 +1395,6 @@
   "offlineErrorUnsupported": "이 기기에서는 {language}을(를) 오프라인으로 번역할 수 없습니다.",
   "offlineUnavailableApp": "오프라인 번역은 Android 앱에서 사용할 수 있습니다",
   "offlineUnavailableDevice": "이 기기의 프로세서에서는 오프라인 번역 엔진을 실행할 수 없습니다",
-  "speechListenOnline": "온라인으로 듣기"
+  "speechListenOnline": "온라인으로 듣기",
+  "commonConsentAlwaysInto": "항상 {language}(으)로"
 }

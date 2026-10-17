@@ -1395,5 +1395,6 @@
   "offlineErrorUnsupported": "{language} ne peut pas être traduit hors ligne sur cet appareil.",
   "offlineUnavailableApp": "La traduction hors ligne est disponible dans l’app Android",
   "offlineUnavailableDevice": "Le processeur de cet appareil ne peut pas exécuter le moteur de traduction hors ligne",
-  "speechListenOnline": "Écouter en ligne"
+  "speechListenOnline": "Écouter en ligne",
+  "commonConsentAlwaysInto": "Toujours vers : {language}"
 }

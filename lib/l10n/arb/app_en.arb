@@ -7121,5 +7121,14 @@
   "translateSwitchInstanceInUse": "In use",
   "@translateSwitchInstanceInUse": {
     "description": "Subtitle of the Mozhi instance currently used, in the instance switcher."
+  },
+  "commonConsentAlwaysInto": "Always into {language}",
+  "@commonConsentAlwaysInto": {
+    "description": "Consent button when the source language is detected automatically: allow sending text in any language to be translated into {language} from now on",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
   }
 }

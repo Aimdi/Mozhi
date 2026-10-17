@@ -1395,5 +1395,6 @@
   "offlineErrorUnsupported": "{language} não pode ser traduzido off-line neste dispositivo.",
   "offlineUnavailableApp": "A tradução off-line está disponível no app para Android",
   "offlineUnavailableDevice": "O processador deste dispositivo não consegue executar o mecanismo de tradução off-line",
-  "speechListenOnline": "Ouvir on-line"
+  "speechListenOnline": "Ouvir on-line",
+  "commonConsentAlwaysInto": "Sempre para {language}"
 }
