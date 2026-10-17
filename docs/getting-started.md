@@ -225,6 +225,14 @@ If you selected the text in an editable field, such as a message you are
 writing, the sheet also offers **Replace**. Tap it and the translation
 replaces your selection in the other app.
 
+**Translate offline**, next to it in the selection menu, translates the
+selection with the [offline engine](offline-engine.md) only, whatever your
+privacy mode: the text never leaves your phone. If a language isn't
+downloaded yet, the sheet names it with its size, and its **Download**
+button opens **Settings > Offline languages**; select the text again once
+it's there. **Replace** works the same; **Open in app** continues in the
+full translator with your usual engine.
+
 **Share sheet.** Use **Share** in any app and pick **Mozhi** to translate the
 shared text.
 

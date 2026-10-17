@@ -205,6 +205,9 @@ bundle, contains no Google code: no ML Kit, Play services or Firebase
 (CI checks every APK). Offline translation uses Mozilla's **Bergamot**
 engine with the **Firefox Translations** models (MPL-2.0), the ones
 Firefox uses for its built-in translation; it runs entirely on the phone.
+**Translate offline** in Android's text selection menu uses only this
+engine, whatever the privacy mode, so the selected text never leaves the
+device.
 The models are downloaded from Mozilla's bucket on Google Cloud Storage
 (see the table above), only when you tap **Download** or **Update**, are
 checked against the SHA-256 checksums bundled with the app, and are never

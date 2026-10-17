@@ -1,0 +1,8 @@
+# Tags used with @Tags in the app's tests.
+tags:
+  # Screenshot tests in test/goldens (real fonts and a tolerant comparator
+  # from test/goldens/flutter_test_config.dart); see docs/building.md.
+  golden:
+  # Run apart from very_good test's optimised bundle, so a directory's
+  # flutter_test_config.dart still applies.
+  skip_very_good_optimization:
