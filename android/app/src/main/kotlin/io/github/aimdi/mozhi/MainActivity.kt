@@ -42,8 +42,8 @@ import java.util.Locale
  * a selection that arrived through [TRANSLATE_OFFLINE_ALIAS] also carries
  * `action: "translateOffline"`. Clipboard requests are always sent on the
  * event channel, once the window has input focus (Android 10+ only lets the
- * focused app read the clipboard), as `{action: "translateClipboard"}` plus, when the clipboard
- * holds text, `text`/`readOnly: true`/`processText: false`. Readers that
+ * focused app read the clipboard), as `{action: "translateClipboard"}` plus,
+ * when the clipboard holds text, `text`/`readOnly: true`/`processText: false`. Readers that
  * ignore `action` therefore treat clipboard text like shared text, and an
  * empty clipboard (no `text`) is ignored.
  *
