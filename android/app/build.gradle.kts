@@ -44,6 +44,13 @@ val releaseKeyPassword: String? =
 val hasReleaseKeystore = releaseStoreFile != null
 
 android {
+    // No AGP dependency-metadata block in APKs: it is encrypted so that only
+    // Google Play can read it, and F-Droid and IzzyOnDroid ask for it to be
+    // removed. App bundles (for Play) keep it.
+    dependenciesInfo {
+        includeInApk = false
+    }
+
     namespace = "io.github.aimdi.mozhi"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion

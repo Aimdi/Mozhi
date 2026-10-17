@@ -1,10 +1,52 @@
+# Dependabot version updates, weekly (Mondays). Minor and patch updates are
+# grouped into one pull request per ecosystem; major updates come one by one
+# so each can be reviewed on its own. Pull requests target the default
+# branch. See docs/release.md, "Dependency updates".
+#
+# Not covered on purpose: the offline engine's git submodules
+# (packages/bergamot_translator/native/third_party). Bump them by hand: the
+# patches in native/patches/ must still apply (docs/building.md).
 version: 2
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "daily"
+      interval: "weekly"
+    groups:
+      github-actions-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # The app and every package (each resolves on its own in CI). Only the
+  # root pubspec.lock is committed; for the packages Dependabot updates the
+  # constraints in pubspec.yaml.
   - package-ecosystem: "pub"
-    directory: "/"
+    directories:
+      - "/"
+      - "/packages/bergamot_translator"
+      - "/packages/llm_api"
+      - "/packages/mlkit_translator"
+      - "/packages/mozhi_api"
+      - "/packages/mozhi_cli"
+      - "/packages/mt_api"
+      - "/packages/translation_repository"
     schedule:
-      interval: "daily"
+      interval: "weekly"
+    groups:
+      pub-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # The app's Android build and the offline engine's plugin build. Keep the
+  # Android Gradle Plugin the same in both, and Gradle, AGP and Kotlin within
+  # the range Flutter supports (flutter build apk warns otherwise).
+  - package-ecosystem: "gradle"
+    directories:
+      - "/android"
+      - "/packages/bergamot_translator/android"
+    schedule:
+      interval: "weekly"
+    groups:
+      gradle-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]

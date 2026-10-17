@@ -7,3 +7,7 @@
 	path = packages/bergamot_translator/native/third_party/pcre2
 	url = https://github.com/PCRE2Project/pcre2
 	shallow = true
+[submodule "packages/bergamot_translator/native/third_party/cld2"]
+	path = packages/bergamot_translator/native/third_party/cld2
+	url = https://github.com/CLD2Owners/cld2
+	shallow = true

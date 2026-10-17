@@ -32,3 +32,157 @@
   blocked: ML Kit's transitive Play services, data transport and Firebase
   artifacts in the normal build. Check them with `tool/check_no_google.sh`
   on a release APK.
+
+## Phase 1: privacy architecture (done, 2026-10-17)
+
+Feature commits: `bebecb6`, `5c6981d`, `52f6a95`, `5fd09ef` and `f85055b`,
+plus `f1e3d86` (translations) and `fd345ad` (e2e). The `wip:` commits
+between `532f529` and `f25a707` hold parts of the same work; each feature
+commit message describes the finished change.
+
+- **Model** (`bebecb6`):
+  - `DataDestination` (on device, self-hosted, public instance, cloud
+    provider) and `PrivacyMode` (Offline only, Offline first, Online), in
+    `packages/translation_repository/lib/src/models/data_destination.dart`;
+  - `ConsentRequiredException`;
+  - the settings for consents, approved language pairs, incognito, screen
+    blocking and the HTTP proxy.
+
+  New installs start in Offline first. Settings saved before privacy
+  modes existed load as Online.
+- **Routing**:
+  - every request is checked against the privacy mode as its own
+    destination: language detection, the AI model for extras, and Reverso
+    after Google for speech;
+  - a consent prompt (once, or always for a language pair) comes before
+    anything is sent, and nothing moves to another back end by itself;
+  - when the selected engine is gone, only the on-device engine may take
+    its place;
+  - a destination chip names who received the text (findings 2, 3 and
+    4).
+- **Storage** (`5c6981d`, `5fd09ef`):
+  - the history is encrypted (AES-256-GCM, key in secure storage) and
+    migrated from plaintext;
+  - incognito, `FLAG_SECURE`, sensitive copies and **Delete all local
+    data**;
+  - backups and device transfers exclude all app data (finding 9);
+  - per-app language through `localeConfig`.
+- **Network** (`52f6a95`):
+  - one HTTP client for every back end, with a generic User-Agent and no
+    cookies or referrers;
+  - an optional HTTP CONNECT proxy (Orbot);
+  - plain `http` to public hosts is refused, and so are `.onion`/`.i2p`
+    without a proxy;
+  - **Listen** uses the device voice first, and Mozhi TTS (text in the
+    URL) only with consent (finding 5).
+- **Clean-up** (`f85055b`):
+  - sensitive clipboard for every copy, and no keyboard learning in
+    incognito (never for API keys and URLs);
+  - provider headers and instance credentials move to secure storage
+    (migrated);
+  - the OpenRouter attribution headers are gone;
+  - Android platform networking refuses cleartext, and the web build sends
+    no referrer;
+  - web page fetches go through the proxy too;
+  - **Delete all local data** also clears in-memory copies and the offline
+    models.
+- `f1e3d86`: 166 new strings in all 18 translated locales.
+
+## Phase 2: instances and LibreTranslate (done, 2026-10-17)
+
+The code landed in `532f529` and `5dea866`; `52f6a95` is the feature
+commit.
+
+- A bundled snapshot of Mozhi's public instance list
+  (`packages/mozhi_api/lib/src/mozhi_public_instance.dart`) with country,
+  host, Cloudflare, Tor and I2P addresses. Nothing is fetched at run time.
+- **Settings > Mozhi instances** no longer pings every instance on open
+  (finding 8). Checks happen only on request (*Check instances*, *Test*),
+  with latency badges and Cloudflare/Tor/I2P labels. Tor and I2P addresses
+  are offered only with a proxy.
+- Failover only reaches instances the privacy settings allow
+  (`MozhiPool.run(allow: …)`), and the consent prompt says that the text
+  may go on to the next servers in the list. Public instances are labelled
+  *Public server*, not *Self-hosted* (finding 7).
+- LibreTranslate and DeepL clients (`packages/mt_api`):
+  - the key travels only in the request body;
+  - blank text is never sent;
+  - every request can be cancelled;
+  - new request-level tests.
+
+## Phase 3: Bergamot offline engine (done on CI, 2026-10-17)
+
+- `aec30e7`: `packages/bergamot_translator`.
+  - Mozilla's bergamot-translator from `mozilla/translations` (MPL-2.0),
+    pinned as a submodule, behind a small C API, called over `dart:ffi` in
+    a background isolate.
+  - English pivoting, SHA-256-verified downloads with atomic installs,
+    and a catalogue of 113 directions.
+- `9c0cba1`: the app's offline engine in every build.
+  - The default build has no Google code: Gradle excludes ML Kit, Play
+    services, Firebase and data transport, and CI runs
+    `tool/check_no_google.sh` on every APK and the AAB.
+  - ML Kit OCR moves to the optional Play variant (`tool/play_prepare.sh`).
+- CI fixes: `b9f9bde` and `f2e13fc` (faiss SSE intrinsics on Android
+  x86_64), `483cfcb` (allow `libandroid.so`), `b88cb9d` (build every ABI
+  even when one is clean), `c42e30a` (here-strings instead of
+  `printf | grep -q` under `pipefail`).
+- **CI run 39032433094** (commit `fd345ad`) was green on all six jobs:
+  - *Build Bergamot native (Android)* built arm64-v8a, armeabi-v7a and
+    x86_64 and passed the export, dependency and 16 KB alignment checks;
+  - *Build Android APKs* passed `tool/check_no_google.sh` on every APK and
+    found the engine for all three ABIs in the universal APK;
+  - the Play variant, web and e2e jobs (24 tests) passed too.
+
+  The run for `c42e30a` (39033167322) was still in progress when this was
+  written.
+
+## Phase 6: release and build documentation (done, 2026-10-17)
+
+- New pages:
+  - [docs/release.md](../release.md): the release workflow, checklist,
+    signing secrets by name, certificate fingerprint, pre-release dry run,
+    εxodus scan and dependency updates;
+  - [docs/building.md](../building.md): the pinned toolchain, sources,
+    variants, the Google-code check, and comparing builds;
+  - [docs/dependencies.md](../dependencies.md): every direct and native
+    dependency with version, licence and purpose, generated by the new
+    `tool/list_dependencies.py`.
+- The README has a *Verify a release* section; the certificate
+  fingerprint is a placeholder.
+- `.github/dependabot.yaml`: weekly instead of daily. It now covers pub in
+  every package and Gradle (`android/`,
+  `packages/bergamot_translator/android/`), and groups minor and patch
+  updates per ecosystem.
+- Findings:
+  - `CCACHE_BASEDIR` turns the engine's embedded `__FILE__` paths into
+    relative ones (checked with ccache 4.9.1). Without it the library
+    embeds absolute build paths, so reproducing a release needs the same
+    ccache setting or `-ffile-prefix-map`.
+  - zlib (linked) and faiss (compiled) are missing from
+    `native/THIRD_PARTY_NOTICES.md`.
+  - The APKs keep AGP's dependency metadata block
+    (`dependenciesInfo.includeInApk` isn't turned off).
+
+## Open items
+
+- **No real device yet.** Only CI builds exist. The engine ran on Linux
+  x86_64 and under qemu (aarch64, armv7), never on a phone.
+- **Not done**: Tesseract (on-device OCR for the default build) and offline
+  voice input.
+- **Phase 4 (UI)** is in progress.
+- CLD2 language identification is being added to the engine (staged as a
+  submodule, not committed when this was written).
+- **Dependabot PRs #1, #2 and #5** are waiting for the owner's decision.
+  #2 and #5 need a pre-release tag to be exercised
+  ([release.md](../release.md#before-the-first-release)).
+- **Default branch.** Create `main` from the current tip, make it the
+  default and protect it. Until then `license_check.yaml` never runs, and
+  Dependabot targets the `claude/*` branch.
+- **Releases**:
+  - the signing secrets and the published certificate fingerprint;
+  - the dependency metadata block;
+  - the gaps in the notices;
+  - a byte-for-byte comparison of two builds;
+  - an εxodus scan of a default APK. CI artifacts couldn't be downloaded
+    from this session, so none of these was run.

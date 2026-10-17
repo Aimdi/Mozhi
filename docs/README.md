@@ -26,6 +26,11 @@ Ready-to-use server files are in [`deploy/`](../deploy/README.md).
 | --- | --- |
 | [Architecture](architecture.md) | Packages and layers, data flow, how to add an AI provider |
 | [Contributing](contributing.md) | Toolchain, flavors, tests, localisation, adding a UI language |
+| [Offline engine](offline-engine.md) | Mozilla Bergamot: why it was chosen, native build, models and catalogue |
+| [Building](building.md) | Pinned toolchain, build variants (default, Play, F-Droid), reproducible builds, checking an APK for Google code |
+| [Dependencies](dependencies.md) | Every dependency with version, licence and purpose |
+| [Releasing](release.md) | Release checklist, signing, tracker scan, verifying a release |
+| [Privacy audit](audit/2026-audit.md) | The 2026 privacy audit and [progress log](audit/progress.md) |
 
 Mozhi (this app) is an independent, unofficial client. The Mozhi translation
 front-end is a separate project by its own authors.

@@ -314,6 +314,36 @@ User-facing strings live in `lib/l10n/arb`.
 
 ---
 
+## Verify a release
+
+Each [release][releases] has `SHA256SUMS.txt`, and every APK is signed with
+the project's release key. In the folder with your downloads:
+
+```sh
+sha256sum --ignore-missing -c SHA256SUMS.txt
+apksigner verify --print-certs mozhi-<version>-arm64-v8a.apk | grep SHA-256
+```
+
+The signing certificate's SHA-256 must be:
+
+```text
+not published yet (the release signing key is still being set up)
+```
+
+`apksigner` comes with the Android SDK build-tools (`apt install apksigner`
+on Debian and Ubuntu). The checksums only prove the download is intact,
+because they come from the same release. The certificate shows who signed
+it.
+
+The default APKs contain no Google code. To check one from a checkout, run
+`sh tool/check_no_google.sh <apk>`. The `-play-` APK contains ML Kit by
+design.
+
+More: [Releasing](docs/release.md) and
+[Building and reproducible builds](docs/building.md).
+
+---
+
 ## License
 
 [MIT](LICENSE). Mozhi (the translation front-end) is a separate project by
