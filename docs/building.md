@@ -13,6 +13,7 @@ builds. For day-to-day development (flavors, tests, localisation) see
 - [Check an APK for Google code](#check-an-apk-for-google-code)
 - [Compare two builds](#compare-two-builds)
 - [ccache and build paths](#ccache-and-build-paths)
+- [Golden tests](#golden-tests)
 
 ## Pinned toolchain
 
@@ -235,3 +236,42 @@ A path-independent fix that doesn't rely on ccache would be
 `packages/bergamot_translator/native/CMakeLists.txt`. It isn't there yet.
 F-Droid's build server, which builds without ccache in its own directory,
 needs it before its APK can match the release.
+
+## Golden tests
+
+Screenshot (golden) tests in `test/goldens/` cover the translate screen
+(empty, with a result, on a tablet, and split at the hinge of a
+two-screen device), history, settings, and the onboarding privacy and
+languages steps. They run on a 411 × 891 phone in light and dark, and
+translate and settings also at 1280 × 800. The PNGs are in
+`test/goldens/images/`. The tests are tagged `golden` (declared in
+`dart_test.yaml`), and CI runs them with the rest (`flutter test` on
+`ubuntu-latest`).
+
+`test/goldens/flutter_test_config.dart` applies to that directory only.
+It:
+
+- loads Roboto and Material Icons from the Flutter SDK
+  (`$FLUTTER_ROOT/bin/cache/artifacts/material_fonts`) instead of the test
+  font. If the fonts aren't there, the tests are skipped with a message
+  (run `flutter precache`);
+- hides the debug banner;
+- accepts a screenshot when at most 0.5 % of its pixels differ from the
+  golden, so small anti-aliasing differences between machines pass. Any
+  difference is printed.
+
+Characters that Roboto lacks, such as → and ✦, render as boxes. They look
+the same on every machine.
+
+After an intended UI change, regenerate the goldens and review the changed
+PNGs in the diff:
+
+```sh
+flutter test --update-goldens test/goldens
+# or: very_good test --no-optimization --update-goldens -- test/goldens
+```
+
+Then run `flutter test test/goldens` without the flag: it should pass. A
+failed comparison writes its diff images to `test/goldens/failures/`;
+don't commit them. To leave the goldens out of a run, use
+`flutter test --exclude-tags golden`.

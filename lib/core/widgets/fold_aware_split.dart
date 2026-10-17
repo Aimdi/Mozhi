@@ -39,9 +39,10 @@ bool isSeparatingDisplayFeature(DisplayFeature feature) =>
 ///
 /// The feature bounds are in window coordinates; the box's position is
 /// taken from layout offsets (route transitions and scrolling do not move
-/// the split). The position is only known once the box is laid out, so
-/// the first frame on a foldable may lay the panes out without the
-/// feature and correct them on the next frame.
+/// the split). The final position is only known after layout, so on a
+/// foldable the first frame (or one after the box moved without being
+/// resized) may split at a stale position; it is corrected on the next
+/// frame.
 class FoldAwareSplit extends StatelessWidget {
   const new({
     required this.first,
