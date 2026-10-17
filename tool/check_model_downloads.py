@@ -9,9 +9,9 @@ For every file it asks the server for the size (HEAD, following redirects;
 nothing is downloaded) and compares it with the catalogue, because the app
 rejects a download whose size or checksum differs:
 
-  whisper   packages/whisper_speech/assets/models.json (Hugging Face; the
-            first answer also carries the file's SHA-256, printed for
-            reference)
+  whisper   packages/whisper_speech/assets/models.json (Hugging Face; its
+            first answer also carries the file's SHA-256, compared with the
+            catalogue's `sha256`)
   tessdata  packages/tesseract_ocr/assets/catalog.json
             (raw.githubusercontent.com, pinned commit)
 
@@ -65,7 +65,9 @@ def head(url: str) -> tuple[int | None, dict[str, str]]:
     return (int(length) if length is not None else None), first
 
 
-def check(name: str, url: str, size: int) -> tuple[str, str]:
+def check(
+    name: str, url: str, size: int, sha256: str | None = None
+) -> tuple[str, str]:
     """("ok" | "mismatch" | "unreachable", message) for one file."""
     last_error = ""
     for attempt in range(ATTEMPTS):
@@ -79,8 +81,14 @@ def check(name: str, url: str, size: int) -> tuple[str, str]:
             last_error = str(error)
         else:
             extra = ""
-            if "x-linked-etag" in first:
-                extra = f" (sha256 {first['x-linked-etag'].strip(chr(34))})"
+            served_sha256 = first.get("x-linked-etag", "").strip('"') or None
+            if served_sha256:
+                extra = f" (sha256 {served_sha256})"
+            if sha256 and served_sha256 and served_sha256 != sha256:
+                return "mismatch", (
+                    f"{name}: the catalogue says sha256 {sha256}, the "
+                    f"server {served_sha256} ({url})"
+                )
             if served is None:
                 linked = first.get("x-linked-size")
                 served = int(linked) if linked else None
@@ -94,13 +102,18 @@ def check(name: str, url: str, size: int) -> tuple[str, str]:
     return "unreachable", f"{name}: {last_error} ({url})"
 
 
-def entries(only: str | None) -> list[tuple[str, str, int]]:
+def entries(only: str | None) -> list[tuple[str, str, int, str | None]]:
     found = []
     if only in (None, "whisper"):
         catalog = json.loads(WHISPER.read_text(encoding="utf-8"))
         for model in catalog["models"]:
             found.append(
-                (f"whisper/{model['name']}", model["url"], int(model["size"]))
+                (
+                    f"whisper/{model['name']}",
+                    model["url"],
+                    int(model["size"]),
+                    model.get("sha256"),
+                )
             )
     if only in (None, "tessdata"):
         catalog = json.loads(TESSDATA.read_text(encoding="utf-8"))
@@ -110,6 +123,7 @@ def entries(only: str | None) -> list[tuple[str, str, int]]:
                     f"tessdata/{language['code']}",
                     language["url"],
                     int(language["size"]),
+                    None,
                 )
             )
     return found
