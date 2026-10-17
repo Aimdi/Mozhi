@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:bergamot_translator/bergamot_translator.dart';
 import 'package:mozhi/offline/data/offline_model_details.dart';
+import 'package:mozhi/offline/data/offline_model_import.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// The [OfflineModelDetails] of [translator] when it is a
@@ -10,8 +12,9 @@ OfflineModelDetails? offlineModelDetailsOf(OfflineTranslator translator) =>
     translator is BergamotTranslator ? BergamotModelDetails(translator) : null;
 
 /// [OfflineModelDetails] of a [BergamotTranslator]: a language is its
-/// models to and from English ([ModelRouter.modelsFor]).
-class BergamotModelDetails implements OfflineModelDetails {
+/// models to and from English ([ModelRouter.modelsFor]). Imports go to
+/// [BergamotModelManager.importFiles] with the translator's catalog.
+class BergamotModelDetails implements OfflineModelDetails, OfflineModelImport {
   new(this.translator);
 
   final BergamotTranslator translator;
@@ -70,4 +73,48 @@ class BergamotModelDetails implements OfflineModelDetails {
       await subscription.cancel();
     }
   }
+
+  @override
+  Future<OfflineImportReport> importFiles(List<String> paths) async {
+    final result = await translator.models.importFiles([
+      for (final path in paths) File(path),
+    ], catalog: translator.catalog);
+    return OfflineImportReport(
+      models: [
+        for (final outcome in result.models)
+          OfflineImportedModel(
+            source: ModelRouter.reportedCode(outcome.model.source),
+            target: ModelRouter.reportedCode(outcome.model.target),
+            status: switch (outcome.status) {
+              ModelImportStatus.installed => OfflineImportStatus.installed,
+              ModelImportStatus.alreadyInstalled =>
+                OfflineImportStatus.alreadyInstalled,
+              ModelImportStatus.incomplete => OfflineImportStatus.incomplete,
+              ModelImportStatus.checksumMismatch => OfflineImportStatus.damaged,
+              ModelImportStatus.failed => OfflineImportStatus.failed,
+            },
+            missingFiles: [
+              for (final file in outcome.missing) file.downloadName,
+            ],
+            storageError: outcome.error is FileSystemException,
+          ),
+      ],
+      unmatchedFiles: [
+        for (final file in result.unmatched) file.uri.pathSegments.last,
+      ],
+    );
+  }
+
+  @override
+  List<OfflineModelFile> manualFiles(String code) => [
+    for (final model in translator.router.modelsFor(code))
+      for (final file in model.files.values)
+        OfflineModelFile(
+          source: ModelRouter.reportedCode(model.source),
+          target: ModelRouter.reportedCode(model.target),
+          name: file.downloadName,
+          url: '${file.url}',
+          size: file.size,
+        ),
+  ];
 }

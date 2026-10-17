@@ -1,7 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/router.dart' show AppRoutes;
+import 'package:mozhi/core/widgets/consent_prompt.dart' show DestinationChip;
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -18,26 +21,35 @@ import 'package:translation_repository/translation_repository.dart';
 /// bottom sheet on phones, a dialog on wider windows (≥ 600 dp).
 ///
 /// Reads [TranslationRepository] and [SettingsCubit] (required) and
-/// [SpeechService] / [HistoryCubit] (optional: Listen is hidden / nothing
-/// is saved to history without them) from [context].
+/// [SpeechService] / [HistoryCubit] / [OfflineTranslator] (optional:
+/// Listen is hidden / nothing is saved to history / there is no on-device
+/// engine without them) from [context].
 ///
 /// [onReplace] receives the translation when the user taps Replace; the
 /// button only appears when [canReplace] is true and [onReplace] is given
 /// (a writable `PROCESS_TEXT` request). [onOpenInApp] shows an "Open in
 /// app" button. The sheet closes itself before either callback runs.
 /// Completes when the sheet is closed. Blank [text] shows nothing.
+///
+/// [offlineOnly] ("Translate offline") translates with the on-device engine
+/// only (see `QuickTranslateCubit`); when a language must be downloaded
+/// first, its button closes the sheet and opens the offline languages
+/// ([AppRoutes.offline]) with the [GoRouter] above [context], if any.
 Future<void> showQuickTranslate(
   BuildContext context, {
   required String text,
   bool canReplace = false,
   ValueChanged<String>? onReplace,
   VoidCallback? onOpenInApp,
+  bool offlineOnly = false,
 }) async {
   if (text.trim().isEmpty) return;
   final repository = context.read<TranslationRepository>();
   final settings = context.read<SettingsCubit>();
   final speech = _maybeRead<SpeechService>(context);
   final history = _maybeRead<HistoryCubit>(context);
+  final offline = _maybeRead<OfflineTranslator>(context);
+  final router = GoRouter.maybeOf(context);
   final wide = MediaQuery.sizeOf(context).width >= 600;
 
   Widget content(BuildContext routeContext, {required bool dialog}) {
@@ -46,6 +58,8 @@ Future<void> showQuickTranslate(
         RepositoryProvider<TranslationRepository>.value(value: repository),
         if (speech != null)
           RepositoryProvider<SpeechService>.value(value: speech),
+        if (offline != null)
+          RepositoryProvider<OfflineTranslator>.value(value: offline),
       ],
       child: MultiBlocProvider(
         providers: [
@@ -57,6 +71,10 @@ Future<void> showQuickTranslate(
           canReplace: canReplace,
           onReplace: onReplace,
           onOpenInApp: onOpenInApp,
+          offlineOnly: offlineOnly,
+          onOpenOfflineModels: router == null
+              ? null
+              : () => unawaited(router.push<void>(AppRoutes.offline)),
           onClose: () => Navigator.of(routeContext).pop(),
           padding: dialog
               ? const EdgeInsets.fromLTRB(16, 12, 16, 16)
@@ -98,14 +116,17 @@ T? _maybeRead<T>(BuildContext context) {
 
 /// Quick translate content (for a bottom sheet, dialog or a small desktop
 /// window): creates a [QuickTranslateCubit] for [text] (from the
-/// [TranslationRepository], [SettingsCubit] and optional [HistoryCubit] in
-/// context), starts translating right away and shows [QuickTranslateView].
+/// [TranslationRepository], [SettingsCubit] and optional [HistoryCubit] and
+/// [OfflineTranslator] in context), starts translating right away and
+/// shows [QuickTranslateView].
 class QuickTranslateSheet extends StatelessWidget {
   const new({
     required this.text,
     this.canReplace = false,
     this.onReplace,
     this.onOpenInApp,
+    this.offlineOnly = false,
+    this.onOpenOfflineModels,
     this.onClose,
     this.padding = const EdgeInsets.fromLTRB(16, 0, 16, 16),
     super.key,
@@ -118,18 +139,27 @@ class QuickTranslateSheet extends StatelessWidget {
     bool canReplace = false,
     ValueChanged<String>? onReplace,
     VoidCallback? onOpenInApp,
+    bool offlineOnly = false,
   }) => showQuickTranslate(
     context,
     text: text,
     canReplace: canReplace,
     onReplace: onReplace,
     onOpenInApp: onOpenInApp,
+    offlineOnly: offlineOnly,
   );
 
   final String text;
   final bool canReplace;
   final ValueChanged<String>? onReplace;
   final VoidCallback? onOpenInApp;
+
+  /// Translate with the on-device engine only ("Translate offline").
+  final bool offlineOnly;
+
+  /// Opens the offline languages, offered when a language must be
+  /// downloaded first (see [QuickTranslateView.onOpenOfflineModels]).
+  final VoidCallback? onOpenOfflineModels;
 
   /// Closes the UI (default: pops the current route).
   final VoidCallback? onClose;
@@ -143,6 +173,8 @@ class QuickTranslateSheet extends StatelessWidget {
           repository: context.read<TranslationRepository>(),
           settings: context.read<SettingsCubit>(),
           history: _maybeRead<HistoryCubit>(context),
+          offline: _maybeRead<OfflineTranslator>(context),
+          offlineOnly: offlineOnly,
           text: text,
         );
         unawaited(cubit.start());
@@ -152,6 +184,7 @@ class QuickTranslateSheet extends StatelessWidget {
         canReplace: canReplace,
         onReplace: onReplace,
         onOpenInApp: onOpenInApp,
+        onOpenOfflineModels: onOpenOfflineModels,
         onClose: onClose,
         padding: padding,
       ),
@@ -163,11 +196,18 @@ class QuickTranslateSheet extends StatelessWidget {
 /// header with Close, the incoming text (collapsible) with the detected
 /// language, target language and engine chips, the (streaming) translation
 /// and the Copy / Listen / Open in app / Replace actions.
+///
+/// Offline only ([QuickTranslateState.offlineOnly]) the title is
+/// "Translate offline" and an "On device" destination chip replaces the
+/// engine picker. Listen is only offered when reading aloud stays on the
+/// device too ([SpeechService.preferDeviceVoice], or the offline-only
+/// privacy mode), and never offers to listen online.
 class QuickTranslateView extends StatefulWidget {
   const new({
     this.canReplace = false,
     this.onReplace,
     this.onOpenInApp,
+    this.onOpenOfflineModels,
     this.onClose,
     this.padding = const EdgeInsets.fromLTRB(16, 0, 16, 16),
     super.key,
@@ -176,6 +216,11 @@ class QuickTranslateView extends StatefulWidget {
   final bool canReplace;
   final ValueChanged<String>? onReplace;
   final VoidCallback? onOpenInApp;
+
+  /// Opens the offline languages: offered (after the UI closed itself)
+  /// when a language must be downloaded to translate on the device. No
+  /// button without it.
+  final VoidCallback? onOpenOfflineModels;
   final VoidCallback? onClose;
   final EdgeInsetsGeometry padding;
 
@@ -188,6 +233,10 @@ class _QuickTranslateViewState extends State<QuickTranslateView> {
   static const _noticeDuration = Duration(seconds: 4);
 
   SpeechService? _speech;
+
+  /// Whether the privacy mode is offline only, where the repository never
+  /// lets text-to-speech reach a Mozhi instance.
+  bool _offlineOnlyPrivacy = false;
   bool _picking = false;
   bool _copied = false;
   String? _notice;
@@ -199,6 +248,9 @@ class _QuickTranslateViewState extends State<QuickTranslateView> {
   void initState() {
     super.initState();
     _speech = _maybeRead<SpeechService>(context);
+    _offlineOnlyPrivacy =
+        _maybeRead<SettingsCubit>(context)?.state.privacyMode ==
+        PrivacyMode.offlineOnly;
   }
 
   @override
@@ -271,6 +323,23 @@ class _QuickTranslateViewState extends State<QuickTranslateView> {
     onOpenInApp?.call();
   }
 
+  /// The offline languages are a page of the settings tab, below this
+  /// sheet or dialog: close it first.
+  void _openOfflineModels() {
+    final onOpenOfflineModels = widget.onOpenOfflineModels;
+    _close();
+    onOpenOfflineModels?.call();
+  }
+
+  /// The [SpeechService] for Listen, or null to hide it. Offline only,
+  /// reading aloud must not reach Mozhi's text-to-speech either: only with
+  /// "device voice only" or in the offline-only privacy mode.
+  SpeechService? _listenSpeech(QuickTranslateState state) {
+    final speech = _speech;
+    if (speech == null || !state.offlineOnly) return speech;
+    return speech.preferDeviceVoice || _offlineOnlyPrivacy ? speech : null;
+  }
+
   void _pickTarget(Language language) {
     setState(() => _picking = false);
     unawaited(context.read<QuickTranslateCubit>().setTarget(language));
@@ -305,12 +374,15 @@ class _QuickTranslateViewState extends State<QuickTranslateView> {
                 : () => setState(() => _picking = true),
             onSelectEngine: (engine) => unawaited(cubit.selectEngine(engine)),
             onRetry: () => unawaited(cubit.retry()),
+            onOpenOfflineModels: widget.onOpenOfflineModels == null
+                ? null
+                : _openOfflineModels,
           );
         }
 
         final replaceAvailable = widget.canReplace && widget.onReplace != null;
         final translation = state.translation;
-        final speech = _speech;
+        final speech = _listenSpeech(state);
         final target = state.target;
 
         return PopScope(
@@ -328,7 +400,7 @@ class _QuickTranslateViewState extends State<QuickTranslateView> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _Header(onClose: _close),
+                  _Header(onClose: _close, offlineOnly: state.offlineOnly),
                   const SizedBox(height: 4),
                   Flexible(
                     child: SingleChildScrollView(
@@ -357,13 +429,13 @@ class _QuickTranslateViewState extends State<QuickTranslateView> {
                                   ? null
                                   : target.code,
                               onError: (error, listenOnline) => _showNotice(
-                                listenOnline == null
+                                listenOnline == null || state.offlineOnly
                                     ? speechErrorMessage(
                                         context.l10n,
                                         _withoutConsent(error),
                                       )
                                     : speechErrorMessage(context.l10n, error),
-                                action: listenOnline == null
+                                action: listenOnline == null || state.offlineOnly
                                     ? null
                                     : (
                                         label: speechListenOnlineLabel(
@@ -395,9 +467,12 @@ class _QuickTranslateViewState extends State<QuickTranslateView> {
 
 /// X compose-style header: Close at the start, a bold title.
 class _Header extends StatelessWidget {
-  const new({required this.onClose});
+  const new({required this.onClose, required this.offlineOnly});
 
   final VoidCallback onClose;
+
+  /// "Translate offline" with the on-device icon.
+  final bool offlineOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -416,7 +491,9 @@ class _Header extends StatelessWidget {
           child: Semantics(
             header: true,
             child: Text(
-              l10n.quickTranslateTitle,
+              offlineOnly
+                  ? l10n.quickTranslateOfflineTitle
+                  : l10n.quickTranslateTitle,
               style: theme.textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w800,
                 letterSpacing: -0.3,
@@ -427,7 +504,10 @@ class _Header extends StatelessWidget {
         ExcludeSemantics(
           child: Padding(
             padding: const EdgeInsetsDirectional.only(end: 12),
-            child: Icon(Icons.translate, color: theme.colorScheme.primary),
+            child: Icon(
+              offlineOnly ? Icons.offline_bolt_outlined : Icons.translate,
+              color: theme.colorScheme.primary,
+            ),
           ),
         ),
       ],
@@ -441,12 +521,14 @@ class _ResultBody extends StatelessWidget {
     required this.onPickTarget,
     required this.onSelectEngine,
     required this.onRetry,
+    required this.onOpenOfflineModels,
   });
 
   final QuickTranslateState state;
   final VoidCallback? onPickTarget;
   final ValueChanged<TranslationEngine> onSelectEngine;
   final VoidCallback onRetry;
+  final VoidCallback? onOpenOfflineModels;
 
   @override
   Widget build(BuildContext context) {
@@ -457,25 +539,37 @@ class _ResultBody extends StatelessWidget {
         QuickSourceCard(text: state.text, detectedSource: state.detectedSource),
         const Hairline(),
         const SizedBox(height: 12),
-        if (state.status != QuickTranslateStatus.noEngines) ...[
+        if (state.status != QuickTranslateStatus.noEngines &&
+            state.status != QuickTranslateStatus.offlineUnavailable) ...[
           Wrap(
             spacing: 8,
             runSpacing: 4,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               QuickTargetChip(target: state.target, onPressed: onPickTarget),
-              QuickEngineChip(
-                engine: state.engine,
-                engines: state.engines,
-                onSelected: onSelectEngine,
-              ),
+              if (state.offlineOnly)
+                const DestinationChip(
+                  key: Key('quick_translate_on_device'),
+                  destination: OnDeviceDestination(),
+                  engineId: TranslationEngine.offlineId,
+                )
+              else
+                QuickEngineChip(
+                  engine: state.engine,
+                  engines: state.engines,
+                  onSelected: onSelectEngine,
+                ),
             ],
           ),
           const SizedBox(height: 16),
         ],
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: QuickResultView(state: state, onRetry: onRetry),
+          child: QuickResultView(
+            state: state,
+            onRetry: onRetry,
+            onOpenOfflineModels: onOpenOfflineModels,
+          ),
         ),
       ],
     );

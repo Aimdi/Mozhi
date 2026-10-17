@@ -6844,5 +6844,50 @@
         "type": "String"
       }
     }
+  },
+  "quickTranslateOfflineTitle": "Translate offline",
+  "@quickTranslateOfflineTitle": {
+    "description": "Title of the quick translate sheet opened with the \"Translate offline\" text selection action (on-device engine only)."
+  },
+  "quickTranslateOfflineUnavailableTitle": "Can’t translate on this device",
+  "@quickTranslateOfflineUnavailableTitle": {
+    "description": "Translate offline sheet: title when the device has no on-device translation engine."
+  },
+  "quickTranslateOfflineUnavailableBody": "This device has no on-device translation engine, so nothing was translated. Your text wasn’t sent anywhere.",
+  "@quickTranslateOfflineUnavailableBody": {
+    "description": "Translate offline sheet: body when the device has no on-device translation engine."
+  },
+  "quickTranslateOfflineMissingTitle": "Download needed",
+  "@quickTranslateOfflineMissingTitle": {
+    "description": "Translate offline sheet: title when a language model must be downloaded first."
+  },
+  "quickTranslateOfflineMissingBody": "To translate this on your device, download {languages} in Offline languages first. Your text wasn’t sent anywhere.",
+  "@quickTranslateOfflineMissingBody": {
+    "description": "Translate offline sheet: a language model must be downloaded first. languages is a comma-separated list of language names.",
+    "placeholders": {
+      "languages": {
+        "type": "String"
+      }
+    }
+  },
+  "quickTranslateOfflineUnsupportedTitle": "Not available offline",
+  "@quickTranslateOfflineUnsupportedTitle": {
+    "description": "Translate offline sheet: title when the on-device engine cannot translate the text."
+  },
+  "quickTranslateOfflineUnsupported": "{source} can’t be translated into {target} on this device. Your text wasn’t sent anywhere.",
+  "@quickTranslateOfflineUnsupported": {
+    "description": "Translate offline sheet: the on-device engine does not support the language pair. source and target are language names.",
+    "placeholders": {
+      "source": {
+        "type": "String"
+      },
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "quickTranslateOfflineUndetected": "Couldn’t tell on this device which language this is. Your text wasn’t sent anywhere.",
+  "@quickTranslateOfflineUndetected": {
+    "description": "Translate offline sheet: the on-device engine could not identify the language of the selected text."
   }
 }
