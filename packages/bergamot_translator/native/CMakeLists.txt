@@ -225,6 +225,13 @@ foreach(_target marian intgemm)
   endif()
 endforeach()
 
+# faiss uses SSE types under `#ifdef __SSE__` without including the SSE
+# header; glibc's headers pull it in transitively, the NDK's do not (Android
+# x86_64 failed with "unknown type name '__m128'").
+if(TARGET faiss AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64|i.86)$")
+  target_compile_options(faiss PRIVATE -include xmmintrin.h)
+endif()
+
 if(ANDROID AND TARGET pathie-cpp)
   # Bionic declares iconv only from API 28 (minSdk is lower). Android paths
   # are always UTF-8, so pathie never converts and iconv is never called.
