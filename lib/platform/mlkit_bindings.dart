@@ -1,22 +1,19 @@
-// The ML Kit build of the bindings: the one place (with
-// lib/image_translate/data/mlkit_text_recognition_service.dart and
-// packages/mlkit_translator) that reaches Google ML Kit.
+// The bindings of the default build, which contains no Google code (no ML
+// Kit, Play services or Firebase): no on-device text recognition, so image
+// translation offers only the methods that need no OCR library and says why.
 //
-// tool/fdroid_prepare.sh replaces this file with mlkit_bindings_stub.dart
-// for the F-Droid build, so keep both files' public API identical
-// (test/platform/mlkit_bindings_test.dart checks it).
-import 'package:mlkit_translator/mlkit_translator.dart';
-import 'package:mozhi/image_translate/data/mlkit_text_recognition_service.dart';
+// tool/play_prepare.sh replaces this file with
+// tool/play/lib/platform/mlkit_bindings.dart (ML Kit text recognition) for
+// the Play variant, so it must not import anything from ML Kit and must keep
+// the same public API as that file (test/platform/mlkit_bindings_test.dart
+// in both variants checks it). Offline translation does not depend on the
+// variant: lib/platform/offline_engine.dart (Mozilla's Bergamot engine).
 import 'package:mozhi/image_translate/data/text_recognition_service.dart';
-import 'package:translation_repository/translation_repository.dart';
 
-/// Whether this build includes Google ML Kit (offline translation, language
-/// identification and on-device text recognition).
-const bool mlKitIncluded = true;
+/// Whether this build includes Google ML Kit (on-device text recognition).
+/// True only in the Play variant (`tool/play_prepare.sh`).
+const bool mlKitIncluded = false;
 
-/// The on-device translator: ML Kit (available on Android and iOS only).
-OfflineTranslator createOfflineTranslator() => MlKitOfflineTranslator();
-
-/// The on-device text recognizer: ML Kit (Android and iOS only).
+/// No on-device text recognizer in this build.
 TextRecognitionService createTextRecognitionService() =>
-    MlKitTextRecognitionService();
+    const UnavailableTextRecognitionService();

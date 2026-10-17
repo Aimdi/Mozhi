@@ -6,6 +6,7 @@ import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -47,6 +48,8 @@ import java.util.Locale
  * recents, no screenshots), and `copySensitiveText(String)` copies text marked
  * `EXTRA_IS_SENSITIVE` on Android 13+ (answering true) and answers false
  * without copying on older versions (Dart then uses `Clipboard.setData`).
+ * `isActiveNetworkMetered()` answers whether the active network is metered
+ * (`lib/platform/metered_network.dart`: Wi-Fi-only offline model downloads).
  *
  * Deep links `mozhi://<screen>[/<path>][?<query>][#<fragment>]` are handed to
  * the Flutter router as the plain route `/<screen>[/<path>][?<query>]...`
@@ -165,6 +168,7 @@ class MainActivity : FlutterActivity() {
                         result.success(copySensitiveText(text))
                     }
                 }
+                "isActiveNetworkMetered" -> result.success(isActiveNetworkMetered())
                 else -> result.notImplemented()
             }
         }
@@ -236,6 +240,23 @@ class MainActivity : FlutterActivity() {
         }
         clipboard.setPrimaryClip(clip)
         return true
+    }
+
+    /**
+     * Whether the active network is metered (mobile data, a hotspot, a Wi-Fi
+     * network marked as metered), via
+     * `ConnectivityManager.isActiveNetworkMetered()` (ACCESS_NETWORK_STATE).
+     * True when there is no network or the system refuses to tell, so a
+     * Wi-Fi-only download never uses mobile data by mistake.
+     */
+    private fun isActiveNetworkMetered(): Boolean {
+        val connectivity = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            ?: return true
+        return try {
+            connectivity.isActiveNetworkMetered
+        } catch (e: SecurityException) {
+            true
+        }
     }
 
     /** Sends [payload] on the event channel, or queues it until Dart listens. */

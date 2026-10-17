@@ -1,6 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Mozhi instances and AI providers (including LAN servers over http). -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Whether the active network is metered (ConnectivityManager
+         .isActiveNetworkMetered, MainActivity.kt), so Wi-Fi-only offline
+         model downloads ask before using mobile data. A normal permission:
+         granted at install, no prompt. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <!-- Voice input (speech_to_text). Requested at runtime when the user taps
          the microphone. BLUETOOTH_CONNECT is deliberately not declared: the
          plugin then simply skips Bluetooth headset routing instead of asking

@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
-import 'package:mozhi/core/network/network.dart' show describeNetworkPolicyError;
+import 'package:mozhi/core/network/network.dart'
+    show describeNetworkPolicyError;
 import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/proofread/models/writing_stats.dart';

@@ -11,8 +11,9 @@ import 'package:mozhi/app/third_party_licenses.dart';
 import 'package:mozhi/core/key_value_metadata_store.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/network/network_session.dart';
+import 'package:mozhi/core/on_device_ml.dart';
 import 'package:mozhi/history/data/history_repository.dart';
-import 'package:mozhi/platform/mlkit_bindings.dart';
+import 'package:mozhi/platform/offline_engine.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/speech/speech_service.dart';
@@ -73,7 +74,7 @@ Future<void> bootstrap(
   };
 
   if (kDebugMode) Bloc.observer = const AppBlocObserver();
-  registerThirdPartyLicenses();
+  registerThirdPartyLicenses(includeMlKit: mlKitIncluded);
 
   runApp(await builder(await dependencies()));
 }
@@ -83,8 +84,9 @@ Future<void> bootstrap(
 /// [prefs] and [secrets] default to the platform stores; secure storage
 /// falls back to memory when it is unavailable (reported by
 /// [AppDependencies.secretsInMemory]). [offlineTranslator] defaults to
-/// [createOfflineTranslator]: ML Kit (Android and iOS only), or an engine
-/// that is never available in the build without ML Kit (F-Droid).
+/// [createOfflineTranslator]: Mozilla's Bergamot engine (Android; never
+/// available on the web), created while the settings load. Its model
+/// downloads go through [NetworkSession.current] (the proxy setting).
 ///
 /// Every backend client of the [TranslationRepository] comes from one
 /// [NetworkSession] built from the saved `httpProxy` (a later change
@@ -96,6 +98,10 @@ Future<AppDependencies> createDependencies({
   OfflineTranslator? offlineTranslator,
   NetworkSession Function(String? proxy)? network,
 }) async {
+  // Started first: loading the model catalog runs while the stores open.
+  final offlineFuture = offlineTranslator != null
+      ? Future.value(offlineTranslator)
+      : createOfflineTranslator();
   final preferences = prefs ?? PreferencesStore();
   final secretStore = secrets ?? await _secureStore();
 
@@ -108,7 +114,7 @@ Future<AppDependencies> createDependencies({
   final session = (network ?? _networkSession)(settings.httpProxy);
   NetworkSession.current = session;
 
-  final offline = offlineTranslator ?? createOfflineTranslator();
+  final offline = await offlineFuture;
   final translationRepository =
       TranslationRepository(
         mozhiClientFactory: session.mozhiClient,

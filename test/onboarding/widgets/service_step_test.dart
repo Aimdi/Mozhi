@@ -296,10 +296,7 @@ void main() {
           OwnInstanceError.timedOut,
           'Could not reach this instance: it took too long to answer.',
         ),
-        (
-          OwnInstanceError.insecure,
-          'Use https:// for public servers.',
-        ),
+        (OwnInstanceError.insecure, 'Use https:// for public servers.'),
       ]) {
         testWidgets('shows ${error.name} errors', (tester) async {
           await pump(

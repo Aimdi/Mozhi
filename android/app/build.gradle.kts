@@ -122,43 +122,27 @@ flutter {
     source = "../.."
 }
 
-// Builds without Google ML Kit (F-Droid, see tool/fdroid_prepare.sh) set the
-// Gradle property noMlkit (`-PnoMlkit=true`, or
-// `flutter build apk --android-project-arg=noMlkit=true`, or noMlkit=true in
-// android/gradle.properties, which the script writes). They skip the script
-// models below and exclude every com.google.mlkit artifact, so a forgotten
-// ML Kit dependency fails the build instead of slipping into the APK.
-val noMlkit = (findProperty("noMlkit") as String?)?.toBoolean() == true
+// Google-free by default: the default build (GitHub releases, F-Droid) has
+// no Google ML Kit, Play services, Firebase or data transport (Firelog)
+// code. Every configuration excludes those groups, so a dependency that
+// would pull them in fails the release build (R8 reports the missing
+// classes) instead of slipping into the APK; CI also runs
+// tool/check_no_google.sh on every APK. The Play variant (tool/play_prepare.sh) writes noMlkit=false to
+// android/gradle.properties and appends its "BEGIN mlkit" block below: ML
+// Kit's on-device text recognition, which needs those groups.
+// `-PnoMlkit=true` / `--android-project-arg=noMlkit=true` (the old F-Droid
+// recipe) is accepted and changes nothing.
+val noMlkit = (findProperty("noMlkit") as String?)?.toBoolean() ?: true
 
 if (noMlkit) {
     configurations.configureEach {
         exclude(group = "com.google.mlkit")
+        exclude(group = "com.google.android.gms")
+        exclude(group = "com.google.firebase")
+        exclude(group = "com.google.android.datatransport")
     }
 }
 
 dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib:2.3.21")
 }
-
-// BEGIN mlkit (tool/fdroid_prepare.sh deletes this block)
-// On-device OCR for camera translate (lib/image_translate). The
-// google_mlkit_text_recognition plugin bundles only the Latin model and
-// declares the other scripts as compileOnly, so picking Chinese, Devanagari,
-// Japanese or Korean would crash with NoClassDefFoundError unless the app
-// ships them. These are ML Kit's bundled models (they work offline and need no
-// Google Play services); each adds a few MB per ABI to the APK, about 4 MB
-// per script according to ML Kit's documentation (check with
-// `flutter build apk --analyze-size`). Split-per-ABI APKs and app bundles
-// keep that to one ABI per device. Keep the version in sync with the plugin's
-// com.google.mlkit:text-recognition dependency (16.0.1 in plugin 0.17.1).
-val mlkitTextRecognitionVersion = "16.0.1"
-
-if (!noMlkit) {
-    dependencies {
-        implementation("com.google.mlkit:text-recognition-chinese:$mlkitTextRecognitionVersion")
-        implementation("com.google.mlkit:text-recognition-devanagari:$mlkitTextRecognitionVersion")
-        implementation("com.google.mlkit:text-recognition-japanese:$mlkitTextRecognitionVersion")
-        implementation("com.google.mlkit:text-recognition-korean:$mlkitTextRecognitionVersion")
-    }
-}
-// END mlkit

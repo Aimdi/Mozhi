@@ -106,9 +106,8 @@ void main() {
     });
 
     test('describes failures with the injected wording', () async {
-      when(
-        () => repository.pingInstance(any()),
-      ).thenAnswer((_) async => throw const MozhiApiException('down'));
+      when(() => repository.pingInstance(any()))
+          .thenAnswer((_) async => throw const MozhiApiException('down'));
       final cubit = OnboardingCubit(
         repository: repository,
         settings: settings,

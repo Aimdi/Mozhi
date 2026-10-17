@@ -12,7 +12,8 @@ import 'package:mozhi/app/fallback_key_value_store.dart';
 import 'package:mozhi/bootstrap.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/network/network_session.dart';
-import 'package:mozhi/platform/mlkit_bindings.dart';
+import 'package:mozhi/app/third_party_licenses.dart';
+import 'package:mozhi/offline/data/unavailable_offline_translator.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/speech/speech_service.dart';
@@ -55,10 +56,14 @@ void main() {
       );
 
       expect(dependencies.preferences, same(prefs));
+      // The build's engine (Bergamot), which a desktop test host cannot
+      // run: without path_provider it falls back to the unavailable one.
+      expect(dependencies.offlineTranslator.isAvailable, isFalse);
       expect(
-        dependencies.offlineTranslator.runtimeType,
-        createOfflineTranslator().runtimeType,
+        dependencies.offlineTranslator,
+        isA<UnavailableOfflineTranslator>(),
       );
+      expect(dependencies.translationRepository.hasOfflineEngine, isFalse);
       expect(dependencies.speechInputService, isNotNull);
 
       await dependencies.usageTracker.record('p', 4, 8);
@@ -245,6 +250,9 @@ void main() {
 
   group('bootstrap', () {
     testWidgets('runs the built widget with the dependencies', (tester) async {
+      LicenseRegistry.reset();
+      resetThirdPartyLicensesForTesting();
+      addTearDown(LicenseRegistry.reset);
       final flutterOnError = FlutterError.onError;
       final platformOnError = PlatformDispatcher.instance.onError;
       final observer = Bloc.observer;
@@ -284,6 +292,17 @@ void main() {
       expect(handled, isTrue);
       expect(presented, hasLength(1));
       expect(Bloc.observer, isA<AppBlocObserver>());
+
+      // The default build has no ML Kit, so its notice is left out; the
+      // offline engine's notices are always there.
+      final packages = await tester.runAsync(
+        () async => {
+          for (final entry in await LicenseRegistry.licenses.toList())
+            ...entry.packages,
+        },
+      );
+      expect(packages, contains(bergamotEngineLicensePackage));
+      expect(packages, isNot(contains(mlKitLicensePackage)));
     });
   });
 

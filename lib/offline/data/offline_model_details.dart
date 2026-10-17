@@ -1,0 +1,48 @@
+import 'package:equatable/equatable.dart';
+import 'package:flutter/foundation.dart';
+
+/// Disk usage and pending updates of the downloaded offline models.
+@immutable
+class OfflineStorage extends Equatable {
+  const new({
+    this.installedBytes = const {},
+    this.totalBytes = 0,
+    this.outdated = const {},
+  });
+
+  /// Bytes on disk per language with models on the device (both
+  /// directions; a model that two languages share counts for both).
+  final Map<String, int> installedBytes;
+
+  /// Bytes used by every installed model, each counted once.
+  final int totalBytes;
+
+  /// Languages with an installed model older than the catalog's.
+  final Set<String> outdated;
+
+  @override
+  List<Object?> get props => [installedBytes, totalBytes, outdated];
+}
+
+/// What the Offline languages screen shows beyond `OfflineTranslator`:
+/// download sizes, disk usage, updates and download progress. Engines
+/// without this information have none (the screen then only lists the
+/// languages).
+abstract interface class OfflineModelDetails {
+  /// Bytes to download for [code] (both directions). 0 for a language that
+  /// needs no download (English, which every model translates to or from).
+  int downloadSize(String code);
+
+  /// The current [OfflineStorage] of the languages [codes].
+  Future<OfflineStorage> storage(Iterable<String> codes);
+
+  /// Downloads [code]'s missing or outdated models like
+  /// `OfflineTranslator.downloadLanguage` (same [wifiOnly] meaning and
+  /// errors), calling [onProgress] with the fraction (0 to 1) of those
+  /// bytes received so far.
+  Future<void> download(
+    String code, {
+    required bool wifiOnly,
+    void Function(double fraction)? onProgress,
+  });
+}

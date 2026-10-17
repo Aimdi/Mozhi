@@ -377,9 +377,7 @@ class PrivacyBadge extends StatelessWidget {
       return switch (engine) {
         _ when isOnDeviceEngine(engine) => const OnDeviceDestination(),
         TranslationEngine(isLocal: true) => const SelfHostedDestination(''),
-        TranslationEngine(isMozhi: true) => const PublicInstanceDestination(
-          '',
-        ),
+        TranslationEngine(isMozhi: true) => const PublicInstanceDestination(''),
         _ => CloudProviderDestination(engine.name),
       };
     }

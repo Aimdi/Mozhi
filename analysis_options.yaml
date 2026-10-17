@@ -7,6 +7,10 @@ analyzer:
     - build/**
     - android/**
     - web/**
+    # Play-variant overlay (tool/play_prepare.sh copies it into lib/ and
+    # test/); it imports google_mlkit_text_recognition, which only that
+    # variant depends on. The Play CI job analyzes it in place.
+    - tool/play/**
 linter:
   rules:
     public_member_api_docs: false

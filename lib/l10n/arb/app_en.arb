@@ -6828,5 +6828,191 @@
   "onboardingPrivacyGroup": "Privacy mode",
   "@onboardingPrivacyGroup": {
     "description": "onboardingPrivacyGroup"
+  },
+  "offlineDescriptionMozilla": "Translate without an internet connection using Mozilla’s open translation models, the ones Firefox uses. They run on this device, so your text never leaves it.",
+  "@offlineDescriptionMozilla": {
+    "description": "offlineDescriptionMozilla"
+  },
+  "offlineViaEnglish": "Models translate to and from English. Between two other languages, for example Spanish to German, Mozhi translates through English, so download both.",
+  "@offlineViaEnglish": {
+    "description": "offlineViaEnglish"
+  },
+  "offlineModelSource": "Models download from Mozilla’s storage (storage.googleapis.com) and are checked before use. None of your text is sent.",
+  "@offlineModelSource": {
+    "description": "offlineModelSource"
+  },
+  "offlineStorageUsed": "{size} used on this device",
+  "@offlineStorageUsed": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineDownloadSize": "{size} download",
+  "@offlineDownloadSize": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineInstalledSize": "{size} on this device",
+  "@offlineInstalledSize": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineUpdateAvailable": "Update available · {size}",
+  "@offlineUpdateAvailable": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineUpdateAction": "Update",
+  "@offlineUpdateAction": {
+    "description": "offlineUpdateAction"
+  },
+  "offlineUpdateTooltip": "Update {language}",
+  "@offlineUpdateTooltip": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineDownloadingProgress": "Downloading… {percent}%",
+  "@offlineDownloadingProgress": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "offlineUpdating": "Updating…",
+  "@offlineUpdating": {
+    "description": "offlineUpdating"
+  },
+  "offlineUpdatingProgress": "Updating… {percent}%",
+  "@offlineUpdatingProgress": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "offlineBuiltIn": "No download needed",
+  "@offlineBuiltIn": {
+    "description": "offlineBuiltIn"
+  },
+  "offlineUpdateDone": "{language} is up to date",
+  "@offlineUpdateDone": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineUpdateFailed": "Couldn’t update {language}",
+  "@offlineUpdateFailed": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineWifiOnlyAsk": "On mobile data or a metered network, Mozhi asks before downloading",
+  "@offlineWifiOnlyAsk": {
+    "description": "offlineWifiOnlyAsk"
+  },
+  "offlineMeteredTitle": "Download over mobile data?",
+  "@offlineMeteredTitle": {
+    "description": "offlineMeteredTitle"
+  },
+  "offlineMeteredBody": "You’re on mobile data or a metered network. {language} needs about {size}.",
+  "@offlineMeteredBody": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      },
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineMeteredBodyUnknownSize": "You’re on mobile data or a metered network, and downloading {language} may use a lot of data.",
+  "@offlineMeteredBodyUnknownSize": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineMeteredDownloadAnyway": "Download anyway",
+  "@offlineMeteredDownloadAnyway": {
+    "description": "offlineMeteredDownloadAnyway"
+  },
+  "offlineErrorChecksum": "{language} didn’t download correctly (a file was damaged or incomplete), so it was discarded. Try again.",
+  "@offlineErrorChecksum": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineErrorServer": "Couldn’t download {language}: the server answered with error {status}.",
+  "@offlineErrorServer": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      },
+      "status": {
+        "type": "int"
+      }
+    }
+  },
+  "offlineErrorNetwork": "Couldn’t download {language}. Check your connection and try again.",
+  "@offlineErrorNetwork": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineErrorStorage": "Couldn’t save {language}. Free up some storage and try again.",
+  "@offlineErrorStorage": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineErrorEngine": "The offline engine reported an error with {language}. Try again, or restart Mozhi.",
+  "@offlineErrorEngine": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineErrorUnsupported": "{language} can’t be translated offline on this device.",
+  "@offlineErrorUnsupported": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineUnavailableApp": "Offline translation is available in the Android app",
+  "@offlineUnavailableApp": {
+    "description": "offlineUnavailableApp"
+  },
+  "offlineUnavailableDevice": "This device’s processor can’t run the offline translation engine",
+  "@offlineUnavailableDevice": {
+    "description": "offlineUnavailableDevice"
   }
 }

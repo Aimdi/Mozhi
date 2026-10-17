@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/core/network/network.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
@@ -516,6 +517,19 @@ void main() {
       expect(
         describe(const WebPageException(WebPageError.noContent)),
         l10n.webTranslateErrorNoContent,
+      );
+    });
+
+    test('says when the network policy refused the download', () {
+      expect(
+        describeWebTranslateError(
+          l10n,
+          WebPageException(
+            WebPageError.network,
+            cause: CleartextRefusedException(Uri.parse('http://example.com')),
+          ),
+        ),
+        l10n.commonErrorCleartextRefused,
       );
     });
 

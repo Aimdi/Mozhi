@@ -1,3 +1,5 @@
+// Play variant only: tool/play_prepare.sh copies this test to
+// test/image_translate/data/ with the ML Kit text recognition service.
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';

@@ -4,9 +4,11 @@ import 'package:mozhi/image_translate/data/text_recognition_service.dart';
 import 'package:mozhi/image_translate/models/models.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-// The only app file (with lib/platform/mlkit_bindings.dart) that imports ML
-// Kit's text recognition. tool/fdroid_prepare.sh deletes it for the F-Droid
-// build, so it must not be exported from data.dart or imported elsewhere.
+// Play variant only (tool/play_prepare.sh copies it to
+// lib/image_translate/data/): the only app file, with the Play bindings in
+// lib/platform/mlkit_bindings.dart, that imports ML Kit's text recognition.
+// The default (Google-free) build has neither, so it must not be exported
+// from data.dart or imported anywhere else.
 
 /// Creates a recognizer for a script (overridable for tests).
 typedef TextRecognizerFactory = TextRecognizer Function(

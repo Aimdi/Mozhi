@@ -105,17 +105,13 @@ class ConversationView extends StatelessWidget {
     }
 
     return BlocListener<ConversationCubit, ConversationState>(
+      // Every failure is kept in `lastSpeechFailure`.
       listenWhen: (previous, current) =>
-          current.speechFailures > previous.speechFailures,
+          current.speechFailures > previous.speechFailures &&
+          current.lastSpeechFailure != null,
       listener: (context, state) {
-        final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
-        final failure = state.lastSpeechFailure;
-        if (failure == null) {
-          messenger.showSnackBar(
-            SnackBar(content: Text(l10n.conversationSpeechError)),
-          );
-          return;
-        }
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        final failure = state.lastSpeechFailure!;
         final cubit = context.read<ConversationCubit>();
         showSpeechErrorSnackBar(
           context,

@@ -1,10 +1,16 @@
+import 'package:mozhi/core/network/network.dart'
+    show describeNetworkPolicyError;
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/widgets/translate_error.dart';
 import 'package:mozhi/web_translate/data/web_page_fetcher.dart';
 
 /// A readable message for a page loading ([WebPageException]) or
-/// translation error.
+/// translation error. A download the app's network policy refused (plain
+/// http to a public host, a missing proxy) says so first.
 String describeWebTranslateError(AppLocalizations l10n, Object? error) {
+  if (describeNetworkPolicyError(l10n, error) case final message?) {
+    return message;
+  }
   if (error is! WebPageException) {
     return describeTranslateError(l10n, error).message;
   }

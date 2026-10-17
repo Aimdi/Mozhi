@@ -1,8 +1,16 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mozhi/app/third_party_licenses.dart';
 
 Future<List<LicenseEntry>> _entries() => LicenseRegistry.licenses.toList();
+
+String _text(List<LicenseEntry> entries, String package) => entries
+    .singleWhere((e) => e.packages.contains(package))
+    .paragraphs
+    .map((p) => p.text)
+    .join('\n');
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -14,7 +22,7 @@ void main() {
   tearDown(LicenseRegistry.reset);
 
   group('registerThirdPartyLicenses', () {
-    test('adds the app, ML Kit and native library notices', () async {
+    test('adds the app, offline engine and native library notices', () async {
       registerThirdPartyLicenses();
 
       final entries = await _entries();
@@ -23,28 +31,50 @@ void main() {
         packages,
         containsAll([
           appLicensePackage,
-          mlKitLicensePackage,
+          bergamotEngineLicensePackage,
+          bergamotModelsLicensePackage,
           nativeLibrariesLicensePackage,
         ]),
       );
-      final mlKit = entries.singleWhere(
-        (e) => e.packages.contains(mlKitLicensePackage),
+      expect(
+        _text(entries, appLicensePackage).split('\n').first,
+        'MIT License',
       );
-      final text = mlKit.paragraphs.map((p) => p.text).join('\n');
-      expect(text, contains('https://developers.google.com/ml-kit/terms'));
-      final app = entries.singleWhere(
-        (e) => e.packages.contains(appLicensePackage),
+      expect(
+        _text(entries, bergamotEngineLicensePackage),
+        allOf(
+          contains('https://github.com/mozilla/translations'),
+          contains('Mozilla Public License 2.0'),
+        ),
       );
-      expect(app.paragraphs.first.text, 'MIT License');
+      expect(
+        _text(entries, bergamotModelsLicensePackage),
+        allOf(
+          contains('Mozilla Public License 2.0'),
+          contains('storage.googleapis.com'),
+        ),
+      );
     });
 
-    test('leaves out ML Kit in builds without it', () async {
-      registerThirdPartyLicenses(includeMlKit: false);
+    test('leaves out ML Kit and Play services by default', () async {
+      registerThirdPartyLicenses();
 
       final entries = await _entries();
       final packages = {for (final e in entries) ...e.packages};
-      expect(packages, contains(appLicensePackage));
       expect(packages, isNot(contains(mlKitLicensePackage)));
+      expect(
+        _text(entries, nativeLibrariesLicensePackage),
+        isNot(contains('Google Play services')),
+      );
+    });
+
+    test('adds the ML Kit notice in the Play variant', () async {
+      registerThirdPartyLicenses(includeMlKit: true);
+
+      final entries = await _entries();
+      final text = _text(entries, mlKitLicensePackage);
+      expect(text, contains('https://developers.google.com/ml-kit/terms'));
+      expect(text, contains('Google Play services'));
     });
 
     test('registers only once', () async {
@@ -56,6 +86,26 @@ void main() {
         entries.where((e) => e.packages.contains(appLicensePackage)),
         hasLength(1),
       );
+    });
+  });
+
+  group('bergamotEngineLicenseText', () {
+    test('names every component of THIRD_PARTY_NOTICES.md', () {
+      final notices = File(
+        'packages/bergamot_translator/native/THIRD_PARTY_NOTICES.md',
+      ).readAsLinesSync();
+      final components = [
+        for (final line in notices)
+          if (line.startsWith('| ') &&
+              !line.startsWith('| Component') &&
+              !line.startsWith('| ---'))
+            line.substring(2).split(' | ').first.split(' (').first.trim(),
+      ];
+
+      expect(components, hasLength(greaterThan(10)));
+      for (final component in components) {
+        expect(bergamotEngineLicenseText, contains(component));
+      }
     });
   });
 }

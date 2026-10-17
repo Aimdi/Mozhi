@@ -390,9 +390,8 @@ void main() {
 
     testWidgets('asks the repository for the destination', (tester) async {
       final repository = _MockRepository();
-      when(
-        () => repository.destinationOf('mozhi:deepl'),
-      ).thenReturn(const SelfHostedDestination('mozhi.lan'));
+      when(() => repository.destinationOf('mozhi:deepl'))
+          .thenReturn(const SelfHostedDestination('mozhi.lan'));
       await tester.pumpApp(
         RepositoryProvider<TranslationRepository>.value(
           value: repository,

@@ -9,6 +9,13 @@ const mlKitLicensePackage = 'Google ML Kit';
 /// Package name of the native Android/iOS libraries notice.
 const nativeLibrariesLicensePackage = 'Native platform libraries';
 
+/// Package name of the offline translation engine's notice
+/// (`libmozhi_bergamot.so`, packages/bergamot_translator).
+const bergamotEngineLicensePackage = 'Firefox Translations engine (Bergamot)';
+
+/// Package name of the notice of the offline translation models.
+const bergamotModelsLicensePackage = 'Firefox Translations models';
+
 /// The app's own license (repository `LICENSE`).
 const appLicenseText = '''
 MIT License
@@ -50,41 +57,105 @@ performance and use of its APIs to Google.
 
 ML Kit includes open-source components (for example TensorFlow Lite,
 Apache License 2.0). Their notices are published at
-https://developers.google.com/ml-kit/terms and in the SDK distributions.''';
+https://developers.google.com/ml-kit/terms and in the SDK distributions.
+
+ML Kit brings Google Play services components (Google LLC), which are
+subject to the Android Software Development Kit License
+(https://developer.android.com/studio/terms).''';
 
 /// Native libraries pulled in by Flutter plugins (Gradle / CocoaPods), which
 /// Flutter's generated NOTICES do not list either.
 const nativeLibrariesLicenseText = '''
-The Android build includes the Kotlin standard library (JetBrains),
-AndroidX libraries and Google Play services components used by the plugins
-(Android Open Source Project / Google LLC). The iOS build includes Google
-utility pods used by ML Kit (GoogleUtilities, GoogleToolboxForMac,
-GTMSessionFetcher, PromisesObjC; Google LLC) and nanopb (Petteri Aimonen).
+The Android build includes the Kotlin standard library (JetBrains) and
+AndroidX libraries used by the plugins (Android Open Source Project).
 
 These components are licensed under the Apache License, Version 2.0
-(https://www.apache.org/licenses/LICENSE-2.0), except nanopb, which is
-licensed under the zlib license (https://opensource.org/license/zlib), and
-Google Play services, which is subject to the Android Software Development
-Kit License (https://developer.android.com/studio/terms).
+(https://www.apache.org/licenses/LICENSE-2.0).
 
 Unless required by applicable law or agreed to in writing, software
 distributed under these licenses is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.''';
 
+/// The notices of `libmozhi_bergamot.so`, from
+/// `packages/bergamot_translator/native/THIRD_PARTY_NOTICES.md` (a test
+/// checks that every component listed there is named here).
+const bergamotEngineLicenseText = '''
+Offline translation runs Mozilla's Firefox Translations inference engine
+(bergamot-translator) and the Marian neural machine translation framework,
+compiled into one native library (libmozhi_bergamot.so).
+
+Source code: https://github.com/mozilla/translations (directory
+inference/), pinned as a git submodule in
+packages/bergamot_translator/native/third_party/ of the Mozhi repository
+(https://github.com/Aimdi/Mozhi), together with the build files and the
+local changes. The Mozilla Public License 2.0 files are unmodified.
+
+Components and their licenses:
+- bergamot-translator (Mozilla): Mozilla Public License 2.0
+- Marian (browsermt/Mozilla fork): MIT, Copyright (c) 2016 Marcin Junczys-Dowmunt, the University of Edinburgh, Adam Mickiewicz University
+- ssplit-cpp (sentence splitter): Apache License 2.0
+- SentencePiece (browsermt fork): Apache License 2.0
+- protobuf-lite (inside SentencePiece): BSD-3-Clause, Copyright 2008 Google Inc.
+- intgemm: MIT
+- ruy: Apache License 2.0
+- cpuinfo (used by ruy): BSD-2-Clause
+- simd_utils: BSD-2-Clause, Copyright (c) 2019 JishinMaster (includes sse2neon, MIT)
+- yaml-cpp: MIT, Copyright (c) 2008-2015 Jesse Beder
+- spdlog / fmt: MIT, Copyright (c) 2016 Gabi Melman
+- pathie-cpp: BSD-2-Clause, Copyright (c) 2015, 2017 Marvin Gülker
+- zstr: MIT, Copyright (c) 2015 Matei David, Ontario Institute for Cancer Research
+- CLI11: BSD-3-Clause
+- sse_mathfun / avx_mathfun / threadpool: zlib
+- cnpy, phf, mio, half_float: MIT
+- PCRE2 10.47: BSD-3-Clause, with the PCRE2 binary-redistribution exemption
+- LLVM libc++ (Android NDK, linked statically): Apache License 2.0 with LLVM exception
+- The mozhi_bergamot interface and Mozhi's two Marian alignment fixes: MIT, like the app
+
+License texts:
+- Mozilla Public License 2.0: https://mozilla.org/MPL/2.0/
+- Apache License 2.0: https://www.apache.org/licenses/LICENSE-2.0
+- MIT: https://opensource.org/license/mit
+- BSD-2-Clause: https://opensource.org/license/bsd-2-clause
+- BSD-3-Clause: https://opensource.org/license/bsd-3-clause
+- zlib: https://opensource.org/license/zlib
+
+Unless required by applicable law or agreed to in writing, these
+components are distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+CONDITIONS OF ANY KIND, either express or implied.''';
+
+/// The license of the Firefox Translations models (downloaded at run time,
+/// never bundled).
+const bergamotModelsLicenseText = '''
+The offline translation models are Mozilla's Firefox Translations models
+(https://github.com/mozilla/firefox-translations-models), licensed under
+the Mozilla Public License 2.0 (https://mozilla.org/MPL/2.0/).
+
+They are not part of the app: each language is downloaded only when you
+choose it, from Mozilla's Firefox Translations storage
+(storage.googleapis.com), checked against the SHA-256 checksums bundled
+with the app and kept on this device.''';
+
 bool _registered = false;
 
 /// Adds the notices Flutter does not collect from pub packages (the app's
-/// own license, ML Kit and native platform libraries) to the
-/// [LicenseRegistry] shown by `showLicensePage`. Safe to call repeatedly.
+/// own license, the offline translation engine and models, ML Kit and
+/// native platform libraries) to the [LicenseRegistry] shown by
+/// `showLicensePage`. Safe to call repeatedly.
 ///
-/// Without [includeMlKit] (the F-Droid build, which has no ML Kit) the ML
-/// Kit notice is left out.
-void registerThirdPartyLicenses({bool includeMlKit = true}) {
+/// The ML Kit notice is only added with [includeMlKit] (the Play variant;
+/// `bootstrap` passes `mlKitIncluded`).
+void registerThirdPartyLicenses({bool includeMlKit = false}) {
   if (_registered) return;
   _registered = true;
   LicenseRegistry.addLicense(
     () => Stream.fromIterable([
       const LicenseEntryWithLineBreaks([appLicensePackage], appLicenseText),
+      const LicenseEntryWithLineBreaks([
+        bergamotEngineLicensePackage,
+      ], bergamotEngineLicenseText),
+      const LicenseEntryWithLineBreaks([
+        bergamotModelsLicensePackage,
+      ], bergamotModelsLicenseText),
       if (includeMlKit)
         const LicenseEntryWithLineBreaks([
           mlKitLicensePackage,
