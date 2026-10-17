@@ -34,12 +34,19 @@ dependencies:
     path: packages/mozhi_api
   package_info_plus: ^10.2.2
   path_provider: ^2.1.6
+  # 6.x: record 7 needs record_android 2, which is built for Android Gradle
+  # Plugin 9 (built-in Kotlin); the app is on AGP 8.
+  record: ^6.2.1
   share_plus: ^13.3.1
   shared_preferences: ^2.5.6
   speech_to_text: ^7.5.0
+  tesseract_ocr:
+    path: packages/tesseract_ocr
   translation_repository:
     path: packages/translation_repository
   url_launcher: ^6.3.3
+  whisper_speech:
+    path: packages/whisper_speech
 
 dev_dependencies:
   bloc_lint: ^0.4.2

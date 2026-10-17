@@ -3,9 +3,9 @@
 # so each can be reviewed on its own. Pull requests target the default
 # branch. See docs/release.md, "Dependency updates".
 #
-# Not covered on purpose: the offline engine's git submodules
-# (packages/bergamot_translator/native/third_party). Bump them by hand: the
-# patches in native/patches/ must still apply (docs/building.md).
+# Not covered on purpose: the native engines' git submodules
+# (packages/*/native/third_party). Bump them by hand: patches in
+# native/patches/ must still apply (docs/building.md).
 version: 2
 updates:
   - package-ecosystem: "github-actions"
@@ -29,13 +29,20 @@ updates:
       - "/packages/mozhi_api"
       - "/packages/mozhi_cli"
       - "/packages/mt_api"
+      - "/packages/tesseract_ocr"
       - "/packages/translation_repository"
+      - "/packages/whisper_speech"
     schedule:
       interval: "weekly"
     groups:
       pub-minor-patch:
         patterns: ["*"]
         update-types: ["minor", "patch"]
+    ignore:
+      # record 7 needs record_android 2, built for Android Gradle Plugin 9;
+      # the app is on AGP 8 (see pubspec.yaml).
+      - dependency-name: "record"
+        versions: [">=7.0.0"]
 
   # The app's Android build and the offline engine's plugin build. Keep the
   # Android Gradle Plugin the same in both, and Gradle, AGP and Kotlin within
