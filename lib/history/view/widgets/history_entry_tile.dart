@@ -155,7 +155,7 @@ class _HistoryEntryTileState extends State<HistoryEntryTile> {
                             children: [
                               _Header(
                                 pair: pair,
-                                meta: ' · ${entry.engineName} · $time',
+                                meta: '${entry.engineName} · $time',
                               ),
                               const SizedBox(height: 4),
                               _LanguageText(
@@ -313,7 +313,10 @@ String relativeHistoryTime(AppLocalizations l10n, DateTime time, DateTime now) {
   return DateFormat.jm(l10n.localeName).format(time.toLocal());
 }
 
-/// The bold language pair followed by the secondary " · engine · time".
+/// The bold language pair followed by the secondary " · engine · time"
+/// ([meta]) on one line when both fit. Otherwise the pair keeps the line
+/// (wrapping to a second one rather than being cut to
+/// "English (detected) → Fren…") and the meta moves below it.
 class _Header extends StatelessWidget {
   const new({required this.pair, required this.meta});
 
@@ -324,34 +327,63 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final palette = AppPalette.of(context);
-    final style = theme.textTheme.bodyMedium?.copyWith(fontSize: 15);
-    // The pair matters most: the meta gets at most 40 % of the row and
-    // gives up its space (ellipsized) first.
+    final base = DefaultTextStyle.of(context).style
+        .merge(theme.textTheme.bodyMedium?.copyWith(fontSize: 15));
+    final pairStyle = base.copyWith(
+      fontWeight: FontWeight.w700,
+      color: theme.colorScheme.onSurface,
+    );
+    final metaStyle = base.copyWith(color: palette.secondaryText);
+    final oneLine = ' · $meta';
     return LayoutBuilder(
-      builder: (context, constraints) => Row(
-        children: [
-          Flexible(
-            child: Text(
-              pair,
-              style: style?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: theme.colorScheme.onSurface,
+      builder: (context, constraints) {
+        final painter = TextPainter(
+          text: TextSpan(
+            children: [
+              TextSpan(text: pair, style: pairStyle),
+              TextSpan(text: oneLine, style: metaStyle),
+            ],
+          ),
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+          maxLines: 1,
+        )..layout();
+        final fits = painter.width <= constraints.maxWidth;
+        painter.dispose();
+        if (fits) {
+          return Row(
+            children: [
+              // Ellipsis only guards against sub-pixel rounding.
+              Flexible(
+                child: Text(
+                  pair,
+                  style: pairStyle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-              maxLines: 1,
+              Text(oneLine, style: metaStyle, maxLines: 1),
+            ],
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              pair,
+              style: pairStyle,
+              maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
-          ),
-          ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: constraints.maxWidth * 0.4),
-            child: Text(
+            Text(
               meta,
-              style: style?.copyWith(color: palette.secondaryText),
+              style: metaStyle,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-          ),
-        ],
-      ),
+          ],
+        );
+      },
     );
   }
 }
