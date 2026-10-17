@@ -116,3 +116,6 @@ lib/l10n/gen/
 coverage/
 .test_optimizer.dart
 **/test/.test_optimizer.dart
+
+# Diff images written by failed golden comparisons (test/goldens).
+test/goldens/failures/
