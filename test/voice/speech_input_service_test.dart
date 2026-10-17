@@ -595,6 +595,18 @@ void main() {
       expect(service.preferOnDevice.value, isTrue);
     });
 
+    test('is forgotten until loaded again', () async {
+      await service.setPreferOnDevice(value: true);
+      store.values.remove(SpeechInputService.preferOnDeviceKey);
+
+      service.forgetSettings();
+
+      expect(service.preferOnDevice.value, isFalse);
+      store.values[SpeechInputService.preferOnDeviceKey] = 'true';
+      await service.loadSettings();
+      expect(service.preferOnDevice.value, isTrue);
+    });
+
     test('is persisted', () async {
       await service.setPreferOnDevice(value: true);
       expect(store.values[SpeechInputService.preferOnDeviceKey], 'true');

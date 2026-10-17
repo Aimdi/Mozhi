@@ -9,10 +9,17 @@ import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/platform/offline_engine.dart'
+    show deleteOfflineModelFiles;
+import 'package:mozhi/presets/cubit/glossary_cubit.dart';
+import 'package:mozhi/presets/cubit/presets_cubit.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
+import 'package:mozhi/speech/speech_service.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/usage/data/usage_tracker.dart';
+import 'package:mozhi/voice/speech_input_service.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// What "Delete all local data" deletes, for the confirmation.
@@ -39,11 +46,20 @@ class LocalDataSummary {
 }
 
 /// Deletes everything the app keeps on the device: the history (with its
-/// encryption key), the settings and API keys, all other preferences
-/// (presets, glossaries, usage counters, cached engine lists) and the
-/// offline language models. In-memory state is reset where the app keeps
-/// it ([settings] back to the defaults, which starts setup again, the
-/// translate screen cleared).
+/// encryption key), the settings and their secrets (API keys, custom
+/// headers, instance passwords), all other preferences (presets,
+/// glossaries, usage counters, speech settings, cached engine lists) and
+/// the offline language models with the whole models folder
+/// ([deleteOfflineFiles]: partial downloads too).
+///
+/// What the app keeps in memory is reset too, so that nothing deleted is
+/// shown or written back before the next start: [settings] go back to the
+/// defaults (which starts setup again), [presets], [glossaries] and
+/// [usage] are read again from the emptied store, [speech] and
+/// [speechInput] forget their settings and cached clips, the
+/// [translationRepository]'s translation cache is emptied and the
+/// translate screen is cleared. Screens other than the shell's are closed
+/// when setup starts.
 ///
 /// Only [history] and [settings] are required; the others are skipped when
 /// null. [LocalDataEraser.of] takes them from the widget tree.
@@ -55,7 +71,14 @@ class LocalDataEraser {
     this.settingsRepository,
     this.preferences,
     this.offline,
+    this.deleteOfflineFiles,
     this.translate,
+    this.translationRepository,
+    this.presets,
+    this.glossaries,
+    this.usage,
+    this.speech,
+    this.speechInput,
   });
 
   /// Uses what the app provides above [context].
@@ -68,14 +91,25 @@ class LocalDataEraser {
       }
     }
 
+    final offline = maybe<OfflineTranslator>();
     return LocalDataEraser(
       history: context.read<HistoryCubit>(),
       settings: context.read<SettingsCubit>(),
       historyRepository: maybe<HistoryRepository>(),
       settingsRepository: maybe<SettingsRepository>(),
       preferences: maybe<KeyValueStore>(),
-      offline: maybe<OfflineTranslator>(),
+      offline: offline,
+      // Only where the engine runs: nothing else ever stores models.
+      deleteOfflineFiles: (offline?.isAvailable ?? false)
+          ? deleteOfflineModelFiles
+          : null,
       translate: maybe<TranslateCubit>(),
+      translationRepository: maybe<TranslationRepository>(),
+      presets: maybe<PresetsCubit>(),
+      glossaries: maybe<GlossaryCubit>(),
+      usage: maybe<UsageTracker>(),
+      speech: maybe<SpeechService>(),
+      speechInput: maybe<SpeechInputService>(),
     );
   }
 
@@ -88,7 +122,17 @@ class LocalDataEraser {
   /// [ClearableKeyValueStore].
   final KeyValueStore? preferences;
   final OfflineTranslator? offline;
+
+  /// Deletes the offline models folder (see `deleteOfflineModelFiles`),
+  /// after the languages were deleted through [offline].
+  final Future<void> Function()? deleteOfflineFiles;
   final TranslateCubit? translate;
+  final TranslationRepository? translationRepository;
+  final PresetsCubit? presets;
+  final GlossaryCubit? glossaries;
+  final UsageTracker? usage;
+  final SpeechService? speech;
+  final SpeechInputService? speechInput;
 
   /// What [erase] deletes. Never throws: what cannot be found out is left
   /// out (sizes) or counted as nothing.
@@ -127,6 +171,7 @@ class LocalDataEraser {
     for (final code in await _downloadedModels()) {
       await attempt(() => offline!.deleteLanguage(code));
     }
+    if (deleteOfflineFiles case final deleteFiles?) await attempt(deleteFiles);
     // Back to the defaults (setup starts again): saving them also deletes
     // the API keys of every provider.
     settings.update((_) => const AppSettings());
@@ -138,6 +183,16 @@ class LocalDataEraser {
     if (preferences is ClearableKeyValueStore) {
       await attempt(preferences.clear);
     }
+    // In-memory copies: read again from the emptied store or forgotten, so
+    // that the next change does not write the deleted data back.
+    await presets?.load();
+    await glossaries?.load();
+    if (usage case final usage?) await attempt(usage.load);
+    if (speech case final speech?) await attempt(speech.forgetLocalData);
+    speechInput?.forgetSettings();
+    translationRepository
+      ?..clearCache()
+      ..resetActiveInstance();
     translate?.clear();
     history.search('');
     if (failure case final error?) {

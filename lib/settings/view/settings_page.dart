@@ -34,8 +34,8 @@ class SettingsView extends StatelessWidget {
   /// Width from which the sections are laid out in two columns.
   static const twoPaneBreakpoint = 840.0;
 
-  /// Whether on-device (ML Kit) offline translation exists on this platform
-  /// and in this build (the F-Droid build has no ML Kit).
+  /// Whether on-device (offline) translation can run on this platform:
+  /// Mozilla's Bergamot engine is in every build, but not on the web.
   static bool get offlineSupported => onDeviceMlSupported;
 
   @override
@@ -152,14 +152,6 @@ class _ServicesSection extends StatelessWidget {
             subtitle: Text(l10n.settingsOfflineSubtitle),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/settings/offline'),
-          )
-        else if (onDeviceMlPlatform)
-          // A phone build without ML Kit (F-Droid): say why it is missing.
-          ListTile(
-            enabled: false,
-            leading: const SettingsIcon(Icons.download_for_offline_outlined),
-            title: Text(l10n.offlineTitle),
-            subtitle: Text(l10n.settingsOfflineNotIncluded),
           ),
         ListTile(
           leading: const SettingsIcon(Icons.insights_outlined),

@@ -7,10 +7,17 @@ import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/presets/cubit/glossary_cubit.dart';
+import 'package:mozhi/presets/cubit/presets_cubit.dart';
+import 'package:mozhi/presets/data/glossary_repository.dart';
+import 'package:mozhi/presets/data/presets_repository.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/widgets/delete_local_data.dart';
+import 'package:mozhi/speech/speech_service.dart';
+import 'package:mozhi/usage/data/usage_tracker.dart';
+import 'package:mozhi/voice/speech_input_service.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 import '../helpers.dart';
@@ -20,6 +27,10 @@ class _MockHistoryRepository extends Mock implements HistoryRepository;
 class _MockSettingsRepository extends Mock implements SettingsRepository;
 
 class _MockOfflineTranslator extends Mock implements OfflineTranslator;
+
+class _MockSpeechService extends Mock implements SpeechService;
+
+class _MockSpeechInputService extends Mock implements SpeechInputService;
 
 /// A store that cannot be cleared at once.
 class _PlainStore implements KeyValueStore {
@@ -76,6 +87,10 @@ void main() {
   late _MockOfflineTranslator offline;
   late MockTranslateCubit translate;
   late MemoryStore preferences;
+  late MockTranslationRepository translationRepository;
+  late _MockSpeechService speech;
+  late _MockSpeechInputService speechInput;
+  late int offlineFilesDeleted;
 
   setUp(() {
     history = createHistoryCubit(
@@ -99,18 +114,35 @@ void main() {
     when(() => offline.deleteLanguage(any())).thenAnswer((_) async {});
     translate = MockTranslateCubit();
     preferences = MemoryStore({'settings.v1': '{}', 'presets.v1': '[]'});
+    translationRepository = MockTranslationRepository();
+    speech = _MockSpeechService();
+    when(speech.forgetLocalData).thenAnswer((_) async {});
+    speechInput = _MockSpeechInputService();
+    offlineFilesDeleted = 0;
   });
 
-  LocalDataEraser eraser({KeyValueStore? store, bool withOptional = true}) =>
-      LocalDataEraser(
-        history: history,
-        settings: settings,
-        historyRepository: withOptional ? historyRepository : null,
-        settingsRepository: withOptional ? settingsRepository : null,
-        preferences: withOptional ? store ?? preferences : null,
-        offline: withOptional ? offline : null,
-        translate: withOptional ? translate : null,
-      );
+  LocalDataEraser eraser({
+    KeyValueStore? store,
+    bool withOptional = true,
+    PresetsCubit? presets,
+    GlossaryCubit? glossaries,
+    UsageTracker? usage,
+  }) => LocalDataEraser(
+    history: history,
+    settings: settings,
+    historyRepository: withOptional ? historyRepository : null,
+    settingsRepository: withOptional ? settingsRepository : null,
+    preferences: withOptional ? store ?? preferences : null,
+    offline: withOptional ? offline : null,
+    deleteOfflineFiles: withOptional ? () async => offlineFilesDeleted++ : null,
+    translate: withOptional ? translate : null,
+    translationRepository: withOptional ? translationRepository : null,
+    presets: presets,
+    glossaries: glossaries,
+    usage: usage,
+    speech: withOptional ? speech : null,
+    speechInput: withOptional ? speechInput : null,
+  );
 
   group(LocalDataEraser, () {
     test('summarizes what it deletes', () async {
@@ -156,9 +188,62 @@ void main() {
       );
       verify(() => settingsRepository.save(const AppSettings())).called(1);
       expect(preferences.values, isEmpty);
+      expect(offlineFilesDeleted, 1);
       verify(translate.clear).called(1);
       verify(() => history.search('')).called(1);
+      verify(translationRepository.clearCache).called(1);
+      verify(translationRepository.resetActiveInstance).called(1);
+      verify(speech.forgetLocalData).called(1);
+      verify(speechInput.forgetSettings).called(1);
     });
+
+    test(
+      'resets the in-memory copies, so nothing deleted is written back',
+      () async {
+        final presets = PresetsCubit(
+          repository: PresetsRepository(store: preferences),
+        );
+        final glossaries = GlossaryCubit(
+          repository: GlossaryRepository(store: preferences),
+        );
+        final usage = UsageTracker(store: preferences);
+        addTearDown(() async {
+          await presets.close();
+          await glossaries.close();
+          await usage.dispose();
+        });
+        await presets.load();
+        await presets.add(
+          name: 'Letters to my landlord',
+          options: const TranslationOptions(),
+        );
+        await glossaries.load();
+        await glossaries.create(name: 'Private terms');
+        await usage.record('p1', 100, 100);
+        expect(usage.snapshot.isEmpty, isFalse);
+
+        await eraser(
+          presets: presets,
+          glossaries: glossaries,
+          usage: usage,
+        ).erase();
+
+        expect(
+          presets.state.presets.map((preset) => preset.name),
+          isNot(contains('Letters to my landlord')),
+        );
+        expect(glossaries.state.glossaries, isEmpty);
+        expect(usage.snapshot.isEmpty, isTrue);
+        // The next change writes only what is left.
+        await presets.add(name: 'New', options: const TranslationOptions());
+        await glossaries.create(name: 'New glossary');
+        await usage.record('p2', 1, 1);
+        final stored = preferences.values.values.join();
+        expect(stored, isNot(contains('Letters to my landlord')));
+        expect(stored, isNot(contains('Private terms')));
+        expect(stored, isNot(contains('p1')));
+      },
+    );
 
     test('leaves stores alone that cannot be cleared', () async {
       final store = _PlainStore();
@@ -173,6 +258,7 @@ void main() {
 
       verify(history.deleteAll).called(1);
       verify(() => settings.update(any())).called(1);
+      expect(offlineFilesDeleted, 0);
     });
 
     test('tries every part and rethrows the first error', () async {
@@ -216,7 +302,48 @@ void main() {
       expect(found.preferences, same(preferences));
       expect(found.settingsRepository, isNull);
       expect(found.offline, isNull);
+      expect(found.deleteOfflineFiles, isNull);
       expect(found.translate, isNull);
+      expect(found.translationRepository, isNull);
+      expect(found.presets, isNull);
+      expect(found.usage, isNull);
+      expect(found.speech, isNull);
+    });
+
+    testWidgets('of deletes the models folder where the engine runs', (
+      tester,
+    ) async {
+      late LocalDataEraser found;
+      await tester.pumpWidget(
+        MultiRepositoryProvider(
+          providers: [
+            RepositoryProvider<OfflineTranslator>.value(value: offline),
+            RepositoryProvider<TranslationRepository>.value(
+              value: translationRepository,
+            ),
+            RepositoryProvider<SpeechService>.value(value: speech),
+            RepositoryProvider<SpeechInputService>.value(value: speechInput),
+          ],
+          child: MultiBlocProvider(
+            providers: [
+              BlocProvider<HistoryCubit>.value(value: history),
+              BlocProvider<SettingsCubit>.value(value: settings),
+            ],
+            child: Builder(
+              builder: (context) {
+                found = LocalDataEraser.of(context);
+                return const SizedBox();
+              },
+            ),
+          ),
+        ),
+      );
+
+      expect(found.offline, same(offline));
+      expect(found.deleteOfflineFiles, isNotNull);
+      expect(found.translationRepository, same(translationRepository));
+      expect(found.speech, same(speech));
+      expect(found.speechInput, same(speechInput));
     });
   });
 

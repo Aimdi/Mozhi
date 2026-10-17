@@ -75,6 +75,23 @@ Future<OfflineTranslator> createBergamotOfflineTranslator({
   }
 }
 
+/// Deletes the offline models folder (`<support>/bergamot`, see
+/// [offlineModelsFolder]) with everything in it: models, partial downloads
+/// and leftovers of interrupted installs. Delete the languages through the
+/// translator first ([OfflineTranslator.deleteLanguage]), so that it
+/// releases the models it has loaded. Throws when the folder cannot be
+/// deleted.
+Future<void> deleteOfflineModelFiles({
+  Future<Directory> Function() supportDirectory =
+      getApplicationSupportDirectory,
+}) async {
+  final support = await supportDirectory();
+  final folder = Directory(
+    '${support.path}${Platform.pathSeparator}$offlineModelsFolder',
+  );
+  if (folder.existsSync()) await folder.delete(recursive: true);
+}
+
 Future<void> _cleanUp(BergamotTranslator translator) async {
   try {
     await translator.models.cleanUp();

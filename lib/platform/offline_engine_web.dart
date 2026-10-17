@@ -5,3 +5,6 @@ import 'package:translation_repository/translation_repository.dart';
 /// available (see `offline_engine_io.dart` for the app).
 Future<OfflineTranslator> createOfflineTranslator() async =>
     const UnavailableOfflineTranslator();
+
+/// Nothing to delete: a browser keeps no offline models.
+Future<void> deleteOfflineModelFiles() async {}

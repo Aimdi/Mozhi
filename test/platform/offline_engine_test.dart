@@ -229,6 +229,27 @@ void main() {
     });
   });
 
+  group('deleteOfflineModelFiles', () {
+    test('deletes the whole models folder', () async {
+      final models = Directory('${support.path}/$offlineModelsFolder');
+      File('${models.path}/models/.downloads/de-en/model.part')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('partial');
+      final other = File('${support.path}/other.txt')..writeAsStringSync('x');
+
+      await deleteOfflineModelFiles(supportDirectory: () async => support);
+
+      expect(models.existsSync(), isFalse);
+      expect(other.existsSync(), isTrue);
+    });
+
+    test('does nothing without the folder', () async {
+      await deleteOfflineModelFiles(supportDirectory: () async => support);
+
+      expect(support.existsSync(), isTrue);
+    });
+  });
+
   group('createOfflineTranslator', () {
     test('falls back to the unavailable engine on a desktop host', () async {
       // No path_provider implementation in unit tests.

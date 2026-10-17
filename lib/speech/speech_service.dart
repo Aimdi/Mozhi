@@ -626,6 +626,23 @@ class SpeechService {
     await _device.stop();
   }
 
+  /// Stops playback and forgets what this service keeps in memory: the
+  /// cached clips (spoken text), the last utterance ([lastUtterance]) and
+  /// the loaded [settings] and [preferDeviceVoice], which read as the
+  /// defaults until loaded again. Used after the stored data was deleted
+  /// ("Delete all local data"), so nothing of it is played or written back.
+  Future<void> forgetLocalData() async {
+    _cache.clear();
+    _last = null;
+    _lastConsent = null;
+    _mozhi = null;
+    _settings = null;
+    _settingsLoad = null;
+    _preferDevice = null;
+    _preferDeviceLoad = null;
+    await stop();
+  }
+
   /// Stops playback and releases the audio output and device engine. The
   /// service cannot be used afterwards.
   Future<void> dispose() async {

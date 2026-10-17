@@ -138,6 +138,14 @@ class SpeechInputService {
     }
   }
 
+  /// Forgets the loaded preferences ("Delete all local data" removed the
+  /// stored ones): [preferOnDevice] is back to the default until
+  /// [loadSettings] reads the store again.
+  void forgetSettings() {
+    _settingsLoading = null;
+    if (!_disposed) _preferOnDevice.value = false;
+  }
+
   /// Persists the on-device preference.
   Future<void> setPreferOnDevice({required bool value}) async {
     _settingsLoading ??= Future.value();

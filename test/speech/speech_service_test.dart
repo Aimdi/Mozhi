@@ -315,6 +315,30 @@ void main() {
       );
     });
 
+    group('forgetLocalData', () {
+      test('drops cached clips, the last utterance and the settings', () async {
+        await service.toggle(id: 'a', text: 'Hi', languageCode: 'en');
+        expect(service.lastUtterance, isNotNull);
+        await service.setSpeechRate(1.3);
+        await service.setPreferDeviceVoice(enabled: true);
+        // "Delete all local data" empties the store.
+        await store.delete(SpeechService.settingsKey);
+        await store.delete(SpeechService.preferDeviceKey);
+
+        await service.forgetLocalData();
+
+        expect(service.current, isNull);
+        expect(service.lastUtterance, isNull);
+        expect(service.settings, const SpeechSettings());
+        expect(service.preferDeviceVoice, isFalse);
+        expect(await service.loadSettings(), const SpeechSettings());
+        expect(await service.loadPreferDeviceVoice(), isFalse);
+        await service.toggle(id: 'a', text: 'Hi', languageCode: 'en');
+        verify(() => repository.textToSpeech(text: 'Hi', languageCode: 'en'))
+            .called(2);
+      });
+    });
+
     group('cache', () {
       test('reuses clips for the same language and text', () async {
         await service.toggle(id: 'a', text: 'Hi', languageCode: 'en');

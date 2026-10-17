@@ -198,32 +198,6 @@ void main() {
         });
       }
 
-      testWidgets('explains offline languages missing from the build', (
-        tester,
-      ) async {
-        debugDefaultTargetPlatformOverride = TargetPlatform.android;
-        debugOfflineEngineIncludedOverride = false;
-        await pump(tester);
-        expect(SettingsView.offlineSupported, isFalse);
-        final tile = tester.widget<ListTile>(
-          find.ancestor(
-            of: find.text('Offline languages'),
-            matching: find.byType(ListTile),
-          ),
-        );
-        expect(tile.enabled, isFalse);
-        expect(tile.onTap, isNull);
-        expect(
-          find.text(
-            'Not included in this build: it needs Google ML Kit, which is '
-            'not free software',
-          ),
-          findsOneWidget,
-        );
-        debugOfflineEngineIncludedOverride = null;
-        debugDefaultTargetPlatformOverride = null;
-      });
-
       for (final platform in [
         TargetPlatform.linux,
         TargetPlatform.macOS,
