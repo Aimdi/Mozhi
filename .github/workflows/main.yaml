@@ -244,12 +244,12 @@ jobs:
           entries=$(unzip -l "$apk")
           failed=0
           for abi in arm64-v8a armeabi-v7a x86_64; do
-            if ! printf '%s\n' "$entries" | grep -q "lib/$abi/libmozhi_bergamot\.so"; then
+            if ! grep -q "lib/$abi/libmozhi_bergamot\.so" <<< "$entries"; then
               echo "::error::$apk has no lib/$abi/libmozhi_bergamot.so"
               failed=1
             fi
           done
-          if printf '%s\n' "$entries" | grep -q 'libc++_shared\.so'; then
+          if grep -q 'libc++_shared\.so' <<< "$entries"; then
             echo "::error::$apk contains libc++_shared.so"
             failed=1
           fi
@@ -678,7 +678,7 @@ jobs:
             fi
             for name in abi_version version model_create model_destroy \
               translate translate_pivot free_string last_error; do
-              if ! printf '%s\n' "$exports" | grep -qx "mozhi_bergamot_$name"; then
+              if ! grep -qx "mozhi_bergamot_$name" <<< "$exports"; then
                 echo "::error::$abi does not export mozhi_bergamot_$name"
                 failed=1
               fi
