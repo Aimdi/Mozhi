@@ -28,7 +28,7 @@ a CI or release build.
 | CMake (Android SDK package) | 3.22.1 | `CMAKE_VERSION` in both workflows; `externalNativeBuild.cmake.version` in the same `build.gradle` |
 | Android Gradle Plugin | 8.12.0 | `android/settings.gradle.kts`; the plugin's `build.gradle` (`classpath`) |
 | Kotlin | 2.4.21 | `android/settings.gradle.kts`; `kotlin-stdlib` in `android/app/build.gradle.kts` |
-| Gradle | 9.8.1 | `android/gradle/wrapper/gradle-wrapper.properties` (Flutter writes `gradlew` during the build) |
+| Gradle | 9.5.1 | `android/gradle/wrapper/gradle-wrapper.properties` (Flutter writes `gradlew` during the build) |
 | compileSdk / minSdk | 36 / 24 | Flutter's defaults (`flutter.compileSdkVersion`, `flutter.minSdkVersion`); the engine plugin sets the same explicitly |
 
 CI runs on `ubuntu-latest`, which isn't pinned (GitHub moves it to

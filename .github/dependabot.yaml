@@ -60,3 +60,8 @@ updates:
       gradle-minor-patch:
         patterns: ["*"]
         update-types: ["minor", "patch"]
+    ignore:
+      # Gradle 9.6+ removed an internal API the Android Gradle Plugin 8
+      # uses; move to AGP 9 first (docs/release.md).
+      - dependency-name: "gradle-wrapper"
+        versions: [">=9.6.0"]

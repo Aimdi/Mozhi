@@ -38,8 +38,11 @@ Open items as of 17 October 2026. No tag or GitHub release exists yet.
       only runs on tags, so the new `action-gh-release` (v3) and
       `download-artifact` (v8) are first exercised by the
       [pre-release dry run](#checklist) (step 4).
-- [x] **Gradle and Kotlin** (Dependabot #11): Gradle 9.8.1 and Kotlin
-      2.4.21. Flutter warns that support for Gradle 9.0 ends soon.
+- [x] **Gradle and Kotlin** (Dependabot #11): Gradle 9.5.1 and Kotlin
+      2.4.21. Flutter warns that support for Gradle 9.0 ends soon. Gradle
+      9.6 and later need the Android Gradle Plugin 9: AGP 8.12 uses a
+      Gradle internal API that 9.6 removed (`InternalProblems`), so 9.8.1
+      from #11 fails to apply the Android plugin.
 - [ ] **Android Gradle Plugin 9** (Dependabot #12) is open: Flutter warns
       that support for AGP 8.12 ends soon, but AGP 9 is a migration
       (built-in Kotlin); `record` stays on 6.x until then (see
