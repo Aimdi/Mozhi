@@ -101,8 +101,10 @@ Dev dependencies (not shipped):
 | `bloc_lint` | 0.4.3 | MIT | Bloc lint rules. |
 | `bloc_test` | 10.0.0 | MIT | Tests for Cubits. |
 | `bloc_tools` | 0.1.0-dev.25 | MIT | `bloc lint` command used by CI. |
+| `crypto` | 3.0.7 | BSD-3-Clause | SHA-256 checks of model downloads. |
 | `flutter_test` | Flutter 3.47.7 (SDK) | BSD-3-Clause | Widget and unit tests. |
 | `mocktail` | 1.0.5 | MIT | Mocks in tests. |
+| `path` | 1.9.1 | BSD-3-Clause | Path handling for the model store. |
 | `very_good_analysis` | 11.0.0 | MIT | Lint rules. |
 
 ### Packages (`packages/*/pubspec.yaml`), runtime
@@ -147,7 +149,7 @@ Dev dependencies (not shipped):
 | `com.google.mlkit:text-recognition` | 16.0.1 | **Proprietary** (ML Kit terms; sends usage metrics to Google) | The OCR SDK the plugin pulls in, with Play services and data transport. |
 | `text-recognition-chinese`, `text-recognition-devanagari`, `text-recognition-japanese`, `text-recognition-korean` | 16.0.1 | **Proprietary** (ML Kit terms) | Bundled script models (the plugin declares them compileOnly). |
 
-### Offline engine (`libmozhi_bergamot.so`): submodules
+### Offline translation (`libmozhi_bergamot.so`): submodules
 
 | Component | Source | Commit | Licence | Why |
 | --- | --- | --- | --- | --- |
@@ -160,6 +162,19 @@ Dev dependencies (not shipped):
 | `ruy` | `translations/inference/marian-fork/src/3rd_party/ruy` | `2d950b3bfa7e` | Apache-2.0 | int8 matrix multiply on ARM, float everywhere. |
 | `simd_utils` | `translations/inference/marian-fork/src/3rd_party/simd_utils` | `d0793d86aea9` | BSD-2-Clause | SSE intrinsics on NEON (ARM). |
 | `cpuinfo` | `translations/inference/marian-fork/src/3rd_party/ruy/third_party/cpuinfo` | `5916273f79a2` | BSD-2-Clause | CPU feature detection for ruy. |
+
+### Text recognition (`libmozhi_tesseract.so`): submodules
+
+| Component | Source | Commit | Licence | Why |
+| --- | --- | --- | --- | --- |
+| `leptonica` | https://github.com/DanBloomberg/leptonica | `13275a278eb5` | BSD-2-Clause (© 2001-2020 Leptonica); its red-black tree (`rbtree.c`) is derived from public-domain (CC0 1.0) code (notices; not checked out) | Image processing for Tesseract (thresholding, scaling); no image codecs. |
+| `tesseract` | https://github.com/tesseract-ocr/tesseract | `db0ec62f81b0` | Apache-2.0 | Tesseract OCR: the LSTM text recognizer and layout analysis. |
+
+### Offline voice input (`libmozhi_whisper.so`): submodules
+
+| Component | Source | Commit | Licence | Why |
+| --- | --- | --- | --- | --- |
+| `whisper.cpp` | https://github.com/ggml-org/whisper.cpp | `d1be6fde11ac` | MIT | whisper.cpp and ggml: speech recognition on the CPU. |
 
 <!-- END list_dependencies.py -->
 

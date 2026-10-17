@@ -49,6 +49,13 @@ END = "<!-- END list_dependencies.py -->"
 ENGINE = Path("packages/bergamot_translator")
 NATIVE = ENGINE / "native"
 NOTICES = NATIVE / "THIRD_PARTY_NOTICES.md"
+# Every package with native sources (git submodules under
+# <package>/native/third_party), with the library it builds.
+NATIVE_ENGINES = {
+    ENGINE: "Offline translation (`libmozhi_bergamot.so`)",
+    Path("packages/tesseract_ocr"): "Text recognition (`libmozhi_tesseract.so`)",
+    Path("packages/whisper_speech"): "Offline voice input (`libmozhi_whisper.so`)",
+}
 FETCH_SCRIPT = ENGINE / "tool" / "fetch_native_deps.sh"
 PLAY_SCRIPT = Path("tool/play_prepare.sh")
 CI_WORKFLOW = Path(".github/workflows/main.yaml")
@@ -116,6 +123,9 @@ PURPOSE = {
     "packages/bergamot_translator/native/third_party/translations": "mozilla/translations; `inference/` is bergamot-translator and its Marian fork, the engine itself.",
     "packages/bergamot_translator/native/third_party/pcre2": "Regular expressions for ssplit (sentence splitting).",
     "packages/bergamot_translator/native/third_party/cld2": "Compact Language Detector 2: on-device language identification.",
+    "packages/tesseract_ocr/native/third_party/tesseract": "Tesseract OCR: the LSTM text recognizer and layout analysis.",
+    "packages/tesseract_ocr/native/third_party/leptonica": "Image processing for Tesseract (thresholding, scaling); no image codecs.",
+    "packages/whisper_speech/native/third_party/whisper.cpp": "whisper.cpp and ggml: speech recognition on the CPU.",
     "inference/3rd_party/ssplit-cpp": "Sentence splitter.",
     "inference/marian-fork/src/3rd_party/sentencepiece": "Tokeniser (SentencePiece vocabularies).",
     "inference/marian-fork/src/3rd_party/intgemm": "int8 matrix multiply on x86_64.",
@@ -451,21 +461,33 @@ def nested_submodules() -> list[tuple[str, str]]:
     return pairs
 
 
-def notices() -> list[tuple[str, str, str]]:
+def notices(native: Path = NATIVE) -> list[tuple[str, str, str]]:
+    path = native / "THIRD_PARTY_NOTICES.md"
+    if not (REPO_ROOT / path).is_file():
+        return []
     rows = []
-    for line in read(NOTICES).splitlines():
+    for line in read(path).splitlines():
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
         if len(cells) == 3 and cells[0] not in ("Component", "---"):
             rows.append((cells[0], cells[1], cells[2]))
     return rows
 
 
+def native_dir_of(directory: Path) -> Path:
+    """The `native/` directory of the engine package [directory] is in."""
+    for package in NATIVE_ENGINES:
+        if directory.is_relative_to(package / "native"):
+            return package / "native"
+    return NATIVE
+
+
 def notice_for(directory: Path) -> str | None:
-    """The licence THIRD_PARTY_NOTICES.md gives for a checkout. Its "Where"
-    column holds a path suffix (`marian-fork/src/3rd_party/ruy`); the
-    mozilla/translations row is listed by its `inference` directory."""
-    full = directory.relative_to(NATIVE).as_posix()
-    for _, where, licence in notices():
+    """The licence the engine's THIRD_PARTY_NOTICES.md gives for a checkout.
+    Its "Where" column holds a path suffix (`marian-fork/src/3rd_party/ruy`);
+    the mozilla/translations row is listed by its `inference` directory."""
+    native = native_dir_of(directory)
+    full = directory.relative_to(native).as_posix()
+    for _, where, licence in notices(native):
         match = re.match(r"`([^`]+)`", where)
         if not match:
             continue
@@ -498,8 +520,18 @@ def native_licence(directory: Path) -> str:
 
 
 def native_section() -> list[str]:
+    out = []
+    for package, title in NATIVE_ENGINES.items():
+        out += engine_section(package, title)
+    return out
+
+
+def engine_section(package: Path, title: str) -> list[str]:
     rows = []
+    prefix = (package / "native").as_posix() + "/"
     for path, url in submodules():
+        if not path.startswith(prefix):
+            continue
         sha = gitlink(Path("."), path) or "?"
         rows.append(
             [
@@ -510,8 +542,10 @@ def native_section() -> list[str]:
                 purpose(path),
             ]
         )
+    if not rows:
+        return []
     translations = NATIVE / "third_party" / "translations"
-    for parent, path in nested_submodules():
+    for parent, path in nested_submodules() if package == ENGINE else []:
         parent_dir = translations / parent if parent else translations
         sha = gitlink(parent_dir, path) or "? (run fetch_native_deps.sh)"
         rel = (parent_dir / path).relative_to(translations).as_posix()
@@ -524,7 +558,7 @@ def native_section() -> list[str]:
                 purpose(path),
             ]
         )
-    out = ["", "### Offline engine (`libmozhi_bergamot.so`): submodules", ""]
+    out = ["", f"### {title}: submodules", ""]
     out += table(["Component", "Source", "Commit", "Licence", "Why"], rows)
     return out
 
