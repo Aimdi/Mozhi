@@ -59,6 +59,37 @@ void main() {
       expect(approved, _consent);
     });
 
+    for (final width in [360.0, 400.0]) {
+      testWidgets('fits a ${width.toInt()} dp wide screen', (tester) async {
+        tester.view
+          ..physicalSize = Size(width, 800)
+          ..devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+
+        await show(
+          tester,
+          const SpeechUnavailableException(
+            'fr',
+            cause: ConsentRequiredException(
+              kind: ConsentKind.pair,
+              destination: PublicInstanceDestination('mozhi.example.org'),
+              engineId: 'mozhi:google',
+              source: 'fr',
+              target: 'fr',
+            ),
+          ),
+          onListenOnline: (_) {},
+        );
+
+        expect(tester.takeException(), isNull);
+        expect(find.byType(SnackBarAction), findsOneWidget);
+        expect(
+          find.textContaining('mozhi.example.org can read it'),
+          findsOneWidget,
+        );
+      });
+    }
+
     testWidgets('without a callback it does not mention the instance', (
       tester,
     ) async {
