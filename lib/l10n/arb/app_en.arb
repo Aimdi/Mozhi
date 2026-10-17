@@ -96,10 +96,6 @@
   "@translateAiModelsHeader": {
     "description": "translateAiModelsHeader"
   },
-  "translateBadgeLocal": "Local",
-  "@translateBadgeLocal": {
-    "description": "translateBadgeLocal"
-  },
   "translateBadgeSelfHosted": "Self-hosted",
   "@translateBadgeSelfHosted": {
     "description": "translateBadgeSelfHosted"
@@ -256,10 +252,6 @@
   "@translateTranslateButton": {
     "description": "translateTranslateButton"
   },
-  "translateOutputHint": "Translation",
-  "@translateOutputHint": {
-    "description": "translateOutputHint"
-  },
   "translateOutputLabel": "Translation",
   "@translateOutputLabel": {
     "description": "translateOutputLabel"
@@ -398,10 +390,6 @@
         "type": "String"
       }
     }
-  },
-  "translateExtrasError": "Couldn't load this. Try again.",
-  "@translateExtrasError": {
-    "description": "translateExtrasError"
   },
   "translateDictionary": "Dictionary",
   "@translateDictionary": {
@@ -968,10 +956,6 @@
   "@settingsProvidersNone": {
     "description": "settingsProvidersNone"
   },
-  "settingsSectionTranslation": "Translation",
-  "@settingsSectionTranslation": {
-    "description": "settingsSectionTranslation"
-  },
   "settingsInstantTranslate": "Instant translate",
   "@settingsInstantTranslate": {
     "description": "settingsInstantTranslate"
@@ -1052,14 +1036,6 @@
   "@settingsDynamicColorSubtitle": {
     "description": "settingsDynamicColorSubtitle"
   },
-  "settingsPureBlack": "Pure black",
-  "@settingsPureBlack": {
-    "description": "settingsPureBlack"
-  },
-  "settingsPureBlackSubtitle": "True black backgrounds in dark mode, easier on OLED screens",
-  "@settingsPureBlackSubtitle": {
-    "description": "settingsPureBlackSubtitle"
-  },
   "settingsAccentColor": "Accent color",
   "@settingsAccentColor": {
     "description": "settingsAccentColor"
@@ -1080,14 +1056,6 @@
   "@settingsColorGreen": {
     "description": "settingsColorGreen"
   },
-  "settingsColorOlive": "Olive",
-  "@settingsColorOlive": {
-    "description": "settingsColorOlive"
-  },
-  "settingsColorAmber": "Amber",
-  "@settingsColorAmber": {
-    "description": "settingsColorAmber"
-  },
   "settingsColorOrange": "Orange",
   "@settingsColorOrange": {
     "description": "settingsColorOrange"
@@ -1103,10 +1071,6 @@
   "settingsColorPurple": "Purple",
   "@settingsColorPurple": {
     "description": "settingsColorPurple"
-  },
-  "settingsSectionData": "Data",
-  "@settingsSectionData": {
-    "description": "settingsSectionData"
   },
   "settingsExportHistory": "Export history",
   "@settingsExportHistory": {
@@ -1758,14 +1722,6 @@
   "@onboardingWelcomePrivacyNote": {
     "description": "onboardingWelcomePrivacyNote"
   },
-  "onboardingServiceTitle": "Choose a translation service",
-  "@onboardingServiceTitle": {
-    "description": "onboardingServiceTitle"
-  },
-  "onboardingServiceBody": "Mozhi instances are free community servers. Mozhi uses the first one in the list and falls back to the next if it is down.",
-  "@onboardingServiceBody": {
-    "description": "onboardingServiceBody"
-  },
   "onboardingServiceFindFastest": "Find the fastest public instance",
   "@onboardingServiceFindFastest": {
     "description": "onboardingServiceFindFastest"
@@ -1866,215 +1822,9 @@
       }
     }
   },
-  "onboardingAiTitle": "Add an AI translator",
-  "@onboardingAiTitle": {
-    "description": "onboardingAiTitle"
-  },
   "onboardingAiOptional": "Optional",
   "@onboardingAiOptional": {
     "description": "onboardingAiOptional"
-  },
-  "onboardingAiBody": "AI models translate more naturally and unlock extras:",
-  "@onboardingAiBody": {
-    "description": "onboardingAiBody"
-  },
-  "onboardingAiBenefitAlternatives": "Alternative translations",
-  "@onboardingAiBenefitAlternatives": {
-    "description": "onboardingAiBenefitAlternatives"
-  },
-  "onboardingAiBenefitInsights": "Word-by-word insights",
-  "@onboardingAiBenefitInsights": {
-    "description": "onboardingAiBenefitInsights"
-  },
-  "onboardingAiBenefitExplain": "Explanations of grammar and nuance",
-  "@onboardingAiBenefitExplain": {
-    "description": "onboardingAiBenefitExplain"
-  },
-  "onboardingAiBenefitProofread": "Proofreading",
-  "@onboardingAiBenefitProofread": {
-    "description": "onboardingAiBenefitProofread"
-  },
-  "onboardingAiBenefitStyles": "Custom styles, tone and formality",
-  "@onboardingAiBenefitStyles": {
-    "description": "onboardingAiBenefitStyles"
-  },
-  "onboardingAiPrivacy": "Cloud providers receive the text you translate. Local models keep everything on your own network.",
-  "@onboardingAiPrivacy": {
-    "description": "onboardingAiPrivacy"
-  },
-  "onboardingAiChooseProvider": "Choose a provider",
-  "@onboardingAiChooseProvider": {
-    "description": "onboardingAiChooseProvider"
-  },
-  "onboardingAiLocalBadge": "Local",
-  "@onboardingAiLocalBadge": {
-    "description": "onboardingAiLocalBadge"
-  },
-  "onboardingAiApiKey": "API key",
-  "@onboardingAiApiKey": {
-    "description": "onboardingAiApiKey"
-  },
-  "onboardingAiApiKeyOptional": "API key (optional)",
-  "@onboardingAiApiKeyOptional": {
-    "description": "onboardingAiApiKeyOptional"
-  },
-  "onboardingAiShowKey": "Show API key",
-  "@onboardingAiShowKey": {
-    "description": "onboardingAiShowKey"
-  },
-  "onboardingAiHideKey": "Hide API key",
-  "@onboardingAiHideKey": {
-    "description": "onboardingAiHideKey"
-  },
-  "onboardingAiGetKey": "Get a key",
-  "@onboardingAiGetKey": {
-    "description": "onboardingAiGetKey"
-  },
-  "onboardingAiKeyStorage": "Stored securely on this device only.",
-  "@onboardingAiKeyStorage": {
-    "description": "onboardingAiKeyStorage"
-  },
-  "onboardingAiBaseUrl": "Server address",
-  "@onboardingAiBaseUrl": {
-    "description": "onboardingAiBaseUrl"
-  },
-  "onboardingAiLanHint": "On a phone, use your computer's LAN IP, e.g. {example}",
-  "@onboardingAiLanHint": {
-    "placeholders": {
-      "example": {
-        "type": "String"
-      }
-    }
-  },
-  "onboardingAiBaseUrlHint": "e.g. https://llm.example.com/v1",
-  "@onboardingAiBaseUrlHint": {
-    "description": "onboardingAiBaseUrlHint"
-  },
-  "onboardingAiModel": "Model",
-  "@onboardingAiModel": {
-    "description": "onboardingAiModel"
-  },
-  "onboardingAiLoadModels": "Load models",
-  "@onboardingAiLoadModels": {
-    "description": "onboardingAiLoadModels"
-  },
-  "onboardingAiModelsFailed": "Could not load models: {error}",
-  "@onboardingAiModelsFailed": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
-  "onboardingAiRequired": "Required",
-  "@onboardingAiRequired": {
-    "description": "onboardingAiRequired"
-  },
-  "onboardingAiUrlInvalid": "Enter a valid http(s) address",
-  "@onboardingAiUrlInvalid": {
-    "description": "onboardingAiUrlInvalid"
-  },
-  "onboardingAiTest": "Test",
-  "@onboardingAiTest": {
-    "description": "onboardingAiTest"
-  },
-  "onboardingAiTesting": "Testing…",
-  "@onboardingAiTesting": {
-    "description": "onboardingAiTesting"
-  },
-  "onboardingAiTestOk": "It works! “Hello, world!” → {output}",
-  "@onboardingAiTestOk": {
-    "placeholders": {
-      "output": {
-        "type": "String"
-      }
-    }
-  },
-  "onboardingAiTestFailed": "Test failed: {error}",
-  "@onboardingAiTestFailed": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
-  "onboardingAiTestTimedOut": "Test failed: the provider took too long to answer.",
-  "@onboardingAiTestTimedOut": {
-    "description": "onboardingAiTestTimedOut"
-  },
-  "onboardingAiSave": "Save",
-  "@onboardingAiSave": {
-    "description": "onboardingAiSave"
-  },
-  "onboardingAiSaved": "{name} saved. You can pick it in the translator.",
-  "@onboardingAiSaved": {
-    "placeholders": {
-      "name": {
-        "type": "String"
-      }
-    }
-  },
-  "onboardingAiLater": "You can add or change AI providers any time in Settings.",
-  "@onboardingAiLater": {
-    "description": "onboardingAiLater"
-  },
-  "onboardingDoneTitle": "You are all set!",
-  "@onboardingDoneTitle": {
-    "description": "onboardingDoneTitle"
-  },
-  "onboardingDoneBody": "Here is how Mozhi is set up. You can change everything later in Settings.",
-  "@onboardingDoneBody": {
-    "description": "onboardingDoneBody"
-  },
-  "onboardingDoneService": "Translation service",
-  "@onboardingDoneService": {
-    "description": "onboardingDoneService"
-  },
-  "onboardingDoneServiceLatency": "{name} · {ms} ms",
-  "@onboardingDoneServiceLatency": {
-    "placeholders": {
-      "name": {
-        "type": "String"
-      },
-      "ms": {
-        "type": "int"
-      }
-    }
-  },
-  "onboardingDoneFallbacks": "{count, plural, =0{No fallback instances} =1{1 fallback instance} other{{count} fallback instances}}",
-  "@onboardingDoneFallbacks": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "onboardingDoneNoService": "No Mozhi instance configured",
-  "@onboardingDoneNoService": {
-    "description": "onboardingDoneNoService"
-  },
-  "onboardingDoneAi": "AI translator",
-  "@onboardingDoneAi": {
-    "description": "onboardingDoneAi"
-  },
-  "onboardingDoneAiValue": "{name} · {model}",
-  "@onboardingDoneAiValue": {
-    "placeholders": {
-      "name": {
-        "type": "String"
-      },
-      "model": {
-        "type": "String"
-      }
-    }
-  },
-  "onboardingDoneAiNone": "Not set up. You can add one in Settings.",
-  "@onboardingDoneAiNone": {
-    "description": "onboardingDoneAiNone"
-  },
-  "onboardingDonePrivacy": "Your history stays on this device. No analytics, ever.",
-  "@onboardingDonePrivacy": {
-    "description": "onboardingDonePrivacy"
   },
   "voiceInputStart": "Speak",
   "@voiceInputStart": {
@@ -2363,14 +2113,6 @@
   "@quickTranslateCommon": {
     "description": "quickTranslateCommon"
   },
-  "quickTranslateEngine": "Engine: {engine}",
-  "@quickTranslateEngine": {
-    "placeholders": {
-      "engine": {
-        "type": "String"
-      }
-    }
-  },
   "quickTranslateNoEngines": "No translation engine is available. Open the app to add a Mozhi instance or an AI provider.",
   "@quickTranslateNoEngines": {
     "description": "quickTranslateNoEngines"
@@ -2638,14 +2380,6 @@
   "presetsPickerManage": "Manage presets",
   "@presetsPickerManage": {
     "description": "presetsPickerManage"
-  },
-  "presetsPickerSelected": "{name}, selected",
-  "@presetsPickerSelected": {
-    "placeholders": {
-      "name": {
-        "type": "String"
-      }
-    }
   },
   "glossariesTitle": "Glossaries",
   "@glossariesTitle": {
@@ -3860,10 +3594,6 @@
       }
     }
   },
-  "documentsPreviewTitle": "Preview",
-  "@documentsPreviewTitle": {
-    "description": "documentsPreviewTitle"
-  },
   "documentsTabOriginal": "Original",
   "@documentsTabOriginal": {
     "description": "documentsTabOriginal"
@@ -3963,10 +3693,6 @@
   "settingsRunSetup": "Run setup again",
   "@settingsRunSetup": {
     "description": "settingsRunSetup"
-  },
-  "settingsRunSetupSubtitle": "Choose instances and AI providers step by step",
-  "@settingsRunSetupSubtitle": {
-    "description": "settingsRunSetupSubtitle"
   },
   "settingsInstancesPingSummary": "{online} of {total, plural, =1{1 instance} other{{total} instances}} reachable",
   "@settingsInstancesPingSummary": {
@@ -5513,10 +5239,6 @@
       }
     }
   },
-  "translateExtraTargetInsert": "Insert into input",
-  "@translateExtraTargetInsert": {
-    "description": "Unused (replaced by translateExtraTargetUseAsInput)."
-  },
   "translateExtraTargetPending": "Not translated yet",
   "@translateExtraTargetPending": {
     "description": "Shown on the card of an additional language that has not been translated into yet (the user has not pressed Translate)."
@@ -5888,10 +5610,6 @@
   "@translateEmptyShortcutsTip": {
     "description": "Tip in the empty output card on large screens"
   },
-  "translateMoreLanguages": "More languages",
-  "@translateMoreLanguages": {
-    "description": "Heading of the section with translations into extra target languages"
-  },
   "proofreadOptionsTitle": "Options",
   "@proofreadOptionsTitle": {
     "description": "proofreadOptionsTitle"
@@ -5911,10 +5629,6 @@
   "historyShowAll": "Show all translations",
   "@historyShowAll": {
     "description": "historyShowAll"
-  },
-  "settingsSectionTools": "Translation tools",
-  "@settingsSectionTools": {
-    "description": "settingsSectionTools"
   },
   "historyNewTranslation": "New translation",
   "@historyNewTranslation": {
