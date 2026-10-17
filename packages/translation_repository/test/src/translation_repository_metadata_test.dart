@@ -30,7 +30,7 @@ void main() {
       metadataStore: metadataStore ?? store,
       clock: () => now,
     );
-    created.metadataChanged.listen(changes.add);
+    allowNetwork(created).metadataChanged.listen(changes.add);
     return created;
   }
 
@@ -241,6 +241,7 @@ void main() {
         metadataMaxAge: const Duration(hours: 1),
         clock: () => now,
       );
+      allowNetwork(repository);
       configure(repository);
       storeEngines(instanceA, {
         'google': 'Google',
@@ -271,6 +272,7 @@ void main() {
         offline: FakeOfflineTranslator(),
         clock: () => now,
       );
+      allowNetwork(repository);
       configure(repository, instances: const [], providers: [claudeConfig]);
 
       final engines = await repository.getEngines();
@@ -619,8 +621,10 @@ void main() {
   group('without a store', () {
     test('nothing is persisted and nothing is announced', () async {
       repository.dispose();
-      repository = TranslationRepository(
-        mozhiClientFactory: (uri) => mozhi[uri.toString()]!,
+      repository = allowNetwork(
+        TranslationRepository(
+          mozhiClientFactory: (uri) => mozhi[uri.toString()]!,
+        ),
       );
       repository.metadataChanged.listen(changes.add);
       configure(repository);

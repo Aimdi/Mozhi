@@ -54,6 +54,7 @@ void main() {
       offline: FakeOfflineTranslator(),
       snapshotInterval: Duration.zero,
     );
+    allowNetwork(repository);
   });
 
   /// Replaces the repository with one that splits AI input longer than
@@ -68,6 +69,7 @@ void main() {
       aiChunkThreshold: cloud,
       localAiChunkThreshold: local,
     );
+    allowNetwork(repository);
     configure();
   }
 

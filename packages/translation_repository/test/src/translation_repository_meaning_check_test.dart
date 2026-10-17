@@ -45,6 +45,7 @@ void main() {
           instances: const [instanceA],
           providers: const [claudeConfig, gemmaConfig, deeplConfig],
         );
+    allowNetwork(repository);
   });
 
   void stubChat(MockLlmClient client, List<String> outputs) {

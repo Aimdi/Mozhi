@@ -44,6 +44,7 @@ void main() {
             cloudGemmaConfig,
           ],
         );
+    allowNetwork(repository);
     addTearDown(repository.dispose);
     return repository;
   }

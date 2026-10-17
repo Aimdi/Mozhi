@@ -1,5 +1,6 @@
 import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
+import 'package:translation_repository/src/models/data_destination.dart';
 
 const _list = ListEquality<Object?>();
 
@@ -54,6 +55,7 @@ class TranslationResult {
     this.fromCache = false,
     this.detectionUncertain = false,
     this.detectedAlternatives = const [],
+    this.destination,
   });
 
   final String engineId;
@@ -89,6 +91,12 @@ class TranslationResult {
   /// preferred). Never contains [detectedSource].
   final List<String> detectedAlternatives;
 
+  /// Where the text was sent to produce this result (set by
+  /// `TranslationRepository` for every result: the Mozhi instance that
+  /// actually answered after a failover; a cached result keeps the
+  /// destination it was produced with). Null for results built elsewhere.
+  final DataDestination? destination;
+
   TranslationResult copyWith({
     String? text,
     bool? isComplete,
@@ -97,6 +105,7 @@ class TranslationResult {
     bool? fromCache,
     bool? detectionUncertain,
     List<String>? detectedAlternatives,
+    DataDestination? destination,
   }) => TranslationResult(
     engineId: engineId,
     engineName: engineName,
@@ -112,6 +121,7 @@ class TranslationResult {
     fromCache: fromCache ?? this.fromCache,
     detectionUncertain: detectionUncertain ?? this.detectionUncertain,
     detectedAlternatives: detectedAlternatives ?? this.detectedAlternatives,
+    destination: destination ?? this.destination,
   );
 
   @override
@@ -131,7 +141,8 @@ class TranslationResult {
           other.elapsed == elapsed &&
           other.fromCache == fromCache &&
           other.detectionUncertain == detectionUncertain &&
-          _list.equals(other.detectedAlternatives, detectedAlternatives);
+          _list.equals(other.detectedAlternatives, detectedAlternatives) &&
+          other.destination == destination;
 
   @override
   int get hashCode => Object.hash(
@@ -149,6 +160,7 @@ class TranslationResult {
     fromCache,
     detectionUncertain,
     _list.hash(detectedAlternatives),
+    destination,
   );
 
   @override
@@ -156,7 +168,8 @@ class TranslationResult {
       'TranslationResult($engineId, complete: $isComplete, '
       'detected: $detectedSource'
       '${detectionUncertain ? ' (uncertain: $detectedAlternatives)' : ''}'
-      '${fromCache ? ', cached' : ''}, text: $text)';
+      '${fromCache ? ', cached' : ''}'
+      '${destination == null ? '' : ', to: $destination'}, text: $text)';
 }
 
 /// A result (or failure) from compare mode.

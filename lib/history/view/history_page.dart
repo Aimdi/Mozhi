@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:ui' show SemanticsInputType;
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
+import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/core/undo_snack_bar.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
@@ -29,6 +31,9 @@ class HistoryPage extends StatelessWidget {
 
 class HistoryView extends StatefulWidget {
   const new({super.key});
+
+  /// Key of the search field.
+  static const searchFieldKey = Key('history_search');
 
   @override
   State<HistoryView> createState() => _HistoryViewState();
@@ -100,6 +105,9 @@ class _HistoryViewState extends State<HistoryView>
     final saveHistory = context.select<SettingsCubit, bool>(
       (cubit) => cubit.state.saveHistory,
     );
+    final incognito = context.select<SettingsCubit, bool>(
+      (cubit) => cubit.state.incognito,
+    );
     final maxAge = context.select<SettingsCubit, Duration?>(
       (cubit) => cubit.state.historyRetention.maxAge,
     );
@@ -154,24 +162,12 @@ class _HistoryViewState extends State<HistoryView>
                   padding: padding.copyWith(bottom: 8),
                   sliver: SliverList.list(
                     children: [
-                      if (!saveHistory) const _HistoryDisabledBanner(),
-                      SearchBar(
+                      if (incognito || !saveHistory)
+                        _HistoryPausedBanner(incognito: incognito),
+                      _HistorySearchField(
                         controller: _search,
-                        hintText: l10n.historySearchHint,
-                        elevation: const WidgetStatePropertyAll(0),
-                        leading: const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 8),
-                          child: Icon(Icons.search),
-                        ),
-                        trailing: [
-                          if (_search.text.isNotEmpty)
-                            IconButton(
-                              tooltip: l10n.historyClearSearch,
-                              icon: const Icon(Icons.close),
-                              onPressed: _clearSearch,
-                            ),
-                        ],
                         onChanged: _onSearch,
+                        onClear: _clearSearch,
                       ),
                     ],
                   ),
@@ -238,6 +234,35 @@ class _HistoryViewState extends State<HistoryView>
           child: Center(
             child: CircularProgressIndicator(
               semanticsLabel: l10n.historyLoading,
+            ),
+          ),
+        ),
+      ];
+    }
+    if (state.status == HistoryStatus.unreadable) {
+      return [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: EmptyStateView(
+            icon: Icons.lock_outline,
+            tone: EmptyStateTone.error,
+            title: l10n.historyUnreadableTitle,
+            body: l10n.historyUnreadableBody,
+            action: Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.tonalIcon(
+                  onPressed: () => context.read<HistoryCubit>().load(),
+                  icon: const Icon(Icons.refresh),
+                  label: Text(l10n.commonRetry),
+                ),
+                TextButton(
+                  onPressed: () => _confirmStartOver(context),
+                  child: Text(l10n.historyUnreadableStartOver),
+                ),
+              ],
             ),
           ),
         ),
@@ -361,6 +386,32 @@ class _HistoryViewState extends State<HistoryView>
     ];
   }
 
+  /// Asks before setting the unreadable history aside for a new one.
+  Future<void> _confirmStartOver(BuildContext context) async {
+    final l10n = context.l10n;
+    final cubit = context.read<HistoryCubit>();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        icon: const Icon(Icons.restart_alt),
+        title: Text(l10n.historyUnreadableConfirmTitle),
+        content: Text(l10n.historyUnreadableConfirmBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l10n.commonCancel),
+          ),
+          TextButton(
+            key: const Key('history_start_over_confirm'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(l10n.historyUnreadableStartOver),
+          ),
+        ],
+      ),
+    );
+    if (confirmed ?? false) await cubit.discardUnreadable();
+  }
+
   /// The tile for [entry], reused while the entry is unchanged so that a
   /// state change (a favorite toggled, an entry added, a search) only
   /// rebuilds the tiles whose entries changed.
@@ -424,8 +475,85 @@ class _RetentionNote extends StatelessWidget {
   }
 }
 
-class _HistoryDisabledBanner extends StatelessWidget {
-  const new();
+/// The history search field: a pill like [SearchBar], with keyboard
+/// learning off while incognito ([imeLearningAllowed]), which [SearchBar]
+/// cannot do.
+class _HistorySearchField extends StatelessWidget {
+  const new({
+    required this.controller,
+    required this.onChanged,
+    required this.onClear,
+  });
+
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    const none = InputBorder.none;
+    return Material(
+      color: colors.surfaceContainerHigh,
+      shape: const StadiumBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 56),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Icon(Icons.search, color: colors.onSurface),
+              ),
+              Expanded(
+                child: Semantics(
+                  inputType: SemanticsInputType.search,
+                  child: TextField(
+                    key: HistoryView.searchFieldKey,
+                    controller: controller,
+                    onChanged: onChanged,
+                    enableIMEPersonalizedLearning: imeLearningAllowed(context),
+                    textInputAction: TextInputAction.search,
+                    style: theme.textTheme.bodyLarge,
+                    decoration: InputDecoration(
+                      hintText: l10n.historySearchHint,
+                      hintStyle: theme.textTheme.bodyLarge?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
+                      filled: false,
+                      border: none,
+                      enabledBorder: none,
+                      focusedBorder: none,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                  ),
+                ),
+              ),
+              if (controller.text.isNotEmpty)
+                IconButton(
+                  tooltip: l10n.historyClearSearch,
+                  icon: Icon(Icons.close, color: colors.onSurfaceVariant),
+                  onPressed: onClear,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// "History is paused": incognito is on ([incognito]) or saving history is
+/// off; the action turns that off.
+class _HistoryPausedBanner extends StatelessWidget {
+  const new({required this.incognito});
+
+  final bool incognito;
 
   @override
   Widget build(BuildContext context) {
@@ -433,47 +561,74 @@ class _HistoryDisabledBanner extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final palette = AppPalette.of(context);
+    final settings = context.read<SettingsCubit>();
+    final (icon, body, action, onPressed) = incognito
+        ? (
+            Icons.visibility_off_outlined,
+            l10n.historyPausedIncognito,
+            l10n.historyTurnOffIncognito,
+            () => settings.setIncognito(enabled: false),
+          )
+        : (
+            Icons.history_toggle_off,
+            l10n.historyDisabledBanner,
+            l10n.historyTurnOn,
+            () => settings.setSaveHistory(enabled: true),
+          );
     // A flat, hairline-bordered notice with a pill action.
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          border: Border.all(color: palette.hairline),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Padding(
-          padding: const EdgeInsetsDirectional.fromSTEB(16, 14, 12, 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.history_toggle_off, color: colors.onSurface),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      l10n.historyDisabledBanner,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: colors.onSurface,
-                        fontWeight: FontWeight.w600,
+      child: Semantics(
+        container: true,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            border: Border.all(color: palette.hairline),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(16, 14, 12, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(icon, color: colors.onSurface),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            l10n.historyPausedTitle,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              color: colors.onSurface,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            body,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: colors.onSurface,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Align(
-                alignment: AlignmentDirectional.centerEnd,
-                child: FilledButton(
-                  style: FilledButton.styleFrom(shape: const StadiumBorder()),
-                  onPressed: () => context.read<SettingsCubit>().setSaveHistory(
-                    enabled: true,
-                  ),
-                  child: Text(l10n.historyTurnOn),
+                  ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 8),
+                Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(shape: const StadiumBorder()),
+                    onPressed: onPressed,
+                    child: Text(action),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

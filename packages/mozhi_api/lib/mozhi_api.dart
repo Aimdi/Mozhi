@@ -8,3 +8,4 @@ library;
 export 'src/models/models.dart';
 export 'src/mozhi_api_client.dart';
 export 'src/mozhi_api_exception.dart';
+export 'src/mozhi_public_instance.dart';

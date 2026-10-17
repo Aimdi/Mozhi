@@ -123,26 +123,36 @@ class MtEngines {
 
   Future<List<DeeplLanguage>> _deeplList(
     AiProviderConfig config,
-    DeeplLanguageType type,
-  ) => _cached(
+    DeeplLanguageType type, {
+    Object Function()? unlessCached,
+  }) => _cached(
     _deeplLanguages,
     '${connectionKey(config)}$_separator${type.name}',
     () => _deepl(config).languages(type: type),
+    unlessCached: unlessCached,
   );
 
-  Future<List<LibreLanguage>> _libreList(AiProviderConfig config) => _cached(
+  Future<List<LibreLanguage>> _libreList(
+    AiProviderConfig config, {
+    Object Function()? unlessCached,
+  }) => _cached(
     _libreLanguages,
     '${connectionKey(config)}$_separator',
     () => _libre(config).languages(),
+    unlessCached: unlessCached,
   );
 
+  /// The cached future for [key], else [load]'s (cached until it fails).
+  /// With [unlessCached], nothing is loaded: its result is thrown instead.
   static Future<T> _cached<T>(
     Map<String, Future<T>> cache,
     String key,
-    Future<T> Function() load,
-  ) {
+    Future<T> Function() load, {
+    Object Function()? unlessCached,
+  }) {
     final cached = cache[key];
     if (cached != null) return cached;
+    if (unlessCached != null) return Future.error(unlessCached());
     final future = Future.sync(load);
     cache[key] = future;
     unawaited(
@@ -159,17 +169,27 @@ class MtEngines {
   /// Source languages: [Language.auto] (both services detect the language)
   /// followed by the service's languages, with app codes (`EN` -> `en`,
   /// `ZH` -> `zh-CN`, `pb` -> `pt-BR`, `nb` -> `no`).
-  Future<List<Language>> sourceLanguages(AiProviderConfig config) async {
+  ///
+  /// With [unlessCached], a list that is not in memory is not loaded: the
+  /// error it returns is thrown instead (no request is made).
+  Future<List<Language>> sourceLanguages(
+    AiProviderConfig config, {
+    Object Function()? unlessCached,
+  }) async {
     final languages = switch (config.service) {
       MtService.deepl => [
         for (final language in await _deeplList(
           config,
           DeeplLanguageType.source,
+          unlessCached: unlessCached,
         ))
           _language(appCodeFromDeepl(language.code), language.name),
       ],
       MtService.libreTranslate => [
-        for (final language in await _libreList(config))
+        for (final language in await _libreList(
+          config,
+          unlessCached: unlessCached,
+        ))
           _language(appCodeFromLibre(language.code), language.name),
       ],
       MtService.llm => throw _notMt(config),
@@ -180,16 +200,23 @@ class MtEngines {
   /// Target languages with app codes (`EN-US` -> `en-US`, `ZH-HANT` ->
   /// `zh-TW`, `PT-BR` -> `pt-BR`). LibreTranslate: every code some language
   /// can be translated into (all languages on servers that do not say).
-  Future<List<Language>> targetLanguages(AiProviderConfig config) async {
+  /// [unlessCached] as for [sourceLanguages].
+  Future<List<Language>> targetLanguages(
+    AiProviderConfig config, {
+    Object Function()? unlessCached,
+  }) async {
     final languages = switch (config.service) {
       MtService.deepl => [
         for (final language in await _deeplList(
           config,
           DeeplLanguageType.target,
+          unlessCached: unlessCached,
         ))
           _language(appCodeFromDeepl(language.code), language.name),
       ],
-      MtService.libreTranslate => _libreTargets(await _libreList(config)),
+      MtService.libreTranslate => _libreTargets(
+        await _libreList(config, unlessCached: unlessCached),
+      ),
       MtService.llm => throw _notMt(config),
     };
     return List.unmodifiable(_unique(languages));

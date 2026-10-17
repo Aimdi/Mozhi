@@ -2,8 +2,41 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:equatable/equatable.dart';
+import 'package:flutter/foundation.dart';
 import 'package:mozhi/core/key_value_store.dart';
+import 'package:mozhi/history/data/history_cipher.dart';
 import 'package:mozhi/history/models/history_entry.dart';
+
+export 'history_cipher.dart';
+
+/// The stored history exists but cannot be decrypted: its key is missing
+/// ([keyMissing], e.g. the app's secure storage was reset, or the history
+/// came from another phone) or does not fit (the data is damaged).
+///
+/// The history is left untouched: [HistoryRepository.load] tries again
+/// (the key may come back) and [HistoryRepository.discardUnreadable] sets
+/// it aside to start a new one. Until then every change is refused with
+/// this exception, so nothing overwrites it.
+class HistoryUnreadableException implements Exception {
+  const new({required this.keyMissing});
+
+  /// Whether the key is missing (rather than not fitting the data).
+  final bool keyMissing;
+
+  @override
+  String toString() =>
+      'HistoryUnreadableException('
+      '${keyMissing ? 'key missing' : 'bad key or data'})';
+}
+
+/// The history key could not be stored durably (it did not read back), so
+/// nothing is encrypted with it.
+class HistoryKeyUnavailableException implements Exception {
+  const new();
+
+  @override
+  String toString() => 'HistoryKeyUnavailableException';
+}
 
 /// Outcome of [HistoryRepository.importJson].
 class HistoryImport extends Equatable {
@@ -28,7 +61,29 @@ class HistoryImport extends Equatable {
   List<Object?> get props => [entries, added, expired];
 }
 
-/// Local-only history (JSON list under key `history.v1`), newest first.
+/// Local-only history, newest first, encrypted at rest.
+///
+/// Storage: the history JSON list is encrypted with AES-256-GCM
+/// ([HistoryCipher]) and stored under [storageKey] in [store]. The random
+/// 256-bit key is kept in [keyStore] under [keyStorageKey] (base64) and
+/// created on the first write. Plaintext JSON stored by older versions under
+/// the same key is read once and rewritten encrypted (on [load], or by the
+/// first change), keeping its entries.
+///
+/// [keyStore] must be durable: the history is unreadable without the key.
+/// It defaults to [platformKeyStore]: the Android Keystore-backed secure
+/// storage, and on the web the browser storage of [store] itself, since the
+/// web app's secure storage only lasts for the tab. There the key sits next
+/// to the data, so the encryption only keeps the history from being read in
+/// plain text out of the browser profile; scripts of the same origin and
+/// anyone with access to the profile can still decrypt it.
+///
+/// When encrypted history is stored but its key is missing or does not fit,
+/// [load] (and every change) throws [HistoryUnreadableException] and leaves
+/// the data alone: [load] may be retried, [discardUnreadable] moves the data
+/// aside (to [unreadableStorageKey]) and starts a new history. A failing
+/// [keyStore] is reported as is; the history is then neither read (when
+/// encrypted) nor written, never stored unencrypted.
 ///
 /// Size limits (favourites are never evicted):
 /// * at most [maxEntries] non-favourite entries;
@@ -60,13 +115,16 @@ class HistoryImport extends Equatable {
 /// retention), so an un-starred or restored entry survives until the next
 /// [add] / [load].
 ///
-/// [store] defaults to [PreferencesStore] and `clock` (the current time for
-/// retention) to [DateTime.now]. Operations are serialised and
-/// every mutation is written through; the returned lists are unmodifiable.
-/// Invalid stored entries are skipped, unreadable JSON loads as empty.
+/// [store] defaults to [PreferencesStore], [cipher] to [HistoryCipher] and
+/// `clock` (the current time for retention) to [DateTime.now]. Operations
+/// are serialised and every mutation is written through; the returned lists
+/// are unmodifiable. Invalid stored entries are skipped, unreadable
+/// (decrypted or legacy) JSON loads as empty.
 class HistoryRepository {
   new({
     KeyValueStore? store,
+    this._keyStore,
+    HistoryCipher? cipher,
     this.maxEntries = 1000,
     this.maxStoredLength = 1000000,
     this.maxTextLength = 20000,
@@ -74,19 +132,40 @@ class HistoryRepository {
     DateTime Function()? clock,
   }) : assert(maxTextLength > 0, 'maxTextLength must be positive'),
        store = store ?? PreferencesStore(),
+       cipher = cipher ?? const HistoryCipher(),
        _clock = clock ?? DateTime.now;
 
-  /// Key of the history JSON in [store].
+  /// Key of the encrypted history in [store] (plaintext JSON when written
+  /// by an older version).
   static const storageKey = 'history.v1';
+
+  /// Key in [store] that unreadable history is moved to by
+  /// [discardUnreadable].
+  static const unreadableStorageKey = 'history.v1.unreadable';
+
+  /// Key of the history encryption key in [keyStore].
+  static const keyStorageKey = 'history.key';
+
+  /// Where the history key is kept by default: secure storage (Android
+  /// Keystore), or on the web [preferences] (the browser storage the
+  /// history is in; see the class docs).
+  static KeyValueStore platformKeyStore(KeyValueStore preferences) =>
+      kIsWeb ? preferences : SecureStore();
 
   /// How often a write that failed for a full quota is retried (each time
   /// with the older half of the non-favourites evicted).
   static const _quotaRetries = 4;
 
   final KeyValueStore store;
+
+  /// Where the encryption key is kept (see the class docs).
+  late final KeyValueStore keyStore = _keyStore ?? platformKeyStore(store);
+  final KeyValueStore? _keyStore;
+  final HistoryCipher cipher;
   final int maxEntries;
 
-  /// Maximum length (UTF-16 code units) of the stored JSON; only
+  /// Maximum length (UTF-16 code units) of the history JSON before it is
+  /// encrypted (the stored value is about 4/3 of its UTF-8 size); only
   /// favourites may exceed it.
   final int maxStoredLength;
 
@@ -102,29 +181,79 @@ class HistoryRepository {
   List<HistoryEntry>? _entries;
   Future<void> _lock = Future.value();
 
+  /// The key, once read or created.
+  Uint8List? _key;
+
   /// Encoded JSON per entry (entries are immutable).
   final Expando<String> _encoded = Expando();
 
   /// Reads the history from [store] (refreshing the in-memory copy).
   ///
   /// With [maxAge], non-favourites created more than [maxAge] ago are
-  /// dropped and, if there were any, the result is written back (a failing
-  /// write is ignored: the next mutation writes again).
+  /// dropped and, if there were any, the result is written back. Plaintext
+  /// history of older versions is written back encrypted. A failing write
+  /// is ignored: the next mutation writes again.
+  ///
+  /// Throws [HistoryUnreadableException] when the stored history cannot
+  /// be decrypted (see the class docs), and storage errors as they are.
   Future<List<HistoryEntry>> load({Duration? maxAge}) =>
       _synchronized(() async {
-        final raw = await store.read(storageKey);
-        final entries = raw == null ? <HistoryEntry>[] : _decodeLenient(raw);
+        _entries = null;
+        final (entries, :legacy) = await _readStored();
         final kept = _withoutExpired(entries, maxAge);
         var next = _capped(kept);
-        if (kept.length != entries.length) {
+        if (legacy || kept.length != entries.length) {
           try {
             next = await _write(next);
           } on Object {
-            // Keep the pruned list in memory; the next mutation writes it.
+            // Keep the list in memory; the next mutation writes it.
           }
         }
         return _entries = next;
       });
+
+  /// Moves the stored history that cannot be decrypted aside (to
+  /// [unreadableStorageKey], replacing what an earlier call put there)
+  /// and starts a new, empty history. Does nothing to a readable history
+  /// (it returns it).
+  Future<List<HistoryEntry>> discardUnreadable() => _synchronized(() async {
+    try {
+      return await _current();
+    } on HistoryUnreadableException {
+      final raw = await store.read(storageKey);
+      if (raw != null) {
+        await store.write(unreadableStorageKey, raw);
+        await store.delete(storageKey);
+      }
+      return _entries = const [];
+    }
+  });
+
+  /// Whether a history that could not be decrypted was set aside by
+  /// [discardUnreadable] (and not deleted since).
+  Future<bool> hasUnreadableCopy() async =>
+      await store.read(unreadableStorageKey) != null;
+
+  /// Deletes everything this repository stores: the history, the copy set
+  /// aside by [discardUnreadable] and the encryption key.
+  Future<void> deleteAll() => _synchronized(() async {
+    _entries = const [];
+    _key = null;
+    await store.delete(storageKey);
+    await store.delete(unreadableStorageKey);
+    await keyStore.delete(keyStorageKey);
+  });
+
+  /// How much the history takes in [store]: the length (UTF-16 code
+  /// units) of the stored values, including a copy set aside by
+  /// [discardUnreadable].
+  Future<int> storedLength() async {
+    final values = [
+      await store.read(storageKey),
+      await store.read(unreadableStorageKey),
+    ];
+    return values.fold<int>(0, (sum, value) => sum + (value?.length ?? 0));
+  }
 
   /// Deletes non-favourite entries created more than [maxAge] ago (none
   /// when [maxAge] is null) and returns the history. Writes only when
@@ -324,12 +453,57 @@ class HistoryRepository {
   String _encode(List<HistoryEntry> entries) =>
       '[${entries.map(_json).join(',')}]';
 
-  Future<List<HistoryEntry>> _current() async =>
-      _entries ??= _capped(await _readLenient());
+  Future<List<HistoryEntry>> _current() async {
+    if (_entries case final entries?) return entries;
+    final (entries, legacy: _) = await _readStored();
+    return _entries = _capped(entries);
+  }
 
-  Future<List<HistoryEntry>> _readLenient() async {
+  /// The stored entries, and whether they were stored unencrypted
+  /// (`legacy`).
+  Future<(List<HistoryEntry>, {bool legacy})> _readStored() async {
     final raw = await store.read(storageKey);
-    return raw == null ? [] : _decodeLenient(raw);
+    if (raw == null) return (<HistoryEntry>[], legacy: false);
+    if (!cipher.isEncrypted(raw)) return (_decodeLenient(raw), legacy: true);
+    final key = _key ?? await _readKey();
+    if (key == null) throw const HistoryUnreadableException(keyMissing: true);
+    final String json;
+    try {
+      json = await cipher.decrypt(raw, key);
+    } on HistoryCipherException {
+      throw const HistoryUnreadableException(keyMissing: false);
+    }
+    _key = key;
+    return (_decodeLenient(json), legacy: false);
+  }
+
+  /// The stored key, or null when none (or an invalid one) is stored.
+  Future<Uint8List?> _readKey() async {
+    final value = await keyStore.read(keyStorageKey);
+    if (value == null) return null;
+    try {
+      final key = base64Decode(value);
+      return key.length == HistoryCipher.keyLength ? key : null;
+    } on FormatException {
+      return null;
+    }
+  }
+
+  /// The key to encrypt with: the stored one, or a new one that is stored
+  /// first (and must read back, see [HistoryKeyUnavailableException]).
+  ///
+  /// Only called once the stored history was read: never replaces the key
+  /// of history that could not be decrypted.
+  Future<Uint8List> _writeKey() async {
+    if (_key case final key?) return key;
+    if (await _readKey() case final key?) return _key = key;
+    final key = await cipher.newKey();
+    final encoded = base64Encode(key);
+    await keyStore.write(keyStorageKey, encoded);
+    if (await keyStore.read(keyStorageKey) != encoded) {
+      throw const HistoryKeyUnavailableException();
+    }
+    return _key = key;
   }
 
   Future<List<HistoryEntry>> _mutate(
@@ -347,9 +521,10 @@ class HistoryRepository {
   /// Writes [entries] and returns what was written: on a full quota, older
   /// non-favourites are evicted and the write is retried.
   Future<List<HistoryEntry>> _write(List<HistoryEntry> entries) async {
+    final key = await _writeKey();
     var next = entries;
     for (var attempt = 0; ; attempt++) {
-      final encoded = _encode(next);
+      final encoded = await cipher.encrypt(_encode(next), key);
       try {
         await store.write(storageKey, encoded);
         return next;

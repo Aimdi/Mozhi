@@ -46,28 +46,30 @@ void main() {
   TranslationRepository newRepository({
     OfflineTranslator? offline,
     TranslationCache? cache,
-  }) => TranslationRepository(
-    mozhiClientFactory: (uri) {
-      mozhiBuilt.add(uri);
-      return mozhi[uri.toString()]!;
-    },
-    llmClientFactory: (endpoint) {
-      llmBuilt.add(endpoint);
-      return llmQueue.isNotEmpty
-          ? llmQueue.removeAt(0)
-          : llm[endpoint.baseUrl.host]!;
-    },
-    deeplClientFactory: (config) {
-      mtBuilt.add(config);
-      return deepl;
-    },
-    libreTranslateClientFactory: (config) {
-      mtBuilt.add(config);
-      return libre;
-    },
-    offline: offline,
-    cache: cache,
-    snapshotInterval: Duration.zero,
+  }) => allowNetwork(
+    TranslationRepository(
+      mozhiClientFactory: (uri) {
+        mozhiBuilt.add(uri);
+        return mozhi[uri.toString()]!;
+      },
+      llmClientFactory: (endpoint) {
+        llmBuilt.add(endpoint);
+        return llmQueue.isNotEmpty
+            ? llmQueue.removeAt(0)
+            : llm[endpoint.baseUrl.host]!;
+      },
+      deeplClientFactory: (config) {
+        mtBuilt.add(config);
+        return deepl;
+      },
+      libreTranslateClientFactory: (config) {
+        mtBuilt.add(config);
+        return libre;
+      },
+      offline: offline,
+      cache: cache,
+      snapshotInterval: Duration.zero,
+    ),
   );
 
   setUp(() {

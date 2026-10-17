@@ -4,7 +4,8 @@
      nothing is backed up or transferred on these versions; the rules only keep
      API keys (flutter_secure_storage, encrypted with device-bound AndroidKeyStore
      keys) and history/settings (shared_preferences DataStore) out of backups
-     should allowBackup ever be turned back on. -->
+     should allowBackup ever be turned back on. The secure storage files also
+     hold the key the history is encrypted with (`history.key`). -->
 <full-backup-content>
     <exclude domain="sharedpref" path="FlutterSecureStorage.xml" />
     <exclude domain="sharedpref" path="FlutterSecureKeyStorage.xml" />

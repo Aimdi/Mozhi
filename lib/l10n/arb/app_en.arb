@@ -6088,5 +6088,476 @@
   "settingsDarkLookSubtitle": "Dim is dark blue-grey; Lights out is true black, easier on OLED screens",
   "@settingsDarkLookSubtitle": {
     "description": "settingsDarkLookSubtitle"
+  },
+  "historyPausedTitle": "History is paused",
+  "@historyPausedTitle": {
+    "description": "historyPausedTitle"
+  },
+  "historyPausedIncognito": "Incognito is on: new translations aren't saved, and keyboards are asked not to learn what you type.",
+  "@historyPausedIncognito": {
+    "description": "historyPausedIncognito"
+  },
+  "historyTurnOffIncognito": "Turn off incognito",
+  "@historyTurnOffIncognito": {
+    "description": "historyTurnOffIncognito"
+  },
+  "historyUnreadableTitle": "Your history can't be decrypted",
+  "@historyUnreadableTitle": {
+    "description": "historyUnreadableTitle"
+  },
+  "historyUnreadableBody": "Its key is missing from this device, for example after the app's secure storage was reset or the history came from another phone. New translations aren't saved until you try again or start a new history.",
+  "@historyUnreadableBody": {
+    "description": "historyUnreadableBody"
+  },
+  "historyUnreadableStartOver": "Start a new history",
+  "@historyUnreadableStartOver": {
+    "description": "historyUnreadableStartOver"
+  },
+  "historyUnreadableConfirmTitle": "Start a new history?",
+  "@historyUnreadableConfirmTitle": {
+    "description": "historyUnreadableConfirmTitle"
+  },
+  "historyUnreadableConfirmBody": "The history that can't be decrypted is kept aside on this device, in case its key comes back. Delete all local data removes it.",
+  "@historyUnreadableConfirmBody": {
+    "description": "historyUnreadableConfirmBody"
+  },
+  "settingsSectionPrivacy": "Privacy",
+  "@settingsSectionPrivacy": {
+    "description": "settingsSectionPrivacy"
+  },
+  "settingsPrivacyMode": "Privacy mode",
+  "@settingsPrivacyMode": {
+    "description": "settingsPrivacyMode"
+  },
+  "settingsPrivacyModeOfflineOnly": "Offline only",
+  "@settingsPrivacyModeOfflineOnly": {
+    "description": "settingsPrivacyModeOfflineOnly"
+  },
+  "settingsPrivacyModeOfflineOnlySubtitle": "Only on-device translation. Nothing you type leaves this device.",
+  "@settingsPrivacyModeOfflineOnlySubtitle": {
+    "description": "settingsPrivacyModeOfflineOnlySubtitle"
+  },
+  "settingsPrivacyModeOfflineFirst": "Offline first",
+  "@settingsPrivacyModeOfflineFirst": {
+    "description": "settingsPrivacyModeOfflineFirst"
+  },
+  "settingsPrivacyModeOfflineFirstSubtitle": "On-device when possible. Asks before text goes over the network.",
+  "@settingsPrivacyModeOfflineFirstSubtitle": {
+    "description": "settingsPrivacyModeOfflineFirstSubtitle"
+  },
+  "settingsPrivacyModeOnline": "Online",
+  "@settingsPrivacyModeOnline": {
+    "description": "settingsPrivacyModeOnline"
+  },
+  "settingsPrivacyModeOnlineSubtitle": "Uses your translation services without asking. Cloud providers still ask once.",
+  "@settingsPrivacyModeOnlineSubtitle": {
+    "description": "settingsPrivacyModeOnlineSubtitle"
+  },
+  "settingsIncognito": "Incognito",
+  "@settingsIncognito": {
+    "description": "settingsIncognito"
+  },
+  "settingsIncognitoSubtitle": "Don't save history, and ask keyboards not to learn what you type",
+  "@settingsIncognitoSubtitle": {
+    "description": "settingsIncognitoSubtitle"
+  },
+  "settingsSecureScreen": "Hide content in recents & block screenshots",
+  "@settingsSecureScreen": {
+    "description": "settingsSecureScreen"
+  },
+  "settingsSecureScreenSubtitle": "Also blocks screen recording and sharing the app's screen",
+  "@settingsSecureScreenSubtitle": {
+    "description": "settingsSecureScreenSubtitle"
+  },
+  "settingsNetworkPairs": "Allowed for the network",
+  "@settingsNetworkPairs": {
+    "description": "settingsNetworkPairs"
+  },
+  "settingsNetworkPairsSummary": "{count, plural, =0{No language pairs yet. In Offline first, you're asked before a pair uses an online engine.} =1{1 language pair may use online engines without asking} other{{count} language pairs may use online engines without asking}}",
+  "@settingsNetworkPairsSummary": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsNetworkPairsClearTooltip": "Clear allowed language pairs",
+  "@settingsNetworkPairsClearTooltip": {
+    "description": "settingsNetworkPairsClearTooltip"
+  },
+  "settingsNetworkPairsCleared": "Allowed language pairs cleared",
+  "@settingsNetworkPairsCleared": {
+    "description": "settingsNetworkPairsCleared"
+  },
+  "settingsConsentedProviders": "Cloud providers you allowed",
+  "@settingsConsentedProviders": {
+    "description": "settingsConsentedProviders"
+  },
+  "settingsConsentedProvidersNone": "None. You're asked before text first goes to a cloud provider.",
+  "@settingsConsentedProvidersNone": {
+    "description": "settingsConsentedProvidersNone"
+  },
+  "settingsConsentRevoke": "Revoke",
+  "@settingsConsentRevoke": {
+    "description": "settingsConsentRevoke"
+  },
+  "settingsConsentRevokeLabel": "Revoke permission for {name}",
+  "@settingsConsentRevokeLabel": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsConsentRevoked": "{name} will ask again before your text is sent",
+  "@settingsConsentRevoked": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsHttpProxy": "HTTP proxy",
+  "@settingsHttpProxy": {
+    "description": "settingsHttpProxy"
+  },
+  "settingsHttpProxyOff": "Off: direct connections",
+  "@settingsHttpProxyOff": {
+    "description": "settingsHttpProxyOff"
+  },
+  "settingsHttpProxyLabel": "Proxy (host:port)",
+  "@settingsHttpProxyLabel": {
+    "description": "settingsHttpProxyLabel"
+  },
+  "settingsHttpProxyHint": "127.0.0.1:8118",
+  "@settingsHttpProxyHint": {
+    "description": "settingsHttpProxyHint"
+  },
+  "settingsHttpProxyHelp": "Every request the app makes goes through this HTTP proxy. For Tor, use Orbot's HTTP proxy: 127.0.0.1:8118.",
+  "@settingsHttpProxyHelp": {
+    "description": "settingsHttpProxyHelp"
+  },
+  "settingsHttpProxyRestart": "Applies after restarting the app.",
+  "@settingsHttpProxyRestart": {
+    "description": "settingsHttpProxyRestart"
+  },
+  "settingsHttpProxyInvalid": "Enter a host and port, like 127.0.0.1:8118",
+  "@settingsHttpProxyInvalid": {
+    "description": "settingsHttpProxyInvalid"
+  },
+  "settingsHttpProxyRemove": "Remove",
+  "@settingsHttpProxyRemove": {
+    "description": "settingsHttpProxyRemove"
+  },
+  "settingsHttpProxySaved": "Proxy saved. Restart the app to use it.",
+  "@settingsHttpProxySaved": {
+    "description": "settingsHttpProxySaved"
+  },
+  "settingsHttpProxyRemoved": "Proxy removed. Restart the app to connect directly.",
+  "@settingsHttpProxyRemoved": {
+    "description": "settingsHttpProxyRemoved"
+  },
+  "settingsDeleteAllData": "Delete all local data",
+  "@settingsDeleteAllData": {
+    "description": "settingsDeleteAllData"
+  },
+  "settingsDeleteAllDataSubtitle": "History, settings, caches, offline models and API keys",
+  "@settingsDeleteAllDataSubtitle": {
+    "description": "settingsDeleteAllDataSubtitle"
+  },
+  "settingsDeleteAllDataTitle": "Delete all local data?",
+  "@settingsDeleteAllDataTitle": {
+    "description": "settingsDeleteAllDataTitle"
+  },
+  "settingsDeleteAllDataBody": "This deletes everything Mozhi keeps on this device, then starts setup again:",
+  "@settingsDeleteAllDataBody": {
+    "description": "settingsDeleteAllDataBody"
+  },
+  "settingsDeleteAllDataHistory": "{count, plural, =0{Translation history} =1{Translation history: 1 translation} other{Translation history: {count} translations}}",
+  "@settingsDeleteAllDataHistory": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsDeleteAllDataHistorySize": "{count, plural, =0{Translation history ({size})} =1{Translation history: 1 translation ({size})} other{Translation history: {count} translations ({size})}}",
+  "@settingsDeleteAllDataHistorySize": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsDeleteAllDataSettings": "Settings, presets, glossaries, usage counters and cached data",
+  "@settingsDeleteAllDataSettings": {
+    "description": "settingsDeleteAllDataSettings"
+  },
+  "settingsDeleteAllDataKeys": "{count, plural, =0{API keys (none saved)} =1{1 API key} other{{count} API keys}}",
+  "@settingsDeleteAllDataKeys": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsDeleteAllDataModels": "{count, plural, =1{1 offline language model (about 30 MB)} other{{count} offline language models (about 30 MB each)}}",
+  "@settingsDeleteAllDataModels": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsDeleteAllDataIrreversible": "This can't be undone. Export your history first if you want to keep it.",
+  "@settingsDeleteAllDataIrreversible": {
+    "description": "settingsDeleteAllDataIrreversible"
+  },
+  "settingsDeleteAllDataAction": "Delete everything",
+  "@settingsDeleteAllDataAction": {
+    "description": "settingsDeleteAllDataAction"
+  },
+  "settingsDeleteAllDataFailed": "Couldn't delete all local data. Try again.",
+  "@settingsDeleteAllDataFailed": {
+    "description": "settingsDeleteAllDataFailed"
+  },
+  "settingsDeleteAllDataDone": "All local data deleted",
+  "@settingsDeleteAllDataDone": {
+    "description": "settingsDeleteAllDataDone"
+  },
+  "settingsExportUnencrypted": "The exported JSON isn't encrypted: anyone who can open it can read your history. Keep it somewhere safe.",
+  "@settingsExportUnencrypted": {
+    "description": "settingsExportUnencrypted"
+  },
+  "commonSizeBytes": "{size} B",
+  "@commonSizeBytes": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "commonSizeKilobytes": "{size} KB",
+  "@commonSizeKilobytes": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "commonSizeMegabytes": "{size} MB",
+  "@commonSizeMegabytes": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "commonConsentSendTitle": "Send this text to {destination}?",
+  "@commonConsentSendTitle": {
+    "placeholders": {
+      "destination": {
+        "type": "String"
+      }
+    }
+  },
+  "commonConsentCloudTitle": "Send your text to {provider}?",
+  "@commonConsentCloudTitle": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "commonConsentCloudBody": "Your text will be sent to {provider}, a cloud service. It is handled under {provider}’s privacy policy, which may allow storing or reviewing it. You’re asked once for each provider.",
+  "@commonConsentCloudBody": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "commonConsentOfflineOnlyTitle": "Offline only is on",
+  "@commonConsentOfflineOnlyTitle": {
+    "description": "commonConsentOfflineOnlyTitle"
+  },
+  "commonConsentOfflineOnlyBody": "This needs to send your text to {destination}, but your privacy setting keeps everything on this device. Use the on-device engine, or change the privacy mode.",
+  "@commonConsentOfflineOnlyBody": {
+    "placeholders": {
+      "destination": {
+        "type": "String"
+      }
+    }
+  },
+  "commonConsentPairHint": "You’re asked because translations stay on this device unless you allow otherwise.",
+  "@commonConsentPairHint": {
+    "description": "commonConsentPairHint"
+  },
+  "commonConsentOnce": "Once",
+  "@commonConsentOnce": {
+    "description": "commonConsentOnce"
+  },
+  "commonConsentAlways": "Always",
+  "@commonConsentAlways": {
+    "description": "commonConsentAlways"
+  },
+  "commonConsentAlwaysFor": "Always for {pair}",
+  "@commonConsentAlwaysFor": {
+    "placeholders": {
+      "pair": {
+        "type": "String"
+      }
+    }
+  },
+  "commonConsentPair": "{source} → {target}",
+  "@commonConsentPair": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      },
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "commonConsentAllow": "Allow",
+  "@commonConsentAllow": {
+    "description": "commonConsentAllow"
+  },
+  "commonConsentChangePrivacyMode": "Change privacy mode",
+  "@commonConsentChangePrivacyMode": {
+    "description": "commonConsentChangePrivacyMode"
+  },
+  "commonConsentDownloadOffline": "Download {language} for offline use",
+  "@commonConsentDownloadOffline": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "commonConsentDetails": "Details",
+  "@commonConsentDetails": {
+    "description": "commonConsentDetails"
+  },
+  "commonConsentErrorOfflineOnly": "Offline only is on, so nothing is sent over the network.",
+  "@commonConsentErrorOfflineOnly": {
+    "description": "commonConsentErrorOfflineOnly"
+  },
+  "commonConsentErrorPair": "Your privacy settings ask before text is sent to {destination}.",
+  "@commonConsentErrorPair": {
+    "placeholders": {
+      "destination": {
+        "type": "String"
+      }
+    }
+  },
+  "commonConsentErrorCloud": "Sending text to {provider} needs your OK first.",
+  "@commonConsentErrorCloud": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "commonConsentReview": "Review",
+  "@commonConsentReview": {
+    "description": "commonConsentReview"
+  },
+  "commonDestinationOnDevice": "On device",
+  "@commonDestinationOnDevice": {
+    "description": "commonDestinationOnDevice"
+  },
+  "commonDestinationVia": "{engine} via {host}",
+  "@commonDestinationVia": {
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      },
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "commonDestinationOwnServer": "your server ({host})",
+  "@commonDestinationOwnServer": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "commonDestinationOwnServerShort": "Your server",
+  "@commonDestinationOwnServerShort": {
+    "description": "commonDestinationOwnServerShort"
+  },
+  "commonDestinationPublicServer": "a public server",
+  "@commonDestinationPublicServer": {
+    "description": "commonDestinationPublicServer"
+  },
+  "commonDestinationOnDeviceBody": "Translated on this device. Your text isn’t sent anywhere.",
+  "@commonDestinationOnDeviceBody": {
+    "description": "commonDestinationOnDeviceBody"
+  },
+  "commonDestinationSelfHostedBody": "Sent to your own server at {host}. Only whoever runs that server can read it.",
+  "@commonDestinationSelfHostedBody": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "commonDestinationSelfHostedUpstreamBody": "Sent to your own server at {host}, which passes it on to {engine} to translate it. {engine} can read it.",
+  "@commonDestinationSelfHostedUpstreamBody": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "commonDestinationPublicBody": "Sent to {host}, a public server run by someone else. Its operator can read your text.",
+  "@commonDestinationPublicBody": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "commonDestinationPublicUpstreamBody": "Sent to {host}, a public server run by someone else, which passes it on to {engine}. The server’s operator and {engine} can both read your text.",
+  "@commonDestinationPublicUpstreamBody": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "commonDestinationCloudBody": "Sent to {provider}, a cloud service. {provider} can read your text and handles it under its own privacy policy.",
+  "@commonDestinationCloudBody": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "commonDestinationSheetTitle": "Where your text goes",
+  "@commonDestinationSheetTitle": {
+    "description": "commonDestinationSheetTitle"
+  },
+  "commonDestinationChipSemantics": "Sent to {destination}. Show where your text goes",
+  "@commonDestinationChipSemantics": {
+    "placeholders": {
+      "destination": {
+        "type": "String"
+      }
+    }
   }
 }

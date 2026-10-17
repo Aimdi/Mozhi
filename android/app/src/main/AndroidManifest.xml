@@ -17,10 +17,12 @@
          - No cloud backup (allowBackup="false"): history, settings and API
            keys never go to Google Drive.
          - Android 12+ still allows device-to-device transfer when setting up
-           a new phone; res/xml/data_extraction_rules.xml lets settings and
-           history move with the user but excludes flutter_secure_storage's
-           files (API keys): their AndroidKeyStore wrapping keys never leave
-           the device, so a copy could not be decrypted anyway.
+           a new phone; res/xml/data_extraction_rules.xml lets settings move
+           with the user but excludes flutter_secure_storage's files (API
+           keys and the history encryption key): their AndroidKeyStore
+           wrapping keys never leave the device, so a copy could not be
+           decrypted anyway. The history itself is encrypted with that key,
+           so a transferred copy stays unreadable.
          - res/xml/backup_rules.xml (Android 11 and lower) mirrors the
            exclusions in case backups are ever re-enabled. -->
     <application

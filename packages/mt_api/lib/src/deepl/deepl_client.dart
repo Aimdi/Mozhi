@@ -60,7 +60,9 @@ class DeeplClient {
   late final MtTransport _transport;
 
   /// `POST /v2/translate`. Returns one [DeeplTranslation] per text, in
-  /// order; an empty [texts] list returns `[]` without a request.
+  /// order. Only the texts that are not blank are sent (they are not
+  /// billed either way, but need no round trip); blank ones are answered as
+  /// they are, and an empty or all-blank [texts] list makes no request.
   ///
   /// [sourceLang] `null`, empty or `auto` lets DeepL detect the language.
   /// [formality] is one of [DeeplFormality.values], [tagHandling] one of
@@ -95,12 +97,20 @@ class DeeplClient {
       if (modelType != null && modelType.isNotEmpty) 'model_type': modelType,
     };
     final uri = _endpoint(const ['translate']);
-    final results = <DeeplTranslation>[];
-    for (var start = 0; start < texts.length; start += maxTextsPerRequest) {
-      final end = start + maxTextsPerRequest < texts.length
+    final results = [
+      for (final text in texts)
+        DeeplTranslation(text: text, detectedSourceLanguage: ''),
+    ];
+    final sent = [
+      for (var i = 0; i < texts.length; i++)
+        if (texts[i].trim().isNotEmpty) i,
+    ];
+    for (var start = 0; start < sent.length; start += maxTextsPerRequest) {
+      final end = start + maxTextsPerRequest < sent.length
           ? start + maxTextsPerRequest
-          : texts.length;
-      final batch = texts.sublist(start, end);
+          : sent.length;
+      final indices = sent.sublist(start, end);
+      final batch = [for (final i in indices) texts[i]];
       final json = _transport.expectObject(
         await _transport.sendJson(
           'POST',
@@ -119,9 +129,9 @@ class DeeplClient {
           '${translations.length}',
         );
       }
-      for (final item in translations) {
-        results.add(
-          DeeplTranslation.fromJson(_transport.expectObject(item, uri)),
+      for (var j = 0; j < indices.length; j++) {
+        results[indices[j]] = DeeplTranslation.fromJson(
+          _transport.expectObject(translations[j], uri),
         );
       }
     }

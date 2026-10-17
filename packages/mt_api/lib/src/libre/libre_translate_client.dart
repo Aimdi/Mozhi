@@ -19,6 +19,12 @@ import 'package:mt_api/src/mt_transport.dart';
 ///
 /// LibreTranslate enables CORS by default, so the client also works on the
 /// web. Every method throws [LibreTranslateException] on failure.
+///
+/// The key only ever travels in the JSON body (never in the URL, where it
+/// would end up in server logs). Blank text is never sent: [translate],
+/// [translateBatch] and [detect] answer it without a request. Every method
+/// takes an optional `abortTrigger` that cancels the request
+/// ([MtErrorKind.cancelled]).
 class LibreTranslateClient {
   new({
     required this.baseUrl,
@@ -141,7 +147,8 @@ class LibreTranslateClient {
   /// [LibreTranslation.detectedLanguage] is set. [format] is one of
   /// [LibreFormat.values]. [alternatives] > 0 requests that many
   /// alternative translations (servers may return fewer). Completing
-  /// [abortTrigger] cancels the request.
+  /// [abortTrigger] cancels the request. Blank [text] is returned as it is,
+  /// without a request.
   Future<LibreTranslation> translate({
     required String text,
     required String target,
@@ -150,6 +157,7 @@ class LibreTranslateClient {
     int alternatives = 0,
     Future<void>? abortTrigger,
   }) async {
+    if (text.trim().isEmpty) return LibreTranslation(text: text);
     final uri = _endpoint('translate');
     final json = _transport.expectObject(
       await _transport.sendJson(
@@ -167,7 +175,9 @@ class LibreTranslateClient {
   }
 
   /// `POST /translate` with a list `q`: one [LibreTranslation] per text, in
-  /// order. An empty [texts] list returns `[]` without a request.
+  /// order. Only the texts that are not blank are sent; blank ones (and an
+  /// empty or all-blank [texts] list) are answered as they are, without a
+  /// request.
   Future<List<LibreTranslation>> translateBatch({
     required List<String> texts,
     required String target,
@@ -176,53 +186,75 @@ class LibreTranslateClient {
     int alternatives = 0,
     Future<void>? abortTrigger,
   }) async {
-    if (texts.isEmpty) return const [];
+    final results = [for (final text in texts) LibreTranslation(text: text)];
+    final sent = [
+      for (var i = 0; i < texts.length; i++)
+        if (texts[i].trim().isNotEmpty) i,
+    ];
+    if (sent.isEmpty) return List.unmodifiable(results);
     final uri = _endpoint('translate');
     final json = _transport.expectObject(
       await _transport.sendJson(
         'POST',
         uri,
-        json: _translateBody(texts, source, target, format, alternatives),
+        json: _translateBody(
+          [for (final i in sent) texts[i]],
+          source,
+          target,
+          format,
+          alternatives,
+        ),
         abortTrigger: abortTrigger,
       ),
       uri,
     );
     final translated = _transport.expectList(json['translatedText'], uri);
-    if (translated.length != texts.length) {
+    if (translated.length != sent.length) {
       throw _transport.invalidResponse(
         uri,
-        'expected ${texts.length} translations, got ${translated.length}',
+        'expected ${sent.length} translations, got ${translated.length}',
       );
     }
     final detected = json['detectedLanguage'];
     final alternativeLists = json['alternatives'];
-    return List.unmodifiable([
-      for (var i = 0; i < translated.length; i++)
-        LibreTranslation.fromJson({
-          'translatedText': translated[i],
-          'detectedLanguage': ?_at(detected, i),
-          'alternatives': ?_at(alternativeLists, i),
-        }),
-    ]);
+    for (var j = 0; j < sent.length; j++) {
+      results[sent[j]] = LibreTranslation.fromJson({
+        'translatedText': translated[j],
+        'detectedLanguage': ?_at(detected, j),
+        'alternatives': ?_at(alternativeLists, j),
+      });
+    }
+    return List.unmodifiable(results);
   }
 
-  /// `GET /languages`.
-  Future<List<LibreLanguage>> languages() async {
+  /// `GET /languages`. Completing [abortTrigger] cancels the request.
+  Future<List<LibreLanguage>> languages({Future<void>? abortTrigger}) async {
     final uri = _endpoint('languages');
-    final json = await _transport.sendJson('GET', uri);
+    final json = await _transport.sendJson(
+      'GET',
+      uri,
+      abortTrigger: abortTrigger,
+    );
     return List.unmodifiable([
       for (final item in _transport.expectList(json, uri))
         if (item is Map<String, dynamic>) LibreLanguage.fromJson(item),
     ]);
   }
 
-  /// `POST /detect`: candidate languages, most likely first.
-  Future<List<LibreDetectedLanguage>> detect(String text) async {
+  /// `POST /detect`: candidate languages, most likely first. Blank [text]
+  /// has none (`[]`, without a request). Completing [abortTrigger] cancels
+  /// the request.
+  Future<List<LibreDetectedLanguage>> detect(
+    String text, {
+    Future<void>? abortTrigger,
+  }) async {
+    if (text.trim().isEmpty) return const [];
     final uri = _endpoint('detect');
     final json = await _transport.sendJson(
       'POST',
       uri,
       json: {'q': text, 'api_key': ?apiKey},
+      abortTrigger: abortTrigger,
     );
     return List.unmodifiable([
       for (final item in _transport.expectList(json, uri))
@@ -231,11 +263,15 @@ class LibreTranslateClient {
   }
 
   /// `GET /frontend/settings`. Cheap; also a good "test connection" call
-  /// (combine with [translate] to validate a key).
-  Future<LibreSettings> settings() async {
+  /// (combine with [translate] to validate a key). Completing
+  /// [abortTrigger] cancels the request.
+  Future<LibreSettings> settings({Future<void>? abortTrigger}) async {
     final uri = _endpoint('frontend', 'settings');
     return LibreSettings.fromJson(
-      _transport.expectObject(await _transport.sendJson('GET', uri), uri),
+      _transport.expectObject(
+        await _transport.sendJson('GET', uri, abortTrigger: abortTrigger),
+        uri,
+      ),
     );
   }
 

@@ -75,6 +75,26 @@ void registerTestFallbacks() {
   registerFallbackValue(DeeplLanguageType.target);
 }
 
+/// Ids of the providers the tests configure.
+const testProviderIds = [
+  'claude',
+  'openai',
+  'ollama',
+  'off',
+  'deepl',
+  'libre',
+  'gemma',
+  'cloud-gemma',
+];
+
+/// Lets every request of [repository] through, as before privacy modes
+/// existed: [PrivacyMode.online] with every test provider consented.
+TranslationRepository allowNetwork(TranslationRepository repository) =>
+    repository..updatePrivacy(
+      mode: PrivacyMode.online,
+      consentedProviders: testProviderIds,
+    );
+
 const instanceA = MozhiInstance(url: 'https://a.example', label: 'Alpha');
 const instanceB = MozhiInstance(url: 'https://b.example');
 const instanceC = MozhiInstance(url: 'https://c.example', label: 'Gamma');

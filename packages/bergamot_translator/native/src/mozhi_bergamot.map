@@ -1,0 +1,9 @@
+/* Export only the C API; everything else (Marian, libc++ when linked
+ * statically, PCRE2, SentencePiece) stays local so the linker can drop
+ * unused code and nothing clashes with other native libraries. */
+{
+  global:
+    mozhi_bergamot_*;
+  local:
+    *;
+};

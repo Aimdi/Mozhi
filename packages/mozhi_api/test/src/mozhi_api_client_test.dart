@@ -378,7 +378,7 @@ void main() {
         await expectLater(
           clientReturning(
             _text('from, to, engine, text are required query strings.\n', 400),
-          ).translate(engine: 'google', from: 'auto', to: 'en', text: ''),
+          ).translate(engine: '', from: 'auto', to: 'en', text: 'x'),
           _throwsMozhiError(
             statusCode: 400,
             message: 'from, to, engine, text are required query strings.',
@@ -910,13 +910,15 @@ void main() {
               message: 'HTTP 504',
             ),
             (
-              description: 'target of a redirect that is not followed (303)',
+              description:
+                  'target of a redirect that is not followed '
+                  '(https to http)',
               response: _text(
                 '',
                 303,
-                headers: {'location': 'https://mozhi.example/other'},
+                headers: {'location': 'http://mozhi.example/other'},
               ),
-              message: 'Redirected to https://mozhi.example/other',
+              message: 'Redirected to http://mozhi.example/other',
             ),
             (
               description: 'body of a redirect without a location',
@@ -1210,7 +1212,8 @@ void main() {
         ]).getVersion();
 
         expect(version.goVersion, 'go1.23.1');
-        expect(requests.first.followRedirects, isTrue);
+        // Followed here (not by dart:io), so every hop is checked.
+        expect(requests.first.followRedirects, isFalse);
         expect(requests.last.url.path, '/v2/api/version');
       });
 

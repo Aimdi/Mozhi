@@ -13,14 +13,21 @@ export 'history_state.dart';
 /// [load], [add] and [importJson]; [applyRetention] changes it and deletes
 /// expired entries right away. Favourites are always kept.
 ///
-/// Storage errors of [load] switch to [HistoryStatus.failure]; errors of the
-/// other mutations keep the current state. All of them are reported via
-/// `addError` and never thrown, except [exportJson] / [importJson] whose
-/// callers need to show the outcome.
+/// Incognito ([setIncognito], [HistoryState.incognito], kept in step with
+/// the settings by `HistoryRetentionListener`): [add] ignores entries that
+/// are not favourites, so no automatic history is written whichever screen
+/// translates. Starring a translation is an explicit save and still works.
+///
+/// Storage errors of [load] switch to [HistoryStatus.failure], history that
+/// cannot be decrypted to [HistoryStatus.unreadable] (see
+/// [discardUnreadable]); errors of the other mutations keep the current
+/// state. Storage errors are reported via `addError` and never thrown,
+/// except by [exportJson] / [importJson] / [deleteAll] whose callers need to
+/// show the outcome.
 class HistoryCubit extends Cubit<HistoryState> {
-  new({HistoryRepository? repository, this._maxAge})
+  new({HistoryRepository? repository, this._maxAge, bool incognito = false})
     : _repository = repository ?? HistoryRepository(),
-      super(const HistoryState());
+      super(HistoryState(incognito: incognito));
 
   final HistoryRepository _repository;
 
@@ -32,14 +39,46 @@ class HistoryCubit extends Cubit<HistoryState> {
     try {
       final entries = await _repository.load(maxAge: _maxAge);
       _emitEntries(entries);
+    } on HistoryUnreadableException {
+      if (!isClosed) {
+        emit(state.copyWith(status: HistoryStatus.unreadable, entries: []));
+      }
     } on Object catch (error, stackTrace) {
       if (!isClosed) emit(state.copyWith(status: HistoryStatus.failure));
       addError(error, stackTrace);
     }
   }
 
-  Future<void> add(HistoryEntry entry) =>
-      _run(() => _repository.add(entry, maxAge: _maxAge));
+  /// Saves [entry] (see [HistoryRepository.add]); ignored while
+  /// [HistoryState.incognito] unless it is a favourite.
+  Future<void> add(HistoryEntry entry) async {
+    if (state.incognito && !entry.isFavorite) return;
+    await _run(() => _repository.add(entry, maxAge: _maxAge));
+  }
+
+  /// Turns incognito on or off: while on, [add] only saves favourites.
+  void setIncognito({required bool enabled}) =>
+      emit(state.copyWith(incognito: enabled));
+
+  /// Sets the history that cannot be decrypted aside and starts a new one
+  /// (see [HistoryRepository.discardUnreadable]).
+  Future<void> discardUnreadable() async {
+    try {
+      _emitEntries(await _repository.discardUnreadable());
+    } on Object catch (error, stackTrace) {
+      addError(error, stackTrace);
+    }
+  }
+
+  /// Deletes the history, any copy set aside and its encryption key
+  /// ([HistoryRepository.deleteAll]). Throws storage errors: the caller
+  /// reports them.
+  Future<void> deleteAll() async {
+    await _repository.deleteAll();
+    if (!isClosed) {
+      emit(state.copyWith(status: HistoryStatus.ready, entries: []));
+    }
+  }
 
   /// Keeps non-favourite entries for at most [maxAge] (null: forever) from
   /// now on, and deletes the ones that are already older.
@@ -87,6 +126,12 @@ class HistoryCubit extends Cubit<HistoryState> {
   Future<void> _run(Future<List<HistoryEntry>> Function() action) async {
     try {
       _emitEntries(await action());
+    } on HistoryUnreadableException {
+      // Nothing may overwrite it: the state says so already, or will once
+      // the history is loaded.
+      if (!isClosed && state.status != HistoryStatus.unreadable) {
+        emit(state.copyWith(status: HistoryStatus.unreadable, entries: []));
+      }
     } on Object catch (error, stackTrace) {
       addError(error, stackTrace);
     }

@@ -98,11 +98,16 @@ class MozhiPool {
   /// may already have reached that server, so it is not sent to another
   /// operator as well (security review W11).
   ///
+  /// With [allow], instances it rejects are skipped (the privacy settings
+  /// may let the text go to one instance but not to another): the request
+  /// is never sent to them, also not as a failover.
+  ///
   /// Throws a `MozhiApiException` when no instance is configured, and the
   /// last failover-eligible error when every instance failed.
   Future<T> run<T>(
     MozhiAction<T> action, {
     bool failOverOnTimeout = true,
+    bool Function(MozhiInstance instance)? allow,
   }) async {
     final tried = <String>{};
     Object? lastError;
@@ -113,6 +118,7 @@ class MozhiPool {
       if (instance == null) break;
       tried.add(instance.url);
       previous = instance;
+      if (allow != null && !allow(instance)) continue;
       try {
         final result = await action(_clientFor(instance), instance);
         if (_isConfigured(instance)) _preferred = instance;

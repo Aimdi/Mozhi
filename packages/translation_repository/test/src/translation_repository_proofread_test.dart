@@ -21,6 +21,7 @@ void main() {
       llmClientFactory: (_) => client,
       snapshotInterval: Duration.zero,
     )..updateConfiguration(instances: const [], providers: [claudeConfig]);
+    allowNetwork(repository);
   });
 
   void stubChat(Object json) =>

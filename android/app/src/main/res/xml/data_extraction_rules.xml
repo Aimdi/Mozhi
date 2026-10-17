@@ -4,12 +4,14 @@
 
      Files involved:
      - sharedpref FlutterSecureStorage.xml / FlutterSecureKeyStorage.xml:
-       flutter_secure_storage (AI provider API keys). The values are encrypted
+       flutter_secure_storage (AI provider API keys and the key the
+       translation history is encrypted with, `history.key`). The values are encrypted
        with AndroidKeyStore keys that never leave the device, so a copy could
        not be decrypted elsewhere ("Failed to unwrap key"). Default file names:
        lib/bootstrap.dart sets no sharedPreferencesName / storageNamespace.
      - file datastore/: shared_preferences (SharedPreferencesAsync), i.e.
-       settings and translation history. -->
+       settings and the translation history (AES-256-GCM encrypted with
+       `history.key`, lib/history/data/history_repository.dart). -->
 <data-extraction-rules>
     <!-- Cloud backup is already off (android:allowBackup="false"); these
          rules keep history and keys out of it should that ever change. -->
@@ -19,8 +21,10 @@
         <exclude domain="file" path="datastore" />
     </cloud-backup>
     <!-- Device-to-device transfer (setting up a new phone) is not affected by
-         allowBackup on Android 12+: settings and history move with the user,
-         API keys do not (they have to be entered again). -->
+         allowBackup on Android 12+: settings move with the user, API keys
+         and the history key do not (keys have to be entered again). The
+         encrypted history is copied but can't be decrypted on the new phone;
+         the app says so and keeps it aside. Export the history to move it. -->
     <device-transfer>
         <exclude domain="sharedpref" path="FlutterSecureStorage.xml" />
         <exclude domain="sharedpref" path="FlutterSecureKeyStorage.xml" />

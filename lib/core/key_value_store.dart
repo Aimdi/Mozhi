@@ -9,13 +9,20 @@ abstract interface class KeyValueStore {
   Future<void> delete(String key);
 }
 
+/// A [KeyValueStore] that can delete everything it holds at once (e.g. for
+/// "Delete all local data").
+abstract interface class ClearableKeyValueStore implements KeyValueStore {
+  /// Deletes every key.
+  Future<void> clear();
+}
+
 /// Plain preferences (settings, history).
 ///
 /// The underlying [SharedPreferencesAsync] is created lazily on first use, so
 /// constructing a [PreferencesStore] never touches platform plugins (handy in
 /// tests and before plugin registration). Failures surface from the
 /// individual operations instead.
-class PreferencesStore implements KeyValueStore {
+class PreferencesStore implements ClearableKeyValueStore {
   new([SharedPreferencesAsync? prefs]) : _instance = prefs;
 
   SharedPreferencesAsync? _instance;
@@ -30,9 +37,14 @@ class PreferencesStore implements KeyValueStore {
 
   @override
   Future<void> delete(String key) => _prefs.remove(key);
+
+  /// Deletes all of the app's preferences (on the web, only the app's own
+  /// keys of the origin's storage).
+  @override
+  Future<void> clear() => _prefs.clear();
 }
 
-/// Encrypted storage for API keys.
+/// Encrypted storage for API keys (and the history encryption key).
 class SecureStore implements KeyValueStore {
   new([FlutterSecureStorage? storage])
     : _storage = storage ?? const FlutterSecureStorage();
@@ -52,7 +64,7 @@ class SecureStore implements KeyValueStore {
 
 /// In-memory store for tests and as a fallback when secure storage is
 /// unavailable.
-class MemoryStore implements KeyValueStore {
+class MemoryStore implements ClearableKeyValueStore {
   new([Map<String, String>? initial]) : values = {...?initial};
 
   final Map<String, String> values;
@@ -65,4 +77,7 @@ class MemoryStore implements KeyValueStore {
 
   @override
   Future<void> delete(String key) async => values.remove(key);
+
+  @override
+  Future<void> clear() async => values.clear();
 }

@@ -1,11 +1,16 @@
 package io.github.aimdi.mozhi
 
 import android.app.Activity
+import android.content.ClipData
+import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.PersistableBundle
+import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
@@ -36,6 +41,12 @@ import java.util.Locale
  * holds text, `text`/`readOnly: true`/`processText: false`. Readers that
  * ignore `action` therefore treat clipboard text like shared text, and an
  * empty clipboard (no `text`) is ignored.
+ *
+ * Privacy helpers on [PRIVACY_CHANNEL] (`lib/platform/privacy_channel.dart`):
+ * `setSecureScreen(Boolean)` sets or clears `FLAG_SECURE` (no content in
+ * recents, no screenshots), and `copySensitiveText(String)` copies text marked
+ * `EXTRA_IS_SENSITIVE` on Android 13+ (answering true) and answers false
+ * without copying on older versions (Dart then uses `Clipboard.setData`).
  *
  * Deep links `mozhi://<screen>[/<path>][?<query>][#<fragment>]` are handed to
  * the Flutter router as the plain route `/<screen>[/<path>][?<query>]...`
@@ -135,6 +146,29 @@ class MainActivity : FlutterActivity() {
             }
         }
 
+        MethodChannel(messenger, PRIVACY_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "setSecureScreen" -> {
+                    val enabled = call.arguments as? Boolean
+                    if (enabled == null) {
+                        result.error("invalid_argument", "setSecureScreen expects a Boolean", null)
+                    } else {
+                        setSecureScreen(enabled)
+                        result.success(null)
+                    }
+                }
+                "copySensitiveText" -> {
+                    val text = call.arguments as? String
+                    if (text == null) {
+                        result.error("invalid_argument", "copySensitiveText expects the text", null)
+                    } else {
+                        result.success(copySensitiveText(text))
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+
         EventChannel(messenger, EVENT_CHANNEL).setStreamHandler(
             object : EventChannel.StreamHandler {
                 override fun onListen(arguments: Any?, events: EventChannel.EventSink) {
@@ -175,6 +209,33 @@ class MainActivity : FlutterActivity() {
             clipboardRequested = false
             send(clipboardPayload())
         }
+    }
+
+    /** Sets or clears `FLAG_SECURE` on this activity's window. */
+    private fun setSecureScreen(enabled: Boolean) {
+        if (enabled) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
+    }
+
+    /**
+     * Puts [text] on the clipboard marked as sensitive, so the system's copy
+     * confirmation and keyboard suggestions hide it. Only on Android 13+ (API
+     * 33, where the extra exists and the system confirms copies itself);
+     * returns false without copying on older versions.
+     */
+    private fun copySensitiveText(text: String): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+            ?: return false
+        val clip = ClipData.newPlainText("", text)
+        clip.description.extras = PersistableBundle().apply {
+            putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true)
+        }
+        clipboard.setPrimaryClip(clip)
+        return true
     }
 
     /** Sends [payload] on the event channel, or queues it until Dart listens. */
@@ -298,6 +359,7 @@ class MainActivity : FlutterActivity() {
 
         private const val METHOD_CHANNEL = "io.github.aimdi.mozhi/shared_text"
         private const val EVENT_CHANNEL = "io.github.aimdi.mozhi/shared_text_events"
+        private const val PRIVACY_CHANNEL = "io.github.aimdi.mozhi/privacy"
         private const val KEY_ACTION = "action"
         private const val ACTION_VALUE_TRANSLATE_CLIPBOARD = "translateClipboard"
         private const val DEFAULT_ROUTE = "/"

@@ -10,9 +10,17 @@ import 'package:mozhi/settings/models/app_settings.dart';
 bool historyRetentionChanged(AppSettings previous, AppSettings current) =>
     previous.historyRetention != current.historyRetention;
 
+/// Whether [current] turns incognito on or off.
+bool historyIncognitoChanged(AppSettings previous, AppSettings current) =>
+    previous.incognito != current.incognito;
+
 /// Keeps the [HistoryCubit] in sync with [AppSettings.historyRetention]
 /// (history auto-delete): applies the current setting when inserted and
 /// every change after that, so expired entries are deleted right away.
+///
+/// It also hands [AppSettings.incognito] to the cubit
+/// ([HistoryCubit.setIncognito]), so no automatic history is written while
+/// incognito is on, whichever screen translates.
 ///
 /// Entries also expire while the app keeps running, so with a retention
 /// set it is applied again whenever the app is resumed and every
@@ -40,7 +48,9 @@ class _HistoryRetentionListenerState extends State<HistoryRetentionListener> {
   void initState() {
     super.initState();
     _lifecycle = AppLifecycleListener(onResume: _prune);
-    _apply(context.read<SettingsCubit>().state);
+    final settings = context.read<SettingsCubit>().state;
+    _apply(settings);
+    _applyIncognito(settings);
   }
 
   @override
@@ -62,6 +72,9 @@ class _HistoryRetentionListenerState extends State<HistoryRetentionListener> {
     unawaited(context.read<HistoryCubit>().applyRetention(maxAge));
   }
 
+  void _applyIncognito(AppSettings settings) =>
+      context.read<HistoryCubit>().setIncognito(enabled: settings.incognito);
+
   /// Deletes the entries that expired since the retention was last applied.
   void _prune() {
     if (!mounted) return;
@@ -72,9 +85,17 @@ class _HistoryRetentionListenerState extends State<HistoryRetentionListener> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocListener<SettingsCubit, AppSettings>(
-      listenWhen: historyRetentionChanged,
-      listener: (context, settings) => _apply(settings),
+    return MultiBlocListener(
+      listeners: [
+        BlocListener<SettingsCubit, AppSettings>(
+          listenWhen: historyRetentionChanged,
+          listener: (context, settings) => _apply(settings),
+        ),
+        BlocListener<SettingsCubit, AppSettings>(
+          listenWhen: historyIncognitoChanged,
+          listener: (context, settings) => _applyIncognito(settings),
+        ),
+      ],
       child: widget.child,
     );
   }

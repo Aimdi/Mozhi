@@ -1,5 +1,6 @@
 import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
+import 'package:translation_repository/src/models/data_destination.dart';
 
 const _list = ListEquality<Object?>();
 
@@ -535,6 +536,7 @@ class ImageTranslationResult {
     this.sourceText = '',
     this.translatedText = '',
     this.notes = '',
+    this.destination,
   });
 
   /// Rendered translated image (Mozhi/Google only), PNG/JPEG bytes.
@@ -545,6 +547,11 @@ class ImageTranslationResult {
   /// Extra context a vision model gave about the image.
   final String notes;
 
+  /// Where the image was sent (set by `TranslationRepository`: the Mozhi
+  /// instance that answered, or the AI provider). Null for results built
+  /// elsewhere.
+  final DataDestination? destination;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -552,7 +559,8 @@ class ImageTranslationResult {
           _list.equals(other.translatedImage, translatedImage) &&
           other.sourceText == sourceText &&
           other.translatedText == translatedText &&
-          other.notes == notes;
+          other.notes == notes &&
+          other.destination == destination;
 
   @override
   int get hashCode => Object.hash(
@@ -560,5 +568,6 @@ class ImageTranslationResult {
     sourceText,
     translatedText,
     notes,
+    destination,
   );
 }

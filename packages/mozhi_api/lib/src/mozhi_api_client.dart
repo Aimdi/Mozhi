@@ -49,7 +49,18 @@ typedef _RequestBuilder = http.BaseRequest Function(
 /// to `https`) is followed here by re-sending the same form to `Location`,
 /// at most [maxRedirects] times and never from `https` to `http`. On the web
 /// a redirected POST therefore fails as a transport error, because `fetch`
-/// can only follow it as a GET without the form.
+/// can only follow it as a GET without the form. On native platforms GET
+/// redirects (also 303) are followed here too, under the same rules, so
+/// that every hop goes through the [http.Client] (and whatever policy it
+/// enforces) and a GET carrying the user's text (`/api/tts`) is never
+/// downgraded to plain `http`; `fetch` follows them itself on the web.
+///
+/// Requests that carry the user's content ([translate],
+/// [translateWithEngines], [textToSpeech], [translateImage]) take an
+/// optional `abortTrigger`: completing it aborts the request, which then
+/// fails with a [MozhiRequestCancelledException]. Blank text is never sent:
+/// the translate methods return it unchanged and [textToSpeech] rejects it
+/// with an [ArgumentError].
 class MozhiApiClient {
   new({
     required this.baseUrl,
@@ -84,6 +95,14 @@ class MozhiApiClient {
   /// Statuses after which the same request is sent again to `Location`.
   /// 303 is not one of them: it asks for a GET, which would drop the form.
   static const _redirectStatuses = {301, 302, 307, 308};
+
+  /// [_redirectStatuses] plus 303 ("see other"), which for a GET means the
+  /// same request to another URL.
+  static const Set<int> _getRedirectStatuses = {..._redirectStatuses, 303};
+
+  /// Whether this runs in a browser, where `fetch` follows GET redirects
+  /// and cannot hand them to the caller.
+  static const _isWeb = bool.fromEnvironment('dart.library.js_interop');
 
   /// Ids returned by `/api/engines` that are not real engines.
   static const _pseudoEngines = {'all', 'some'};
@@ -214,17 +233,24 @@ class MozhiApiClient {
       _getLanguages('target_languages', engine);
 
   /// Translates [text] with a single [engine] (POST form).
+  ///
+  /// Blank [text] is not sent: it is returned as its own translation.
+  /// Completing [abortTrigger] cancels the request
+  /// ([MozhiRequestCancelledException]).
   Future<MozhiTranslation> translate({
     required String engine,
     required String from,
     required String to,
     required String text,
+    Future<void>? abortTrigger,
   }) async {
+    if (text.trim().isEmpty) return _blank(engine, from, to, text);
     final (uri, translations) = await _postTranslate(
       engine: engine,
       from: from,
       to: to,
       text: text,
+      abortTrigger: abortTrigger,
     );
     if (translations.isEmpty) {
       throw MozhiApiException('$engine returned no translation', uri: uri);
@@ -236,34 +262,62 @@ class MozhiApiClient {
   /// list means every engine (`engine=all`); otherwise the ids are joined
   /// with commas. Always returns a list (a single-object response is
   /// wrapped).
+  ///
+  /// Blank [text] is not sent: it is returned as its own translation, once
+  /// per engine in [engines] (none for "every engine"). Completing
+  /// [abortTrigger] cancels the request.
   Future<List<MozhiTranslation>> translateWithEngines({
     required List<String> engines,
     required String from,
     required String to,
     required String text,
+    Future<void>? abortTrigger,
   }) async {
+    if (text.trim().isEmpty) {
+      return [for (final engine in engines) _blank(engine, from, to, text)];
+    }
     final (_, translations) = await _postTranslate(
       engine: engines.isEmpty ? 'all' : engines.join(','),
       from: from,
       to: to,
       text: text,
+      abortTrigger: abortTrigger,
     );
     return translations;
   }
 
+  /// The translation of blank [text], answered without a request.
+  static MozhiTranslation _blank(
+    String engine,
+    String from,
+    String to,
+    String text,
+  ) => MozhiTranslation(
+    engine: engine,
+    translatedText: text,
+    sourceLanguage: from,
+    targetLanguage: to,
+  );
+
   /// `GET /api/tts`. Only `google` and `reverso` support TTS. Returns the
-  /// MP3 bytes. Throws [MozhiApiException] when the body is empty.
+  /// MP3 bytes. Throws [MozhiApiException] when the body is empty, and an
+  /// [ArgumentError] (without a request) when [text] is blank. Completing
+  /// [abortTrigger] cancels the request.
   Future<Uint8List> textToSpeech({
     required String engine,
     required String language,
     required String text,
+    Future<void>? abortTrigger,
   }) async {
+    if (text.trim().isEmpty) {
+      throw ArgumentError.value(text, 'text', 'Nothing to read aloud');
+    }
     final uri = _endpoint('tts', {
       'engine': engine,
       'lang': language,
       'text': text,
     });
-    final (url, response) = await _send(uri, _get);
+    final (url, response) = await _send(uri, _get, abortTrigger: abortTrigger);
     if (response.bodyBytes.isEmpty) {
       throw MozhiApiException('$engine returned no audio', uri: url);
     }
@@ -271,12 +325,14 @@ class MozhiApiClient {
   }
 
   /// `POST /api/image` (multipart). [pngBytes] must be a PNG image; only the
-  /// Google engine is implemented server-side.
+  /// Google engine is implemented server-side. Completing [abortTrigger]
+  /// cancels the request.
   Future<MozhiImageTranslation> translateImage({
     required Uint8List pngBytes,
     required String from,
     required String to,
     String engine = 'google',
+    Future<void>? abortTrigger,
   }) async {
     final (url, response) = await _send(
       _endpoint('image'),
@@ -296,6 +352,7 @@ class MozhiApiClient {
                 contentType: MediaType('image', 'png'),
               ),
             ),
+      abortTrigger: abortTrigger,
     );
     return MozhiImageTranslation.fromJson(
       _expectObject(_decodeJson(response, url), url),
@@ -352,6 +409,7 @@ class MozhiApiClient {
     required String from,
     required String to,
     required String text,
+    Future<void>? abortTrigger,
   }) async {
     final (url, response) = await _send(
       _endpoint('translate'),
@@ -365,6 +423,7 @@ class MozhiApiClient {
               'to': to,
               'text': text,
             },
+      abortTrigger: abortTrigger,
     );
     final json = _decodeJson(response, url);
     final translations = json is Map<String, dynamic>
@@ -382,20 +441,37 @@ class MozhiApiClient {
     return (url, _decodeJson(response, url));
   }
 
-  /// GET requests keep following redirects natively: `dart:io` and `fetch`
-  /// both do so correctly for GET.
+  /// GET requests follow redirects natively only on the web (`fetch`
+  /// cannot hand them over); elsewhere [_send] follows them, so that no hop
+  /// bypasses the [http.Client] or downgrades to plain `http`.
   static http.BaseRequest _get(Uri url, Future<void> abortTrigger) =>
-      http.AbortableRequest('GET', url, abortTrigger: abortTrigger);
+      http.AbortableRequest('GET', url, abortTrigger: abortTrigger)
+        ..followRedirects = _isWeb;
 
   /// Sends the request built by [build] for [uri], follows redirects that
   /// the platform left to us, and returns the final URL with its response.
   ///
   /// Everything runs under [timeout]; when it runs out the request is
   /// aborted (for clients that support [http.Abortable]) instead of being
-  /// left running. Every failure, including non-2xx responses, becomes a
-  /// [MozhiApiException] whose `uri` is the last URL requested.
-  Future<(Uri, http.Response)> _send(Uri uri, _RequestBuilder build) async {
+  /// left running. Completing [abortTrigger] aborts it the same way and
+  /// fails with [MozhiRequestCancelledException]. Every failure, including
+  /// non-2xx responses, becomes a [MozhiApiException] whose `uri` is the
+  /// last URL requested.
+  Future<(Uri, http.Response)> _send(
+    Uri uri,
+    _RequestBuilder build, {
+    Future<void>? abortTrigger,
+  }) async {
     final abort = Completer<void>();
+    var cancelled = false;
+    void cancel(Object? _) {
+      cancelled = true;
+      if (!abort.isCompleted) abort.complete();
+    }
+
+    if (abortTrigger != null) {
+      unawaited(abortTrigger.then(cancel, onError: cancel));
+    }
     var url = uri;
     Future<http.Response> exchange() async {
       for (var redirects = 0; ; redirects++) {
@@ -408,11 +484,11 @@ class MozhiApiClient {
           await _httpClient.send(request),
         );
         final next = redirects < maxRedirects
-            ? _redirectTarget(url, response)
+            ? _redirectTarget(url, response, request.method)
             : null;
         if (next == null) return response;
-        // A redirect that arrives after the deadline must not start a new
-        // upload nobody waits for.
+        // A redirect that arrives after the deadline (or a cancellation)
+        // must not start a new upload nobody waits for.
         if (abort.isCompleted) throw http.RequestAbortedException(next);
         url = next;
       }
@@ -423,15 +499,31 @@ class MozhiApiClient {
       response = await exchange().timeout(
         timeout,
         onTimeout: () {
-          abort.complete();
+          if (!abort.isCompleted) abort.complete();
           throw TimeoutException(null, timeout);
         },
       );
+    } on TimeoutException catch (_, stackTrace) {
+      // A cancellation that raced the deadline still reads as one.
+      Error.throwWithStackTrace(
+        cancelled
+            ? MozhiRequestCancelledException(uri: url)
+            : MozhiApiException(
+                'No response within ${timeout.inMilliseconds} ms',
+                uri: url,
+              ),
+        stackTrace,
+      );
     } on Exception catch (error, stackTrace) {
+      if (cancelled) {
+        Error.throwWithStackTrace(
+          MozhiRequestCancelledException(uri: url),
+          stackTrace,
+        );
+      }
       // http.ClientException covers socket/TLS failures on every platform;
       // anything else a custom client throws is still a transport failure.
       final message = switch (error) {
-        TimeoutException() => 'No response within ${timeout.inMilliseconds} ms',
         http.ClientException(:final message) when message.isNotEmpty => message,
         _ => error.toString(),
       };
@@ -440,6 +532,9 @@ class MozhiApiClient {
         stackTrace,
       );
     }
+    // A client that ignores abort triggers still must not deliver a result
+    // the caller has given up on.
+    if (cancelled) throw MozhiRequestCancelledException(uri: url);
     final status = response.statusCode;
     if (status < 200 || status > 299) {
       throw MozhiApiException(
@@ -451,13 +546,15 @@ class MozhiApiClient {
     return (url, response);
   }
 
-  /// Where to re-send a request that got [response] from [url], or `null`
-  /// when [response] is not a redirect that is safe to follow: unknown
-  /// status, no usable `Location`, a scheme other than http(s), or a
-  /// downgrade from `https` to `http`. Credentials in `Location` are
-  /// dropped; only [baseUrl]'s are ever sent, as a header.
-  static Uri? _redirectTarget(Uri url, http.Response response) {
-    if (!_redirectStatuses.contains(response.statusCode)) return null;
+  /// Where to re-send a [method] request that got [response] from [url], or
+  /// `null` when [response] is not a redirect that is safe to follow:
+  /// unknown status (303 is only followed for GET), no usable `Location`, a
+  /// scheme other than http(s), or a downgrade from `https` to `http`.
+  /// Credentials in `Location` are dropped; only [baseUrl]'s are ever sent,
+  /// as a header.
+  static Uri? _redirectTarget(Uri url, http.Response response, String method) {
+    final statuses = method == 'GET' ? _getRedirectStatuses : _redirectStatuses;
+    if (!statuses.contains(response.statusCode)) return null;
     final location = response.headers['location']?.trim() ?? '';
     final reference = location.isEmpty ? null : Uri.tryParse(location);
     if (reference == null) return null;

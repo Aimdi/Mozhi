@@ -43,3 +43,15 @@ class MozhiApiException implements Exception {
         '${shown == null ? '' : ' [$shown]'}';
   }
 }
+
+/// Thrown when the caller completed a request's `abortTrigger`: the request
+/// was aborted and its result will never be delivered.
+///
+/// Never retryable: the caller gave up on the request, so it must not be
+/// sent to another instance either.
+class MozhiRequestCancelledException extends MozhiApiException {
+  const new({super.uri}) : super('The request was cancelled.');
+
+  @override
+  bool get isRetryable => false;
+}
