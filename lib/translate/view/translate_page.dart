@@ -98,6 +98,14 @@ class _ShortcutAction<T extends Intent> extends Action<T> {
 ///
 /// A smart swap of the target language is announced in a snack bar with
 /// Undo ([SmartSwapListener]).
+///
+/// The screen shows one task: the languages, the input and the
+/// translation. Everything else (check meaning, insights, romanization,
+/// matching phrases, compare, "Refine & learn", definitions, "Also
+/// translate into…") is in the "More" area under the translation
+/// ([TranslateMoreToggle]); whether it is open is remembered for the
+/// session ([TranslateMoreHost]). Compare mode is also in the "More tools"
+/// menu, so it can be turned on before translating.
 class TranslateView extends StatelessWidget {
   const new({super.key});
 
@@ -251,38 +259,40 @@ class TranslateView extends StatelessWidget {
             autofocus: true,
             child: SmartSwapListener(
               child: TranslateConsentListener(
-                child: Scaffold(
-                  appBar: _TranslateAppBar(
-                    showTitle: width >= TranslateLayout.compactBreakpoint,
-                  ),
-                  body: BlocBuilder<TranslateCubit, TranslateState>(
-                    buildWhen: (previous, current) =>
-                        previous.enginesStatus != current.enginesStatus ||
-                        previous.engines.isEmpty != current.engines.isEmpty ||
-                        (previous.engine == null) != (current.engine == null),
-                    builder: (context, state) {
-                      if (state.engines.isEmpty) {
-                        return switch (state.enginesStatus) {
-                          EnginesStatus.initial ||
-                          EnginesStatus.loading => const TranslateSkeleton(),
-                          EnginesStatus.ready ||
-                          EnginesStatus.failure => const NoEnginesView(),
-                        };
-                      }
-                      if (state.engine == null &&
-                          state.enginesStatus == EnginesStatus.ready) {
-                        return const ChooseEngineView();
-                      }
-                      // Measure the pane itself: the shell's navigation rail
-                      // takes part of the window on large screens.
-                      return LayoutBuilder(
-                        builder: (context, constraints) =>
-                            constraints.maxWidth >=
-                                TranslateLayout.wideBreakpoint
-                            ? const _WideLayout()
-                            : const _NarrowLayout(),
-                      );
-                    },
+                child: TranslateMoreHost(
+                  child: Scaffold(
+                    appBar: _TranslateAppBar(
+                      showTitle: width >= TranslateLayout.compactBreakpoint,
+                    ),
+                    body: BlocBuilder<TranslateCubit, TranslateState>(
+                      buildWhen: (previous, current) =>
+                          previous.enginesStatus != current.enginesStatus ||
+                          previous.engines.isEmpty != current.engines.isEmpty ||
+                          (previous.engine == null) != (current.engine == null),
+                      builder: (context, state) {
+                        if (state.engines.isEmpty) {
+                          return switch (state.enginesStatus) {
+                            EnginesStatus.initial ||
+                            EnginesStatus.loading => const TranslateSkeleton(),
+                            EnginesStatus.ready ||
+                            EnginesStatus.failure => const NoEnginesView(),
+                          };
+                        }
+                        if (state.engine == null &&
+                            state.enginesStatus == EnginesStatus.ready) {
+                          return const ChooseEngineView();
+                        }
+                        // Measure the pane itself: the shell's navigation rail
+                        // takes part of the window on large screens.
+                        return LayoutBuilder(
+                          builder: (context, constraints) =>
+                              constraints.maxWidth >=
+                                  TranslateLayout.wideBreakpoint
+                              ? const _WideLayout()
+                              : const _NarrowLayout(),
+                        );
+                      },
+                    ),
                   ),
                 ),
               ),
@@ -418,43 +428,7 @@ class _TranslateAppBar extends StatelessWidget implements PreferredSizeWidget {
           );
         },
       ),
-      actions: const [
-        OptionsButton(),
-        _CompareToggle(),
-        MoreToolsButton(),
-        SizedBox(width: 4),
-      ],
-    );
-  }
-}
-
-class _CompareToggle extends StatelessWidget {
-  const new();
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    return BlocBuilder<TranslateCubit, TranslateState>(
-      buildWhen: (previous, current) =>
-          previous.compareMode != current.compareMode ||
-          previous.engines.length != current.engines.length,
-      builder: (context, state) {
-        final enabled = state.compareMode || state.engines.length > 1;
-        return IconButton(
-          key: const Key('translate_compare_toggle'),
-          tooltip: state.compareMode
-              ? l10n.translateCompareModeExit
-              : l10n.translateCompareModeEnter,
-          isSelected: state.compareMode,
-          icon: const Icon(Icons.difference_outlined),
-          selectedIcon: const Icon(Icons.difference),
-          onPressed: enabled
-              ? () => context.read<TranslateCubit>().setCompareMode(
-                  enabled: !state.compareMode,
-                )
-              : null,
-        );
-      },
+      actions: const [OptionsButton(), MoreToolsButton(), SizedBox(width: 4)],
     );
   }
 }
@@ -517,14 +491,17 @@ class _InputThread extends StatelessWidget {
   }
 }
 
-/// Output card or compare cards; then the meaning check, "Refine & learn"
-/// (AI extras), definitions and the translations into the extra target
-/// languages. A translation is the reply of the thread: the target
+/// Output card or compare cards; then the meaning check (once asked for)
+/// and, while the "More" area is open and there is a translation, "Refine
+/// & learn" (AI extras), definitions and "Also translate into…"; the
+/// translations into the extra target languages the user chose are shown
+/// either way. A translation is the reply of the thread: the target
 /// language's avatar beside it; before there is one, the empty state sits
 /// under a hairline.
 ///
 /// Hiding the meaning check from its panel hands the focus back to the
-/// output card's "Check meaning" button.
+/// output card's "Check meaning" button (the "More" toggle while the area
+/// is closed).
 class _OutputSection extends StatefulWidget {
   const new({this.memory = true, this.separated = true});
 
@@ -560,6 +537,11 @@ class _OutputSectionState extends State<_OutputSection> {
     final targetCode = context.select<TranslateCubit, String>(
       (cubit) => targetAvatarCode(cubit.state),
     );
+    final hasOutput = context.select<TranslateCubit, bool>(
+      (cubit) => cubit.state.output.trim().isNotEmpty,
+    );
+    final more = TranslateMoreScope.maybeOf(context);
+    final expanded = hasOutput && (more?.expanded ?? false);
     final output = OutputCard(meaningButtonFocusNode: _meaningButton);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -576,10 +558,21 @@ class _OutputSectionState extends State<_OutputSection> {
           if (widget.separated) const Hairline(),
           output,
         ],
-        MeaningCheckPanel(returnFocusNode: _meaningButton),
-        const ExtrasSection(),
-        const WordChoicesPanel(),
-        const ExtraTargetsSection(),
+        MeaningCheckPanel(
+          returnFocusNode: expanded || more == null
+              ? _meaningButton
+              : more.toggleFocus,
+        ),
+        ExtrasSection(expanded: expanded),
+        AnimatedSize(
+          duration: TranslateLayout.motion(context),
+          curve: Curves.easeOutCubic,
+          alignment: AlignmentDirectional.topStart,
+          child: expanded
+              ? const WordChoicesPanel()
+              : const SizedBox(width: double.infinity),
+        ),
+        ExtraTargetsSection(showPicker: expanded),
       ],
     );
   }

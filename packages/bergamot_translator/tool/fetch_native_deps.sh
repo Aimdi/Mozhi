@@ -3,9 +3,12 @@
 #
 # Usage: packages/bergamot_translator/tool/fetch_native_deps.sh
 #
-# The engine is vendored as two git submodules of this repository:
+# The engine is vendored as three git submodules of this repository:
 #   native/third_party/translations  github.com/mozilla/translations (MPL-2.0)
 #   native/third_party/pcre2         github.com/PCRE2Project/pcre2 (BSD-3)
+#   native/third_party/cld2          github.com/CLD2Owners/cld2 (Apache-2.0;
+#                                    language identification, ~120 MB of
+#                                    generated tables, 1.8 MB compiled)
 #
 # mozilla/translations also contains Mozilla's training pipeline, whose
 # submodules (marian-dev, kenlm, fast_align, emsdk, ...) are NOT needed. Do
@@ -40,7 +43,8 @@ update() {
 
 update "$repo_root" \
   "${third_party#"${repo_root}/"}/translations" \
-  "${third_party#"${repo_root}/"}/pcre2"
+  "${third_party#"${repo_root}/"}/pcre2" \
+  "${third_party#"${repo_root}/"}/cld2"
 
 update "$translations" \
   inference/3rd_party/ssplit-cpp \

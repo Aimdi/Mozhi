@@ -6,6 +6,7 @@
  *
  *   mozhi_bergamot_cli MODEL SHORTLIST VOCAB [TRG_VOCAB] < input.txt
  *   mozhi_bergamot_cli --pivot M1 S1 V1 M2 S2 V2 < input.txt
+ *   mozhi_bergamot_cli --detect < lines.txt   (language of each line, CLD2)
  *
  * Copyright (c) 2026 Mozhi contributors. MIT License.
  */
@@ -50,13 +51,62 @@ static MozhiBergamotModel* load(const char* model, const char* shortlist,
   return handle;
 }
 
+static void print_detection(const char* mode,
+                            const MozhiBergamotDetection* detection) {
+  printf("\t%s %s%s", mode, detection->language,
+         detection->reliable ? "" : "?");
+  for (int i = 0; i < 3; i++) {
+    const MozhiBergamotLanguage* language = &detection->languages[i];
+    if (strcmp(language->code, "un") == 0) break;
+    printf(" %s:%d%%/%d", language->code, (int)language->percent,
+           (int)language->score);
+  }
+}
+
+/* Identifies the language of every line of stdin: CLD2's answer, then its
+ * best-effort guess ("?" = not reliable; code:percent/score), and the time
+ * per line. */
+static int detect_lines(void) {
+  char line[16384];
+  double total = 0;
+  int lines = 0;
+  while (fgets(line, sizeof line, stdin) != NULL) {
+    size_t length = strlen(line);
+    while (length > 0 && (line[length - 1] == '\n' || line[length - 1] == '\r')) {
+      line[--length] = '\0';
+    }
+    MozhiBergamotDetection precise, guess;
+    double start = now_ms();
+    if (!mozhi_bergamot_detect(line, (int32_t)length, NULL, 0, &precise) ||
+        !mozhi_bergamot_detect(line, (int32_t)length, NULL,
+                               MOZHI_BERGAMOT_DETECT_BEST_EFFORT, &guess)) {
+      fprintf(stderr, "detect failed: %s\n", mozhi_bergamot_last_error());
+      return 1;
+    }
+    double elapsed = now_ms() - start;
+    total += elapsed;
+    lines++;
+    printf("%s", line);
+    print_detection("cld2", &precise);
+    print_detection("guess", &guess);
+    printf("\t%.3f ms\n", elapsed);
+  }
+  if (lines > 0) {
+    fprintf(stderr, "%d lines, %.3f ms per line (both passes)\n", lines,
+            total / lines);
+  }
+  return 0;
+}
+
 int main(int argc, char** argv) {
+  if (argc == 2 && strcmp(argv[1], "--detect") == 0) return detect_lines();
   int pivot = argc == 8 && strcmp(argv[1], "--pivot") == 0;
   if (!pivot && argc != 4 && argc != 5) {
     fprintf(stderr,
             "usage: %s MODEL SHORTLIST VOCAB [TRG_VOCAB] < input\n"
-            "       %s --pivot M1 S1 V1 M2 S2 V2 < input\n",
-            argv[0], argv[0]);
+            "       %s --pivot M1 S1 V1 M2 S2 V2 < input\n"
+            "       %s --detect < lines\n",
+            argv[0], argv[0], argv[0]);
     return 2;
   }
   fprintf(stderr, "%s (ABI %d)\n", mozhi_bergamot_version(),

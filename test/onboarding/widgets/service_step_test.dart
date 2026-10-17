@@ -4,6 +4,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/onboarding/onboarding.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/widgets/insecure_http_warning.dart';
+import 'package:translation_repository/translation_repository.dart';
 
 import '../helpers.dart';
 
@@ -29,7 +30,9 @@ void main() {
     testWidgets('lists the instances in preference order', (tester) async {
       await pump(tester);
 
-      expect(find.text('Choose a translation service'), findsOneWidget);
+      expect(find.text('Online translation'), findsOneWidget);
+      expect(find.text('Optional'), findsOneWidget);
+      expect(find.textContaining('don’t use Cloudflare'), findsOneWidget);
       expect(find.text('Alpha'), findsOneWidget);
       expect(find.text('a.example'), findsOneWidget);
       expect(find.text('b.example'), findsOneWidget);
@@ -38,6 +41,47 @@ void main() {
           .widgetList<RadioListTile<String>>(find.byType(RadioListTile<String>))
           .map((tile) => tile.value);
       expect(radios, [instanceA.url, instanceB.url, instanceC.url]);
+    });
+
+    testWidgets('says that Offline only never contacts the servers', (
+      tester,
+    ) async {
+      await pump(tester);
+      const note = Key('onboarding_service_offline_only');
+      expect(find.byKey(note), findsNothing);
+
+      await pump(
+        tester,
+        const OnboardingState(),
+        const AppSettings(
+          instances: testInstances,
+          privacyMode: PrivacyMode.offlineOnly,
+        ),
+      );
+      expect(find.byKey(note), findsOneWidget);
+    });
+
+    testWidgets('points to the AI provider settings', (tester) async {
+      await pump(tester);
+      expect(find.textContaining('AI translators are optional'), findsOne);
+      // Without a callback there is no link.
+      expect(find.text('Open AI provider settings'), findsNothing);
+
+      var opened = 0;
+      tester.setScreenSize(const Size(500, 2000));
+      await tester.pumpOnboarding(
+        ServiceStep(onOpenAiSettings: () => opened++),
+        onboarding: createOnboardingCubit(),
+        settings: createSettings(),
+      );
+      final link = find.text('Open AI provider settings');
+      await tester.ensureVisible(link);
+      await tester.tap(link);
+      expect(opened, 1);
+      expect(
+        tester.getSize(find.byKey(const Key('onboarding_open_ai_settings'))),
+        isA<Size>().having((s) => s.height, 'height', greaterThanOrEqualTo(48)),
+      );
     });
 
     testWidgets('find fastest starts pinging', (tester) async {

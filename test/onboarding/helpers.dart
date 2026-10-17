@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,6 +8,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/offline/cubit/offline_models_cubit.dart';
+import 'package:mozhi/offline/data/offline_model_details.dart';
 import 'package:mozhi/onboarding/cubit/onboarding_cubit.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
@@ -58,22 +62,113 @@ MockOnboardingCubit createOnboardingCubit([
   when(() => cubit.state).thenReturn(state);
   when(cubit.findFastestInstance).thenAnswer((_) async {});
   when(() => cubit.addOwnInstance(any())).thenAnswer((_) async {});
-  when(cubit.testProvider).thenAnswer((_) async {});
-  when(cubit.loadModels).thenAnswer((_) async {});
   return cubit;
 }
 
 void registerOnboardingFallbacks() {
   registerFallbackValue(instanceA);
-  registerFallbackValue(
-    const AiProviderConfig(
-      id: 'fallback',
-      name: 'Fallback',
-      provider: LlmProvider.openAiCompatible,
-      baseUrl: 'https://fallback.test',
-      model: 'm',
-    ),
+  registerFallbackValue(Language.auto);
+}
+
+/// An on-device engine with English (built in), German, French and
+/// Spanish; [downloaded] languages are on the device.
+class FakeOfflineTranslator implements OfflineTranslator {
+  new({this.isAvailable = true, Set<String>? downloaded, this.failWith})
+    : downloaded = downloaded ?? {'en'};
+
+  @override
+  final bool isAvailable;
+
+  final Set<String> downloaded;
+
+  /// Thrown by [downloadLanguage] when set.
+  Exception? failWith;
+
+  /// The `wifiOnly` of every [downloadLanguage] call, by language.
+  final List<(String, bool)> downloads = [];
+
+  /// Completes a download when set (otherwise downloads finish at once).
+  Completer<void>? gate;
+
+  @override
+  Set<String> get supportedLanguages => const {'en', 'de', 'fr', 'es'};
+
+  @override
+  Future<Set<String>> downloadedLanguages() async => {...downloaded};
+
+  @override
+  Future<void> downloadLanguage(String code, {bool wifiOnly = true}) async {
+    downloads.add((code, wifiOnly));
+    await gate?.future;
+    if (failWith case final error?) {
+      failWith = null;
+      throw error;
+    }
+    downloaded.add(code);
+  }
+
+  @override
+  Future<void> deleteLanguage(String code) async => downloaded.remove(code);
+
+  @override
+  Future<String> translate(
+    String text, {
+    required String source,
+    required String target,
+  }) async => text;
+
+  @override
+  Future<String?> identifyLanguage(String text) async => null;
+
+  @override
+  Future<void> dispose() async {}
+}
+
+/// [OfflineModelDetails] of a [FakeOfflineTranslator]: 0 bytes for English,
+/// 40 MiB for the others.
+class FakeModelDetails implements OfflineModelDetails {
+  new(this.translator);
+
+  final FakeOfflineTranslator translator;
+
+  static const int size = 40 * 1024 * 1024;
+
+  @override
+  int downloadSize(String code) => code == 'en' ? 0 : size;
+
+  @override
+  Future<OfflineStorage> storage(Iterable<String> codes) async =>
+      OfflineStorage(
+        installedBytes: {
+          for (final code in translator.downloaded)
+            if (code != 'en') code: size,
+        },
+      );
+
+  @override
+  Future<void> download(
+    String code, {
+    required bool wifiOnly,
+    void Function(double fraction)? onProgress,
+  }) async {
+    onProgress?.call(0.5);
+    await translator.downloadLanguage(code, wifiOnly: wifiOnly);
+  }
+}
+
+/// A loaded [OfflineModelsCubit] over [translator] (default: a
+/// [FakeOfflineTranslator] with sizes).
+Future<OfflineModelsCubit> createOfflineModels([
+  FakeOfflineTranslator? translator,
+]) async {
+  final engine = translator ?? FakeOfflineTranslator();
+  final cubit = OfflineModelsCubit(
+    translator: engine,
+    store: MemoryStore(),
+    details: FakeModelDetails(engine),
   );
+  await cubit.load();
+  return cubit;
 }
 
 extension PumpOnboarding on WidgetTester {
@@ -90,6 +185,7 @@ extension PumpOnboarding on WidgetTester {
   Future<void> pumpOnboarding(
     Widget widget, {
     OnboardingCubit? onboarding,
+    OfflineModelsCubit? offline,
     SettingsCubit? settings,
     TranslationRepository? repository,
     GoRouter? router,
@@ -108,6 +204,8 @@ extension PumpOnboarding on WidgetTester {
             ),
             if (onboarding != null)
               BlocProvider<OnboardingCubit>.value(value: onboarding),
+            if (offline != null)
+              BlocProvider<OfflineModelsCubit>.value(value: offline),
           ],
           child: InheritedGoRouter(
             goRouter: router ?? MockGoRouter(),

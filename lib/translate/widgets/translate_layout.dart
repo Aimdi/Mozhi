@@ -82,6 +82,67 @@ abstract final class TranslateLayout {
           ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.2);
 }
 
+/// Material's fade-through between the states of one area (the empty
+/// state, progress, a result, an error): the old content fades out
+/// quickly, then the new one fades in while growing slightly. Contents are
+/// told apart by the key of [child] (the same key: no transition, e.g.
+/// while a translation streams in). Takes [TranslateLayout.motion]
+/// (nothing with reduced motion); the outgoing content is hidden from
+/// screen readers and ignores pointers while it fades.
+class FadeThroughSwitcher extends StatelessWidget {
+  const new({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: TranslateLayout.motion(context),
+      switchInCurve: const Interval(0.35, 1, curve: Curves.easeOutCubic),
+      switchOutCurve: const Interval(0.65, 1),
+      // Top-start (the Stack default), not centred like AnimatedSwitcher.
+      layoutBuilder: (current, previous) =>
+          Stack(children: [...previous, ?current]),
+      transitionBuilder: (child, animation) =>
+          _FadeThrough(animation: animation, child: child),
+      child: child,
+    );
+  }
+}
+
+class _FadeThrough extends StatelessWidget {
+  const new({required this.animation, required this.child});
+
+  final Animation<double> animation;
+  final Widget child;
+
+  static final _scale = Tween<double>(begin: 0.98, end: 1);
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, child) {
+        final leaving = animation.status == AnimationStatus.reverse;
+        return ExcludeSemantics(
+          excluding: leaving,
+          child: IgnorePointer(ignoring: leaving, child: child),
+        );
+      },
+      child: FadeTransition(
+        opacity: animation,
+        child: ScaleTransition(
+          scale: _scale.animate(animation),
+          alignment: AlignmentDirectional.topStart.resolve(
+            Directionality.of(context),
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
 /// How a [TranslateFlatCard] is drawn.
 enum TranslateCardLook {
   /// No box: content on the page, a hairline above it (X rows).

@@ -18,16 +18,33 @@ EdgeInsets centeredPadding(
 /// A titled group of settings in the X style: a bold section heading,
 /// plain rows and a hairline that closes the group (no card, no tint).
 ///
+/// A [badge] (e.g. "Advanced") follows the title and is read with it.
 /// Use [SettingsIcon] for the leading icons of the tiles inside.
 class SettingsSection extends StatelessWidget {
-  const new({required this.title, required this.children, super.key});
+  const new({
+    required this.title,
+    required this.children,
+    this.badge,
+    super.key,
+  });
 
   final String title;
   final List<Widget> children;
 
+  /// A short label shown next to the title.
+  final String? badge;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final heading = Text(
+      title,
+      style: theme.textTheme.titleLarge?.copyWith(
+        color: theme.colorScheme.onSurface,
+        fontSize: 20,
+        fontWeight: FontWeight.w800,
+      ),
+    );
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Column(
@@ -40,14 +57,21 @@ class SettingsSection extends StatelessWidget {
             child: Semantics(
               container: true,
               header: true,
-              child: Text(
-                title,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  color: theme.colorScheme.onSurface,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
+              child: switch (badge) {
+                null => heading,
+                final badge => Wrap(
+                  spacing: 12,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    heading,
+                    StatusBadge(
+                      label: badge,
+                      color: theme.colorScheme.tertiary,
+                    ),
+                  ],
                 ),
-              ),
+              },
             ),
           ),
           ...children,

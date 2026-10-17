@@ -8,6 +8,52 @@ import 'package:ffi/ffi.dart';
 /// Opaque `MozhiBergamotModel`.
 final class NativeModel extends Opaque;
 
+/// `MozhiBergamotLanguage`: one language found by `mozhi_bergamot_detect`.
+final class NativeLanguage extends Struct {
+  /// NUL-terminated ASCII code.
+  @Array(BergamotBindings.codeLength)
+  external Array<Uint8> code;
+
+  @Int32()
+  external int percent;
+
+  @Int32()
+  external int score;
+}
+
+/// `MozhiBergamotDetection`: the result of `mozhi_bergamot_detect`.
+final class NativeDetection extends Struct {
+  /// NUL-terminated ASCII code of CLD2's answer.
+  @Array(BergamotBindings.codeLength)
+  external Array<Uint8> language;
+
+  @Array(3)
+  external Array<NativeLanguage> languages;
+
+  @Int32()
+  external int textBytes;
+
+  @Int32()
+  external int reliable;
+}
+
+typedef _DetectNative =
+    Int32 Function(
+      Pointer<Uint8> text,
+      Int32 length,
+      Pointer<Utf8> hints,
+      Int32 flags,
+      Pointer<NativeDetection> out,
+    );
+typedef DetectFunction =
+    int Function(
+      Pointer<Uint8> text,
+      int length,
+      Pointer<Utf8> hints,
+      int flags,
+      Pointer<NativeDetection> out,
+    );
+
 /// The functions of `libmozhi_bergamot`.
 final class BergamotBindings {
   new(DynamicLibrary library)
@@ -68,7 +114,10 @@ final class BergamotBindings {
       lastError = library
           .lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>(
             'mozhi_bergamot_last_error',
-          );
+          ),
+      detect = library.providesSymbol(detectSymbol)
+          ? library.lookupFunction<_DetectNative, DetectFunction>(detectSymbol)
+          : null;
 
   /// MOZHI_BERGAMOT_ABI_VERSION these bindings were written for.
   static const expectedAbiVersion = 1;
@@ -78,6 +127,16 @@ final class BergamotBindings {
 
   /// Environment variable with an explicit library path (desktop tests).
   static const libraryPathVariable = 'BERGAMOT_LIBRARY_PATH';
+
+  /// The language identifier, added to ABI 1 later: libraries built before
+  /// it do not have it.
+  static const detectSymbol = 'mozhi_bergamot_detect';
+
+  /// Size of the code fields of [NativeLanguage] and [NativeDetection].
+  static const codeLength = 16;
+
+  /// `MOZHI_BERGAMOT_DETECT_BEST_EFFORT`.
+  static const detectBestEffort = 1;
 
   final int Function() abiVersion;
   final Pointer<Utf8> Function() version;
@@ -105,6 +164,9 @@ final class BergamotBindings {
   translatePivot;
   final void Function(Pointer<Utf8> text) freeString;
   final Pointer<Utf8> Function() lastError;
+
+  /// `mozhi_bergamot_detect`, or null when the library predates it.
+  final DetectFunction? detect;
 
   /// Opens the library: [path], else `$BERGAMOT_LIBRARY_PATH`, else
   /// [libraryName] from the system search path (the APK on Android).

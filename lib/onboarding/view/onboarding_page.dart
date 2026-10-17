@@ -1,52 +1,120 @@
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/router.dart' show AppRoutes;
+import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/network/network.dart'
     show describeNetworkPolicyError;
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/offline/cubit/offline_models_cubit.dart';
+import 'package:mozhi/offline/data/bergamot_model_details.dart';
+import 'package:mozhi/offline/data/offline_model_details.dart';
+import 'package:mozhi/offline/data/unavailable_offline_translator.dart';
 import 'package:mozhi/onboarding/cubit/onboarding_cubit.dart';
 import 'package:mozhi/onboarding/onboarding_redirect.dart';
-import 'package:mozhi/onboarding/widgets/ai_step.dart';
-import 'package:mozhi/onboarding/widgets/done_step.dart';
+import 'package:mozhi/onboarding/widgets/languages_step.dart';
 import 'package:mozhi/onboarding/widgets/onboarding_nav_bar.dart';
 import 'package:mozhi/onboarding/widgets/privacy_step.dart';
 import 'package:mozhi/onboarding/widgets/service_step.dart';
 import 'package:mozhi/onboarding/widgets/step_layout.dart';
 import 'package:mozhi/onboarding/widgets/welcome_step.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-/// The first-run flow (route: [onboardingLocation]). Needs a
-/// [TranslationRepository] and a [SettingsCubit] above it.
+/// The first-run flow (route: [onboardingLocation]): welcome, privacy mode,
+/// default languages with their offline downloads and an optional online
+/// service. Needs a [TranslationRepository] and a [SettingsCubit] above it.
+///
+/// The languages step downloads with [translator] and remembers "Wi-Fi
+/// only" in [store] when given, otherwise with the [OfflineTranslator] and
+/// [KeyValueStore] provided above (falling back to an
+/// [UnavailableOfflineTranslator] and the platform preferences); [details]
+/// defaults to [offlineModelDetailsOf] the translator. With a
+/// [TranslateCubit] above, the picked languages go through it, so the
+/// translator shows them right away.
 class OnboardingPage extends StatelessWidget {
-  const new({this.finishLocation = '/translate', super.key});
+  const new({
+    this.finishLocation = AppRoutes.translate,
+    this.translator,
+    this.store,
+    this.details,
+    super.key,
+  });
 
   /// Where "Start translating" / "Skip" navigate (with `context.go`).
   final String finishLocation;
+  final OfflineTranslator? translator;
+  final KeyValueStore? store;
+  final OfflineModelDetails? details;
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (context) => OnboardingCubit(
-        repository: context.read<TranslationRepository>(),
-        settings: context.read<SettingsCubit>(),
-        // The network policy's refusals (plain http to a public server,
-        // .onion without a proxy) say what is wrong. Looked up when a
-        // failure is described (not while the cubit is created).
-        describeError: (error) =>
-            (context.mounted
-                ? describeNetworkPolicyError(context.l10n, error)
-                : null) ??
-            onboardingErrorMessage(error),
-      ),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (context) {
+            final translate = _maybeRead<TranslateCubit>(context);
+            return OnboardingCubit(
+              repository: context.read<TranslationRepository>(),
+              settings: context.read<SettingsCubit>(),
+              // The network policy's refusals (plain http to a public
+              // server, .onion without a proxy) say what is wrong. Looked
+              // up when a failure is described (not while the cubit is
+              // created).
+              describeError: (error) =>
+                  (context.mounted
+                      ? describeNetworkPolicyError(context.l10n, error)
+                      : null) ??
+                  onboardingErrorMessage(error),
+              setLanguages: translate == null
+                  ? null
+                  : ({source, target}) {
+                      if (source != null) translate.setSource(source);
+                      if (target != null) translate.setTarget(target);
+                    },
+            );
+          },
+        ),
+        // Created (and loaded) when the languages step first needs it.
+        BlocProvider(
+          create: (context) {
+            final engine =
+                translator ??
+                _maybeRead<OfflineTranslator>(context) ??
+                const UnavailableOfflineTranslator();
+            final cubit = OfflineModelsCubit(
+              translator: engine,
+              store:
+                  store ??
+                  _maybeRead<KeyValueStore>(context) ??
+                  PreferencesStore(),
+              details: details ?? offlineModelDetailsOf(engine),
+            );
+            unawaited(cubit.load());
+            return cubit;
+          },
+        ),
+      ],
       child: OnboardingView(finishLocation: finishLocation),
     );
   }
+
+  static T? _maybeRead<T>(BuildContext context) {
+    try {
+      return context.read<T>();
+    } on ProviderNotFoundException {
+      return null;
+    }
+  }
 }
 
-/// Pages of the onboarding (expects an [OnboardingCubit] above it).
+/// Pages of the onboarding (expects an [OnboardingCubit] and, for the
+/// languages step, an [OfflineModelsCubit] above it).
 class OnboardingView extends StatefulWidget {
-  const new({this.finishLocation = '/translate', super.key});
+  const new({this.finishLocation = AppRoutes.translate, super.key});
 
   final String finishLocation;
 
@@ -65,9 +133,9 @@ class _OnboardingViewState extends State<OnboardingView> {
     super.dispose();
   }
 
-  void _finish() {
+  void _finish([String? location]) {
     context.read<OnboardingCubit>().finish();
-    context.go(widget.finishLocation);
+    context.go(location ?? widget.finishLocation);
   }
 
   void _showStep(OnboardingStep step) {
@@ -125,12 +193,15 @@ class _OnboardingViewState extends State<OnboardingView> {
               // Navigation goes through the buttons so that forms and the
               // horizontal gestures inside them never fight with paging.
               physics: const NeverScrollableScrollPhysics(),
-              children: const [
-                WelcomeStep(),
-                PrivacyStep(),
-                OnboardingKeepAlive(child: ServiceStep()),
-                OnboardingKeepAlive(child: AiStep()),
-                DoneStep(),
+              children: [
+                const WelcomeStep(),
+                const PrivacyStep(),
+                const OnboardingKeepAlive(child: LanguagesStep()),
+                OnboardingKeepAlive(
+                  child: ServiceStep(
+                    onOpenAiSettings: () => _finish(AppRoutes.providers),
+                  ),
+                ),
               ],
             ),
           ),

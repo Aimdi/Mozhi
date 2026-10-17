@@ -6,6 +6,9 @@ import 'package:mozhi/core/network/network.dart'
     show describeNetworkPolicyError;
 import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/offline/data/bergamot_model_details.dart'
+    show offlineModelDetailsOf;
+import 'package:mozhi/translate/widgets/offline_offer.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Where the user can go to fix an error.
@@ -234,6 +237,11 @@ String _redactUrl(String url) {
 /// [ConsentRequiredException] is shown as a [ConsentInlinePrompt] instead
 /// (its actions record the consent, then `onRetry` runs).
 ///
+/// Missing offline models are offered as "Download German (25 MB)" (the
+/// size when the device's offline engine knows it), which opens the
+/// offline languages. A Mozhi instance error offers "Switch instance"
+/// instead of "Manage instances" when [onSwitchInstance] is given.
+///
 /// The message is a live region, so screen readers announce it when it
 /// appears.
 class TranslateErrorView extends StatelessWidget {
@@ -242,11 +250,16 @@ class TranslateErrorView extends StatelessWidget {
     this.onRetry,
     this.dense = false,
     this.retrySemanticsLabel,
+    this.onSwitchInstance,
     super.key,
   });
 
   final Object? error;
   final VoidCallback? onRetry;
+
+  /// Lets the user pick another Mozhi instance (e.g. with
+  /// `showInstanceSwitcher`); shown for instance errors only.
+  final VoidCallback? onSwitchInstance;
 
   /// What screen readers call the Retry button (it shows "Retry"), e.g.
   /// "Retry German" when several can fail on one screen.
@@ -271,7 +284,7 @@ class TranslateErrorView extends StatelessWidget {
     final info = describeTranslateError(l10n, error);
     final (fixLabel, fixRoute, push) = switch (info.fix) {
       _ when info.offlineModels => (
-        l10n.translateOfflineModelsAction,
+        _offlineFixLabel(context, l10n) ?? l10n.translateOfflineModelsAction,
         offlineModelsRoute,
         true,
       ),
@@ -287,7 +300,11 @@ class TranslateErrorView extends StatelessWidget {
       ),
       TranslateErrorFix.none => (null, null, false),
     };
-    final showFix = fixRoute != null && fixLabel != null && !dense;
+    final switchInstance = info.fix == TranslateErrorFix.instances && !dense
+        ? onSwitchInstance
+        : null;
+    final showFix =
+        fixRoute != null && fixLabel != null && !dense && switchInstance == null;
     final details = info.details;
     return Column(
       key: const Key('translate_error_view'),
@@ -315,7 +332,10 @@ class TranslateErrorView extends StatelessWidget {
             ),
           ],
         ),
-        if (onRetry != null || showFix || details != null) ...[
+        if (onRetry != null ||
+            showFix ||
+            switchInstance != null ||
+            details != null) ...[
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
@@ -331,6 +351,13 @@ class TranslateErrorView extends StatelessWidget {
                     semanticsLabel: retrySemanticsLabel,
                   ),
                 ),
+              if (switchInstance != null)
+                TextButton.icon(
+                  key: const Key('translate_error_switch_instance'),
+                  onPressed: switchInstance,
+                  icon: const Icon(Icons.swap_vert),
+                  label: Text(l10n.translateSwitchInstance),
+                ),
               if (showFix)
                 TextButton(
                   key: const Key('translate_error_fix'),
@@ -345,6 +372,29 @@ class TranslateErrorView extends StatelessWidget {
         if (details != null) TranslateErrorDetails(details: details),
       ],
     );
+  }
+
+  /// "Download German (25 MB)" for the languages of an
+  /// [OfflineModelMissingException] (English needs no download), or null
+  /// when it names none.
+  String? _offlineFixLabel(BuildContext context, AppLocalizations l10n) {
+    final error = this.error;
+    if (error is! OfflineModelMissingException) return null;
+    final translator = maybeOfflineTranslator(context);
+    final codes = {
+      for (final code in error.languages)
+        if (offlineLanguageKey(code) != 'en') code,
+    };
+    if (codes.isEmpty) return null;
+    final details = translator == null ? null : offlineModelDetailsOf(translator);
+    return offlineDownloadLabel(l10n, [
+      for (final code in codes)
+        (
+          code: code,
+          name: _languageName(code),
+          bytes: details?.downloadSize(code),
+        ),
+    ]);
   }
 }
 

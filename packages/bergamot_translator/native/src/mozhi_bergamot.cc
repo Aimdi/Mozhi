@@ -1,10 +1,13 @@
 // mozhi_bergamot - a minimal C API over Mozilla's Firefox Translations
-// (Bergamot) inference engine. See mozhi_bergamot.h for the contract.
+// (Bergamot) inference engine and the CLD2 language identifier. See
+// mozhi_bergamot.h for the contract.
 //
 // Copyright (c) 2026 Mozhi contributors. MIT License.
 
 #include "mozhi_bergamot.h"
 
+#include <algorithm>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <exception>
@@ -14,6 +17,8 @@
 #include <utility>
 #include <vector>
 
+#include "compact_lang_det.h"  // CLD2 (third_party/cld2/public)
+#include "encodings.h"
 #include "common/logging.h"
 #include "translator/parser.h"
 #include "translator/response.h"
@@ -138,6 +143,12 @@ std::string BuildConfig(const char* model_path, const char* shortlist_path,
   return config;
 }
 
+// Copies a CLD2 language code ("un" for none) into a fixed-size field.
+void CopyCode(CLD2::Language language, char* out, size_t size) {
+  const char* code = CLD2::LanguageCode(language);
+  std::snprintf(out, size, "%s", code == nullptr ? "un" : code);
+}
+
 // Runs `body` under the engine lock and converts every exception into the
 // thread's last error.
 template <typename T, typename Body>
@@ -242,6 +253,64 @@ void mozhi_bergamot_free_string(char* text) { std::free(text); }
 
 const char* mozhi_bergamot_last_error(void) {
   return tls_has_error ? tls_error.c_str() : nullptr;
+}
+
+int32_t mozhi_bergamot_detect(const char* text, int32_t length,
+                              const char* hints, int32_t flags,
+                              MozhiBergamotDetection* out) {
+  ClearError();
+  if (text == nullptr || out == nullptr) {
+    SetError("text and out are required");
+    return 0;
+  }
+  // CLD2 is stateless (constant tables, per-call scratch), so no engine
+  // lock: identification never waits for a translation.
+  try {
+    const size_t size =
+        length < 0 ? std::strlen(text) : static_cast<size_t>(length);
+    // CLD2 takes an int length; callers send a sample, not whole books.
+    const int scanned = static_cast<int>(std::min<size_t>(size, 1 << 30));
+    // A padded copy: some of CLD2's word hashing reads whole 32-bit words,
+    // up to three bytes past the last letter.
+    std::string buffer(text, static_cast<size_t>(scanned));
+    buffer.append(4, '\0');
+
+    CLD2::CLDHints cld_hints = {IsBlank(hints) ? nullptr : hints, nullptr,
+                                CLD2::UNKNOWN_ENCODING,
+                                CLD2::UNKNOWN_LANGUAGE};
+    const int cld_flags = (flags & MOZHI_BERGAMOT_DETECT_BEST_EFFORT) != 0
+                              ? CLD2::kCLDFlagBestEffort
+                              : 0;
+    CLD2::Language languages[3];
+    int percents[3];
+    double scores[3];
+    int text_bytes = 0;
+    bool reliable = false;
+    int valid_prefix_bytes = 0;
+    const CLD2::Language summary = CLD2::ExtDetectLanguageSummaryCheckUTF8(
+        buffer.data(), scanned,
+        /*is_plain_text=*/(flags & MOZHI_BERGAMOT_DETECT_HTML) == 0,
+        &cld_hints, cld_flags, languages, percents, scores,
+        /*resultchunkvector=*/nullptr, &text_bytes, &reliable,
+        &valid_prefix_bytes);
+
+    *out = MozhiBergamotDetection{};
+    CopyCode(summary, out->language, sizeof(out->language));
+    for (int i = 0; i < 3; ++i) {
+      CopyCode(languages[i], out->languages[i].code,
+               sizeof(out->languages[i].code));
+      out->languages[i].percent = percents[i];
+      out->languages[i].score = static_cast<int32_t>(scores[i]);
+    }
+    out->text_bytes = text_bytes;
+    out->reliable = reliable ? 1 : 0;
+    return 1;
+  } catch (const std::exception& error) {
+    SetError(error.what());
+  } catch (...) {
+    SetError("unknown language identification error");
+  }
+  return 0;
 }
 
 }  // extern "C"

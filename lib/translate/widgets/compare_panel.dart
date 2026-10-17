@@ -37,7 +37,9 @@ int compareEngineCount(TranslateState state, List<String> compareIds) {
 
 /// Compare mode: a card per engine result with copy and "Use this", plus
 /// placeholders for engines that are still running. When every engine has
-/// answered, screen readers hear how many succeeded.
+/// answered, screen readers hear how many succeeded. The close button
+/// leaves compare mode (it is entered from the "More" tools or the "More
+/// tools" menu).
 class ComparePanel extends StatelessWidget {
   const new({super.key});
 
@@ -94,6 +96,12 @@ class ComparePanel extends StatelessWidget {
                         : () => unawaited(cubit.runCompare()),
                     icon: const Icon(Icons.compare_arrows),
                     label: Text(l10n.translateCompareButton),
+                  ),
+                  IconButton(
+                    key: const Key('translate_compare_toggle'),
+                    tooltip: l10n.translateCompareModeExit,
+                    icon: const Icon(Icons.close),
+                    onPressed: () => cubit.setCompareMode(enabled: false),
                   ),
                 ],
               ),

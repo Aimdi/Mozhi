@@ -21,6 +21,7 @@ enum TranslateTool {
   webPage('/web', Icons.language),
   conversation('/conversation', Icons.forum_outlined),
   dictionary(AppRoutes.dictionary, Icons.menu_book_outlined),
+  compare(null, Icons.difference_outlined),
   recentPairs(null, Icons.history),
   listenSlowly(null, Icons.slow_motion_video),
   shortcuts(null, Icons.keyboard_outlined);
@@ -28,8 +29,9 @@ enum TranslateTool {
   new(this.route, this.icon);
 
   /// Route pushed on top of the translate screen (null: opens a sheet or a
-  /// dialog, or reads the translation slowly). The dictionary is opened
-  /// with the input's word, see [translateDictionaryLocation].
+  /// dialog, turns compare mode on or off, or reads the translation
+  /// slowly). The dictionary is opened with the input's word, see
+  /// [translateDictionaryLocation].
   final String? route;
   final IconData icon;
 
@@ -39,6 +41,7 @@ enum TranslateTool {
     TranslateTool.webPage => l10n.translateToolWebPage,
     TranslateTool.conversation => l10n.translateToolConversation,
     TranslateTool.dictionary => l10n.translateToolDictionary,
+    TranslateTool.compare => l10n.translateCompareModeEnter,
     TranslateTool.recentPairs => l10n.translateRecentPairsTitle,
     TranslateTool.listenSlowly => l10n.translateToolListenSlowly,
     TranslateTool.shortcuts => l10n.translateKeyboardShortcuts,
@@ -85,10 +88,11 @@ bool canListenToTranslation(TranslateState state) =>
     state.output.trim().isNotEmpty && !state.target.isCustom;
 
 /// App bar overflow menu with the other translators (image, documents, web
-/// page, conversation), the dictionary, the recent language pairs (also
-/// on a long press of the swap button), reading the translation slowly
-/// (also on a long press of its Listen button) and the keyboard shortcut
-/// cheat sheet.
+/// page, conversation), the dictionary, compare mode (also in the "More"
+/// tools under a translation; "Exit compare mode" while it is on), the
+/// recent language pairs (also on a long press of the swap button),
+/// reading the translation slowly (also on a long press of its Listen
+/// button) and the keyboard shortcut cheat sheet.
 ///
 /// The dictionary opens with the input's word and looks it up right away
 /// ([DictionaryLaunch.lookUp]) when the input is a word or short phrase.
@@ -109,6 +113,9 @@ class MoreToolsButton extends StatelessWidget {
             extra: lookUp ? DictionaryLaunch.lookUp : null,
           ),
         );
+      case TranslateTool.compare:
+        final cubit = context.read<TranslateCubit>();
+        cubit.setCompareMode(enabled: !cubit.state.compareMode);
       case TranslateTool.recentPairs:
         unawaited(showRecentPairsSheet(context));
       case TranslateTool.listenSlowly:
@@ -144,14 +151,24 @@ class MoreToolsButton extends StatelessWidget {
       itemBuilder: (context) {
         final state = context.read<TranslateCubit>().state;
         final hasEngines = state.engines.isNotEmpty;
+        final compares = state.compareMode || state.engines.length > 1;
         bool offered(TranslateTool tool) => switch (tool) {
           TranslateTool.recentPairs || TranslateTool.listenSlowly => hasEngines,
+          TranslateTool.compare => compares,
           _ => true,
         };
+        // The divider goes above the first tool of the translate screen.
+        final firstScreenTool = compares
+            ? TranslateTool.compare
+            : TranslateTool.recentPairs;
+        String label(TranslateTool tool) =>
+            tool == TranslateTool.compare && state.compareMode
+            ? l10n.translateCompareModeExit
+            : tool.label(l10n);
         return [
           for (final tool in TranslateTool.values)
             if (offered(tool)) ...[
-              if (tool == TranslateTool.recentPairs ||
+              if ((tool == firstScreenTool && hasEngines) ||
                   (tool == TranslateTool.shortcuts && !hasEngines))
                 const PopupMenuDivider(),
               PopupMenuItem(
@@ -164,7 +181,7 @@ class MoreToolsButton extends StatelessWidget {
                   children: [
                     Icon(tool.icon),
                     const SizedBox(width: 12),
-                    Flexible(child: Text(tool.label(l10n))),
+                    Flexible(child: Text(label(tool))),
                   ],
                 ),
               ),

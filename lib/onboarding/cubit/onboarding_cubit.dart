@@ -27,34 +27,39 @@ Uri? normalizeOwnInstanceUrl(String input) {
   }
 }
 
-/// Drives the first-run flow: step navigation, the privacy mode, finding
-/// the fastest Mozhi instance, adding the user's own instance and setting
-/// up an optional AI provider. Every choice is applied to [SettingsCubit]
-/// right away.
+/// Applies the default languages picked during onboarding (see
+/// `SettingsCubit.setLanguages`).
+typedef OnboardingLanguageSetter = void Function({
+  Language? source,
+  Language? target,
+});
+
+/// Drives the first-run flow: step navigation, the privacy mode, the
+/// default languages, finding the fastest Mozhi instance and adding the
+/// user's own instance. Every choice is applied to [SettingsCubit] right
+/// away.
 class OnboardingCubit extends Cubit<OnboardingState> {
-  /// `pingTimeout` bounds each instance ping, `testTimeout` the provider
-  /// test and the model list. `clock` stamps new provider ids (tests).
-  /// `describeError` words failures for the user (default:
-  /// [onboardingErrorMessage]; the page puts the network policy's reasons
-  /// first).
+  /// `pingTimeout` bounds each instance ping. `describeError` words
+  /// failures for the user (default: [onboardingErrorMessage]; the page puts
+  /// the network policy's reasons first). `setLanguages` applies the
+  /// default languages (default: `SettingsCubit.setLanguages`; the page
+  /// goes through the translator so that it shows them right away).
   new({
     required this._repository,
     required this._settings,
     this._pingTimeout = const Duration(seconds: 6),
-    this._testTimeout = const Duration(seconds: 90),
-    DateTime Function()? clock,
     String Function(Object error)? describeError,
-  }) : _clock = clock ?? DateTime.now,
-       _describe = describeError ?? onboardingErrorMessage,
+    OnboardingLanguageSetter? setLanguages,
+  }) : _describe = describeError ?? onboardingErrorMessage,
+       _setLanguages = setLanguages ?? _settings.setLanguages,
        super(const OnboardingState());
 
   final String Function(Object error) _describe;
+  final OnboardingLanguageSetter _setLanguages;
 
   final TranslationRepository _repository;
   final SettingsCubit _settings;
   final Duration _pingTimeout;
-  final Duration _testTimeout;
-  final DateTime Function() _clock;
 
   /// Instance order before onboarding first sorted it (restored when
   /// "sort by speed" is turned off).
@@ -64,7 +69,6 @@ class OnboardingCubit extends Cubit<OnboardingState> {
   bool _userChoseInstance = false;
   int _pingRun = 0;
   int _ownRun = 0;
-  int _providerRun = 0;
 
   // Navigation
 
@@ -92,6 +96,26 @@ class OnboardingCubit extends Cubit<OnboardingState> {
   /// How willing the app is to send text over the network (saved at once).
   void setPrivacyMode(PrivacyMode mode) {
     if (_settings.state.privacyMode != mode) _settings.setPrivacyMode(mode);
+  }
+
+  // Languages
+
+  /// Makes [language] the default source language ([Language.auto]: detect
+  /// it). Custom languages are ignored.
+  void setSourceLanguage(Language language) {
+    if (language.isCustom || language == _settings.state.source) return;
+    _setLanguages(source: language);
+  }
+
+  /// Makes [language] the default target language. Auto and custom
+  /// languages are ignored.
+  void setTargetLanguage(Language language) {
+    if (language.isAuto ||
+        language.isCustom ||
+        language == _settings.state.target) {
+      return;
+    }
+    _setLanguages(target: language);
   }
 
   // Translation service
@@ -273,141 +297,4 @@ class OnboardingCubit extends Cubit<OnboardingState> {
       ownInstanceLatency: () => null,
     ),
   );
-
-  // AI provider
-
-  /// Selects the preset [id] and resets the form to its defaults (keeping
-  /// what was saved for it before).
-  void selectPreset(String id) {
-    final preset = AiProviderPreset.byId(id);
-    if (preset == null || id == state.presetId) return;
-    _providerRun++;
-    final saved = state.saved[id];
-    emit(
-      state.copyWith(
-        presetId: () => id,
-        apiKey: saved?.apiKey ?? '',
-        baseUrl: saved?.baseUrl ?? preset.baseUrl,
-        model: saved?.model ?? preset.defaultModel,
-        showProviderErrors: false,
-        testStatus: ProviderTestStatus.idle,
-        testOutput: () => null,
-        testError: () => null,
-        modelsStatus: ProviderTestStatus.idle,
-        models: const [],
-        modelsError: () => null,
-      ),
-    );
-  }
-
-  /// Updates the provider form; invalidates a previous test result.
-  void updateProviderDraft({String? apiKey, String? baseUrl, String? model}) {
-    final next = state.copyWith(apiKey: apiKey, baseUrl: baseUrl, model: model);
-    if (next == state) return;
-    final connectionChanged =
-        next.apiKey != state.apiKey || next.baseUrl != state.baseUrl;
-    _providerRun++;
-    emit(
-      next.copyWith(
-        testStatus: ProviderTestStatus.idle,
-        testOutput: () => null,
-        testError: () => null,
-        modelsStatus: connectionChanged ? ProviderTestStatus.idle : null,
-        modelsError: connectionChanged ? () => null : null,
-      ),
-    );
-  }
-
-  /// Fetches the provider's models (needs a valid key/address, not a model).
-  Future<void> loadModels() async {
-    final errors = {...state.providerErrors}..remove(ProviderField.model);
-    final config = state.draftConfig(_draftId);
-    if (config == null) return;
-    if (errors.isNotEmpty) {
-      emit(state.copyWith(showProviderErrors: true));
-      return;
-    }
-    final run = _providerRun;
-    emit(
-      state.copyWith(
-        modelsStatus: ProviderTestStatus.running,
-        modelsError: () => null,
-      ),
-    );
-    try {
-      final models = await _repository.listModels(config).timeout(_testTimeout);
-      if (isClosed || run != _providerRun) return;
-      emit(
-        state.copyWith(
-          modelsStatus: ProviderTestStatus.success,
-          models: List.unmodifiable({for (final m in models) m.id}),
-        ),
-      );
-    } on Object catch (error) {
-      if (isClosed || run != _providerRun) return;
-      emit(
-        state.copyWith(
-          modelsStatus: ProviderTestStatus.failure,
-          modelsError: () =>
-              error is TimeoutException ? null : _describe(error),
-        ),
-      );
-    }
-  }
-
-  /// Validates the form and translates a test sentence with it.
-  Future<void> testProvider() async {
-    final config = state.draftConfig(_draftId);
-    if (config == null) return;
-    if (state.providerErrors.isNotEmpty) {
-      emit(state.copyWith(showProviderErrors: true));
-      return;
-    }
-    final run = _providerRun;
-    emit(
-      state.copyWith(
-        testStatus: ProviderTestStatus.running,
-        testOutput: () => null,
-        testError: () => null,
-      ),
-    );
-    try {
-      final output = await _repository
-          .testProvider(config)
-          .timeout(_testTimeout);
-      if (isClosed || run != _providerRun) return;
-      emit(
-        state.copyWith(
-          testStatus: ProviderTestStatus.success,
-          testOutput: () => output,
-        ),
-      );
-    } on Object catch (error) {
-      if (isClosed || run != _providerRun) return;
-      emit(
-        state.copyWith(
-          testStatus: ProviderTestStatus.failure,
-          testError: () => error is TimeoutException ? null : _describe(error),
-        ),
-      );
-    }
-  }
-
-  /// Validates the form and saves it via `SettingsCubit.saveProvider`.
-  /// Saving the same preset again replaces the provider saved before.
-  void saveProvider() {
-    final presetId = state.presetId;
-    if (presetId == null) return;
-    if (state.providerErrors.isNotEmpty) {
-      emit(state.copyWith(showProviderErrors: true));
-      return;
-    }
-    final id =
-        state.saved[presetId]?.id ?? 'p${_clock().microsecondsSinceEpoch}';
-    final config = state.draftConfig(id)!;
-    _settings.saveProvider(config);
-    emit(state.copyWith(saved: {...state.saved, presetId: config}));
-  }
-
-  String get _draftId => state.saved[state.presetId]?.id ?? 'onboarding';
 }

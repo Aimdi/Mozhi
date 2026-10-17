@@ -2,8 +2,10 @@ import 'package:translation_repository/translation_repository.dart'
     show OfflineTranslator;
 
 /// A small, dependency-free language identifier for
-/// [OfflineTranslator.identifyLanguage] (ML Kit's identifier is not
-/// available without Google code).
+/// [OfflineTranslator.identifyLanguage]: the fallback where the native
+/// identifier (CLD2, see `Cld2Decision`) is not available (web, devices
+/// that cannot run the engine), and a second opinion for CLD2's guesses on
+/// short text.
 ///
 /// It answers only when it is confident and returns null otherwise (the
 /// app then asks for the source language):
@@ -15,8 +17,9 @@ import 'package:translation_repository/translation_repository.dart'
 /// * Latin script by function words and diacritics of 30 languages, when
 ///   one clearly wins (texts of a few words are often undetermined).
 ///
-/// This is a heuristic, not a statistical model. A real identifier (e.g.
-/// CLD2 compiled into the native library) is a possible follow-up.
+/// This is a heuristic, not a statistical model: Cyrillic text without
+/// distinctive letters is reported as Russian and Arabic-script text as
+/// Arabic.
 abstract final class LanguageIdentifier {
   /// BCP-47 code of [text]'s language, or null when undetermined.
   static String? identify(String text) {

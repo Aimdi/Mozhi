@@ -23,16 +23,12 @@ void main() {
 
   tearDown(() => settings.close());
 
-  OnboardingCubit build({
-    Duration pingTimeout = const Duration(seconds: 6),
-    Duration testTimeout = const Duration(seconds: 90),
-  }) => OnboardingCubit(
-    repository: repository,
-    settings: settings,
-    pingTimeout: pingTimeout,
-    testTimeout: testTimeout,
-    clock: () => DateTime.fromMicrosecondsSinceEpoch(42),
-  );
+  OnboardingCubit build({Duration pingTimeout = const Duration(seconds: 6)}) =>
+      OnboardingCubit(
+        repository: repository,
+        settings: settings,
+        pingTimeout: pingTimeout,
+      );
 
   void stubPing(String url, Future<Duration> Function() answer) {
     when(
@@ -72,19 +68,17 @@ void main() {
     });
 
     blocTest<OnboardingCubit, OnboardingState>(
-      'next walks through every step and stops at done',
+      'next walks through every step and stops at the service step',
       build: build,
       act: (cubit) => cubit
-        ..next()
         ..next()
         ..next()
         ..next()
         ..next(),
       expect: () => [
         const OnboardingState(step: OnboardingStep.privacy),
+        const OnboardingState(step: OnboardingStep.languages),
         const OnboardingState(step: OnboardingStep.service),
-        const OnboardingState(step: OnboardingStep.ai),
-        const OnboardingState(step: OnboardingStep.done),
       ],
     );
 
@@ -122,9 +116,9 @@ void main() {
       'goTo jumps and ignores the current step',
       build: build,
       act: (cubit) => cubit
-        ..goTo(OnboardingStep.done)
-        ..goTo(OnboardingStep.done),
-      expect: () => [const OnboardingState(step: OnboardingStep.done)],
+        ..goTo(OnboardingStep.service)
+        ..goTo(OnboardingStep.service),
+      expect: () => [const OnboardingState(step: OnboardingStep.service)],
     );
 
     test('finish completes onboarding in the settings', () {
@@ -465,271 +459,46 @@ void main() {
     });
   });
 
-  group('AI provider', () {
-    final openAi = AiProviderPreset.byId('openai')!;
-    final ollama = AiProviderPreset.byId('ollama')!;
+  group('languages', () {
+    const french = Language(code: 'fr', name: 'French');
 
-    test('selectPreset fills the form with the preset defaults', () {
-      final cubit = build()..selectPreset('nope');
-      expect(cubit.state.presetId, isNull);
-
-      cubit.selectPreset('openai');
-      expect(cubit.state.presetId, 'openai');
-      expect(cubit.state.baseUrl, openAi.baseUrl);
-      expect(cubit.state.model, openAi.defaultModel);
-      expect(cubit.state.apiKey, isEmpty);
-
-      final before = cubit.state;
-      cubit.selectPreset('openai');
-      expect(cubit.state, same(before));
-    });
-
-    test('actions without a preset do nothing', () async {
-      final cubit = build();
-      await cubit.testProvider();
-      await cubit.loadModels();
-      cubit.saveProvider();
-      expect(cubit.state, const OnboardingState());
-      expect(settings.state.providers, isEmpty);
-    });
-
-    blocTest<OnboardingCubit, OnboardingState>(
-      'updateProviderDraft ignores unchanged values',
-      build: build,
-      act: (cubit) => cubit.updateProviderDraft(apiKey: ''),
-      expect: () => <OnboardingState>[],
-    );
-
-    test('testProvider validates before calling the provider', () async {
-      final cubit = build()..selectPreset('openai');
-      await cubit.testProvider();
-
-      expect(cubit.state.showProviderErrors, isTrue);
-      expect(
-        cubit.state.errorFor(ProviderField.apiKey),
-        ProviderFieldError.required,
-      );
-      verifyNever(() => repository.testProvider(any()));
-    });
-
-    test('testProvider reports the translated sentence', () async {
-      when(() => repository.testProvider(any()))
-          .thenAnswer((_) async => 'Bonjour, le monde !');
-      final cubit = build()
-        ..selectPreset('openai')
-        ..updateProviderDraft(apiKey: ' sk-test ');
-      final states = <OnboardingState>[];
-      final sub = cubit.stream.listen(states.add);
-
-      await cubit.testProvider();
-      await sub.cancel();
-
-      expect(states.first.testStatus, ProviderTestStatus.running);
-      expect(cubit.state.testStatus, ProviderTestStatus.success);
-      expect(cubit.state.testOutput, 'Bonjour, le monde !');
-      final config =
-          verify(() => repository.testProvider(captureAny())).captured.single
-              as AiProviderConfig;
-      expect(config.apiKey, 'sk-test');
-      expect(config.model, openAi.defaultModel);
-      expect(config.baseUrl, openAi.baseUrl);
-      expect(config.presetId, 'openai');
-    });
-
-    test('testProvider reports provider errors and timeouts', () async {
-      when(() => repository.testProvider(any())).thenAnswer(
-        (_) async => throw const LlmApiException('bad', statusCode: 401),
-      );
-      final cubit = build(testTimeout: const Duration(milliseconds: 10))
-        ..selectPreset('openai')
-        ..updateProviderDraft(apiKey: 'sk');
-
-      await cubit.testProvider();
-      expect(cubit.state.testStatus, ProviderTestStatus.failure);
-      expect(cubit.state.testError, '401: bad');
-
-      when(() => repository.testProvider(any()))
-          .thenAnswer((_) => Completer<String>().future);
-      await cubit.testProvider();
-      expect(cubit.state.testStatus, ProviderTestStatus.failure);
-      expect(cubit.state.testError, isNull);
-    });
-
-    test('editing the form invalidates a running test', () async {
-      final success = Completer<String>();
-      final failure = Completer<String>();
-      final cubit = build()
-        ..selectPreset('openai')
-        ..updateProviderDraft(apiKey: 'sk');
-
-      when(() => repository.testProvider(any()))
-          .thenAnswer((_) => success.future);
-      final first = cubit.testProvider();
-      cubit.updateProviderDraft(model: 'gpt-5');
-      expect(cubit.state.testStatus, ProviderTestStatus.idle);
-      success.complete('ok');
-      await first;
-      expect(cubit.state.testStatus, ProviderTestStatus.idle);
-
-      when(() => repository.testProvider(any()))
-          .thenAnswer((_) => failure.future);
-      final second = cubit.testProvider();
-      cubit.updateProviderDraft(model: 'gpt-5-nano');
-      failure.completeError(const LlmApiException('x'));
-      await second;
-      expect(cubit.state.testStatus, ProviderTestStatus.idle);
-      expect(cubit.state.testError, isNull);
-    });
-
-    test('saveProvider validates the form', () {
-      final cubit = build()
-        ..selectPreset('openai')
-        ..saveProvider();
-      expect(cubit.state.showProviderErrors, isTrue);
-      expect(settings.state.providers, isEmpty);
-      expect(cubit.state.saved, isEmpty);
-    });
-
-    test('saveProvider stores the provider and replaces it on resave', () {
-      final cubit = build()
-        ..selectPreset('openai')
-        ..updateProviderDraft(apiKey: 'sk')
-        ..saveProvider();
-
-      final saved = settings.state.providers.single;
-      expect(saved.id, 'p42');
-      expect(saved.name, openAi.name);
-      expect(saved.apiKey, 'sk');
-      expect(saved.presetId, 'openai');
-      expect(saved.model, openAi.defaultModel);
-      expect(cubit.state.saved, {'openai': saved});
-      expect(cubit.state.savedDraft, saved);
-
-      cubit.updateProviderDraft(model: 'gpt-5');
-      expect(cubit.state.savedDraft, isNull);
-      cubit.saveProvider();
-      expect(settings.state.providers.single.id, 'p42');
-      expect(settings.state.providers.single.model, 'gpt-5');
-    });
-
-    test('selecting a saved preset again restores its values', () {
-      final cubit = build()
-        ..selectPreset('openai')
-        ..updateProviderDraft(apiKey: 'sk', model: 'gpt-5')
-        ..saveProvider()
-        ..selectPreset('anthropic');
-      expect(cubit.state.apiKey, isEmpty);
-
-      cubit.selectPreset('openai');
-      expect(cubit.state.apiKey, 'sk');
-      expect(cubit.state.model, 'gpt-5');
-      expect(cubit.state.savedDraft, isNotNull);
-    });
-
-    test('local presets need an address but no key', () {
+    test('sets the source and target in the settings', () {
       build()
-        ..selectPreset('ollama')
-        ..updateProviderDraft(baseUrl: '192.168.1.20:11434/')
-        ..saveProvider();
-
-      final saved = settings.state.providers.single;
-      expect(saved.baseUrl, 'http://192.168.1.20:11434');
-      expect(saved.apiKey, isNull);
-      expect(saved.model, ollama.defaultModel);
-      expect(saved.isLocal, isTrue);
+        ..setSourceLanguage(french)
+        ..setTargetLanguage(const Language(code: 'de', name: 'German'));
+      expect(settings.state.source, french);
+      expect(settings.state.target.code, 'de');
     });
 
-    test('the custom preset requires a valid address', () {
-      final cubit = build()
-        ..selectPreset('custom')
-        ..updateProviderDraft(model: 'm')
-        ..saveProvider();
-      expect(
-        cubit.state.errorFor(ProviderField.baseUrl),
-        ProviderFieldError.required,
+    test('detect language is a valid source but not a target', () {
+      settings.setLanguages(source: french);
+      build()
+        ..setSourceLanguage(Language.auto)
+        ..setTargetLanguage(Language.auto);
+      expect(settings.state.source, Language.auto);
+      expect(settings.state.target.code, 'en');
+    });
+
+    test('ignores custom and unchanged languages', () {
+      final calls = <(Language?, Language?)>[];
+      final cubit = OnboardingCubit(
+        repository: repository,
+        settings: settings,
+        setLanguages: ({source, target}) => calls.add((source, target)),
       );
+      addTearDown(cubit.close);
+      const pirate = Language(code: 'Pirate', name: 'Pirate', isCustom: true);
+      cubit
+        ..setSourceLanguage(pirate)
+        ..setTargetLanguage(pirate)
+        ..setSourceLanguage(settings.state.source)
+        ..setTargetLanguage(settings.state.target);
+      expect(calls, isEmpty);
 
       cubit
-        ..updateProviderDraft(baseUrl: 'ftp://llm.example')
-        ..saveProvider();
-      expect(
-        cubit.state.errorFor(ProviderField.baseUrl),
-        ProviderFieldError.invalidUrl,
-      );
-
-      cubit
-        ..updateProviderDraft(baseUrl: 'llm.example.com/v1')
-        ..saveProvider();
-      expect(
-        settings.state.providers.single.baseUrl,
-        'https://llm.example.com/v1',
-      );
-    });
-
-    test('loadModels lists the provider models', () async {
-      when(() => repository.listModels(any())).thenAnswer(
-        (_) async => const [
-          LlmModel(id: 'qwen3'),
-          LlmModel(id: 'gemma3'),
-          LlmModel(id: 'qwen3'),
-        ],
-      );
-      final cubit = build()..selectPreset('lmstudio');
-      final states = <OnboardingState>[];
-      final sub = cubit.stream.listen(states.add);
-
-      await cubit.loadModels();
-      await sub.cancel();
-
-      expect(states.first.modelsStatus, ProviderTestStatus.running);
-      expect(cubit.state.modelsStatus, ProviderTestStatus.success);
-      expect(cubit.state.models, ['qwen3', 'gemma3']);
-    });
-
-    test('loadModels validates the connection fields', () async {
-      final cubit = build()..selectPreset('openai');
-      await cubit.loadModels();
-      expect(cubit.state.showProviderErrors, isTrue);
-      verifyNever(() => repository.listModels(any()));
-    });
-
-    test('loadModels reports errors and timeouts', () async {
-      when(() => repository.listModels(any()))
-          .thenAnswer((_) async => throw const LlmApiException('offline'));
-      final cubit = build(testTimeout: const Duration(milliseconds: 10))
-        ..selectPreset('ollama');
-
-      await cubit.loadModels();
-      expect(cubit.state.modelsStatus, ProviderTestStatus.failure);
-      expect(cubit.state.modelsError, 'offline');
-
-      when(() => repository.listModels(any()))
-          .thenAnswer((_) => Completer<List<LlmModel>>().future);
-      await cubit.loadModels();
-      expect(cubit.state.modelsStatus, ProviderTestStatus.failure);
-      expect(cubit.state.modelsError, isNull);
-    });
-
-    test('changing the address drops a pending model list', () async {
-      final models = Completer<List<LlmModel>>();
-      final failure = Completer<List<LlmModel>>();
-      final cubit = build()..selectPreset('ollama');
-
-      when(() => repository.listModels(any())).thenAnswer((_) => models.future);
-      final first = cubit.loadModels();
-      cubit.updateProviderDraft(baseUrl: 'http://10.0.0.2:11434');
-      expect(cubit.state.modelsStatus, ProviderTestStatus.idle);
-      models.complete(const [LlmModel(id: 'x')]);
-      await first;
-      expect(cubit.state.models, isEmpty);
-
-      when(() => repository.listModels(any()))
-          .thenAnswer((_) => failure.future);
-      final second = cubit.loadModels();
-      cubit.updateProviderDraft(baseUrl: 'http://10.0.0.3:11434');
-      failure.completeError(const LlmApiException('x'));
-      await second;
-      expect(cubit.state.modelsStatus, ProviderTestStatus.idle);
+        ..setSourceLanguage(french)
+        ..setTargetLanguage(french);
+      expect(calls, [(french, null), (null, french)]);
     });
   });
 }

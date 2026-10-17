@@ -39,8 +39,15 @@ Future<void> showExtraTargetsSheet(BuildContext context) {
 /// and options, a request each); see `TranslateCubit.setExtraTargets`.
 /// Screen readers hear once which of them arrived (and which failed) when
 /// none is in flight any more.
+///
+/// Without [showPicker] (the translate screen's "More" area is closed) the
+/// button is left out: only the cards of the languages the user chose are
+/// shown (nothing when there are none).
 class ExtraTargetsSection extends StatelessWidget {
-  const new({super.key});
+  const new({this.showPicker = true, super.key});
+
+  /// Whether the "Also translate into…" button is shown.
+  final bool showPicker;
 
   @override
   Widget build(BuildContext context) {
@@ -57,31 +64,35 @@ class ExtraTargetsSection extends StatelessWidget {
       builder: (context, state) {
         if (state.engine == null) return const SizedBox.shrink();
         final active = state.activeExtraTargets;
+        final hasInput = state.input.trim().isNotEmpty;
         final names = [
           for (final language in active) bidiIsolate(language.name),
         ];
         final column = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SizedBox(height: TranslateLayout.gap),
-            const Hairline(),
-            const SizedBox(height: 4),
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: TextButton.icon(
-                key: const Key('translate_extra_targets_button'),
-                icon: const Icon(Icons.add_circle_outline),
-                label: Text(
-                  names.isEmpty
-                      ? l10n.translateExtraTargetsAdd
-                      : l10n.translateExtraTargetsSelected(
-                          names.join(l10n.translateExtraTargetsListSeparator),
-                        ),
+            if (showPicker || (hasInput && active.isNotEmpty)) ...[
+              const SizedBox(height: TranslateLayout.gap),
+              const Hairline(),
+              const SizedBox(height: 4),
+            ],
+            if (showPicker)
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: TextButton.icon(
+                  key: const Key('translate_extra_targets_button'),
+                  icon: const Icon(Icons.add_circle_outline),
+                  label: Text(
+                    names.isEmpty
+                        ? l10n.translateExtraTargetsAdd
+                        : l10n.translateExtraTargetsSelected(
+                            names.join(l10n.translateExtraTargetsListSeparator),
+                          ),
+                  ),
+                  onPressed: () => unawaited(showExtraTargetsSheet(context)),
                 ),
-                onPressed: () => unawaited(showExtraTargetsSheet(context)),
               ),
-            ),
-            if (state.input.trim().isNotEmpty)
+            if (hasInput)
               for (final target in active)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),

@@ -20,9 +20,14 @@ export 'package:mozhi/translate/widgets/refine_chips.dart';
 /// "Refine & learn": the AI extras under a finished translation, under one
 /// heading: refinement chips (AI engines), alternatives, explain and
 /// (short inputs) a dictionary card. Hidden while
-/// the translation belongs to text the user has since edited.
+/// the translation belongs to text the user has since edited, and while
+/// not [expanded] (the translate screen's "More" area is closed); a failed
+/// refinement is reported either way.
 class ExtrasSection extends StatelessWidget {
-  const new({super.key});
+  const new({this.expanded = true, super.key});
+
+  /// Whether the section is shown (when there is something to show).
+  final bool expanded;
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +50,8 @@ class ExtrasSection extends StatelessWidget {
   }
 
   Widget _section(BuildContext context, TranslateState state) {
-    if (!state.hasExtras ||
+    if (!expanded ||
+        !state.hasExtras ||
         state.output.trim().isEmpty ||
         state.status != TranslateStatus.success ||
         state.isResultStale) {

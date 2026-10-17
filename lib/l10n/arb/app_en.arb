@@ -6894,5 +6894,236 @@
   "speechListenOnline": "Listen online",
   "@speechListenOnline": {
     "description": "Snack bar action: read the text aloud with the Mozhi instance the message names (it receives the text)."
+  },
+  "onboardingLanguagesTitle": "Pick your languages",
+  "@onboardingLanguagesTitle": {
+    "description": "onboardingLanguagesTitle"
+  },
+  "onboardingLanguagesBody": "Mozhi starts with these. You can switch languages any time while translating.",
+  "@onboardingLanguagesBody": {
+    "description": "onboardingLanguagesBody"
+  },
+  "onboardingLanguagesFrom": "Translate from",
+  "@onboardingLanguagesFrom": {
+    "description": "onboardingLanguagesFrom"
+  },
+  "onboardingLanguagesInto": "Translate into",
+  "@onboardingLanguagesInto": {
+    "description": "onboardingLanguagesInto"
+  },
+  "onboardingLanguagesOfflineTitle": "Use them offline",
+  "@onboardingLanguagesOfflineTitle": {
+    "description": "onboardingLanguagesOfflineTitle"
+  },
+  "onboardingLanguagesOfflineBody": "Download them to translate on this device: nothing you type leaves it. You can add more languages later in Settings.",
+  "@onboardingLanguagesOfflineBody": {
+    "description": "onboardingLanguagesOfflineBody"
+  },
+  "onboardingLanguagesOfflineUnsupported": "{language} can’t be translated on this device yet, so Mozhi needs an online service for it.",
+  "@onboardingLanguagesOfflineUnsupported": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "onboardingLanguagesOfflineAuto": "With Detect language, also download the languages you translate from. You can add them later in Settings › Offline languages.",
+  "@onboardingLanguagesOfflineAuto": {
+    "description": "onboardingLanguagesOfflineAuto"
+  },
+  "onboardingLanguagesNoOffline": "This device can’t translate on its own (for example in a browser), so Mozhi uses the online service you choose next.",
+  "@onboardingLanguagesNoOffline": {
+    "description": "onboardingLanguagesNoOffline"
+  },
+  "onboardingLanguagesLoading": "Checking offline languages…",
+  "@onboardingLanguagesLoading": {
+    "description": "onboardingLanguagesLoading"
+  },
+  "onboardingLanguagesSearch": "Search languages",
+  "@onboardingLanguagesSearch": {
+    "description": "onboardingLanguagesSearch"
+  },
+  "onboardingLanguagesNoMatches": "No language matches “{query}”.",
+  "@onboardingLanguagesNoMatches": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "onboardingLanguagesAvailableOffline": "Available offline",
+  "@onboardingLanguagesAvailableOffline": {
+    "description": "onboardingLanguagesAvailableOffline"
+  },
+  "onboardingOnlineTitle": "Online translation",
+  "@onboardingOnlineTitle": {
+    "description": "onboardingOnlineTitle"
+  },
+  "onboardingOnlineBody": "For languages that aren’t on this device, Mozhi can use a Mozhi server. These public servers are run by volunteers and don’t use Cloudflare. Mozhi uses the first one and falls back to the next if it’s down.",
+  "@onboardingOnlineBody": {
+    "description": "onboardingOnlineBody"
+  },
+  "onboardingOnlineOfflineOnly": "Offline only is on, so Mozhi won’t contact any of these servers. You can change the privacy mode later in Settings.",
+  "@onboardingOnlineOfflineOnly": {
+    "description": "onboardingOnlineOfflineOnly"
+  },
+  "onboardingAiLaterSettings": "AI translators are optional. You can add one later in Settings › AI providers.",
+  "@onboardingAiLaterSettings": {
+    "description": "onboardingAiLaterSettings"
+  },
+  "onboardingAiOpenSettings": "Open AI provider settings",
+  "@onboardingAiOpenSettings": {
+    "description": "onboardingAiOpenSettings"
+  },
+  "settingsOfflineManage": "Languages on this device",
+  "@settingsOfflineManage": {
+    "description": "settingsOfflineManage"
+  },
+  "settingsOfflineUnavailable": "Not available here",
+  "@settingsOfflineUnavailable": {
+    "description": "settingsOfflineUnavailable"
+  },
+  "settingsOfflineUnavailableSubtitle": "On-device translation needs the Android app.",
+  "@settingsOfflineUnavailableSubtitle": {
+    "description": "settingsOfflineUnavailableSubtitle"
+  },
+  "settingsSectionOnline": "Online engines",
+  "@settingsSectionOnline": {
+    "description": "settingsSectionOnline"
+  },
+  "settingsMtServicesTitle": "Translation services",
+  "@settingsMtServicesTitle": {
+    "description": "settingsMtServicesTitle"
+  },
+  "settingsMtServicesNone": "DeepL or LibreTranslate with your own key or server",
+  "@settingsMtServicesNone": {
+    "description": "settingsMtServicesNone"
+  },
+  "settingsMtServicesSummary": "{enabled} of {total} enabled",
+  "@settingsMtServicesSummary": {
+    "placeholders": {
+      "enabled": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsAdvancedBadge": "Advanced",
+  "@settingsAdvancedBadge": {
+    "description": "settingsAdvancedBadge"
+  },
+  "settingsVersion": "Version",
+  "@settingsVersion": {
+    "description": "settingsVersion"
+  },
+  "settingsAboutLicensesSubtitle": "Including the MPL-2.0 license of the offline translation models",
+  "@settingsAboutLicensesSubtitle": {
+    "description": "settingsAboutLicensesSubtitle"
+  },
+  "settingsRunSetupSteps": "Privacy, languages and an online service, step by step",
+  "@settingsRunSetupSteps": {
+    "description": "settingsRunSetupSteps"
+  },
+  "historyFilters": "Filters",
+  "@historyFilters": {
+    "description": "historyFilters"
+  },
+  "historyFilterAllPairs": "All language pairs",
+  "@historyFilterAllPairs": {
+    "description": "historyFilterAllPairs"
+  },
+  "historyFilterPairTitle": "Language pair",
+  "@historyFilterPairTitle": {
+    "description": "historyFilterPairTitle"
+  },
+  "historyFilterPairCount": "{count, plural, =1{1 translation} other{{count} translations}}",
+  "@historyFilterPairCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "historyFilterClearPair": "Show all language pairs",
+  "@historyFilterClearPair": {
+    "description": "historyFilterClearPair"
+  },
+  "historyNoFilterMatchesTitle": "Nothing matches these filters",
+  "@historyNoFilterMatchesTitle": {
+    "description": "historyNoFilterMatchesTitle"
+  },
+  "historyNoFilterMatchesBody": "Try another language pair or destination.",
+  "@historyNoFilterMatchesBody": {
+    "description": "historyNoFilterMatchesBody"
+  },
+  "historyClearFilters": "Clear filters",
+  "@historyClearFilters": {
+    "description": "historyClearFilters"
+  },
+  "translateMore": "More",
+  "@translateMore": {
+    "description": "Label of the toggle under a translation that shows or hides the extra tools (refine, check meaning, insights, compare, more languages)."
+  },
+  "translateMoreShow": "Show more tools",
+  "@translateMoreShow": {
+    "description": "Tooltip of the More toggle while the extra tools are hidden."
+  },
+  "translateMoreHide": "Hide more tools",
+  "@translateMoreHide": {
+    "description": "Tooltip of the More toggle while the extra tools are shown."
+  },
+  "translateOfflineDownload": "Download {language} ({size})",
+  "@translateOfflineDownload": {
+    "description": "Button that opens the offline languages to download the model of a language, with its download size.",
+    "placeholders": {
+      "language": {
+        "type": "String",
+        "example": "German"
+      },
+      "size": {
+        "type": "String",
+        "example": "25 MB"
+      }
+    }
+  },
+  "translateOfflineDownloadLanguage": "Download {language}",
+  "@translateOfflineDownloadLanguage": {
+    "description": "Button that opens the offline languages to download the model of a language (size unknown).",
+    "placeholders": {
+      "language": {
+        "type": "String",
+        "example": "German"
+      }
+    }
+  },
+  "translateUseOffline": "Translate on this device",
+  "@translateUseOffline": {
+    "description": "Button that switches to the on-device engine, whose models for the language pair are downloaded, instead of sending the text."
+  },
+  "translateOfflineWorks": "Works offline",
+  "@translateOfflineWorks": {
+    "description": "Badge on a language in the language picker whose offline model is downloaded."
+  },
+  "translatePickerDetected": "Detected",
+  "@translatePickerDetected": {
+    "description": "Language picker section with the language detected in the input (and other likely ones)."
+  },
+  "translatePickerDownloaded": "Downloaded (offline)",
+  "@translatePickerDownloaded": {
+    "description": "Language picker section with the languages whose offline models are on the device."
+  },
+  "translateSwitchInstance": "Switch instance",
+  "@translateSwitchInstance": {
+    "description": "Button under a Mozhi instance error that lets the user pick another instance and retry."
+  },
+  "translateSwitchInstanceTitle": "Translate with another instance",
+  "@translateSwitchInstanceTitle": {
+    "description": "Title of the sheet listing the Mozhi instances to switch to."
+  },
+  "translateSwitchInstanceInUse": "In use",
+  "@translateSwitchInstanceInUse": {
+    "description": "Subtitle of the Mozhi instance currently used, in the instance switcher."
   }
 }

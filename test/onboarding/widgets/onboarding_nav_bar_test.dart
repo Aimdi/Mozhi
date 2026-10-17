@@ -30,14 +30,14 @@ void main() {
     });
 
     testWidgets('middle steps go back and forward', (tester) async {
-      final calls = await pump(tester, OnboardingStep.ai);
+      final calls = await pump(tester, OnboardingStep.languages);
       await tester.tap(find.text('Back'));
       await tester.tap(find.text('Next'));
       expect(calls, ['back', 'next']);
     });
 
     testWidgets('last step finishes', (tester) async {
-      final calls = await pump(tester, OnboardingStep.done);
+      final calls = await pump(tester, OnboardingStep.service);
       expect(find.text('Next'), findsNothing);
       await tester.tap(find.text('Start translating'));
       expect(calls, ['finish']);
@@ -46,7 +46,7 @@ void main() {
     testWidgets('Next is a full-width pill, Back an outlined one', (
       tester,
     ) async {
-      await pump(tester, OnboardingStep.ai);
+      await pump(tester, OnboardingStep.languages);
       final next = find.ancestor(
         of: find.text('Next'),
         matching: find.byWidgetPredicate((w) => w is FilledButton),
@@ -63,7 +63,7 @@ void main() {
     });
 
     testWidgets('buttons are at least 48dp tall', (tester) async {
-      await pump(tester, OnboardingStep.service);
+      await pump(tester, OnboardingStep.privacy);
       for (final label in ['Back', 'Next']) {
         final size = tester.getSize(
           find.ancestor(

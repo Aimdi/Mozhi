@@ -1,8 +1,9 @@
 # libmozhi_bergamot: the C API in src/mozhi_bergamot.h over Mozilla's
 # Firefox Translations inference engine (bergamot-translator, MPL-2.0, with
-# its Marian fork, MIT), plus PCRE2 (BSD-3-Clause) for the sentence splitter.
+# its Marian fork, MIT), plus PCRE2 (BSD-3-Clause) for the sentence splitter
+# and CLD2 (Apache-2.0) for language identification.
 #
-# Both are pinned git submodules under third_party/ (see
+# All are pinned git submodules under third_party/ (see
 # ../tool/fetch_native_deps.sh, which initialises only the nested submodules
 # the CPU engine needs). Nothing is downloaded at configure or build time.
 #
@@ -19,6 +20,9 @@ set(MOZHI_BERGAMOT_TRANSLATIONS_DIR
 set(MOZHI_BERGAMOT_PCRE2_DIR
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/pcre2"
     CACHE PATH "Checkout of github.com/PCRE2Project/pcre2")
+set(MOZHI_BERGAMOT_CLD2_DIR
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/cld2"
+    CACHE PATH "Checkout of github.com/CLD2Owners/cld2")
 set(MOZHI_BERGAMOT_ARCH ""
     CACHE STRING "Marian BUILD_ARCH (-march value); empty picks one per target")
 
@@ -29,7 +33,8 @@ foreach(_required
     "${_inference}/3rd_party/ssplit-cpp/CMakeLists.txt"
     "${_marian_3rd}/sentencepiece/CMakeLists.txt"
     "${_marian_3rd}/ruy/third_party/cpuinfo/CMakeLists.txt"
-    "${MOZHI_BERGAMOT_PCRE2_DIR}/CMakeLists.txt")
+    "${MOZHI_BERGAMOT_PCRE2_DIR}/CMakeLists.txt"
+    "${MOZHI_BERGAMOT_CLD2_DIR}/internal/compact_lang_det_impl.cc")
   if(NOT EXISTS "${_required}")
     message(FATAL_ERROR
       "Missing ${_required}.\n"
@@ -240,6 +245,50 @@ if(ANDROID AND TARGET pathie-cpp)
     PATHIE_ASSUME_UTF8_ON_UNIX __ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__)
 endif()
 
+# --- CLD2 (language identification) -------------------------------------------------
+# Compact Language Detector 2, plain C++ without dependencies, built like
+# its internal/compile_libs.sh "libcld2" with the "chrome" tables: 83
+# languages in ~1.8 MB (the "full" 0122 tables, 165 languages, are ~6.5 MB:
+# 4.7 MB more per ABI). debug_empty.cc instead of debug.cc: no HTML debug
+# output. Its scoring tables are static const, so it is thread-safe.
+set(_cld2 "${MOZHI_BERGAMOT_CLD2_DIR}/internal")
+add_library(mozhi_cld2 STATIC
+  "${_cld2}/cldutil.cc"
+  "${_cld2}/cldutil_shared.cc"
+  "${_cld2}/compact_lang_det.cc"
+  "${_cld2}/compact_lang_det_hint_code.cc"
+  "${_cld2}/compact_lang_det_impl.cc"
+  "${_cld2}/debug_empty.cc"
+  "${_cld2}/fixunicodevalue.cc"
+  "${_cld2}/generated_entities.cc"
+  "${_cld2}/generated_language.cc"
+  "${_cld2}/generated_ulscript.cc"
+  "${_cld2}/getonescriptspan.cc"
+  "${_cld2}/lang_script.cc"
+  "${_cld2}/offsetmap.cc"
+  "${_cld2}/scoreonescriptspan.cc"
+  "${_cld2}/tote.cc"
+  "${_cld2}/utf8statetable.cc"
+  "${_cld2}/cld_generated_cjk_uni_prop_80.cc"
+  "${_cld2}/cld2_generated_cjk_compatible.cc"
+  "${_cld2}/cld_generated_cjk_delta_bi_4.cc"
+  "${_cld2}/generated_distinct_bi_0.cc"
+  "${_cld2}/cld2_generated_quadchrome_2.cc"
+  "${_cld2}/cld2_generated_deltaoctachrome.cc"
+  "${_cld2}/cld2_generated_distinctoctachrome.cc"
+  "${_cld2}/cld_generated_score_quad_octa_2.cc")
+set_target_properties(mozhi_cld2 PROPERTIES
+  CXX_STANDARD 17
+  CXX_STANDARD_REQUIRED ON
+  CXX_VISIBILITY_PRESET hidden
+  VISIBILITY_INLINES_HIDDEN ON)
+target_include_directories(mozhi_cld2 PUBLIC "${MOZHI_BERGAMOT_CLD2_DIR}/public")
+# The 2014 generated tables initialise uint8 arrays with negative constants
+# (e.g. -14 for 0xF2), an error since C++11 in GCC and clang (the NDK's
+# clang 19 too); the values wrap exactly as CLD2 intends (Chrome built it
+# with the same flag). -w: vendored code, its other warnings are noise.
+target_compile_options(mozhi_cld2 PRIVATE -w -Wno-narrowing)
+
 # --- The shim ----------------------------------------------------------------------
 
 add_library(mozhi_bergamot SHARED src/mozhi_bergamot.cc)
@@ -250,7 +299,8 @@ set_target_properties(mozhi_bergamot PROPERTIES
   VISIBILITY_INLINES_HIDDEN ON)
 target_compile_definitions(mozhi_bergamot PRIVATE
   MOZHI_BERGAMOT_ENGINE_VERSION="${_engine_version}")
-target_link_libraries(mozhi_bergamot PRIVATE bergamot-translator-source)
+target_link_libraries(mozhi_bergamot PRIVATE bergamot-translator-source
+  mozhi_cld2)
 
 if(NOT APPLE AND NOT WIN32)
   set(_map "${CMAKE_CURRENT_SOURCE_DIR}/src/mozhi_bergamot.map")

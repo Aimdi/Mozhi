@@ -1,9 +1,12 @@
 import 'package:equatable/equatable.dart';
-import 'package:translation_repository/translation_repository.dart';
 
-/// The pages of the first-run flow, in order: the privacy mode is chosen
-/// right after the welcome, before anything else.
-enum OnboardingStep { welcome, privacy, service, ai, done }
+/// The pages of the first-run flow, in order: after the welcome, at most
+/// three screens: the privacy mode, the default languages (with their
+/// offline downloads) and an optional online service.
+///
+/// AI providers are not part of the flow: the last step links to them in
+/// the settings.
+enum OnboardingStep { welcome, privacy, languages, service }
 
 /// Outcome of pinging one Mozhi instance.
 enum PingStatus { pending, success, failure, timedOut }
@@ -46,15 +49,6 @@ enum OwnInstanceStatus { idle, testing, success, failure }
 /// local network that the user has not confirmed).
 enum OwnInstanceError { empty, invalidUrl, unreachable, timedOut, insecure }
 
-/// Inputs of the AI provider form.
-enum ProviderField { apiKey, baseUrl, model }
-
-/// Validation problems of a [ProviderField].
-enum ProviderFieldError { required, invalidUrl }
-
-/// Progress of an async provider action (test / model list).
-enum ProviderTestStatus { idle, running, success, failure }
-
 class OnboardingState extends Equatable {
   const new({
     this.step = OnboardingStep.welcome,
@@ -66,18 +60,6 @@ class OnboardingState extends Equatable {
     this.ownInstanceError,
     this.ownInstanceMessage,
     this.ownInstanceLatency,
-    this.presetId,
-    this.apiKey = '',
-    this.baseUrl = '',
-    this.model = '',
-    this.showProviderErrors = false,
-    this.testStatus = ProviderTestStatus.idle,
-    this.testOutput,
-    this.testError,
-    this.modelsStatus = ProviderTestStatus.idle,
-    this.models = const [],
-    this.modelsError,
-    this.saved = const {},
   });
 
   final OnboardingStep step;
@@ -106,31 +88,8 @@ class OnboardingState extends Equatable {
   /// Latency of the own instance after a successful test.
   final Duration? ownInstanceLatency;
 
-  // AI provider
-
-  /// The selected [AiProviderPreset.id] (null = none).
-  final String? presetId;
-  final String apiKey;
-  final String baseUrl;
-  final String model;
-
-  /// Show validation errors (after a test/save attempt).
-  final bool showProviderErrors;
-  final ProviderTestStatus testStatus;
-
-  /// Translated test sentence on success.
-  final String? testOutput;
-
-  /// Error message on failure; null on failure means the test timed out.
-  final String? testError;
-  final ProviderTestStatus modelsStatus;
-
-  /// Models reported by the provider (after `loadModels`).
-  final List<String> models;
-  final String? modelsError;
-
-  /// Providers saved during onboarding, keyed by preset id.
-  final Map<String, AiProviderConfig> saved;
+  /// Whether [step] is the last page of the flow.
+  bool get isLastStep => step == OnboardingStep.values.last;
 
   /// Fastest successfully pinged instance (null when none answered).
   String? get fastestUrl {
@@ -153,78 +112,6 @@ class OnboardingState extends Equatable {
       pings.isNotEmpty &&
       pings.values.every((p) => !p.isSuccess);
 
-  AiProviderPreset? get preset =>
-      presetId == null ? null : AiProviderPreset.byId(presetId!);
-
-  /// Whether the form needs the server address (local / custom presets).
-  bool get needsBaseUrl {
-    final p = preset;
-    return p != null && (p.isLocal || p.baseUrl.isEmpty);
-  }
-
-  /// Whether the form shows an API key field (cloud presets).
-  bool get showsApiKey {
-    final p = preset;
-    return p != null && (p.requiresApiKey || !p.isLocal);
-  }
-
-  /// [baseUrl] trimmed, without trailing slashes, with `http://` (local
-  /// hosts) or `https://` added when the scheme is missing.
-  String get normalizedBaseUrl {
-    var url = baseUrl.trim();
-    while (url.endsWith('/')) {
-      url = url.substring(0, url.length - 1);
-    }
-    if (url.isEmpty || url.contains('://')) return url;
-    final host = Uri.tryParse('http://$url')?.host ?? '';
-    return '${AiProviderConfig.isLocalHost(host) ? 'http' : 'https'}://$url';
-  }
-
-  /// Validation of the provider form (empty when valid or no preset).
-  Map<ProviderField, ProviderFieldError> get providerErrors {
-    final p = preset;
-    if (p == null) return const {};
-    final uri = Uri.tryParse(normalizedBaseUrl);
-    return {
-      if (p.requiresApiKey && apiKey.trim().isEmpty)
-        ProviderField.apiKey: ProviderFieldError.required,
-      if (baseUrl.trim().isEmpty)
-        ProviderField.baseUrl: ProviderFieldError.required
-      else if (uri == null ||
-          (uri.scheme != 'http' && uri.scheme != 'https') ||
-          uri.host.isEmpty)
-        ProviderField.baseUrl: ProviderFieldError.invalidUrl,
-      if (model.trim().isEmpty)
-        ProviderField.model: ProviderFieldError.required,
-    };
-  }
-
-  /// The error to show under [field], if any.
-  ProviderFieldError? errorFor(ProviderField field) =>
-      showProviderErrors ? providerErrors[field] : null;
-
-  /// The provider described by the form, or null without a preset.
-  AiProviderConfig? draftConfig(String id) {
-    final p = preset;
-    if (p == null) return null;
-    final key = apiKey.trim();
-    return p.toConfig(
-      id: id,
-      model: model.trim(),
-      apiKey: key.isEmpty ? null : key,
-      baseUrl: normalizedBaseUrl,
-    );
-  }
-
-  /// The provider saved for the current preset, if it still matches the
-  /// form (no unsaved edits).
-  AiProviderConfig? get savedDraft {
-    final id = presetId;
-    final saved = id == null ? null : this.saved[id];
-    if (saved == null) return null;
-    return draftConfig(saved.id) == saved ? saved : null;
-  }
-
   OnboardingState copyWith({
     OnboardingStep? step,
     ServiceStatus? serviceStatus,
@@ -235,18 +122,6 @@ class OnboardingState extends Equatable {
     OwnInstanceError? Function()? ownInstanceError,
     String? Function()? ownInstanceMessage,
     Duration? Function()? ownInstanceLatency,
-    String? Function()? presetId,
-    String? apiKey,
-    String? baseUrl,
-    String? model,
-    bool? showProviderErrors,
-    ProviderTestStatus? testStatus,
-    String? Function()? testOutput,
-    String? Function()? testError,
-    ProviderTestStatus? modelsStatus,
-    List<String>? models,
-    String? Function()? modelsError,
-    Map<String, AiProviderConfig>? saved,
   }) {
     return OnboardingState(
       step: step ?? this.step,
@@ -264,18 +139,6 @@ class OnboardingState extends Equatable {
       ownInstanceLatency: ownInstanceLatency != null
           ? ownInstanceLatency()
           : this.ownInstanceLatency,
-      presetId: presetId != null ? presetId() : this.presetId,
-      apiKey: apiKey ?? this.apiKey,
-      baseUrl: baseUrl ?? this.baseUrl,
-      model: model ?? this.model,
-      showProviderErrors: showProviderErrors ?? this.showProviderErrors,
-      testStatus: testStatus ?? this.testStatus,
-      testOutput: testOutput != null ? testOutput() : this.testOutput,
-      testError: testError != null ? testError() : this.testError,
-      modelsStatus: modelsStatus ?? this.modelsStatus,
-      models: models ?? this.models,
-      modelsError: modelsError != null ? modelsError() : this.modelsError,
-      saved: saved ?? this.saved,
     );
   }
 
@@ -290,31 +153,5 @@ class OnboardingState extends Equatable {
     ownInstanceError,
     ownInstanceMessage,
     ownInstanceLatency,
-    presetId,
-    apiKey,
-    baseUrl,
-    model,
-    showProviderErrors,
-    testStatus,
-    testOutput,
-    testError,
-    modelsStatus,
-    models,
-    modelsError,
-    saved,
   ];
-
-  /// Like Equatable's `toString`, but with [apiKey] masked: states are
-  /// printed by test failures and debug logging, keys must never be.
-  @override
-  String toString() {
-    final values = [
-      for (final prop in props)
-        if (identical(prop, apiKey) && apiKey.isNotEmpty)
-          '<redacted>'
-        else
-          prop,
-    ];
-    return 'OnboardingState(${values.join(', ')})';
-  }
 }

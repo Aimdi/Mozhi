@@ -1,6 +1,75 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
+
+/// How long work may take before its progress is shown ([DelayedReveal]):
+/// quick (cached, local) translations never flash a progress bar.
+const loadingRevealDelay = Duration(milliseconds: 300);
+
+/// Shows [child] once it has been in the tree for [delay], nothing (an
+/// empty box) before. Put it where progress is shown only while work is
+/// running: removing it cancels the wait.
+class DelayedReveal extends StatefulWidget {
+  const new({
+    required this.child,
+    this.delay = loadingRevealDelay,
+    super.key,
+  });
+
+  final Widget child;
+  final Duration delay;
+
+  @override
+  State<DelayedReveal> createState() => _DelayedRevealState();
+}
+
+class _DelayedRevealState extends State<DelayedReveal> {
+  Timer? _timer;
+  late bool _shown = widget.delay <= Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!_shown) {
+      _timer = Timer(widget.delay, () {
+        if (mounted) setState(() => _shown = true);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      _shown ? widget.child : const SizedBox.shrink();
+}
+
+/// Placeholder lines for a translation that has not produced text yet
+/// (decorative: the progress bar above it says "Translating…").
+class TranslateOutputSkeleton extends StatelessWidget {
+  const new({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const ExcludeSemantics(
+      child: Column(
+        key: Key('translate_output_skeleton'),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SkeletonBox(height: 18),
+          SizedBox(height: 10),
+          FractionallySizedBox(widthFactor: 0.6, child: SkeletonBox(height: 18)),
+        ],
+      ),
+    );
+  }
+}
 
 /// Gently pulsing placeholder box. Static when animations are disabled.
 class SkeletonBox extends StatefulWidget {

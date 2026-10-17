@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/widgets/consent_prompt.dart';
@@ -17,14 +18,18 @@ import 'package:mozhi/translate/widgets/detection_chips.dart';
 import 'package:mozhi/translate/widgets/empty_output.dart';
 import 'package:mozhi/translate/widgets/extras_section.dart';
 import 'package:mozhi/translate/widgets/insight_sheet.dart';
+import 'package:mozhi/translate/widgets/instance_switcher.dart';
 import 'package:mozhi/translate/widgets/language_text.dart';
 import 'package:mozhi/translate/widgets/listen_button.dart';
 import 'package:mozhi/translate/widgets/meaning_check_panel.dart';
+import 'package:mozhi/translate/widgets/offline_offer.dart';
 import 'package:mozhi/translate/widgets/romanization_line.dart';
+import 'package:mozhi/translate/widgets/skeleton.dart';
 import 'package:mozhi/translate/widgets/status_announcer.dart';
 import 'package:mozhi/translate/widgets/tool_chip.dart';
 import 'package:mozhi/translate/widgets/translate_error.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
+import 'package:mozhi/translate/widgets/translate_more.dart';
 import 'package:mozhi/translate/widgets/translation_memory_card.dart'
     show MemoryResultBadge;
 import 'package:share_plus/share_plus.dart';
@@ -85,9 +90,25 @@ TextDirection? outputTextDirection(TranslateState state) =>
 /// The translation: streaming text, progress, errors, romanization,
 /// detected language (with other likely languages when uncertain),
 /// engine/latency footer, the everyday actions (copy, listen, favourite;
-/// share at the end) and labelled tools (check meaning, insights,
-/// romanization, matching phrases). Without a translation it shows
-/// [EmptyOutput].
+/// share at the end) and, behind the "More" toggle
+/// ([TranslateMoreToggle]), labelled tools (check meaning, insights,
+/// romanization, matching phrases, compare engines). The toggle's state is
+/// the [TranslateMoreScope]'s above (shared with the sections under the
+/// card), else the card's own; it starts closed. Without a translation it
+/// shows [EmptyOutput].
+///
+/// Progress (the bar and placeholder lines) appears only once a
+/// translation has taken [loadingRevealDelay]; a new result, the empty
+/// state, an error or a consent prompt replace one another with a fade
+/// through ([FadeThroughSwitcher]). Copy and favourite tick lightly
+/// (haptics).
+///
+/// While the privacy settings hold a translation back
+/// (`TranslateState.consent`), the inline prompt is followed by the
+/// on-device alternative when the offline engine supports the pair
+/// ([OfflinePairOffer]: "Download German (25 MB)"). A Mozhi instance error
+/// offers "Switch instance" ([switchInstanceAndRetry]) when several
+/// instances are configured.
 ///
 /// A finished translation is announced to screen readers once (never per
 /// streamed token); errors are announced by [TranslateErrorView].
@@ -140,13 +161,22 @@ class _OutputCardState extends State<OutputCard> {
   bool _copied = false;
   Timer? _copiedTimer;
 
+  /// The "More" state when no [TranslateMoreScope] is above.
+  TranslateMoreController? _ownMore;
+
+  TranslateMoreController _more(BuildContext context) =>
+      TranslateMoreScope.maybeOf(context) ??
+      (_ownMore ??= TranslateMoreController());
+
   @override
   void dispose() {
     _copiedTimer?.cancel();
+    _ownMore?.dispose();
     super.dispose();
   }
 
   Future<void> _copy(String text) async {
+    unawaited(HapticFeedback.lightImpact());
     await copyToClipboard(context, text);
     if (!mounted) return;
     _copiedTimer?.cancel();
@@ -235,6 +265,7 @@ class _OutputCardState extends State<OutputCard> {
           state.romanizationStatus == ExtraStatus.failure);
 
   void _toggleFavorite(TranslateState state, HistoryEntry? entry) {
+    unawaited(HapticFeedback.lightImpact());
     final history = context.read<HistoryCubit>();
     if (entry != null) {
       unawaited(history.toggleFavorite(entry.id));
@@ -352,14 +383,18 @@ class _OutputCardState extends State<OutputCard> {
                 children: [
                   SizedBox(
                     height: 2,
+                    // Only for translations that take a while: quick ones
+                    // never flash a bar.
                     child: translating
-                        ? LinearProgressIndicator(
-                            key: const Key('translate_output_progress'),
-                            minHeight: 2,
-                            borderRadius: const BorderRadius.all(
-                              Radius.circular(1),
+                        ? DelayedReveal(
+                            child: LinearProgressIndicator(
+                              key: const Key('translate_output_progress'),
+                              minHeight: 2,
+                              borderRadius: const BorderRadius.all(
+                                Radius.circular(1),
+                              ),
+                              semanticsLabel: context.l10n.translateTranslating,
                             ),
-                            semanticsLabel: context.l10n.translateTranslating,
                           )
                         : null,
                   ),
@@ -370,7 +405,12 @@ class _OutputCardState extends State<OutputCard> {
                       0,
                       0,
                     ),
-                    child: _content(context, state),
+                    child: FadeThroughSwitcher(
+                      child: KeyedSubtree(
+                        key: _phaseKey(state),
+                        child: _content(context, state),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -401,10 +441,52 @@ class _OutputCardState extends State<OutputCard> {
     return (output, outputTextDirection(state));
   }
 
+  /// What the card shows, as told apart by [FadeThroughSwitcher]: the
+  /// consent prompt, an error, the empty state, progress, or the result
+  /// (one key per input, target and engine, so a translation streaming in
+  /// keeps its key).
+  Key _phaseKey(TranslateState state) {
+    final output = state.output;
+    if (state.consent != null && output.isEmpty) {
+      return const ValueKey('translate_phase_consent');
+    }
+    if (_showsEngineError(state)) {
+      return const ValueKey('translate_phase_engine_error');
+    }
+    if (state.status == TranslateStatus.failure && output.isEmpty) {
+      return const ValueKey('translate_phase_failure');
+    }
+    if (output.isEmpty) {
+      return state.status == TranslateStatus.translating
+          ? const ValueKey('translate_phase_loading')
+          : const ValueKey('translate_phase_empty');
+    }
+    return ValueKey((
+      'translate_phase_result',
+      state.resultInput ?? state.input,
+      state.target,
+      state.result?.engineId,
+    ));
+  }
+
+  /// The engine's languages could not be loaded (e.g. offline first has
+  /// not loaded the lists of this server yet).
+  static bool _showsEngineError(TranslateState state) =>
+      state.enginesStatus == EnginesStatus.failure &&
+      state.error != null &&
+      state.status == TranslateStatus.idle &&
+      state.output.isEmpty;
+
+  /// "Switch instance" for Mozhi errors when there is another instance.
+  VoidCallback? _switchInstance(BuildContext context) {
+    final instances = context.read<SettingsCubit>().state.instances;
+    if (instances.length < 2) return null;
+    return () => unawaited(switchInstanceAndRetry(context));
+  }
+
   Widget _content(BuildContext context, TranslateState state) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    final muted = AppPalette.of(context).secondaryText;
     final output = state.output;
     final result = state.result;
 
@@ -414,19 +496,23 @@ class _OutputCardState extends State<OutputCard> {
       // prompt (a translation the user asked for also opens the dialog).
       return Padding(
         padding: const EdgeInsetsDirectional.only(top: 8, end: 12, bottom: 8),
-        child: ConsentInlinePrompt(
-          key: const Key('translate_consent_prompt'),
-          consent: consent.exception,
-          onGranted: () =>
-              unawaited(context.read<TranslateCubit>().retryAfterConsent()),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ConsentInlinePrompt(
+              key: const Key('translate_consent_prompt'),
+              consent: consent.exception,
+              onGranted: () => unawaited(
+                context.read<TranslateCubit>().retryAfterConsent(),
+              ),
+            ),
+            OfflinePairOffer(consent: consent.exception),
+          ],
         ),
       );
     }
 
-    if (state.enginesStatus == EnginesStatus.failure &&
-        state.error != null &&
-        state.status == TranslateStatus.idle &&
-        output.isEmpty) {
+    if (_showsEngineError(state)) {
       // The engine's languages could not be loaded (e.g. offline first has
       // not loaded the lists of this server yet).
       return Padding(
@@ -436,6 +522,7 @@ class _OutputCardState extends State<OutputCard> {
           error: state.error,
           onRetry: () =>
               unawaited(context.read<TranslateCubit>().loadEngines()),
+          onSwitchInstance: _switchInstance(context),
         ),
       );
     }
@@ -446,6 +533,7 @@ class _OutputCardState extends State<OutputCard> {
         child: TranslateErrorView(
           error: state.error,
           onRetry: () => unawaited(context.read<TranslateCubit>().translate()),
+          onSwitchInstance: _switchInstance(context),
         ),
       );
     }
@@ -454,21 +542,17 @@ class _OutputCardState extends State<OutputCard> {
       if (state.status != TranslateStatus.translating) {
         return EmptyOutput(state: state);
       }
+      // Placeholder lines once it takes a while (the bar above says
+      // "Translating…" to screen readers).
       return ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 96),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _header(context, state),
-            Padding(
-              padding: const EdgeInsetsDirectional.only(top: 4, end: 12),
-              child: Text(
-                l10n.translateTranslating,
-                style: TranslateLayout.outputTextStyle(
-                  context,
-                  0,
-                )?.copyWith(color: muted),
-              ),
+            const Padding(
+              padding: EdgeInsetsDirectional.only(top: 10, end: 12),
+              child: DelayedReveal(child: TranslateOutputSkeleton()),
             ),
           ],
         ),
@@ -832,14 +916,15 @@ class _OutputCardState extends State<OutputCard> {
 
   /// The everyday actions as an X action bar (copy, listen, favourite as a
   /// heart, share; evenly spaced quiet icons that take a colour while
-  /// active), then the labelled tools ([_tools]).
+  /// active), then the "More" toggle and, while it is open, the labelled
+  /// tools ([_tools]).
   Widget _actions(BuildContext context, TranslateState state) {
     final l10n = context.l10n;
     final palette = AppPalette.of(context);
     final output = state.output;
     final complete = state.result?.isComplete ?? true;
     final target = state.target;
-    final tools = _tools(context, state);
+    final more = _more(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -901,30 +986,62 @@ class _OutputCardState extends State<OutputCard> {
             ),
           ),
         ),
-        if (tools.isNotEmpty)
-          Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(0, 4, 12, 8),
-            child: Semantics(
-              key: const Key('translate_output_tools'),
-              container: true,
-              explicitChildNodes: true,
-              label: l10n.translateToolsLabel,
-              child: Wrap(spacing: 8, runSpacing: 8, children: tools),
-            ),
-          ),
+        ListenableBuilder(
+          listenable: more,
+          builder: (context, _) {
+            final tools = more.expanded
+                ? _tools(context, state)
+                : const <Widget>[];
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: TranslateMoreToggle(controller: more),
+                ),
+                AnimatedSize(
+                  duration: TranslateLayout.motion(context),
+                  curve: Curves.easeOutCubic,
+                  alignment: AlignmentDirectional.topStart,
+                  child: tools.isEmpty
+                      ? const SizedBox(width: double.infinity)
+                      : Padding(
+                          padding: const EdgeInsetsDirectional.fromSTEB(
+                            0,
+                            4,
+                            12,
+                            8,
+                          ),
+                          child: Semantics(
+                            key: const Key('translate_output_tools'),
+                            container: true,
+                            explicitChildNodes: true,
+                            label: l10n.translateToolsLabel,
+                            child: Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: tools,
+                            ),
+                          ),
+                        ),
+                ),
+              ],
+            );
+          },
+        ),
       ],
     );
   }
 
-  /// The on/off tools for the translation: check meaning, insights (AI
-  /// extras), romanization and matching phrases (alignment), each a
-  /// labelled chip.
+  /// The tools of the "More" area: check meaning, insights (AI extras),
+  /// romanization and matching phrases (alignment), each an on/off
+  /// labelled chip, then "Compare engines" (several engines).
   List<Widget> _tools(BuildContext context, TranslateState state) {
     final l10n = context.l10n;
     final complete = state.result?.isComplete ?? true;
     final romanizationShown = _romanizationShown(
       state,
-      context.watch<SettingsCubit>().state,
+      context.read<SettingsCubit>().state,
     );
     return [
       _meaningButton(context, state),
@@ -961,6 +1078,16 @@ class _OutputCardState extends State<OutputCard> {
           onPressed: _showAlignment || state.canAlign
               ? () => _toggleAlignment(state)
               : null,
+        ),
+      if (state.engines.length > 1)
+        TranslateToolChip(
+          key: const Key('translate_compare_toggle'),
+          icon: Icons.difference_outlined,
+          label: l10n.translateCompareModeEnter,
+          tooltip: l10n.translateCompareModeEnter,
+          selected: false,
+          onPressed: () =>
+              context.read<TranslateCubit>().setCompareMode(enabled: true),
         ),
     ];
   }

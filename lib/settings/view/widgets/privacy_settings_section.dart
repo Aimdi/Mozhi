@@ -3,11 +3,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/undo_snack_bar.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
+import 'package:mozhi/history/view/widgets/clear_history_dialog.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/widgets/choice_dialog.dart';
 import 'package:mozhi/settings/view/widgets/delete_local_data.dart';
+import 'package:mozhi/settings/view/widgets/history_data_actions.dart';
 import 'package:mozhi/settings/view/widgets/http_proxy_dialog.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -22,9 +24,10 @@ String historyRetentionLabel(
 };
 
 /// The Privacy settings: privacy mode, incognito, screen protection,
-/// history saving and auto-delete, what the user allowed to go to the
-/// network (language pairs, cloud providers), the HTTP proxy and "Delete all
-/// local data".
+/// history saving, auto-delete, export and import, the recent language
+/// pairs, what the user allowed to go to the network (language pairs,
+/// cloud providers), the HTTP proxy and, after a divider, "Clear history"
+/// and "Delete all local data".
 ///
 /// Reads [SettingsCubit] and (for the history rows) [HistoryCubit].
 class PrivacySettingsSection extends StatelessWidget {
@@ -83,6 +86,21 @@ class PrivacySettingsSection extends StatelessWidget {
           trailing: const Icon(Icons.chevron_right),
           onTap: () => _pickRetention(context),
         ),
+        ListTile(
+          key: const Key('settings_export_history'),
+          leading: const SettingsIcon(Icons.upload_outlined),
+          title: Text(l10n.settingsExportHistory),
+          subtitle: Text(l10n.settingsExportHistorySubtitle),
+          onTap: () => showExportHistorySheet(context),
+        ),
+        ListTile(
+          key: const Key('settings_import_history'),
+          leading: const SettingsIcon(Icons.download_outlined),
+          title: Text(l10n.settingsImportHistory),
+          subtitle: Text(l10n.settingsImportHistorySubtitle),
+          onTap: () => showImportHistoryDialog(context),
+        ),
+        _RecentPairsTile(count: settings.recentPairs.length),
         _NetworkPairsTile(pairs: settings.networkPairs),
         _ConsentedProviders(settings: settings),
         ListTile(
@@ -94,6 +112,13 @@ class PrivacySettingsSection extends StatelessWidget {
           onTap: () => _editProxy(context),
         ),
         const SettingsDangerDivider(),
+        ListTile(
+          key: const Key('settings_clear_history'),
+          leading: SettingsIcon(Icons.delete_sweep_outlined, color: error),
+          title: Text(l10n.historyClearMenu, style: TextStyle(color: error)),
+          subtitle: Text(l10n.settingsClearHistorySubtitle),
+          onTap: () => confirmClearHistory(context),
+        ),
         ListTile(
           key: const Key('settings_delete_all_data'),
           leading: SettingsIcon(Icons.delete_forever_outlined, color: error),
@@ -267,6 +292,47 @@ class _PrivacyModePicker extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// "Clear recent language pairs" (disabled without any), undoable.
+class _RecentPairsTile extends StatelessWidget {
+  const new({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return ListTile(
+      key: const Key('settings_clear_recent_pairs'),
+      leading: const SettingsIcon(Icons.swap_horiz),
+      title: Text(l10n.settingsClearRecentPairs),
+      subtitle: Text(l10n.settingsRecentPairsSummary(count)),
+      enabled: count > 0,
+      onTap: () => _clear(context),
+    );
+  }
+
+  void _clear(BuildContext context) {
+    final l10n = context.l10n;
+    final cubit = context.read<SettingsCubit>();
+    final previous = cubit.state.recentPairs;
+    cubit.clearRecentPairs();
+    showUndoSnackBar(
+      context,
+      message: l10n.settingsRecentPairsCleared,
+      onUndo: () => cubit.update(
+        (current) => current.copyWith(
+          recentPairs: List.unmodifiable(
+            [
+              ...current.recentPairs,
+              ...previous.where((p) => !current.recentPairs.contains(p)),
+            ].take(SettingsCubit.maxRecentPairs),
+          ),
+        ),
       ),
     );
   }

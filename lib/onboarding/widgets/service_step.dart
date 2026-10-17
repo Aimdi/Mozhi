@@ -12,23 +12,85 @@ import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/view/widgets/insecure_http_warning.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-/// Step 3: find the fastest public Mozhi instance or add your own.
+/// Step 4 (optional, the last one): the online service for languages that
+/// are not on the device: the bundled public Mozhi instances (none behind
+/// Cloudflare; the first one is used) with "find the fastest", or the
+/// user's own instance. Ends with a note that AI providers can be added in
+/// the settings ([onOpenAiSettings] opens them).
 class ServiceStep extends StatelessWidget {
-  const new({super.key});
+  const new({this.onOpenAiSettings, super.key});
+
+  /// Finishes the onboarding and opens the AI provider settings; without
+  /// it the note has no link.
+  final VoidCallback? onOpenAiSettings;
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final colors = Theme.of(context).colorScheme;
+    final offlineOnly = context.select<SettingsCubit, bool>(
+      (c) => c.state.privacyMode == PrivacyMode.offlineOnly,
+    );
     return OnboardingStepLayout(
       icon: Icons.dns_outlined,
-      title: l10n.onboardingServiceTitle,
-      subtitle: l10n.onboardingServiceBody,
-      children: const [
-        _FindFastest(),
-        SizedBox(height: 8),
-        _InstanceList(),
-        SizedBox(height: 24),
-        OwnInstanceForm(),
+      title: l10n.onboardingOnlineTitle,
+      titleTrailing: OnboardingBadge(
+        label: l10n.onboardingAiOptional,
+        color: colors.secondary,
+      ),
+      subtitle: l10n.onboardingOnlineBody,
+      children: [
+        if (offlineOnly) ...[
+          OnboardingNote(
+            key: const Key('onboarding_service_offline_only'),
+            icon: Icons.wifi_off_outlined,
+            text: l10n.onboardingOnlineOfflineOnly,
+            background: colors.secondaryContainer,
+            foreground: colors.onSecondaryContainer,
+          ),
+          const SizedBox(height: 16),
+        ],
+        const _FindFastest(),
+        const SizedBox(height: 8),
+        const _InstanceList(),
+        const SizedBox(height: 24),
+        const OwnInstanceForm(),
+        _AiLater(onOpenAiSettings: onOpenAiSettings),
+      ],
+    );
+  }
+}
+
+/// "AI translators are optional…" with a link to the AI provider settings.
+class _AiLater extends StatelessWidget {
+  const new({required this.onOpenAiSettings});
+
+  final VoidCallback? onOpenAiSettings;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Hairline(),
+        const SizedBox(height: 8),
+        OnboardingInfoRow(
+          icon: Icons.auto_awesome_outlined,
+          text: l10n.onboardingAiLaterSettings,
+        ),
+        if (onOpenAiSettings case final open?)
+          Padding(
+            padding: const EdgeInsetsDirectional.only(start: 28),
+            child: TextButton.icon(
+              key: const Key('onboarding_open_ai_settings'),
+              style: TextButton.styleFrom(minimumSize: const Size(64, 48)),
+              onPressed: open,
+              icon: const Icon(Icons.arrow_forward),
+              iconAlignment: IconAlignment.end,
+              label: Text(l10n.onboardingAiOpenSettings),
+            ),
+          ),
       ],
     );
   }

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
@@ -68,6 +69,11 @@ bool detectionIsUncertain(TranslateState state) {
 /// Long-pressing the swap button opens the recent language pairs
 /// ([showRecentPairsSheet]; also in the "More tools" menu for keyboard and
 /// screen reader users).
+///
+/// Swapping ticks (a selection haptic) and turns the swap icon; a new
+/// language name slides in along the bar's axis (the source's from the
+/// target side, the target's from the source side) while the old one fades
+/// out, like Material's shared-axis motion. No motion with reduced motion.
 class LanguageBar extends StatelessWidget {
   const new({super.key});
 
@@ -110,6 +116,7 @@ class LanguageBar extends StatelessWidget {
               child: _LanguageButton(
                 key: const Key('translate_source_button'),
                 label: sourceLabel,
+                slideFrom: AxisDirection.right,
                 semanticLabel: l10n.translateSourceLanguage(sourceDescription),
                 tooltip: sourceTooltip.isEmpty
                     ? sourceDescription
@@ -132,6 +139,7 @@ class LanguageBar extends StatelessWidget {
               child: _LanguageButton(
                 key: const Key('translate_target_button'),
                 label: state.target.name,
+                slideFrom: AxisDirection.left,
                 semanticLabel: l10n.translateTargetLanguage(state.target.name),
                 tooltip: state.target.name,
                 icon: state.target.isCustom ? Icons.auto_awesome : null,
@@ -146,15 +154,31 @@ class LanguageBar extends StatelessWidget {
   }
 }
 
-/// Swaps the languages; a long press opens the recent language pairs.
-class _SwapButton extends StatelessWidget {
+/// Swaps the languages (a selection haptic, the icon turns half a turn); a
+/// long press opens the recent language pairs.
+class _SwapButton extends StatefulWidget {
   const new({required this.enabled});
 
   final bool enabled;
 
   @override
+  State<_SwapButton> createState() => _SwapButtonState();
+}
+
+class _SwapButtonState extends State<_SwapButton> {
+  /// Turns of the icon: half a turn per swap.
+  double _turns = 0;
+
+  void _swap() {
+    unawaited(HapticFeedback.selectionClick());
+    setState(() => _turns += 0.5);
+    context.read<TranslateCubit>().swap();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final enabled = widget.enabled;
     void showPairs() => unawaited(showRecentPairsSheet(context));
     // The tooltip shows on hover and focus only: a long press opens the
     // recent pairs instead.
@@ -170,8 +194,13 @@ class _SwapButton extends StatelessWidget {
               side: BorderSide(color: AppPalette.of(context).hairline),
               foregroundColor: Theme.of(context).colorScheme.primary,
             ),
-            icon: const Icon(Icons.swap_horiz),
-            onPressed: enabled ? context.read<TranslateCubit>().swap : null,
+            icon: AnimatedRotation(
+              turns: _turns,
+              duration: _swapMotion(context),
+              curve: Curves.easeInOutCubic,
+              child: const Icon(Icons.swap_horiz),
+            ),
+            onPressed: enabled ? _swap : null,
             onLongPress: showPairs,
           ),
         ),
@@ -187,20 +216,31 @@ class _SwapButton extends StatelessWidget {
   }
 }
 
+/// Duration of the swap motion; zero with reduced motion.
+Duration _swapMotion(BuildContext context) =>
+    (MediaQuery.maybeDisableAnimationsOf(context) ?? false)
+    ? Duration.zero
+    : const Duration(milliseconds: 250);
+
 /// An X-style pill language button with a hairline border (the target's
 /// a little bolder). The button keeps its own semantics (tap action,
 /// enabled state, focus); only its visible content is replaced by
-/// [semanticLabel] for screen readers.
+/// [semanticLabel] for screen readers. A new [label] slides in from
+/// [slideFrom] (mirrored in right-to-left layouts).
 class _LanguageButton extends StatelessWidget {
   const new({
     required this.label,
     required this.semanticLabel,
     required this.tooltip,
     required this.onPressed,
+    required this.slideFrom,
     this.icon,
     this.target = false,
     super.key,
   });
+
+  /// The side a new label slides in from (in a left-to-right layout).
+  final AxisDirection slideFrom;
 
   /// Whether this is the target language (bolder, like the translation's
   /// header).
@@ -242,12 +282,16 @@ class _LanguageButton extends StatelessWidget {
                 const SizedBox(width: 6),
               ],
               Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: target ? FontWeight.w800 : FontWeight.w700,
+                child: _SharedAxisSwitcher(
+                  slideFrom: slideFrom,
+                  child: Text(
+                    label,
+                    key: ValueKey(label),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: target ? FontWeight.w800 : FontWeight.w700,
+                    ),
                   ),
                 ),
               ),
@@ -257,6 +301,52 @@ class _LanguageButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Switches [child] (told apart by its key) like Material's horizontal
+/// shared-axis transition: the new one slides in from [slideFrom] while
+/// fading in, the old one slides out the other way while fading out.
+class _SharedAxisSwitcher extends StatelessWidget {
+  const new({required this.slideFrom, required this.child});
+
+  final AxisDirection slideFrom;
+  final Widget child;
+
+  /// How far a label travels, as a share of its width.
+  static const _travel = 0.3;
+
+  @override
+  Widget build(BuildContext context) {
+    final rtl = Directionality.of(context) == TextDirection.rtl;
+    final fromRight = (slideFrom == AxisDirection.right) != rtl;
+    final current = child.key;
+    return AnimatedSwitcher(
+      duration: _swapMotion(context),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      layoutBuilder: (current, previous) => Stack(
+        alignment: AlignmentDirectional.centerStart,
+        children: [...previous, ?current],
+      ),
+      transitionBuilder: (child, animation) {
+        // The incoming label enters from [slideFrom]; the outgoing one
+        // (its animation runs backwards) leaves to the opposite side.
+        final incoming = child.key == current;
+        final sign = (fromRight ? 1.0 : -1.0) * (incoming ? 1 : -1);
+        return FadeTransition(
+          opacity: animation,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: Offset(_travel * sign, 0),
+              end: Offset.zero,
+            ).animate(animation),
+            child: child,
+          ),
+        );
+      },
+      child: child,
     );
   }
 }
