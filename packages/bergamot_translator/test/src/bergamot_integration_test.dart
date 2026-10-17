@@ -11,6 +11,7 @@ import 'dart:io';
 import 'package:bergamot_translator/bergamot_translator.dart';
 import 'package:bergamot_translator/src/engine/ffi/isolate_engine.dart';
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 
@@ -72,8 +73,7 @@ void main() {
           reason: path,
         );
       }
-      // ignore: avoid_print
-      print(
+      debugPrint(
         'model ${model.pair} (${entry.architecture}): download '
         '${_mb(entry.downloadSize)}, installed ${_mb(model.sizeBytes)}',
       );
@@ -92,8 +92,7 @@ void main() {
       'cold en->de (isolate + model load + 1 sentence)',
       stopwatch.elapsed,
     );
-    // ignore: avoid_print
-    print('en->de: "Hello, how are you?" -> "$german"');
+    debugPrint('en->de: "Hello, how are you?" -> "$german"');
     expect(german.toLowerCase(), anyOf(contains('hallo'), contains('wie')));
   }, skip: skip);
 
@@ -103,8 +102,7 @@ void main() {
       source: 'de',
       target: 'en',
     );
-    // ignore: avoid_print
-    print('de->en: "$english"');
+    debugPrint('de->en: "$english"');
     expect(english.toLowerCase(), contains('how'));
   }, skip: skip);
 
@@ -114,8 +112,7 @@ void main() {
       source: 'es',
       target: 'de',
     );
-    // ignore: avoid_print
-    print('es->en->de: "$german"');
+    debugPrint('es->en->de: "$german"');
     expect(german.toLowerCase(), anyOf(contains('buch'), contains('wie')));
   }, skip: skip);
 
@@ -126,8 +123,7 @@ void main() {
       source: 'auto',
       target: 'de',
     );
-    // ignore: avoid_print
-    print('auto->de: "$german"');
+    debugPrint('auto->de: "$german"');
     expect(german.split('\n\n'), hasLength(2));
   }, skip: skip);
 
@@ -145,8 +141,7 @@ void main() {
       );
       final elapsed = stopwatch.elapsed;
       _report('$words words en->de', elapsed);
-      // ignore: avoid_print
-      print(
+      debugPrint(
         '  ${(words / (elapsed.inMilliseconds / 1000)).toStringAsFixed(0)} '
         'words/s; output ${german.split(RegExp(r'\s+')).length} words; '
         'starts "${german.substring(0, 120)}..."',
@@ -166,8 +161,7 @@ void main() {
 }
 
 void _report(String what, Duration elapsed) {
-  // ignore: avoid_print
-  print('timing: $what: ${elapsed.inMilliseconds} ms');
+  debugPrint('timing: $what: ${elapsed.inMilliseconds} ms');
 }
 
 String _mb(int bytes) => '${(bytes / 1e6).toStringAsFixed(1)} MB';

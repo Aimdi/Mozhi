@@ -391,3 +391,130 @@ jobs:
             e2e/test-results
           retention-days: 14
           if-no-files-found: ignore
+
+  # libmozhi_bergamot.so (packages/bergamot_translator/native: Mozilla's open
+  # Firefox Translations engine, the planned replacement for ML Kit) for the
+  # three release ABIs, built exactly like the plugin's Gradle build does
+  # (same NDK, CMake, toolchain file and arguments; see
+  # packages/bergamot_translator/android/build.gradle). It does not need the
+  # app, so it runs in parallel with the other jobs.
+  build-bergamot-android:
+    name: Build Bergamot native (Android)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      # Keep in sync with packages/bergamot_translator/android/build.gradle.
+      NDK_VERSION: "28.2.13676358"
+      CMAKE_VERSION: "3.22.1"
+      ANDROID_PLATFORM: android-24
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_COMPRESS: "true"
+      CCACHE_MAXSIZE: 2G
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # Only the submodules the engine compiles (not mozilla/translations'
+      # training tools), then native/patches/.
+      - name: Fetch the pinned engine sources
+        run: bash packages/bergamot_translator/tool/fetch_native_deps.sh
+
+      - name: Install the NDK, CMake and ccache
+        run: |
+          sdk="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          sdkmanager="$sdk/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$sdkmanager" --licenses > /dev/null || true
+          "$sdkmanager" --install "ndk;$NDK_VERSION" "cmake;$CMAKE_VERSION" > /dev/null
+          sudo apt-get install -y -q ccache > /dev/null
+          echo "ANDROID_NDK=$sdk/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+          # The SDK's CMake package also contains ninja.
+          echo "$sdk/cmake/$CMAKE_VERSION/bin" >> "$GITHUB_PATH"
+
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .ccache
+          key: bergamot-ccache-${{ env.NDK_VERSION }}-${{ github.sha }}
+          restore-keys: |
+            bergamot-ccache-${{ env.NDK_VERSION }}-
+
+      - name: Build arm64-v8a, armeabi-v7a and x86_64
+        run: |
+          set -euo pipefail
+          cmake --version | head -1
+          native=packages/bergamot_translator/native
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            echo "::group::$abi"
+            build="$RUNNER_TEMP/bergamot-$abi"
+            cmake -S "$native" -B "$build" -G Ninja \
+              -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK/build/cmake/android.toolchain.cmake" \
+              -DANDROID_ABI="$abi" \
+              -DANDROID_PLATFORM="$ANDROID_PLATFORM" \
+              -DANDROID_STL=c++_static \
+              -DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+              -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+            cmake --build "$build" --target mozhi_bergamot mozhi_bergamot_cli --parallel
+            mkdir -p "dist/$abi"
+            cp "$build/libmozhi_bergamot.so" "$build/mozhi_bergamot_cli" "dist/$abi/"
+            echo "::endgroup::"
+          done
+          ccache --show-stats || true
+
+      # Only the C API may be exported, libc++ must be static (no
+      # libc++_shared.so in the APK), and LOAD segments 16 KB aligned.
+      - name: Check the libraries
+        run: |
+          set -euo pipefail
+          bin="$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          failed=0
+          {
+            echo "### Bergamot native libraries (NDK $NDK_VERSION)"
+            echo
+            echo "| ABI | Unstripped | Stripped |"
+            echo "| --- | ---: | ---: |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            lib="dist/$abi/libmozhi_bergamot.so"
+            exports=$("$bin/llvm-nm" -D --defined-only "$lib" | awk '{print $NF}' | sort)
+            unexpected=$(printf '%s\n' "$exports" | grep -v '^mozhi_bergamot_' || true)
+            if [ -n "$unexpected" ]; then
+              echo "::error::$abi exports more than the C API: $unexpected"
+              failed=1
+            fi
+            for name in abi_version version model_create model_destroy \
+              translate translate_pivot free_string last_error; do
+              if ! printf '%s\n' "$exports" | grep -qx "mozhi_bergamot_$name"; then
+                echo "::error::$abi does not export mozhi_bergamot_$name"
+                failed=1
+              fi
+            done
+            for needed in $("$bin/llvm-readelf" -d "$lib" |
+              sed -n 's/.*Shared library: \[\(.*\)\]/\1/p'); do
+              case "$needed" in
+                libc.so | libm.so | libdl.so | liblog.so) ;;
+                *)
+                  echo "::error::$abi needs $needed"
+                  failed=1
+                  ;;
+              esac
+            done
+            if "$bin/llvm-readelf" -lW "$lib" |
+              awk '$1 == "LOAD" && $NF != "0x4000" { bad = 1 } END { exit !bad }'; then
+              echo "::error::$abi has LOAD segments that are not 16 KB aligned"
+              failed=1
+            fi
+            "$bin/llvm-strip" --strip-unneeded -o "dist/$abi/libmozhi_bergamot.stripped.so" "$lib"
+            size() { numfmt --to=iec-i --suffix=B --format='%.1f' "$(stat -c %s "$1")"; }
+            echo "| $abi | $(size "$lib") | $(size "dist/$abi/libmozhi_bergamot.stripped.so") |" \
+              >> "$GITHUB_STEP_SUMMARY"
+          done
+          (cd dist && sha256sum -- */*.so > SHA256SUMS.txt)
+          [ "$failed" = 0 ] || exit 1
+
+      - name: Upload libraries
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: bergamot-android-native
+          path: dist
+          if-no-files-found: error

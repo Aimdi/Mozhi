@@ -95,7 +95,10 @@ abstract final class LanguageIdentifier {
       final marks = _diacritics[language];
       if (marks != null) {
         for (final rune in text.toLowerCase().runes) {
-          if (marks.contains(String.fromCharCode(rune))) score += 0.5;
+          final mark = String.fromCharCode(rune);
+          if (marks.contains(mark)) {
+            score += _strongMarks.contains(mark) ? 1 : 0.5;
+          }
         }
       }
       if (score > 0) scores[language] = score;
@@ -711,26 +714,26 @@ abstract final class LanguageIdentifier {
       'para',
     },
     'ca': {
-      'el',
-      'la',
       'els',
       'les',
       'i',
       'és',
-      'que',
-      'una',
       'del',
       'per',
       'amb',
-      'no',
-      'com',
       'però',
       'molt',
       'jo',
-      'es',
       'seu',
       'aquest',
+      'aquesta',
       'què',
+      'això',
+      'també',
+      'perquè',
+      'aquí',
+      'són',
+      'ens',
     },
     'gl': {
       'o',
@@ -865,6 +868,9 @@ abstract final class LanguageIdentifier {
       'đã',
     },
   };
+
+  /// Marks that (almost) only one language uses.
+  static const _strongMarks = '¿¡ñßőűþðřůąęłśźżășțğış';
 
   /// Letters that mostly occur in one language.
   static const _diacritics = <String, String>{

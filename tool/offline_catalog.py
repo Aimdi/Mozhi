@@ -204,10 +204,14 @@ def describe_file(base_url: str, kind: str, info: dict, cache: Cache, offline: b
     name = info["path"].rsplit("/", 1)[-1]
     if not name.endswith(".gz"):
         raise ValueError(f"{url}: expected a .gz file")
+    # Fixed key order: fresh and cached measurements serialise identically.
     return {
         "name": name[: -len(".gz")],
         "url": url,
-        **measured,
+        "size": measured["size"],
+        "sha256": measured["sha256"],
+        "uncompressedSize": measured["uncompressedSize"],
+        "uncompressedSha256": measured["uncompressedSha256"],
     }
 
 
@@ -247,7 +251,8 @@ def build(registry: dict, cache: Cache, jobs: int, offline: bool, source: str) -
     models.sort(key=lambda m: (m["source"], m["target"]))
     return {
         "schemaVersion": SCHEMA_VERSION,
-        "registry": source,
+        # A local copy (--registry path) is recorded as the public URL.
+        "registry": source if source.startswith("https://") else DEFAULT_REGISTRY,
         "registryGenerated": registry.get("generated"),
         "license": "Models: Mozilla Public License 2.0 (Firefox Translations)",
         "models": models,

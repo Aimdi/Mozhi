@@ -1,0 +1,62 @@
+diff --git a/inference/marian-fork/src/common/binary.cpp b/inference/marian-fork/src/common/binary.cpp
+index 02d105c..de2c41d 100644
+--- a/inference/marian-fork/src/common/binary.cpp
++++ b/inference/marian-fork/src/common/binary.cpp
+@@ -5,6 +5,7 @@
+ #include "common/types.h"
+ #include "tensors/cpu/integer_common.h"
+ 
++#include <cstring>
+ #include <string>
+ 
+ namespace marian {
+@@ -27,10 +28,21 @@ const T* get(const void*& current, uint64_t num = 1) {
+   return ptr;
+ }
+ 
++// Copy a T from current (which need not be aligned for T: the 64-bit fields
++// after the item names and shapes are not, and 32-bit ARM faults on
++// unaligned 64-bit loads) and move forward past it.
++template <typename T>
++T read(const void*& current) {
++  T value;
++  std::memcpy(&value, current, sizeof(T));
++  current = (const char*)current + sizeof(T);
++  return value;
++}
++
+ void loadItems(const void* current, std::vector<io::Item>& items, bool mapped) {
+   uint64_t totalBytesLoaded = 0;  // Track total bytes loaded
+ 
+-  uint64_t binaryFileVersion = *get<uint64_t>(current);
++  uint64_t binaryFileVersion = read<uint64_t>(current);
+   ABORT_IF(binaryFileVersion != BINARY_FILE_VERSION,
+            "Binary file versions do not match: {} (file) != {} (expected)",
+            binaryFileVersion,
+@@ -38,7 +50,7 @@ void loadItems(const void* current, std::vector<io::Item>& items, bool mapped) {
+ 
+   totalBytesLoaded += sizeof(uint64_t);  // Account for binaryFileVersion
+ 
+-  uint64_t numHeaders = *get<uint64_t>(current);  // number of item headers that follow
++  uint64_t numHeaders = read<uint64_t>(current);  // number of item headers that follow
+   totalBytesLoaded += sizeof(uint64_t);           // Account for numHeaders
+ 
+   const Header* headers = get<Header>(current, numHeaders);  // read that many headers
+@@ -62,13 +74,14 @@ void loadItems(const void* current, std::vector<io::Item>& items, bool mapped) {
+   for(int i = 0; i < numHeaders; ++i) {
+     uint64_t len = headers[i].shapeLength;
+     items[i].shape.resize(len);
+-    const int* arr = get<int>(current, len);            // read shape
++    const char* arr = get<char>(current, len * sizeof(int));  // read shape
+     totalBytesLoaded += len * sizeof(int);              // Account for shape bytes
+-    std::copy(arr, arr + len, items[i].shape.begin());  // copy to Item::shape
++    for(uint64_t d = 0; d < len; ++d)                   // copy to Item::shape
++      std::memcpy(&items[i].shape.begin()[d], arr + d * sizeof(int), sizeof(int));
+   }
+ 
+   // move by offset bytes, aligned to 256-bytes boundary
+-  uint64_t offset = *get<uint64_t>(current);
++  uint64_t offset = read<uint64_t>(current);
+   totalBytesLoaded += sizeof(uint64_t);  // Account for offset metadata
+   get<char>(current, offset);
+   totalBytesLoaded += offset;  // Account for offset bytes

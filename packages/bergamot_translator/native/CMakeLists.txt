@@ -37,6 +37,15 @@ foreach(_required
   endif()
 endforeach()
 
+# native/patches/ must be applied (fetch_native_deps.sh does it).
+file(STRINGS "${_marian_3rd}/../tensors/cpu/integer_common.h" _patched
+  REGEX "std::memcpy\\(&quantMult")
+if(NOT _patched)
+  message(FATAL_ERROR
+    "native/patches/ are not applied to ${MOZHI_BERGAMOT_TRANSLATIONS_DIR}.\n"
+    "Run packages/bergamot_translator/tool/fetch_native_deps.sh first.")
+endif()
+
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
@@ -160,11 +169,6 @@ set(PCRE2_INCLUDE_DIRS "${CMAKE_CURRENT_BINARY_DIR}/pcre2/interface"
     CACHE PATH "Set by mozhi_bergamot" FORCE)
 
 # --- Bergamot + Marian -----------------------------------------------------------
-# Marian's CMakeLists runs `git submodule update --init --recursive` while
-# configuring, which would clone every submodule of mozilla/translations
-# (training tools, emsdk, ...) into the source tree. Point git at a
-# repository that does not exist for the duration of the configure step, so
-# that command (and bergamot's `git rev-parse`) fail harmlessly.
 file(STRINGS "${_inference}/BERGAMOT_VERSION" _engine_version LIMIT_COUNT 1)
 
 # Marian generates src/common/git_revision.h with `git log`, depending on
@@ -185,6 +189,11 @@ function(add_custom_command)
   endif()
 endfunction()
 
+# Marian's CMakeLists runs `git submodule update --init --recursive` while
+# configuring, which would clone every submodule of mozilla/translations
+# (training tools, emsdk, ...) into the source tree. Point git at a
+# repository that does not exist for the duration of the configure step, so
+# that command (and bergamot's `git rev-parse`) fail harmlessly.
 set(_saved_git_dir "$ENV{GIT_DIR}")
 set(ENV{GIT_DIR} "${CMAKE_CURRENT_BINARY_DIR}/no-git-during-configure")
 add_subdirectory("${_inference}" bergamot EXCLUDE_FROM_ALL)
@@ -207,6 +216,14 @@ message(STATUS "mozhi_bergamot: Marian definitions: ${_marian_definitions}")
 target_compile_definitions(bergamot-translator-source PUBLIC
   ${_marian_definitions})
 target_compile_options(bergamot-translator-source PUBLIC ${_marian_options})
+
+# Marian and intgemm compile themselves with -Werror. A newer compiler (the
+# NDK's clang) must not fail the build over new warnings in vendored code.
+foreach(_target marian intgemm)
+  if(TARGET ${_target})
+    target_compile_options(${_target} PRIVATE -Wno-error)
+  endif()
+endforeach()
 
 if(ANDROID AND TARGET pathie-cpp)
   # Bionic declares iconv only from API 28 (minSdk is lower). Android paths

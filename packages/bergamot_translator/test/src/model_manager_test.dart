@@ -445,6 +445,20 @@ void main() {
     );
   });
 
+  test('value objects', () async {
+    final installed = await manager.install(ende.catalog);
+    expect(installed.toString(), 'InstalledModel(en-de, run1)');
+    final paths = installed.paths;
+    expect(paths, installed.paths);
+    expect(paths.hashCode, installed.paths.hashCode);
+    expect(paths.toString(), 'ModelPaths(en-de/run1)');
+    expect(
+      paths ==
+          const ModelPaths(key: 'x', model: '', shortlist: '', sourceVocab: ''),
+      isFalse,
+    );
+  });
+
   test('close only closes a client it created', () {
     BergamotModelManager(root: root).close();
     manager.close();

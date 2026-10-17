@@ -65,6 +65,18 @@ void main() {
       expect(create(isAvailable: false).isAvailable, isFalse);
     });
 
+    test('creates its own engine and manager by default', () async {
+      final defaults = BergamotTranslator(
+        catalog: catalogOf(models),
+        root: root,
+        isMeteredConnection: () async => false,
+      );
+      expect(defaults.engine, isNotNull);
+      expect(defaults.models.root, root);
+      await defaults.dispose();
+      defaults.models.close();
+    });
+
     test('defaults to the platform check (false in tests)', () {
       expect(create(isAvailable: null).isAvailable, isFalse);
       expect(BergamotTranslator.isPlatformSupported, isFalse);

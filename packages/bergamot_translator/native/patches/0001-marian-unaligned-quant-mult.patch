@@ -1,0 +1,42 @@
+diff --git a/inference/marian-fork/src/tensors/cpu/integer_common.h b/inference/marian-fork/src/tensors/cpu/integer_common.h
+index 9156c33..06ec9a0 100644
+--- a/inference/marian-fork/src/tensors/cpu/integer_common.h
++++ b/inference/marian-fork/src/tensors/cpu/integer_common.h
+@@ -1,5 +1,7 @@
+ #pragma once
+ 
++#include <cstring>
++
+ #include "tensors/tensor_allocator.h"
+ #include "tensors/tensor_operators.h"
+ #include "tensors/cpu/aligned.h"
+@@ -157,8 +159,13 @@ void prepareAndTransposeB(io::Item& item, const char * input) {
+     }
+ #endif
+     //Copy the quantMult
+-    float quantMult = *(reinterpret_cast<const float *>(reinterpret_cast<const Integer *>(input) + item.shape.elements()));
+-    *(reinterpret_cast<float *>(&(*(output_tensor + item.shape.elements())))) = quantMult;
++    // The multiplier follows the integers, so it is not 4-byte aligned when
++    // the element count is not a multiple of 4 (e.g. the 1x1 int8 item
++    // "Wemb_QuantMultA" of *.alphas.bin models). 32-bit ARM faults on
++    // unaligned floating-point loads, so copy it instead of dereferencing.
++    float quantMult;
++    std::memcpy(&quantMult, reinterpret_cast<const Integer *>(input) + item.shape.elements(), sizeof(float));
++    std::memcpy(&(*(output_tensor + item.shape.elements())), &quantMult, sizeof(float));
+ #else // COMPILE_CPU
+     ABORT("Using intgemm models is supported only with -DCOMPILE_CPU=on");
+ #endif
+@@ -167,7 +174,12 @@ void prepareAndTransposeB(io::Item& item, const char * input) {
+ template<Type vtype>
+ void unquantizeWemb(io::Item& item, const char * input) {
+     typedef typename intgemm_<vtype>::type Integer;
+-    float quantMult = *(reinterpret_cast<const float *>(reinterpret_cast<const Integer *>(input) + item.shape.elements()));
++    // The multiplier follows the integers, so it is not 4-byte aligned when
++    // the element count is not a multiple of 4 (e.g. the 1x1 int8 item
++    // "Wemb_QuantMultA" of *.alphas.bin models). 32-bit ARM faults on
++    // unaligned floating-point loads, so copy it instead of dereferencing.
++    float quantMult;
++    std::memcpy(&quantMult, reinterpret_cast<const Integer *>(input) + item.shape.elements(), sizeof(float));
+     float * output_tensor = reinterpret_cast<float *>(&(*item.bytes->begin()));
+     // Explicitly calculate n once beforehand because the compiler does not pick up on its
+     // static nature, and will end up calling marian::Shape::dim() a lot.

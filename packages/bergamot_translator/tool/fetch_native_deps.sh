@@ -20,7 +20,8 @@
 #
 # Every checkout is shallow and pinned by the superproject (no branch
 # tracking), so builds are reproducible (F-Droid: call this script in
-# `prebuild` instead of using `submodules: true`).
+# `prebuild` instead of using `submodules: true`). The patches in
+# native/patches/ are then applied to the checkout (idempotent).
 set -euo pipefail
 
 package_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -50,6 +51,17 @@ update "$translations" \
 
 update "${translations}/inference/marian-fork/src/3rd_party/ruy" \
   third_party/cpuinfo
+
+# Local fixes on top of the pinned sources (native/patches/README.md). Each
+# is applied once; re-running this script is a no-op.
+for patch in "${package_dir}/native/patches/"*.patch; do
+  [ -f "$patch" ] || continue
+  if git -C "$translations" apply --reverse --check "$patch" 2>/dev/null; then
+    continue
+  fi
+  git -C "$translations" apply --whitespace=nowarn "$patch"
+  echo "Applied $(basename "$patch")"
+done
 
 echo "Bergamot native sources are ready:"
 git -C "$repo_root" submodule status -- "${third_party#"${repo_root}/"}"

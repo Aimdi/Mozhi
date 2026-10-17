@@ -98,7 +98,13 @@ final class _Worker {
       throw BergamotEngineException('Cannot start the engine isolate: $error');
     }
     final stream = responses.asBroadcastStream();
-    final first = await stream.first;
+    final exitEvents = exits.asBroadcastStream();
+    // The isolate's SendPort, or why it could not start (an engine error,
+    // or the isolate died before answering).
+    final first = await Future.any([
+      stream.first,
+      exitEvents.first.then((event) => 'The engine isolate exited: $event'),
+    ]);
     if (first is! SendPort) {
       responses.close();
       exits.close();
@@ -110,7 +116,7 @@ final class _Worker {
       responses.close();
       onExit();
     });
-    exits.listen((_) => worker._died());
+    exitEvents.listen((_) => worker._died());
     return worker;
   }
 

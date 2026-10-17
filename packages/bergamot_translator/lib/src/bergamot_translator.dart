@@ -159,12 +159,14 @@ class BergamotTranslator implements OfflineTranslator {
       if (router.targetCode(code) == ModelRouter.english) return;
       throw OfflineLanguageUnsupportedException(code);
     }
-    final ownKeys = pairs.map((model) => model.pair).toSet();
-    final shared = {
-      for (final other in await downloadedLanguages())
-        if (router.modelsFor(other).map((m) => m.pair).toSet() != ownKeys)
-          for (final model in router.modelsFor(other)) model.pair,
-    };
+    final own = pairs.map((model) => model.pair).toSet();
+    final shared = <String>{};
+    for (final other in await downloadedLanguages()) {
+      final needs = router.modelsFor(other).map((model) => model.pair).toSet();
+      // The same language under another code (e.g. nb/no) is not "other".
+      if (needs.length == own.length && needs.containsAll(own)) continue;
+      shared.addAll(needs);
+    }
     for (final pair in pairs) {
       if (shared.contains(pair.pair)) continue;
       final installed = await models.installedModel(pair.source, pair.target);

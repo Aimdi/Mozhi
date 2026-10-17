@@ -37,6 +37,22 @@ static inline int32x4_t mozhi_vcvtnq_s32_f32(float32x4_t a) {
 #define vcvtnq_s32_f32 mozhi_vcvtnq_s32_f32
 #endif
 
+#if defined(__clang__)
+/* sse2neon's _mm_stream_pd casts to float64x2_t (an AArch64-only type) when
+ * the compiler has __builtin_nontemporal_store, as clang does. On 32-bit
+ * ARM sse2neon's __m128d is a float32x4_t, so name that. */
+typedef float32x4_t float64x2_t;
+
+#if defined(__cplusplus)
+/* simd_utils' 32-bit _mm_cvtpd_epi64 calls _mm_set_epi64(int64_t, int64_t);
+ * GCC converts the scalars to __m64, clang does not. This overload (C++
+ * linkage, next to sse2neon's C one) takes them as they are. */
+static inline int64x2_t _mm_set_epi64(int64_t i1, int64_t i2) {
+  return vcombine_s64(vcreate_s64((uint64_t)i2), vcreate_s64((uint64_t)i1));
+}
+#endif
+#endif
+
 #if defined(__GNUC__) && !defined(__clang__)
 /* GCC's 32-bit arm_neon.h lacks the x4 loads (clang has them). */
 static inline uint8x16x4_t mozhi_vld1q_u8_x4(const uint8_t* p) {
