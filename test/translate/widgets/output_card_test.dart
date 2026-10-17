@@ -8,6 +8,8 @@ import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/offline.dart' show OfflineEngineBadge;
+import 'package:mozhi/platform/clipboard_service.dart';
+import 'package:mozhi/platform/privacy_channel.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/translate.dart';
 import 'package:mozhi/translate/widgets/widgets.dart';
@@ -230,6 +232,32 @@ void main() {
       await tester.pump();
       expect(clipboard.copied, 'Bonjour le monde');
       expect(find.text('Copied to clipboard'), findsOneWidget);
+    });
+
+    testWidgets('copy is marked sensitive and Android confirms it', (
+      tester,
+    ) async {
+      final previous = ClipboardService.instance;
+      addTearDown(() => ClipboardService.instance = previous);
+      final copied = <String>[];
+      final messenger = tester.binding.defaultBinaryMessenger
+        ..setMockMethodCallHandler(privacyChannel(), (call) async {
+          copied.add(call.arguments as String);
+          return true;
+        });
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(privacyChannel(), null),
+      );
+      ClipboardService.instance = ClipboardService(isAndroid: true);
+      final harness = TranslateHarness(state: translatedState());
+      await harness.pump(tester, child: const OutputCard());
+
+      await tester.tap(find.byTooltip('Copy'));
+      await tester.pump();
+
+      expect(copied, ['Bonjour le monde']);
+      // Android 13+ shows its own confirmation.
+      expect(find.text('Copied to clipboard'), findsNothing);
     });
 
     testWidgets('share shares the translation', (tester) async {

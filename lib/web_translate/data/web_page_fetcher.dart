@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:mozhi/core/network/network_session.dart';
 import 'package:mozhi/web_translate/core/charset.dart';
 import 'package:translation_repository/translation_repository.dart'
     show AiProviderConfig;
@@ -113,7 +114,9 @@ class FetchedWebPage {
   bool get isPlainText => contentType == 'text/plain';
 }
 
-/// Downloads web pages for the reader view with `package:http`.
+/// Downloads web pages for the reader view with `package:http`, by default
+/// through [NetworkSession.webClient] of the current session (so the proxy
+/// setting applies).
 ///
 /// * Sends a desktop browser `User-Agent` (except on the web, where
 ///   browsers do not allow it) so that sites serve their full layout.
@@ -135,8 +138,7 @@ class WebPageFetcher {
     this.maxBytes = defaultMaxBytes,
     this.maxRedirects = 5,
     this.userAgent = desktopUserAgent,
-  }) : _client = client ?? http.Client(),
-       _ownsClient = client == null,
+  }) : _client = client ?? NetworkSession.current.webClient,
        _isWeb = isWeb ?? kIsWeb;
 
   /// 2 MiB.
@@ -148,7 +150,6 @@ class WebPageFetcher {
       '(KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36';
 
   final http.Client _client;
-  final bool _ownsClient;
   final bool _isWeb;
   final Duration timeout;
   final int maxBytes;
@@ -331,8 +332,7 @@ class WebPageFetcher {
     'text/xml',
   };
 
-  /// Closes the HTTP client when this fetcher created it.
-  void close() {
-    if (_ownsClient) _client.close();
-  }
+  /// Does nothing: the HTTP client belongs to whoever passed it in (by
+  /// default the current [NetworkSession]).
+  void close() {}
 }

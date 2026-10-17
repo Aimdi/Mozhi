@@ -24,6 +24,7 @@ alone.
 - [Web pages](#web-pages)
 - [Offline translation](#offline-translation)
 - [History and favourites](#history-and-favourites)
+- [Privacy controls](#privacy-controls)
 - [Usage and costs](#usage-and-costs)
 - [Text-to-speech](#text-to-speech)
 - [Android integration](#android-integration)
@@ -168,9 +169,13 @@ The engine button lists:
 Your own [DeepL API and LibreTranslate](ai-providers.md#deepl-and-libretranslate)
 services are listed too.
 
-A badge tells you where your text goes: **Local** (a model on your device or
-network), **Self-hosted** (a Mozhi engine, through your instance list) or
-**Cloud** (a third-party AI provider). See [Privacy](privacy.md).
+A badge tells you who receives your text: **On device** (offline
+translation), **Self-hosted** (a server on this device, your network, or a
+Tor or I2P address), **Public server** (a public Mozhi or LibreTranslate
+instance run by someone else) or **Cloud** (an AI provider or DeepL's API).
+After a translation, a chip under it names the exact destination ("Google
+via mozhi.example.org"); tap it to see what that party can read. See
+[Privacy](privacy.md#where-your-text-goes).
 
 **Compare mode** (**Compare engines** in the toolbar) translates with all your
 engines at once and shows the results side by side as they arrive, each with
@@ -443,8 +448,10 @@ gallery, then choose how to translate it:
 - **Mozhi (Google Lens)**: when your instance offers Google, Mozhi sends the
   image to Google and returns the recognised text, its translation and a copy
   of the image with the translation drawn in.
-- **On-device recognition** (Android): ML Kit reads the text on the
-  phone, and the text is then translated with your current engine.
+- **On-device recognition** (Android, [Play variant](contributing.md#build-variants)
+  only): Google's ML Kit reads the text on the phone, and the text is then
+  translated with your current engine. The default build has no on-device
+  text recognition and says so.
 
 Large photos are scaled down before uploading (longest side 2048 px, under
 4 MB), which keeps them within Mozhi's upload limit.
@@ -493,13 +500,20 @@ In the web app this only works for sites that allow cross-origin requests
 
 ## Offline translation
 
-On Android, Mozhi can translate without any network using Google's ML Kit
-on-device models (about 60 languages). In the offline languages page,
-download the languages you need once (around 30 MB each; **Wi-Fi only** is on
-by default) and delete them when you no longer need them. After that,
-translation runs entirely on the phone, and results are marked **Offline**.
-Quality is below the online engines, but it works on a plane and nothing
-leaves the device. Offline translation is not available on the web.
+On Android, Mozhi can translate without any network with Mozilla's
+**Bergamot** engine and the **Firefox Translations** models (MPL-2.0), the
+ones Firefox uses for its built-in translation: about 55 languages, each to
+and from English, and between other languages through English. In
+**Settings > Offline languages**, download the languages you need once
+(about 50 MB to download and 73 MB on disk each; English is built in),
+update them when a newer model is out, and delete them when you no longer
+need them. With **Download over Wi-Fi only** on (the default), Mozhi asks
+before using mobile data or a metered network. Models come from Mozilla's
+storage (`storage.googleapis.com`) and are checked against bundled
+checksums before use; none of your text is sent. After that, translation
+runs entirely on the phone, and results are marked **Offline**. Quality is
+below the best online engines, but it works on a plane and nothing leaves
+the device. Offline translation is not available on the web.
 
 ## History and favourites
 
@@ -522,8 +536,37 @@ leaves the device. Offline translation is not available on the web.
   so, and **Import history** skips entries older than the setting.
 - **Clear history** can keep your favourites.
 - **Settings > Export history** copies your history as JSON or shares it as a
-  file; **Import history** merges such JSON into your history, for example on
-  a new phone.
+  file (plain, unencrypted JSON); **Import history** merges such JSON into
+  your history, for example on a new phone.
+- On the device the history is encrypted (AES-256-GCM, with the key in
+  secure storage), and it is never part of a backup or a device transfer.
+
+## Privacy controls
+
+**Settings > Privacy** gathers what decides where your text goes and what
+stays behind (details in [Privacy](privacy.md)):
+
+- **Privacy mode**: **Offline only** (nothing leaves the device),
+  **Offline first** (the default: on-device when the pair is installed,
+  otherwise Mozhi asks once per language pair and destination) or
+  **Online** (your services without asking; cloud providers still ask
+  once each). A prompt shows the destination before anything is sent and
+  offers **Once**, **Always for** the pair, downloading the pair for
+  offline use, or changing the mode.
+- **Incognito**: new translations aren't saved, and keyboards are asked
+  not to learn what you type.
+- **Hide content in recents & block screenshots** (Android): also blocks
+  screen recording and screen sharing.
+- **HTTP proxy** (Android): every request goes through it, for example
+  Orbot's `127.0.0.1:8118` for Tor; needed for `.onion` and `.i2p`
+  servers. Applies after restarting the app.
+- **Delete all local data**: the history and its key, settings, keys and
+  passwords, presets, glossaries, usage counters, cached lists and offline
+  models; setup then starts again.
+
+Copies are marked sensitive on Android 13+, so the system's copy preview
+and keyboard clipboard suggestions don't show them. Plain `http` is used
+only for this device, your network and Tor or I2P addresses.
 
 ## Usage and costs
 
@@ -568,15 +611,15 @@ it again (**Stop**) to stop.
 
 The sound comes from one of two places:
 
-- **Mozhi voices**: your Mozhi instance fetches the audio from Google (with
-  Reverso as a fallback), so it needs a reachable instance. Long texts are
-  read in parts, one after another.
-- **Device voices**: the text-to-speech voices of your phone, computer or
-  browser. They read a language when Mozhi can't (no instance, no Mozhi
-  voice for the language, or the instance fails), and they work offline
-  when the voice is installed. With **Use device voice** on, or a voice
-  chosen for the language (see below), they read first and Mozhi becomes the
-  fallback.
+- **Device voices** (first): the text-to-speech voices of your phone,
+  computer or browser read every language they have a voice for, and work
+  offline when the voice is installed.
+- **Mozhi voices**: only for a language the device has no voice for, your
+  Mozhi instance fetches the audio from Google (with Reverso as a fallback).
+  Mozhi receives the text in the request address, which can end up in its
+  logs, so in **Offline first** the app asks first (**Listen online**), in
+  **Offline only** it never does, and **Device voice only** turns it off.
+  Long texts are read in parts, one after another.
 
 **Settings > Read aloud** adjusts how text is read:
 
@@ -585,8 +628,8 @@ The sound comes from one of two places:
   reads a sample sentence at that speed. The rate applies to device voices,
   and to Mozhi audio where the platform's audio player can change the speed
   (elsewhere Mozhi audio plays at normal speed).
-- **Use device voice**: read aloud with the device's text-to-speech instead
-  of the Mozhi instance, with Mozhi as the fallback.
+- **Device voice only**: never send text to a Mozhi instance to read it
+  aloud, not even for languages the device has no voice for.
 - **Voice per language**: choose one of the device's voices for the
   languages you used recently (your current target and source languages,
   then recent ones: up to four, plus every language you already chose a
@@ -597,7 +640,7 @@ The sound comes from one of two places:
   If a language has no voice, install one in your device's text-to-speech
   settings.
 
-**Use device voice** and **Voice per language** appear only where the device
+**Device voice only** and **Voice per language** appear only where the device
 has a text-to-speech engine (Android and most browsers). The settings are kept on the device.
 
 ## Android integration
@@ -722,7 +765,9 @@ The same list is under **More tools > Keyboard shortcuts**.
 | Mozhi engines, AI providers, Proofread, history | ✓ | ✓ |
 | Text selection menu and share target | ✓ | |
 | `mozhi://` links | ✓ | |
-| Offline translation, on-device text recognition | ✓ | |
+| Offline translation | ✓ | |
+| On-device text recognition | Play variant | |
+| Privacy screen, sensitive clipboard, HTTP proxy | ✓ | |
 | Dynamic color from wallpaper | ✓ (12+) | |
 
 On the web, the browser enforces some extra rules for self-hosted servers;

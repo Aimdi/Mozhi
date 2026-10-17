@@ -44,14 +44,25 @@ class NetworkSession {
   NetworkPolicy get policy =>
       NetworkPolicy(hasProxy: hasProxy, hiddenServicesNeedProxy: !kIsWeb);
 
-  /// The client of every backend; created on first use.
-  late final http.Client client = () {
+  /// The platform client (with the proxy) under [client] and [webClient];
+  /// created on first use.
+  late final http.Client _platform = () {
     _clientCreated = true;
-    return BackendHttpClient(
-      _platformClient ?? createHttpClient(proxy: proxy),
-      policy: policy,
-    );
+    return _platformClient ?? createHttpClient(proxy: proxy);
   }();
+
+  /// The client of every backend; created on first use.
+  late final http.Client client = BackendHttpClient(_platform, policy: policy);
+
+  /// The client of the web page translator, for pages the user asks for:
+  /// the same connection and proxy as [client], so a page is never fetched
+  /// around the proxy, but without the backends' https rule (a page may be
+  /// plain http). See [WebsiteHttpClient]. Closing it does nothing; [close]
+  /// closes the connection.
+  late final http.Client webClient = WebsiteHttpClient(
+    _platform,
+    policy: policy,
+  );
 
   /// Session-long Mozhi instance checks (see [MozhiInstanceChecker]).
   late final MozhiInstanceChecker instanceChecker = MozhiInstanceChecker(
@@ -94,10 +105,10 @@ class NetworkSession {
         httpClient: client,
       );
 
-  /// Closes [client] (when it was used) and the [instanceChecker]'s change
-  /// stream.
+  /// Closes [client] and [webClient] (when one was used) and the
+  /// [instanceChecker]'s change stream.
   Future<void> close() async {
-    if (_clientCreated) client.close();
+    if (_clientCreated) _platform.close();
     await instanceChecker.dispose();
   }
 

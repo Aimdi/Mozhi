@@ -121,6 +121,35 @@ class BackendHttpClient extends http.BaseClient {
   void close() => _inner.close();
 }
 
+/// The [http.Client] of the web page translator: a website the user asked
+/// for is fetched as a browser would, plain `http` included, but a Tor
+/// `.onion` or I2P `.i2p` address without a proxy is refused before it is
+/// looked up ([ProxyRequiredException], as for the backends), and `Cookie`
+/// and `Referer` headers are stripped. [close] does nothing: the owner of
+/// the wrapped client (`NetworkSession`) closes it.
+class WebsiteHttpClient extends http.BaseClient {
+  new(this._inner, {required this.policy});
+
+  final http.Client _inner;
+
+  /// Only its proxy rule for `.onion` and `.i2p` applies.
+  final NetworkPolicy policy;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    if (policy.hiddenServicesNeedProxy &&
+        !policy.hasProxy &&
+        isHiddenServiceHost(request.url.host)) {
+      throw ProxyRequiredException(_redact(request.url));
+    }
+    BackendHttpClient.strippedHeaders.forEach(request.headers.remove);
+    return await _inner.send(request);
+  }
+
+  @override
+  void close() {}
+}
+
 /// Why a request was refused by the [NetworkPolicy] or by a broken proxy
 /// setting.
 enum NetworkPolicyError {

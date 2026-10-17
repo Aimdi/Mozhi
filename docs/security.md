@@ -16,7 +16,7 @@ problem.
 | Asset | Threats considered |
 | --- | --- |
 | AI / DeepL / LibreTranslate **API keys** (they cost money) | Other apps on the device, backups and device transfer, logs, a misconfigured or hostile server, hostile Wi-Fi |
-| **Your text**, translations and history | Servers you didn't choose, logs, cloud backup |
+| **Your text**, translations and history | Servers you didn't choose, logs, cloud backup and device transfer, screenshots, keyboards and clipboard managers |
 | **Your bill** with paid providers | Other apps or web pages starting requests without you |
 | **Your local network** | Websites using the app to reach devices on your LAN |
 | **What the AI writes back** | Prompt injection through the text you translate, links and model output |
@@ -26,14 +26,19 @@ the device or the user's account, and the servers you configure. The
 operator of a Mozhi instance or an AI provider sees the text you send it;
 pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
 
-## API keys
+## API keys and other secrets
 
-- Stored only in secure storage (Android Keystore-backed encrypted
-  preferences; in the web app, the browser's session storage, see below),
-  never in the settings, exports or history.
-- **Android:** cloud backup is off (`allowBackup="false"`). The backup and
-  device-transfer rules also exclude the secure storage files, so keys stay
-  on the phone.
+- API keys, custom provider headers and the user name and password of an
+  instance address (`https://user:password@host`) are stored only in
+  secure storage (Android Keystore-backed encrypted preferences; in the web
+  app, the browser's session storage, see below), never in the settings,
+  exports or history. Settings written by older versions that still held
+  headers or instance passwords are moved there on the next start, and the
+  plain copy is removed. The cached engine lists are stored under the
+  instance address without its password.
+- **Android:** cloud backup is off (`allowBackup="false"`), and the backup
+  and device-transfer rules exclude every file of the app, so keys stay on
+  the phone.
 - **Web app:** keys are kept in session storage, so they last only as long
   as the browser tab. Host the web app on its own origin (its own domain or
   subdomain); any page on the same origin can read the browser's storage.
@@ -45,6 +50,30 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
 - Debug builds log only bloc and state **type names**, never state contents
   (which hold your text and, while onboarding, the key you are typing).
   Release builds don't log app data.
+- Key fields ask keyboards not to learn what is typed and turn off
+  autocorrect and suggestions; address fields do the same for autocorrect
+  and suggestions.
+
+## Data on the device
+
+- **History:** encrypted with AES-256-GCM (a random nonce per write, the
+  format version bound in as associated data) under a 256-bit key that is
+  kept in secure storage, wrapped by an Android Keystore key. Damaged data
+  or a missing key is reported, never silently replaced. In the web app
+  the key has to live in the browser's storage next to the history, so the
+  encryption protects little there. **Export history** is plain JSON.
+- **No backup or transfer:** nothing the app stores goes to cloud backup or
+  to a new phone (see [Privacy](privacy.md#on-your-device)).
+- **Incognito** stops saving new translations to the history and asks
+  keyboards not to learn what you type.
+- **Screenshots:** **Hide content in recents & block screenshots** sets
+  `FLAG_SECURE`, which also blocks screen recording and sharing.
+- **Clipboard:** on Android 13+ copies are marked sensitive
+  (`EXTRA_IS_SENSITIVE`), so the system's preview and keyboard suggestions
+  don't show them.
+- **Delete all local data** removes the history and its key, the settings
+  with their secrets, every other preference, the offline models folder and
+  what the app holds in memory.
 
 ## Network
 
@@ -52,11 +81,23 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
   except local ones (`localhost`, private IP ranges, `.local`, `.lan`, bare
   host names), which get `http://` because self-hosted servers on a LAN
   usually have no certificate.
-- **Plain HTTP is allowed** (self-hosted servers), but the AI provider
-  editor, Settings > Mozhi instances and first-run setup warn about a
-  non-local `http://` address and ask you to confirm before saving a key
-  for it or adding the instance.
-  Prefer HTTPS, a VPN or Tailscale for servers outside your home network.
+- **Plain HTTP only for your own and private servers:** this device, your
+  local network, Tor `.onion` and I2P `.i2p` addresses. The app refuses
+  plain `http` to any other host before anything is sent (the network
+  policy in `lib/core/network/network_policy.dart` checks every request of
+  the Mozhi, LibreTranslate, DeepL and AI clients, redirects included), and
+  Settings and first-run setup don't accept such an address. Use HTTPS, a
+  VPN, Tailscale or Tor for servers outside your home network.
+- **Android platform networking** (Java/Kotlin code and plugins) allows no
+  plain `http` at all (`network_security_config.xml`). Dart's HTTP client
+  ignores that file, which is why the app's own policy above exists.
+- **Proxy:** with **Settings > Privacy > HTTP proxy** (for example Orbot,
+  `127.0.0.1:8118`) every request goes through a `CONNECT` tunnel; a proxy
+  setting that can't be parsed never falls back to a direct connection.
+  Without a proxy, `.onion` and `.i2p` addresses are refused before a DNS
+  lookup.
+- **Headers:** requests carry `User-Agent: Mozhi`, no cookies and no
+  `Referer`; the web app's page sets `referrer` to `no-referrer`.
 - **Certificates:** the app never disables certificate checks. Release
   builds on Android trust only the system certificate authorities; CAs
   installed by the user (or by malware or device management) are trusted in
@@ -86,7 +127,9 @@ to:
   still works. A host name that *resolves* to a private address
   (DNS rebinding) is not detected; the reader view still runs no scripts,
   and the page's text goes only to the translation engine you selected.
-- Downloads are capped at 2 MiB and 25 seconds.
+- Downloads are capped at 2 MiB and 25 seconds, go through the HTTP proxy
+  when one is set, and carry no cookies or `Referer`; a `.onion` or `.i2p`
+  page needs the proxy.
 - `mozhi://web?url=…` and `/web?url=…` links only fill in the address; the
   page is loaded when you press the button.
 
@@ -138,11 +181,16 @@ translations, for example with **Check meaning**.
 - Photos sent to AI providers are re-encoded first, which removes EXIF data
   such as GPS location.
 - Imported history is capped like the history itself.
-- No analytics, telemetry or crash reporting libraries. ML Kit (offline
-  translation, text recognition) is the only bundled library that sends
-  usage metrics to its vendor; see [Privacy](privacy.md#google-ml-kit).
-- Third-party licences, including ML Kit and native libraries, are listed
-  under **Settings > About > Licences**.
+- No analytics, telemetry or crash reporting libraries, and no Google code
+  in the default build (CI checks every APK with
+  `tool/check_no_google.sh`). Offline translation uses Mozilla's Bergamot
+  engine with the Firefox Translations models (MPL-2.0); downloaded models
+  are checked against bundled SHA-256 checksums before use. Only the
+  optional Play variant includes ML Kit (on-device text recognition), which
+  sends usage metrics to Google; see [Privacy](privacy.md#google-code).
+- Third-party licences, including the native engine's components (and ML
+  Kit in the Play variant), are listed under **Settings > About >
+  Licences**.
 - **Release builds:** Android APKs and the app bundle are built with
   `--obfuscate --split-debug-info`; the debug symbols are kept as a private
   workflow artifact (90 days), not attached to the public release.
@@ -160,12 +208,11 @@ translations, for example with **Check meaning**.
   Translate clipboard button, like any widget button. Clipboard text is
   then handled like shared text: capped, no paid AI request on its own,
   but translated by a free engine and saved to history if those are on.
-- Plain `http://` Mozhi instances outside your network can still be added
-  (in Settings and in first-run setup): Mozhi shows a warning and asks you
-  to confirm first, because your text then travels unencrypted. Instances
-  on this device or your local network (`localhost`, private IP addresses,
-  `.local`/`.lan` names and similar) are added without a warning. Instances
-  added before this check are not re-checked.
+- An `http://` address that the app treats as local (`localhost`,
+  private IP addresses, `.local`/`.lan` names, bare host names and
+  similar) is trusted as your own network; on a hostile LAN its traffic
+  can still be read. A public `http://` instance added by an older version
+  stays in the list, but nothing is sent to it.
 - **Web app Content Security Policy:** `index.html` allows scripts only from
   the app's own origin (no inline scripts, `'wasm-unsafe-eval'` for
   CanvasKit), but it must let the app connect to **any** `http(s)` server,

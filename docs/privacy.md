@@ -6,175 +6,230 @@ goes anywhere else.
 ## The short version
 
 - **No account, no telemetry, no analytics, no ads, no crash reporting.** The
-  app contains no tracking code of its own and does not contact any server
-  run by the app's developers. (The one third-party library that reports
-  usage metrics, Google's ML Kit, is covered [below](#google-ml-kit).)
-- **Your history and settings stay on your device.**
-- **Your text is sent only to the back end you choose** for that translation:
-  a Mozhi instance, an AI provider, or nowhere at all with local and offline
-  models.
+  app contains no tracking code and does not contact any server run by the
+  app's developers. The default build contains no Google code at all (see
+  [Google code](#google-code)).
+- **Offline first by default.** Out of the box, translation runs on the
+  phone when the language pair is installed, and the app asks before your
+  text goes over the network for the first time. You can choose
+  [Offline only or Online](#privacy-modes) instead.
+- **You always see where a translation went.** Every result carries a
+  [destination chip](#where-your-text-goes) ("On device", "your server",
+  "Google via mozhi.example.org", "OpenAI"); tap it for what that party can
+  see.
+- **Your history, settings and keys stay on your device.** The history is
+  encrypted, secrets are in secure storage, and nothing is backed up or
+  copied to a new phone.
+- **Your text is sent only to the back end you choose** for that
+  translation: a Mozhi instance, an AI provider, a DeepL or LibreTranslate
+  service, or nowhere at all with the offline engine and local models.
 
-## What is stored on your device
+## Privacy modes
+
+**Settings > Privacy > Privacy mode** decides how willing the app is to
+send text over the network. The translation repository enforces it, not
+just the screens, and checks it before every request.
+
+| Mode | What happens |
+| --- | --- |
+| **Offline only** | Only on-device translation. Nothing you type leaves the device; requests that would need the network are refused, and no engine or language list is loaded from a server. |
+| **Offline first** (default) | On-device translation when the language pair is installed. Otherwise the app asks before text leaves the device, for that language pair and destination. Engine and language lists of Mozhi instances are not refreshed by themselves: the app does not contact a server until you let it (for example by opening the engine list). |
+| **Online** | Your translation services are used without asking, in the order you set. Cloud providers still ask once each. |
+
+In every mode, text goes to a **cloud provider** (an AI provider such as
+OpenAI or Anthropic, or DeepL's API) only after you agreed once for that
+provider.
+
+### Consent prompts
+
+When a request needs your OK, nothing has been sent yet. The prompt names
+the destination and what it can see, and offers:
+
+- **Once**, or **Always for** the language pair (for example *French →
+  English*); the approved pairs are kept in the settings;
+- **Download** the pair for offline use instead, when the offline engine
+  has it;
+- **Change privacy mode**.
+
+For a Mozhi request the prompt also says when the text may go on to the
+other servers in your list if the first one doesn't answer (failover, in
+your order). The app never moves text to another back end by itself: an
+offline or Mozhi translation is never retried with an AI provider, a
+helper request (language detection, the AI model for extras, Reverso
+after Google for speech) is checked as its own destination, and when the
+engine you selected is gone, only the on-device engine may take its place;
+otherwise you pick one.
+
+## Where your text goes
+
+The **destination chip** under a translation names who received the text:
+
+- **On device**: translated on this phone. Your text isn't sent anywhere.
+- **Your server** (this device, your local network, a Tor `.onion` or I2P
+  `.i2p` address): only whoever runs that server can read it. A Mozhi
+  instance passes the text on to its engine (for example Google), which can
+  read it too.
+- **A public server** ("Google via mozhi.example.org"): a public Mozhi or
+  LibreTranslate instance run by someone else. Its operator, and the engine
+  it forwards to, can read your text.
+- **A cloud provider** ("OpenAI"): the provider can read your text and
+  handles it under its own privacy policy.
+
+The chip names the instance that actually answered, so a failover is
+visible. The engine list shows the same categories as a badge: **On
+device**, **Self-hosted**, **Public server** or **Cloud**.
+
+## What is sent, to whom, and how long it is kept
+
+Mozhi itself keeps nothing off the device. "Kept" below means what Mozhi
+stores on the device and what the other party may keep.
+
+| Feature | Destination | What is sent | Kept |
+| --- | --- | --- | --- |
+| Translate with a Mozhi engine | The Mozhi instance (then the next ones in your list if it fails), which forwards to its engine (Google, DeepL, Reverso, Yandex, MyMemory, DuckDuckGo/Bing or its LibreTranslate) | Text, languages and engine in the request body (`POST`); your IP address to the instance, the instance's IP to the engine | On the device: in the history unless incognito or **Save history** is off. The instance and engine: their own logs and policies, unknown for public instances. |
+| Translate with a cloud AI provider | The provider's API (only after your one-time OK) | Text, languages, your translation options (context, glossary, instructions), the API key, your IP address. For short texts, the languages you recently translated from (not the texts) | The provider's retention and training policy; check its terms. History as above. |
+| Translate with a local AI model or your own server | That server | As above | Only on your server. |
+| DeepL API, LibreTranslate | The service you set up | Text, languages, formality, context or glossary (DeepL), the key | The service's policy. |
+| Offline translation | Nowhere | Nothing | History as above. |
+| Language detection (**Detect language**, an "auto" source with a translation-only AI model) | The device first; if it is unsure, the AI provider itself or, for translation-only models, your Mozhi instance's Google engine, when the privacy rules allow that destination | The text | As for that destination. |
+| Kagi-style extras, **Check meaning**, **Proofread** | The AI model for extras (**Settings > AI assistant for insights**) or the model you selected; **Check meaning** without one: the engine you translate with, to translate back | Source text, translation or both (the first 4,000 characters for **Check meaning**; the word for the dictionary) | The provider's policy. Results stay in memory only. |
+| **Listen** (read aloud) | The device's text-to-speech voice. A Mozhi instance only when the device has no voice for the language: never in Offline only or with **Device voice only**, and in Offline first only after you agree (**Listen online**) | Device voice: the text to the system's speech engine (voices marked **Needs internet** use its online service). Mozhi: the text **in the request address** (`GET /api/tts?text=…`, up to 200 characters per part) | Mozhi: the address can end up in the server's and any reverse proxy's access logs. The app keeps the last 20 clips in memory until it closes. |
+| Image translation | The AI model with **Supports images**, or your Mozhi instance, which sends the image to Google Lens. On-device text recognition only in the [Play variant](#google-code) | The image, re-encoded first (no EXIF data such as the GPS location) | The provider's or instance's policy. The app doesn't store the image. |
+| Dictation, conversation | The system's speech recognition (Google or the phone maker on Android; the browser's maker in the web app) | Your voice | The recogniser's policy. **Prefer on-device speech recognition** (Android 12+) asks to keep it on the phone. |
+| Web page translator | The website you enter, then the translation engine | The page address and your IP address, with a desktop browser `User-Agent` and no cookies | The website's logs. The page text then follows the translation row above. |
+| Offline model download | `storage.googleapis.com`: Mozilla's Firefox Translations bucket (`moz-fx-translations-data--303e-prod-translations-data`), hosted on Google Cloud Storage | Plain file requests (HTTPS `GET`, `Range` to resume): Google as the host sees your IP address, the time and which model files, so which languages, you download. No text, identifiers or cookies | Google Cloud Storage's logs. The models stay on the device until you delete them. |
+| Engine and language lists | The Mozhi instances in your list | Nothing about you except your IP address | The instance's logs. Stored on the device as a cache. |
+| **Check instances**, **Test**, **Test connection**, **Browse models** | Each instance or provider, only when you ask | A version request, or a model list request with your key | The server's logs. |
+| Web app fonts | `fonts.gstatic.com`, when a page needs a script the bundled font lacks (for example Chinese or Devanagari) | The font file name and your IP address, not your text | The browser caches the font. |
+
+Text from other apps (text selection, the share sheet, the Quick Settings
+tile and widget) and links (`/translate?text=…`, `mozhi://…`) is treated
+like typed text and follows the same rules and prompts. Shared text and
+links never start a paid AI request on their own unless **Instant translate
+with AI** is on (the quick-translate sheet of the selection menu translates
+right away, since you asked for it). Links to the dictionary, Proofread and
+the web page translator send nothing until you ask. In the web app, a
+translate link puts the text in the page address, which reaches the server
+that hosts the web app.
+
+Nothing else: no update checks, no analytics, no remote configuration.
+Opening **Settings > Mozhi instances** contacts nothing; instances are
+checked only when you ask.
+
+## On your device
 
 | Data | Where | Notes |
 | --- | --- | --- |
-| Settings (instances, provider settings, translation options, appearance) | App preferences | Never uploaded. |
-| Your languages: recent and pinned languages, recent language pairs, the extra target languages of **Also translate into…** | App preferences | Part of the settings (languages only, not the translations). **Clear recent language pairs** (in **Settings** or the recent pairs sheet) forgets the pairs. |
-| History and favourites | App preferences | Up to 1,000 entries plus favourites. **Settings > Delete history automatically** removes entries older than 1, 7 or 30 days (favourites are kept). Turn off **Settings > Save history** to stop saving; **Clear history** deletes them. |
-| Presets and glossaries | App preferences | Exported only when you export them. |
-| Read-aloud settings: speech rate, **Use device voice**, the device voice chosen per language | App preferences | The rate and each chosen voice's name, locale and engine details, never text. |
-| Usage counters and budgets | App preferences | Numbers only (requests, characters, estimated tokens per provider and month, for the last 13 months), never text. **Reset usage** deletes them; deleting a provider deletes its counts. |
-| API keys | Secure storage: Android Keystore (in the web app, the browser's session storage; see below) | Kept apart from the settings and never included in exports. Deleting a provider deletes its key. |
-| Offline language packs | App storage (Android) | Downloaded once; delete them in the offline settings. |
+| Settings (instances, provider settings, translation options, approved language pairs and providers, appearance, recent and pinned languages) | App preferences | No secrets: the parts below are kept apart. |
+| API keys, custom provider headers, user names and passwords in instance addresses (`https://user:password@host`) | Secure storage (Android Keystore; in the web app the browser's session storage) | Never in the settings, exports or history. Deleting a provider or an instance deletes its secrets. |
+| History and favourites | App preferences, **encrypted with AES-256-GCM**; the key is in secure storage (Android Keystore) | Up to 1,000 entries plus favourites. **Settings > Delete history automatically** removes entries older than 1, 7 or 30 days (favourites are kept). |
+| Presets, glossaries, read-aloud settings, usage counters | App preferences | Usage counters are numbers only (requests, characters, estimated tokens per provider and month, for 13 months). |
+| Cached engine and language lists | App preferences | Lists only, keyed by instance address without any password. |
+| Offline language models | App storage (`<app files>/bergamot`) | About 50 MB to download and 73 MB on disk per language. Delete them under **Settings > Offline languages**. |
 
-Recent translations are also kept in memory, never on disk, for up to a day
+**History encryption.** Each history value is encrypted with AES-256-GCM
+(a fresh nonce per write) under a 256-bit key generated on the device. On
+Android the key is kept in secure storage, wrapped by an Android Keystore
+key that never leaves the phone. In the **web app** the key has to be kept
+in the browser's storage next to the history (the web app's secure storage
+only lasts as long as the tab), so there the encryption protects little:
+anyone who can read the site's storage can read both. **Export history**
+writes plain, unencrypted JSON, and says so.
+
+**No backup, no device transfer.** The app opts out of cloud backup, and
+its backup rules exclude everything from Android 12+'s device-to-device
+transfer too, so nothing is copied to your Google account or to a new
+phone: settings, history and keys have to be set up again. Use **Export
+history** to move the history yourself.
+
+**Memory only.** Recent translations are kept in memory for up to a day
 while the app is running, so that translating the same text again doesn't
-send it again. Memory also holds the last 20 read-aloud audio clips (so
-listening again usually needs no network), the translations into extra
-target languages and the meaning check of the current translation. Closing
-the app clears them.
+send it again. Memory also holds the last 20 read-aloud clips, the
+translations into extra target languages and the meaning check of the
+current translation. Closing the app clears them.
 
-Uninstalling the app removes all of it. In the web app, the same data lives
-in your browser's storage for the site, and clearing the site's data removes
-it. API keys in the web app are kept only for the current browser tab
-(session storage) and have to be entered again after the tab is closed; a
-browser protects them less strongly than a phone's secure storage.
+**Delete all local data** (**Settings > Privacy**) deletes the history and
+its key, the settings with every key, header and password, presets,
+glossaries, usage counters, speech settings, cached lists and the whole
+offline models folder (partial downloads included), clears what the app
+holds in memory, and starts setup again. Uninstalling the app removes all
+of it too. In the web app, clearing the site's data does the same.
 
-The app itself never uploads this data. Backups:
+## Screen, keyboard and clipboard
 
-- **Android:** the app opts out of backup to your Google account. When you
-  set up a new phone by copying data from the old one (device-to-device
-  transfer), settings and history move with you; API keys don't and have
-  to be entered again.
+- **Incognito** (**Settings > Privacy**): new translations are not saved
+  to the history (a translation you star is still saved), and keyboards
+  are asked not to learn what you type (Android's
+  `IME_FLAG_NO_PERSONALIZED_LEARNING`; keyboards may ignore it). API key
+  fields always ask that, whether incognito is on or not, and address and
+  key fields turn off autocorrect and suggestions.
+- **Hide content in recents & block screenshots** (Android): sets
+  `FLAG_SECURE` on the app's window, which also blocks screen recording and
+  screen sharing of the app.
+- **Sensitive clipboard** (Android 13+): text you copy from the app is
+  marked sensitive (`ClipDescription.EXTRA_IS_SENSITIVE`), so the system's
+  copy preview and keyboard clipboard suggestions don't show it. The system
+  then confirms the copy itself, so the app doesn't add its own "Copied"
+  message. Clipboard managers can still read it. The app reads the
+  clipboard only when you tap **Paste** or **Translate clipboard**.
 
-See [Security](security.md) for how the app protects keys and handles text
-from other apps and links.
+## Network
 
-## What each back end sees
+- **HTTPS for public servers.** Plain `http` is only used for this device,
+  your local network and Tor `.onion` or I2P `.i2p` addresses. Anything
+  else is refused before a request is sent, and the Mozhi, LibreTranslate,
+  DeepL and AI provider clients never follow a redirect from `https` to
+  `http`. The Android app's platform networking (Java/Kotlin code and
+  plugins) doesn't allow plain `http` at all.
+- **HTTP proxy** (**Settings > Privacy > HTTP proxy**, Android): every
+  request the app makes, including offline model downloads and the web
+  page translator, goes through the proxy you set (`host:port`), as a
+  `CONNECT` tunnel, plain `http` included. For Tor, use Orbot's HTTP proxy,
+  `127.0.0.1:8118`. Requests to this device and your local network go
+  direct, since a proxy such as Tor couldn't reach them. A change applies
+  after restarting the app. Without a proxy, `.onion` and `.i2p` addresses
+  are refused before they are looked up, so their names don't leak to your
+  DNS resolver. SOCKS isn't supported. The web app uses the browser's
+  proxy.
+- **Little to identify the app.** Requests send `User-Agent: Mozhi`
+  (no version, no device details), no cookies (there is no cookie jar) and
+  no `Referer`. The web page translator sends a desktop browser
+  `User-Agent` instead, so that sites serve their full page. In the web
+  app, the browser chooses the `User-Agent`, and the page's referrer policy
+  (`no-referrer`) keeps it from sending a `Referer`.
 
-When you translate, the selected engine receives your text, the languages,
-and the network address of whoever sends the request.
+## Google code
 
-| Back end | Receives your text | Notes |
-| --- | --- | --- |
-| **Public Mozhi instance** | The instance, then the engine (Google, DeepL, Reverso, Yandex, MyMemory, DuckDuckGo/Bing or the instance's LibreTranslate) | The engine sees the instance's IP address, not yours. The instance operator could see your text and IP address. |
-| **Your own Mozhi instance** | Your server, then the engine | The engine sees your server's IP address. |
-| **Your own Mozhi + LibreTranslate** | Only your server | No third party involved. |
-| **Cloud AI provider** | The provider | Along with your IP address and API key. Your translation options (context, glossary) are part of the request. Retention and training policies are the provider's; check their terms. |
-| **DeepL API, LibreTranslate** (your own key or server) | DeepL, or the LibreTranslate server you entered | Along with your IP address and key. DeepL also receives the formality and context of your translation options. |
-| **Local AI model** | Only your computer | Nothing leaves your network. |
-| **Offline (on-device)** | Nothing | Translation runs on the phone. Downloading a language pack contacts Google's servers. |
+The default build, used for the GitHub releases, F-Droid and the Play
+bundle, contains no Google code: no ML Kit, Play services or Firebase
+(CI checks every APK). Offline translation uses Mozilla's **Bergamot**
+engine with the **Firefox Translations** models (MPL-2.0), the ones
+Firefox uses for its built-in translation; it runs entirely on the phone.
+The models are downloaded from Mozilla's bucket on Google Cloud Storage
+(see the table above), only when you tap **Download** or **Update**, are
+checked against the SHA-256 checksums bundled with the app, and are never
+sent your text. With **Download over Wi-Fi only** on (the default), the app
+asks before using mobile data or a metered network.
 
-The engine list marks each engine **Local**, **Self-hosted** (Mozhi engines)
-or **Cloud** (third-party AI). "Self-hosted" refers to the kind of engine: a
-Mozhi engine on a public instance still passes through that instance's
-operator.
-
-Some features send additional data to the same back ends:
-
-- **Kagi-style extras** (alternatives, insights, explanations, refinement
-  chips and suggestions, romanization, alignment, the dictionary) send the
-  source text, its translation or both (the dictionary: the word) to the AI
-  model that provides them. When you translate with a Mozhi engine, that is the
-  model chosen under **Settings > AI assistant for insights**. Extras are only
-  requested when you ask for them; insights, alignment and a romanization you
-  asked for then also load for the next translations you start. A
-  romanization loads on its own only when that model runs on your device or
-  network.
-- **Short texts** translated with a cloud AI model and **Detect language**
-  get a second, small request to the same provider to double-check the
-  language. For short texts, AI models are also told which languages you
-  recently translated from (the languages only, not what you translated).
-- **Long texts** are sent to AI models in parts, each with the end of the
-  part before it. Nothing goes anywhere else.
-- **Check meaning** sends your text and its translation (the first 4,000
-  characters of each) to the AI model for extras; when you translate with a
-  Mozhi engine, that is the model chosen under **Settings > AI assistant
-  for insights**. Without such a model, the translation is sent to the
-  engine you translate with, to be translated back. Only when you press
-  **Check meaning**.
-- **Also translate into…** sends your text to the same engine once for
-  each extra language, with the same options as the main translation. This
-  includes text shared into the app or opened from a link whenever it is
-  translated straight away (Mozhi engines, the DeepL API, LibreTranslate,
-  offline, or an AI model with **Instant translate with AI** on), also
-  right after the app starts, because your extra languages are remembered.
-- **Proofread** sends the text to the AI model you selected. The writing
-  statistics are calculated on the device.
-- **Listen** (text-to-speech) sends the text to your Mozhi instance, which
-  fetches the audio from Google (or Reverso). Device voices (with **Use
-  device voice**, a voice chosen under **Settings > Read aloud**, or when
-  Mozhi can't read a language) are provided by the operating system's or
-  the browser's text-to-speech engine and usually run on the device; voices
-  marked **Needs internet** are processed by that engine's online service.
-  Voice previews in the settings use the device voices only.
-- **Image translation** sends the image to the AI model (with **Supports
-  images**) or to your Mozhi instance, which passes it to Google. The image
-  is re-encoded first, so photo metadata such as the GPS location is not
-  sent. On-device
-  text recognition keeps the image on the phone.
-- **Dictation** uses your operating system's speech recognition (or, in the
-  web app, the browser's). Depending on the device and its settings, the audio
-  may be processed online by Google (Android, Chrome) or by your browser's
-  maker (for example Apple in Safari) rather than on the device. On Android 12+, **Prefer on-device speech
-  recognition** asks the system to keep it on the device.
-- **Text from other apps** (text selection, share sheet) and **links**
-  (`/translate?text=...`, `mozhi://...`) are handled like typed text: they go
-  to the engine you have selected. Shared text and links never start a paid
-  AI request on their own unless **Instant translate with AI** is on (the
-  quick-translate sheet of the selection menu translates right away, since
-  you asked for it). Links to the dictionary, Proofread or the web page
-  translator send nothing until you ask.
-
-## Every connection the app makes
-
-- The Mozhi instances in your list: translations, engine and language lists,
-  text-to-speech and image translation. Opening **Settings > Mozhi instances**
-  sends a lightweight `/api/version` request to every instance in the list to
-  show its response time, and **Test** does the same for one. Out of the box,
-  the list contains public instances, so a fresh install talks to the first
-  one.
-- The AI providers you added: translations, extras, proofreading, the model
-  list (**Browse models**) and **Test connection**.
-- Your DeepL API and LibreTranslate services: translations and **Test
-  connection**.
-- Google's servers, through ML Kit, on Android only (see below).
-- Web pages you translate with **Web page**: the app downloads the page from
-  its website, as a browser would (on Android it identifies as a desktop
-  browser; in the web app, your browser makes the request). The
-  website sees your IP address. The page's text then goes to the engine you
-  chose. A public website can't redirect the app to an address on your
-  device or local network (such as your router); you can still open such
-  an address by typing it.
-- Web pages you open from the app (source code, licences, provider key
-  pages), in your browser.
-- Web app only: Google Fonts (`fonts.gstatic.com`), the first time the page
-  has to display a script its bundled font doesn't cover (for example
-  Chinese, Arabic or Devanagari). Flutter's web engine then downloads the
-  matching Noto font. The request names the font file, not your text, and
-  the browser caches it. The Android app uses the fonts installed on the
-  device instead.
-
-Nothing else: no update checks, no analytics, no remote configuration.
-
-### Google ML Kit
-
-Offline translation and on-device text recognition (Android) use
-Google's ML Kit libraries. Translation and recognition run on the device; the
-text and images are not sent anywhere. ML Kit does download language packs
-and models from Google, and according to Google's
-[ML Kit terms](https://developers.google.com/ml-kit/terms) it also sends
-metrics about the performance and use of its APIs to Google. The web app
-doesn't include ML Kit.
+An optional **Play variant** adds Google's ML Kit for on-device text
+recognition in image translation. The recognition runs on the phone, but
+according to Google's [ML Kit terms](https://developers.google.com/ml-kit/terms)
+ML Kit sends metrics about the performance and use of its APIs to Google.
+The default build and the web app don't include it.
 
 ## Keeping everything private
 
 For translations that never leave hardware you control, use any of:
 
+- **Offline only** with the offline engine on Android;
 - your own Mozhi instance with LibreTranslate
   ([guide](self-hosting-mozhi.md#configuration)), and remove the public
   instances from your list;
-- a local AI model ([guide](ai-providers.md#local-models));
-- offline translation on Android.
+- a local AI model ([guide](ai-providers.md#local-models)).
+
+Add **Incognito**, **Device voice only** (**Settings > Read aloud**) and
+**Prefer on-device speech recognition** to keep history, speech and
+dictation on the device too. See [Security](security.md) for how the app
+protects keys and handles text from other apps and links.
 
 The app is open source (MIT); you can check all of the above in the code.

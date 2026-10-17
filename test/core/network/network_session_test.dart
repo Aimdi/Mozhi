@@ -77,6 +77,20 @@ void main() {
       expect(platform.requests.single.headers, isEmpty);
     });
 
+    test('fetches web pages over the same connection', () async {
+      final session = NetworkSession(httpClient: platform);
+
+      expect(session.webClient, isA<WebsiteHttpClient>());
+      await session.webClient.get(Uri.parse('http://example.org/'));
+      expect(platform.requests.single.url, Uri.parse('http://example.org/'));
+      await expectLater(
+        session.webClient.get(Uri.parse('http://abc.onion/')),
+        throwsA(isA<ProxyRequiredException>()),
+      );
+      await session.close();
+      expect(platform.closed, isTrue);
+    });
+
     test('creates a platform client lazily', () async {
       final session = NetworkSession();
 

@@ -118,6 +118,63 @@ void main() {
     });
   });
 
+  group(WebsiteHttpClient, () {
+    late List<http.BaseRequest> sent;
+    late bool closed;
+
+    WebsiteHttpClient client({bool hasProxy = false}) => WebsiteHttpClient(
+      _ForwardingClient(
+        MockClient((request) async {
+          sent.add(request);
+          return http.Response('ok', 200);
+        }),
+        onClose: () => closed = true,
+      ),
+      policy: NetworkPolicy(hasProxy: hasProxy),
+    );
+
+    setUp(() {
+      sent = [];
+      closed = false;
+    });
+
+    test(
+      'fetches plain http pages and strips cookies and the referer',
+      () async {
+        await client().get(
+          Uri.parse('http://example.org/page'),
+          headers: {'Cookie': 'a=1', 'Referer': 'https://x/', 'Accept': '*/*'},
+        );
+
+        expect(sent.single.url, Uri.parse('http://example.org/page'));
+        expect(sent.single.headers, {'Accept': '*/*'});
+      },
+    );
+
+    test('needs a proxy for .onion and .i2p pages', () async {
+      await expectLater(
+        client().get(Uri.parse('http://abc.onion/?q=secret')),
+        throwsA(
+          isA<ProxyRequiredException>().having(
+            (e) => e.uri.toString(),
+            'uri',
+            'http://abc.onion/',
+          ),
+        ),
+      );
+      expect(sent, isEmpty);
+
+      await client(hasProxy: true).get(Uri.parse('http://abc.onion/'));
+      expect(sent, hasLength(1));
+    });
+
+    test('leaves closing to the owner of the connection', () {
+      client().close();
+
+      expect(closed, isFalse);
+    });
+  });
+
   group('BackendHttpClient', () {
     late List<http.BaseRequest> sent;
     late BackendHttpClient client;
@@ -288,4 +345,19 @@ class _ClosingClient extends http.BaseClient {
 
   @override
   void close() => _onClose();
+}
+
+/// Hands requests to an inner client and reports [close].
+class _ForwardingClient extends http.BaseClient {
+  new(this._inner, {required this.onClose});
+
+  final http.Client _inner;
+  final void Function() onClose;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) =>
+      _inner.send(request);
+
+  @override
+  void close() => onClose();
 }

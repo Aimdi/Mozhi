@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:mozhi/core/network/network_session.dart';
 import 'package:mozhi/web_translate/data/page_extraction.dart';
 import 'package:mozhi/web_translate/data/web_page_fetcher.dart';
 
@@ -392,12 +393,30 @@ void main() {
       );
     });
 
-    test('closes only a client it created', () {
+    test('never closes the client', () {
       final client = RecordingClient((request) async => fail('unused'));
       WebPageFetcher(client: client).close();
       expect(client.closed, isFalse);
-      // Creates and closes its own client without throwing.
-      WebPageFetcher().close();
+    });
+
+    test('uses the web client of the current session by default', () async {
+      final previous = NetworkSession.current;
+      addTearDown(() => NetworkSession.current = previous);
+      final client = RecordingClient(
+        (request) async => http.StreamedResponse(
+          Stream.value(utf8.encode('<p>Hi</p>')),
+          200,
+          headers: {'content-type': 'text/html'},
+        ),
+      );
+      NetworkSession.current = NetworkSession(httpClient: client);
+      final fetcher = WebPageFetcher(isWeb: false);
+
+      await fetcher.fetch(Uri.parse('http://example.org/'));
+
+      expect(client.requests.single.url, Uri.parse('http://example.org/'));
+      fetcher.close();
+      expect(client.closed, isFalse);
     });
 
     test('WebPageException toString lists the details', () {

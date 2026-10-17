@@ -30,7 +30,8 @@ history anywhere.
   get a privacy badge. Dedicated translation models (TranslateGemma,
   Hunyuan-MT) get their own prompt format.
 - **DeepL API and LibreTranslate** with your own key or server, and
-  **offline** translation on Android (ML Kit).
+  **offline** translation on Android with Mozilla's Bergamot engine and the
+  Firefox Translations models (MPL-2.0, about 55 languages).
 - **Quality modes**: a Fast and a Best engine you pick once, switched with
   one tap and remembered (Kagi's Standard / Best).
 - Long texts are split at paragraph boundaries and translated in parallel
@@ -97,10 +98,20 @@ history anywhere.
 
 **Privacy**
 
-- No account, no telemetry, no analytics.
-- History and settings stay on the device; API keys are kept in the platform's
-  secure storage (in the web app only for the browser session). Where secure
-  storage is unavailable the app says so and keeps keys in memory.
+- No account, no telemetry, no analytics, and no Google code in the default
+  build (GitHub releases and F-Droid).
+- **Privacy modes**: Offline only, Offline first (the default: on-device
+  when possible, and Mozhi asks before text goes over the network) or
+  Online. Cloud providers always ask once, and a chip under every
+  translation names who received the text.
+- History and settings stay on the device and are never backed up or
+  transferred; the history is encrypted (AES-256-GCM). API keys, custom
+  headers and instance passwords are kept in the platform's secure storage
+  (in the web app only for the browser session). Where secure storage is
+  unavailable the app says so and keeps keys in memory.
+- Incognito, a screenshot and recents blocker, sensitive copies, an HTTP
+  proxy (Orbot/Tor), https-only for public servers, and **Delete all local
+  data**.
 - Shared text and links never start a paid AI request on their own. (Choosing
   *Translate with Mozhi* on a text selection is an explicit request: it
   translates right away with your current engine.)
@@ -126,12 +137,12 @@ Besides the four tabs (Translate, Proofread, History, Settings):
 | Screen | Where | What it does |
 | --- | --- | --- |
 | Onboarding | first start | Pick public or your own Mozhi instance and, optionally, an AI provider |
-| Image | Translate > More tools | Photos and screenshots: AI vision, Mozhi (Google Lens) or on-device text recognition |
+| Image | Translate > More tools | Photos and screenshots: AI vision, Mozhi (Google Lens) or, in the Play variant, on-device text recognition |
 | Documents | Translate > More tools | `.txt`, Markdown, SRT/VTT subtitles and JSON/ARB string tables, saved or shared when done |
 | Web page | Translate > More tools | Reader view of a page, translated block by block |
 | Conversation | Translate > More tools | Two people, two languages, with voice input and read-aloud |
 | Voice input | microphone buttons | Dictation, optionally on-device only |
-| Offline languages | Settings | ML Kit models for translating without a network (Android) |
+| Offline languages | Settings | Firefox Translations models for translating without a network (Android) |
 | Presets and glossaries | Settings | Named option sets and term lists for AI translation |
 | Usage | Settings | Requests and characters per AI provider this month, with optional budgets |
 | Quick translate | Android selection menu | Translate a selection in place without leaving the other app |
@@ -290,7 +301,8 @@ A layered Flutter app with pure Dart packages:
 | `packages/llm_api` | Streaming clients for OpenAI-compatible, Anthropic, Gemini and Ollama APIs. |
 | `packages/translation_repository` | Domain models, language catalogue, prompts and parsers, and `TranslationRepository`, which unifies Mozhi engines and AI providers (failover, caching, compare, extras). |
 | `packages/mt_api` | Clients for machine translation services (DeepL, LibreTranslate). |
-| `packages/mlkit_translator` | On-device ML Kit translation (Android) behind `OfflineTranslator`. |
+| `packages/bergamot_translator` | Offline translation (Android) behind `OfflineTranslator`: Mozilla's Bergamot engine over `dart:ffi`, the Firefox Translations model catalogue, verified downloads. See [Offline engine](docs/offline-engine.md). |
+| `packages/mlkit_translator` | ML Kit translation, kept for reference; no build uses it. |
 | `packages/mozhi_cli` | Command-line client. |
 | `lib/app` | Bootstrap wiring, router (`go_router`), adaptive shell, theme, shared-text and link handling. |
 | `lib/translate`, `lib/proofread`, `lib/history`, `lib/settings` | Features: Cubits (`flutter_bloc`) and views. |

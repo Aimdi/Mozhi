@@ -31,7 +31,7 @@
 
 - [Why does it say it couldn't reach the Mozhi instance?](#why-does-it-say-it-couldnt-reach-the-mozhi-instance)
 - [Why does Reverso (or DeepL) fail?](#why-does-reverso-or-deepl-fail)
-- [What does the "Self-hosted" badge mean on a public instance?](#what-does-the-self-hosted-badge-mean-on-a-public-instance)
+- [What do the badges in the engine list mean?](#what-do-the-badges-in-the-engine-list-mean)
 
 **Apps and platforms**
 
@@ -79,14 +79,16 @@ and a Best engine you switch between with one tap
 It depends on the engine. Mozhi engines offer whatever the engine supports
 (Google well over a hundred, LibreTranslate 17 through Mozhi). AI engines can
 use any of about 290 languages and variants in the app's catalogue, plus any
-custom target you type. Offline translation covers about 60 languages.
+custom target you type. Offline translation (Mozilla's Firefox
+Translations models) covers about 55 languages.
 
 ### Can I use it completely offline?
 
-On Android, yes: download offline language packs and translate
-without any network. A local AI model on a laptop also works without
-internet, as long as the phone can reach the laptop (the same Wi-Fi, or the
-laptop's hotspot).
+On Android, yes: download offline languages (**Settings > Offline
+languages**) and translate without any network. Set **Settings > Privacy >
+Privacy mode** to **Offline only** to make sure nothing you type leaves the
+phone. A local AI model on a laptop also works without internet, as long as
+the phone can reach the laptop (the same Wi-Fi, or the laptop's hotspot).
 
 ## AI
 
@@ -237,10 +239,12 @@ action.
 To change the speed for good, open **Settings > Read aloud**. **Speech
 rate** goes from 0.5× to 1.5×, with a preview button. Under **Voice per
 language** you can pick one of your device's voices for each language you
-use, and **Use device voice** reads everything with the device's voices
-first (they also work offline once installed). Mozhi's own voices follow the
-speech rate where the platform's audio player can change the speed. See
-[Text-to-speech](features.md#text-to-speech).
+use. The device's voices always read first (they also work offline once
+installed); a Mozhi instance reads only languages the device has no voice
+for, and in **Offline first** only after you tap **Listen online**, because
+Mozhi receives the text in the request address. **Device voice only** never
+uses Mozhi. Mozhi's voices follow the speech rate where the platform's audio
+player can change the speed. See [Text-to-speech](features.md#text-to-speech).
 
 ## Mozhi instances
 
@@ -258,12 +262,15 @@ Reverso blocks many server IP addresses, and DeepL and others rate-limit busy
 instances. Try another engine or instance, or host your own instance at
 home. See [Troubleshooting](self-hosting-mozhi.md#troubleshooting).
 
-### What does the "Self-hosted" badge mean on a public instance?
+### What do the badges in the engine list mean?
 
-The badge marks the kind of engine, not who runs it: **Self-hosted** means a
-Mozhi engine (through your instance list), **Local** means a model on your
-device or network, and **Cloud** a third-party AI provider. A public instance
-is run by someone else, who could see your text. See [Privacy](privacy.md).
+They say who receives your text: **On device** (the offline engine),
+**Self-hosted** (a server on this device, your network, or a Tor or I2P
+address), **Public server** (a public Mozhi or LibreTranslate instance run
+by someone else, who could see your text) and **Cloud** (an AI provider or
+DeepL's API). After a translation, the chip under it names the exact
+destination, including the instance that answered. See
+[Privacy](privacy.md#where-your-text-goes).
 
 ## Apps and platforms
 
@@ -302,9 +309,12 @@ new APK and import the history again.
 ### How do I move my history to a new device?
 
 **Settings > Export history** on the old device (copy the JSON or share it as
-a file), then **Settings > Import history** on the new one. Provider API keys
-are not exported; enter them again. If **Delete history automatically** is on
-on the new device, entries older than that setting are skipped.
+a file), then **Settings > Import history** on the new one. Nothing moves by
+itself: the app is left out of backups and of Android's device-to-device
+transfer. The export is plain, unencrypted JSON, so delete the file once it
+is imported. Provider API keys are not exported; enter them again. If
+**Delete history automatically** is on on the new device, entries older than
+that setting are skipped.
 
 ### Where do I report bugs or ask for features?
 

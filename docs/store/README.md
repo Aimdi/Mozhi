@@ -217,50 +217,50 @@ answers whenever privacy.md changes.
 | Data | Goes to | Who decides |
 | --- | --- | --- |
 | Text to translate or proofread, translation options, glossary terms | The Mozhi instance, AI provider, DeepL API or LibreTranslate server selected | User picks and configures the service; nothing goes to the developer |
-| Images (image translation) | The selected AI model or Mozhi instance (Google Lens) | User, per image; on-device OCR keeps it local |
+| Images (image translation) | The selected AI model or Mozhi instance (Google Lens) | User, per image; on-device OCR (Play variant only) keeps it local |
 | Web page URLs | The website (download), then page text to the engine | User |
-| Text for read-aloud | The Mozhi instance (Google/Reverso TTS), or the OS TTS engine | User |
+| Text for read-aloud | The OS TTS engine; the Mozhi instance (Google/Reverso TTS) only for languages without a device voice, after consent in Offline first | User |
 | Dictation audio | The operating system's speech recogniser, not the app | OS |
-| ML Kit diagnostics: device and app info, API configuration (e.g. configured languages), performance metrics | Google | Automatic whenever ML Kit runs (Android builds with ML Kit) |
+| Offline model downloads (which languages, IP address) | Mozilla's bucket on Google Cloud Storage | User, per language; no user content |
+| ML Kit diagnostics: device and app info, API configuration, performance metrics | Google | Automatic whenever ML Kit runs (**Play variant APK only**) |
 
-**Recommended answers (builds that include ML Kit, i.e. GitHub and Play):**
+**Recommended answers (the default build, which is also the Play bundle):**
 
 - *Does your app collect or share any of the required user data types?*
-  **Yes**: ML Kit's metrics, and the user's text and images sent to the
-  service the user chose.
+  **Yes**: the user's text and images sent to the service the user chose.
 - *Is all of the user data collected by your app encrypted in transit?*
   **No.** Public instances and cloud providers use HTTPS, but the app
   deliberately allows plain `http` to self-hosted servers and local models on
   the user's network. Answering "Yes" would be wrong.
 - *Do you provide a way for users to request that their data is deleted?*
   **No** (no account and no developer server; on-device data is deleted with
-  *Clear history*, *Reset usage*, deleting a provider, or uninstalling).
-  Third-party services follow their own policies.
+  *Delete all local data*, *Clear history*, *Reset usage*, deleting a
+  provider, or uninstalling). Third-party services follow their own
+  policies.
 - **Data types**
 
   | Play category | Collected | Shared | Ephemeral | Required | Purpose |
   | --- | --- | --- | --- | --- | --- |
   | App activity > Other user-generated content (text to translate or proofread) | Yes | No ¹ | No ² | Optional ³ | App functionality |
   | Photos and videos > Photos (image translation) | Yes | No ¹ | No ² | Optional | App functionality |
-  | App info and performance > Diagnostics (ML Kit) | Yes | No | No | Required ⁴ | Analytics |
-  | Device or other IDs (ML Kit) | Check ⁵ | No | No | Required | Analytics |
+  | App info and performance > Diagnostics (ML Kit, Play variant only) | Yes | No | No | Required ⁴ | Analytics |
+  | Device or other IDs (ML Kit, Play variant only) | Check ⁵ | No | No | Required | Analytics |
 
   ¹ Play does not count a transfer as *sharing* when the user initiates it
   and expects the data to go to that service (the user adds and selects the
   instance or provider).
   ² The app can't promise how a third-party server keeps the data.
   ³ Users can stay on device (offline, local models, own server).
-  ⁴ ML Kit can't be turned off while it is in the build; it runs only when
-  the user uses offline translation or on-device text recognition, but Play
-  asks about the app as shipped.
-  ⁵ Copy ML Kit's own answers from Google's
+  ⁴ Only if a build with ML Kit (the Play variant, `tool/play_prepare.sh`)
+  is ever uploaded to Play. ML Kit can't be turned off while it is in the
+  build; it runs only when the user uses on-device text recognition, but
+  Play asks about the app as shipped.
+  ⁵ For such a build, copy ML Kit's own answers from Google's
   [ML Kit data disclosure](https://developers.google.com/ml-kit/android-data-disclosure)
-  for exactly the ML Kit artifacts in the build (`translate`,
-  `language-id`, `text-recognition` and the Chinese, Devanagari, Japanese
-  and Korean models). That page says the SDKs collect device information,
-  app information and performance metrics for diagnostics and usage
-  analytics, encrypted in transit and not shared; at the time of writing the
-  Translate row lists the configured source and target languages.
+  for exactly the ML Kit artifacts in it (`text-recognition` and the
+  Chinese, Devanagari, Japanese and Korean models). That page says the SDKs
+  collect device information, app information and performance metrics for
+  diagnostics and usage analytics, encrypted in transit and not shared.
 - Not collected: location, personal info, financial info, contacts,
   messages, audio (dictation goes to the OS recogniser), files and docs
   (document translation sends only the extracted text, counted above),
@@ -268,7 +268,7 @@ answers whenever privacy.md changes.
   user opens), API keys (stored in secure storage and sent only to their
   provider as credentials).
 
-A build **without ML Kit** (see F-Droid below) drops the two ML Kit rows.
+The default build has no ML Kit, so its answers drop the two ML Kit rows.
 
 Two points are judgement calls. Some developers of clients for user-chosen
 servers answer "no data collected", arguing that the developer never receives
@@ -282,46 +282,33 @@ and the listing consistent.
 
 F-Droid builds every app from source with only free software and reads the
 same `fastlane/metadata/android` folder from the release tag. The listing,
-icon, screenshots (the 2:1 limit doesn't apply) and changelogs are ready.
-The **build is not**, because of Google ML Kit.
+icon, screenshots (the 2:1 limit doesn't apply) and changelogs are ready,
+and so is the build: the default build contains no Google code.
 
 ### Blockers
 
-1. **Google ML Kit is proprietary.** `google_mlkit_translation`,
-   `google_mlkit_language_id` (in `packages/mlkit_translator`) and
-   `google_mlkit_text_recognition` (app) pull closed-source Google
-   artifacts from Google's Maven repository: `com.google.mlkit:translate`,
-   `language-id`, `text-recognition`, the four script models added in
-   `android/app/build.gradle.kts`, and through them parts of Google Play
-   services (`play-services-basement`, `play-services-tasks`) and Google's
-   data transport used to upload ML Kit's metrics. F-Droid doesn't accept
-   non-free libraries at all, so this is not something an anti-feature can
-   cover: the F-Droid build must not contain ML Kit. (NonFreeDep is not the
-   right label: it means *depends on another non-free app being installed*,
-   while ML Kit is bundled in the APK.)
+1. **Google ML Kit (solved).** Offline translation used to need Google's
+   proprietary ML Kit, which F-Droid doesn't accept. It now uses Mozilla's
+   Bergamot engine with the Firefox Translations models (engine MPL-2.0 and
+   MIT, models MPL-2.0, downloaded on request; see
+   [Offline engine](../offline-engine.md)), built from source in
+   `packages/bergamot_translator`. The default `pubspec.yaml` has no ML Kit
+   package, `android/app/build.gradle.kts` excludes the `com.google.mlkit`,
+   `com.google.android.gms`, `com.google.firebase` and
+   `com.google.android.datatransport` groups, and CI runs
+   `tool/check_no_google.sh` on every APK. ML Kit text recognition exists
+   only in the optional Play variant, as an overlay in `tool/play/`.
 
-   **Done: a build without ML Kit.** `tool/fdroid_prepare.sh` turns a
-   checkout into the F-Droid variant:
-   - removes `google_mlkit_text_recognition` and `mlkit_translator` from
-     `pubspec.yaml`;
-   - replaces `lib/platform/mlkit_bindings.dart` with its stub (no offline
-     engine, no on-device text recognition);
-   - deletes the ML Kit-only files (`lib/image_translate/data/mlkit_text_recognition_service.dart`,
-     `packages/mlkit_translator` and their tests);
-   - removes the `com.google.mlkit:text-recognition-*` block from
-     `android/app/build.gradle.kts` and sets `noMlkit=true` in
-     `android/gradle.properties` (which also excludes the whole
-     `com.google.mlkit` group).
-
-   It is idempotent and fails loudly if a pattern is missing. In that build,
-   Settings shows *Offline languages* disabled with an explanation, the
-   offline engine and on-device recognition are not offered, and the ML Kit
-   notice is left out of the licenses. The CI job *Build F-Droid variant (no
-   ML Kit)* builds it on every push, fails if the APK contains
-   `com/google/mlkit` classes or ML Kit native libraries or if the Gradle
-   runtime classpath has a `com.google.mlkit` artifact, and uploads the APK
-   as `mozhi-android-fdroid`. See docs/contributing.md, "F-Droid variant
-   (no ML Kit)".
+   `tool/fdroid_prepare.sh` changes nothing about the app: for F-Droid's
+   source scanner it deletes the Play-only sources (`tool/play/`,
+   `tool/play_prepare.sh`, `packages/mlkit_translator`), refuses a tree that
+   `play_prepare.sh` already changed, and checks that nothing refers to ML
+   Kit and that the Gradle exclusions are in place. The native engine's
+   sources are git submodules: the recipe disables F-Droid's recursive
+   submodule checkout (`submodules: false`) and runs
+   `packages/bergamot_translator/tool/fetch_native_deps.sh`, which fetches
+   only the pinned sources the engine needs and applies its patches. See
+   docs/contributing.md, "Build variants".
 
 2. **Flutter's Play Core references.** Flutter's Android embedding contains
    `PlayStoreDeferredComponentManager`, which refers to
@@ -351,17 +338,18 @@ back or says so).
 | Anti-feature | Declare? | Why |
 | --- | --- | --- |
 | **NonFreeNet** | **Yes** | The built-in public Mozhi instances relay to Google, DeepL, Reverso, Yandex, Bing and MyMemory; image translation through Mozhi uses Google Lens; read-aloud through Mozhi uses Google/Reverso; the AI presets (OpenAI, Anthropic, Gemini, …) and the DeepL API are non-free services. Free alternatives exist (self-hosted Mozhi with LibreTranslate, local models), but the defaults promote non-free services. |
-| **UpstreamNonFree** | **Yes** | The upstream builds (GitHub releases, Play) contain ML Kit; only the F-Droid build is free. |
-| Tracking | No, for the F-Droid build | Without ML Kit nothing reports usage. (Upstream builds with ML Kit would qualify.) |
+| UpstreamNonFree | Probably not | The GitHub releases and the Play bundle are the same free build. Upstream also offers an optional Play variant APK with ML Kit text recognition, built from the `tool/play/` overlay that `fdroid_prepare.sh` removes; reviewers may still ask for the flag because of it. |
+| Tracking | No | Nothing reports usage. Offline models are downloaded on request from Mozilla's bucket on Google Cloud Storage, which sees the device's IP address and the model files fetched. |
 | NonFreeDep | No | The app doesn't require any non-free app to be installed. |
 | NonFreeAdd, Ads, TetheredNet, KnownVuln, NSFW, NoSourceSince, NonFreeAssets | No | No ads or add-ons, no service run by the developer, source and assets under MIT. |
 
 ### Draft fdroiddata recipe
 
 For `metadata/io.github.aimdi.mozhi.yml` in
-[fdroiddata](https://gitlab.com/fdroid/fdroiddata), once the ML Kit-free
-build exists. The script name, Flutter version and commit are placeholders;
-F-Droid's reviewers will adjust the details.
+[fdroiddata](https://gitlab.com/fdroid/fdroiddata). The Flutter version and
+commit are placeholders; F-Droid's reviewers will adjust the details (the
+native engine also needs the NDK and CMake versions from
+`packages/bergamot_translator/android/build.gradle`).
 
 ```yaml
 Categories:
@@ -375,8 +363,6 @@ Changelog: https://github.com/Aimdi/Mozhi/releases
 AntiFeatures:
   NonFreeNet:
     en-US: Translates through Google, DeepL and other services via Mozhi instances, and through cloud AI providers you add.
-  UpstreamNonFree:
-    en-US: Upstream builds include Google ML Kit for offline translation; this build does not.
 
 RepoType: git
 Repo: https://github.com/Aimdi/Mozhi.git
@@ -385,17 +371,19 @@ Builds:
   - versionName: 0.1.0
     versionCode: 2001          # arm64-v8a; add entries for 1001 / 4001
     commit: v0.1.0
+    submodules: false          # fetch_native_deps.sh fetches only what is needed
     output: build/app/outputs/flutter-apk/app-arm64-v8a-production-release.apk
     srclibs:
       - flutter@3.47.0         # match the version CI uses
     prebuild:
-      - tool/fdroid_prepare.sh # strips ML Kit (see docs/contributing.md)
+      - bash packages/bergamot_translator/tool/fetch_native_deps.sh
+      - tool/fdroid_prepare.sh # removes the Play-only sources, checks the tree
       - $$flutter$$/bin/flutter config --no-analytics
       - $$flutter$$/bin/flutter pub get
     build:
       - $$flutter$$/bin/flutter build apk --release --flavor production
         -t lib/main_production.dart --split-per-abi
-        --target-platform android-arm64 --android-project-arg=noMlkit=true
+        --target-platform android-arm64
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags ^v\d+\.\d+\.\d+$
