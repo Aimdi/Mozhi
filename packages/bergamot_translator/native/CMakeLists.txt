@@ -225,6 +225,33 @@ else()
   unset(ENV{GIT_DIR})
 endif()
 
+# Marian compiles the values of every CMake cache variable into the library
+# (build_info.cpp, for `marian --build-info`): absolute paths of the
+# checkout, the build directory, the compiler, the NDK and system
+# libraries. Replace the generated file with a fixed one, so the same
+# sources give the same library on every machine. (Re-written on each
+# configure, after Marian's version: one small file recompiles.)
+get_directory_property(_marian_binary_dir
+  DIRECTORY "${_inference}/marian-fork" BINARY_DIR)
+set(_build_info "${_marian_binary_dir}/src/common/build_info.cpp")
+if(NOT EXISTS "${_build_info}")
+  message(FATAL_ERROR "Marian no longer generates ${_build_info}; "
+    "update the reproducible-build override in native/CMakeLists.txt.")
+endif()
+file(WRITE "${_build_info}" "\
+// Written by packages/bergamot_translator/native/CMakeLists.txt instead of
+// Marian's list of CMake cache variables (machine-specific paths).
+#include \"common/build_info.h\"
+
+std::string marian::cmakeBuildOptions() {
+  return \"mozhi_bergamot: BUILD_ARCH=${BUILD_ARCH}\\n\";
+}
+
+std::string marian::cmakeBuildOptionsAdvanced() {
+  return marian::cmakeBuildOptions();
+}
+")
+
 # Marian adds its configuration (ARM FMA SSE / USE_INTGEMM, USE_RUY_SGEMM,
 # -flax-vector-conversions, ...) as directory properties, which do not reach
 # bergamot's translator sources (a sibling directory) or this shim. Its

@@ -826,6 +826,8 @@ void main() {
       when(() => harness.translate.state).thenReturn(next);
       controller.add(next);
       await tester.pump();
+      // The new result fades in.
+      await tester.pump(const Duration(milliseconds: 300));
       verifyNever(harness.translate.loadAlignment);
       expect(tester.widget<TranslateToolChip>(button()).selected, isFalse);
       expect(find.byTooltip('Show matching phrases'), findsOneWidget);

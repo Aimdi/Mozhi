@@ -1513,6 +1513,19 @@ void main() {
         );
       });
 
+      testWidgets('shows a version without a build number', (tester) async {
+        PackageInfo.setMockInitialValues(
+          appName: 'Mozhi',
+          packageName: 'io.github.aimdi.mozhi',
+          version: '2.1.0',
+          buildNumber: '',
+          buildSignature: '',
+        );
+        await pump(tester);
+        await tester.pumpAndSettle();
+        expect(find.text('2.1.0'), findsOneWidget);
+      });
+
       testWidgets('opens the source code', (tester) async {
         await pump(tester);
         await tester.tap(find.text('Source code'));

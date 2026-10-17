@@ -141,13 +141,15 @@ abstract interface class NativeLanguageIdentifier {
 ///    `preferred` languages (those the offline engine translates from).
 ///
 /// Otherwise null (the app then asks for the source language). On 238
-/// phrases of one to six words in the 55 offline languages this answered
-/// 84% correctly and 9% wrongly (mostly close languages: id/ms, cs/sk,
-/// da/no/sv), against 52%/5% for CLD2 alone and 32%/10% for the
+/// phrases of one to six words in the 55 offline languages
+/// (`test/fixtures/language_id_phrases.tsv`) this answered 82% correctly
+/// and 10% wrongly, mostly with a close language (id/ms, cs/sk, da/no/sv),
+/// against 51%/5% for CLD2's reliable answers alone and 32%/10% for the
 /// heuristic alone.
 abstract final class Cld2Decision {
   /// Minimum [Cld2Result.score] of a best-effort guess that the heuristic
-  /// does not confirm. Wrong guesses on single words mostly score lower.
+  /// does not confirm. Wrong guesses on a word or two often score lower
+  /// ("Hvala" is guessed English with 170, "Danke" German with 2389).
   static const minGuessScore = 500;
 
   /// The app's code for the language of the text CLD2 saw in [detection],

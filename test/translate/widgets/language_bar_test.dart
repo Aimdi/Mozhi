@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
@@ -8,7 +9,12 @@ import 'package:mozhi/translate/translate.dart';
 import 'package:mozhi/translate/widgets/widgets.dart';
 import 'package:translation_repository/translation_repository.dart';
 
+import '../helpers/fake_offline.dart';
 import '../helpers/helpers.dart';
+
+/// [finder] inside the language picker.
+Finder _inPicker(Finder finder) =>
+    find.descendant(of: find.byType(LanguagePickerSheet), matching: finder);
 
 void main() {
   setUpAll(registerTranslateFallbacks);
@@ -97,6 +103,64 @@ void main() {
       await harness.pump(tester, child: const LanguageBar());
       await tester.tap(find.byTooltip('Swap languages'));
       verify(harness.translate.swap).called(1);
+    });
+
+    testWidgets('swapping ticks and turns the icon', (tester) async {
+      final clipboard = FakeClipboard(tester);
+      final harness = TranslateHarness(state: translatedState());
+      await harness.pump(tester, child: const LanguageBar());
+      await tester.tap(find.byKey(const Key('translate_swap_button')));
+      await tester.pump();
+      expect(clipboard.haptics, ['HapticFeedbackType.selectionClick']);
+      final rotation = tester.widget<AnimatedRotation>(
+        find.descendant(
+          of: find.byKey(const Key('translate_swap_button')),
+          matching: find.byType(AnimatedRotation),
+        ),
+      );
+      expect(rotation.turns, 0.5);
+      expect(rotation.duration, const Duration(milliseconds: 250));
+    });
+
+    testWidgets('swapped names slide along the bar', (tester) async {
+      final states = StreamController<TranslateState>();
+      addTearDown(states.close);
+      final initial = readyState(source: english, target: german);
+      final harness = TranslateHarness(state: initial);
+      whenListen(harness.translate, states.stream, initialState: initial);
+      await harness.pump(tester, child: const LanguageBar());
+      states.add(readyState(source: german, target: english));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      // Old and new names during the motion (screen readers hear the new
+      // ones: the buttons are labelled).
+      expect(find.text('German'), findsNWidgets(2));
+      expect(find.text('English'), findsNWidgets(2));
+      expect(find.byType(SlideTransition), findsWidgets);
+      await tester.pumpAndSettle();
+      expect(find.text('German'), findsOneWidget);
+      expect(find.text('English'), findsOneWidget);
+      expect(find.bySemanticsLabel('Source language: German'), findsOneWidget);
+    });
+
+    testWidgets('swapped names switch at once with reduced motion', (
+      tester,
+    ) async {
+      final states = StreamController<TranslateState>();
+      addTearDown(states.close);
+      final initial = readyState(source: english, target: german);
+      final harness = TranslateHarness(state: initial);
+      whenListen(harness.translate, states.stream, initialState: initial);
+      await harness.pump(
+        tester,
+        child: const LanguageBar(),
+        disableAnimations: true,
+      );
+      states.add(readyState(source: german, target: english));
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('German'), findsOneWidget);
+      expect(find.text('English'), findsOneWidget);
     });
 
     testWidgets('marks a custom source', (tester) async {
@@ -467,6 +531,179 @@ void main() {
       await tester.tapAt(const Offset(10, 10));
       await tester.pumpAndSettle();
       verifyNever(() => harness.translate.setSource(any()));
+    });
+
+    testWidgets('is full screen on phones', (tester) async {
+      final harness = TranslateHarness();
+      await harness.pump(
+        tester,
+        child: const LanguageBar(),
+        size: const Size(360, 740),
+      );
+      await openTarget(tester);
+      final dialog = tester.widget<Dialog>(find.byType(Dialog));
+      expect(dialog.insetPadding, EdgeInsets.zero);
+      expect(
+        tester.getSize(find.byType(LanguagePickerSheet)),
+        const Size(360, 740),
+      );
+      await tester.tap(find.byTooltip('Close'));
+      await tester.pumpAndSettle();
+      expect(find.byType(LanguagePickerSheet), findsNothing);
+      verifyNever(() => harness.translate.setTarget(any()));
+    });
+
+    testWidgets('is a dialog on wide windows', (tester) async {
+      final harness = TranslateHarness();
+      await harness.pump(
+        tester,
+        child: const LanguageBar(),
+        size: const Size(1200, 900),
+      );
+      await openTarget(tester);
+      final size = tester.getSize(find.byType(LanguagePickerSheet));
+      expect(size.width, lessThanOrEqualTo(languagePickerDialogSize.width));
+      expect(size.height, lessThanOrEqualTo(languagePickerDialogSize.height));
+      // Tapping outside closes it.
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
+      expect(find.byType(LanguagePickerSheet), findsNothing);
+    });
+
+    testWidgets('finds languages without their diacritics', (tester) async {
+      final harness = TranslateHarness();
+      await harness.pump(tester, child: const LanguageBar());
+      await openTarget(tester);
+      await tester.enterText(
+        find.byKey(const Key('translate_language_search')),
+        'francais',
+      );
+      await tester.pump();
+      expect(find.text('Français'), findsOneWidget);
+      expect(find.text('Deutsch'), findsNothing);
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+      verify(() => harness.translate.setTarget(french)).called(1);
+    });
+
+    testWidgets('lists the detected language in the source picker', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(state: translatedState());
+      await harness.pump(
+        tester,
+        child: const LanguageBar(),
+        size: const Size(800, 1600),
+      );
+      await openSource(tester);
+      final header = find.byKey(
+        const Key('translate_language_section_detected'),
+      );
+      expect(header, findsOneWidget);
+      expect(find.text('Detected'), findsOneWidget);
+      // Picking it sets the source explicitly.
+      final detected = _inPicker(find.text('English')).first;
+      expect(
+        tester.getTopLeft(detected).dy,
+        greaterThan(tester.getTopLeft(header).dy),
+      );
+      await tester.tap(detected);
+      await tester.pumpAndSettle();
+      verify(() => harness.translate.setSource(english)).called(1);
+    });
+
+    testWidgets('has no detected section in the target picker', (tester) async {
+      final harness = TranslateHarness(state: translatedState());
+      await harness.pump(tester, child: const LanguageBar());
+      await openTarget(tester);
+      expect(
+        find.byKey(const Key('translate_language_section_detected')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('lists other likely languages of an uncertain detection', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(
+        state: translatedState(
+          input: 'Gift',
+          result: const TranslationResult(
+            engineId: 'mozhi:deepl',
+            engineName: 'DeepL',
+            text: 'Cadeau',
+            detectedSource: 'en',
+            detectionUncertain: true,
+            detectedAlternatives: ['de'],
+          ),
+        ),
+      );
+      await harness.pump(
+        tester,
+        child: const LanguageBar(),
+        size: const Size(800, 1600),
+      );
+      await openSource(tester);
+      // Detected (English, German), then All languages.
+      expect(_inPicker(find.text('English')), findsNWidgets(2));
+      expect(_inPicker(find.text('German')), findsNWidgets(2));
+    });
+
+    testWidgets('marks and lists the languages that work offline', (
+      tester,
+    ) async {
+      final harness = TranslateHarness();
+      await harness.pump(
+        tester,
+        child: const LanguageBar(),
+        size: const Size(800, 1600),
+        offline: FakeOfflineTranslator(downloaded: {'de'}),
+      );
+      await openTarget(tester);
+      expect(
+        find.byKey(const Key('translate_language_section_downloaded')),
+        findsOneWidget,
+      );
+      expect(find.text('Downloaded (offline)'), findsOneWidget);
+      // German and English (the pivot) under Downloaded and All.
+      expect(
+        find.byKey(const ValueKey('translate_language_offline:de')),
+        findsNWidgets(2),
+      );
+      expect(
+        find.byKey(const ValueKey('translate_language_offline:en')),
+        findsNWidgets(2),
+      );
+      expect(
+        find.byKey(const ValueKey('translate_language_offline:fr')),
+        findsNothing,
+      );
+      expect(find.bySemanticsLabel(RegExp('Works offline')), findsWidgets);
+    });
+
+    testWidgets('marks nothing while only English is on the device', (
+      tester,
+    ) async {
+      for (final offline in [
+        FakeOfflineTranslator(),
+        FakeOfflineTranslator(isAvailable: false, downloaded: {'de'}),
+        FakeOfflineTranslator(downloaded: {'de'}, fails: true),
+      ]) {
+        final harness = TranslateHarness();
+        await harness.pump(
+          tester,
+          child: const LanguageBar(),
+          offline: offline,
+        );
+        await openTarget(tester);
+        expect(
+          find.byKey(const Key('translate_language_section_downloaded')),
+          findsNothing,
+        );
+        expect(find.byTooltip('Works offline'), findsNothing);
+        await tester.tap(find.byTooltip('Close'));
+        await tester.pumpAndSettle();
+      }
     });
 
     testWidgets('clear button resets the search', (tester) async {

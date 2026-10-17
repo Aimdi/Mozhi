@@ -976,12 +976,14 @@ void main() {
         expect(chip('Public server'), findsNothing);
       });
 
-      testWidgets('a destination chip filters and clears', (tester) async {
+      testWidgets('a destination chip filters', (tester) async {
         await pump(tester);
         await tester.tap(chip('Cloud'));
         verify(() => history.filterByDestination(HistoryDestination.cloud))
             .called(1);
+      });
 
+      testWidgets('a selected destination chip clears', (tester) async {
         await pump(
           tester,
           state: HistoryState(

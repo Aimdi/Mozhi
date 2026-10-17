@@ -178,7 +178,7 @@ void main() {
       );
       await harness.pump(tester, size: const Size(400, 1600));
       expect(find.byType(MeaningCheckPanel), findsOneWidget);
-      expect(_key('translate_meaning_panel_progress'), findsWidgets);
+      expect(_key('translate_meaning_progress'), findsOneWidget);
     });
   });
 

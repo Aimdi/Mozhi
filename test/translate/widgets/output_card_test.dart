@@ -621,6 +621,8 @@ void main() {
           ).copyWith(instantResult: true),
         );
         await tester.pump();
+        // The new result fades in.
+        await tester.pump(const Duration(milliseconds: 300));
         verifyNever(harness.translate.loadInsights);
         expect(
           find.byKey(const Key('translate_insights_button')),

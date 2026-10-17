@@ -286,6 +286,42 @@ void main() {
       expect(find.byType(OfflineLanguageTile), findsNothing);
     });
 
+    testWidgets('uses the offline engine and store provided above', (
+      tester,
+    ) async {
+      settings.setLanguages(target: _french);
+      final store = MemoryStore();
+      await pumpPage(
+        tester,
+        size: const Size(420, 1400),
+        page: const OnboardingPage(),
+        wrap: (page) => MultiRepositoryProvider(
+          providers: [
+            RepositoryProvider<OfflineTranslator>.value(value: offline),
+            RepositoryProvider<KeyValueStore>.value(value: store),
+          ],
+          child: page,
+        ),
+      );
+      await tapNext(tester);
+      await tapNext(tester);
+      expect(find.byKey(const ValueKey('onboarding_offline_fr')), findsOne);
+      await tester.tap(find.text('Download over Wi-Fi only'));
+      await tester.pumpAndSettle();
+      expect(store.values, {'offline.wifiOnly': 'false'});
+    });
+
+    testWidgets('without an offline engine there is nothing to download', (
+      tester,
+    ) async {
+      // No engine and no store provided: the platform preferences, which
+      // tests do not have (the failure is reported, not thrown).
+      await pumpPage(tester, page: const OnboardingPage());
+      await tapNext(tester);
+      await tapNext(tester);
+      expect(find.textContaining('can’t translate on its own'), findsOneWidget);
+    });
+
     testWidgets('finds the fastest instance end to end', (tester) async {
       when(() => repository.pingInstance(instanceC))
           .thenAnswer((_) async => const Duration(milliseconds: 20));

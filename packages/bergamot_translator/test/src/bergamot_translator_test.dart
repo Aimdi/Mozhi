@@ -408,23 +408,25 @@ void main() {
       expect(languageId.texts, isEmpty);
     });
 
-    test('looks at the first 4096 characters, keeping surrogate pairs',
-        () async {
-      languageId.detection = _detection('en');
-      final long = 'a' * 5000;
-      expect(await translator.identifyLanguage(long), 'en');
-      expect(
-        languageId.texts.single,
-        hasLength(BergamotTranslator.identificationSampleLength),
-      );
-      // An emoji (two code units) across the cut is left out whole.
-      final emoji = '${'a' * 4095}\u{1F600}${'b' * 10}';
-      await translator.identifyLanguage(emoji);
-      expect(languageId.texts.last, 'a' * 4095);
-      final short = 'a' * 4096;
-      await translator.identifyLanguage(short);
-      expect(languageId.texts.last, short);
-    });
+    test(
+      'looks at the first 4096 characters, keeping surrogate pairs',
+      () async {
+        languageId.detection = _detection('en');
+        final long = 'a' * 5000;
+        expect(await translator.identifyLanguage(long), 'en');
+        expect(
+          languageId.texts.single,
+          hasLength(BergamotTranslator.identificationSampleLength),
+        );
+        // An emoji (two code units) across the cut is left out whole.
+        final emoji = '${'a' * 4095}\u{1F600}${'b' * 10}';
+        await translator.identifyLanguage(emoji);
+        expect(languageId.texts.last, 'a' * 4095);
+        final short = 'a' * 4096;
+        await translator.identifyLanguage(short);
+        expect(languageId.texts.last, short);
+      },
+    );
   });
 
   test('dispose stops the engine', () async {

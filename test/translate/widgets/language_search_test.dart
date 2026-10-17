@@ -73,7 +73,8 @@ void main() {
     test('puts prefixes first, then word starts, then the rest', () {
       expect(matchLanguages(languages, 'fr'), [french, frisian]);
       expect(matchLanguages(languages, 'simp'), [chinese]);
-      expect(matchLanguages(languages, 'is'), [spanish, frisian]);
+      // "Français" ends in "is" (folded "francais").
+      expect(matchLanguages(languages, 'is'), [french, spanish, frisian]);
       expect(matchLanguages(languages, 'ch'), [chinese, french]);
     });
 

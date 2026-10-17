@@ -39,6 +39,12 @@ void main() {
       semantics.dispose();
     });
 
+    testWidgets('is hidden while the More area is closed', (tester) async {
+      final harness = TranslateHarness(state: _aiState());
+      await harness.pump(tester, child: const ExtrasSection(expanded: false));
+      expect(find.byKey(const Key('translate_refine_and_learn')), findsNothing);
+    });
+
     testWidgets('is hidden without an AI engine', (tester) async {
       final harness = TranslateHarness(state: translatedState());
       await harness.pump(tester, child: const ExtrasSection());

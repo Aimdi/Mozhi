@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/gen/app_localizations_en.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/translate.dart';
@@ -132,6 +133,28 @@ void main() {
           .pump(tester, child: const ExtraTargetsSection());
       expect(find.text('Also translate into…'), findsOneWidget);
       expect(find.byType(ExtraTargetCard), findsNothing);
+    });
+
+    testWidgets('without the picker shows only the chosen languages', (
+      tester,
+    ) async {
+      await _harness(_state())
+          .pump(tester, child: const ExtraTargetsSection(showPicker: false));
+      expect(
+        find.byKey(const Key('translate_extra_targets_button')),
+        findsNothing,
+      );
+      expect(_card(german), findsOneWidget);
+      expect(_card(japanese), findsOneWidget);
+    });
+
+    testWidgets('without the picker or languages shows nothing', (
+      tester,
+    ) async {
+      await _harness(_state(extraTargets: const []))
+          .pump(tester, child: const ExtraTargetsSection(showPicker: false));
+      expect(find.byType(Hairline), findsNothing);
+      expect(find.byType(TextButton), findsNothing);
     });
 
     testWidgets('is hidden without an engine', (tester) async {

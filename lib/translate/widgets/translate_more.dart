@@ -124,36 +124,39 @@ class TranslateMoreToggle extends StatelessWidget {
         return Tooltip(
           message: expanded ? l10n.translateMoreHide : l10n.translateMoreShow,
           excludeFromSemantics: true,
-          child: Semantics(
-            expanded: expanded,
-            child: TextButton(
-              key: const Key('translate_more_toggle'),
-              focusNode: controller.toggleFocus,
-              style: TextButton.styleFrom(
-                minimumSize: const Size(48, 48),
-                padding: const EdgeInsetsDirectional.only(start: 12, end: 8),
-                foregroundColor: color,
-                shape: const StadiumBorder(),
-              ),
-              onPressed: controller.toggle,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    l10n.translateMore,
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      color: color,
-                      fontWeight: FontWeight.w700,
+          // One node: the button, its label and whether it is expanded.
+          child: MergeSemantics(
+            child: Semantics(
+              expanded: expanded,
+              child: TextButton(
+                key: const Key('translate_more_toggle'),
+                focusNode: controller.toggleFocus,
+                style: TextButton.styleFrom(
+                  minimumSize: const Size(48, 48),
+                  padding: const EdgeInsetsDirectional.only(start: 12, end: 8),
+                  foregroundColor: color,
+                  shape: const StadiumBorder(),
+                ),
+                onPressed: controller.toggle,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      l10n.translateMore,
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: color,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 2),
-                  AnimatedRotation(
-                    turns: expanded ? 0.5 : 0,
-                    duration: TranslateLayout.motion(context),
-                    curve: Curves.easeOutCubic,
-                    child: Icon(Icons.expand_more, size: 20, color: color),
-                  ),
-                ],
+                    const SizedBox(width: 2),
+                    AnimatedRotation(
+                      turns: expanded ? 0.5 : 0,
+                      duration: TranslateLayout.motion(context),
+                      curve: Curves.easeOutCubic,
+                      child: Icon(Icons.expand_more, size: 20, color: color),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

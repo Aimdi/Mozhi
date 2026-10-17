@@ -37,22 +37,20 @@ final class NativeDetection extends Struct {
   external int reliable;
 }
 
-typedef _DetectNative =
-    Int32 Function(
-      Pointer<Uint8> text,
-      Int32 length,
-      Pointer<Utf8> hints,
-      Int32 flags,
-      Pointer<NativeDetection> out,
-    );
-typedef DetectFunction =
-    int Function(
-      Pointer<Uint8> text,
-      int length,
-      Pointer<Utf8> hints,
-      int flags,
-      Pointer<NativeDetection> out,
-    );
+typedef _DetectNative = Int32 Function(
+  Pointer<Uint8> text,
+  Int32 length,
+  Pointer<Utf8> hints,
+  Int32 flags,
+  Pointer<NativeDetection> out,
+);
+typedef DetectFunction = int Function(
+  Pointer<Uint8> text,
+  int length,
+  Pointer<Utf8> hints,
+  int flags,
+  Pointer<NativeDetection> out,
+);
 
 /// The functions of `libmozhi_bergamot`.
 final class BergamotBindings {

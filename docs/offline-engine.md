@@ -134,7 +134,7 @@ without VFPv4) or the library has no identifier.
 
 **Tables:** the chrome set covers every language of the offline catalog
 except **Uyghur** (the heuristic still recognises its letters) and
-detects 30 more (`sw`, `la`, `cy`, ...). The full tables would add Uyghur
+detects about 30 more (`sw`, `la`, `cy`, ...). The full tables would add Uyghur
 and ~80 rarer languages for +4.7 MB per ABI (x3 ABIs in the APK) and more
 confusion between close languages on short text.
 
@@ -168,15 +168,17 @@ nature such as hr/bs/sr/sl or id/ms):
 | **the decision above** | **82%** | **10%** | **8%** |
 
 Most mistakes are close languages (id/ms, cs/sk, da/no/sv, gl/pt/es,
-nl/af) or greetings shared across languages ("Salut", "Adiós"); real
-sentences are nearly always right. "Guten Morgen", "Hola, ¿cómo estás?",
+nl/af) or greetings shared across languages ("Salut", "Adiós"); of the 28
+short questions and requests 24 are right (wrong: "Waar is het
+station?" English, "¿Dónde está la estación de tren?" Galician, "Unde
+este gara?" Slovak, "Di mana stasiun kereta?" Malay). "Guten Morgen", "Hola, ¿cómo estás?",
 "Добрый день", "こんにちは", "مرحبا" and "Bonjour tout le monde" are tested.
 
 | Latency | |
 | --- | --- |
 | CLD2, both passes, one sentence | ~0.03 ms (`mozhi_bergamot_cli --detect`); 0.05 ms from Dart incl. opening the loaded library |
 | CLD2, both passes, 4096 characters | 0.29 ms |
-| `IsolateLanguageIdentifier.identify` (Isolate.run, JIT, loaded machine) | 0.75 ms |
+| `IsolateLanguageIdentifier.identify` (Isolate.run, JIT, loaded machine) | 0.75-1.2 ms per call |
 
 **Code:** C API `mozhi_bergamot_detect` (fills a `MozhiBergamotDetection`:
 CLD2's answer, top 3 languages with percent and score, reliability),
@@ -243,8 +245,11 @@ and falls back to the heuristic without it); Dart
     we build (`port.h`).
   * Reproducible builds: `-ffile-prefix-map` maps the repository root to
     `.`, the build directory to `build` and the NDK to `ndk` for every
-    target, so the ~200 `__FILE__` paths (Marian's messages, asserts) no
-    longer embed the machine's checkout path.
+    target, so the ~190 `__FILE__` paths (Marian's messages, asserts) no
+    longer embed the machine's checkout path; and Marian's generated
+    `build_info.cpp` (every CMake cache variable: checkout, compiler,
+    system library paths) is replaced by a fixed one. Byte-for-byte
+    identical builds on two machines were not compared.
 * Android (`android/build.gradle`): `externalNativeBuild` with
   `../native/CMakeLists.txt`, NDK pinned to `28.2.13676358` (= Flutter
   3.47's default), CMake 3.22.1, `abiFilters arm64-v8a, armeabi-v7a,
@@ -294,11 +299,15 @@ against the catalog:
 | armv7 build (GCC 13 cross, NEON+VFPv4, compat header, patches) under qemu-arm | en->de "Hallo, wie geht es dir?"; es->en->de pivot as above |
 | armv7 and aarch64 builds with **clang 18** (closest to the NDK's clang 19) under qemu | es->en->de pivot as above on both (this found the clang-only issues and patch 0002) |
 | `libmozhi_bergamot.so` size, stripped | x86_64 10.4 MB (GCC); aarch64 8.5 MB, armv7 5.8 MB (clang, glibc, shared libstdc++; Android adds ~1 MB of static libc++) |
-| CLD2's cost in the library (x86_64, stripped) | +1.76 MiB: 10,685,432 -> 12,532,760 bytes |
+| CLD2's cost in the library (x86_64, stripped) | +1.76 MiB: 10,685,432 -> 12,532,760 bytes (12,524,568 with the path changes below) |
+| absolute paths in the library (`strings \| grep -c /home/`) | 200 -> 0 (`-ffile-prefix-map`, fixed Marian `build_info.cpp`) |
 
-`flutter test` in the package: 137 tests pass, plus 6 real-model tests
-(skipped unless `BERGAMOT_TEST_MODELS=1`; they pass here). Line coverage is
-97% with them and 94% without (the difference is the FFI path).
+`flutter test` in the package: 167 tests pass (the language identification
+ones with the native library run when it is built, as here), plus 7
+real-model tests (skipped unless `BERGAMOT_TEST_MODELS=1`; they pass here,
+including an `auto` translation of "Guten Morgen" identified by CLD2).
+Line coverage without the real models is 96%; the identification code is
+at 100% (the rest of the gap is the translation FFI path).
 
 ## Not verified (needs CI or a device)
 

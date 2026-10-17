@@ -86,10 +86,11 @@ BergamotTranslator fakeBergamot({
       'source': source,
       'target': target,
       'version': 'v1',
+      // [bytes] in all.
       'files': {
-        'model': file('model', bytes),
-        'lexicalShortlist': file('lexicalShortlist', 0),
-        'vocab': file('vocab', 0),
+        'model': file('model', bytes - 2),
+        'lexicalShortlist': file('lexicalShortlist', 1),
+        'vocab': file('vocab', 1),
       },
     };
   }

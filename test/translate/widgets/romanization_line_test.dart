@@ -425,6 +425,8 @@ void main() {
       when(() => harness.translate.state).thenReturn(next);
       controller.add(next);
       await tester.pump();
+      // The new result fades in.
+      await tester.pump(const Duration(milliseconds: 300));
       verifyNever(harness.translate.loadRomanization);
       // The button offers it again.
       expect(find.byTooltip('Show romanization'), findsOneWidget);
