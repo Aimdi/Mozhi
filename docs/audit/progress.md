@@ -175,13 +175,28 @@ commit.
   actions, Quick Settings tile, shortcuts, widget); 60 unused strings were
   removed.
 
-## Phase 5: extras (in progress, 2026-10-17)
+## Phase 5: extras (done, 2026-10-17)
 
 - **Translate offline**: a second entry in Android's text selection
   toolbar that translates with the on-device engine only, whatever the
   privacy mode. A missing model shows the download it needs; the text is
   never sent anywhere (the app shell passes the request on since
   `4440abe`).
+- `c8fde47`: **text recognition without Google** in the default build:
+  Tesseract 5.5.3 + Leptonica 1.87.0 (`packages/tesseract_ocr`, pinned
+  submodules, `libmozhi_tesseract.so`), with tessdata_fast data for 110
+  languages (SHA-256 pinned, about 2.4 MB each), downloaded on request or
+  imported from files. The Play variant keeps ML Kit.
+- `c8fde47`: **offline voice input** with whisper.cpp v1.9.5
+  (`packages/whisper_speech`, `libmozhi_whisper.so`) and a multilingual
+  model, Fast (75 MB) or Better (141 MB) from Hugging Face, checked
+  against whisper.cpp's published SHA-1. In **Offline only**, voice input
+  never uses the system recognizer.
+- Both engines are built by CI's native matrix (three ABIs, export,
+  dependency and 16 KB alignment checks), and a CI job compares the sizes
+  (and the Whisper SHA-256) Hugging Face and GitHub serve with the
+  catalogues. **Delete all local data** removes their files.
+- GitHub Actions moved to their Node 24 releases (`e2a438a`).
 
 ## Phase 6: release and build documentation (done, 2026-10-17)
 
@@ -213,14 +228,13 @@ commit.
 
 ## Open items
 
-- **No real device yet.** Only CI builds exist. The engine ran on Linux
-  x86_64 and under qemu (aarch64, armv7), never on a phone.
-- **Not done**: Tesseract (on-device OCR for the default build) and offline
-  voice input.
-- **Not verified on Android**: the Kotlin side of **Translate offline** and
-  the translated Android labels compile only on CI (no Android SDK here).
-- **Dependabot PRs #1, #2 and #5** are waiting for the owner's decision.
-  #2 and #5 need a pre-release tag to be exercised
+- **No real device yet.** Only CI builds exist. The engines ran on Linux
+  x86_64 (and the translation and text recognition engines under qemu for
+  aarch64 and armv7), never on a phone: OCR accuracy on real photos,
+  Whisper's speed and the microphone path are untested.
+- **Dependabot #11** (Gradle 9.8.1, Kotlin 2.4.21) and **#12** (Android
+  Gradle Plugin 9) are open; the new action versions in `release.yaml`
+  need a pre-release tag to be exercised
   ([release.md](../release.md#before-the-first-release)).
 - **Default branch.** Create `main` from the current tip, make it the
   default and protect it. Until then `license_check.yaml` never runs, and
