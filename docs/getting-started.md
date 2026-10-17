@@ -78,16 +78,31 @@ providers directly, which has a few consequences; see
 ## First run
 
 When you open Mozhi for the first time, a short setup takes you through three
-steps (you can **Skip** at any point; everything is also available in
-**Settings** later):
+steps after the welcome screen (you can **Skip** at any point; everything is
+also available in **Settings** later):
 
 1. **Welcome**: what Mozhi does and how it handles your privacy.
-2. **Choose a translation service**: **Find the fastest public instance**
-   tests the built-in public instances and moves the fastest to the top
-   (**Sort by speed** orders them all by response time), or **Use my own
-   instance** to enter your server's address and **Test & add** it.
-3. **Add an AI translator** (optional): pick a provider, enter its key or
-   your local server's address, and test it.
+2. **How private should translations be?**: pick the privacy mode.
+   **Offline only** translates on the device and never contacts a server;
+   **Offline first** (recommended) translates on the device when it can and
+   asks you once per language pair before text goes to a server, even your
+   own; **Online** uses the servers and AI providers you set up without
+   asking each time (each cloud AI provider still asks once). See
+   [Privacy](privacy.md) for the details.
+3. **Pick your languages**: the languages you translate from (or Detect
+   language) and into. On Android, Mozhi then offers to download them for
+   offline use, with the size of each download; on mobile data it asks
+   first, and **Download over Wi-Fi only** keeps downloads to Wi-Fi. Languages
+   the offline engine doesn't support yet are named, because they need an
+   online service.
+4. **Online translation** (optional): for languages that aren't on the
+   device. The built-in public instances (run by volunteers, none behind
+   Cloudflare) are used as they are, or **Find the fastest public instance**
+   tests them and moves the fastest to the top (**Sort by speed** orders them
+   all by response time). **Use my own instance** lets you enter your
+   server's address and **Test & add** it. AI translators are optional:
+   **Open AI provider settings** finishes the setup and opens
+   **Settings > AI providers**.
 
 Then tap **Start translating**.
 
@@ -104,8 +119,14 @@ After that you land on the **Translate** tab:
 3. Type or paste text. With **Instant translate** on (the default for Mozhi
    engines) the translation appears as you type; otherwise press
    **Translate** (or Ctrl+Enter on a keyboard).
-4. Under the translation, the chips (**More formal**, **Shorter**, ...) and
-   the extras need an AI model; see the [feature tour](features.md).
+4. The screen shows only the languages, your text and the translation.
+   **More**, under the translation, opens the other tools: check meaning,
+   insights, romanization, compare, **Refine & learn** (the **More formal**,
+   **Shorter**, ... chips), definitions and **Also translate into**. Most of
+   them need an AI model; see the [feature tour](features.md). When the
+   privacy mode stops a translation before your text leaves the device, the
+   prompt also offers **Translate on this device** (or, first, the download
+   that language pair needs) if the offline engine supports the pair.
 
 The other tabs are **Proofread** (grammar and style checks with an AI model),
 **History** and **Settings**. On wide screens, such as tablets and wide

@@ -136,7 +136,7 @@ Besides the four tabs (Translate, Proofread, History, Settings):
 
 | Screen | Where | What it does |
 | --- | --- | --- |
-| Onboarding | first start | Pick public or your own Mozhi instance and, optionally, an AI provider |
+| Onboarding | first start | Privacy mode, your languages (with offline downloads on Android) and, optionally, a public or your own Mozhi instance |
 | Image | Translate > More tools | Photos and screenshots: AI vision, Mozhi (Google Lens) or, in the Play variant, on-device text recognition |
 | Documents | Translate > More tools | `.txt`, Markdown, SRT/VTT subtitles and JSON/ARB string tables, saved or shared when done |
 | Web page | Translate > More tools | Reader view of a page, translated block by block |

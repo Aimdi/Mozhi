@@ -524,9 +524,15 @@ the device. Offline translation is not available on the web.
   duplicated. Only the main translation is saved, not the translations into
   [extra target languages](#extra-target-languages).
 - **History** groups entries by day, with search across the text, the
-  translation and the language names, and an **All / Favorites** filter. Tap
-  an entry to open it in the translator; swipe it away to delete it (with
-  undo).
+  translation and the language names, and an **All / Favorites** filter.
+  Below the search, **All language pairs** narrows the list to one pair
+  (each with its number of translations; a detected source counts as the
+  language it was detected as), and the **On device**, **Self-hosted**, **Public server**
+  and **Cloud** chips to where the text was translated (only those that occur
+  in your history are shown). Mozhi entries are classed by your current
+  preferred instance, since an entry doesn't record which instance answered.
+  **Clear filters** shows everything again. Tap an entry to open it in the
+  translator; swipe it away to delete it (with undo).
 - Star a translation to make it a **favourite**. Favourites are never removed
   automatically; the newest 1,000 other entries are kept.
 - **Settings > Delete history automatically** removes translations older

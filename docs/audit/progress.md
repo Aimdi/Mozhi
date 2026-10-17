@@ -134,8 +134,30 @@ commit.
     found the engine for all three ABIs in the universal APK;
   - the Play variant, web and e2e jobs (24 tests) passed too.
 
-  The run for `c42e30a` (39033167322) was still in progress when this was
-  written.
+- `6cff411`: CLD2 language identification in the engine (`detect` in the
+  C API), so Detect language works offline; the native build is
+  reproducible (`-ffile-prefix-map`, fixed build info).
+
+## Phase 4: UI/UX (mostly done, 2026-10-17)
+
+- `2a9c517`: a calm translate screen. Only the languages, the input and
+  the translation show by default; **More** opens the other tools. The
+  language picker marks detected and downloaded (offline) languages, and
+  the consent prompt offers the offline download or **Translate on this
+  device** when the engine supports the pair. **Switch instance** picks
+  another Mozhi instance for one translation.
+- `8b61507`: setup in three steps after the welcome (privacy mode, your
+  languages with offline downloads, an optional online service). The AI
+  step moved to **Settings > AI providers**. Settings are ordered Privacy,
+  Offline languages, Online engines, AI providers (marked Advanced),
+  Appearance, Read aloud, About. History has language-pair and destination
+  filters.
+- `4ddac64`, `27d794c`: "Always into French" on the consent button for a
+  detected source, and the history header never cuts the language pair.
+- Accessibility: widget tests at 200 % text on a 360 dp phone check
+  onboarding, settings and the history filters for overflow, tap-target
+  size, labels and (settings) text contrast.
+- All 18 languages are complete; 60 unused strings were removed.
 
 ## Phase 6: release and build documentation (done, 2026-10-17)
 
@@ -159,10 +181,11 @@ commit.
     relative ones (checked with ccache 4.9.1). Without it the library
     embeds absolute build paths, so reproducing a release needs the same
     ccache setting or `-ffile-prefix-map`.
-  - zlib (linked) and faiss (compiled) are missing from
-    `native/THIRD_PARTY_NOTICES.md`.
-  - The APKs keep AGP's dependency metadata block
-    (`dependenciesInfo.includeInApk` isn't turned off).
+    (Since `6cff411` the build passes `-ffile-prefix-map`.)
+  - zlib (linked) and faiss (compiled) were missing from
+    `native/THIRD_PARTY_NOTICES.md` (added since).
+  - The APKs kept AGP's dependency metadata block (turned off in
+    `4b3cd6c`).
 
 ## Open items
 
@@ -170,9 +193,7 @@ commit.
   x86_64 and under qemu (aarch64, armv7), never on a phone.
 - **Not done**: Tesseract (on-device OCR for the default build) and offline
   voice input.
-- **Phase 4 (UI)** is in progress.
-- CLD2 language identification is being added to the engine (staged as a
-  submodule, not committed when this was written).
+- **Phase 4 leftovers**: golden tests and foldable layouts.
 - **Dependabot PRs #1, #2 and #5** are waiting for the owner's decision.
   #2 and #5 need a pre-release tag to be exercised
   ([release.md](../release.md#before-the-first-release)).
@@ -181,8 +202,6 @@ commit.
   Dependabot targets the `claude/*` branch.
 - **Releases**:
   - the signing secrets and the published certificate fingerprint;
-  - the dependency metadata block;
-  - the gaps in the notices;
   - a byte-for-byte comparison of two builds;
   - an εxodus scan of a default APK. CI artifacts couldn't be downloaded
     from this session, so none of these was run.
