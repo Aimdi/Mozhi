@@ -3,9 +3,11 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/platform/clipboard_service.dart';
 import 'package:share_plus/share_plus.dart';
 
 /// Shares an exported history JSON document.
@@ -40,7 +42,9 @@ abstract final class HistoryShare {
 
 enum _ExportChoice { copy, share }
 
-/// Lets the user copy the history JSON to the clipboard or share it.
+/// Lets the user copy the history JSON to the clipboard (marked sensitive,
+/// see [ClipboardService]) or share it, warning that the export is not
+/// encrypted (unlike the history on the device).
 Future<void> showExportHistorySheet(BuildContext context) async {
   final l10n = context.l10n;
   final cubit = context.read<HistoryCubit>();
@@ -52,6 +56,7 @@ Future<void> showExportHistorySheet(BuildContext context) async {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          const ExportUnencryptedWarning(),
           ListTile(
             leading: const Icon(Icons.copy_outlined),
             title: Text(l10n.settingsExportCopy),
@@ -72,15 +77,48 @@ Future<void> showExportHistorySheet(BuildContext context) async {
     final json = await cubit.exportJson();
     switch (choice) {
       case _ExportChoice.copy:
-        await Clipboard.setData(ClipboardData(text: json));
-        messenger?.showSnackBar(
-          SnackBar(content: Text(l10n.settingsExportCopied)),
-        );
+        final clipboard = ClipboardService.instance;
+        await clipboard.copyText(json);
+        // Android 13+ confirms copies itself.
+        if (!clipboard.systemShowsCopyConfirmation) {
+          messenger?.showSnackBar(
+            SnackBar(content: Text(l10n.settingsExportCopied)),
+          );
+        }
       case _ExportChoice.share:
         await HistoryShare.share(json);
     }
   } on Object {
     messenger?.showSnackBar(SnackBar(content: Text(l10n.settingsExportFailed)));
+  }
+}
+
+/// Says that an exported history is plain, unencrypted JSON.
+class ExportUnencryptedWarning extends StatelessWidget {
+  const new({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.lock_open_outlined, size: 20, color: colors.error),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              context.l10n.settingsExportUnencrypted,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colors.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -171,6 +209,7 @@ class _ImportHistoryDialogState extends State<ImportHistoryDialog> {
             minLines: 4,
             maxLines: 8,
             keyboardType: TextInputType.multiline,
+            enableIMEPersonalizedLearning: imeLearningAllowed(context),
             style: const TextStyle(fontFamily: 'monospace'),
             decoration: InputDecoration(
               labelText: l10n.settingsImportLabel,

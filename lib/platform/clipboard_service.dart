@@ -1,5 +1,5 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:mozhi/platform/android_device.dart';
 import 'package:mozhi/platform/privacy_channel.dart';
 
 /// Copies text the user asked to copy, marked as sensitive where the
@@ -19,14 +19,11 @@ class ClipboardService {
     bool? isAndroid,
     Future<void> Function(ClipboardData data)? setData,
   }) : _channel = channel ?? privacyChannel(),
-       _isAndroid = isAndroid ?? _android,
+       _isAndroid = isAndroid ?? runsOnAndroid,
        _setData = setData ?? Clipboard.setData;
 
   /// Used by [copyText] and [systemShowsCopyConfirmation].
   static ClipboardService instance = ClipboardService();
-
-  static bool get _android =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
   final MethodChannel _channel;
   final bool _isAndroid;

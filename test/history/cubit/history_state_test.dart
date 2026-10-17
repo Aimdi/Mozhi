@@ -49,6 +49,7 @@ void main() {
       expect(state.entries, isEmpty);
       expect(state.query, isEmpty);
       expect(state.favoritesOnly, isFalse);
+      expect(state.incognito, isFalse);
       expect(state.visible, isEmpty);
     });
 
@@ -60,6 +61,7 @@ void main() {
           entries: entries,
           query: 'q',
           favoritesOnly: true,
+          incognito: true,
         ),
         equals(
           HistoryState(
@@ -67,9 +69,11 @@ void main() {
             entries: entries,
             query: 'q',
             favoritesOnly: true,
+            incognito: true,
           ),
         ),
       );
+      expect(const HistoryState(incognito: true), isNot(const HistoryState()));
     });
 
     test('expiredCount counts the non-favourites older than maxAge', () {

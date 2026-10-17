@@ -12,6 +12,8 @@ import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/history/models/history_entry.dart';
+import 'package:mozhi/platform/clipboard_service.dart';
+import 'package:mozhi/platform/privacy_channel.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/settings_page.dart';
 import 'package:mozhi/settings/view/widgets/history_data_actions.dart';
@@ -66,7 +68,7 @@ void main() {
     Future<void> pump(
       WidgetTester tester, {
       AppSettings? state,
-      Size size = const Size(800, 3000),
+      Size size = const Size(800, 5000),
       double textScale = 1,
     }) async {
       if (state != null) when(() => settings.state).thenReturn(state);
@@ -177,7 +179,10 @@ void main() {
         expect(inSection('Translation tools', 'Presets'), findsOne);
         expect(inSection('Translation tools', 'Glossaries'), findsOne);
         expect(inSection('Translation tools', 'Quality modes'), findsOne);
-        expect(inSection('Data', 'Save history'), findsOne);
+        expect(inSection('Privacy', 'Save history'), findsOne);
+        expect(inSection('Privacy', 'Incognito'), findsOne);
+        expect(inSection('Privacy', 'Delete all local data'), findsOne);
+        expect(inSection('Data', 'Export history'), findsOne);
         expect(inSection('About', 'Run setup again'), findsOne);
       });
 
@@ -378,7 +383,7 @@ void main() {
 
       testWidgets('accent colors always shown on iOS', (tester) async {
         when(() => settings.state).thenReturn(const AppSettings());
-        tester.setScreenSize(const Size(800, 3000));
+        tester.setScreenSize(const Size(800, 5000));
         await tester.pumpView(
           const SettingsPage(),
           settings: settings,
@@ -405,7 +410,7 @@ void main() {
       testWidgets('uses radio rows for the theme with large text', (
         tester,
       ) async {
-        await pump(tester, textScale: 2);
+        await pump(tester, textScale: 2, size: const Size(800, 10000));
         expect(find.byType(SegmentedButton<ThemeMode>), findsNothing);
         expect(find.byType(RadioListTile<ThemeMode>), findsNWidgets(3));
         await tester.ensureVisible(find.text('Dark'));
@@ -595,6 +600,63 @@ void main() {
         verify(history.exportJson).called(1);
         expect(copied, '[{"id":"1"}]');
         expect(find.text('History copied as JSON'), findsOneWidget);
+      });
+
+      testWidgets('warns that the export is not encrypted', (tester) async {
+        await pump(tester);
+        await tester.tap(find.text('Export history'));
+        await tester.pumpAndSettle();
+        expect(find.byType(ExportUnencryptedWarning), findsOneWidget);
+        expect(
+          find.text(
+            "The exported JSON isn't encrypted: anyone who can open it can "
+            'read your history. Keep it somewhere safe.',
+          ),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('marks the copy sensitive and leaves the confirmation to '
+          'Android 13+', (tester) async {
+        final previous = ClipboardService.instance;
+        addTearDown(() => ClipboardService.instance = previous);
+        final copied = <String>[];
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          privacyChannel(),
+          (call) async {
+            copied.add(call.arguments as String);
+            return true;
+          },
+        );
+        addTearDown(
+          () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            privacyChannel(),
+            null,
+          ),
+        );
+        ClipboardService.instance = ClipboardService(isAndroid: true);
+        await pump(tester);
+        await tester.tap(find.text('Export history'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Copy JSON to clipboard'));
+        await tester.pumpAndSettle();
+
+        expect(copied, ['[{"id":"1"}]']);
+        expect(find.text('History copied as JSON'), findsNothing);
+      });
+
+      testWidgets('the import field keeps keyboards from learning while '
+          'incognito', (tester) async {
+        await pump(tester, state: const AppSettings(incognito: true));
+        await tester.tap(find.text('Import history'));
+        await tester.pumpAndSettle();
+        final field = tester.widget<TextField>(
+          find.descendant(
+            of: find.byType(ImportHistoryDialog),
+            matching: find.byType(TextField),
+          ),
+        );
+        expect(field.enableIMEPersonalizedLearning, isFalse);
       });
 
       testWidgets('shares exported history', (tester) async {
@@ -897,7 +959,7 @@ void main() {
         await tester.pumpAndSettle();
       }
 
-      testWidgets('lives in the data section and shows the retention', (
+      testWidgets('lives in the privacy section and shows the retention', (
         tester,
       ) async {
         await pump(
@@ -907,7 +969,7 @@ void main() {
         expect(
           find.descendant(
             of: find.ancestor(
-              of: find.text('Data'),
+              of: find.text('Privacy'),
               matching: find.byType(SettingsSection),
             ),
             matching: find.text('Delete history automatically'),
@@ -1205,6 +1267,7 @@ void main() {
           find.text('About Mozhi'),
           find.byType(ListView),
           const Offset(0, -300),
+          maxIteration: 200,
         );
         expect(tester.takeException(), isNull);
       });
@@ -1215,14 +1278,15 @@ void main() {
         await pump(tester, size: const Size(1400, 1600));
         final middle = tester.getCenter(find.byType(SettingsView)).dx;
         final columns = <int>[];
-        Rect? first;
+        FocusNode? first;
         for (var i = 0; i < 80; i++) {
           await tester.sendKeyEvent(LogicalKeyboardKey.tab);
           await tester.pump();
-          final rect = FocusManager.instance.primaryFocus!.rect;
-          if (rect == first) break;
-          first ??= rect;
-          columns.add(rect.center.dx < middle ? 0 : 1);
+          final node = FocusManager.instance.primaryFocus!;
+          // The page scrolls as focus moves: compare nodes, not rects.
+          if (node == first) break;
+          first ??= node;
+          columns.add(node.rect.center.dx < middle ? 0 : 1);
         }
         expect(columns, contains(0));
         expect(columns, contains(1));

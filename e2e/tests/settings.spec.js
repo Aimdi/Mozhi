@@ -19,7 +19,7 @@ test('with Save history off, translations are not saved', async ({
   page,
 }) => {
   await openApp(page, '/settings');
-  // Save history is in the Data section, further down on a phone.
+  // Save history is in the Privacy section (the first one).
   const saveHistory = page.getByRole('switch', { name: /^Save history/ });
   await scrollTo(page, saveHistory);
   await expect(saveHistory).toBeChecked();
@@ -33,9 +33,11 @@ test('with Save history off, translations are not saved', async ({
     .toBe('[AI→French (Français)] Good evening');
 
   await page.getByRole('tab', { name: 'History' }).click();
+  // "History is paused" + the reason (the name matches a substring).
   const banner = page.getByRole('group', {
     name: "History is off. New translations aren't saved.",
   });
+  await expect(banner).toHaveAccessibleName(/^History is paused/);
   await expect(banner).toBeVisible();
   await expect(page.getByRole('heading', { name: /^No history yet/ }))
     .toBeVisible();

@@ -6105,7 +6105,7 @@
   "@historyUnreadableTitle": {
     "description": "historyUnreadableTitle"
   },
-  "historyUnreadableBody": "Its key is missing from this device, for example after the app's secure storage was reset or the history came from another phone. New translations aren't saved until you try again or start a new history.",
+  "historyUnreadableBody": "Its key is missing from this device, for example because the app's secure storage was reset. New translations aren't saved until you try again or start a new history.",
   "@historyUnreadableBody": {
     "description": "historyUnreadableBody"
   },
@@ -6559,5 +6559,234 @@
         "type": "String"
       }
     }
+  },
+  "commonErrorCleartextRefused": "Use https for public servers. Plain http is only allowed on this device, your local network and for .onion or .i2p addresses.",
+  "@commonErrorCleartextRefused": {
+    "description": "A request to a public server over plain http was refused before anything was sent."
+  },
+  "commonErrorProxyRequired": "Tor (.onion) and I2P (.i2p) addresses only work through a proxy. Set one in the privacy settings and restart the app.",
+  "@commonErrorProxyRequired": {
+    "description": "A .onion or .i2p address was used without an HTTP proxy."
+  },
+  "commonErrorInvalidProxy": "The proxy setting is not valid (expected host:port, such as 127.0.0.1:8118). Nothing is sent until it is fixed.",
+  "@commonErrorInvalidProxy": {
+    "description": "The saved HTTP proxy cannot be parsed, so every request is refused."
+  },
+  "commonConsentListsTitle": "Connect to {destination}?",
+  "@commonConsentListsTitle": {
+    "placeholders": {
+      "destination": {
+        "type": "String"
+      }
+    }
+  },
+  "commonConsentListsBody": "This loads the engines and languages the server offers. None of your text is sent.",
+  "@commonConsentListsBody": {
+    "description": "commonConsentListsBody"
+  },
+  "commonConsentMozhiListNote": "{count, plural, =1{If it doesn’t answer, the text may go to the other server in your list.} other{If it doesn’t answer, the text may go to the other {count} servers in your list, in order.}}",
+  "@commonConsentMozhiListNote": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "commonConsentInline": "Translating this needs the network. Send it to {destination}?",
+  "@commonConsentInline": {
+    "placeholders": {
+      "destination": {
+        "type": "String"
+      }
+    }
+  },
+  "commonConsentInlineCloud": "Translating this sends your text to {provider}. Allow it?",
+  "@commonConsentInlineCloud": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "commonConsentInlineOfflineOnly": "Offline only is on, and this engine needs the network.",
+  "@commonConsentInlineOfflineOnly": {
+    "description": "commonConsentInlineOfflineOnly"
+  },
+  "commonConsentInlineLists": "Load the engines and languages from {destination}?",
+  "@commonConsentInlineLists": {
+    "placeholders": {
+      "destination": {
+        "type": "String"
+      }
+    }
+  },
+  "translateChooseEngineTitle": "Choose a translation engine",
+  "@translateChooseEngineTitle": {
+    "description": "translateChooseEngineTitle"
+  },
+  "translateChooseEngineBody": "The engine you used before isn’t available. Your text only goes where you choose, so pick an engine to go on.",
+  "@translateChooseEngineBody": {
+    "description": "translateChooseEngineBody"
+  },
+  "translateChooseEngineAction": "Choose engine",
+  "@translateChooseEngineAction": {
+    "description": "translateChooseEngineAction"
+  },
+  "translateBadgePublic": "Public server",
+  "@translateBadgePublic": {
+    "description": "translateBadgePublic"
+  },
+  "translateBadgeOnDevice": "On device",
+  "@translateBadgeOnDevice": {
+    "description": "translateBadgeOnDevice"
+  },
+  "speechUnavailableOnline": "This device has no voice for this language. {host} can read it aloud, but it receives the text in the request address, which can end up in its logs.",
+  "@speechUnavailableOnline": {
+    "description": "No device voice; a Mozhi instance could read the text aloud with the user consent.",
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "speechListenVia": "Listen via {host}",
+  "@speechListenVia": {
+    "description": "Snack bar action: read the text aloud through the named Mozhi instance once.",
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "speechUnavailableOfflineOnly": "This device has no voice for this language. Install one in your device’s text-to-speech settings: in offline-only mode no text is sent to a server.",
+  "@speechUnavailableOfflineOnly": {
+    "description": "No device voice and the privacy mode is offline only."
+  },
+  "speechDeviceVoiceOnly": "Device voice only",
+  "@speechDeviceVoiceOnly": {
+    "description": "Settings switch: never use a Mozhi instance to read text aloud."
+  },
+  "speechDeviceVoiceOnlyDescription": "Your device reads text aloud whenever it has a voice for the language. Turn this on to never send text to a Mozhi instance for languages it has no voice for.",
+  "@speechDeviceVoiceOnlyDescription": {
+    "description": "Description of the device voice only switch."
+  },
+  "commonHttpsRequired": "Use https:// for public servers.",
+  "@commonHttpsRequired": {
+    "description": "Validation error: a public server URL uses plain http."
+  },
+  "settingsInstancesCheck": "Check instances",
+  "@settingsInstancesCheck": {
+    "description": "Action that asks every instance in the list for its engines and measures the latency."
+  },
+  "settingsInstancesCheckNote": "Instances are only contacted when you check or test them. Check instances asks each one for its engines and measures how fast it answers.",
+  "@settingsInstancesCheckNote": {
+    "description": "Explains that instance checks are manual."
+  },
+  "settingsInstancesEngines": "{count, plural, =0{No engines} =1{1 engine} other{{count} engines}}",
+  "@settingsInstancesEngines": {
+    "description": "Number of translation engines an instance offers.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsInstancesCloudflare": "Cloudflare",
+  "@settingsInstancesCloudflare": {
+    "description": "Badge: the instance is behind Cloudflare."
+  },
+  "settingsInstancesCloudflareDescription": "Behind Cloudflare, which can read what you translate",
+  "@settingsInstancesCloudflareDescription": {
+    "description": "Spoken label of the Cloudflare badge."
+  },
+  "settingsInstancesTor": "Tor",
+  "@settingsInstancesTor": {
+    "description": "Badge: a Tor onion address."
+  },
+  "settingsInstancesI2p": "I2P",
+  "@settingsInstancesI2p": {
+    "description": "Badge: an I2P address."
+  },
+  "settingsInstancesNeedsProxy": "Needs a proxy",
+  "@settingsInstancesNeedsProxy": {
+    "description": "Badge: a Tor or I2P address while no proxy is active."
+  },
+  "settingsInstancesNeedsHttps": "Needs https",
+  "@settingsInstancesNeedsHttps": {
+    "description": "Badge: a public instance saved with plain http, which the app refuses."
+  },
+  "settingsInstancesEdit": "Edit",
+  "@settingsInstancesEdit": {
+    "description": "Menu item: edit an instance."
+  },
+  "settingsInstanceEditTitle": "Edit instance",
+  "@settingsInstanceEditTitle": {
+    "description": "Title of the instance edit dialog."
+  },
+  "settingsInstanceUpdated": "Instance updated",
+  "@settingsInstanceUpdated": {
+    "description": "Snack bar after an instance was edited."
+  },
+  "settingsInstancesTestTitle": "Test {name}",
+  "@settingsInstancesTestTitle": {
+    "description": "Title of the instance test dialog.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsInstancesTestResult": "{engine} translated “hello” to “{text}” in {ms} ms.",
+  "@settingsInstancesTestResult": {
+    "description": "Result of an instance test.",
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      },
+      "text": {
+        "type": "String"
+      },
+      "ms": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsInstancesNoEngines": "This instance has no translation engine enabled.",
+  "@settingsInstancesNoEngines": {
+    "description": "Instance test failure: no engines."
+  },
+  "settingsInstancesCatalogTitle": "Public instances",
+  "@settingsInstancesCatalogTitle": {
+    "description": "Heading of the bundled public instance list."
+  },
+  "settingsInstancesCatalogBody": "From Mozhi’s list of public instances ({date}). Instances behind Cloudflare are never added by default: Cloudflare can read the text you translate.",
+  "@settingsInstancesCatalogBody": {
+    "description": "Explains the bundled public instance list.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsInstancesCatalogAdd": "Add {name}",
+  "@settingsInstancesCatalogAdd": {
+    "description": "Tooltip of the button that adds a public instance.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsInstancesCatalogHidden": "Tor and I2P addresses are listed here once a proxy is set in the privacy settings.",
+  "@settingsInstancesCatalogHidden": {
+    "description": "Shown instead of hidden service addresses without a proxy."
+  },
+  "settingsInstancesCatalogEmpty": "Every public instance is already in your list.",
+  "@settingsInstancesCatalogEmpty": {
+    "description": "All bundled public instances were added."
+  },
+  "settingsInstanceNeedsProxyNote": "Tor and I2P addresses only work through a proxy. Set one in the privacy settings, then restart the app.",
+  "@settingsInstanceNeedsProxyNote": {
+    "description": "Note in the add instance dialog for a .onion or .i2p address without an active proxy."
   }
 }

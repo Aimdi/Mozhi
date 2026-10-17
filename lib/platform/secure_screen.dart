@@ -1,5 +1,5 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:mozhi/platform/android_device.dart';
 import 'package:mozhi/platform/privacy_channel.dart';
 
 /// Hides the app's content in the recent apps screen and blocks
@@ -10,13 +10,10 @@ import 'package:mozhi/platform/privacy_channel.dart';
 class SecureScreen {
   new({MethodChannel? channel, bool? isSupported})
     : _channel = channel ?? privacyChannel(),
-      isSupported = isSupported ?? _android;
+      isSupported = isSupported ?? runsOnAndroid;
 
   /// Used by `SecureScreenListener` unless it is given another one.
   static SecureScreen instance = SecureScreen();
-
-  static bool get _android =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
   final MethodChannel _channel;
 

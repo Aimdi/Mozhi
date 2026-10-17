@@ -13,18 +13,19 @@
          on devices without one (voice input is optional). -->
     <uses-feature android:name="android.hardware.microphone" android:required="false"/>
 
-    <!-- Backup policy ("history stays on device", reviews/security.md W7):
-         - No cloud backup (allowBackup="false"): history, settings and API
-           keys never go to Google Drive.
+    <!-- Backup policy ("history stays on device", reviews/security.md W7,
+         docs/audit/2026-audit.md):
+         - No cloud backup (allowBackup="false"): history, settings, API keys
+           and offline models never go to Google Drive.
          - Android 12+ still allows device-to-device transfer when setting up
-           a new phone; res/xml/data_extraction_rules.xml lets settings move
-           with the user but excludes flutter_secure_storage's files (API
-           keys and the history encryption key): their AndroidKeyStore
-           wrapping keys never leave the device, so a copy could not be
-           decrypted anyway. The history itself is encrypted with that key,
-           so a transferred copy stays unreadable.
+           a new phone even then; res/xml/data_extraction_rules.xml excludes
+           every domain from it (and from cloud backup), so nothing moves.
+           The history is also encrypted with a key kept in
+           flutter_secure_storage (AndroidKeyStore-wrapped, device-bound).
          - res/xml/backup_rules.xml (Android 11 and lower) mirrors the
-           exclusions in case backups are ever re-enabled. -->
+           exclusions in case backups are ever re-enabled.
+         localeConfig lists the app's languages for Android 13+'s per-app
+         language setting (res/xml/locales_config.xml). -->
     <application
         android:label="${appName}"
         android:name="${applicationName}"
@@ -32,6 +33,7 @@
         android:allowBackup="false"
         android:fullBackupContent="@xml/backup_rules"
         android:dataExtractionRules="@xml/data_extraction_rules"
+        android:localeConfig="@xml/locales_config"
         android:enableOnBackInvokedCallback="true"
         android:usesCleartextTraffic="true"
         android:networkSecurityConfig="@xml/network_security_config">

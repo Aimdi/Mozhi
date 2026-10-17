@@ -2,31 +2,41 @@
 <!-- Backup and transfer rules for Android 12+ (API 31+); Android 11 and lower
      use backup_rules.xml. See the policy comment in AndroidManifest.xml.
 
-     Files involved:
+     Nothing the app stores leaves the phone, neither through cloud backup
+     nor through device-to-device transfer (setting up a new phone), which
+     Android 12+ allows even with android:allowBackup="false". That covers:
+     - file datastore/: shared_preferences (SharedPreferencesAsync): settings
+       and the translation history (`history.v1`, AES-256-GCM encrypted,
+       lib/history/data/history_repository.dart);
      - sharedpref FlutterSecureStorage.xml / FlutterSecureKeyStorage.xml:
-       flutter_secure_storage (AI provider API keys and the key the
-       translation history is encrypted with, `history.key`). The values are encrypted
-       with AndroidKeyStore keys that never leave the device, so a copy could
-       not be decrypted elsewhere ("Failed to unwrap key"). Default file names:
-       lib/bootstrap.dart sets no sharedPreferencesName / storageNamespace.
-     - file datastore/: shared_preferences (SharedPreferencesAsync), i.e.
-       settings and the translation history (AES-256-GCM encrypted with
-       `history.key`, lib/history/data/history_repository.dart). -->
+       flutter_secure_storage: AI provider API keys and the history key
+       (`history.key`), wrapped with AndroidKeyStore keys that never leave
+       the device;
+     - files, no_backup and databases of ML Kit (offline language models)
+       and of the plugins, and caches.
+     Every domain is excluded as a whole, so new files are excluded too. Use
+     Settings > Export history to move the history to another device. -->
 <data-extraction-rules>
-    <!-- Cloud backup is already off (android:allowBackup="false"); these
-         rules keep history and keys out of it should that ever change. -->
     <cloud-backup disableIfNoEncryptionCapabilities="true">
-        <exclude domain="sharedpref" path="FlutterSecureStorage.xml" />
-        <exclude domain="sharedpref" path="FlutterSecureKeyStorage.xml" />
-        <exclude domain="file" path="datastore" />
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+        <exclude domain="device_root" path="." />
+        <exclude domain="device_file" path="." />
+        <exclude domain="device_database" path="." />
+        <exclude domain="device_sharedpref" path="." />
     </cloud-backup>
-    <!-- Device-to-device transfer (setting up a new phone) is not affected by
-         allowBackup on Android 12+: settings move with the user, API keys
-         and the history key do not (keys have to be entered again). The
-         encrypted history is copied but can't be decrypted on the new phone;
-         the app says so and keeps it aside. Export the history to move it. -->
     <device-transfer>
-        <exclude domain="sharedpref" path="FlutterSecureStorage.xml" />
-        <exclude domain="sharedpref" path="FlutterSecureKeyStorage.xml" />
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+        <exclude domain="device_root" path="." />
+        <exclude domain="device_file" path="." />
+        <exclude domain="device_database" path="." />
+        <exclude domain="device_sharedpref" path="." />
     </device-transfer>
 </data-extraction-rules>

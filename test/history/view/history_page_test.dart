@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show SemanticsInputType;
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/semantics.dart';
@@ -146,7 +147,7 @@ void main() {
     testWidgets('searches', (tester) async {
       when(() => history.search(any())).thenReturn(null);
       await pump(tester);
-      await tester.enterText(find.byType(SearchBar), 'morning');
+      await tester.enterText(find.byKey(HistoryView.searchFieldKey), 'morning');
       verify(() => history.search('morning')).called(1);
       await tester.pump();
       await tester.tap(find.byTooltip('Clear search'));
@@ -212,7 +213,7 @@ void main() {
       when(() => history.search(any())).thenReturn(null);
       final handle = tester.ensureSemantics();
       await pump(tester);
-      await tester.enterText(find.byType(SearchBar), 'morning');
+      await tester.enterText(find.byKey(HistoryView.searchFieldKey), 'morning');
       await tester.pump();
       expect(
         tester.getSemantics(find.byType(EditableText)),
@@ -810,12 +811,107 @@ void main() {
       tester,
     ) async {
       await pump(tester, appSettings: const AppSettings(saveHistory: false));
+      expect(find.text('History is paused'), findsOneWidget);
       expect(
         find.text("History is off. New translations aren't saved."),
         findsOneWidget,
       );
       await tester.tap(find.text('Turn on'));
       verify(() => settings.setSaveHistory(enabled: true)).called(1);
+    });
+
+    testWidgets('incognito shows a banner to turn it off', (tester) async {
+      await pump(
+        tester,
+        appSettings: const AppSettings(incognito: true, saveHistory: false),
+      );
+      expect(find.text('History is paused'), findsOneWidget);
+      expect(find.textContaining('Incognito is on'), findsOneWidget);
+      expect(find.textContaining('History is off'), findsNothing);
+      await tester.tap(find.text('Turn off incognito'));
+      verify(() => settings.setIncognito(enabled: false)).called(1);
+    });
+
+    testWidgets('the banner is one group for screen readers', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pump(tester, appSettings: const AppSettings(saveHistory: false));
+      expect(
+        find.semantics.byLabel(
+          RegExp("History is paused\nHistory is off. New translations aren't"),
+        ),
+        findsOne,
+      );
+      handle.dispose();
+    });
+
+    testWidgets('shows no banner while history is saved', (tester) async {
+      await pump(tester);
+      expect(find.text('History is paused'), findsNothing);
+    });
+
+    group('search field', () {
+      testWidgets('lets keyboards learn normally', (tester) async {
+        await pump(tester);
+        final field = tester.widget<TextField>(
+          find.byKey(HistoryView.searchFieldKey),
+        );
+        expect(field.enableIMEPersonalizedLearning, isTrue);
+      });
+
+      testWidgets('asks keyboards not to learn while incognito', (
+        tester,
+      ) async {
+        await pump(tester, appSettings: const AppSettings(incognito: true));
+        final field = tester.widget<TextField>(
+          find.byKey(HistoryView.searchFieldKey),
+        );
+        expect(field.enableIMEPersonalizedLearning, isFalse);
+      });
+
+      testWidgets('is a search box for screen readers', (tester) async {
+        final handle = tester.ensureSemantics();
+        await pump(tester);
+        expect(
+          tester.getSemantics(find.byType(EditableText)),
+          isSemantics(
+            label: 'Search history',
+            isTextField: true,
+            inputType: SemanticsInputType.search,
+          ),
+        );
+        handle.dispose();
+      });
+    });
+
+    group('unreadable history', () {
+      const unreadable = HistoryState(status: HistoryStatus.unreadable);
+
+      testWidgets('explains it and retries', (tester) async {
+        await pump(tester, state: unreadable);
+        expect(find.text("Your history can't be decrypted"), findsOneWidget);
+        expect(find.textContaining('secure storage was reset'), findsOneWidget);
+        expect(find.byTooltip('Clear history'), findsNothing);
+        await tester.tap(find.text('Retry'));
+        verify(history.load).called(1);
+      });
+
+      testWidgets('starts a new history once confirmed', (tester) async {
+        when(history.discardUnreadable).thenAnswer((_) async {});
+        await pump(tester, state: unreadable);
+
+        await tester.tap(find.text('Start a new history'));
+        await tester.pumpAndSettle();
+        expect(find.text('Start a new history?'), findsOneWidget);
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+        verifyNever(history.discardUnreadable);
+
+        await tester.tap(find.text('Start a new history'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('history_start_over_confirm')));
+        await tester.pumpAndSettle();
+        verify(history.discardUnreadable).called(1);
+      });
     });
 
     testWidgets('fits 320dp with large text', (tester) async {
@@ -837,7 +933,10 @@ void main() {
 
     testWidgets('centers the list on wide screens', (tester) async {
       await pump(tester, size: const Size(1400, 1000));
-      expect(tester.getTopLeft(find.byType(SearchBar)).dx, greaterThan(300));
+      expect(
+        tester.getTopLeft(find.byKey(HistoryView.searchFieldKey)).dx,
+        greaterThan(300),
+      );
     });
   });
 }

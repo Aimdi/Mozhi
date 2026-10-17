@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Languages offered in Android 13+'s per-app language setting (Settings >
+     Apps > Mozhi > Language). Keep in step with lib/l10n/arb/app_*.arb: the
+     19 locales the app ships. Chinese is Simplified (zh-Hans); Flutter
+     matches it to the `zh` translations by language code. -->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="en" />
+    <locale android:name="ar" />
+    <locale android:name="de" />
+    <locale android:name="es" />
+    <locale android:name="fr" />
+    <locale android:name="hi" />
+    <locale android:name="id" />
+    <locale android:name="it" />
+    <locale android:name="ja" />
+    <locale android:name="ko" />
+    <locale android:name="nl" />
+    <locale android:name="pl" />
+    <locale android:name="pt" />
+    <locale android:name="ru" />
+    <locale android:name="ta" />
+    <locale android:name="tr" />
+    <locale android:name="uk" />
+    <locale android:name="vi" />
+    <locale android:name="zh-Hans" />
+</locale-config>

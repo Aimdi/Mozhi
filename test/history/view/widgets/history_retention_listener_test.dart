@@ -65,6 +65,31 @@ void main() {
       verify(() => history.applyRetention(null)).called(1);
     });
 
+    testWidgets('hands incognito to the history', (tester) async {
+      await pump(tester);
+      verify(() => history.setIncognito(enabled: false)).called(1);
+
+      changes.add(
+        const AppSettings(
+          historyRetention: HistoryRetention.week,
+          incognito: true,
+        ),
+      );
+      await tester.pump();
+      verify(() => history.setIncognito(enabled: true)).called(1);
+      verifyNever(() => history.applyRetention(const Duration(days: 1)));
+
+      changes.add(
+        const AppSettings(
+          historyRetention: HistoryRetention.week,
+          incognito: true,
+          saveHistory: false,
+        ),
+      );
+      await tester.pump();
+      verifyNever(() => history.setIncognito(enabled: any(named: 'enabled')));
+    });
+
     testWidgets('ignores other setting changes', (tester) async {
       await pump(tester);
       clearInteractions(history);

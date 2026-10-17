@@ -30,6 +30,15 @@ void main() {
       await store.delete('key');
       expect(await store.read('key'), isNull);
     });
+
+    test('clear deletes every value', () async {
+      final store = MemoryStore({'a': '1', 'b': '2'});
+
+      await store.clear();
+
+      expect(store.values, isEmpty);
+      expect(store, isA<ClearableKeyValueStore>());
+    });
   });
 
   group(PreferencesStore, () {
@@ -61,6 +70,14 @@ void main() {
       await store.delete('key');
 
       verify(() => prefs.remove('key')).called(1);
+    });
+
+    test('clear delegates to clear', () async {
+      when(() => prefs.clear()).thenAnswer((_) async {});
+
+      await store.clear();
+
+      verify(() => prefs.clear()).called(1);
     });
 
     test('creates the platform preferences lazily', () {

@@ -5,7 +5,6 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/on_device_ml.dart';
 import 'package:mozhi/core/undo_snack_bar.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
-import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/view/widgets/clear_history_dialog.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
@@ -13,9 +12,12 @@ import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/widgets/accent_color_picker.dart';
 import 'package:mozhi/settings/view/widgets/choice_dialog.dart';
 import 'package:mozhi/settings/view/widgets/history_data_actions.dart';
+import 'package:mozhi/settings/view/widgets/privacy_settings_section.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:mozhi/settings/view/widgets/speech_settings_section.dart';
 import 'package:mozhi/speech/speech_service.dart';
+
+export 'widgets/privacy_settings_section.dart' show historyRetentionLabel;
 
 /// App settings. Reads [SettingsCubit] (and `HistoryCubit` for the data
 /// actions) from the app-wide providers.
@@ -40,6 +42,7 @@ class SettingsView extends StatelessWidget {
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsCubit>().state;
     final primary = [
+      PrivacySettingsSection(settings: settings),
       _ServicesSection(settings: settings),
       _TranslationSection(settings: settings),
       const _ToolsSection(),
@@ -581,26 +584,9 @@ class _DataSection extends StatelessWidget {
     final l10n = context.l10n;
     final error = Theme.of(context).colorScheme.error;
     final pairs = settings.recentPairs.length;
-    final cubit = context.read<SettingsCubit>();
     return SettingsSection(
       title: l10n.settingsSectionData,
       children: [
-        SwitchListTile(
-          secondary: const SettingsIcon(Icons.history),
-          title: Text(l10n.settingsSaveHistory),
-          subtitle: Text(l10n.settingsSaveHistorySubtitle),
-          value: settings.saveHistory,
-          onChanged: (value) => cubit.setSaveHistory(enabled: value),
-        ),
-        ListTile(
-          leading: const SettingsIcon(Icons.auto_delete_outlined),
-          title: Text(l10n.settingsHistoryRetention),
-          subtitle: Text(
-            historyRetentionLabel(l10n, settings.historyRetention),
-          ),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => _pickRetention(context),
-        ),
         ListTile(
           leading: const SettingsIcon(Icons.upload_outlined),
           title: Text(l10n.settingsExportHistory),
@@ -631,73 +617,6 @@ class _DataSection extends StatelessWidget {
     );
   }
 
-  Future<void> _pickRetention(BuildContext context) async {
-    final l10n = context.l10n;
-    final cubit = context.read<SettingsCubit>();
-    final current = settings.historyRetention;
-    final choice = await showDialog<HistoryRetention>(
-      context: context,
-      builder: (context) => ChoiceDialog<HistoryRetention>(
-        title: l10n.settingsHistoryRetention,
-        body: l10n.settingsHistoryRetentionDialogBody,
-        initialValue: current,
-        options: [
-          for (final retention in HistoryRetention.values)
-            ChoiceDialogOption(
-              value: retention,
-              title: Text(historyRetentionLabel(l10n, retention)),
-            ),
-        ],
-      ),
-    );
-    if (choice == null || choice == current || !context.mounted) return;
-    if (!await _confirmRetention(context, choice)) return;
-    cubit.setHistoryRetention(choice);
-  }
-
-  /// Asks before a [retention] that deletes existing translations right
-  /// away (e.g. "Never" -> "After 1 day"); true when nothing would be
-  /// deleted or the user confirmed.
-  static Future<bool> _confirmRetention(
-    BuildContext context,
-    HistoryRetention retention,
-  ) async {
-    final maxAge = retention.maxAge;
-    if (maxAge == null) return true;
-    final expired = context.read<HistoryCubit>().state.expiredCount(
-      maxAge,
-      now: DateTime.now(),
-    );
-    if (expired == 0) return true;
-    final l10n = context.l10n;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        final colors = Theme.of(context).colorScheme;
-        return AlertDialog(
-          icon: const Icon(Icons.auto_delete_outlined),
-          title: Text(l10n.settingsHistoryRetentionConfirmTitle),
-          content: Text(
-            l10n.settingsHistoryRetentionConfirmBody(expired, maxAge.inDays),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: Text(l10n.commonCancel),
-            ),
-            TextButton(
-              key: const Key('settings_history_retention_confirm'),
-              style: TextButton.styleFrom(foregroundColor: colors.error),
-              onPressed: () => Navigator.of(context).pop(true),
-              child: Text(l10n.commonDelete),
-            ),
-          ],
-        );
-      },
-    );
-    return confirmed ?? false;
-  }
-
   void _clearRecentPairs(BuildContext context) {
     final l10n = context.l10n;
     final cubit = context.read<SettingsCubit>();
@@ -719,15 +638,6 @@ class _DataSection extends StatelessWidget {
     );
   }
 }
-
-/// "Never" / "After N days" for [retention].
-String historyRetentionLabel(
-  AppLocalizations l10n,
-  HistoryRetention retention,
-) => switch (retention.maxAge) {
-  null => l10n.settingsHistoryRetentionNever,
-  final maxAge => l10n.settingsHistoryRetentionDays(maxAge.inDays),
-};
 
 class _AboutSection extends StatelessWidget {
   const new();

@@ -367,5 +367,145 @@ void main() {
         expect(cubit.state, const HistoryState());
       });
     });
+
+    group('unreadable history', () {
+      const unreadable = HistoryUnreadableException(keyMissing: true);
+
+      blocTest<HistoryCubit, HistoryState>(
+        'load emits unreadable without reporting an error',
+        setUp: () => when(() => repository.load()).thenThrow(unreadable),
+        build: buildCubit,
+        seed: () => ready([one]),
+        act: (cubit) => cubit.load(),
+        expect: () => [
+          ready([one]).copyWith(status: HistoryStatus.loading),
+          const HistoryState(status: HistoryStatus.unreadable),
+        ],
+        errors: () => <Object>[],
+      );
+
+      blocTest<HistoryCubit, HistoryState>(
+        'load does not emit after close',
+        setUp: () =>
+            when(() => repository.load())
+                .thenAnswer((_) => Future.error(unreadable)),
+        build: buildCubit,
+        act: (cubit) async {
+          final load = cubit.load();
+          await cubit.close();
+          await load;
+        },
+        expect: () => const [HistoryState(status: HistoryStatus.loading)],
+      );
+
+      blocTest<HistoryCubit, HistoryState>(
+        'a change emits unreadable once',
+        setUp: () => when(() => repository.add(any())).thenThrow(unreadable),
+        build: buildCubit,
+        seed: () => ready([one]),
+        act: (cubit) async {
+          await cubit.add(two);
+          await cubit.add(two);
+        },
+        expect: () => const [HistoryState(status: HistoryStatus.unreadable)],
+        errors: () => <Object>[],
+      );
+
+      blocTest<HistoryCubit, HistoryState>(
+        'discardUnreadable starts a new history',
+        setUp: () =>
+            when(() => repository.discardUnreadable())
+                .thenAnswer((_) async => []),
+        build: buildCubit,
+        seed: () => const HistoryState(status: HistoryStatus.unreadable),
+        act: (cubit) => cubit.discardUnreadable(),
+        expect: () => [ready(const [])],
+      );
+
+      blocTest<HistoryCubit, HistoryState>(
+        'discardUnreadable reports storage errors',
+        setUp: () =>
+            when(() => repository.discardUnreadable())
+                .thenThrow(StateError('no disk')),
+        build: buildCubit,
+        seed: () => const HistoryState(status: HistoryStatus.unreadable),
+        act: (cubit) => cubit.discardUnreadable(),
+        expect: () => <HistoryState>[],
+        errors: () => [isA<StateError>()],
+      );
+    });
+
+    group('deleteAll', () {
+      blocTest<HistoryCubit, HistoryState>(
+        'empties the history',
+        setUp: () =>
+            when(() => repository.deleteAll()).thenAnswer((_) async {}),
+        build: buildCubit,
+        seed: () => const HistoryState(status: HistoryStatus.unreadable),
+        act: (cubit) => cubit.deleteAll(),
+        expect: () => [ready(const [])],
+        verify: (_) => verify(() => repository.deleteAll()).called(1),
+      );
+
+      test('throws storage errors', () async {
+        when(() => repository.deleteAll())
+            .thenAnswer((_) => Future.error(StateError('no disk')));
+        final cubit = buildCubit();
+
+        await expectLater(cubit.deleteAll(), throwsStateError);
+        expect(cubit.state, const HistoryState());
+      });
+
+      test('does not emit after close', () async {
+        when(() => repository.deleteAll()).thenAnswer((_) async {});
+        final cubit = buildCubit();
+        await cubit.close();
+
+        await cubit.deleteAll();
+        expect(cubit.state, const HistoryState());
+      });
+    });
+
+    group('incognito', () {
+      final starred = _entry('3', isFavorite: true);
+
+      test('can start incognito', () {
+        expect(
+          HistoryCubit(repository: repository, incognito: true).state,
+          const HistoryState(incognito: true),
+        );
+      });
+
+      blocTest<HistoryCubit, HistoryState>(
+        'setIncognito updates the state',
+        build: buildCubit,
+        act: (cubit) => cubit
+          ..setIncognito(enabled: true)
+          ..setIncognito(enabled: false),
+        expect: () => const [HistoryState(incognito: true), HistoryState()],
+      );
+
+      blocTest<HistoryCubit, HistoryState>(
+        'add ignores new entries',
+        build: buildCubit,
+        seed: () => ready([one]).copyWith(incognito: true),
+        act: (cubit) => cubit.add(two),
+        expect: () => <HistoryState>[],
+        verify: (_) => verifyNever(() => repository.add(any())),
+      );
+
+      blocTest<HistoryCubit, HistoryState>(
+        'add still saves favourites',
+        setUp: () =>
+            when(() => repository.add(starred))
+                .thenAnswer((_) async => [starred, one]),
+        build: buildCubit,
+        seed: () => ready([one]).copyWith(incognito: true),
+        act: (cubit) => cubit.add(starred),
+        expect: () => [
+          ready([starred, one]).copyWith(incognito: true),
+        ],
+      );
+    });
   });
 }
