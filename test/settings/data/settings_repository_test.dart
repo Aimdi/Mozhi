@@ -158,6 +158,27 @@ void main() {
         },
       );
 
+      test(
+        'keeps settings saved before privacy modes existed online',
+        () async {
+          final json = const AppSettings(engineId: 'mozhi:deepl').toJson()
+            ..remove('privacyMode');
+          prefs.values[SettingsRepository.settingsKey] = jsonEncode(json);
+
+          final loaded = await repository.load();
+          expect(loaded.privacyMode, PrivacyMode.online);
+          expect(loaded.engineId, 'mozhi:deepl');
+        },
+      );
+
+      test('reads a stored privacy mode as is', () async {
+        prefs.values[SettingsRepository.settingsKey] = jsonEncode(
+          const AppSettings(privacyMode: PrivacyMode.offlineOnly).toJson(),
+        );
+
+        expect((await repository.load()).privacyMode, PrivacyMode.offlineOnly);
+      });
+
       test('injects API keys from the secret store', () async {
         final settings = AppSettings(
           providers: [_provider('a'), _provider('b'), _provider('c')],

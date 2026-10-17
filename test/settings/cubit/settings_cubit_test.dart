@@ -511,6 +511,82 @@ void main() {
       );
     });
 
+    group('privacy', () {
+      mutation(
+        'setPrivacyMode stores the mode',
+        act: (cubit) => cubit.setPrivacyMode(PrivacyMode.offlineOnly),
+        expected: const AppSettings(privacyMode: PrivacyMode.offlineOnly),
+      );
+
+      mutation(
+        'approveNetworkPair appends the pair',
+        initial: const AppSettings(networkPairs: ['de>en']),
+        act: (cubit) => cubit.approveNetworkPair('fr>en'),
+        expected: const AppSettings(networkPairs: ['de>en', 'fr>en']),
+      );
+
+      noOp(
+        'approveNetworkPair ignores known and empty pairs',
+        initial: const AppSettings(networkPairs: ['de>en']),
+        act: (cubit) => cubit
+          ..approveNetworkPair('de>en')
+          ..approveNetworkPair(''),
+      );
+
+      mutation(
+        'clearNetworkPairs forgets every pair',
+        initial: const AppSettings(networkPairs: ['de>en']),
+        act: (cubit) => cubit.clearNetworkPairs(),
+        expected: const AppSettings(),
+      );
+
+      mutation(
+        'consentToProvider records the provider',
+        act: (cubit) => cubit.consentToProvider('p1'),
+        expected: const AppSettings(consentedProviders: ['p1']),
+      );
+
+      noOp(
+        'consentToProvider ignores known and empty ids',
+        initial: const AppSettings(consentedProviders: ['p1']),
+        act: (cubit) => cubit
+          ..consentToProvider('p1')
+          ..consentToProvider(''),
+      );
+
+      mutation(
+        'revokeProviderConsent removes the provider',
+        initial: const AppSettings(consentedProviders: ['p1', 'p2']),
+        act: (cubit) => cubit.revokeProviderConsent('p1'),
+        expected: const AppSettings(consentedProviders: ['p2']),
+      );
+
+      mutation(
+        'setIncognito stores the flag',
+        act: (cubit) => cubit.setIncognito(enabled: true),
+        expected: const AppSettings(incognito: true),
+      );
+
+      mutation(
+        'setSecureScreen stores the flag',
+        act: (cubit) => cubit.setSecureScreen(enabled: true),
+        expected: const AppSettings(secureScreen: true),
+      );
+
+      mutation(
+        'setHttpProxy stores the trimmed proxy',
+        act: (cubit) => cubit.setHttpProxy(' 127.0.0.1:8118 '),
+        expected: const AppSettings(httpProxy: '127.0.0.1:8118'),
+      );
+
+      mutation(
+        'setHttpProxy clears the proxy when blank',
+        initial: const AppSettings(httpProxy: '127.0.0.1:8118'),
+        act: (cubit) => cubit.setHttpProxy('  '),
+        expected: const AppSettings(),
+      );
+    });
+
     group('history retention', () {
       mutation(
         'setHistoryRetention stores the retention',

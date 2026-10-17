@@ -209,6 +209,63 @@ class SettingsCubit extends Cubit<AppSettings> {
   void setSaveHistory({required bool enabled}) =>
       _apply(state.copyWith(saveHistory: enabled));
 
+  // Privacy
+
+  void setPrivacyMode(PrivacyMode mode) =>
+      _apply(state.copyWith(privacyMode: mode));
+
+  /// Allows the language pair [pairKey] (`TranslationRepository.pairKey`)
+  /// to go to the network in [PrivacyMode.offlineFirst].
+  void approveNetworkPair(String pairKey) {
+    if (pairKey.isEmpty || state.networkPairs.contains(pairKey)) return;
+    _apply(
+      state.copyWith(
+        networkPairs: List.unmodifiable([...state.networkPairs, pairKey]),
+      ),
+    );
+  }
+
+  /// Forgets every pair approved with [approveNetworkPair].
+  void clearNetworkPairs() => _apply(state.copyWith(networkPairs: const []));
+
+  /// Records the user's consent to send text to the cloud provider [id].
+  void consentToProvider(String id) {
+    if (id.isEmpty || state.consentedProviders.contains(id)) return;
+    _apply(
+      state.copyWith(
+        consentedProviders: List.unmodifiable([
+          ...state.consentedProviders,
+          id,
+        ]),
+      ),
+    );
+  }
+
+  /// Withdraws the consent given with [consentToProvider].
+  void revokeProviderConsent(String id) => _apply(
+    state.copyWith(
+      consentedProviders: List.unmodifiable(
+        state.consentedProviders.where((p) => p != id),
+      ),
+    ),
+  );
+
+  void setIncognito({required bool enabled}) =>
+      _apply(state.copyWith(incognito: enabled));
+
+  void setSecureScreen({required bool enabled}) =>
+      _apply(state.copyWith(secureScreen: enabled));
+
+  /// Sets the HTTP proxy (`host:port`); null or blank = no proxy.
+  void setHttpProxy(String? proxy) {
+    final value = proxy?.trim();
+    _apply(
+      state.copyWith(
+        httpProxy: () => (value == null || value.isEmpty) ? null : value,
+      ),
+    );
+  }
+
   void setShowTransliteration({required bool enabled}) =>
       _apply(state.copyWith(showTransliteration: enabled));
 

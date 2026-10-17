@@ -112,12 +112,18 @@ class SettingsRepository {
     try {
       final json = jsonDecode(raw);
       if (json is! Map<String, dynamic>) return null;
-      final settings = AppSettings.fromJson(json);
+      var settings = AppSettings.fromJson(json);
       // Settings saved before onboarding existed belong to people who
       // already set the app up: don't send them through it again.
-      return json.containsKey('onboardingComplete')
-          ? settings
-          : settings.copyWith(onboardingComplete: true);
+      if (!json.containsKey('onboardingComplete')) {
+        settings = settings.copyWith(onboardingComplete: true);
+      }
+      // Settings saved before privacy modes existed keep working as they
+      // did: network engines without asking (cloud providers still ask).
+      if (!json.containsKey('privacyMode')) {
+        settings = settings.copyWith(privacyMode: PrivacyMode.online);
+      }
+      return settings;
     } on Object {
       return null;
     }

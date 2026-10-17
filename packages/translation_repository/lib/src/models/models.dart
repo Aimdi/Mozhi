@@ -1,6 +1,7 @@
 export 'ai_features.dart';
 export 'ai_provider_config.dart';
 export 'aligned_span.dart';
+export 'data_destination.dart';
 export 'language.dart';
 export 'meaning_check.dart';
 export 'mozhi_instance.dart';

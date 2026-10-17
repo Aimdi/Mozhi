@@ -52,6 +52,12 @@ const _custom = AppSettings(
     LanguagePair(source: _french, target: _pirate),
   ],
   extraTargets: [_german, _pirate],
+  privacyMode: PrivacyMode.offlineOnly,
+  networkPairs: ['de>en', 'auto>fr'],
+  consentedProviders: ['p1'],
+  incognito: true,
+  secureScreen: true,
+  httpProxy: '127.0.0.1:8118',
 );
 
 void main() {
@@ -84,6 +90,12 @@ void main() {
       expect(settings.qualityMode, QualityMode.off);
       expect(settings.recentPairs, isEmpty);
       expect(settings.extraTargets, isEmpty);
+      expect(settings.privacyMode, PrivacyMode.offlineFirst);
+      expect(settings.networkPairs, isEmpty);
+      expect(settings.consentedProviders, isEmpty);
+      expect(settings.incognito, isFalse);
+      expect(settings.secureScreen, isFalse);
+      expect(settings.httpProxy, isNull);
     });
 
     test('supports value equality', () {
@@ -178,6 +190,12 @@ void main() {
           qualityMode: _custom.qualityMode,
           recentPairs: _custom.recentPairs,
           extraTargets: _custom.extraTargets,
+          privacyMode: _custom.privacyMode,
+          networkPairs: _custom.networkPairs,
+          consentedProviders: _custom.consentedProviders,
+          incognito: _custom.incognito,
+          secureScreen: _custom.secureScreen,
+          httpProxy: () => _custom.httpProxy,
         );
 
         expect(copy, equals(_custom));
@@ -195,6 +213,7 @@ void main() {
         expect(copy.assistEngineId, isNull);
         expect(copy.fastEngineId, isNull);
         expect(copy.bestEngineId, isNull);
+        expect(_custom.copyWith(httpProxy: () => null).httpProxy, isNull);
       });
 
       test('keeps the quality engine ids when not given', () {
@@ -313,6 +332,12 @@ void main() {
           'qualityMode': true,
           'recentPairs': {'source': 'fr'},
           'extraTargets': 'fr',
+          'privacyMode': 'paranoid',
+          'networkPairs': 'de>en',
+          'consentedProviders': {'p1': true},
+          'incognito': 'yes',
+          'secureScreen': 1,
+          'httpProxy': '',
         });
 
         expect(settings, equals(const AppSettings()));
@@ -337,6 +362,26 @@ void main() {
         expect(settings.recentPairs, isEmpty);
         expect(settings.extraTargets, isEmpty);
         expect(settings.engineId, 'ai:p1');
+      });
+
+      test('reads the privacy fields, skipping invalid and duplicate '
+          'list elements', () {
+        final settings = AppSettings.fromJson(const {
+          'privacyMode': 'online',
+          'networkPairs': ['de>en', 3, '', 'de>en', 'fr>es'],
+          'consentedProviders': ['p1', null, 'p1'],
+          'incognito': true,
+          'secureScreen': false,
+          'httpProxy': 'proxy.lan:3128',
+        });
+
+        expect(settings.privacyMode, PrivacyMode.online);
+        expect(settings.networkPairs, ['de>en', 'fr>es']);
+        expect(settings.consentedProviders, ['p1']);
+        expect(settings.incognito, isTrue);
+        expect(settings.secureScreen, isFalse);
+        expect(settings.httpProxy, 'proxy.lan:3128');
+        expect(() => settings.networkPairs.add('x'), throwsUnsupportedError);
       });
 
       test('reads every retention and quality mode by name', () {

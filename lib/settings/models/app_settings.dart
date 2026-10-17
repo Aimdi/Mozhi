@@ -63,6 +63,12 @@ class AppSettings extends Equatable {
     this.qualityMode = QualityMode.off,
     this.recentPairs = const [],
     this.extraTargets = const [],
+    this.privacyMode = PrivacyMode.offlineFirst,
+    this.networkPairs = const [],
+    this.consentedProviders = const [],
+    this.incognito = false,
+    this.secureScreen = false,
+    this.httpProxy,
   });
 
   /// Tolerant counterpart of [toJson]: missing or invalid fields fall back to
@@ -122,6 +128,15 @@ class AppSettings extends Equatable {
       extraTargets: normalizeExtraTargets(
         _list(json['extraTargets'], Language.fromJson) ?? defaults.extraTargets,
       ),
+      privacyMode:
+          PrivacyMode.values.asNameMap()[json['privacyMode']] ??
+          defaults.privacyMode,
+      networkPairs: _strings(json['networkPairs']) ?? defaults.networkPairs,
+      consentedProviders:
+          _strings(json['consentedProviders']) ?? defaults.consentedProviders,
+      incognito: _bool(json['incognito']) ?? defaults.incognito,
+      secureScreen: _bool(json['secureScreen']) ?? defaults.secureScreen,
+      httpProxy: _string(json['httpProxy']),
     );
   }
 
@@ -219,9 +234,38 @@ class AppSettings extends Equatable {
   /// again with an engine that does).
   final List<Language> extraTargets;
 
+  /// How willing the app is to send text over the network (enforced by
+  /// `TranslationRepository.updatePrivacy`). New installs choose it during
+  /// onboarding; settings saved before it existed load as
+  /// [PrivacyMode.online] (see `SettingsRepository`), which is how the app
+  /// behaved then.
+  final PrivacyMode privacyMode;
+
+  /// Language pairs the user allowed to go to the network in
+  /// [PrivacyMode.offlineFirst] ("Always for this pair"), as
+  /// `TranslationRepository.pairKey` keys (`de>en`).
+  final List<String> networkPairs;
+
+  /// Ids of the cloud AI / MT providers the user agreed to send text to
+  /// (asked once per provider).
+  final List<String> consentedProviders;
+
+  /// Incognito: no history is written and keyboards are asked not to learn
+  /// from what is typed.
+  final bool incognito;
+
+  /// Hide the app's content in the recent apps screen and block
+  /// screenshots (Android `FLAG_SECURE`).
+  final bool secureScreen;
+
+  /// HTTP proxy (`host:port`, e.g. Orbot's `127.0.0.1:8118`) for every
+  /// request the app makes; null = direct connections.
+  final String? httpProxy;
+
   /// Returns a copy with the given fields replaced. The nullable
   /// [engineId] / [assistEngineId] / [fastEngineId] / [bestEngineId] take
-  /// closures so they can be reset to null: `copyWith(engineId: () => null)`.
+  /// closures so they can be reset to null: `copyWith(engineId: () => null)`;
+  /// so does [httpProxy].
   AppSettings copyWith({
     ThemeMode? themeMode,
     bool? dynamicColor,
@@ -248,6 +292,12 @@ class AppSettings extends Equatable {
     QualityMode? qualityMode,
     List<LanguagePair>? recentPairs,
     List<Language>? extraTargets,
+    PrivacyMode? privacyMode,
+    List<String>? networkPairs,
+    List<String>? consentedProviders,
+    bool? incognito,
+    bool? secureScreen,
+    String? Function()? httpProxy,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
@@ -277,6 +327,12 @@ class AppSettings extends Equatable {
       qualityMode: qualityMode ?? this.qualityMode,
       recentPairs: recentPairs ?? this.recentPairs,
       extraTargets: extraTargets ?? this.extraTargets,
+      privacyMode: privacyMode ?? this.privacyMode,
+      networkPairs: networkPairs ?? this.networkPairs,
+      consentedProviders: consentedProviders ?? this.consentedProviders,
+      incognito: incognito ?? this.incognito,
+      secureScreen: secureScreen ?? this.secureScreen,
+      httpProxy: httpProxy != null ? httpProxy() : this.httpProxy,
     );
   }
 
@@ -317,6 +373,12 @@ class AppSettings extends Equatable {
       'qualityMode': qualityMode.name,
       'recentPairs': [for (final pair in recentPairs) pair.toJson()],
       'extraTargets': [for (final language in extraTargets) language.toJson()],
+      'privacyMode': privacyMode.name,
+      'networkPairs': networkPairs,
+      'consentedProviders': consentedProviders,
+      'incognito': incognito,
+      'secureScreen': secureScreen,
+      'httpProxy': httpProxy,
     };
   }
 
@@ -348,6 +410,12 @@ class AppSettings extends Equatable {
     qualityMode,
     recentPairs,
     extraTargets,
+    privacyMode,
+    networkPairs,
+    consentedProviders,
+    incognito,
+    secureScreen,
+    httpProxy,
   ];
 }
 
@@ -357,6 +425,14 @@ int? _int(Object? value) => value is num ? value.toInt() : null;
 
 String? _string(Object? value) =>
     value is String && value.isNotEmpty ? value : null;
+
+/// The non-empty, distinct strings of a JSON list, or null when [value] is
+/// not a list.
+List<String>? _strings(Object? value) => value is List
+    ? List.unmodifiable(
+        value.whereType<String>().where((s) => s.isNotEmpty).toSet(),
+      )
+    : null;
 
 /// Parses a nested JSON object, or returns null when it is missing/invalid.
 T? _object<T>(Object? value, T Function(Map<String, dynamic> json) parse) {
