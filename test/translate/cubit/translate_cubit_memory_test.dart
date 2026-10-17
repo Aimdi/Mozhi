@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/data/translation_memory.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
@@ -431,6 +432,98 @@ void main() {
         cubit.useMemoryMatch();
       },
       verify: (cubit) => expect(cubit.state.result, isNull),
+    );
+  });
+
+  group('history changes', () {
+    late StreamController<HistoryState> history;
+
+    HistoryState ready(List<HistoryEntry> entries) =>
+        HistoryState(status: HistoryStatus.ready, entries: entries);
+
+    setUp(() {
+      history = StreamController<HistoryState>();
+      whenListen(mocks.history, history.stream, initialState: ready(const []));
+    });
+
+    tearDown(() => history.close());
+
+    blocTest<TranslateCubit, TranslateState>(
+      'offer a match saved after the input was typed',
+      build: () => mocks.build(),
+      seed: readyState,
+      act: (cubit) async {
+        cubit.setInput('Hallo');
+        expect(cubit.state.memoryMatch, isNull);
+        history.add(ready([_entry('1', text: 'Hallo')]));
+        await pumpEventQueue();
+      },
+      verify: (cubit) => expect(cubit.state.memoryMatch?.entry.id, '1'),
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'drop a match whose entry was deleted',
+      setUp: () =>
+          when(() => mocks.history.state)
+              .thenReturn(ready([_entry('1', text: 'Hallo')])),
+      build: () => mocks.build(),
+      seed: readyState,
+      act: (cubit) async {
+        cubit.setInput('Hallo');
+        expect(cubit.state.memoryMatch?.entry.id, '1');
+        history.add(ready(const []));
+        await pumpEventQueue();
+      },
+      verify: (cubit) => expect(cubit.state.memoryMatch, isNull),
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'never offer the translation just made of the input',
+      setUp: () => mocks.stubTranslate(),
+      build: () => mocks.build(),
+      seed: readyState,
+      act: (cubit) async {
+        cubit.setInput('Hallo');
+        await Future<void>.delayed(afterDebounce);
+        final saved = mocks.historyEntries().single;
+        expect(saved.text, 'Hallo');
+        history.add(ready([saved]));
+        await pumpEventQueue();
+      },
+      verify: (cubit) => expect(cubit.state.memoryMatch, isNull),
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'keep a dismissed match hidden',
+      setUp: () =>
+          when(() => mocks.history.state)
+              .thenReturn(ready([_entry('1', text: 'Hallo')])),
+      build: () => mocks.build(),
+      seed: readyState,
+      act: (cubit) async {
+        cubit
+          ..setInput('Hallo')
+          ..dismissMemoryMatch();
+        history.add(
+          ready([_entry('2', text: 'Hallo'), _entry('1', text: 'Hallo')]),
+        );
+        await pumpEventQueue();
+        expect(cubit.state.memoryMatch, isNull);
+        // A new input looks again.
+        cubit.setInput('hallo ');
+      },
+      verify: (cubit) => expect(cubit.state.memoryMatch?.entry.id, '2'),
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'look nothing up without input',
+      build: () => mocks.build(),
+      seed: readyState,
+      act: (cubit) async {
+        history.add(ready([_entry('1', text: 'Hallo')]));
+        await pumpEventQueue();
+      },
+      expect: () => <TranslateState>[],
     );
   });
 

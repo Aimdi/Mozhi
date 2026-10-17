@@ -46,8 +46,9 @@ test('a translation appears in History and can be starred', async ({
   await expect(item).toBeVisible();
   await expect(item).toHaveAccessibleName(
     new RegExp(
-      // Header (pair · engine · time), the translation, the quoted source.
-      `^.*English \\(detected\\).* → .*French.*· Local AI \\(mock\\) · .*` +
+      // Header (pair, then engine · time: on the same line after " · " or,
+      // on a narrow screen, below it), the translation, the quoted source.
+      `^.*English \\(detected\\).* → .*French.*Local AI \\(mock\\) · .*` +
         `\\[AI→French \\(Français\\)\\] ${FIRST}.* ${FIRST}`,
     ),
   );

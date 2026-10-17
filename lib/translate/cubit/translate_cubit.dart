@@ -114,6 +114,7 @@ class TranslateCubit extends Cubit<TranslateState> {
          ),
        ) {
     _settingsSubscription = settings.stream.listen(_onSettings);
+    _historySubscription = _history.stream.listen(_onHistory);
   }
 
   /// Most codes in [TranslationRequest.recentSourceLanguages].
@@ -182,6 +183,10 @@ class TranslateCubit extends Cubit<TranslateState> {
   /// replaced as a whole: they are translations of earlier versions of the
   /// text being typed, so they are not offered as similar text.
   final _typingEntryIds = <String>{};
+
+  /// Whether [dismissMemoryMatch] hid the match for the current input and
+  /// languages (a history change doesn't bring it back).
+  bool _memoryDismissed = false;
 
   /// Instant-translate delay for Mozhi engines.
   // Immutable configuration passed to the constructor, not state.
@@ -253,6 +258,9 @@ class TranslateCubit extends Cubit<TranslateState> {
   List<Language> _seenExtraTargets;
 
   late final StreamSubscription<AppSettings> _settingsSubscription;
+
+  /// The history, for [TranslateState.memoryMatch] ([_onHistory]).
+  late final StreamSubscription<HistoryState> _historySubscription;
 
   /// [TranslationRepository.metadataChanged], listened to from the first
   /// [loadEngines] on (null for repository test doubles without it).
@@ -3702,12 +3710,30 @@ class TranslateCubit extends Cubit<TranslateState> {
     if (next.input != previous.input ||
         next.source != previous.source ||
         next.target != previous.target) {
+      _memoryDismissed = false;
       final match = _lookUpMemory(next);
       if (match != next.memoryMatch) {
         next = next.copyWith(memoryMatch: () => match);
       }
     }
     super.emit(next);
+  }
+
+  /// Looks the input up again when the history changes: a translation is
+  /// saved (encrypted) after a moment, so text typed again right away (or
+  /// before the history was read) would otherwise miss it; a deleted entry
+  /// is no longer offered. The translation just made of this very input
+  /// ([_typingEntryIds]) is not offered back, and a dismissed match stays
+  /// hidden.
+  void _onHistory(HistoryState history) {
+    if (isClosed || _memoryDismissed || state.input.trim().isEmpty) return;
+    var match = _lookUpMemory(state);
+    if (match != null && _typingEntryIds.contains(match.entry.id)) {
+      match = state.memoryMatch;
+    }
+    if (match != state.memoryMatch) {
+      emit(state.copyWith(memoryMatch: () => match));
+    }
   }
 
   /// The best earlier translation of [state]'s input into its target in
@@ -3764,6 +3790,7 @@ class TranslateCubit extends Cubit<TranslateState> {
   /// change.
   void dismissMemoryMatch() {
     if (state.memoryMatch == null) return;
+    _memoryDismissed = true;
     emit(state.copyWith(memoryMatch: () => null));
   }
 
@@ -3778,6 +3805,7 @@ class TranslateCubit extends Cubit<TranslateState> {
     _cancelRefinement();
     _withoutExtraTranslations(state);
     unawaited(_settingsSubscription.cancel());
+    unawaited(_historySubscription.cancel());
     unawaited(_metadataSubscription?.cancel());
     return super.close();
   }
