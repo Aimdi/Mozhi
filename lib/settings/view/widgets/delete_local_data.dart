@@ -41,7 +41,7 @@ class LocalDataSummary {
   /// Saved API keys.
   final int apiKeys;
 
-  /// Downloaded offline language models.
+  /// Downloaded offline languages (not counting built-in English).
   final int offlineModels;
 }
 
@@ -200,11 +200,13 @@ class LocalDataEraser {
     }
   }
 
+  /// Languages with downloaded models: English, which every offline model
+  /// translates from or into, needs no download and is left out.
   Future<Set<String>> _downloadedModels() async {
     final offline = this.offline;
     if (offline == null || !offline.isAvailable) return const {};
     try {
-      return await offline.downloadedLanguages();
+      return {...await offline.downloadedLanguages()}..remove('en');
     } on Object {
       return const {};
     }

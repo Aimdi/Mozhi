@@ -1280,14 +1280,6 @@
   "@settingsInstanceTest": {
     "description": "settingsInstanceTest"
   },
-  "settingsInstanceTestOk": "Reachable in {ms} ms",
-  "@settingsInstanceTestOk": {
-    "placeholders": {
-      "ms": {
-        "type": "int"
-      }
-    }
-  },
   "settingsInstanceTestFailed": "Couldn't reach this instance: {error}",
   "@settingsInstanceTestFailed": {
     "placeholders": {
@@ -1519,10 +1511,6 @@
   "settingsProviderUrlInvalid": "Enter a valid http:// or https:// URL",
   "@settingsProviderUrlInvalid": {
     "description": "settingsProviderUrlInvalid"
-  },
-  "settingsProviderInsecureWarning": "Not encrypted: your text and API key would travel over plain HTTP. Use https:// for remote servers.",
-  "@settingsProviderInsecureWarning": {
-    "description": "settingsProviderInsecureWarning"
   },
   "settingsAboutTitle": "About",
   "@settingsAboutTitle": {
@@ -2975,14 +2963,6 @@
   "@offlineTitle": {
     "description": "offlineTitle"
   },
-  "offlineDescription": "Translate without an internet connection using on-device models from Google ML Kit. Each language is about 30 MB and stays on this device.",
-  "@offlineDescription": {
-    "description": "offlineDescription"
-  },
-  "offlineUnavailable": "Offline translation is available on Android and iOS",
-  "@offlineUnavailable": {
-    "description": "offlineUnavailable"
-  },
   "offlineDownloadedCount": "{count, plural, =0{No languages downloaded} =1{1 language downloaded} other{{count} languages downloaded}}",
   "@offlineDownloadedCount": {
     "placeholders": {
@@ -2994,10 +2974,6 @@
   "offlineWifiOnly": "Download over Wi-Fi only",
   "@offlineWifiOnly": {
     "description": "offlineWifiOnly"
-  },
-  "offlineWifiOnlyDescription": "Downloads wait for Wi-Fi so they never use mobile data",
-  "@offlineWifiOnlyDescription": {
-    "description": "offlineWifiOnlyDescription"
   },
   "offlineSearchHint": "Search languages",
   "@offlineSearchHint": {
@@ -3046,10 +3022,6 @@
   "offlineDownloading": "Downloading…",
   "@offlineDownloading": {
     "description": "offlineDownloading"
-  },
-  "offlineDownloadingWifiOnly": "Downloading when on Wi-Fi…",
-  "@offlineDownloadingWifiOnly": {
-    "description": "offlineDownloadingWifiOnly"
   },
   "offlineDeleting": "Deleting…",
   "@offlineDeleting": {
@@ -3114,14 +3086,6 @@
   "speechUnavailable": "No voice is available for this language. Add a Mozhi instance or install a voice in your device's text-to-speech settings.",
   "@speechUnavailable": {
     "description": "Snackbar when neither Mozhi nor the device text-to-speech can read the text aloud"
-  },
-  "speechPreferDeviceVoice": "Use device voice",
-  "@speechPreferDeviceVoice": {
-    "description": "Settings switch: read aloud with the device text-to-speech engine first"
-  },
-  "speechPreferDeviceVoiceDescription": "Read aloud with your device's text-to-speech instead of the Mozhi instance. Works offline when the voice is installed.",
-  "@speechPreferDeviceVoiceDescription": {
-    "description": "Subtitle of the use-device-voice settings switch"
   },
   "speechListenSlowly": "Listen slowly",
   "@speechListenSlowly": {
@@ -3429,10 +3393,6 @@
   "conversationNoEngine": "No translation engine is set up.",
   "@conversationNoEngine": {
     "description": "conversationNoEngine"
-  },
-  "conversationSpeechError": "Couldn't play audio.",
-  "@conversationSpeechError": {
-    "description": "conversationSpeechError"
   },
   "conversationCopyOriginal": "Copy original",
   "@conversationCopyOriginal": {
@@ -4008,10 +3968,6 @@
   "@settingsRunSetupSubtitle": {
     "description": "settingsRunSetupSubtitle"
   },
-  "settingsInstancesRefresh": "Check latency again",
-  "@settingsInstancesRefresh": {
-    "description": "settingsInstancesRefresh"
-  },
   "settingsInstancesPingSummary": "{online} of {total, plural, =1{1 instance} other{{total} instances}} reachable",
   "@settingsInstancesPingSummary": {
     "placeholders": {
@@ -4070,41 +4026,6 @@
   "settingsProviderInsecureTitle": "Connection not encrypted",
   "@settingsProviderInsecureTitle": {
     "description": "settingsProviderInsecureTitle"
-  },
-  "settingsProviderInsecureConfirmTitle": "Send without encryption?",
-  "@settingsProviderInsecureConfirmTitle": {
-    "description": "settingsProviderInsecureConfirmTitle"
-  },
-  "settingsProviderInsecureConfirmBody": "{host} uses plain HTTP. Anyone on the network between you and this server can read your text.",
-  "@settingsProviderInsecureConfirmBody": {
-    "placeholders": {
-      "host": {
-        "type": "String"
-      }
-    }
-  },
-  "settingsProviderInsecureConfirmBodyKey": "{host} uses plain HTTP. Anyone on the network between you and this server can read your text and your API key.",
-  "@settingsProviderInsecureConfirmBodyKey": {
-    "placeholders": {
-      "host": {
-        "type": "String"
-      }
-    }
-  },
-  "settingsProviderInsecureConfirmAction": "Send without encryption",
-  "@settingsProviderInsecureConfirmAction": {
-    "description": "settingsProviderInsecureConfirmAction"
-  },
-  "settingsProviderPresetHeadersDropped": "This server isn't {preset}, so the headers added for {preset} ({headers}) won't be sent.",
-  "@settingsProviderPresetHeadersDropped": {
-    "placeholders": {
-      "preset": {
-        "type": "String"
-      },
-      "headers": {
-        "type": "String"
-      }
-    }
   },
   "settingsProviderFixErrors": "Fix the highlighted fields",
   "@settingsProviderFixErrors": {
@@ -5931,41 +5852,9 @@
   "@webTranslateErrorBlockedRedirect": {
     "description": "Shown when a public page redirects to localhost or a private network address"
   },
-  "settingsOfflineNotIncluded": "Not included in this build: it needs Google ML Kit, which is not free software",
-  "@settingsOfflineNotIncluded": {
-    "description": "settingsOfflineNotIncluded"
-  },
-  "offlineNotIncluded": "This build has no offline translation: it needs Google ML Kit, which is not free software",
-  "@offlineNotIncluded": {
-    "description": "offlineNotIncluded"
-  },
   "settingsInstanceInsecureTitle": "Connection not encrypted",
   "@settingsInstanceInsecureTitle": {
     "description": "settingsInstanceInsecureTitle"
-  },
-  "settingsInstanceInsecureWarning": "This instance uses plain HTTP: the text you translate would travel unencrypted, readable by anyone on the network in between. Use https:// for instances outside your network.",
-  "@settingsInstanceInsecureWarning": {
-    "description": "settingsInstanceInsecureWarning"
-  },
-  "settingsInstanceInsecureConfirmTitle": "Add without encryption?",
-  "@settingsInstanceInsecureConfirmTitle": {
-    "description": "settingsInstanceInsecureConfirmTitle"
-  },
-  "settingsInstanceInsecureConfirmBody": "{host} uses plain HTTP. Anyone on the network between you and this instance can read the text you translate with it.",
-  "@settingsInstanceInsecureConfirmBody": {
-    "placeholders": {
-      "host": {
-        "type": "String"
-      }
-    }
-  },
-  "settingsInstanceInsecureConfirmAction": "Add without encryption",
-  "@settingsInstanceInsecureConfirmAction": {
-    "description": "settingsInstanceInsecureConfirmAction"
-  },
-  "onboardingServiceOwnInsecure": "This instance uses plain HTTP. Confirm that you want to add it without encryption.",
-  "@onboardingServiceOwnInsecure": {
-    "description": "onboardingServiceOwnInsecure"
   },
   "translateRefineAndLearn": "Refine & learn",
   "@translateRefineAndLearn": {
@@ -6304,7 +6193,7 @@
       }
     }
   },
-  "settingsDeleteAllDataModels": "{count, plural, =1{1 offline language model (about 30 MB)} other{{count} offline language models (about 30 MB each)}}",
+  "settingsDeleteAllDataModels": "{count, plural, =1{1 downloaded offline language} other{{count} downloaded offline languages}}",
   "@settingsDeleteAllDataModels": {
     "placeholders": {
       "count": {
@@ -6490,10 +6379,6 @@
       }
     }
   },
-  "commonDestinationOwnServerShort": "Your server",
-  "@commonDestinationOwnServerShort": {
-    "description": "commonDestinationOwnServerShort"
-  },
   "commonDestinationPublicServer": "a public server",
   "@commonDestinationPublicServer": {
     "description": "commonDestinationPublicServer"
@@ -6643,15 +6528,6 @@
   "speechUnavailableOnline": "This device has no voice for this language. {host} can read it aloud, but it receives the text in the request address, which can end up in its logs.",
   "@speechUnavailableOnline": {
     "description": "No device voice; a Mozhi instance could read the text aloud with the user consent.",
-    "placeholders": {
-      "host": {
-        "type": "String"
-      }
-    }
-  },
-  "speechListenVia": "Listen via {host}",
-  "@speechListenVia": {
-    "description": "Snack bar action: read the text aloud through the named Mozhi instance once.",
     "placeholders": {
       "host": {
         "type": "String"

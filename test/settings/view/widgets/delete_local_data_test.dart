@@ -110,7 +110,8 @@ void main() {
     when(() => settingsRepository.save(any())).thenAnswer((_) async {});
     offline = _MockOfflineTranslator();
     when(() => offline.isAvailable).thenReturn(true);
-    when(offline.downloadedLanguages).thenAnswer((_) async => {'de', 'en'});
+    when(offline.downloadedLanguages)
+        .thenAnswer((_) async => {'de', 'en', 'fr'});
     when(() => offline.deleteLanguage(any())).thenAnswer((_) async {});
     translate = MockTranslateCubit();
     preferences = MemoryStore({'settings.v1': '{}', 'presets.v1': '[]'});
@@ -156,7 +157,7 @@ void main() {
 
     test('leaves out what it cannot find out', () async {
       when(historyRepository.storedLength).thenThrow(StateError('disk'));
-      when(offline.downloadedLanguages).thenThrow(StateError('ml kit'));
+      when(offline.downloadedLanguages).thenThrow(StateError('engine'));
 
       final summary = await eraser().summarize();
 
@@ -178,7 +179,9 @@ void main() {
 
       verify(history.deleteAll).called(1);
       verify(() => offline.deleteLanguage('de')).called(1);
-      verify(() => offline.deleteLanguage('en')).called(1);
+      verify(() => offline.deleteLanguage('fr')).called(1);
+      // English is built in.
+      verifyNever(() => offline.deleteLanguage('en'));
       final change =
           verify(() => settings.update(captureAny())).captured.single
               as AppSettings Function(AppSettings);
@@ -389,10 +392,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('1 API key'), findsOneWidget);
-      expect(
-        find.text('2 offline language models (about 30 MB each)'),
-        findsOneWidget,
-      );
+      expect(find.text('2 downloaded offline languages'), findsOneWidget);
       expect(find.textContaining("can't be undone"), findsOneWidget);
     });
 
@@ -401,7 +401,7 @@ void main() {
 
       expect(find.text('Translation history: 1 translation'), findsOneWidget);
       expect(find.text('API keys (none saved)'), findsOneWidget);
-      expect(find.textContaining('offline language model'), findsNothing);
+      expect(find.textContaining('offline language'), findsNothing);
     });
   });
 
