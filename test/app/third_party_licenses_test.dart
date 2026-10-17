@@ -122,4 +122,45 @@ void main() {
       );
     });
   });
+
+  group('tesseractEngineLicenseText', () {
+    test('names every component of THIRD_PARTY_NOTICES.md', () {
+      final notices = File(
+        'packages/tesseract_ocr/native/THIRD_PARTY_NOTICES.md',
+      ).readAsLinesSync();
+      final components = [
+        for (final line in notices)
+          if (line.startsWith('| ') &&
+              !line.startsWith('| Component') &&
+              !line.startsWith('| ---'))
+            line.substring(2).split(' | ').first.split(' (').first.trim(),
+      ];
+
+      expect(components, hasLength(3));
+      for (final component in components) {
+        expect(tesseractEngineLicenseText, contains(component));
+      }
+    });
+
+    test('is registered with the language data notice', () async {
+      registerThirdPartyLicenses();
+
+      final entries = await _entries();
+      expect(
+        _text(entries, tesseractEngineLicensePackage),
+        allOf(
+          contains('https://github.com/tesseract-ocr/tesseract'),
+          contains('Apache License 2.0'),
+          contains('Redistributions in binary form must reproduce'),
+        ),
+      );
+      expect(
+        _text(entries, tesseractDataLicensePackage),
+        allOf(
+          contains('https://github.com/tesseract-ocr/tessdata_fast'),
+          contains('raw.githubusercontent.com'),
+        ),
+      );
+    });
+  });
 }

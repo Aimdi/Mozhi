@@ -70,6 +70,8 @@ class ImageTranslatePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Read here: the create callback must not depend on inherited widgets.
+    final locale = Localizations.maybeLocaleOf(context);
     return BlocProvider(
       create: (context) {
         final translate = context.read<TranslateCubit>().state;
@@ -86,10 +88,7 @@ class ImageTranslatePage extends StatelessWidget {
           target: translate.target,
           options: translate.options,
           usageTracker: _usageTracker(context),
-          preferredLanguages: ocrPreferredLanguages(
-            settings,
-            Localizations.maybeLocaleOf(context),
-          ),
+          preferredLanguages: ocrPreferredLanguages(settings, locale),
         );
       },
       child: ImageTranslateView(initialSource: initialSource),

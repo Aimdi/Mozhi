@@ -16,6 +16,13 @@ const bergamotEngineLicensePackage = 'Firefox Translations engine (Bergamot)';
 /// Package name of the notice of the offline translation models.
 const bergamotModelsLicensePackage = 'Firefox Translations models';
 
+/// Package name of the text recognition engine's notice
+/// (`libmozhi_tesseract.so`, packages/tesseract_ocr).
+const tesseractEngineLicensePackage = 'Tesseract OCR engine';
+
+/// Package name of the notice of the text recognition language data.
+const tesseractDataLicensePackage = 'Tesseract language data (tessdata_fast)';
+
 /// The app's own license (repository `LICENSE`).
 const appLicenseText = '''
 MIT License
@@ -158,6 +165,60 @@ DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
 USE OR OTHER DEALINGS IN THE SOFTWARE.''';
 
+/// The notices of `libmozhi_tesseract.so`, from
+/// `packages/tesseract_ocr/native/THIRD_PARTY_NOTICES.md` (a test checks
+/// that every component listed there is named here).
+const tesseractEngineLicenseText = '''
+On-device text recognition (photo and camera translation) runs the
+Tesseract OCR engine with the Leptonica image processing library, compiled
+into one native library (libmozhi_tesseract.so).
+
+Source code: https://github.com/tesseract-ocr/tesseract (tag 5.5.3) and
+https://github.com/DanBloomberg/leptonica (tag 1.87.0), pinned as git
+submodules in packages/tesseract_ocr/native/third_party/ of the Mozhi
+repository (https://github.com/Aimdi/Mozhi), together with the build files.
+Both are unmodified.
+
+Components and their licenses:
+- Tesseract OCR 5.5.3: Apache License 2.0, Copyright Hewlett-Packard Company, Google Inc. and the Tesseract contributors
+- Leptonica 1.87.0: BSD-2-Clause, Copyright (C) 2001-2020 Leptonica (its red-black tree is derived from public-domain CC0 code)
+- LLVM libc++ (Android NDK, linked statically): Apache License 2.0 with LLVM exception
+- The mozhi_tesseract interface: MIT, like the app
+
+License texts:
+- Apache License 2.0: https://www.apache.org/licenses/LICENSE-2.0
+
+Leptonica, Copyright (C) 2001-2020 Leptonica. All rights reserved.
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met: 1. Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright
+notice, this list of conditions and the following disclaimer in the
+documentation and/or other materials provided with the distribution.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL ANY CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+SUCH DAMAGE.''';
+
+/// The license of the text recognition language data (downloaded at run
+/// time, never bundled).
+const tesseractDataLicenseText = '''
+The text recognition language data is Tesseract's tessdata_fast
+(https://github.com/tesseract-ocr/tessdata_fast), licensed under the
+Apache License 2.0 (https://www.apache.org/licenses/LICENSE-2.0).
+
+It is not part of the app: each language is downloaded only when you
+choose it, from GitHub (raw.githubusercontent.com), checked against the
+SHA-256 checksums bundled with the app and kept on this device.''';
+
 /// The license of the Firefox Translations models (downloaded at run time,
 /// never bundled).
 const bergamotModelsLicenseText = '''
@@ -173,9 +234,10 @@ with the app and kept on this device.''';
 bool _registered = false;
 
 /// Adds the notices Flutter does not collect from pub packages (the app's
-/// own license, the offline translation engine and models, ML Kit and
-/// native platform libraries) to the [LicenseRegistry] shown by
-/// `showLicensePage`. Safe to call repeatedly.
+/// own license, the offline translation engine and models, the text
+/// recognition engine and data, ML Kit and native platform libraries) to
+/// the [LicenseRegistry] shown by `showLicensePage`. Safe to call
+/// repeatedly.
 ///
 /// The ML Kit notice is only added with [includeMlKit] (the Play variant;
 /// `bootstrap` passes `mlKitIncluded`).
@@ -191,6 +253,12 @@ void registerThirdPartyLicenses({bool includeMlKit = false}) {
       const LicenseEntryWithLineBreaks([
         bergamotModelsLicensePackage,
       ], bergamotModelsLicenseText),
+      const LicenseEntryWithLineBreaks([
+        tesseractEngineLicensePackage,
+      ], tesseractEngineLicenseText),
+      const LicenseEntryWithLineBreaks([
+        tesseractDataLicensePackage,
+      ], tesseractDataLicenseText),
       if (includeMlKit)
         const LicenseEntryWithLineBreaks([
           mlKitLicensePackage,

@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/network/network_policy.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
+import 'package:mozhi/image_translate/data/text_recognition_service.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/cubit/offline_models_cubit.dart';
 import 'package:mozhi/offline/data/bergamot_model_details.dart';
@@ -13,9 +14,11 @@ import 'package:mozhi/offline/data/offline_model_details.dart';
 import 'package:mozhi/offline/data/offline_model_error.dart';
 import 'package:mozhi/offline/data/offline_model_file_picker.dart';
 import 'package:mozhi/offline/data/unavailable_offline_translator.dart';
+import 'package:mozhi/offline/view/ocr_languages_page.dart';
 import 'package:mozhi/offline/widgets/offline_import_summary.dart';
 import 'package:mozhi/offline/widgets/offline_language_tile.dart';
 import 'package:mozhi/offline/widgets/offline_manual_files_sheet.dart';
+import 'package:mozhi/platform/mlkit_bindings.dart';
 import 'package:mozhi/settings/view/widgets/delete_local_data.dart'
     show formatStoredSize;
 import 'package:mozhi/settings/view/widgets/empty_state_view.dart';
@@ -25,13 +28,17 @@ import 'package:translation_repository/translation_repository.dart';
 /// Manage the on-device (offline) translation models: Mozilla's Firefox
 /// Translations models, with sizes, progress, updates, the metered network
 /// prompt, and imports from files (no network) with the files to download
-/// by hand per language.
+/// by hand per language. Links to the text recognition languages
+/// ([OcrLanguagesPage]) when the build's recognizer downloads data per
+/// language and runs here.
 ///
 /// Uses [translator] and [store] when given, otherwise the
 /// [OfflineTranslator] and [KeyValueStore] provided above (falling back to
 /// an [UnavailableOfflineTranslator] and the platform preferences).
 /// [details] defaults to [offlineModelDetailsOf] the translator (which also
-/// imports), [picker] to the platform file picker.
+/// imports), [picker] to the platform file picker, [textRecognition] to
+/// the language data of the build's recognizer
+/// ([createTextRecognitionService]; none with ML Kit).
 class OfflineModelsPage extends StatelessWidget {
   const new({
     super.key,
@@ -39,12 +46,14 @@ class OfflineModelsPage extends StatelessWidget {
     this.store,
     this.details,
     this.picker,
+    this.textRecognition,
   });
 
   final OfflineTranslator? translator;
   final KeyValueStore? store;
   final OfflineModelDetails? details;
   final OfflineModelFilePicker? picker;
+  final TextRecognitionLanguageData? textRecognition;
 
   @override
   Widget build(BuildContext context) {
@@ -64,7 +73,11 @@ class OfflineModelsPage extends StatelessWidget {
         unawaited(cubit.load());
         return cubit;
       },
-      child: const OfflineModelsView(),
+      child: OfflineModelsView(
+        textRecognition:
+            textRecognition ??
+            textRecognitionLanguageDataOf(createTextRecognitionService()),
+      ),
     );
   }
 
@@ -78,7 +91,10 @@ class OfflineModelsPage extends StatelessWidget {
 }
 
 class OfflineModelsView extends StatelessWidget {
-  const new({super.key});
+  const new({super.key, this.textRecognition});
+
+  /// The text recognition languages to link to, if any.
+  final TextRecognitionLanguageData? textRecognition;
 
   Future<void> _onOutcome(
     BuildContext context,
@@ -149,7 +165,9 @@ class OfflineModelsView extends StatelessWidget {
             OfflineModelsStatus.initial || OfflineModelsStatus.loading =>
               const Center(child: CircularProgressIndicator()),
             OfflineModelsStatus.failure => const _LoadFailure(),
-            OfflineModelsStatus.ready => const _ModelsList(),
+            OfflineModelsStatus.ready => _ModelsList(
+              textRecognition: textRecognition,
+            ),
           },
         ),
       ),
@@ -277,7 +295,9 @@ class _LoadFailure extends StatelessWidget {
 }
 
 class _ModelsList extends StatelessWidget {
-  const new();
+  const new({this.textRecognition});
+
+  final TextRecognitionLanguageData? textRecognition;
 
   Future<void> _delete(BuildContext context, OfflineLanguage language) async {
     final cubit = context.read<OfflineModelsCubit>();
@@ -338,7 +358,7 @@ class _ModelsList extends StatelessWidget {
             .resolve(TextDirection.ltr),
         children: [
           if (!state.isAvailable) const _UnavailableBanner(),
-          _Overview(state: state),
+          _Overview(state: state, textRecognition: textRecognition),
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 8, 16, 8),
             child: _SearchField(),
@@ -434,9 +454,10 @@ class _UnavailableBanner extends StatelessWidget {
 }
 
 class _Overview extends StatelessWidget {
-  const new({required this.state});
+  const new({required this.state, this.textRecognition});
 
   final OfflineModelsState state;
+  final TextRecognitionLanguageData? textRecognition;
 
   @override
   Widget build(BuildContext context) {
@@ -499,6 +520,8 @@ class _Overview extends StatelessWidget {
               : null,
         ),
         if (state.canImport) _ImportTile(importing: state.importing),
+        if (textRecognition case final data? when data.isSupported)
+          OcrLanguagesEntry(data: data),
         const Hairline(),
       ],
     );
@@ -620,6 +643,73 @@ class _SearchFieldState extends State<_SearchField> {
         ),
       ],
       onChanged: context.read<OfflineModelsCubit>().search,
+    );
+  }
+}
+
+/// "Text recognition": opens the text recognition languages
+/// ([OcrLanguagesPage]); says how many are downloaded.
+class OcrLanguagesEntry extends StatefulWidget {
+  const new({required this.data, super.key});
+
+  final TextRecognitionLanguageData data;
+
+  @override
+  State<OcrLanguagesEntry> createState() => _OcrLanguagesEntryState();
+}
+
+class _OcrLanguagesEntryState extends State<OcrLanguagesEntry> {
+  StreamSubscription<void>? _changes;
+  int? _count;
+
+  @override
+  void initState() {
+    super.initState();
+    _changes = widget.data.ocrLanguagesChanged.listen((_) => _load());
+    _load();
+  }
+
+  @override
+  void dispose() {
+    unawaited(_changes?.cancel());
+    super.dispose();
+  }
+
+  void _load() {
+    unawaited(
+      widget.data.installedOcrLanguages().then(
+        (installed) {
+          if (mounted) setState(() => _count = installed.length);
+        },
+        onError: (Object _) {
+          // The count is a hint; the page itself reports failures.
+        },
+      ),
+    );
+  }
+
+  void _open(BuildContext context) {
+    final store = OfflineModelsPage._maybeRead<KeyValueStore>(context);
+    Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => OcrLanguagesPage(data: widget.data, store: store),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return ListTile(
+      key: const Key('offline_ocr'),
+      leading: const Icon(Icons.document_scanner_outlined),
+      title: Text(l10n.offlineOcrTitle),
+      subtitle: Text(
+        l10n.offlineOcrEntrySubtitle(_count ?? 0),
+        style: TextStyle(color: AppPalette.of(context).secondaryText),
+      ),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => _open(context),
     );
   }
 }

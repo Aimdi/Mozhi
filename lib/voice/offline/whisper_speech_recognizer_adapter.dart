@@ -150,8 +150,12 @@ class WhisperSpeechRecognizerAdapter implements OfflineSpeechRecognizerAdapter {
     if (session == null) return;
     if (session.recording) {
       session.recording = false;
-      await session.subscription?.cancel();
-      await _stopRecorder();
+      // Without a subscription the microphone is still opening: listen()
+      // releases it once it is open.
+      if (session.subscription case final subscription?) {
+        await subscription.cancel();
+        await _stopRecorder();
+      }
     } else {
       try {
         await _speech.cancel();

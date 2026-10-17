@@ -6,13 +6,13 @@ import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/voice/voice.dart';
 import 'package:whisper_speech/whisper_speech.dart';
 
-class _MockOfflineSpeech extends Mock implements OfflineSpeech {}
+class _MockOfflineSpeech extends Mock implements OfflineSpeech;
 
 /// A microphone that delivers what the test [emit]s.
 class _FakeRecorder implements PcmRecorder {
   bool permission = true;
   final List<bool> permissionRequests = [];
-  Object? startError;
+  Exception? startError;
   Completer<void>? startGate;
   int starts = 0;
   int stops = 0;
@@ -38,7 +38,8 @@ class _FakeRecorder implements PcmRecorder {
   @override
   Future<void> stop() async {
     stops++;
-    await controller?.close();
+    // Not awaited: the done event never arrives without a listener.
+    unawaited(controller?.close());
   }
 
   @override
@@ -66,6 +67,12 @@ void main() {
   late List<double> levels;
 
   Future<void> flush() => Future<void>.delayed(Duration.zero);
+
+  /// Delivers a loud chunk to the adapter.
+  Future<void> speak() async {
+    recorder.emit(chunk(0.5));
+    await flush();
+  }
 
   setUpAll(() => registerFallbackValue(Float32List(0)));
 
@@ -190,13 +197,13 @@ void main() {
 
     test('passes the Whisper language, or none to detect it', () async {
       await listen(localeId: 'jw');
-      recorder.emit(chunk(0.5));
+      await speak();
       await adapter.stop();
       await flush();
       verify(() => speech.transcribe(any(), language: 'jw')).called(1);
 
       await listen(localeId: null);
-      recorder.emit(chunk(0.5));
+      await speak();
       await adapter.stop();
       await flush();
       verify(() => speech.transcribe(any())).called(1);
@@ -222,7 +229,7 @@ void main() {
       when(() => speech.transcribe(any(), language: any(named: 'language')))
           .thenAnswer((_) async => const WhisperTranscription(''));
       await listen();
-      recorder.emit(chunk(0.5));
+      await speak();
       await adapter.stop();
       await flush();
       expect(errors.single.message, 'error_no_match');
@@ -232,7 +239,7 @@ void main() {
       when(() => speech.transcribe(any(), language: any(named: 'language')))
           .thenThrow(const WhisperEngineException('boom'));
       await listen();
-      recorder.emit(chunk(0.5));
+      await speak();
       await adapter.stop();
       await flush();
       expect(
@@ -244,7 +251,7 @@ void main() {
       when(() => speech.transcribe(any(), language: any(named: 'language')))
           .thenThrow(const WhisperModelMissingException());
       await listen();
-      recorder.emit(chunk(0.5));
+      await speak();
       await adapter.stop();
       await flush();
       expect(
@@ -258,7 +265,7 @@ void main() {
       when(() => speech.transcribe(any(), language: any(named: 'language')))
           .thenThrow(const WhisperCancelledException());
       await listen();
-      recorder.emit(chunk(0.5));
+      await speak();
       await adapter.stop();
       await flush();
       expect(errors, isEmpty);
@@ -314,7 +321,7 @@ void main() {
 
     test('a microphone stream that ends on its own is transcribed', () async {
       await listen();
-      recorder.emit(chunk(0.5));
+      await speak();
       await recorder.controller!.close();
       await flush();
       expect(results, [('hello', true)]);
@@ -339,7 +346,7 @@ void main() {
   group('cancel', () {
     test('drops a recording', () async {
       await listen();
-      recorder.emit(chunk(0.5));
+      await speak();
       await adapter.cancel();
       expect(recorder.stops, 1);
       await flush();
@@ -354,7 +361,7 @@ void main() {
       when(() => speech.transcribe(any(), language: any(named: 'language')))
           .thenAnswer((_) => transcription.future);
       await listen();
-      recorder.emit(chunk(0.5));
+      await speak();
       await adapter.stop();
       await flush();
       await adapter.cancel();
@@ -370,7 +377,7 @@ void main() {
       when(() => speech.transcribe(any(), language: any(named: 'language')))
           .thenAnswer((_) => transcription.future);
       await listen();
-      recorder.emit(chunk(0.5));
+      await speak();
       await adapter.stop();
       await adapter.cancel();
       transcription.complete(const WhisperTranscription('late'));
@@ -396,7 +403,7 @@ void main() {
 
     test('a new session cancels the previous one', () async {
       await listen();
-      recorder.emit(chunk(0.5));
+      await speak();
       final first = recorder.controller!;
       await listen();
       expect(first.isClosed, isTrue);

@@ -49,12 +49,18 @@ class OcrLanguagesCubit extends Cubit<OcrLanguagesState> {
     final wifiOnly = await _readWifiOnly();
     try {
       final available = _data.isSupported;
-      final languages = [
-        for (final language in await _data.ocrLanguages())
-          OcrLanguageItem(ocr: language, display: _describe(language.appCode)),
-      ]..sort((a, b) => a.display.name.toLowerCase().compareTo(
-            b.display.name.toLowerCase(),
-          ));
+      final languages =
+          [
+            for (final language in await _data.ocrLanguages())
+              OcrLanguageItem(
+                ocr: language,
+                display: _describe(language.appCode),
+              ),
+          ]..sort(
+            (a, b) => a.display.name.toLowerCase().compareTo(
+              b.display.name.toLowerCase(),
+            ),
+          );
       final installed = available
           ? await _data.installedOcrLanguages()
           : const <String, int>{};

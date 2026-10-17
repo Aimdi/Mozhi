@@ -64,8 +64,7 @@ TesseractTextRecognitionService createTesseractTextRecognitionService({
     return ocr;
   },
   isSupported: isAvailable ?? tesseractPlatformSupported,
-  isMeteredConnection:
-      isMeteredConnection ?? MeteredNetwork.instance.isMetered,
+  isMeteredConnection: isMeteredConnection ?? MeteredNetwork.instance.isMetered,
   decoder: decoder,
 );
 
