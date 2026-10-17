@@ -510,7 +510,12 @@ update them when a newer model is out, and delete them when you no longer
 need them. With **Download over Wi-Fi only** on (the default), Mozhi asks
 before using mobile data or a metered network. Models come from Mozilla's
 storage (`storage.googleapis.com`) and are checked against bundled
-checksums before use; none of your text is sent. After that, translation
+checksums before use; none of your text is sent. To keep the app from
+contacting that server at all (for example in **Offline only**), tap a
+language to copy the links of its files, download them on another device,
+copy them to the phone and use **Import from files**
+([details](offline-engine.md#import-models-without-the-app-downloading-them)).
+After that, translation
 runs entirely on the phone, and results are marked **Offline**. Quality is
 below the best online engines, but it works on a plane and nothing leaves
 the device. Offline translation is not available on the web.
