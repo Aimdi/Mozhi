@@ -32,38 +32,25 @@ Open items as of 17 October 2026. No tag or GitHub release exists yet.
       [the audit, §8](audit/2026-audit.md#8-default-branch).
       `license_check.yaml` only runs on `main`, and Dependabot opens its
       pull requests against the default branch.
-- [ ] **Dependabot PRs #1, #2 and #5** need the owner's decision. Nothing
-      has been merged:
-
-  | PR | Change | Audit recommendation |
-  | --- | --- | --- |
-  | #1 | `actions/checkout` 4.4.0 → 7.0.1 | Merge |
-  | #2 | `softprops/action-gh-release` 2.6.2 → 3.0.3 | Rebase it first (`@dependabot rebase`) and read the v3.0.0 notes, then merge |
-  | #5 | `actions/download-artifact` 4.3.0 → 8.0.2 | Merge |
-
-  `release.yaml` only runs on tags, so pull request CI never exercises #2
-  and #5. Prove them with a [pre-release dry run](#checklist) (step 4)
-  after merging. Details:
-  [the audit, §7](audit/2026-audit.md#7-open-pull-requests).
-- [ ] **Dependency metadata block.** The Android Gradle Plugin by default
-      puts an encrypted dependency list, readable only by Google Play, into
-      the signing block of every APK. `android/app/build.gradle.kts`
-      doesn't turn it off. F-Droid and IzzyOnDroid ask for it to be
-      removed:
-
-  ```kotlin
-  android {
-      dependenciesInfo {
-          includeInApk = false     // GitHub, F-Droid, IzzyOnDroid APKs
-          includeInBundle = false  // optional: Play reads it from the bundle
-      }
-  }
-  ```
-
+- [x] **GitHub Actions updates** (Dependabot PRs #1, #2, #5 and their
+      successors #6 to #10): every action is on its Node 24 release since
+      `e2a438a`, pinned by the commit of its release tag. `release.yaml`
+      only runs on tags, so the new `action-gh-release` (v3) and
+      `download-artifact` (v8) are first exercised by the
+      [pre-release dry run](#checklist) (step 4).
+- [ ] **Gradle and Kotlin** (Dependabot #11: Gradle 9.8.1, Kotlin 2.4.21)
+      and **Android Gradle Plugin 9** (#12) are open. AGP 9 is a migration
+      (built-in Kotlin); `record` stays on 6.x until then (see
+      `pubspec.yaml`).
+- [x] **Dependency metadata block**: turned off in
+      `android/app/build.gradle.kts` (`dependenciesInfo`).
 - [ ] **A device test.** No build has run on a real phone yet (CI only
       builds). Install a release candidate on at least one arm64 and,
       ideally, one armeabi-v7a device. Check offline translation (download
-      a language), the text-selection menu and image translation.
+      a language), both text-selection actions ("Translate with Mozhi" and
+      "Translate offline"), text recognition in a photo (download one
+      language's data) and offline voice input (download the Fast model,
+      dictate a sentence).
 
 ## What the release workflow does
 

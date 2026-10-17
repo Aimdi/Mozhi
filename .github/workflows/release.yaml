@@ -403,8 +403,8 @@ jobs:
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, '-') }}
           body: |
-            - **Android**: `arm64-v8a` fits almost every modern phone, `armeabi-v7a` old 32-bit devices, `x86_64` emulators and Chromebooks; `universal` works everywhere but is larger. These builds contain no Google code; offline translation uses Mozilla's open Firefox Translations models (downloaded per language when you choose it).
-            - **Play variant**: `mozhi-${{ github.ref_name }}-play-universal.apk` adds Google ML Kit's on-device text recognition (closed source) for camera and image translation; otherwise the same app.
+            - **Android**: `arm64-v8a` fits almost every modern phone, `armeabi-v7a` old 32-bit devices, `x86_64` emulators and Chromebooks; `universal` works everywhere but is larger. These builds contain no Google code: offline translation uses Mozilla's open Firefox Translations models, text recognition in photos uses Tesseract and offline voice input uses Whisper (their data is downloaded only when you ask for it, or imported from files).
+            - **Play variant**: `mozhi-${{ github.ref_name }}-play-universal.apk` uses Google ML Kit's on-device text recognition (closed source, no download needed) instead of Tesseract for camera and image translation; otherwise the same app.
             - **Google Play bundle**: `mozhi-${{ github.ref_name }}.aab` is the Android App Bundle uploaded to Play; it can't be installed directly.
             - **Web**: `mozhi-${{ github.ref_name }}-web.zip` is a static build for the root of any web server (edit `<base href>` in `index.html` to serve it from a sub-path).
             - Verify downloads against `SHA256SUMS.txt`.
