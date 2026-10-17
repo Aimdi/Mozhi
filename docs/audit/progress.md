@@ -144,8 +144,9 @@ commit.
   the translation show by default; **More** opens the other tools. The
   language picker marks detected and downloaded (offline) languages, and
   the consent prompt offers the offline download or **Translate on this
-  device** when the engine supports the pair. **Switch instance** picks
-  another Mozhi instance for one translation.
+  device** when the engine supports the pair. When a Mozhi instance
+  fails, **Switch instance** in the error makes another one the preferred
+  instance and translates again.
 - `8b61507`: setup in three steps after the welcome (privacy mode, your
   languages with offline downloads, an optional online service). The AI
   step moved to **Settings > AI providers**. Settings are ordered Privacy,
