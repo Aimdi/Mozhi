@@ -73,7 +73,10 @@ void main() {
         state.copyWith(identifiedSource: () => null).identifiedSource,
         isNull,
       );
-      expect(state.copyWith(offlineDownloads: const []).offlineDownloads, []);
+      expect(
+        state.copyWith(offlineDownloads: const []).offlineDownloads,
+        isEmpty,
+      );
       expect(state, isNot(state.copyWith(identifiedSource: () => 'fr')));
       expect(state, isNot(const QuickTranslateState(text: 'Hallo')));
     });

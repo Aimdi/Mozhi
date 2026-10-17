@@ -25,6 +25,8 @@ const double goldenTolerance = 0.005;
 /// failing on a different machine.
 Future<void> testExecutable(FutureOr<void> Function() testMain) async {
   TestWidgetsFlutterBinding.ensureInitialized();
+  // No "DEBUG" ribbon in the screenshots (whatever the helpers pump).
+  WidgetsApp.debugAllowBannerOverride = false;
   final fonts = _materialFontsDirectory();
   if (fonts == null) {
     goldenSkipReason =

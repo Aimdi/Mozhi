@@ -8,6 +8,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/core/widgets/consent_prompt.dart' show DestinationChip;
+import 'package:mozhi/core/widgets/x_ui.dart' show XActionButton;
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/quick_translate/quick_translate.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
@@ -37,7 +38,7 @@ QuickTranslateState _offlineState({
   offlineDownloads: downloads,
 );
 
-final _onDevice = result(
+final TranslationResult _onDevice = result(
   'Bonjour le monde',
   engineId: TranslationEngine.offlineId,
   engineName: 'Offline (on-device)',
@@ -144,7 +145,7 @@ void main() {
       expect(find.textContaining('Download Japanese ('), findsOneWidget);
       // Nothing to copy or replace.
       expect(
-        tester.widget<IconButton>(byKey('quick_translate_copy')).onPressed,
+        tester.widget<XActionButton>(byKey('quick_translate_copy')).onPressed,
         isNull,
       );
 
