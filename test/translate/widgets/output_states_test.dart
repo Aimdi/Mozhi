@@ -204,6 +204,38 @@ void main() {
       verify(() => harness.translate.selectEngine(_offlineEngine)).called(1);
     });
 
+    testWidgets('follows the language pair that is held back', (tester) async {
+      final states = StreamController<TranslateState>();
+      addTearDown(states.close);
+      final harness = TranslateHarness(state: _waiting());
+      when(() => harness.repository.instances).thenReturn(const []);
+      whenListen(harness.translate, states.stream, initialState: _waiting());
+      await harness.pump(
+        tester,
+        child: const OutputCard(),
+        offline: FakeOfflineTranslator(),
+      );
+      await tester.pump();
+      expect(find.text('Download French'), findsOneWidget);
+      states.add(
+        readyState(input: 'Hello world').copyWith(
+          consent: () => const ConsentRequest(
+            exception: ConsentRequiredException(
+              kind: ConsentKind.pair,
+              destination: PublicInstanceDestination('mozhi.example.org'),
+              engineId: 'mozhi:google',
+              source: 'de',
+              target: 'ja',
+            ),
+            id: 2,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Download German, Japanese'), findsOneWidget);
+    });
+
     testWidgets('is not offered when the device cannot help', (tester) async {
       for (final offline in <FakeOfflineTranslator?>[
         null,
@@ -226,6 +258,21 @@ void main() {
   });
 
   group('switch instance', () {
+    testWidgets('the instance in use is the first without a repository', (
+      tester,
+    ) async {
+      String? current;
+      await tester.pumpWidget(
+        Builder(
+          builder: (context) {
+            current = currentInstanceUrl(context, _instances);
+            return const SizedBox();
+          },
+        ),
+      );
+      expect(current, 'https://one.example');
+    });
+
     testWidgets('picks another instance and translates again', (tester) async {
       final harness = TranslateHarness(
         state: _failed(),

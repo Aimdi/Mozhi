@@ -7046,10 +7046,6 @@
       }
     }
   },
-  "historyFilterClearPair": "Show all language pairs",
-  "@historyFilterClearPair": {
-    "description": "historyFilterClearPair"
-  },
   "historyNoFilterMatchesTitle": "Nothing matches these filters",
   "@historyNoFilterMatchesTitle": {
     "description": "historyNoFilterMatchesTitle"
