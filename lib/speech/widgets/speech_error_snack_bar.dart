@@ -10,7 +10,8 @@ import 'package:translation_repository/translation_repository.dart';
 /// When a Mozhi instance could read the text aloud with the user's consent
 /// ([SpeechUnavailableException.onlineConsent]) and [onListenOnline] is
 /// given, the snack bar names the instance, says that it receives the text,
-/// and offers "Listen via (host)": [onListenOnline] then gets the consent,
+/// and offers "Listen online" ([speechListenOnlineLabel]; short, so it fits
+/// next to the message on a phone): [onListenOnline] then gets the consent,
 /// to pass as `allowOnline` when calling the service again.
 void showSpeechErrorSnackBar(
   BuildContext context,
@@ -45,7 +46,7 @@ void showSpeechErrorSnackBar(
       action: consent == null
           ? null
           : SnackBarAction(
-              label: l10n.speechListenVia(speechConsentHost(consent)),
+              label: l10n.speechListenOnline,
               onPressed: () => onListenOnline!(consent),
             ),
     ),

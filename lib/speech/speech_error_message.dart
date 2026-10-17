@@ -27,12 +27,13 @@ String speechErrorMessage(AppLocalizations l10n, Object error) =>
       _ => l10n.translateSpeechError,
     };
 
-/// "Listen via (host)": the action that retries with
-/// `allowOnline: consent`, or null when [error] offers none.
+/// "Listen online": the action that retries with `allowOnline: consent`,
+/// or null when [error] offers none. The message
+/// ([AppLocalizations.speechUnavailableOnline]) names the instance, so the
+/// label stays short enough for a snack bar on a phone.
 String? speechListenOnlineLabel(AppLocalizations l10n, Object error) =>
     switch (error) {
-      SpeechUnavailableException(onlineConsent: final consent?) =>
-        l10n.speechListenVia(speechConsentHost(consent)),
+      SpeechUnavailableException(onlineConsent: _?) => l10n.speechListenOnline,
       _ => null,
     };
 

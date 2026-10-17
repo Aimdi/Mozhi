@@ -38,7 +38,7 @@ void main() {
         speechErrorMessage(l10n, error),
         l10n.speechUnavailableOnline('mozhi.example'),
       );
-      expect(speechListenOnlineLabel(l10n, error), 'Listen via mozhi.example');
+      expect(speechListenOnlineLabel(l10n, error), 'Listen online');
     });
 
     test('says that offline-only mode sends nothing', () {

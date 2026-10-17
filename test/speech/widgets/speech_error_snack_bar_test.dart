@@ -55,7 +55,7 @@ void main() {
         tester.widget<SnackBar>(find.byType(SnackBar)).duration,
         const Duration(seconds: 10),
       );
-      await tester.tap(find.text('Listen via mozhi.example'));
+      await tester.tap(find.text('Listen online'));
       expect(approved, _consent);
     });
 

@@ -482,7 +482,7 @@ class _ResultBody extends StatelessWidget {
   }
 }
 
-/// An action offered with a notice ("Listen via (host)").
+/// An action offered with a notice ("Listen online").
 typedef _NoticeAction = ({String label, VoidCallback onPressed});
 
 class _Notice extends StatelessWidget {

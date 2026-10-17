@@ -759,8 +759,8 @@ void main() {
       await send(tester, ConversationSide.a, 'Hello');
       await tester.tap(find.byKey(const Key('conversation_listen_0')));
       await tester.pumpAndSettle();
-      expect(find.text('Listen via mozhi.example.org'), findsOneWidget);
-      await tester.tap(find.text('Listen via mozhi.example.org'));
+      expect(find.text('Listen online'), findsOneWidget);
+      await tester.tap(find.text('Listen online'));
       await tester.pumpAndSettle();
       verify(
         () => speech.toggle(

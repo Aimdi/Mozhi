@@ -132,7 +132,7 @@ void main() {
         find.byKey(const Key('quick_translate_notice_action')),
         findsOneWidget,
       );
-      expect(find.text('Listen via mozhi.example.org'), findsOneWidget);
+      expect(find.text('Listen online'), findsOneWidget);
       tester
           .widget<TextButton>(
             find.byKey(const Key('quick_translate_notice_action')),

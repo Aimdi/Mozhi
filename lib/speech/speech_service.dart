@@ -30,7 +30,7 @@ class SpeechUnavailableException implements Exception {
   /// The consent that lets a Mozhi instance read the text aloud once, when
   /// the privacy settings stopped it ([PrivacyMode.offlineFirst] and the
   /// language was not approved): pass it as `allowOnline` to
-  /// [SpeechService.toggle] after the user chose "Listen via (instance)".
+  /// [SpeechService.toggle] after the user chose "Listen online".
   /// Null otherwise, also in [PrivacyMode.offlineOnly], which cannot be
   /// overridden.
   ConsentRequiredException? get onlineConsent => switch (cause) {
@@ -107,7 +107,7 @@ class _MozhiPlayback {
 /// settings allow it: the repository refuses in [PrivacyMode.offlineOnly],
 /// and in [PrivacyMode.offlineFirst] unless the language was approved
 /// (then [SpeechUnavailableException.onlineConsent] lets the caller offer
-/// "Listen via (instance)" and retry with `allowOnline`). A device voice
+/// "Listen online" and retry with `allowOnline`). A device voice
 /// that fails is not replaced by Mozhi, and with [preferDeviceVoice]
 /// ("device voice only") Mozhi is never used.
 ///
@@ -314,7 +314,7 @@ class SpeechService {
   /// (or may) speak it (caller shows a snackbar, see `speechErrorMessage`).
   ///
   /// [allowOnline] is the [SpeechUnavailableException.onlineConsent] of an
-  /// earlier attempt the user then approved ("Listen via (instance)"): the
+  /// earlier attempt the user then approved ("Listen online"): the
   /// instance may receive this text despite the privacy settings, for this
   /// playback only.
   ///

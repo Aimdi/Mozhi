@@ -7014,5 +7014,9 @@
   "offlineUnavailableDevice": "This device’s processor can’t run the offline translation engine",
   "@offlineUnavailableDevice": {
     "description": "offlineUnavailableDevice"
+  },
+  "speechListenOnline": "Listen online",
+  "@speechListenOnline": {
+    "description": "Snack bar action: read the text aloud with the Mozhi instance the message names (it receives the text)."
   }
 }

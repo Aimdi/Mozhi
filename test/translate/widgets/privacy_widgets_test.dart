@@ -339,8 +339,8 @@ void main() {
       );
       await tester.tap(find.text('read'));
       await tester.pumpAndSettle();
-      expect(find.text('Listen via mozhi.example.org'), findsOneWidget);
-      await tester.tap(find.text('Listen via mozhi.example.org'));
+      expect(find.text('Listen online'), findsOneWidget);
+      await tester.tap(find.text('Listen online'));
       await tester.pumpAndSettle();
       verify(
         () => harness.speech.toggle(
@@ -385,7 +385,7 @@ void main() {
       );
       await tester.tap(find.text('read'));
       await tester.pumpAndSettle();
-      expect(find.text('Listen via mozhi.example.org'), findsNothing);
+      expect(find.text('Listen online'), findsNothing);
       expect(find.byType(SnackBar), findsOneWidget);
     });
   });
