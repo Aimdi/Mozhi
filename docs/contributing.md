@@ -375,13 +375,20 @@ Rules:
    automatically: `supportedLocales` is generated from the ARB files. Keys
    you haven't translated yet fall back to English, and the generator lists
    them as untranslated.
-3. Translate the Android text-selection label: create
-   `android/app/src/main/res/values-<locale>/strings.xml` (e.g. `values-de`,
-   `values-pt-rBR`) with
+3. Translate the Android labels: copy
+   `android/app/src/main/res/values/strings.xml` to
+   `values-<locale>/strings.xml` (e.g. `values-de`, `values-pt-rBR`;
+   Indonesian uses the legacy code `values-in`, not `values-id`) and
+   translate every string in it: the text-selection actions, the Quick
+   Settings tile, the launcher shortcuts and the home-screen widget. Keep the
+   names, follow the length notes in the English file, and write apostrophes
+   as `\'` (or use `’`). For example:
 
    ```xml
    <resources>
        <string name="translate_with_mozhi">Mit Mozhi übersetzen</string>
+       <string name="translate_offline">Offline übersetzen</string>
+       <!-- … every other string from values/strings.xml … -->
    </resources>
    ```
 
