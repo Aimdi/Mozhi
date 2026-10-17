@@ -1,5 +1,8 @@
 import 'package:equatable/equatable.dart';
+import 'package:mozhi/history/cubit/history_filters.dart';
 import 'package:mozhi/history/models/history_entry.dart';
+
+export 'history_filters.dart';
 
 enum HistoryStatus {
   initial,
@@ -23,6 +26,8 @@ class HistoryState extends Equatable {
     this.query = '',
     this.favoritesOnly = false,
     this.incognito = false,
+    this.pair,
+    this.destination,
   });
 
   final HistoryStatus status;
@@ -36,15 +41,60 @@ class HistoryState extends Equatable {
   /// (`HistoryCubit.setIncognito`).
   final bool incognito;
 
-  /// [entries] filtered by [favoritesOnly] and case-insensitive [query]
-  /// over text, translation and language names.
-  List<HistoryEntry> get visible {
+  /// Only entries of this language pair (null: all).
+  final HistoryPair? pair;
+
+  /// Only entries whose text went there (null: anywhere).
+  final HistoryDestination? destination;
+
+  /// Whether the [pair] or [destination] filter is set.
+  bool get hasFilters => pair != null || destination != null;
+
+  /// [entries] filtered by [favoritesOnly], [pair], [destination] (with the
+  /// default [historyDestinationOf]) and case-insensitive [query] over
+  /// text, translation and language names.
+  List<HistoryEntry> get visible => visibleWith(historyDestinationOf);
+
+  /// Like [visible], classifying entries for the [destination] filter with
+  /// [destinationOf] (e.g. [historyDestinationOf] with the configured
+  /// instances and providers).
+  List<HistoryEntry> visibleWith(HistoryDestinationOf destinationOf) {
     final needle = query.trim().toLowerCase();
-    if (!favoritesOnly && needle.isEmpty) return entries;
+    if (!favoritesOnly && needle.isEmpty && !hasFilters) return entries;
+    final pair = this.pair;
+    final destination = this.destination;
     return [
       for (final entry in entries)
-        if ((!favoritesOnly || entry.isFavorite) && _matches(entry, needle))
+        if ((!favoritesOnly || entry.isFavorite) &&
+            (pair == null || pair.matches(entry)) &&
+            (destination == null ||
+                destinationOf(entry.engineId) == destination) &&
+            _matches(entry, needle))
           entry,
+    ];
+  }
+
+  /// The language pairs of [entries] with how many entries each has, most
+  /// used first.
+  List<(HistoryPair, int)> get pairs {
+    final counts = <HistoryPair, int>{};
+    for (final entry in entries) {
+      final pair = HistoryPair.of(entry);
+      counts[pair] = (counts[pair] ?? 0) + 1;
+    }
+    return [for (final MapEntry(:key, :value) in counts.entries) (key, value)]
+      ..sort((a, b) => b.$2.compareTo(a.$2));
+  }
+
+  /// The destinations [entries] went to, classified with [destinationOf],
+  /// in [HistoryDestination] order.
+  List<HistoryDestination> destinationsWith(
+    HistoryDestinationOf destinationOf,
+  ) {
+    final found = {for (final entry in entries) ?destinationOf(entry.engineId)};
+    return [
+      for (final destination in HistoryDestination.values)
+        if (found.contains(destination)) destination,
     ];
   }
 
@@ -75,14 +125,26 @@ class HistoryState extends Equatable {
     String? query,
     bool? favoritesOnly,
     bool? incognito,
+    HistoryPair? Function()? pair,
+    HistoryDestination? Function()? destination,
   }) => HistoryState(
     status: status ?? this.status,
     entries: entries ?? this.entries,
     query: query ?? this.query,
     favoritesOnly: favoritesOnly ?? this.favoritesOnly,
     incognito: incognito ?? this.incognito,
+    pair: pair != null ? pair() : this.pair,
+    destination: destination != null ? destination() : this.destination,
   );
 
   @override
-  List<Object?> get props => [status, entries, query, favoritesOnly, incognito];
+  List<Object?> get props => [
+    status,
+    entries,
+    query,
+    favoritesOnly,
+    incognito,
+    pair,
+    destination,
+  ];
 }

@@ -67,7 +67,12 @@ String _pair(String source, String target) =>
     '\u2068$source\u2069 → \u2068$target\u2069';
 
 void main() {
-  setUpAll(registerFallbacks);
+  setUpAll(() {
+    registerFallbacks();
+    registerFallbackValue(
+      const HistoryPair(source: Language.auto, target: Language.auto),
+    );
+  });
 
   group('HistoryPage', () {
     late MockHistoryCubit history;
@@ -929,6 +934,196 @@ void main() {
       );
       expect(tester.takeException(), isNull);
       expect(find.byTooltip('More actions'), findsWidgets);
+    });
+
+    group('filters', () {
+      Finder chip(String label) => find.widgetWithText(FilterChip, label);
+
+      testWidgets('offers the language pairs and the destinations in the '
+          'history', (tester) async {
+        final handle = tester.ensureSemantics();
+        await pump(tester);
+        expect(chip('All language pairs'), findsOneWidget);
+        expect(chip('Public server'), findsOneWidget);
+        expect(chip('Cloud'), findsOneWidget);
+        expect(chip('On device'), findsNothing);
+        expect(chip('Self-hosted'), findsNothing);
+        expect(find.text('Clear filters'), findsNothing);
+        expect(find.bySemanticsLabel('Filters'), findsOneWidget);
+        handle.dispose();
+      });
+
+      testWidgets('classifies with the configured providers and instances', (
+        tester,
+      ) async {
+        await pump(
+          tester,
+          appSettings: const AppSettings(
+            instances: [MozhiInstance(url: 'http://192.168.1.2:3000')],
+            providers: [
+              AiProviderConfig(
+                id: 'p1',
+                name: 'Claude',
+                provider: LlmProvider.anthropic,
+                baseUrl: 'https://api.anthropic.com/v1',
+                model: 'claude',
+              ),
+            ],
+          ),
+        );
+        expect(chip('Self-hosted'), findsOneWidget);
+        expect(chip('Cloud'), findsOneWidget);
+        expect(chip('Public server'), findsNothing);
+      });
+
+      testWidgets('a destination chip filters and clears', (tester) async {
+        await pump(tester);
+        await tester.tap(chip('Cloud'));
+        verify(() => history.filterByDestination(HistoryDestination.cloud))
+            .called(1);
+
+        await pump(
+          tester,
+          state: HistoryState(
+            status: HistoryStatus.ready,
+            entries: [_today, _yesterday, _older],
+            destination: HistoryDestination.cloud,
+          ),
+        );
+        // Only Claude's translation is shown.
+        expect(find.text('Bonjour'), findsOneWidget);
+        expect(find.text('Good morning'), findsNothing);
+        expect(tester.widget<FilterChip>(chip('Cloud')).selected, isTrue);
+        await tester.tap(chip('Cloud'));
+        verify(() => history.filterByDestination(null)).called(1);
+        await tester.tap(find.text('Clear filters'));
+        verify(history.clearFilters).called(1);
+      });
+
+      testWidgets('the pair chip lists the pairs with their counts', (
+        tester,
+      ) async {
+        await pump(tester);
+        await tester.tap(find.byKey(HistoryView.pairFilterKey));
+        await tester.pumpAndSettle();
+        expect(find.text('Language pair'), findsOneWidget);
+        expect(find.text('2 translations'), findsOneWidget);
+        expect(find.text('1 translation'), findsOneWidget);
+        // Most used first.
+        expect(
+          tester.getTopLeft(find.text('2 translations')).dy,
+          lessThan(tester.getTopLeft(find.text('1 translation')).dy),
+        );
+        await tester.tap(find.text('2 translations'));
+        await tester.pumpAndSettle();
+        verify(
+          () => history.filterByPair(
+            const HistoryPair(source: _english, target: _german),
+          ),
+        ).called(1);
+      });
+
+      testWidgets('picking all pairs clears the pair, dismissing changes '
+          'nothing', (tester) async {
+        const pair = HistoryPair(
+          source: Language(code: 'fr', name: 'French'),
+          target: _english,
+        );
+        await pump(
+          tester,
+          state: HistoryState(
+            status: HistoryStatus.ready,
+            entries: [_today, _yesterday, _older],
+            pair: pair,
+          ),
+        );
+        // The chip names the pair; only its entries are shown.
+        expect(
+          find.descendant(
+            of: find.byKey(HistoryView.pairFilterKey),
+            matching: find.text(_pair('French', 'English')),
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('Good morning'), findsNothing);
+        expect(find.text('Bonjour'), findsOneWidget);
+
+        await tester.tap(find.byKey(HistoryView.pairFilterKey));
+        await tester.pumpAndSettle();
+        await tester.tapAt(const Offset(10, 10));
+        await tester.pumpAndSettle();
+        verifyNever(() => history.filterByPair(any()));
+
+        await tester.tap(find.byKey(HistoryView.pairFilterKey));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.descendant(
+            of: find.byType(ListTile),
+            matching: find.text('All language pairs'),
+          ),
+        );
+        await tester.pumpAndSettle();
+        verify(() => history.filterByPair(null)).called(1);
+      });
+
+      testWidgets('says when nothing matches the filters', (tester) async {
+        await pump(
+          tester,
+          state: HistoryState(
+            status: HistoryStatus.ready,
+            entries: [_today, _yesterday, _older],
+            destination: HistoryDestination.onDevice,
+          ),
+        );
+        expect(find.text('Nothing matches these filters'), findsOneWidget);
+        expect(
+          find.text('Try another language pair or destination.'),
+          findsOneWidget,
+        );
+        // The set filter stays visible so it can be turned off.
+        expect(chip('On device'), findsOneWidget);
+        await tester.tap(find.widgetWithText(FilledButton, 'Clear filters'));
+        verify(history.clearFilters).called(1);
+      });
+
+      testWidgets('are hidden when they would not narrow anything', (
+        tester,
+      ) async {
+        await pump(
+          tester,
+          state: HistoryState(
+            status: HistoryStatus.ready,
+            entries: [_today, _older],
+          ),
+        );
+        expect(find.byType(FilterChip), findsNothing);
+        await pump(
+          tester,
+          state: const HistoryState(status: HistoryStatus.ready),
+        );
+        expect(find.byType(FilterChip), findsNothing);
+      });
+
+      testWidgets('fit 360dp at 200% text with large enough targets', (
+        tester,
+      ) async {
+        final handle = tester.ensureSemantics();
+        await pump(
+          tester,
+          state: HistoryState(
+            status: HistoryStatus.ready,
+            entries: [_today, _yesterday, _older],
+            pair: const HistoryPair(source: _english, target: _german),
+          ),
+          size: const Size(360, 1600),
+          textScale: 2,
+        );
+        expect(tester.takeException(), isNull);
+        expect(find.text('Clear filters'), findsOneWidget);
+        await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+        await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+        handle.dispose();
+      });
     });
 
     testWidgets('centers the list on wide screens', (tester) async {

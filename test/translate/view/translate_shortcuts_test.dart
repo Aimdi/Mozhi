@@ -716,7 +716,7 @@ void main() {
         ),
       );
       await harness.pump(tester, child: const OutputCard());
-      await tester.tap(find.text('Download languages'));
+      await tester.tap(find.text('Download French'));
       verify(() => harness.router.push<void>('/settings/offline')).called(1);
     });
   });

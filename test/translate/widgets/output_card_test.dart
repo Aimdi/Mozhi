@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -77,22 +78,61 @@ void main() {
   group('OutputCard', () {
     testWidgets('shows a hint when idle', (tester) async {
       final harness = TranslateHarness();
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       expect(find.text('Your translation appears here'), findsOneWidget);
       expect(find.byKey(const Key('translate_output_progress')), findsNothing);
       expect(find.byTooltip('Copy'), findsNothing);
     });
 
-    testWidgets('shows progress while translating', (tester) async {
+    testWidgets('shows progress once translating takes a while', (
+      tester,
+    ) async {
       final harness = TranslateHarness(
         state: readyState(input: 'Hi', status: TranslateStatus.translating),
       );
       await harness.pump(tester, child: const OutputCard());
-      expect(find.text('Translating…'), findsOneWidget);
+      // Quick translations never flash a progress bar.
+      expect(find.byKey(const Key('translate_output_progress')), findsNothing);
+      expect(find.byKey(const Key('translate_output_skeleton')), findsNothing);
+      await tester.pump(const Duration(milliseconds: 299));
+      expect(find.byKey(const Key('translate_output_progress')), findsNothing);
+      await tester.pump(const Duration(milliseconds: 1));
       expect(
         find.byKey(const Key('translate_output_progress')),
         findsOneWidget,
       );
+      // Placeholder lines (decorative) where the translation will appear.
+      expect(
+        find.byKey(const Key('translate_output_skeleton')),
+        findsOneWidget,
+      );
+      expect(find.text('French'), findsOneWidget);
+    });
+
+    testWidgets('a translation done in time never shows progress', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(
+        state: readyState(input: 'Hi', status: TranslateStatus.translating),
+      );
+      whenListen(
+        harness.translate,
+        Stream.fromFuture(
+          Future.delayed(
+            const Duration(milliseconds: 200),
+            () => translatedState(input: 'Hi'),
+          ),
+        ),
+        initialState: readyState(
+          input: 'Hi',
+          status: TranslateStatus.translating,
+        ),
+      );
+      await harness.pump(tester, child: const OutputCard());
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.byKey(const Key('translate_output_progress')), findsNothing);
+      expect(find.text('Bonjour le monde'), findsOneWidget);
     });
 
     testWidgets('streams partial output with progress', (tester) async {
@@ -109,8 +149,9 @@ void main() {
           ),
         ),
       );
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       expect(find.text('Bonjour'), findsOneWidget);
+      await pumpPastLoadingDelay(tester);
       expect(
         find.byKey(const Key('translate_output_progress')),
         findsOneWidget,
@@ -123,7 +164,7 @@ void main() {
       tester,
     ) async {
       final harness = TranslateHarness(state: translatedState());
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       expect(find.text('Bonjour le monde'), findsOneWidget);
       expect(find.text('DeepL · 0.8 s'), findsOneWidget);
       expect(find.text('Detected: English'), findsOneWidget);
@@ -139,7 +180,7 @@ void main() {
           ),
         ),
       );
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       expect(find.byType(OfflineEngineBadge), findsOneWidget);
     });
 
@@ -157,7 +198,7 @@ void main() {
           ),
         ),
       );
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       expect(find.byKey(const Key('translate_detected_chip')), findsNothing);
       expect(find.text('DeepL'), findsOneWidget);
     });
@@ -174,7 +215,7 @@ void main() {
       final harness = TranslateHarness(
         state: translatedState(input: 'Hello', result: result),
       );
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       expect(find.text("Kon'nichiwa"), findsOneWidget);
     });
 
@@ -189,7 +230,7 @@ void main() {
         state: translatedState(input: 'Hello', result: result),
         settings: const AppSettings(showTransliteration: false),
       );
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       expect(find.text("Kon'nichiwa"), findsNothing);
     });
 
@@ -199,14 +240,18 @@ void main() {
           status: TranslateStatus.failure,
           error: () => const MozhiApiException('Connection refused'),
         ),
+        settings: const AppSettings(
+          instances: [MozhiInstance(url: 'https://mozhi.example.org')],
+        ),
       );
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       expect(
         find.textContaining("Couldn't reach the Mozhi instance"),
         findsOneWidget,
       );
       await tester.tap(find.text('Retry'));
       verify(harness.translate.translate).called(1);
+      // A single instance: nothing to switch to.
       await tester.tap(find.text('Manage instances'));
       verify(() => harness.router.go('/settings/instances')).called(1);
     });
@@ -218,7 +263,7 @@ void main() {
           error: () => const LlmApiException('invalid key', statusCode: 401),
         ),
       );
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       expect(find.textContaining('Check the API key'), findsOneWidget);
       await tester.tap(find.text('AI providers'));
       verify(() => harness.router.go('/settings/providers')).called(1);
@@ -227,7 +272,7 @@ void main() {
     testWidgets('copy copies the translation', (tester) async {
       final clipboard = FakeClipboard(tester);
       final harness = TranslateHarness(state: translatedState());
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       await tester.tap(find.byTooltip('Copy'));
       await tester.pump();
       expect(clipboard.copied, 'Bonjour le monde');
@@ -250,7 +295,7 @@ void main() {
       );
       ClipboardService.instance = ClipboardService(isAndroid: true);
       final harness = TranslateHarness(state: translatedState());
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
 
       await tester.tap(find.byTooltip('Copy'));
       await tester.pump();
@@ -276,7 +321,7 @@ void main() {
         ),
       );
       final harness = TranslateHarness(state: translatedState());
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       await tester.tap(find.byTooltip('Share'));
       await tester.pump();
       expect(calls, hasLength(1));
@@ -287,7 +332,7 @@ void main() {
       tester,
     ) async {
       final harness = TranslateHarness(state: translatedState());
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       await tester.tap(findListenTooltip('Listen'));
       verify(
         () => harness.speech.toggle(
@@ -303,7 +348,7 @@ void main() {
         tester,
       ) async {
         final harness = TranslateHarness(state: translatedState());
-        await harness.pump(tester, child: const OutputCard());
+        await harness.pump(tester, child: const OutputCard(), more: true);
         await tester.tap(find.byTooltip('Add to favourites'));
         final entry =
             verify(() => harness.history.add(captureAny())).captured.single
@@ -335,7 +380,7 @@ void main() {
             entries: [entry('new', favorite: true), entry('old')],
           ),
         );
-        await harness.pump(tester, child: const OutputCard());
+        await harness.pump(tester, child: const OutputCard(), more: true);
         expect(find.byTooltip('Remove from favourites'), findsOneWidget);
         await tester.tap(find.byTooltip('Remove from favourites'));
         verify(() => harness.history.toggleFavorite('new')).called(1);
@@ -346,7 +391,7 @@ void main() {
     group('insights', () {
       testWidgets('are not offered without an AI engine', (tester) async {
         final harness = TranslateHarness(state: translatedState());
-        await harness.pump(tester, child: const OutputCard());
+        await harness.pump(tester, child: const OutputCard(), more: true);
         expect(
           find.byKey(const Key('translate_insights_button')),
           findsNothing,
@@ -357,7 +402,7 @@ void main() {
         final harness = TranslateHarness(
           state: translatedState(assistEngine: claude),
         );
-        await harness.pump(tester, child: const OutputCard());
+        await harness.pump(tester, child: const OutputCard(), more: true);
         await tester.tap(find.byKey(const Key('translate_insights_button')));
         await tester.pump();
         verify(harness.translate.loadInsights).called(1);
@@ -369,7 +414,7 @@ void main() {
           state: translatedState(assistEngine: claude)
               .copyWith(insightsStatus: ExtraStatus.loading),
         );
-        await harness.pump(tester, child: const OutputCard());
+        await harness.pump(tester, child: const OutputCard(), more: true);
         await tester.tap(find.byKey(const Key('translate_insights_button')));
         await tester.pump();
         expect(
@@ -384,7 +429,7 @@ void main() {
           state: translatedState(assistEngine: claude)
               .copyWith(insightsStatus: ExtraStatus.ready),
         );
-        await harness.pump(tester, child: const OutputCard());
+        await harness.pump(tester, child: const OutputCard(), more: true);
         await tester.tap(find.byKey(const Key('translate_insights_button')));
         await tester.pump();
         expect(find.text('No insights for this translation.'), findsOneWidget);
@@ -399,7 +444,7 @@ void main() {
             insights: const [_insight],
           ),
         );
-        await harness.pump(tester, child: const OutputCard());
+        await harness.pump(tester, child: const OutputCard(), more: true);
         expect(find.byKey(const Key('translate_insight_text')), findsNothing);
         await tester.tap(find.byKey(const Key('translate_insights_button')));
         await tester.pump();
@@ -430,7 +475,7 @@ void main() {
             extraError: () => const LlmApiException('x', statusCode: 429),
           ),
         );
-        await harness.pump(tester, child: const OutputCard());
+        await harness.pump(tester, child: const OutputCard(), more: true);
         await tester.tap(find.byKey(const Key('translate_insights_button')));
         await tester.pump();
         verify(harness.translate.loadInsights).called(1);
@@ -454,7 +499,7 @@ void main() {
                 insights: const [_insight],
               ),
         );
-        await harness.pump(tester, child: const OutputCard());
+        await harness.pump(tester, child: const OutputCard(), more: true);
         await tester.tap(find.byKey(const Key('translate_insights_button')));
         await tester.pump();
         await tester.tapOnText(find.textRange.ofSubstring('le monde').first);
@@ -477,7 +522,7 @@ void main() {
         tester,
       ) async {
         final harness = TranslateHarness(state: _cats());
-        await harness.pump(tester, child: const OutputCard());
+        await harness.pump(tester, child: const OutputCard(), more: true);
         await tester.tap(find.byKey(const Key('translate_insights_button')));
         await tester.pump();
 
@@ -501,7 +546,7 @@ void main() {
         tester,
       ) async {
         final harness = TranslateHarness(state: _cats());
-        await harness.pump(tester, child: const OutputCard());
+        await harness.pump(tester, child: const OutputCard(), more: true);
         await tester.tap(find.byKey(const Key('translate_insights_button')));
         await tester.pump();
         await tester.tap(
@@ -520,7 +565,7 @@ void main() {
         tester,
       ) async {
         final harness = TranslateHarness(state: _stale());
-        await harness.pump(tester, child: const OutputCard());
+        await harness.pump(tester, child: const OutputCard(), more: true);
         final button = tester.widget<TranslateToolChip>(
           find.byKey(const Key('translate_insights_button')),
         );
@@ -537,7 +582,7 @@ void main() {
         final harness = TranslateHarness(state: initial);
         when(() => harness.translate.stream)
             .thenAnswer((_) => controller.stream);
-        await harness.pump(tester, child: const OutputCard());
+        await harness.pump(tester, child: const OutputCard(), more: true);
         await tester.tap(find.byKey(const Key('translate_insights_button')));
         await tester.pump();
 
@@ -563,7 +608,7 @@ void main() {
         final harness = TranslateHarness(state: initial);
         when(() => harness.translate.stream)
             .thenAnswer((_) => controller.stream);
-        await harness.pump(tester, child: const OutputCard());
+        await harness.pump(tester, child: const OutputCard(), more: true);
         await tester.tap(find.byKey(const Key('translate_insights_button')));
         await tester.pump();
         expect(find.byTooltip('Hide insights'), findsOneWidget);
@@ -593,7 +638,7 @@ void main() {
         final harness = TranslateHarness(state: initial);
         when(() => harness.translate.stream)
             .thenAnswer((_) => controller.stream);
-        await harness.pump(tester, child: const OutputCard());
+        await harness.pump(tester, child: const OutputCard(), more: true);
         await tester.tap(find.byKey(const Key('translate_insights_button')));
         await tester.pump();
 
@@ -617,7 +662,7 @@ void main() {
         final harness = TranslateHarness(state: initial);
         when(() => harness.translate.stream)
             .thenAnswer((_) => controller.stream);
-        await harness.pump(tester, child: const OutputCard());
+        await harness.pump(tester, child: const OutputCard(), more: true);
         await tester.tap(find.byKey(const Key('translate_insights_button')));
         await tester.pump();
         verifyNever(harness.translate.loadInsights);
@@ -643,7 +688,7 @@ void main() {
     testWidgets('a current translation is shown as is', (tester) async {
       final handle = tester.ensureSemantics();
       final harness = TranslateHarness(state: translatedState());
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       expect(opacity(tester), 1);
       expect(hint(tester), isEmpty);
       handle.dispose();
@@ -652,7 +697,7 @@ void main() {
     testWidgets('is dimmed and described as out of date', (tester) async {
       final handle = tester.ensureSemantics();
       final harness = TranslateHarness(state: _stale());
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       await tester.pumpAndSettle();
       expect(opacity(tester), staleOutputOpacity);
       expect(hint(tester), 'Out of date — translate again');
@@ -667,7 +712,7 @@ void main() {
       final harness = TranslateHarness(
         state: _stale(status: TranslateStatus.translating),
       );
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       expect(opacity(tester), staleOutputOpacity);
       expect(hint(tester), isEmpty);
       handle.dispose();
@@ -680,6 +725,7 @@ void main() {
       await harness.pump(
         tester,
         child: const OutputCard(),
+        more: true,
         disableAnimations: true,
       );
       final widget = tester.widget<AnimatedOpacity>(
@@ -692,7 +738,7 @@ void main() {
       tester,
     ) async {
       final harness = TranslateHarness(state: _stale());
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       await tester.tap(find.byTooltip('Add to favourites'));
       final entry =
           verify(() => harness.history.add(captureAny())).captured.single
@@ -712,7 +758,7 @@ void main() {
       final harness = TranslateHarness(
         state: translatedState(assistEngine: claude),
       );
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       // " monde": the leading space is not part of the span.
       await _select(tester, 10, 16);
       expect(find.text('Copy'), findsOneWidget);
@@ -736,7 +782,7 @@ void main() {
           alternativesSpanStart: () => 11,
         ),
       );
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       await _select(tester, 11, 16);
       await tester.tap(find.text('Alternatives'));
       await tester.pumpAndSettle();
@@ -752,7 +798,7 @@ void main() {
 
     testWidgets('are not offered without an AI engine', (tester) async {
       final harness = TranslateHarness(state: translatedState());
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       await _select(tester, 11, 16);
       expect(find.text('Copy'), findsOneWidget);
       expect(find.text('Alternatives'), findsNothing);
@@ -762,7 +808,7 @@ void main() {
       tester,
     ) async {
       final harness = TranslateHarness(state: _stale());
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       await _select(tester, 11, 16);
       expect(find.text('Alternatives'), findsNothing);
     });
@@ -771,7 +817,7 @@ void main() {
       final harness = TranslateHarness(
         state: translatedState(assistEngine: claude),
       );
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       await _select(tester, 7, 8);
       expect(find.text('Alternatives'), findsNothing);
     });

@@ -107,6 +107,20 @@ class HistoryCubit extends Cubit<HistoryState> {
   void setFavoritesOnly({required bool enabled}) =>
       emit(state.copyWith(favoritesOnly: enabled));
 
+  /// Shows only the entries of [pair] (null: every pair).
+  void filterByPair(HistoryPair? pair) =>
+      emit(state.copyWith(pair: () => pair));
+
+  /// Shows only the entries whose text went to [destination] (null:
+  /// anywhere).
+  void filterByDestination(HistoryDestination? destination) =>
+      emit(state.copyWith(destination: () => destination));
+
+  /// Clears the language pair and destination filters (not the search or
+  /// the favourites tab).
+  void clearFilters() =>
+      emit(state.copyWith(pair: () => null, destination: () => null));
+
   /// Pretty JSON of all entries (see [HistoryRepository.exportJson]).
   // Returns the export for the caller to save or share; it is not state.
   // ignore: prefer_void_public_cubit_methods

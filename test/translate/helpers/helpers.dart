@@ -15,6 +15,7 @@ import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/speech/speech_service.dart';
 import 'package:mozhi/translate/translate.dart';
+import 'package:mozhi/translate/widgets/widgets.dart';
 import 'package:mozhi/voice/voice.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -298,13 +299,11 @@ class TranslateHarness {
         ..physicalSize = size;
       addTearDown(tester.view.reset);
     }
-    if (more) {
-      final controller = moreController = TranslateMoreController(
-        expanded: true,
-      );
-      addTearDown(controller.dispose);
+    final opened = more ? TranslateMoreController(expanded: true) : null;
+    if (opened != null) {
+      moreController = opened;
+      addTearDown(opened.dispose);
     }
-    final moreController = this.moreController;
     final home = child is TranslateView || child is TranslatePage
         ? child
         : Scaffold(body: SingleChildScrollView(child: child));
@@ -350,9 +349,9 @@ class TranslateHarness {
                   child: child!,
                 );
               },
-              home: more && moreController != null
-                  ? TranslateMoreScope(controller: moreController, child: home)
-                  : home,
+              home: opened == null
+                  ? home
+                  : TranslateMoreScope(controller: opened, child: home),
             ),
           ),
         ),
@@ -392,13 +391,16 @@ Finder findTooltipMessage(String message) => find.byWidgetPredicate(
 Finder findListenTooltip(String label) =>
     findTooltipMessage(listenTooltip(label));
 
-/// Captures clipboard writes and serves [pasteText] to reads.
+/// Captures clipboard writes and serves [pasteText] to reads; also
+/// records the haptic feedback asked for ([haptics]).
 class FakeClipboard {
   new(WidgetTester tester, {this.pasteText}) {
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       SystemChannels.platform,
       (call) async {
         switch (call.method) {
+          case 'HapticFeedback.vibrate':
+            haptics.add(call.arguments as String?);
           case 'Clipboard.setData':
             copied = (call.arguments as Map)['text'] as String?;
           case 'Clipboard.getData':
@@ -419,4 +421,8 @@ class FakeClipboard {
 
   String? pasteText;
   String? copied;
+
+  /// `HapticFeedbackType`s asked for, e.g.
+  /// `HapticFeedbackType.selectionClick`.
+  final haptics = <String?>[];
 }

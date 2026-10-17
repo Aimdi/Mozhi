@@ -134,11 +134,54 @@ void main() {
       expect(Theme.of(context).brightness, Brightness.dark);
     });
 
-    testWidgets('compare toggle enables compare mode', (tester) async {
+    testWidgets('"Compare engines" in the More area enables compare mode', (
+      tester,
+    ) async {
       final harness = TranslateHarness(state: translatedState());
       await harness.pump(tester);
+      // Not in the app bar: one task per screen.
+      expect(find.byKey(const Key('translate_compare_toggle')), findsNothing);
+      await openMore(tester);
       await tester.tap(find.byKey(const Key('translate_compare_toggle')));
       verify(() => harness.translate.setCompareMode(enabled: true)).called(1);
+    });
+
+    testWidgets('the More tools menu turns compare mode on before a '
+        'translation', (tester) async {
+      final harness = TranslateHarness(state: readyState(input: 'Hello'));
+      await harness.pump(tester);
+      await tester.tap(find.byKey(const Key('translate_more_tools')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Compare engines'));
+      await tester.pumpAndSettle();
+      verify(() => harness.translate.setCompareMode(enabled: true)).called(1);
+    });
+
+    testWidgets('the More tools menu leaves compare mode', (tester) async {
+      final harness = TranslateHarness(
+        state: translatedState().copyWith(compareMode: true),
+      );
+      await harness.pump(tester);
+      await tester.tap(find.byKey(const Key('translate_more_tools')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Exit compare mode'));
+      await tester.pumpAndSettle();
+      verify(() => harness.translate.setCompareMode(enabled: false)).called(1);
+    });
+
+    testWidgets('compare is not offered with a single engine', (tester) async {
+      final harness = TranslateHarness(
+        state: translatedState().copyWith(engines: const [deepl]),
+      );
+      await harness.pump(tester);
+      await openMore(tester);
+      expect(find.byKey(const Key('translate_compare_toggle')), findsNothing);
+      await tester.tap(find.byKey(const Key('translate_more_tools')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('translate_tool_compare')),
+        findsNothing,
+      );
     });
 
     testWidgets('compare mode replaces the output card', (tester) async {

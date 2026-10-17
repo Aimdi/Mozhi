@@ -244,10 +244,13 @@ void main() {
     }, skip: skip);
 
     test('hints bias the result', () async {
-      final plain = (await identifier.identify('Hur mår du?'))!;
-      final hinted = (await identifier.identify('Hur mår du?', hints: ['sv']))!;
-      expect(plain.precise.language, 'un');
-      expect(hinted.precise.language, 'sv');
+      // Czech and Slovak share these words; CLD2 says Czech.
+      final plain = (await identifier.identify('Dobré ráno'))!;
+      final hinted = (await identifier.identify('Dobré ráno', hints: ['sk']))!;
+      expect(plain.precise.language, 'cs');
+      expect(hinted.precise.language, 'sk');
+      final guess = (await identifier.identify('Godmorgon', hints: ['sv']))!;
+      expect(guess.bestEffort.language, 'sv');
     }, skip: skip);
 
     test('runs on many threads at once', () async {
@@ -304,13 +307,16 @@ void main() {
       var none = 0;
       var cld2Right = 0;
       var cld2Wrong = 0;
+      var heuristicRight = 0;
+      var heuristicWrong = 0;
       final mistakes = <String>[];
       for (final [expected, text] in rows) {
         final accepted = expected.split('|');
         final detection = (await identifier.identify(text))!;
+        final heuristic = LanguageIdentifier.identify(text);
         final chosen = Cld2Decision.choose(
           detection,
-          heuristic: LanguageIdentifier.identify(text),
+          heuristic: heuristic,
           preferred: _offlineSources,
         );
         if (chosen == null) {
@@ -327,12 +333,17 @@ void main() {
         if (cld2 != null) {
           accepted.contains(cld2) ? cld2Right++ : cld2Wrong++;
         }
+        if (heuristic != null) {
+          accepted.contains(heuristic) ? heuristicRight++ : heuristicWrong++;
+        }
       }
       String share(int n) => '${(100 * n / rows.length).round()}%';
       debugPrint(
         'language id on ${rows.length} phrases: right ${share(right)}, '
         'wrong ${share(wrong)}, undetermined ${share(none)}; CLD2 alone: '
-        'right ${share(cld2Right)}, wrong ${share(cld2Wrong)}\n'
+        'right ${share(cld2Right)}, wrong ${share(cld2Wrong)}; heuristic '
+        'alone: right ${share(heuristicRight)}, wrong '
+        '${share(heuristicWrong)}\n'
         '  mistakes: ${mistakes.join('; ')}',
       );
       expect(right / rows.length, greaterThan(0.75));

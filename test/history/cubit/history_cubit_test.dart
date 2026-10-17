@@ -328,6 +328,45 @@ void main() {
         act: (cubit) => cubit.setFavoritesOnly(enabled: true),
         expect: () => const [HistoryState(favoritesOnly: true)],
       );
+
+      const pair = HistoryPair(
+        source: Language(code: 'en', name: 'English'),
+        target: Language(code: 'fr', name: 'French'),
+      );
+
+      blocTest<HistoryCubit, HistoryState>(
+        'filterByPair sets and clears the language pair',
+        build: buildCubit,
+        act: (cubit) => cubit
+          ..filterByPair(pair)
+          ..filterByPair(null),
+        expect: () => const [HistoryState(pair: pair), HistoryState()],
+      );
+
+      blocTest<HistoryCubit, HistoryState>(
+        'filterByDestination sets and clears the destination',
+        build: buildCubit,
+        act: (cubit) => cubit
+          ..filterByDestination(HistoryDestination.onDevice)
+          ..filterByDestination(null),
+        expect: () => const [
+          HistoryState(destination: HistoryDestination.onDevice),
+          HistoryState(),
+        ],
+      );
+
+      blocTest<HistoryCubit, HistoryState>(
+        'clearFilters keeps the search and the favourites tab',
+        build: buildCubit,
+        seed: () => const HistoryState(
+          query: 'cat',
+          favoritesOnly: true,
+          pair: pair,
+          destination: HistoryDestination.cloud,
+        ),
+        act: (cubit) => cubit.clearFilters(),
+        expect: () => const [HistoryState(query: 'cat', favoritesOnly: true)],
+      );
     });
 
     group('import/export', () {

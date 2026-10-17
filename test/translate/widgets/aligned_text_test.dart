@@ -601,7 +601,7 @@ void main() {
         state: translatedState(assistEngine: claude),
       );
       stubOutputExtras(harness);
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       expect(find.byTooltip('Show matching phrases'), findsOneWidget);
       await tester.tap(button());
       await tester.pump();
@@ -612,7 +612,7 @@ void main() {
 
     testWidgets('is not offered without an AI engine', (tester) async {
       final harness = TranslateHarness(state: translatedState());
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       expect(button(), findsNothing);
     });
 
@@ -621,7 +621,7 @@ void main() {
         state: translatedState(assistEngine: claude)
             .copyWith(input: 'Hello there', resultInput: () => 'Hello world'),
       );
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       expect(tester.widget<TranslateToolChip>(button()).onPressed, isNull);
     });
 
@@ -630,7 +630,7 @@ void main() {
         state: aligned(status: ExtraStatus.loading),
       );
       stubOutputExtras(harness);
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       await tester.tap(button());
       await tester.pump();
       verifyNever(harness.translate.loadAlignment);
@@ -647,7 +647,7 @@ void main() {
         ),
       );
       stubOutputExtras(harness);
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       await tester.tap(button());
       await tester.pump();
       verify(harness.translate.loadAlignment).called(1);
@@ -662,7 +662,7 @@ void main() {
     testWidgets('says when nothing could be aligned', (tester) async {
       final harness = TranslateHarness(state: aligned(alignment: const []));
       stubOutputExtras(harness);
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       await tester.tap(button());
       await tester.pump();
       expect(find.text('No matching phrases found.'), findsOneWidget);
@@ -672,7 +672,7 @@ void main() {
     testWidgets('tapping a phrase focuses its pair', (tester) async {
       final harness = TranslateHarness(state: aligned());
       stubOutputExtras(harness);
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       await tester.tap(button());
       await tester.pump();
       expect(_alignedText, findsOneWidget);
@@ -688,7 +688,7 @@ void main() {
     testWidgets('the phrases can be reached with the keyboard', (tester) async {
       final harness = TranslateHarness(state: aligned());
       stubOutputExtras(harness);
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       await tester.tap(button());
       await tester.pump();
       // The hint explains the keyboard path too.
@@ -721,7 +721,7 @@ void main() {
     testWidgets('hiding clears the focus', (tester) async {
       final harness = TranslateHarness(state: aligned(focus: 1));
       stubOutputExtras(harness);
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       await tester.tap(button());
       await tester.pump();
       expect(_alignedText, findsOneWidget);
@@ -737,7 +737,7 @@ void main() {
     ) async {
       final harness = TranslateHarness(state: aligned());
       stubOutputExtras(harness);
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       await tester.tap(button());
       await tester.pump();
       await tester.tap(button());
@@ -755,7 +755,7 @@ void main() {
         ),
       );
       stubOutputExtras(harness);
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       await tester.tap(button());
       await tester.pump();
       expect(_alignedText, findsOneWidget);
@@ -780,7 +780,7 @@ void main() {
       final controller = StreamController<TranslateState>();
       addTearDown(controller.close);
       whenListen(harness.translate, controller.stream, initialState: initial);
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       await tester.tap(button());
       await tester.pump();
       verify(harness.translate.loadAlignment).called(1);
@@ -808,7 +808,7 @@ void main() {
       final controller = StreamController<TranslateState>();
       addTearDown(controller.close);
       whenListen(harness.translate, controller.stream, initialState: initial);
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       await tester.tap(button());
       await tester.pump();
       verify(harness.translate.loadAlignment).called(1);
@@ -845,7 +845,7 @@ void main() {
       final controller = StreamController<TranslateState>();
       addTearDown(controller.close);
       whenListen(harness.translate, controller.stream, initialState: initial);
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       await tester.tap(button());
       await tester.pump();
       verify(harness.translate.loadAlignment).called(1);
@@ -875,7 +875,7 @@ void main() {
       final controller = StreamController<TranslateState>();
       addTearDown(controller.close);
       whenListen(harness.translate, controller.stream, initialState: initial);
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       await tester.tap(button());
       await tester.pump();
 
@@ -918,7 +918,7 @@ void main() {
       final controller = StreamController<TranslateState>();
       addTearDown(controller.close);
       whenListen(harness.translate, controller.stream, initialState: initial);
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       await tester.tap(button());
       await tester.pump();
       verifyNever(harness.translate.loadAlignment);
@@ -941,7 +941,7 @@ void main() {
         Stream.value(initial.copyWith(input: 'Hello')),
         initialState: initial,
       );
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       await tester.pump();
       verifyNever(harness.translate.loadAlignment);
     });

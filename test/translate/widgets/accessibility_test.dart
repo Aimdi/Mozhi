@@ -158,6 +158,7 @@ void main() {
       await harness.pump(
         tester,
         child: const OutputCard(),
+        more: true,
         supportsAnnounce: true,
       );
       await _emit(tester, controller, _streaming('Bonjour'));
@@ -191,6 +192,7 @@ void main() {
       await harness.pump(
         tester,
         child: const OutputCard(),
+        more: true,
         supportsAnnounce: true,
       );
       await _emit(
@@ -218,6 +220,7 @@ void main() {
       await harness.pump(
         tester,
         child: const OutputCard(),
+        more: true,
         supportsAnnounce: true,
       );
       await _emit(
@@ -250,6 +253,7 @@ void main() {
       await harness.pump(
         tester,
         child: const OutputCard(),
+        more: true,
         supportsAnnounce: false,
       );
       expect(
@@ -274,6 +278,7 @@ void main() {
       await harness.pump(
         tester,
         child: const OutputCard(),
+        more: true,
         supportsAnnounce: true,
       );
       expect(tester.takeAnnouncements(), isEmpty);
@@ -285,6 +290,7 @@ void main() {
       final handle = tester.ensureSemantics();
       final harness = TranslateHarness(state: _streaming('Bon'));
       await harness.pump(tester, child: const OutputCard());
+      await pumpPastLoadingDelay(tester);
       final progress = tester.widget<LinearProgressIndicator>(
         find.byKey(const Key('translate_output_progress')),
       );
@@ -486,6 +492,7 @@ void main() {
       );
       await harness.pump(tester, child: const OutputCard());
       expect(find.byType(InsightChips), findsNothing);
+      await openMore(tester);
       await tester.tap(find.byKey(const Key('translate_insights_button')));
       await tester.pump();
       expect(find.bySemanticsLabel('Word insights'), findsOneWidget);

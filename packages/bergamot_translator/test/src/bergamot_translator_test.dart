@@ -9,6 +9,40 @@ import '../helpers/fake_models.dart';
 
 class _MockEngine extends Mock implements BergamotEngine;
 
+/// A native identifier answering [detection] (null: none here) or throwing
+/// [error], recording the texts it saw.
+class _FakeLanguageId implements NativeLanguageIdentifier {
+  Cld2Detection? detection;
+  Exception? error;
+  final texts = <String>[];
+
+  @override
+  Future<Cld2Detection?> identify(
+    String text, {
+    List<String> hints = const [],
+  }) async {
+    texts.add(text);
+    if (error case final error?) throw error;
+    return detection;
+  }
+}
+
+Cld2Detection _detection(String precise, {String? guess, int score = 1500}) =>
+    Cld2Detection(
+      precise: Cld2Result(
+        language: precise,
+        languages: [
+          if (precise != 'un') Cld2Language(precise, percent: 95, score: score),
+        ],
+        reliable: precise != 'un',
+      ),
+      bestEffort: Cld2Result(
+        language: guess ?? precise,
+        languages: [Cld2Language(guess ?? precise, percent: 90, score: score)],
+        reliable: true,
+      ),
+    );
+
 void main() {
   setUpAll(() => registerFallbackValue(<ModelPaths>[]));
 
@@ -16,6 +50,7 @@ void main() {
   late List<FakeModel> models;
   late FakeModelServer server;
   late _MockEngine engine;
+  late _FakeLanguageId languageId;
   late bool metered;
   late BergamotTranslator translator;
 
@@ -25,6 +60,7 @@ void main() {
         root: root,
         httpClient: server.client,
         engine: engine,
+        languageId: languageId,
         isAvailable: isAvailable,
         isMeteredConnection: () async => metered,
         maxChunkLength: chunk,
@@ -44,6 +80,7 @@ void main() {
     ];
     server = FakeModelServer(models);
     engine = _MockEngine();
+    languageId = _FakeLanguageId();
     metered = false;
     when(() => engine.release(any())).thenAnswer((_) async {});
     when(() => engine.dispose()).thenAnswer((_) async {});
@@ -261,6 +298,7 @@ void main() {
 
     test('identifies an auto source', () async {
       await translator.downloadLanguage('de');
+      // The heuristic answers (no native identifier in these tests).
       expect(
         await translator.translate(
           'Ich weiß nicht, ob das eine gute Idee ist.',
@@ -272,6 +310,15 @@ void main() {
       await expectLater(
         translator.translate('OK', source: '', target: 'de'),
         throwsA(isA<OfflineLanguageUnsupportedException>()),
+      );
+    });
+
+    test('identifies a short auto source with CLD2', () async {
+      await translator.downloadLanguage('es');
+      languageId.detection = _detection('un', guess: 'es');
+      expect(
+        await translator.translate('Gracias', source: 'auto', target: 'en'),
+        '[es-en] Gracias',
       );
     });
 
@@ -321,9 +368,63 @@ void main() {
     });
   });
 
-  test('identifyLanguage', () async {
-    expect(await translator.identifyLanguage(''), isNull);
-    expect(await translator.identifyLanguage('안녕하세요'), 'ko');
+  group('identifyLanguage', () {
+    test('is null for blank text, without asking CLD2', () async {
+      expect(await translator.identifyLanguage(''), isNull);
+      expect(await translator.identifyLanguage(' \n'), isNull);
+      expect(languageId.texts, isEmpty);
+    });
+
+    test('decides with CLD2 where the engine runs', () async {
+      languageId.detection = _detection('de');
+      expect(await translator.identifyLanguage('Guten Morgen'), 'de');
+      expect(languageId.texts, ['Guten Morgen']);
+
+      // A strong guess counts for languages the engine translates from...
+      languageId.detection = _detection('un', guess: 'es');
+      expect(await translator.identifyLanguage('Gracias'), 'es');
+      // ...not for others ("Sí" is guessed Irish).
+      languageId.detection = _detection('un', guess: 'ga');
+      expect(await translator.identifyLanguage('Sí'), isNull);
+      // CLD2's reliable answer counts for every language.
+      languageId.detection = _detection('sw');
+      expect(await translator.identifyLanguage('Habari ya asubuhi'), 'sw');
+    });
+
+    test('falls back to the heuristic without CLD2', () async {
+      // No native identifier (null), or a failing one.
+      expect(await translator.identifyLanguage('안녕하세요'), 'ko');
+      languageId.error = const BergamotEngineException('boom');
+      expect(await translator.identifyLanguage('안녕하세요'), 'ko');
+      expect(await translator.identifyLanguage('Danke'), isNull);
+      expect(languageId.texts, hasLength(3));
+    });
+
+    test('uses only the heuristic where the engine cannot run', () async {
+      languageId.detection = _detection('de');
+      final unavailable = create(isAvailable: false);
+      expect(await unavailable.identifyLanguage('안녕하세요'), 'ko');
+      expect(await unavailable.identifyLanguage('Guten Morgen'), isNull);
+      expect(languageId.texts, isEmpty);
+    });
+
+    test('looks at the first 4096 characters, keeping surrogate pairs',
+        () async {
+      languageId.detection = _detection('en');
+      final long = 'a' * 5000;
+      expect(await translator.identifyLanguage(long), 'en');
+      expect(
+        languageId.texts.single,
+        hasLength(BergamotTranslator.identificationSampleLength),
+      );
+      // An emoji (two code units) across the cut is left out whole.
+      final emoji = '${'a' * 4095}\u{1F600}${'b' * 10}';
+      await translator.identifyLanguage(emoji);
+      expect(languageId.texts.last, 'a' * 4095);
+      final short = 'a' * 4096;
+      await translator.identifyLanguage(short);
+      expect(languageId.texts.last, short);
+    });
   });
 
   test('dispose stops the engine', () async {

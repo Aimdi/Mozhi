@@ -420,6 +420,7 @@ void main() {
       testWidgets('from the keyboard', (tester) async {
         final harness = _harness(_checked());
         await harness.pump(tester);
+        await openMore(tester);
         focusOf(tester, const Key('translate_meaning_close')).requestFocus();
         await tester.pump();
         await tester.sendKeyEvent(LogicalKeyboardKey.enter);
@@ -437,6 +438,7 @@ void main() {
       testWidgets('with a screen reader', (tester) async {
         final harness = _harness(_checked());
         await harness.pump(tester);
+        await openMore(tester);
         tester.platformDispatcher.accessibilityFeaturesTestValue =
             const FakeAccessibilityFeatures(accessibleNavigation: true);
         addTearDown(
@@ -461,6 +463,7 @@ void main() {
       testWidgets('but not from a tap elsewhere in focus', (tester) async {
         final harness = _harness(_checked());
         await harness.pump(tester);
+        await openMore(tester);
         await tester.ensureVisible(
           find.byKey(const Key('translate_meaning_close')),
         );
@@ -470,6 +473,29 @@ void main() {
         expect(
           focusOf(tester, const Key('translate_meaning_button')).hasFocus,
           isFalse,
+        );
+      });
+
+      testWidgets('or to the More toggle while the More area is closed', (
+        tester,
+      ) async {
+        final harness = _harness(_checked());
+        await harness.pump(tester);
+        // The check stays on screen; its button is behind "More".
+        expect(find.byKey(const Key('translate_meaning_button')), findsNothing);
+        focusOf(tester, const Key('translate_meaning_close')).requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+        verify(harness.translate.clearMeaningCheck).called(1);
+        final toggle = find.byKey(const Key('translate_more_toggle'));
+        expect(
+          Focus.of(
+            tester.element(
+              find.descendant(of: toggle, matching: find.byType(Text)),
+            ),
+          ).hasPrimaryFocus,
+          isTrue,
         );
       });
     });
@@ -606,6 +632,7 @@ void main() {
       await harness.pump(
         tester,
         child: const OutputCard(),
+        more: true,
         locale: const Locale('de'),
       );
       await tester.tap(find.byKey(const Key('translate_meaning_button')));
@@ -615,7 +642,7 @@ void main() {
 
     testWidgets('is offered for engines without AI extras too', (tester) async {
       final harness = _harness(_translated(assistEngine: null));
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       expect(find.byKey(const Key('translate_meaning_button')), findsOneWidget);
       await tester.tap(find.byKey(const Key('translate_meaning_button')));
       expect(
@@ -635,7 +662,7 @@ void main() {
           resultInput: () => 'Hello world',
         ),
       );
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       final button = tester.widget<TranslateToolChip>(
         find.byKey(const Key('translate_meaning_button')),
       );
@@ -644,7 +671,7 @@ void main() {
 
     testWidgets('hides a shown check', (tester) async {
       final harness = _harness(_checked());
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       expect(find.byTooltip('Hide meaning check'), findsOneWidget);
       await tester.tap(find.byKey(const Key('translate_meaning_button')));
       verify(harness.translate.clearMeaningCheck).called(1);
@@ -671,7 +698,7 @@ void main() {
           ],
         ),
       );
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       final text = tester.widget<SelectableText>(
         find.byKey(const Key('translate_output_text')),
       );
@@ -706,7 +733,7 @@ void main() {
           ),
         ),
       );
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       final span = tester
           .widget<SelectableText>(
             find.byKey(const Key('translate_output_text')),
@@ -722,7 +749,7 @@ void main() {
   group('OutputCard meaning highlight', () {
     testWidgets('keeps "Alternatives" for a selection', (tester) async {
       final harness = _harness(_checked(focus: 0));
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       final editable = tester.state<EditableTextState>(
         find.descendant(
           of: find.byKey(const Key('translate_output_text')),

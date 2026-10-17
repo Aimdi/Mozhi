@@ -107,5 +107,19 @@ void main() {
         expect(bergamotEngineLicenseText, contains(component));
       }
     });
+
+    test('names the language identifier and quotes the short licenses', () {
+      expect(
+        bergamotEngineLicenseText,
+        allOf(
+          contains('CLD2'),
+          contains('https://github.com/CLD2Owners/cld2'),
+          // zlib's and faiss's own notices, not just their names.
+          contains('This notice may not be removed or altered'),
+          contains('Copyright (c) Facebook, Inc. and its affiliates'),
+          contains('The above copyright notice and this permission'),
+        ),
+      );
+    });
   });
 }

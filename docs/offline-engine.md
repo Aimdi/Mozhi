@@ -10,6 +10,8 @@ missing from the F-Droid build) with Mozilla's open models, the ones
 Firefox uses for its built-in translation. The default build now contains
 no Google code at all; ML Kit survives only as on-device text recognition
 in the optional Play variant ([build variants](contributing.md#build-variants)).
+ML Kit's language identification is replaced by CLD2, compiled into the
+same native library ([Language identification](#language-identification)).
 
 ## Decision
 
@@ -41,17 +43,24 @@ BergamotTranslator (implements OfflineTranslator)          lib/src/bergamot_tran
  ├─ BergamotModelManager  download, SHA-256, gunzip, atomic  lib/src/model_manager.dart
  │                     install under <root>/models/<pair>/<version>/
  ├─ TextChunker        paragraph/line/sentence pieces        lib/src/text_chunker.dart
- ├─ LanguageIdentifier heuristic identifyLanguage()          lib/src/language_identifier.dart
+ ├─ identifyLanguage() Cld2Decision over CLD2 + heuristic    lib/src/native_language_identifier.dart
+ │   ├─ NativeLanguageIdentifier  IsolateLanguageIdentifier: lib/src/engine/ffi/
+ │   │     Isolate.run per call -> mozhi_bergamot_detect -> CLD2
+ │   └─ LanguageIdentifier  heuristic (scripts + function    lib/src/language_identifier.dart
+ │         words): fallback and second opinion
  └─ BergamotEngine     IsolateBergamotEngine: one long-lived lib/src/engine/ffi/
       background isolate -> NativeEngine (dart:ffi, LRU of 3 models)
         -> libmozhi_bergamot.so (C API) -> bergamot BlockingService -> Marian
 ```
 
-* **Threading:** every native call happens in one background isolate
+* **Threading:** every translation call happens in one background isolate
   (`Isolate.spawn`, started lazily, restarted if it dies); the UI isolate
-  only sends messages. The C API serialises calls with a mutex (the
+  only sends messages. The C API serialises them with a mutex (the
   engine and Marian's loggers are process-global), converts every engine
   error into a message (`marian::setThrowExceptionOnAbort`), never aborts.
+  Language identification runs in its own short-lived isolate per call
+  (`Isolate.run`) and takes no lock (CLD2 is stateless), so it never waits
+  behind a long translation.
 * **Long text:** pieces of at most 2000 characters, cut at blank lines, then
   line breaks, then sentence ends; the engine splits each piece into
   sentences itself (ssplit) and keeps whitespace, so paragraphs survive.
@@ -108,11 +117,81 @@ resumes with an HTTP `Range` request (the existing bytes are re-hashed, so
 the final check covers the whole file); a server that ignores `Range`
 restarts it. The `http.Client` is injectable (tests use `MockClient`).
 
+## Language identification
+
+`BergamotTranslator.identifyLanguage` (the app's on-device detection, also
+used to pick the source of an `auto` offline translation) runs **CLD2**
+(Compact Language Detector 2), compiled into `libmozhi_bergamot.so`, and
+falls back to the old heuristic where the engine cannot run (web, armv7
+without VFPv4) or the library has no identifier.
+
+| Candidate | License | Size / dependencies | Short text | Verdict |
+| --- | --- | --- | --- | --- |
+| **[CLD2](https://github.com/CLD2Owners/cld2)** (Google; Chrome's detector before CLD3) | Apache-2.0 | plain C++, no dependencies; "chrome" tables (83 languages) +1.8 MB, "full" tables (165) +6.5 MB per ABI; ~0.03 ms per sentence | declines (`un`) on a word or two, best-effort mode guesses | **Chosen**, chrome tables. Unmaintained since 2015 but finished, thread-safe, shipped by Chrome on ARM for years. |
+| [CLD3](https://github.com/google/cld3) (Google, CLD2's successor) | Apache-2.0 | small neural network, but its feature definitions are protobuf messages: needs `protoc` at build time and protobuf linked (SentencePiece's bundled protobuf-lite has no generator) | designed for short text | Rejected: protobuf code generation in the CMake build for three ABIs and the F-Droid recipe is not worth it while CLD2 plus the decision below is good enough. |
+| [fastText lid.176.ftz](https://fasttext.cc/docs/en/language-identification.html) (what Firefox uses now) | code MIT, **model CC-BY-SA-3.0** | 917 KB model + fastText C++ | good | Rejected: a CC-BY-SA model bundled in the MIT app (share-alike, attribution on every copy) is licence-awkward; downloading it would add a network step to detection. |
+| keep the heuristic only | MIT | 0 | most short Latin-script text undetermined | Kept as fallback and second opinion. |
+
+**Tables:** the chrome set covers every language of the offline catalog
+except **Uyghur** (the heuristic still recognises its letters) and
+detects 30 more (`sw`, `la`, `cy`, ...). The full tables would add Uyghur
+and ~80 rarer languages for +4.7 MB per ABI (x3 ABIs in the APK) and more
+confusion between close languages on short text.
+
+**Decision** (`Cld2Decision.choose`, on the first 4096 characters):
+
+1. heuristic says `ug` (Uyghur letters) -> `ug`;
+2. CLD2's normal answer when reliable -> it (any language; `iw` -> `he`,
+   `jw` -> `jv`, `tw` -> `ak`, `sr-ME` -> `sr`; `zh-Hant` is kept: there are
+   Traditional Chinese models);
+3. a script only one language uses (Hangul, kana, Han without kana,
+   Greek, Hebrew, Thai, Bengali, Gujarati, Kannada, Malayalam, Tamil,
+   Telugu) -> the heuristic's answer (CLD2 guesses "中国" as Japanese);
+4. CLD2's best-effort guess, when reliable and either the heuristic agrees
+   or its score is at least 500 *and* the engine translates from that
+   language (a guess of `zh-Hant` counts as `zh`: shared characters);
+5. otherwise null: the app asks for the source language.
+
+Hints (CLD2's `content_language_hint`) are supported by the C API but not
+used: feeding it the heuristic's guesses made results worse (the heuristic
+calls most Cyrillic text Russian).
+
+**Measured** (Linux x86_64, `test/src/isolate_language_identifier_test.dart`
+with the native library; 238 phrases of 1-6 words in the 55 offline
+languages, `test/fixtures/language_id_phrases.tsv`, several ambiguous by
+nature such as hr/bs/sr/sl or id/ms):
+
+| | right | wrong | undetermined |
+| --- | ---: | ---: | ---: |
+| heuristic alone (before) | 32% | 10% | 58% |
+| CLD2 normal answers alone | 51% | 5% | 44% |
+| **the decision above** | **82%** | **10%** | **8%** |
+
+Most mistakes are close languages (id/ms, cs/sk, da/no/sv, gl/pt/es,
+nl/af) or greetings shared across languages ("Salut", "Adiós"); real
+sentences are nearly always right. "Guten Morgen", "Hola, ¿cómo estás?",
+"Добрый день", "こんにちは", "مرحبا" and "Bonjour tout le monde" are tested.
+
+| Latency | |
+| --- | --- |
+| CLD2, both passes, one sentence | ~0.03 ms (`mozhi_bergamot_cli --detect`); 0.05 ms from Dart incl. opening the loaded library |
+| CLD2, both passes, 4096 characters | 0.29 ms |
+| `IsolateLanguageIdentifier.identify` (Isolate.run, JIT, loaded machine) | 0.75 ms |
+
+**Code:** C API `mozhi_bergamot_detect` (fills a `MozhiBergamotDetection`:
+CLD2's answer, top 3 languages with percent and score, reliability),
+added to ABI 1 without changing other functions (Dart looks the symbol up
+and falls back to the heuristic without it); Dart
+`lib/src/native_language_identifier.dart` (results, `Cld2Decision`) and
+`lib/src/engine/ffi/isolate_language_identifier.dart` (FFI, isolate).
+
 ## Native build
 
-* Sources: two pinned submodules, `native/third_party/translations`
-  (mozilla/translations @ `69455aca`) and `native/third_party/pcre2`
-  (PCRE2 10.47, for ssplit; built in-tree, JIT off). **Do not** run
+* Sources: three pinned submodules, `native/third_party/translations`
+  (mozilla/translations @ `69455aca`), `native/third_party/pcre2`
+  (PCRE2 10.47, for ssplit; built in-tree, JIT off) and
+  `native/third_party/cld2` (CLD2 @ `b56fa78a`, 2015-08-20, the last
+  commit; 118 MB checkout, mostly the unused full tables). **Do not** run
   `git submodule update --init --recursive` on `translations` (it also
   holds Mozilla's training pipeline: marian-dev, kenlm, emsdk, ...).
   `packages/bergamot_translator/tool/fetch_native_deps.sh` initialises only
@@ -156,6 +235,16 @@ restarts it. The `http.Client` is injectable (tests use `MockClient`).
     called).
   * Only `mozhi_bergamot_*` is exported (version script); libc++ is linked
     statically (`c++_static`), `-z max-page-size=16384` (16 KB pages).
+  * CLD2 (static library `mozhi_cld2`, the 24 files of its
+    `compile_libs.sh` with `debug_empty.cc`): its 2014 generated tables
+    initialise `uint8` arrays with negative constants, an error since
+    C++11 in GCC and clang, so it builds with `-Wno-narrowing` (as Chrome
+    did) and `-w`. Its unaligned loads go through `memcpy` on every target
+    we build (`port.h`).
+  * Reproducible builds: `-ffile-prefix-map` maps the repository root to
+    `.`, the build directory to `build` and the NDK to `ndk` for every
+    target, so the ~200 `__FILE__` paths (Marian's messages, asserts) no
+    longer embed the machine's checkout path.
 * Android (`android/build.gradle`): `externalNativeBuild` with
   `../native/CMakeLists.txt`, NDK pinned to `28.2.13676358` (= Flutter
   3.47's default), CMake 3.22.1, `abiFilters arm64-v8a, armeabi-v7a,
@@ -179,7 +268,9 @@ restarts it. The `http.Client` is injectable (tests use `MockClient`).
 * Linux (tests): `packages/bergamot_translator/tool/build_native_linux.sh`
   -> `build/native/linux/libmozhi_bergamot.so` (~6 minutes on 4 cores).
   `native/tool/mozhi_bergamot_cli.c` (target `mozhi_bergamot_cli`) is a
-  smoke-test/benchmark CLI, also usable on a device via `adb shell`.
+  smoke-test/benchmark CLI, also usable on a device via `adb shell`;
+  `--detect < lines.txt` prints CLD2's answer and guess for every line
+  with the time it took.
 
 ## What was verified
 
@@ -203,6 +294,7 @@ against the catalog:
 | armv7 build (GCC 13 cross, NEON+VFPv4, compat header, patches) under qemu-arm | en->de "Hallo, wie geht es dir?"; es->en->de pivot as above |
 | armv7 and aarch64 builds with **clang 18** (closest to the NDK's clang 19) under qemu | es->en->de pivot as above on both (this found the clang-only issues and patch 0002) |
 | `libmozhi_bergamot.so` size, stripped | x86_64 10.4 MB (GCC); aarch64 8.5 MB, armv7 5.8 MB (clang, glibc, shared libstdc++; Android adds ~1 MB of static libc++) |
+| CLD2's cost in the library (x86_64, stripped) | +1.76 MiB: 10,685,432 -> 12,532,760 bytes |
 
 `flutter test` in the package: 137 tests pass, plus 6 real-model tests
 (skipped unless `BERGAMOT_TEST_MODELS=1`; they pass here). Line coverage is
@@ -222,9 +314,12 @@ against the catalog:
   direction plus Marian's 128 MB workspace setting (`workspace: 128`,
   Firefox's value; lower it via the C API's `extra_config` if needed).
 * x86_64 Android (emulators) uses the same intgemm path as the Linux test.
-* `identifyLanguage` is a heuristic (scripts + function words); Latin-script
-  text of a few words is often undetermined (the app then asks for the
-  source language).
+* CLD2 inside the NDK build and on a device. Standalone, with the same
+  sources and flags (armv7: NEON + VFPv4, Thumb, the force-included compat
+  header), clang 18 builds it for armv7 and aarch64 and, under qemu, it
+  gives byte-for-byte the same answers as on x86_64 for all 238 test
+  phrases (both passes). Detection latency on phones is not measured
+  (`mozhi_bergamot_cli --detect < lines.txt` on a device does).
 
 ## App integration (wave B, done)
 
@@ -290,8 +385,10 @@ the SHA-256 checksums bundled with the app.
 
 * Upstream `0001-marian-unaligned-quant-mult.patch` and the ARM CMake fixes
   to mozilla/translations.
-* A real language identifier (e.g. CLD2, Apache-2.0, compiled into the same
-  library).
+* Language identification: `OfflineTranslator.identifyLanguage` returns one
+  code; ranked candidates with a confidence (CLD2 has the top 3) and
+  hints from the user's own languages would let the app offer "German or
+  Dutch?" instead of guessing or asking.
 * Cancellation of long translations (between pieces) and download
   cancellation; "translate as you type" debouncing in the app.
 * Optional: fetch a fresher catalog at run time (same schema), verify it

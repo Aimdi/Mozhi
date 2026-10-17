@@ -7,6 +7,7 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/widgets/widgets.dart';
 import 'package:translation_repository/translation_repository.dart';
 
+import '../helpers/fake_offline.dart';
 import '../helpers/helpers.dart';
 
 /// MyMemory request URL as Mozhi echoes it (the user's text in `q`).
@@ -329,8 +330,85 @@ void main() {
         find.text(l10n.translateErrorOfflineModelMissingFor('German')),
         findsOneWidget,
       );
-      await tester.tap(find.text('Download languages'));
+      // The size is unknown without the device's offline engine.
+      await tester.tap(find.text('Download German'));
       verify(() => harness.router.push<void>('/settings/offline')).called(1);
+    });
+
+    testWidgets('names the download size the offline engine knows', (
+      tester,
+    ) async {
+      final harness = TranslateHarness();
+      await harness.pump(
+        tester,
+        offline: fakeBergamot(),
+        child: const TranslateErrorView(
+          error: OfflineModelMissingException(['de', 'en']),
+        ),
+      );
+      // Both directions; English needs no download.
+      expect(find.text('Download German (24.0 MB)'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('translate_error_fix')));
+      verify(() => harness.router.push<void>('/settings/offline')).called(1);
+    });
+
+    testWidgets('missing models without languages keep the generic action', (
+      tester,
+    ) async {
+      final harness = TranslateHarness();
+      await harness.pump(
+        tester,
+        child: const TranslateErrorView(
+          error: OfflineModelMissingException([]),
+        ),
+      );
+      expect(find.text('Download languages'), findsOneWidget);
+    });
+
+    group('switch instance', () {
+      testWidgets('replaces "Manage instances" for instance errors', (
+        tester,
+      ) async {
+        var switched = 0;
+        final harness = TranslateHarness();
+        await harness.pump(
+          tester,
+          child: TranslateErrorView(
+            error: const MozhiApiException('Connection refused'),
+            onRetry: () {},
+            onSwitchInstance: () => switched++,
+          ),
+        );
+        expect(find.text('Manage instances'), findsNothing);
+        await tester.tap(find.text('Switch instance'));
+        expect(switched, 1);
+      });
+
+      testWidgets('is not offered for other errors or dense views', (
+        tester,
+      ) async {
+        final harness = TranslateHarness();
+        await harness.pump(
+          tester,
+          child: Column(
+            children: [
+              TranslateErrorView(
+                error: const LlmApiException('down'),
+                onSwitchInstance: () {},
+              ),
+              TranslateErrorView(
+                error: const MozhiApiException('Connection refused'),
+                dense: true,
+                onSwitchInstance: () {},
+              ),
+            ],
+          ),
+        );
+        expect(
+          find.byKey(const Key('translate_error_switch_instance')),
+          findsNothing,
+        );
+      });
     });
 
     testWidgets('dense errors hide the settings shortcut', (tester) async {

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
+import 'package:mozhi/core/bidi.dart';
 import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/core/undo_snack_bar.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
@@ -18,10 +19,11 @@ import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/view/widgets/empty_state_view.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:translation_repository/translation_repository.dart';
 
-/// On-device translation history with search, favorites and swipe to
-/// delete. Reads the app-wide [HistoryCubit], [SettingsCubit] and
-/// [TranslateCubit].
+/// On-device translation history with search, favorites, filters by
+/// language pair and by where the text went, and swipe to delete. Reads
+/// the app-wide [HistoryCubit], [SettingsCubit] and [TranslateCubit].
 class HistoryPage extends StatelessWidget {
   const new({super.key});
 
@@ -34,6 +36,9 @@ class HistoryView extends StatefulWidget {
 
   /// Key of the search field.
   static const searchFieldKey = Key('history_search');
+
+  /// Key of the language pair filter chip.
+  static const pairFilterKey = Key('history_filter_pair');
 
   @override
   State<HistoryView> createState() => _HistoryViewState();
@@ -98,6 +103,20 @@ class _HistoryViewState extends State<HistoryView>
     _onSearch('');
   }
 
+  /// Picks the language pair to show (or all of them).
+  Future<void> _pickPair(HistoryState state) async {
+    final cubit = context.read<HistoryCubit>();
+    final choice = await showModalBottomSheet<(HistoryPair?,)>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (_) => _PairSheet(pairs: state.pairs, selected: state.pair),
+    );
+    if (choice == null) return;
+    cubit.filterByPair(choice.$1);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
@@ -111,8 +130,22 @@ class _HistoryViewState extends State<HistoryView>
     final maxAge = context.select<SettingsCubit, Duration?>(
       (cubit) => cubit.state.historyRetention.maxAge,
     );
+    final providers = context.select<SettingsCubit, List<AiProviderConfig>>(
+      (cubit) => cubit.state.providers,
+    );
+    final instances = context.select<SettingsCubit, List<MozhiInstance>>(
+      (cubit) => cubit.state.instances,
+    );
+    HistoryDestination? destinationOf(String engineId) => historyDestinationOf(
+      engineId,
+      providers: providers,
+      instances: instances,
+    );
     final visible =
-        state.visible.where((e) => !_dismissed.contains(e.id)).toList()
+        state
+            .visibleWith(destinationOf)
+            .where((e) => !_dismissed.contains(e.id))
+            .toList()
           ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     final hasEntries = state.entries.any((e) => !_dismissed.contains(e.id));
 
@@ -169,6 +202,12 @@ class _HistoryViewState extends State<HistoryView>
                         onChanged: _onSearch,
                         onClear: _clearSearch,
                       ),
+                      if (hasEntries)
+                        _HistoryFilterBar(
+                          state: state,
+                          destinations: state.destinationsWith(destinationOf),
+                          onPickPair: () => unawaited(_pickPair(state)),
+                        ),
                     ],
                   ),
                 ),
@@ -310,6 +349,17 @@ class _HistoryViewState extends State<HistoryView>
                 label: Text(l10n.historyClearSearch),
               ),
             )
+          : state.hasFilters
+          ? (
+              Icons.filter_alt_off_outlined,
+              l10n.historyNoFilterMatchesTitle,
+              l10n.historyNoFilterMatchesBody,
+              FilledButton.tonalIcon(
+                onPressed: cubit.clearFilters,
+                icon: const Icon(Icons.close),
+                label: Text(l10n.historyClearFilters),
+              ),
+            )
           : state.favoritesOnly
           ? (
               Icons.star_outline_rounded,
@@ -334,9 +384,9 @@ class _HistoryViewState extends State<HistoryView>
             title: title,
             body: body,
             action: action,
-            // Search results change as the user types: say when there are
-            // none (WCAG 4.1.3).
-            announce: hasEntries && query.isNotEmpty,
+            // Search and filter results change as the user types or
+            // picks: say when there are none (WCAG 4.1.3).
+            announce: hasEntries && (query.isNotEmpty || state.hasFilters),
           ),
         ),
       ];
@@ -443,6 +493,180 @@ class _HistoryViewState extends State<HistoryView>
         ? DateFormat.MMMMEEEEd(l10n.localeName)
         : DateFormat.yMMMMEEEEd(l10n.localeName);
     return format.format(day);
+  }
+}
+
+/// The label of [destination] (as in the translator's destination badges).
+String historyDestinationLabel(
+  AppLocalizations l10n,
+  HistoryDestination destination,
+) => switch (destination) {
+  HistoryDestination.onDevice => l10n.commonDestinationOnDevice,
+  HistoryDestination.selfHosted => l10n.translateBadgeSelfHosted,
+  HistoryDestination.publicServer => l10n.translateBadgePublic,
+  HistoryDestination.cloud => l10n.translateBadgeCloud,
+};
+
+/// "English → French" for [pair], with both names bidi-isolated.
+String historyPairLabel(AppLocalizations l10n, HistoryPair pair) =>
+    l10n.historyLanguagePair(
+      bidiIsolate(pair.source.name),
+      bidiIsolate(pair.target.name),
+    );
+
+/// The filters below the search: the language pair (a chip that opens a
+/// list of the pairs in the history) and where the text went (one chip per
+/// destination in the history), plus "Clear filters" while one is set.
+///
+/// Filters that would not narrow anything (a single pair, a single
+/// destination) are left out unless set.
+class _HistoryFilterBar extends StatelessWidget {
+  const new({
+    required this.state,
+    required this.destinations,
+    required this.onPickPair,
+  });
+
+  final HistoryState state;
+
+  /// The destinations of the entries, in display order.
+  final List<HistoryDestination> destinations;
+  final VoidCallback onPickPair;
+
+  static IconData _iconOf(HistoryDestination destination) =>
+      switch (destination) {
+        HistoryDestination.onDevice => Icons.phone_android_outlined,
+        HistoryDestination.selfHosted => Icons.home_outlined,
+        HistoryDestination.publicServer => Icons.public,
+        HistoryDestination.cloud => Icons.cloud_outlined,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final cubit = context.read<HistoryCubit>();
+    final pair = state.pair;
+    final destination = state.destination;
+    final showPairs = pair != null || state.pairs.length > 1;
+    final shown = [
+      ...destinations,
+      if (destination != null && !destinations.contains(destination))
+        destination,
+    ];
+    final showDestinations = destination != null || destinations.length > 1;
+    if (!showPairs && !showDestinations) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Semantics(
+        container: true,
+        explicitChildNodes: true,
+        label: l10n.historyFilters,
+        child: Wrap(
+          spacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            if (showPairs)
+              FilterChip(
+                key: HistoryView.pairFilterKey,
+                materialTapTargetSize: MaterialTapTargetSize.padded,
+                selected: pair != null,
+                showCheckmark: false,
+                avatar: const Icon(Icons.translate, size: 18),
+                label: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        pair == null
+                            ? l10n.historyFilterAllPairs
+                            : historyPairLabel(l10n, pair),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const ExcludeSemantics(
+                      child: Icon(Icons.arrow_drop_down, size: 18),
+                    ),
+                  ],
+                ),
+                onSelected: (_) => onPickPair(),
+              ),
+            if (showDestinations)
+              for (final value in shown)
+                FilterChip(
+                  key: Key('history_filter_${value.name}'),
+                  materialTapTargetSize: MaterialTapTargetSize.padded,
+                  selected: destination == value,
+                  avatar: Icon(_iconOf(value), size: 18),
+                  label: Text(historyDestinationLabel(l10n, value)),
+                  onSelected: (selected) =>
+                      cubit.filterByDestination(selected ? value : null),
+                ),
+            if (state.hasFilters)
+              TextButton(
+                style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+                onPressed: cubit.clearFilters,
+                child: Text(l10n.historyClearFilters),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The language pairs of the history (with their number of entries) and
+/// "All language pairs"; pops the choice as a record (null pair: all).
+class _PairSheet extends StatelessWidget {
+  const new({required this.pairs, required this.selected});
+
+  final List<(HistoryPair, int)> pairs;
+  final HistoryPair? selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final check = Icon(Icons.check, color: theme.colorScheme.primary);
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.6,
+      minChildSize: 0.3,
+      builder: (context, controller) => ListView(
+        controller: controller,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+            child: Semantics(
+              header: true,
+              child: Text(
+                l10n.historyFilterPairTitle,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ),
+          ListTile(
+            selected: selected == null,
+            leading: const Icon(Icons.translate),
+            title: Text(l10n.historyFilterAllPairs),
+            trailing: selected == null ? check : null,
+            onTap: () => Navigator.of(context).pop((null,)),
+          ),
+          for (final (pair, count) in pairs)
+            ListTile(
+              selected: selected == pair,
+              leading: pair.source.isAuto || pair.source.isCustom
+                  ? const Icon(Icons.auto_awesome_outlined)
+                  : LanguageAvatar(code: pair.source.code),
+              title: Text(historyPairLabel(l10n, pair)),
+              subtitle: Text(l10n.historyFilterPairCount(count)),
+              trailing: selected == pair ? check : null,
+              onTap: () => Navigator.of(context).pop((pair,)),
+            ),
+        ],
+      ),
+    );
   }
 }
 

@@ -100,7 +100,7 @@ void main() {
         ),
       );
       stubOutputExtras(harness);
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       final text = tester.widget<SelectableText>(_line);
       expect(text.textSpan?.toPlainText(), "Kon'nichiwa");
       expect(
@@ -141,6 +141,7 @@ void main() {
       await harness.pump(
         tester,
         child: const OutputCard(),
+        more: true,
         locale: const Locale('ar'),
         themeMode: ThemeMode.dark,
       );
@@ -154,7 +155,7 @@ void main() {
     testWidgets('"Show romanization" loads it on demand', (tester) async {
       final harness = TranslateHarness(state: _japanese());
       stubOutputExtras(harness);
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       expect(_line, findsNothing);
       expect(find.byTooltip('Show romanization'), findsOneWidget);
       expect(tester.widget<TranslateToolChip>(_button).selected, isFalse);
@@ -169,7 +170,7 @@ void main() {
         settings: _off,
       );
       stubOutputExtras(harness);
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       // Hidden by the setting until asked for.
       expect(
         find.byKey(const Key('translate_romanization_progress')),
@@ -194,7 +195,7 @@ void main() {
         ),
       );
       stubOutputExtras(harness);
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       expect(
         find.byKey(const Key('translate_romanization_error')),
         findsOneWidget,
@@ -215,7 +216,7 @@ void main() {
         settings: _off,
       );
       stubOutputExtras(harness);
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       await tester.tap(_button);
       await tester.pump();
       verify(harness.translate.loadRomanization).called(1);
@@ -228,7 +229,7 @@ void main() {
         state: _japanese(engine: google, result: _mozhiResult),
       );
       stubOutputExtras(harness);
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       expect(find.text("Kon'nichiwa"), findsOneWidget);
       expect(tester.widget<TranslateToolChip>(_button).selected, isTrue);
 
@@ -251,7 +252,7 @@ void main() {
         ),
       );
       stubOutputExtras(harness);
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       expect(_line, findsNothing);
       expect(
         find.byKey(const Key('translate_romanization_progress')),
@@ -274,7 +275,7 @@ void main() {
       final controller = StreamController<TranslateState>();
       addTearDown(controller.close);
       whenListen(harness.translate, controller.stream, initialState: initial);
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       await tester.tap(_button);
       await tester.pump();
       verifyNever(harness.translate.loadRomanization);
@@ -291,7 +292,7 @@ void main() {
     ) async {
       final harness = TranslateHarness(state: translatedState());
       stubOutputExtras(harness);
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       expect(_button, findsNothing);
     });
 
@@ -307,7 +308,7 @@ void main() {
         ).copyWith(status: TranslateStatus.translating),
       );
       stubOutputExtras(harness);
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       expect(_button, findsNothing);
     });
 
@@ -321,6 +322,7 @@ void main() {
       await harness.pump(
         tester,
         child: const OutputCard(),
+        more: true,
         supportsAnnounce: true,
       );
       await tester.tap(_button);
@@ -352,6 +354,7 @@ void main() {
       await harness.pump(
         tester,
         child: const OutputCard(),
+        more: true,
         supportsAnnounce: true,
       );
       final loaded = initial.copyWith(
@@ -374,7 +377,7 @@ void main() {
       final controller = StreamController<TranslateState>();
       addTearDown(controller.close);
       whenListen(harness.translate, controller.stream, initialState: initial);
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       await tester.tap(_button);
       await tester.pump();
       verify(harness.translate.loadRomanization).called(1);
@@ -404,7 +407,7 @@ void main() {
       final controller = StreamController<TranslateState>();
       addTearDown(controller.close);
       whenListen(harness.translate, controller.stream, initialState: initial);
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       await tester.tap(_button);
       await tester.pump();
       verify(harness.translate.loadRomanization).called(1);
@@ -439,6 +442,7 @@ void main() {
       await harness.pump(
         tester,
         child: const OutputCard(),
+        more: true,
         supportsAnnounce: true,
       );
       await tester.tap(_button);
@@ -497,7 +501,7 @@ void main() {
         ),
         initialState: initial,
       );
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const OutputCard(), more: true);
       await tester.pump();
       verifyNever(harness.translate.loadRomanization);
     });

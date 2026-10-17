@@ -10,6 +10,7 @@ import 'dart:io';
 
 import 'package:bergamot_translator/bergamot_translator.dart';
 import 'package:bergamot_translator/src/engine/ffi/isolate_engine.dart';
+import 'package:bergamot_translator/src/engine/ffi/isolate_language_identifier.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -42,6 +43,7 @@ void main() {
       ),
       httpClient: client,
       engine: engine,
+      languageId: IsolateLanguageIdentifier(libraryPath: nativeLibraryPath()),
       isAvailable: true,
       isMeteredConnection: () async => false,
     );
@@ -114,6 +116,16 @@ void main() {
     );
     debugPrint('es->en->de: "$german"');
     expect(german.toLowerCase(), anyOf(contains('buch'), contains('wie')));
+  }, skip: skip);
+
+  test('auto source of a few words (CLD2)', () async {
+    final english = await translator.translate(
+      'Guten Morgen',
+      source: 'auto',
+      target: 'en',
+    );
+    debugPrint('auto->en: "Guten Morgen" -> "$english"');
+    expect(english.toLowerCase(), contains('morning'));
   }, skip: skip);
 
   test('auto source and long text keep paragraphs', () async {
