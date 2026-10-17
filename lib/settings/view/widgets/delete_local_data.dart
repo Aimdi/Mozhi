@@ -8,9 +8,13 @@ import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/data/history_repository.dart';
+import 'package:mozhi/image_translate/data/text_recognition_service.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/platform/mlkit_bindings.dart'
+    show createTextRecognitionService;
 import 'package:mozhi/platform/offline_engine.dart'
     show deleteOfflineModelFiles;
+import 'package:mozhi/platform/text_recognition.dart' as text_recognition;
 import 'package:mozhi/presets/cubit/glossary_cubit.dart';
 import 'package:mozhi/presets/cubit/presets_cubit.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
@@ -51,8 +55,9 @@ class LocalDataSummary {
 /// headers, instance passwords), all other preferences (presets,
 /// glossaries, usage counters, speech settings, cached engine lists) and
 /// the offline language models with the whole models folder
-/// ([deleteOfflineFiles]: partial downloads too) and the offline speech
-/// models ([offlineSpeech]).
+/// ([deleteOfflineFiles]: partial downloads too), the offline speech
+/// models ([offlineSpeech]) and the text recognition data
+/// ([textRecognition], then its folder with [deleteTextRecognitionFiles]).
 ///
 /// What the app keeps in memory is reset too, so that nothing deleted is
 /// shown or written back before the next start: [settings] go back to the
@@ -82,6 +87,8 @@ class LocalDataEraser {
     this.speech,
     this.speechInput,
     this.offlineSpeech,
+    this.textRecognition,
+    this.deleteTextRecognitionFiles,
   });
 
   /// Uses what the app provides above [context].
@@ -95,6 +102,10 @@ class LocalDataEraser {
     }
 
     final offline = maybe<OfflineTranslator>();
+    // Tesseract's downloadable data in the default build (ML Kit in the Play
+    // variant has none). Creating the recognizer loads nothing.
+    final ocr = textRecognitionLanguageDataOf(createTextRecognitionService());
+    final hasOcrData = ocr?.isSupported ?? false;
     return LocalDataEraser(
       history: context.read<HistoryCubit>(),
       settings: context.read<SettingsCubit>(),
@@ -114,6 +125,10 @@ class LocalDataEraser {
       speech: maybe<SpeechService>(),
       speechInput: maybe<SpeechInputService>(),
       offlineSpeech: maybe<OfflineSpeech>(),
+      textRecognition: hasOcrData ? ocr : null,
+      deleteTextRecognitionFiles: hasOcrData
+          ? text_recognition.deleteTextRecognitionFiles
+          : null,
     );
   }
 
@@ -141,6 +156,14 @@ class LocalDataEraser {
   /// The offline speech models (Whisper), deleted with the offline
   /// languages.
   final OfflineSpeech? offlineSpeech;
+
+  /// The text recognition language data (Tesseract), deleted language by
+  /// language so that open screens update.
+  final TextRecognitionLanguageData? textRecognition;
+
+  /// Deletes the text recognition folder afterwards (see
+  /// `deleteTextRecognitionFiles`): partial downloads too.
+  final Future<void> Function()? deleteTextRecognitionFiles;
 
   /// What [erase] deletes. Never throws: what cannot be found out is left
   /// out (sizes) or counted as nothing.
@@ -181,6 +204,16 @@ class LocalDataEraser {
     }
     if (deleteOfflineFiles case final deleteFiles?) await attempt(deleteFiles);
     if (offlineSpeech case final speech?) await attempt(speech.deleteAll);
+    if (textRecognition case final ocr?) {
+      await attempt(() async {
+        for (final code in (await ocr.installedOcrLanguages()).keys) {
+          await ocr.deleteOcrLanguage(code);
+        }
+      });
+    }
+    if (deleteTextRecognitionFiles case final deleteFiles?) {
+      await attempt(deleteFiles);
+    }
     // Back to the defaults (setup starts again): saving them also deletes
     // the API keys of every provider.
     settings.update((_) => const AppSettings());

@@ -24,7 +24,7 @@ a CI or release build.
 | --- | --- | --- |
 | Flutter (stable), Dart | 3.47.7, Dart 3.13.5 | `FLUTTER_VERSION` in `.github/workflows/main.yaml` and `release.yaml` |
 | JDK | Temurin 17 | `actions/setup-java` (`java-version: "17"`) in both workflows |
-| Android NDK | 28.2.13676358 (Flutter 3.47's default) | `NDK_VERSION` in both workflows; `ndkVersion` in `packages/bergamot_translator/android/build.gradle` |
+| Android NDK | 28.2.13676358 (Flutter 3.47's default) | `NDK_VERSION` in both workflows; `ndkVersion` in `packages/bergamot_translator/android/build.gradle`, `packages/tesseract_ocr/android/build.gradle` and `packages/whisper_speech/android/build.gradle` |
 | CMake (Android SDK package) | 3.22.1 | `CMAKE_VERSION` in both workflows; `externalNativeBuild.cmake.version` in the same `build.gradle` |
 | Android Gradle Plugin | 8.12.0 | `android/settings.gradle.kts`; the plugin's `build.gradle` (`classpath`) |
 | Kotlin | 2.3.21 | `android/settings.gradle.kts`; `kotlin-stdlib` in `android/app/build.gradle.kts` |
@@ -63,7 +63,11 @@ flutter pub get --enforce-lockfile        # fails if pubspec.lock would change
   the commits recorded in git. It then applies
   `packages/bergamot_translator/native/patches/`. Don't run
   `git submodule update --init --recursive`: that also fetches Mozilla's
-  training tools. The commits are listed in
+  training tools. The text recognition engine's one
+  (`packages/tesseract_ocr`) checks out Tesseract 5.5.3 and Leptonica
+  1.87.0, without Tesseract's own test submodules; the offline voice
+  input's one (`packages/whisper_speech`) checks out whisper.cpp v1.9.5,
+  which has no submodules. The commits are listed in
   [Dependencies](dependencies.md#tables). Nothing is downloaded while
   CMake configures or builds.
 - **Gradle dependencies** are resolved from Google's Maven and Maven

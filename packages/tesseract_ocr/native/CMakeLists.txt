@@ -194,18 +194,11 @@ if(ANDROID)
     CACHE PATH "Set by mozhi_tesseract" FORCE)
 endif()
 
-# Tesseract's CMakeLists asks git for its version when the checkout has a
-# .git entry (a submodule does); the answer depends on whether the tag was
-# fetched. Point git at a repository that does not exist for the duration
-# of the configure step, so it always uses its VERSION file.
-set(_saved_git_dir "$ENV{GIT_DIR}")
-set(ENV{GIT_DIR} "${CMAKE_CURRENT_BINARY_DIR}/no-git-during-configure")
+# Tesseract's CMakeLists asks git for its version (`git describe` in the
+# submodule): "5.5.3" at the pinned tag, and when the tag was not fetched
+# (shallow checkouts) it falls back to its VERSION file, "5.5.3" too, so
+# the version compiled in does not depend on the checkout.
 add_subdirectory("${MOZHI_TESSERACT_TESSERACT_DIR}" tesseract EXCLUDE_FROM_ALL)
-if(_saved_git_dir)
-  set(ENV{GIT_DIR} "${_saved_git_dir}")
-else()
-  unset(ENV{GIT_DIR})
-endif()
 file(STRINGS "${MOZHI_TESSERACT_TESSERACT_DIR}/VERSION" _tesseract_version
   LIMIT_COUNT 1)
 message(STATUS "mozhi_tesseract: Tesseract ${_tesseract_version}, "

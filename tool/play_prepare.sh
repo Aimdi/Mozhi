@@ -1,7 +1,8 @@
 #!/bin/sh
 # Turns a Mozhi checkout into the Play variant: the default (Google-free)
-# app plus Google ML Kit's on-device text recognition (closed source), so
-# camera and image translation can read text on the device. Offline
+# app with Google ML Kit's on-device text recognition (closed source) for
+# camera and image translation instead of the default build's Tesseract
+# (which then goes unused; its library stays in the APK). Offline
 # translation is Mozilla's Bergamot engine in both variants; the Play
 # variant does not add ML Kit translation (see docs/contributing.md, "Build
 # variants"). Run it on a checkout you build from (CI job "Build Play

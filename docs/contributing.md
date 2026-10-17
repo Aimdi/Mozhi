@@ -101,19 +101,22 @@ There are two Android variants. Both translate offline with Mozilla's
 open Firefox Translations models on the Bergamot engine
 (`packages/bergamot_translator`, see [Offline engine](offline-engine.md));
 they differ only in on-device text recognition (OCR) for camera and image
-translation.
+translation: Tesseract in the default build
+(`packages/tesseract_ocr`, see [Text recognition](text-recognition.md)), ML
+Kit in the Play variant.
 
 | | Default | Play variant |
 | --- | --- | --- |
 | Google code (ML Kit, Play services, Firebase) | **none** | ML Kit text recognition |
 | Offline translation | Bergamot | Bergamot |
-| On-device OCR | no (image translation uses the other methods and says why) | ML Kit |
+| On-device OCR | Tesseract, language data downloaded on request | ML Kit |
 | Made by | the source tree as committed | `tool/play_prepare.sh` |
 | Used for | GitHub releases, F-Droid, the Play bundle | optional APK next to the releases |
 | CI job | *Build Android APKs* (`mozhi-android`) | *Build Play variant (ML Kit)* (`mozhi-android-play`) |
 
 **Default build.** `pubspec.yaml` has no ML Kit package,
-`lib/platform/mlkit_bindings.dart` returns the unavailable text recognizer
+`lib/platform/mlkit_bindings.dart` returns the Tesseract text recognizer
+(`lib/platform/text_recognition.dart`; none on the web)
 and `android/app/build.gradle.kts` excludes the groups `com.google.mlkit`,
 `com.google.android.gms`, `com.google.firebase` and
 `com.google.android.datatransport` from every configuration (property

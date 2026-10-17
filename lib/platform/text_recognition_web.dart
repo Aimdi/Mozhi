@@ -4,3 +4,6 @@ import 'package:mozhi/image_translate/data/text_recognition_service.dart';
 /// `text_recognition_io.dart` for the app).
 TextRecognitionService defaultTextRecognitionService() =>
     const UnavailableTextRecognitionService();
+
+/// Nothing is stored in a browser.
+Future<void> deleteTextRecognitionFiles() async {}

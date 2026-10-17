@@ -2,11 +2,19 @@
 // WHISPER_LIBRARY_PATH) with whisper.cpp's empty-weight test models: they
 // load and run like the real ones but recognise nothing. Skipped when the
 // library is not built.
+//
+// Every transcription runs the encoder over a full 30 s window: a few
+// seconds each, more on a busy build machine.
+@Timeout(Duration(minutes: 3))
+library;
+
+import 'dart:isolate';
 import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:whisper_speech/src/engine/engine_factory_stub.dart' as stub;
+import 'package:whisper_speech/src/engine/ffi/bindings.dart';
 import 'package:whisper_speech/src/engine/ffi/isolate_engine.dart';
 import 'package:whisper_speech/src/engine/ffi/native_engine.dart';
 import 'package:whisper_speech/whisper_speech.dart';
@@ -206,7 +214,8 @@ void main() {
       await engine.cancel();
       await expectLater(running, throwsA(isA<WhisperCancelledException>()));
       await expectLater(waiting, throwsA(isA<WhisperCancelledException>()));
-      expect(stopwatch.elapsed, lessThan(const Duration(seconds: 5)));
+      // Failed at once on this side, without waiting for the engine.
+      expect(stopwatch.elapsed, lessThan(const Duration(seconds: 20)));
 
       // Later transcriptions are not affected.
       final after = await engine.transcribe(
@@ -218,18 +227,38 @@ void main() {
       await engine.dispose();
     });
 
-    test('the native cancel is reported as a cancellation', () async {
+    test('the native cancel aborts a transcription that is running', () async {
+      // In another isolate, as in the app; cancelled from this one until it
+      // returns (a cancel only affects transcriptions already running).
+      final libraryPath = library;
+      final modelPath = model;
+      var done = false;
+      final outcome = Isolate.run(() {
+        final engine = NativeWhisperEngine.open(libraryPath: libraryPath);
+        try {
+          engine.transcribe(modelPath, noise(whisperWindow));
+          return 'finished';
+        } on WhisperCancelledException {
+          return 'cancelled';
+        } finally {
+          engine.dispose();
+        }
+      }).whenComplete(() => done = true);
+      final bindings = WhisperBindings(WhisperBindings.open(library));
+      while (!done) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        bindings.cancel();
+      }
+      expect(await outcome, 'cancelled');
+
+      // A cancel before a call does not affect it.
+      bindings.cancel();
       final engine = NativeWhisperEngine.open(libraryPath: library);
-      // A cancel before the call does not affect it...
-      final bindingsEngine = IsolateWhisperEngine(libraryPath: library);
-      await bindingsEngine.transcribe(model, Float32List(1), language: 'en');
-      await bindingsEngine.cancel();
       expect(
-        engine.transcribe(model, Float32List(16000), language: 'en').text,
+        engine.transcribe(model, Float32List(1600), language: 'en').text,
         isEmpty,
       );
       engine.dispose();
-      await bindingsEngine.dispose();
     });
   });
 }

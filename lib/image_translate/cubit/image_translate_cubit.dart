@@ -105,12 +105,6 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
   /// recognizer downloads data per language (see [planTextRecognition]).
   final List<String> _preferredLanguages;
 
-  /// The recognizer's language data when it downloads data per language
-  /// (Tesseract in the default build), for the view's download offer;
-  /// null for ML Kit.
-  TextRecognitionLanguageData? get textRecognitionData =>
-      textRecognitionLanguageDataOf(_recognizer);
-
   /// Counts what answered requests send to and receive from a
   /// bring-your-own-key provider; optional.
   final UsageTracker? _usageTracker;
@@ -451,7 +445,7 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
   /// with [OcrDataMissingException] (offered for download by the view,
   /// never downloaded here).
   Future<String> _recognize(PickedImage image) async {
-    final data = textRecognitionData;
+    final data = textRecognitionLanguageDataOf(_recognizer);
     if (data == null) {
       return await _recognizer.recognize(image, source: state.source);
     }

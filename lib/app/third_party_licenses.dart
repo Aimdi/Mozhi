@@ -23,6 +23,13 @@ const tesseractEngineLicensePackage = 'Tesseract OCR engine';
 /// Package name of the notice of the text recognition language data.
 const tesseractDataLicensePackage = 'Tesseract language data (tessdata_fast)';
 
+/// Package name of the offline speech recognition engine's notice
+/// (`libmozhi_whisper.so`, packages/whisper_speech).
+const whisperEngineLicensePackage = 'Whisper speech recognition (whisper.cpp)';
+
+/// Package name of the notice of the offline speech recognition models.
+const whisperModelsLicensePackage = 'Whisper speech models (OpenAI)';
+
 /// The app's own license (repository `LICENSE`).
 const appLicenseText = '''
 MIT License
@@ -231,11 +238,62 @@ choose it, from Mozilla's Firefox Translations storage
 (storage.googleapis.com), checked against the SHA-256 checksums bundled
 with the app and kept on this device.''';
 
+/// The notices of `libmozhi_whisper.so`, from
+/// `packages/whisper_speech/native/THIRD_PARTY_NOTICES.md`.
+const whisperEngineLicenseText = '''
+Offline voice input runs OpenAI's Whisper speech recognition with
+whisper.cpp and its ggml tensor library (CPU only), compiled into one
+native library (libmozhi_whisper.so).
+
+Source code: https://github.com/ggml-org/whisper.cpp (tag v1.9.5), pinned
+as a git submodule in packages/whisper_speech/native/third_party/ of the
+Mozhi repository (https://github.com/Aimdi/Mozhi), together with the build
+files.
+
+Components and their licenses:
+- whisper.cpp and ggml: MIT, Copyright (c) 2023-2026 The ggml authors
+- YaRN RoPE scaling in ggml: MIT, Copyright (c) 2023 Jeffrey Quesnelle and Bowen Peng
+- LLVM libc++ (Android NDK, linked statically): Apache-2.0 WITH LLVM-exception
+- The mozhi_whisper interface: MIT, like the app
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.''';
+
+/// The notice of the Whisper models (`ggml-tiny.bin`, `ggml-base.bin`).
+const whisperModelsLicenseText = '''
+The offline speech models are OpenAI's Whisper tiny and base models
+(https://github.com/openai/whisper), converted to the ggml format by the
+whisper.cpp project, licensed under the MIT License, Copyright (c) 2022
+OpenAI.
+
+They are not part of the app: a model is downloaded only when you choose
+it, from Hugging Face (huggingface.co/ggerganov/whisper.cpp), or imported
+from a file, checked against the SHA-1 checksums bundled with the app and
+kept on this device.''';
+
 bool _registered = false;
 
 /// Adds the notices Flutter does not collect from pub packages (the app's
 /// own license, the offline translation engine and models, the text
-/// recognition engine and data, ML Kit and native platform libraries) to
+/// recognition engine and data, the offline speech recognition engine and
+/// models, ML Kit and native platform libraries) to
 /// the [LicenseRegistry] shown by `showLicensePage`. Safe to call
 /// repeatedly.
 ///
@@ -259,6 +317,12 @@ void registerThirdPartyLicenses({bool includeMlKit = false}) {
       const LicenseEntryWithLineBreaks([
         tesseractDataLicensePackage,
       ], tesseractDataLicenseText),
+      const LicenseEntryWithLineBreaks([
+        whisperEngineLicensePackage,
+      ], whisperEngineLicenseText),
+      const LicenseEntryWithLineBreaks([
+        whisperModelsLicensePackage,
+      ], whisperModelsLicenseText),
       if (includeMlKit)
         const LicenseEntryWithLineBreaks([
           mlKitLicensePackage,

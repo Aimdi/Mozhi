@@ -72,26 +72,31 @@ class ImageTranslatePage extends StatelessWidget {
   Widget build(BuildContext context) {
     // Read here: the create callback must not depend on inherited widgets.
     final locale = Localizations.maybeLocaleOf(context);
-    return BlocProvider(
-      create: (context) {
-        final translate = context.read<TranslateCubit>().state;
-        final settings = context.read<SettingsCubit>().state;
-        return ImageTranslateCubit(
-          repository: context.read<TranslationRepository>(),
-          picker: picker ?? PluginImagePickerService(),
-          encoder: encoder ?? const UiImageEncoder(),
-          recognizer: recognizer ?? createTextRecognitionService(),
-          engines: translate.engines,
-          providers: settings.providers,
-          translateEngine: translate.engine,
-          source: translate.source,
-          target: translate.target,
-          options: translate.options,
-          usageTracker: _usageTracker(context),
-          preferredLanguages: ocrPreferredLanguages(settings, locale),
-        );
-      },
-      child: ImageTranslateView(initialSource: initialSource),
+    final recognizer = this.recognizer ?? createTextRecognitionService();
+    // Provided for the view's offer to download missing language data.
+    return RepositoryProvider<TextRecognitionService>.value(
+      value: recognizer,
+      child: BlocProvider(
+        create: (context) {
+          final translate = context.read<TranslateCubit>().state;
+          final settings = context.read<SettingsCubit>().state;
+          return ImageTranslateCubit(
+            repository: context.read<TranslationRepository>(),
+            picker: picker ?? PluginImagePickerService(),
+            encoder: encoder ?? const UiImageEncoder(),
+            recognizer: recognizer,
+            engines: translate.engines,
+            providers: settings.providers,
+            translateEngine: translate.engine,
+            source: translate.source,
+            target: translate.target,
+            options: translate.options,
+            usageTracker: _usageTracker(context),
+            preferredLanguages: ocrPreferredLanguages(settings, locale),
+          );
+        },
+        child: ImageTranslateView(initialSource: initialSource),
+      ),
     );
   }
 }
@@ -275,7 +280,7 @@ class _Status extends StatelessWidget {
             onRetry: state.canTranslate
                 ? () => unawaited(cubit.translate())
                 : null,
-            textRecognitionData: cubit.textRecognitionData,
+            textRecognitionData: _textRecognitionData(context),
           ),
           const SizedBox(height: 16),
         ],
@@ -389,6 +394,19 @@ List<String> ocrPreferredLanguages(AppSettings settings, Locale? locale) {
   settings.recentLanguages.forEach(add);
   if (locale != null) add(Language(code: locale.languageCode, name: ''));
   return List.unmodifiable(codes);
+}
+
+/// The language data of the recognizer provided by [ImageTranslatePage],
+/// if it downloads data per language (none with ML Kit or in tests that
+/// pump the view alone).
+TextRecognitionLanguageData? _textRecognitionData(BuildContext context) {
+  try {
+    return textRecognitionLanguageDataOf(
+      context.read<TextRecognitionService>(),
+    );
+  } on ProviderNotFoundException {
+    return null;
+  }
 }
 
 /// The app's usage tracker, or null when none is provided (e.g. in tests).

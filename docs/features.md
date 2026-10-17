@@ -448,20 +448,29 @@ gallery, then choose how to translate it:
 - **Mozhi (Google Lens)**: when your instance offers Google, Mozhi sends the
   image to Google and returns the recognised text, its translation and a copy
   of the image with the translation drawn in.
-- **On-device recognition** (Android, [Play variant](contributing.md#build-variants)
-  only): Google's ML Kit reads the text on the phone, and the text is then
-  translated with your current engine. The default build has no on-device
-  text recognition and says so.
+- **On-device text recognition** (Android): the open-source Tesseract
+  engine reads the text on the phone (the photo is not sent anywhere), and
+  the text is then translated with your current engine. Each language's
+  data (most are 1 to 4 MB) is downloaded once when you ask (**Download
+  German text recognition**) or imported from files; see
+  [Text recognition](text-recognition.md). The
+  [Play variant](contributing.md#build-variants) uses Google's ML Kit
+  instead.
 
 Large photos are scaled down before uploading (longest side 2048 px, under
 4 MB), which keeps them within Mozhi's upload limit.
 
 ## Voice
 
-- **Dictation**: tap the microphone and speak instead of typing. Speech
-  recognition is provided by your device's operating system (or browser).
-  On Android 12+ you can turn on **Prefer on-device speech recognition** so
-  the audio isn't sent to an online service.
+- **Dictation**: tap the microphone and speak instead of typing. By default
+  speech recognition is provided by your device's operating system (or
+  browser); on Android 12+ **Prefer on-device speech recognition** asks it
+  to keep the audio on the phone. On Android you can instead choose
+  **Offline (Whisper)** in **Settings > Voice input**: OpenAI's Whisper
+  model (Fast, 75 MB, or Better, 142 MB, downloaded from Hugging Face or
+  imported from a file) recognises 99 languages on the phone, so your voice
+  never leaves it. **Offline only** always uses Whisper (see
+  [Voice input](voice-input.md)).
 - **Conversation**: two people, two languages. Each person speaks in turn and
   hears or reads the other's words in their own language.
 - **Device voices**: besides your Mozhi instance's voices, the app can read
@@ -777,7 +786,7 @@ The same list is under **More tools > Keyboard shortcuts**.
 | Text selection menu and share target | ✓ | |
 | `mozhi://` links | ✓ | |
 | Offline translation | ✓ | |
-| On-device text recognition | Play variant | |
+| On-device text recognition | ✓ (Tesseract; ML Kit in the Play variant) | |
 | Privacy screen, sensitive clipboard, HTTP proxy | ✓ | |
 | Dynamic color from wallpaper | ✓ (12+) | |
 

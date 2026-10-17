@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:bloc/bloc.dart';
-import 'package:flutter/foundation.dart' show mapEquals;
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/image_translate/data/text_recognition_service.dart';
 import 'package:mozhi/image_translate/models/models.dart';
@@ -197,7 +196,7 @@ class OcrLanguagesCubit extends Cubit<OcrLanguagesState> {
 
   Future<void> _refreshInstalled() async {
     final installed = await _readInstalled();
-    if (isClosed || mapEquals(installed, state.installed)) return;
+    if (isClosed || _sameEntries(installed, state.installed)) return;
     emit(state.copyWith(installed: installed));
   }
 
@@ -245,3 +244,6 @@ class OcrLanguagesCubit extends Cubit<OcrLanguagesState> {
     await super.close();
   }
 }
+
+bool _sameEntries(Map<String, int> a, Map<String, int> b) =>
+    a.length == b.length && a.entries.every((e) => b[e.key] == e.value);

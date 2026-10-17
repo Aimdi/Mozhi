@@ -68,6 +68,22 @@ TesseractTextRecognitionService createTesseractTextRecognitionService({
   decoder: decoder,
 );
 
+/// Deletes the text recognition folder (`<support>/tesseract`, see
+/// [textRecognitionFolder]) with everything in it: language data, partial
+/// downloads and leftovers of interrupted installs. Delete the languages
+/// through the recognizer first, so that screens showing them update.
+/// Throws when the folder cannot be deleted.
+Future<void> deleteTextRecognitionFiles({
+  Future<Directory> Function() supportDirectory =
+      getApplicationSupportDirectory,
+}) async {
+  final support = await supportDirectory();
+  final folder = Directory(
+    '${support.path}${Platform.pathSeparator}$textRecognitionFolder',
+  );
+  if (folder.existsSync()) await folder.delete(recursive: true);
+}
+
 Future<void> _cleanUp(TesseractOcr ocr) async {
   try {
     await ocr.data.cleanUp();

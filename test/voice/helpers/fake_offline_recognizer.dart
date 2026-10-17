@@ -8,7 +8,7 @@ import 'fake_speech_recognizer.dart';
 /// [ready]).
 class FakeOfflineRecognizer extends FakeSpeechRecognizer
     implements OfflineSpeechRecognizerAdapter {
-  FakeOfflineRecognizer() {
+  new() {
     localeList = const [
       SpeechRecognizerLocale('en', 'English'),
       SpeechRecognizerLocale('de', 'German'),

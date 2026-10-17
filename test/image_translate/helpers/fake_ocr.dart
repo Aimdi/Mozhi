@@ -5,12 +5,7 @@ import 'package:translation_repository/translation_repository.dart';
 
 const int _mb = 1024 * 1024;
 
-const deuOcr = OcrLanguage(
-  code: 'deu',
-  appCode: 'de',
-  downloadSize: 1525436,
-  url: null,
-);
+const deuOcr = OcrLanguage(code: 'deu', appCode: 'de', downloadSize: 1525436);
 
 final engOcr = OcrLanguage(
   code: 'eng',
@@ -53,11 +48,11 @@ class FakeOcrData
 
   /// Thrown by [recognizeWith], [downloadOcrLanguage] or [importOcrFiles]
   /// when set.
-  Object? recognizeError;
-  Object? downloadError;
-  Object? importError;
-  Object? installedError;
-  Object? languagesError;
+  Exception? recognizeError;
+  Exception? downloadError;
+  Exception? importError;
+  Exception? installedError;
+  Exception? languagesError;
 
   /// When set, downloads wait for it (after reporting [progressSteps]).
   Completer<void>? downloadGate;

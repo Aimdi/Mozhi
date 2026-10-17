@@ -94,10 +94,12 @@ stores on the device and what the other party may keep.
 | Language detection (**Detect language**, an "auto" source with a translation-only AI model) | The device first; if it is unsure, the AI provider itself or, for translation-only models, your Mozhi instance's Google engine, when the privacy rules allow that destination | The text | As for that destination. |
 | Kagi-style extras, **Check meaning**, **Proofread** | The AI model for extras (**Settings > AI assistant for insights**) or the model you selected; **Check meaning** without one: the engine you translate with, to translate back | Source text, translation or both (the first 4,000 characters for **Check meaning**; the word for the dictionary) | The provider's policy. Results stay in memory only. |
 | **Listen** (read aloud) | The device's text-to-speech voice. A Mozhi instance only when the device has no voice for the language: never in Offline only or with **Device voice only**, and in Offline first only after you agree (**Listen online**) | Device voice: the text to the system's speech engine (voices marked **Needs internet** use its online service). Mozhi: the text **in the request address** (`GET /api/tts?text=…`, up to 200 characters per part) | Mozhi: the address can end up in the server's and any reverse proxy's access logs. The app keeps the last 20 clips in memory until it closes. |
-| Image translation | The AI model with **Supports images**, or your Mozhi instance, which sends the image to Google Lens. On-device text recognition only in the [Play variant](#google-code) | The image, re-encoded first (no EXIF data such as the GPS location) | The provider's or instance's policy. The app doesn't store the image. |
-| Dictation, conversation | The system's speech recognition (Google or the phone maker on Android; the browser's maker in the web app) | Your voice | The recogniser's policy. **Prefer on-device speech recognition** (Android 12+) asks to keep it on the phone. |
+| Image translation | The AI model with **Supports images**, or your Mozhi instance, which sends the image to Google Lens. **On-device text recognition** (Android) sends the image nowhere: Tesseract reads it on the phone ([text recognition](text-recognition.md); ML Kit in the [Play variant](#google-code)), and only the recognised text follows the translation rows above | AI vision and Mozhi: the image, re-encoded first (no EXIF data such as the GPS location). On-device: nothing | The provider's or instance's policy. The app doesn't store the image. |
+| Dictation, conversation | **System speech recognition** (the default): the system's recogniser (Google or the phone maker on Android; the browser's maker in the web app). **Offline (Whisper)** (Android, **Settings > Voice input**): nobody, it runs on the phone. In **Offline only** always Whisper, never the system recogniser ([voice input](voice-input.md)) | System: your voice. Whisper: nothing leaves the phone | System: the recogniser's policy; **Prefer on-device speech recognition** (Android 12+) only asks to keep it on the phone. Whisper: the recording stays in memory until it is transcribed, and is never stored. |
 | Web page translator | The website you enter, then the translation engine | The page address and your IP address, with a desktop browser `User-Agent` and no cookies | The website's logs. The page text then follows the translation row above. |
 | Offline model download | `storage.googleapis.com`: Mozilla's Firefox Translations bucket (`moz-fx-translations-data--303e-prod-translations-data`), hosted on Google Cloud Storage | Plain file requests (HTTPS `GET`, `Range` to resume): Google as the host sees your IP address, the time and which model files, so which languages, you download. No text, identifiers or cookies | Google Cloud Storage's logs. The models stay on the device until you delete them. |
+| Text recognition data download (**Download German text recognition**, **Settings > Offline languages > Text recognition**) | `raw.githubusercontent.com`: Tesseract's [tessdata_fast](https://github.com/tesseract-ocr/tessdata_fast) on GitHub (owned by Microsoft), pinned to one commit | Plain file requests (HTTPS `GET`, `Range` to resume): GitHub sees your IP address, the time and which language files you download. No picture, text, identifiers or cookies | GitHub's logs. The data stays on the device until you delete it; **Import from files** contacts nothing. |
+| Offline speech model download (**Settings > Voice input**) | `huggingface.co` (the [whisper.cpp models](https://huggingface.co/ggerganov/whisper.cpp)), which may redirect to its download servers | Plain file requests (HTTPS `GET`, `Range` to resume): Hugging Face sees your IP address, the time and which model (Fast or Better) you download. No voice, text, identifiers or cookies | Hugging Face's logs. The model stays on the device until you delete it; **Import from files** contacts nothing. |
 | Engine and language lists | The Mozhi instances in your list | Nothing about you except your IP address | The instance's logs. Stored on the device as a cache. |
 | **Check instances**, **Test**, **Test connection**, **Browse models** | Each instance or provider, only when you ask | A version request, or a model list request with your key | The server's logs. |
 | Web app fonts | `fonts.gstatic.com`, when a page needs a script the bundled font lacks (for example Chinese or Devanagari) | The font file name and your IP address, not your text | The browser caches the font. |
@@ -126,6 +128,7 @@ checked only when you ask.
 | Presets, glossaries, read-aloud settings, usage counters | App preferences | Usage counters are numbers only (requests, characters, estimated tokens per provider and month, for 13 months). |
 | Cached engine and language lists | App preferences | Lists only, keyed by instance address without any password. |
 | Offline language models | App storage (`<app files>/bergamot`) | About 50 MB to download and 73 MB on disk per language. Delete them under **Settings > Offline languages**. |
+| Text recognition data | App storage (`<app files>/tesseract`) | 0.4 to 12 MB per language (median 2.4 MB). Delete it under **Settings > Offline languages > Text recognition**. |
 
 **History encryption.** Each history value is encrypted with AES-256-GCM
 (a fresh nonce per write) under a 256-bit key generated on the device. On
@@ -218,8 +221,19 @@ and use **Import from files** on **Settings > Offline languages** instead
 ([how](offline-engine.md#import-models-without-the-app-downloading-them)):
 an import contacts nothing, so it also works in **Offline only**.
 
-An optional **Play variant** adds Google's ML Kit for on-device text
-recognition in image translation. The recognition runs on the phone, but
+Voice input can run without Google too: **Offline (Whisper)** in
+**Settings > Voice input** recognises speech on the phone with OpenAI's
+Whisper models on whisper.cpp (MIT), downloaded from Hugging Face or
+imported from files ([voice input](voice-input.md)). The default **System
+speech recognition** is the phone's own recogniser, on most phones Google's,
+which is outside the app.
+
+Photo and camera translation reads text on the phone with the open-source
+Tesseract engine and language data downloaded from GitHub only when you ask,
+or imported from files ([text recognition](text-recognition.md)).
+
+An optional **Play variant** uses Google's ML Kit for on-device text
+recognition in image translation instead. The recognition runs on the phone, but
 according to Google's [ML Kit terms](https://developers.google.com/ml-kit/terms)
 ML Kit sends metrics about the performance and use of its APIs to Google.
 The default build and the web app don't include it.
@@ -235,8 +249,8 @@ For translations that never leave hardware you control, use any of:
 - a local AI model ([guide](ai-providers.md#local-models)).
 
 Add **Incognito**, **Device voice only** (**Settings > Read aloud**) and
-**Prefer on-device speech recognition** to keep history, speech and
-dictation on the device too. See [Security](security.md) for how the app
+**Offline (Whisper)** voice input (**Settings > Voice input**) to keep
+history, speech and dictation on the device too. See [Security](security.md) for how the app
 protects keys and handles text from other apps and links.
 
 The app is open source (MIT); you can check all of the above in the code.

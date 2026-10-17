@@ -5,10 +5,39 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mozhi/core/network/http_client_factory.dart';
 import 'package:mozhi/core/network/network_policy.dart';
 import 'package:mozhi/offline/data/offline_model_error.dart';
+import 'package:tesseract_ocr/tesseract_ocr.dart'
+    show
+        TessdataChecksumException,
+        TessdataDownloadException,
+        TessdataMissingException;
 import 'package:translation_repository/translation_repository.dart';
 
 void main() {
   group(OfflineModelError, () {
+    test('classifies the text recognition data errors', () {
+      final cases = <Object, OfflineModelError>{
+        const TessdataChecksumException('deu', 'bad'): const OfflineModelError(
+          OfflineModelErrorKind.checksum,
+        ),
+        const TessdataDownloadException(
+          'deu',
+          'HTTP 404',
+          statusCode: 404,
+        ): const OfflineModelError(
+          OfflineModelErrorKind.server,
+          statusCode: 404,
+        ),
+        const TessdataDownloadException('deu', 'SocketException: offline'):
+            const OfflineModelError(OfflineModelErrorKind.network),
+        const TessdataMissingException(['deu']): const OfflineModelError(
+          OfflineModelErrorKind.unsupported,
+        ),
+      };
+      for (final MapEntry(:key, :value) in cases.entries) {
+        expect(OfflineModelError.of(key), value, reason: '$key');
+      }
+    });
+
     test('classifies the offline engine errors', () {
       final cases = <Object, OfflineModelError>{
         const MeteredConnectionException(): const OfflineModelError(

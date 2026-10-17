@@ -7074,10 +7074,6 @@
   "@voiceEngineOfflineOnlyUnavailable": {
     "description": "voiceEngineOfflineOnlyUnavailable"
   },
-  "voiceEngineFallbackNote": "Without a speech recognizer on this device, voice input uses the offline model.",
-  "@voiceEngineFallbackNote": {
-    "description": "voiceEngineFallbackNote"
-  },
   "voiceModelsTitle": "Offline speech models",
   "@voiceModelsTitle": {
     "description": "voiceModelsTitle"
@@ -7116,14 +7112,6 @@
   "voiceModelInUse": "In use",
   "@voiceModelInUse": {
     "description": "voiceModelInUse"
-  },
-  "voiceModelUse": "Use {model}",
-  "@voiceModelUse": {
-    "placeholders": {
-      "model": {
-        "type": "String"
-      }
-    }
   },
   "voiceModelDownloadTooltip": "Download {model}",
   "@voiceModelDownloadTooltip": {
