@@ -43,7 +43,7 @@ bool isSeparatingDisplayFeature(DisplayFeature feature) =>
 /// the first frame on a foldable may lay the panes out without the
 /// feature and correct them on the next frame.
 class FoldAwareSplit extends StatelessWidget {
-  const FoldAwareSplit({
+  const new({
     required this.first,
     required this.second,
     this.direction = Axis.horizontal,
@@ -138,7 +138,7 @@ enum _SplitSlot { first, divider, second }
 
 class _FoldAwareSplitLayout
     extends SlottedMultiChildRenderObjectWidget<_SplitSlot, RenderBox> {
-  const _FoldAwareSplitLayout({
+  const new({
     required this.direction,
     required this.firstFlex,
     required this.secondFlex,
@@ -209,7 +209,7 @@ class _FoldAwareSplitLayout
 /// their natural size there).
 @immutable
 class _Split {
-  const _Split({
+  const new({
     required this.axis,
     required this.atFeature,
     this.firstStart = 0,
@@ -267,23 +267,16 @@ typedef _SplitLayout = ({
 /// Render object of [FoldAwareSplit].
 class RenderFoldAwareSplit extends RenderBox
     with SlottedContainerRenderObjectMixin<_SplitSlot, RenderBox> {
-  RenderFoldAwareSplit({
-    required Axis direction,
-    required int firstFlex,
-    required int secondFlex,
-    required double gap,
-    required CrossAxisAlignment crossAxisAlignment,
-    required Set<Axis> foldDirections,
-    required TextDirection textDirection,
-    required List<Rect> features,
-  }) : _direction = direction,
-       _firstFlex = firstFlex,
-       _secondFlex = secondFlex,
-       _gap = gap,
-       _crossAxisAlignment = crossAxisAlignment,
-       _foldDirections = foldDirections,
-       _textDirection = textDirection,
-       _features = features;
+  new({
+    required this._direction,
+    required this._firstFlex,
+    required this._secondFlex,
+    required this._gap,
+    required this._crossAxisAlignment,
+    required this._foldDirections,
+    required this._textDirection,
+    required this._features,
+  });
 
   /// Consecutive corrections of the split after the position of the box
   /// changed, before giving up until the next regular layout.

@@ -4,18 +4,33 @@ import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/quick_translate/cubit/quick_translate_state.dart';
 import 'package:mozhi/quick_translate/models/quick_languages.dart';
+import 'package:mozhi/translate/widgets/offline_offer.dart'
+    show offlineDownloadLabel;
 import 'package:mozhi/translate/widgets/translate_error.dart'
     show describeTranslateError;
 import 'package:translation_repository/translation_repository.dart'
-    show ConsentRequiredException;
+    show ConsentRequiredException, LanguageCatalog;
 
 /// The translation area: progress while loading / translating, the
 /// (streaming) translation, or an error with a retry button.
+///
+/// Offline only, it explains why nothing was translated: no on-device
+/// engine, a language to download ("Download German (25 MB)", which calls
+/// [onOpenOfflineModels]; no button without it) or a pair the on-device
+/// engine cannot translate.
 class QuickResultView extends StatelessWidget {
-  const new({required this.state, required this.onRetry, super.key});
+  const new({
+    required this.state,
+    required this.onRetry,
+    this.onOpenOfflineModels,
+    super.key,
+  });
 
   final QuickTranslateState state;
   final VoidCallback onRetry;
+
+  /// Opens the offline languages ([QuickTranslateStatus.offlineModelsMissing]).
+  final VoidCallback? onOpenOfflineModels;
 
   @override
   Widget build(BuildContext context) {
@@ -66,6 +81,45 @@ class QuickResultView extends StatelessWidget {
         color: palette.secondaryText,
         title: l10n.translateNoEnginesTitle,
         message: l10n.quickTranslateNoEngines,
+      ),
+      QuickTranslateStatus.offlineUnavailable => _Message(
+        key: const ValueKey('offlineUnavailable'),
+        icon: Icons.mobile_off_outlined,
+        color: palette.secondaryText,
+        title: l10n.quickTranslateOfflineUnavailableTitle,
+        message: l10n.quickTranslateOfflineUnavailableBody,
+      ),
+      QuickTranslateStatus.offlineModelsMissing => _Message(
+        key: const ValueKey('offlineModelsMissing'),
+        icon: Icons.download_for_offline_outlined,
+        color: palette.secondaryText,
+        title: l10n.quickTranslateOfflineMissingTitle,
+        message: l10n.quickTranslateOfflineMissingBody(
+          [for (final download in state.offlineDownloads) download.name]
+              .join(', '),
+        ),
+        action: onOpenOfflineModels == null
+            ? null
+            : FilledButton.icon(
+                key: const Key('quick_translate_offline_download'),
+                style: FilledButton.styleFrom(shape: const StadiumBorder()),
+                onPressed: onOpenOfflineModels,
+                icon: const Icon(Icons.download_for_offline_outlined),
+                label: Text(offlineDownloadLabel(l10n, state.offlineDownloads)),
+              ),
+      ),
+      QuickTranslateStatus.offlineUnsupported => _Message(
+        key: const ValueKey('offlineUnsupported'),
+        icon: Icons.translate_outlined,
+        color: palette.secondaryText,
+        title: l10n.quickTranslateOfflineUnsupportedTitle,
+        message: switch (state.detectedSource) {
+          final source? => l10n.quickTranslateOfflineUnsupported(
+            LanguageCatalog.nameOf(source),
+            state.target.name,
+          ),
+          null => l10n.quickTranslateOfflineUndetected,
+        },
       ),
       _ when state.translation.trim().isEmpty => _Message(
         key: const ValueKey('empty'),
@@ -126,8 +180,9 @@ class _Translation extends StatelessWidget {
               borderRadius: BorderRadius.circular(4),
             ),
           ),
+        // Offline only, the "On device" chip is next to the target already.
         if (state.result?.destination case final destination?
-            when state.hasTranslation)
+            when state.hasTranslation && !state.offlineOnly)
           Align(
             alignment: AlignmentDirectional.centerStart,
             child: DestinationChip(
