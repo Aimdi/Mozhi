@@ -1,8 +1,11 @@
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/widgets/consent_prompt.dart';
+import 'package:mozhi/image_translate/data/text_recognition_service.dart';
+import 'package:mozhi/image_translate/models/models.dart';
 import 'package:mozhi/image_translate/widgets/image_translate_labels.dart';
 import 'package:mozhi/image_translate/widgets/image_translate_links.dart';
+import 'package:mozhi/image_translate/widgets/ocr_language_offer.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/widgets/translate_error.dart';
 import 'package:translation_repository/translation_repository.dart'
@@ -10,12 +13,22 @@ import 'package:translation_repository/translation_repository.dart'
 
 /// Error message with a retry button and, when useful, a shortcut to the
 /// settings page that fixes it. A `ConsentRequiredException` is shown as
-/// the consent prompt instead.
+/// the consent prompt instead, and missing text recognition data
+/// ([OcrDataMissingException]) as the offer to download it, when
+/// [textRecognitionData] is given ([onRetry] runs once it is installed).
 class ImageTranslateErrorView extends StatelessWidget {
-  const new({required this.error, this.onRetry, super.key});
+  const new({
+    required this.error,
+    this.onRetry,
+    this.textRecognitionData,
+    super.key,
+  });
 
   final Object? error;
   final VoidCallback? onRetry;
+
+  /// The recognizer's downloadable language data, if it has any.
+  final TextRecognitionLanguageData? textRecognitionData;
 
   @override
   Widget build(BuildContext context) {
@@ -26,6 +39,15 @@ class ImageTranslateErrorView extends StatelessWidget {
         key: const Key('image_translate_consent'),
         consent: consent,
         onGranted: onRetry ?? () {},
+      );
+    }
+    final data = textRecognitionData;
+    if (consent is OcrDataMissingException && data != null) {
+      return OcrLanguageOffer(
+        key: ValueKey(consent),
+        missing: consent,
+        data: data,
+        onInstalled: onRetry ?? () {},
       );
     }
     final l10n = context.l10n;

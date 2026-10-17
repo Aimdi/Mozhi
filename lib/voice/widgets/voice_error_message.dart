@@ -18,5 +18,7 @@ String voiceInputErrorMessage(
   SpeechInputFailure.noMatch => l10n.voiceErrorNoMatch,
   SpeechInputFailure.network => l10n.voiceErrorNetwork,
   SpeechInputFailure.busy => l10n.voiceErrorBusy,
+  SpeechInputFailure.offlineModelMissing => l10n.voiceErrorOfflineModel,
+  SpeechInputFailure.offlineUnavailable => l10n.voiceErrorOfflineOnly,
   SpeechInputFailure.unknown => l10n.voiceErrorGeneric,
 };

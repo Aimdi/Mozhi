@@ -11,9 +11,12 @@ void main() {
       expect(mlKitIncluded, isFalse);
     });
 
-    test('create a text recognizer that is never supported', () {
+    test('create the shared Tesseract recognizer', () {
       final recognizer = createTextRecognitionService();
-      expect(recognizer, isA<UnavailableTextRecognitionService>());
+      expect(recognizer, isA<TesseractTextRecognitionService>());
+      expect(textRecognitionLanguageDataOf(recognizer), same(recognizer));
+      expect(createTextRecognitionService(), same(recognizer));
+      // The engine runs on Android only (the tests run on a desktop host).
       expect(recognizer.isSupported, isFalse);
     });
   });

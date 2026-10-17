@@ -51,8 +51,10 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
     TranslationOptions options = const TranslationOptions(),
     this.slowThreshold = const Duration(seconds: 12),
     this._usageTracker,
+    List<String> preferredLanguages = const [],
   }) : _picker = picker,
        _recognizer = recognizer,
+       _preferredLanguages = List.unmodifiable(preferredLanguages),
        super(
          _initialState(
            methods: ImageTranslateMethod.available(
@@ -98,6 +100,16 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
   final ImagePickerService _picker;
   final ImageEncoder _encoder;
   final TextRecognitionService _recognizer;
+
+  /// App language codes "Detect language" reads with first when the
+  /// recognizer downloads data per language (see [planTextRecognition]).
+  final List<String> _preferredLanguages;
+
+  /// The recognizer's language data when it downloads data per language
+  /// (Tesseract in the default build), for the view's download offer;
+  /// null for ML Kit.
+  TextRecognitionLanguageData? get textRecognitionData =>
+      textRecognitionLanguageDataOf(_recognizer);
 
   /// Counts what answered requests send to and receive from a
   /// bring-your-own-key provider; optional.
@@ -425,15 +437,39 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
     int token,
     PickedImage image,
   ) async {
-    final text = (await _recognizer.recognize(
-      image,
-      source: state.source,
-    )).trim();
+    final text = (await _recognize(image)).trim();
     if (!_isCurrent(token)) return null;
     if (text.isEmpty) {
       throw const ImageTranslateException(ImageTranslateErrorKind.noText);
     }
     return await _translateRecognized(token, text);
+  }
+
+  /// The text in [image]. A recognizer with downloadable language data
+  /// reads with the source's data, or for "Detect language" with the
+  /// installed languages (the preferred ones first); missing data fails
+  /// with [OcrDataMissingException] (offered for download by the view,
+  /// never downloaded here).
+  Future<String> _recognize(PickedImage image) async {
+    final data = textRecognitionData;
+    if (data == null) {
+      return await _recognizer.recognize(image, source: state.source);
+    }
+    final plan = await planTextRecognition(
+      data,
+      source: state.source,
+      preferred: _preferredLanguages,
+    );
+    return switch (plan) {
+      TextRecognitionReady(:final codes) => await data.recognizeWith(
+        image,
+        codes,
+      ),
+      TextRecognitionNeedsData(:final missing) => throw missing,
+      TextRecognitionUnsupported() => throw const ImageTranslateException(
+        ImageTranslateErrorKind.recognitionLanguageUnsupported,
+      ),
+    };
   }
 
   /// Streams the translation of [text] into [ImageTranslateState.result].

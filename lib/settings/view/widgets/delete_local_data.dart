@@ -19,6 +19,7 @@ import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/speech/speech_service.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/usage/data/usage_tracker.dart';
+import 'package:mozhi/voice/offline/offline_speech.dart';
 import 'package:mozhi/voice/speech_input_service.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -50,7 +51,8 @@ class LocalDataSummary {
 /// headers, instance passwords), all other preferences (presets,
 /// glossaries, usage counters, speech settings, cached engine lists) and
 /// the offline language models with the whole models folder
-/// ([deleteOfflineFiles]: partial downloads too).
+/// ([deleteOfflineFiles]: partial downloads too) and the offline speech
+/// models ([offlineSpeech]).
 ///
 /// What the app keeps in memory is reset too, so that nothing deleted is
 /// shown or written back before the next start: [settings] go back to the
@@ -79,6 +81,7 @@ class LocalDataEraser {
     this.usage,
     this.speech,
     this.speechInput,
+    this.offlineSpeech,
   });
 
   /// Uses what the app provides above [context].
@@ -110,6 +113,7 @@ class LocalDataEraser {
       usage: maybe<UsageTracker>(),
       speech: maybe<SpeechService>(),
       speechInput: maybe<SpeechInputService>(),
+      offlineSpeech: maybe<OfflineSpeech>(),
     );
   }
 
@@ -133,6 +137,10 @@ class LocalDataEraser {
   final UsageTracker? usage;
   final SpeechService? speech;
   final SpeechInputService? speechInput;
+
+  /// The offline speech models (Whisper), deleted with the offline
+  /// languages.
+  final OfflineSpeech? offlineSpeech;
 
   /// What [erase] deletes. Never throws: what cannot be found out is left
   /// out (sizes) or counted as nothing.
@@ -172,6 +180,7 @@ class LocalDataEraser {
       await attempt(() => offline!.deleteLanguage(code));
     }
     if (deleteOfflineFiles case final deleteFiles?) await attempt(deleteFiles);
+    if (offlineSpeech case final speech?) await attempt(speech.deleteAll);
     // Back to the defaults (setup starts again): saving them also deletes
     // the API keys of every provider.
     settings.update((_) => const AppSettings());

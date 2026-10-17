@@ -1,0 +1,236 @@
+import 'package:bloc/bloc.dart';
+import 'package:mozhi/offline/data/offline_model_file_picker.dart';
+import 'package:mozhi/voice/cubit/voice_settings_state.dart';
+import 'package:mozhi/voice/offline/offline_speech.dart';
+import 'package:mozhi/voice/speech_input_service.dart';
+
+export 'voice_settings_state.dart';
+
+/// The "Voice input" settings: which recogniser voice input uses
+/// ([SpeechInputService.engine]) and the offline speech models
+/// ([OfflineSpeech]: download, delete, the model in use, import from
+/// files).
+///
+/// Nothing is downloaded unless [download] is called (the user tapped
+/// download); a download on a metered network with "Download over Wi-Fi
+/// only" on ends with [VoiceModelErrorKind.metered] and [download] with
+/// `overMeteredNetwork` retries it anyway. [importFromFiles] never goes
+/// online. After every change of the models, the [SpeechInputService] is
+/// told ([SpeechInputService.offlineModelsChanged]). Failures never throw:
+/// they are reported as a [VoiceModelOutcome] or [VoiceImportOutcome];
+/// errors other than a metered network also go to `addError`.
+class VoiceSettingsCubit extends Cubit<VoiceSettingsState> {
+  new({
+    required this._speechInput,
+    this._offline,
+    this._picker = const OfflineModelFilePicker(),
+  }) : super(const VoiceSettingsState());
+
+  final SpeechInputService _speechInput;
+  final OfflineSpeech? _offline;
+  final OfflineModelFilePicker _picker;
+
+  Future<void> load() async {
+    emit(state.copyWith(status: VoiceSettingsStatus.loading));
+    await _speechInput.loadSettings();
+    final offline = _offline;
+    final supported =
+        offline != null &&
+        offline.isAvailable &&
+        _speechInput.isOfflineSupported;
+    final models = supported
+        ? [
+            for (final model in offline.models)
+              VoiceModel(id: model.id, sizeBytes: model.size, url: model.url),
+          ]
+        : const <VoiceModel>[];
+    final (installed, selected) = supported
+        ? await _readInstalled(offline)
+        : (const <String>{}, null);
+    if (isClosed) return;
+    emit(
+      state.copyWith(
+        status: VoiceSettingsStatus.ready,
+        engine: _speechInput.engine.value,
+        offlineSupported: supported,
+        models: models,
+        installed: installed,
+        selected: () => selected,
+      ),
+    );
+  }
+
+  /// Chooses the recogniser of the next voice input session.
+  Future<void> setEngine(VoiceInputEngine engine) async {
+    emit(state.copyWith(engine: engine));
+    try {
+      await _speechInput.setEngine(engine);
+    } on Object catch (error, stackTrace) {
+      // Kept for this session: the service already uses it.
+      addError(error, stackTrace);
+    }
+  }
+
+  /// Downloads model [id] and makes it the one in use, honouring
+  /// "Download over Wi-Fi only" unless [overMeteredNetwork].
+  Future<void> download(String id, {bool overMeteredNetwork = false}) {
+    final offline = _offline;
+    return _run(
+      id,
+      VoiceModelOperation.download,
+      () => offline!.download(
+        id,
+        overMeteredNetwork: overMeteredNetwork,
+        onProgress: (fraction) => _reportProgress(id, fraction),
+      ),
+    );
+  }
+
+  /// Deletes model [id].
+  Future<void> delete(String id) {
+    final offline = _offline;
+    return _run(id, VoiceModelOperation.delete, () => offline!.delete(id));
+  }
+
+  /// Makes the installed model [id] the one in use.
+  Future<void> select(String id) async {
+    final offline = _offline;
+    if (offline == null || !state.isInstalled(id) || state.selected == id) {
+      return;
+    }
+    emit(state.copyWith(selected: () => id));
+    try {
+      await offline.select(id);
+    } on Object catch (error, stackTrace) {
+      addError(error, stackTrace);
+    }
+    await _refresh();
+  }
+
+  /// Lets the user pick model files (downloaded by hand) and installs the
+  /// Whisper models among them, without going online. Cancelling the
+  /// picker changes nothing.
+  Future<void> importFromFiles() async {
+    final offline = _offline;
+    if (offline == null || !state.offlineSupported || state.importing) {
+      return;
+    }
+    void start() {
+      if (isClosed || state.importing) return;
+      emit(state.copyWith(importing: true, importOutcome: () => null));
+    }
+
+    VoiceImportOutcome outcome;
+    try {
+      final paths = await _picker.pick(onCopying: start);
+      if (paths.isEmpty) {
+        if (!isClosed && state.importing) {
+          emit(state.copyWith(importing: false));
+        }
+        return;
+      }
+      start();
+      try {
+        final result = await offline.importFiles(paths);
+        outcome = VoiceImportOutcome(
+          models: {
+            for (final entry in result.models) entry.model.id: entry.status,
+          },
+          unmatchedFiles: result.unmatched.length,
+        );
+      } finally {
+        await _clearPickedCopies();
+      }
+    } on Object catch (error, stackTrace) {
+      outcome = const VoiceImportOutcome(failed: true);
+      addError(error, stackTrace);
+    }
+    await _refresh();
+    if (isClosed) return;
+    emit(state.copyWith(importing: false, importOutcome: () => outcome));
+  }
+
+  Future<void> _run(
+    String id,
+    VoiceModelOperation operation,
+    Future<void> Function() action,
+  ) async {
+    if (_offline == null ||
+        state.model(id) == null ||
+        state.pending.containsKey(id)) {
+      return;
+    }
+    emit(
+      state.copyWith(
+        pending: {...state.pending, id: operation},
+        outcome: () => null,
+      ),
+    );
+    VoiceModelError? failure;
+    try {
+      await action();
+    } on Object catch (error, stackTrace) {
+      failure = VoiceModelError.of(error);
+      if (failure.kind != VoiceModelErrorKind.metered) {
+        addError(error, stackTrace);
+      }
+    }
+    await _refresh();
+    if (isClosed) return;
+    emit(
+      state.copyWith(
+        pending: {...state.pending}..remove(id),
+        progress: {...state.progress}..remove(id),
+        outcome: () => VoiceModelOutcome(
+          model: id,
+          operation: operation,
+          succeeded: failure == null,
+          error: failure,
+        ),
+      ),
+    );
+  }
+
+  /// Reads the installed models again and tells the voice input service.
+  Future<void> _refresh() async {
+    final offline = _offline;
+    if (offline == null) return;
+    final (installed, selected) = await _readInstalled(offline);
+    try {
+      await _speechInput.offlineModelsChanged();
+    } on Object catch (error, stackTrace) {
+      addError(error, stackTrace);
+    }
+    if (isClosed) return;
+    emit(state.copyWith(installed: installed, selected: () => selected));
+  }
+
+  Future<(Set<String>, String?)> _readInstalled(OfflineSpeech offline) async {
+    try {
+      return (await offline.installed(), await offline.selected());
+    } on Object catch (error, stackTrace) {
+      addError(error, stackTrace);
+      return (state.installed, state.selected);
+    }
+  }
+
+  /// Emits download progress in whole percent steps only.
+  void _reportProgress(String id, double fraction) {
+    if (isClosed || !state.pending.containsKey(id)) return;
+    final previous = state.progress[id];
+    if (previous != null &&
+        (previous * 100).floor() == (fraction * 100).floor()) {
+      return;
+    }
+    emit(state.copyWith(progress: {...state.progress, id: fraction}));
+  }
+
+  /// The picker's copies are only needed during the import.
+  Future<void> _clearPickedCopies() async {
+    try {
+      await _picker.clearCopies();
+    } on Object catch (error, stackTrace) {
+      addError(error, stackTrace);
+    }
+  }
+}

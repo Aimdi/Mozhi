@@ -86,6 +86,10 @@ class ImageTranslatePage extends StatelessWidget {
           target: translate.target,
           options: translate.options,
           usageTracker: _usageTracker(context),
+          preferredLanguages: ocrPreferredLanguages(
+            settings,
+            Localizations.maybeLocaleOf(context),
+          ),
         );
       },
       child: ImageTranslateView(initialSource: initialSource),
@@ -272,6 +276,7 @@ class _Status extends StatelessWidget {
             onRetry: state.canTranslate
                 ? () => unawaited(cubit.translate())
                 : null,
+            textRecognitionData: cubit.textRecognitionData,
           ),
           const SizedBox(height: 16),
         ],
@@ -367,6 +372,24 @@ class _WideLayout extends StatelessWidget {
       ],
     );
   }
+}
+
+/// The app language codes on-device text recognition prefers for "Detect
+/// language" (see `planTextRecognition`), best first: the sources of the
+/// recent language pairs, the recent languages, then the app's [locale].
+List<String> ocrPreferredLanguages(AppSettings settings, Locale? locale) {
+  final codes = <String>[];
+  void add(Language language) {
+    if (language.isAuto || language.isCustom) return;
+    if (!codes.contains(language.code)) codes.add(language.code);
+  }
+
+  for (final pair in settings.recentPairs) {
+    add(pair.source);
+  }
+  settings.recentLanguages.forEach(add);
+  if (locale != null) add(Language(code: locale.languageCode, name: ''));
+  return List.unmodifiable(codes);
 }
 
 /// The app's usage tracker, or null when none is provided (e.g. in tests).

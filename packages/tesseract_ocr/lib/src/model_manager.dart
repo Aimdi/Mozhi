@@ -386,7 +386,7 @@ class TessdataManager {
         ),
       );
     });
-    return _installVerified(language, part);
+    return await _installVerified(language, part);
   }
 
   /// Runs [run] (installing [language]) unless an install of the same
@@ -689,9 +689,7 @@ class TessdataManager {
     final digestSink = _DigestSink();
     final hasher = sha256.startChunkedConversion(digestSink);
     try {
-      await for (final chunk in file.openRead()) {
-        hasher.add(chunk);
-      }
+      await file.openRead().forEach(hasher.add);
     } on FileSystemException {
       return null;
     }

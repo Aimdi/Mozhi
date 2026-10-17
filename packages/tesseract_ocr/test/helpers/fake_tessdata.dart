@@ -38,7 +38,9 @@ TessdataCatalog fakeCatalog(Iterable<FakeTessdata> data) =>
 /// support, failures and simulated disconnects.
 class FakeTessdataServer {
   new(Iterable<FakeTessdata> data)
-    : _files = {for (final item in data) item.language.url.toString(): item.bytes};
+    : _files = {
+        for (final item in data) item.language.url.toString(): item.bytes,
+      };
 
   final Map<String, Uint8List> _files;
   final List<http.BaseRequest> requests = [];
@@ -81,10 +83,7 @@ class FakeTessdataServer {
     final cut = cutAfter;
     if (cut != null && cut < bytes.length) {
       cutAfter = null;
-      return http.StreamedResponse(
-        _thenFail(bytes.sublist(0, cut)),
-        code,
-      );
+      return http.StreamedResponse(_thenFail(bytes.sublist(0, cut)), code);
     }
     return http.StreamedResponse(
       Stream.fromIterable([

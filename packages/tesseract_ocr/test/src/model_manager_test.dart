@@ -20,7 +20,7 @@ void main() {
 
   setUp(() {
     root = Directory.systemTemp.createTempSync('tessdata_manager_');
-    deu = FakeTessdata('deu', seed: 1);
+    deu = FakeTessdata('deu');
     eng = FakeTessdata('eng', size: 5200, seed: 2);
     chi = FakeTessdata('chi_sim', size: 3100, languages: ['zh-CN'], seed: 3);
     server = FakeTessdataServer([deu, eng, chi]);
@@ -421,11 +421,14 @@ void main() {
 
     test('installs the file when a running download fails', () async {
       server.failures[deu.language.url.toString()] = 500;
-      final download = manager.install(deu.language);
+      final download = expectLater(
+        manager.install(deu.language),
+        throwsA(isA<TessdataDownloadException>()),
+      );
       final result = await manager.importFiles([
         write('deu.traineddata', deu.bytes),
       ], catalog: catalog);
-      await expectLater(download, throwsA(isA<TessdataDownloadException>()));
+      await download;
       expect(result.languages.single.status, TessdataImportStatus.installed);
     });
 
@@ -467,7 +470,7 @@ void main() {
 
 /// Yields [file], then runs [change] before the import copies it.
 class _ChangingFiles extends Iterable<File> {
-  _ChangingFiles(this.file, this.change);
+  new(this.file, this.change);
 
   final File file;
   final void Function() change;
@@ -477,7 +480,7 @@ class _ChangingFiles extends Iterable<File> {
 }
 
 class _ChangingIterator implements Iterator<File> {
-  _ChangingIterator(this.files);
+  new(this.files);
 
   final _ChangingFiles files;
   var _index = -1;

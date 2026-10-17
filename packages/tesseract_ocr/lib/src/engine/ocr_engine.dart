@@ -31,7 +31,11 @@ final class OcrImage {
       throw ArgumentError('Invalid image size ${width}x$height');
     }
     if (bytesPerPixel != 1 && bytesPerPixel != 3 && bytesPerPixel != 4) {
-      throw ArgumentError.value(bytesPerPixel, 'bytesPerPixel', 'Not 1, 3 or 4');
+      throw ArgumentError.value(
+        bytesPerPixel,
+        'bytesPerPixel',
+        'Not 1, 3 or 4',
+      );
     }
     if (this.bytesPerLine < width * bytesPerPixel) {
       throw ArgumentError.value(
@@ -40,8 +44,8 @@ final class OcrImage {
         'Shorter than a row',
       );
     }
-    if (pixels.lengthInBytes < this.bytesPerLine * (height - 1) +
-        width * bytesPerPixel) {
+    if (pixels.lengthInBytes <
+        this.bytesPerLine * (height - 1) + width * bytesPerPixel) {
       throw ArgumentError.value(
         pixels.lengthInBytes,
         'pixels',

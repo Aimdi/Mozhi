@@ -14,10 +14,13 @@ import 'package:mozhi/core/network/network_session.dart';
 import 'package:mozhi/core/on_device_ml.dart';
 import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/platform/offline_engine.dart';
+import 'package:mozhi/platform/offline_speech.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/speech/speech_service.dart';
 import 'package:mozhi/usage/data/usage_tracker.dart';
+import 'package:mozhi/voice/offline/offline_speech.dart';
+import 'package:mozhi/voice/offline/whisper_speech_recognizer_adapter.dart';
 import 'package:mozhi/voice/speech_input_service.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -87,6 +90,9 @@ Future<void> bootstrap(
 /// [createOfflineTranslator]: Mozilla's Bergamot engine (Android; never
 /// available on the web), created while the settings load. Its model
 /// downloads go through [NetworkSession.current] (the proxy setting).
+/// [offlineSpeech] defaults to [createOfflineSpeech]: Whisper for offline
+/// voice input (Android on a supported CPU; null elsewhere), behind the
+/// [SpeechInputService].
 ///
 /// Every backend client of the [TranslationRepository] comes from one
 /// [NetworkSession] built from the saved `httpProxy` (a later change
@@ -97,6 +103,7 @@ Future<AppDependencies> createDependencies({
   KeyValueStore? secrets,
   OfflineTranslator? offlineTranslator,
   NetworkSession Function(String? proxy)? network,
+  Future<OfflineSpeech?> Function(KeyValueStore preferences)? offlineSpeech,
 }) async {
   // Started first: loading the model catalog runs while the stores open.
   final offlineFuture = offlineTranslator != null
@@ -115,6 +122,7 @@ Future<AppDependencies> createDependencies({
   NetworkSession.current = session;
 
   final offline = await offlineFuture;
+  final speech = await (offlineSpeech ?? _offlineSpeech)(preferences);
   final translationRepository =
       TranslationRepository(
         mozhiClientFactory: session.mozhiClient,
@@ -141,7 +149,16 @@ Future<AppDependencies> createDependencies({
     settings: settings,
     preferences: preferences,
     secrets: secretStore,
-    speechInputService: SpeechInputService(store: preferences),
+    speechInputService: SpeechInputService(
+      store: preferences,
+      offlineAdapter: speech == null
+          ? null
+          : WhisperSpeechRecognizerAdapter(speech: speech),
+      // Offline only never uses the system recogniser (it may send the
+      // audio to Google): voice input is Whisper there.
+      privacyMode: () => translationRepository.privacyMode,
+    ),
+    offlineSpeech: speech,
     offlineTranslator: offline,
     usageTracker: UsageTracker(store: preferences),
     network: session,
@@ -149,6 +166,9 @@ Future<AppDependencies> createDependencies({
 }
 
 NetworkSession _networkSession(String? proxy) => NetworkSession(proxy: proxy);
+
+Future<OfflineSpeech?> _offlineSpeech(KeyValueStore preferences) =>
+    createOfflineSpeech(store: preferences);
 
 /// Options of the platform secure storage.
 ///

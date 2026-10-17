@@ -15,14 +15,15 @@ import 'package:mozhi/settings/view/widgets/link_launcher.dart';
 import 'package:mozhi/settings/view/widgets/privacy_settings_section.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:mozhi/settings/view/widgets/speech_settings_section.dart';
+import 'package:mozhi/settings/view/widgets/voice_input_settings_section.dart';
 import 'package:mozhi/speech/speech_service.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 export 'widgets/privacy_settings_section.dart' show historyRetentionLabel;
 
 /// App settings, in sections: Privacy, Offline languages, Online engines,
-/// AI providers (advanced), Appearance, Read aloud and About. Reads
-/// [SettingsCubit] (and `HistoryCubit` for the history rows) from the
+/// AI providers (advanced), Appearance, Read aloud, Voice input and About.
+/// Reads [SettingsCubit] (and `HistoryCubit` for the history rows) from the
 /// app-wide providers.
 class SettingsPage extends StatelessWidget {
   const new({super.key});
@@ -61,6 +62,7 @@ class SettingsView extends StatelessWidget {
             ...settings.recentLanguages,
           ],
         ),
+      VoiceInputSettingsSection(privacyMode: settings.privacyMode),
       const _AboutSection(),
     ];
     // Each column is its own focus traversal group and semantics container,

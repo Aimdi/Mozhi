@@ -14,6 +14,7 @@
 #include <new>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include <allheaders.h>  // Leptonica
 #include <tesseract/baseapi.h>
@@ -71,25 +72,26 @@ bool IsLanguageCode(const std::string& code) {
 // Checks `languages` ("deu+eng") and that every file is readable in
 // `datapath`; on failure sets the error and returns false.
 bool CheckLanguages(const std::string& datapath, const std::string& languages) {
-  if (languages.empty()) {
-    SetError("no language given");
-    return false;
-  }
-  int count = 0;
+  std::vector<std::string> codes;
   size_t start = 0;
   while (start <= languages.size()) {
     size_t end = languages.find('+', start);
     if (end == std::string::npos) end = languages.size();
-    const std::string code = languages.substr(start, end - start);
+    codes.push_back(languages.substr(start, end - start));
+    start = end + 1;
+  }
+  if (codes.size() > static_cast<size_t>(kMaxLanguages)) {
+    SetError("more than " + std::to_string(kMaxLanguages) + " languages");
+    return false;
+  }
+  for (const std::string& code : codes) {
     if (!IsLanguageCode(code)) {
       SetError("invalid language code \"" + code + "\" in \"" + languages +
                "\"");
       return false;
     }
-    if (++count > kMaxLanguages) {
-      SetError("more than " + std::to_string(kMaxLanguages) + " languages");
-      return false;
-    }
+  }
+  for (const std::string& code : codes) {
     const std::string path = datapath + "/" + code + ".traineddata";
     std::FILE* file = std::fopen(path.c_str(), "rb");
     if (file == nullptr) {
@@ -97,7 +99,6 @@ bool CheckLanguages(const std::string& datapath, const std::string& languages) {
       return false;
     }
     std::fclose(file);
-    start = end + 1;
   }
   return true;
 }

@@ -27,6 +27,7 @@ import 'package:mozhi/speech/speech_service.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/usage/data/usage_tracker.dart';
 import 'package:mozhi/usage/widgets/usage_warning_listener.dart';
+import 'package:mozhi/voice/offline/offline_speech.dart';
 import 'package:mozhi/voice/speech_input_service.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -124,6 +125,7 @@ class _AppState extends State<App> {
     unawaited(_historyCubit.close());
     unawaited(_settingsCubit.close());
     unawaited(_deps.speechInputService.dispose());
+    unawaited(_deps.offlineSpeech?.dispose());
     unawaited(_deps.speechService.dispose());
     unawaited(_deps.usageTracker.dispose());
     unawaited(_deps.offlineTranslator.dispose());
@@ -229,6 +231,9 @@ class _AppState extends State<App> {
         RepositoryProvider<SpeechInputService>.value(
           value: _deps.speechInputService,
         ),
+        // Only where Whisper runs (the voice settings look for it).
+        if (_deps.offlineSpeech case final offlineSpeech?)
+          RepositoryProvider<OfflineSpeech>.value(value: offlineSpeech),
         RepositoryProvider<OfflineTranslator>.value(
           value: _deps.offlineTranslator,
         ),

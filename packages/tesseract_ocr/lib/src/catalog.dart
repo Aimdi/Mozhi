@@ -192,7 +192,7 @@ final class TessdataCatalog {
     if (direct != null) return direct;
     final parts = key.split('-');
     final primary = _aliases[parts.first] ?? parts.first;
-    final script = parts.skip(1).where((part) => _script.hasMatch(part));
+    final script = parts.skip(1).where(_script.hasMatch);
     if (primary == 'zh') {
       final traditional = parts
           .skip(1)

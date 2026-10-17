@@ -115,7 +115,7 @@ class TesseractOcr {
         if (!installed.contains(code)) code,
     ];
     if (missing.isNotEmpty) throw TessdataMissingException(missing);
-    return _engineOrCreate().recognize(
+    return await _engineOrCreate().recognize(
       image,
       dataPath: data.dataDirectory.path,
       languages: [

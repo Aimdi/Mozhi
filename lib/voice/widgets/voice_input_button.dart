@@ -18,8 +18,10 @@ typedef VoiceInputResultCallback = void Function(
 ///
 /// While listening it shows a filled mic with a ring that scales with the
 /// input level, forwards recognised text to [onResult] and offers "Stop
-/// listening". It renders nothing ([SizedBox.shrink]) on platforms without
-/// speech recognition (Linux) and once initialising the recogniser failed
+/// listening"; while an offline engine transcribes the recording it shows
+/// a progress ring and offers "Cancel transcription". It renders nothing
+/// ([SizedBox.shrink]) on platforms without speech recognition (Linux)
+/// and once initialising the recogniser failed
 /// (no recogniser, permission denied); after a denied permission is granted
 /// in the system settings it reappears when the app resumes. Failures are
 /// explained in a [SnackBar].
@@ -53,6 +55,11 @@ class VoiceInputButton extends StatefulWidget {
   /// motion).
   static const ValueKey<String> pulseRingKey = ValueKey('voiceInputPulseRing');
 
+  /// Key of the progress ring shown while an offline engine transcribes.
+  static const ValueKey<String> transcribingKey = ValueKey(
+    'voiceInputTranscribing',
+  );
+
   /// Explicit service; null reads it from the context.
   final SpeechInputService? service;
 
@@ -79,6 +86,10 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
   late final AppLifecycleListener _lifecycle;
 
   bool get _listening => _state.isListening && _state.isOwnedBy(this);
+
+  /// An offline engine is transcribing what this button recorded.
+  bool get _transcribing =>
+      _state is SpeechInputTranscribing && _state.isOwnedBy(this);
 
   @override
   void initState() {
@@ -117,7 +128,7 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
   }
 
   void _detach() {
-    if (_listening) unawaited(_service.cancel());
+    if (_listening || _transcribing) unawaited(_service.cancel());
     unawaited(_states?.cancel());
     unawaited(_results?.cancel());
   }
@@ -140,6 +151,10 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
   Future<void> _toggle() async {
     if (_listening) {
       await _service.stop();
+      return;
+    }
+    if (_transcribing) {
+      await _service.cancel();
       return;
     }
     final started = await _service.listen(
@@ -182,6 +197,7 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
     final l10n = context.l10n;
     final scheme = Theme.of(context).colorScheme;
     final listening = _listening;
+    final transcribing = _transcribing;
     final state = _state;
     final level = listening && state is SpeechInputListening
         ? state.level
@@ -200,8 +216,24 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
               child: _LevelRing(level: level),
             ),
           ],
+          if (transcribing)
+            Semantics(
+              liveRegion: true,
+              label: l10n.voiceInputTranscribing,
+              child: const IgnorePointer(
+                child: SizedBox.square(
+                  key: VoiceInputButton.transcribingKey,
+                  dimension: 44,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ),
           IconButton(
-            tooltip: listening ? l10n.voiceInputStop : l10n.voiceInputStart,
+            tooltip: listening
+                ? l10n.voiceInputStop
+                : transcribing
+                ? l10n.voiceInputCancelTranscription
+                : l10n.voiceInputStart,
             isSelected: listening,
             // An accent mic; a filled accent circle while listening.
             style: listening

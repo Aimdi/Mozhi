@@ -9,7 +9,8 @@ enum ImageTranslateMethodKind {
   /// A vision-capable AI model reads and translates the image.
   aiVision,
 
-  /// ML Kit text recognition on the device, then a text translation.
+  /// Text recognition on the device (Tesseract in the default build, ML
+  /// Kit in the Play variant), then a text translation.
   onDevice,
 }
 

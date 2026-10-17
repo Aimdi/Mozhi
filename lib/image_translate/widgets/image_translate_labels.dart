@@ -81,6 +81,8 @@ TranslateErrorInfo describeImageTranslateError(
       l10n.imageTranslateErrorLanguage,
     ImageTranslateErrorKind.recognitionFailed =>
       l10n.imageTranslateErrorRecognition,
+    ImageTranslateErrorKind.recognitionLanguageUnsupported =>
+      l10n.imageTranslateErrorRecognitionLanguage,
     ImageTranslateErrorKind.timeout => l10n.imageTranslateErrorTimeout,
   }),
   _ => describeTranslateError(l10n, error),

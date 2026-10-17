@@ -9,3 +9,4 @@ export 'image_translate_links.dart';
 export 'image_translate_preview.dart';
 export 'image_translate_progress.dart';
 export 'image_translate_result_section.dart';
+export 'ocr_language_offer.dart';

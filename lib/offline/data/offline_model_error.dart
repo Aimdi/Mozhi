@@ -4,9 +4,15 @@ import 'package:bergamot_translator/bergamot_translator.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
 import 'package:mozhi/core/network/network_policy.dart';
+import 'package:tesseract_ocr/tesseract_ocr.dart'
+    show
+        TessdataChecksumException,
+        TessdataDownloadException,
+        TessdataMissingException;
 import 'package:translation_repository/translation_repository.dart';
 
-/// Why downloading, updating or deleting offline models failed.
+/// Why downloading, updating or deleting offline models (or text
+/// recognition data) failed.
 enum OfflineModelErrorKind {
   /// A Wi-Fi-only download on a metered network: nothing was downloaded
   /// (the screen offers to download anyway).
@@ -40,13 +46,24 @@ class OfflineModelError extends Equatable {
   const new(this.kind, {this.statusCode, this.networkPolicy});
 
   /// Classifies [error] (thrown by `OfflineTranslator.downloadLanguage`,
-  /// `deleteLanguage` or `OfflineModelDetails.download`).
+  /// `deleteLanguage`, `OfflineModelDetails.download` or the text
+  /// recognition data's `downloadOcrLanguage`).
   factory of(Object error) => switch (error) {
     MeteredConnectionException() => const OfflineModelError(
       OfflineModelErrorKind.metered,
     ),
-    ModelChecksumException() => const OfflineModelError(
-      OfflineModelErrorKind.checksum,
+    ModelChecksumException() || TessdataChecksumException() =>
+      const OfflineModelError(OfflineModelErrorKind.checksum),
+    TessdataDownloadException(:final int statusCode) => OfflineModelError(
+      OfflineModelErrorKind.server,
+      statusCode: statusCode,
+    ),
+    TessdataDownloadException(:final message) => OfflineModelError(
+      OfflineModelErrorKind.network,
+      networkPolicy: NetworkPolicyError.of(message),
+    ),
+    TessdataMissingException() => const OfflineModelError(
+      OfflineModelErrorKind.unsupported,
     ),
     ModelDownloadException(:final int statusCode) => OfflineModelError(
       OfflineModelErrorKind.server,

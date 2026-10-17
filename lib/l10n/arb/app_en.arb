@@ -7021,5 +7021,428 @@
   "offlineManualHint": "Show the files to download by hand",
   "@offlineManualHint": {
     "description": "offlineManualHint"
+  },
+  "voiceErrorOfflineModel": "Voice input needs the offline speech model. Download or import it in Settings › Voice input.",
+  "@voiceErrorOfflineModel": {
+    "description": "voiceErrorOfflineModel"
+  },
+  "voiceErrorOfflineOnly": "In Offline only mode, voice input needs speech recognition that stays on this device, which isn’t available here.",
+  "@voiceErrorOfflineOnly": {
+    "description": "voiceErrorOfflineOnly"
+  },
+  "voiceInputTranscribing": "Transcribing…",
+  "@voiceInputTranscribing": {
+    "description": "voiceInputTranscribing"
+  },
+  "voiceInputCancelTranscription": "Cancel transcription",
+  "@voiceInputCancelTranscription": {
+    "description": "voiceInputCancelTranscription"
+  },
+  "voiceSettingsTitle": "Voice input",
+  "@voiceSettingsTitle": {
+    "description": "voiceSettingsTitle"
+  },
+  "voiceEngineTitle": "Speech recognition",
+  "@voiceEngineTitle": {
+    "description": "voiceEngineTitle"
+  },
+  "voiceEngineDialogBody": "Choose what turns your speech into text.",
+  "@voiceEngineDialogBody": {
+    "description": "voiceEngineDialogBody"
+  },
+  "voiceEngineSystem": "System speech recognition",
+  "@voiceEngineSystem": {
+    "description": "voiceEngineSystem"
+  },
+  "voiceEngineSystemSubtitle": "Your device’s recognizer. On most phones it’s Google’s, which may send your voice to Google.",
+  "@voiceEngineSystemSubtitle": {
+    "description": "voiceEngineSystemSubtitle"
+  },
+  "voiceEngineWhisper": "Offline (Whisper)",
+  "@voiceEngineWhisper": {
+    "description": "voiceEngineWhisper"
+  },
+  "voiceEngineWhisperSubtitle": "OpenAI’s Whisper model on this device. Your voice never leaves it.",
+  "@voiceEngineWhisperSubtitle": {
+    "description": "voiceEngineWhisperSubtitle"
+  },
+  "voiceEngineOfflineOnlyNote": "Offline only mode: voice input uses only the offline Whisper model. The system recognizer isn’t used, because it may send your voice to Google.",
+  "@voiceEngineOfflineOnlyNote": {
+    "description": "voiceEngineOfflineOnlyNote"
+  },
+  "voiceEngineOfflineOnlyUnavailable": "Offline only mode: voice input is off here, because the system recognizer may send your voice to Google and the offline model can’t run on this device.",
+  "@voiceEngineOfflineOnlyUnavailable": {
+    "description": "voiceEngineOfflineOnlyUnavailable"
+  },
+  "voiceEngineFallbackNote": "Without a speech recognizer on this device, voice input uses the offline model.",
+  "@voiceEngineFallbackNote": {
+    "description": "voiceEngineFallbackNote"
+  },
+  "voiceModelsTitle": "Offline speech models",
+  "@voiceModelsTitle": {
+    "description": "voiceModelsTitle"
+  },
+  "voiceModelsDescription": "Whisper understands 99 languages and runs entirely on this device. Models are downloaded from Hugging Face (huggingface.co) and checked before use.",
+  "@voiceModelsDescription": {
+    "description": "voiceModelsDescription"
+  },
+  "voiceModelFast": "Fast",
+  "@voiceModelFast": {
+    "description": "voiceModelFast"
+  },
+  "voiceModelBetter": "Better",
+  "@voiceModelBetter": {
+    "description": "voiceModelBetter"
+  },
+  "voiceModelFastDescription": "Quick, less accurate",
+  "@voiceModelFastDescription": {
+    "description": "voiceModelFastDescription"
+  },
+  "voiceModelBetterDescription": "Slower, more accurate",
+  "@voiceModelBetterDescription": {
+    "description": "voiceModelBetterDescription"
+  },
+  "voiceModelSubtitle": "{description} · {size}",
+  "@voiceModelSubtitle": {
+    "placeholders": {
+      "description": {
+        "type": "String"
+      },
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "voiceModelInUse": "In use",
+  "@voiceModelInUse": {
+    "description": "voiceModelInUse"
+  },
+  "voiceModelUse": "Use {model}",
+  "@voiceModelUse": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "voiceModelDownloadTooltip": "Download {model}",
+  "@voiceModelDownloadTooltip": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "voiceModelDeleteTooltip": "Delete {model}",
+  "@voiceModelDeleteTooltip": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "voiceModelDownloading": "Downloading… {percent}%",
+  "@voiceModelDownloading": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "voiceModelDeleteTitle": "Delete the {model} speech model?",
+  "@voiceModelDeleteTitle": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "voiceModelDeleteBody": "You can download or import it again later.",
+  "@voiceModelDeleteBody": {
+    "description": "voiceModelDeleteBody"
+  },
+  "voiceModelDownloadDone": "The {model} speech model is ready",
+  "@voiceModelDownloadDone": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "voiceModelDeleteDone": "The {model} speech model was deleted",
+  "@voiceModelDeleteDone": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "voiceModelDeleteFailed": "Couldn’t delete the {model} speech model",
+  "@voiceModelDeleteFailed": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "voiceModelErrorChecksum": "The {model} speech model didn’t download correctly, so it was discarded. Try again.",
+  "@voiceModelErrorChecksum": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "voiceModelErrorNetwork": "Couldn’t download the {model} speech model. Check your connection and try again.",
+  "@voiceModelErrorNetwork": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "voiceModelErrorServer": "Couldn’t download the {model} speech model: the server answered with error {status}.",
+  "@voiceModelErrorServer": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      },
+      "status": {
+        "type": "int"
+      }
+    }
+  },
+  "voiceModelErrorStorage": "Couldn’t save the {model} speech model. Free up some storage and try again.",
+  "@voiceModelErrorStorage": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "voiceModelMeteredBody": "You’re on mobile data or a metered network. The {model} speech model needs about {size}.",
+  "@voiceModelMeteredBody": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      },
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "voiceModelImportSubtitle": "Install ggml-tiny.bin or ggml-base.bin that you downloaded yourself. Mozhi doesn’t go online for this.",
+  "@voiceModelImportSubtitle": {
+    "description": "voiceModelImportSubtitle"
+  },
+  "voiceModelImportInstalled": "Installed the {model} speech model",
+  "@voiceModelImportInstalled": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "voiceModelImportAlreadyInstalled": "The {model} speech model was already installed",
+  "@voiceModelImportAlreadyInstalled": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "voiceModelImportDamaged": "The file for the {model} speech model is damaged (checksum mismatch)",
+  "@voiceModelImportDamaged": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "voiceModelImportNothing": "None of the files is a Whisper model (ggml-tiny.bin or ggml-base.bin)",
+  "@voiceModelImportNothing": {
+    "description": "voiceModelImportNothing"
+  },
+  "voiceModelImportFailed": "Couldn’t import the files",
+  "@voiceModelImportFailed": {
+    "description": "voiceModelImportFailed"
+  },
+  "voiceModelCopyLinks": "Copy download links",
+  "@voiceModelCopyLinks": {
+    "description": "voiceModelCopyLinks"
+  },
+  "voiceModelCopyLinksSubtitle": "To download the models on another device and import them here",
+  "@voiceModelCopyLinksSubtitle": {
+    "description": "voiceModelCopyLinksSubtitle"
+  },
+  "imageTranslateErrorRecognitionLanguage": "Text recognition on this device can’t read this language yet. Choose the language of the text, or another method.",
+  "@imageTranslateErrorRecognitionLanguage": {
+    "description": "imageTranslateErrorRecognitionLanguage"
+  },
+  "imageTranslateOcrMissingTitle": "{language} text recognition isn’t on this device",
+  "@imageTranslateOcrMissingTitle": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "imageTranslateOcrMissingBody": "To read the picture on this device, Mozhi needs the text recognition data for {language}. It downloads once from GitHub and stays on this device. Your picture isn’t sent anywhere.",
+  "@imageTranslateOcrMissingBody": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "imageTranslateOcrGuessTitle": "Which language is the text in?",
+  "@imageTranslateOcrGuessTitle": {
+    "description": "imageTranslateOcrGuessTitle"
+  },
+  "imageTranslateOcrGuessBody": "To read the picture on this device, choose the language of the text above, or download the text recognition data for {language}. It downloads once from GitHub and stays on this device. Your picture isn’t sent anywhere.",
+  "@imageTranslateOcrGuessBody": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "imageTranslateOcrOfflineOnlyHint": "Offline only is on. To keep Mozhi offline, download {file} on another device, copy it to this one and import it.",
+  "@imageTranslateOcrOfflineOnlyHint": {
+    "placeholders": {
+      "file": {
+        "type": "String"
+      }
+    }
+  },
+  "imageTranslateOcrDownload": "Download {language} text recognition ({size})",
+  "@imageTranslateOcrDownload": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      },
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "imageTranslateOcrDownloadingProgress": "Downloading {language}… {percent}%",
+  "@imageTranslateOcrDownloadingProgress": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      },
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "imageTranslateOcrCopyLink": "Copy download link",
+  "@imageTranslateOcrCopyLink": {
+    "description": "imageTranslateOcrCopyLink"
+  },
+  "imageTranslateOcrImportNoMatch": "None of the files is {file}.",
+  "@imageTranslateOcrImportNoMatch": {
+    "placeholders": {
+      "file": {
+        "type": "String"
+      }
+    }
+  },
+  "imageTranslateOcrImportDamaged": "{file} is damaged (checksum mismatch). Download it again.",
+  "@imageTranslateOcrImportDamaged": {
+    "placeholders": {
+      "file": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineOcrTitle": "Text recognition",
+  "@offlineOcrTitle": {
+    "description": "offlineOcrTitle"
+  },
+  "offlineOcrEntrySubtitle": "Read text in photos on this device · {count, plural, =0{no languages downloaded} =1{1 language downloaded} other{{count} languages downloaded}}",
+  "@offlineOcrEntrySubtitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "offlineOcrDescription": "Read text in photos and camera pictures on this device with Tesseract, an open-source engine. Your pictures never leave the device.",
+  "@offlineOcrDescription": {
+    "description": "offlineOcrDescription"
+  },
+  "offlineOcrSource": "Each language’s data downloads once from GitHub (raw.githubusercontent.com) and is checked before use.",
+  "@offlineOcrSource": {
+    "description": "offlineOcrSource"
+  },
+  "offlineOcrImportSubtitle": "Install .traineddata files you copied to this device. Mozhi doesn’t go online for this.",
+  "@offlineOcrImportSubtitle": {
+    "description": "offlineOcrImportSubtitle"
+  },
+  "offlineOcrDeleteBody": "Text in {language} can’t be read on this device until you download it again.",
+  "@offlineOcrDeleteBody": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineOcrManualBody": "To install {language} without Mozhi going online, download this file on another device, copy it to this phone and choose “Import from files”. Keep the file name.",
+  "@offlineOcrManualBody": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineOcrImportTitleDone": "Text recognition data imported",
+  "@offlineOcrImportTitleDone": {
+    "description": "offlineOcrImportTitleDone"
+  },
+  "offlineOcrImportInstalled": "Installed {language}",
+  "@offlineOcrImportInstalled": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineOcrImportAlreadyInstalled": "{language} was already installed",
+  "@offlineOcrImportAlreadyInstalled": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineOcrImportDamaged": "The file for {language} is damaged (checksum mismatch)",
+  "@offlineOcrImportDamaged": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineOcrImportFailed": "Couldn’t install {language}",
+  "@offlineOcrImportFailed": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineOcrImportUnmatched": "{count, plural, =1{1 file isn’t text recognition data} other{{count} files aren’t text recognition data}}",
+  "@offlineOcrImportUnmatched": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "offlineOcrUnavailable": "This device can’t run on-device text recognition",
+  "@offlineOcrUnavailable": {
+    "description": "offlineOcrUnavailable"
   }
 }

@@ -302,19 +302,24 @@ class _DownloadedPillState extends State<_DownloadedPill> {
 /// Asks before deleting [language]'s model; true when confirmed.
 Future<bool> confirmDeleteOfflineLanguage(
   BuildContext context,
-  OfflineLanguage language,
-) async {
+  OfflineLanguage language, {
+  String? body,
+}) async {
   final confirmed = await showDialog<bool>(
     context: context,
-    builder: (context) => DeleteOfflineLanguageDialog(language: language),
+    builder: (context) =>
+        DeleteOfflineLanguageDialog(language: language, body: body),
   );
   return confirmed ?? false;
 }
 
 class DeleteOfflineLanguageDialog extends StatelessWidget {
-  const new({required this.language, super.key});
+  const new({required this.language, this.body, super.key});
 
   final OfflineLanguage language;
+
+  /// What stops working; defaults to offline translation's explanation.
+  final String? body;
 
   @override
   Widget build(BuildContext context) {
@@ -329,7 +334,7 @@ class DeleteOfflineLanguageDialog extends StatelessWidget {
         ),
       ),
       content: Text(
-        l10n.offlineDeleteBody(language.name),
+        body ?? l10n.offlineDeleteBody(language.name),
         style: theme.textTheme.bodyMedium?.copyWith(
           color: AppPalette.of(context).secondaryText,
         ),

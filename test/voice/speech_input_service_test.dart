@@ -582,6 +582,8 @@ void main() {
           SpeechInputFailure.languageUnavailable,
           SpeechInputFailure.recognizerUnavailable,
           SpeechInputFailure.audio,
+          SpeechInputFailure.offlineModelMissing,
+          SpeechInputFailure.offlineUnavailable,
         ],
       );
     });

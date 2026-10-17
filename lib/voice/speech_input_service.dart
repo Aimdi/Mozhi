@@ -408,7 +408,7 @@ class SpeechInputService {
   /// (cached after the first successful call). Empty when unavailable.
   Future<List<SpeechRecognizerLocale>> locales() async {
     if (!await initialize()) return const [];
-    return _localesOf(_current);
+    return await _localesOf(_current);
   }
 
   Future<List<SpeechRecognizerLocale>> _localesOf(
@@ -437,7 +437,7 @@ class SpeechInputService {
   Future<String?> localeIdFor(String? languageCode) async {
     if (languageCode == null) return null;
     if (!await initialize()) return null;
-    return _localeIdFor(_current, languageCode);
+    return await _localeIdFor(_current, languageCode);
   }
 
   Future<String?> _localeIdFor(

@@ -31,6 +31,10 @@ enum ImageTranslateErrorKind {
   /// On-device text recognition failed.
   recognitionFailed,
 
+  /// On-device text recognition has no data for the source language (e.g.
+  /// Xhosa, or Malay in Jawi script with Tesseract).
+  recognitionLanguageUnsupported,
+
   /// The server took too long (Google Lens can be slow on large images).
   timeout,
 }

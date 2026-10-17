@@ -7,6 +7,7 @@ import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/speech/speech_service.dart';
 import 'package:mozhi/usage/data/usage_tracker.dart';
+import 'package:mozhi/voice/offline/offline_speech.dart';
 import 'package:mozhi/voice/speech_input_service.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -25,6 +26,7 @@ class AppDependencies {
     required this.speechInputService,
     required this.offlineTranslator,
     required this.usageTracker,
+    this.offlineSpeech,
     this._network,
   });
 
@@ -48,6 +50,11 @@ class AppDependencies {
 
   /// Speech-to-text (voice input).
   final SpeechInputService speechInputService;
+
+  /// Offline voice input (Whisper models and transcription) behind
+  /// [speechInputService]; null where it cannot run (web, unsupported
+  /// CPUs).
+  final OfflineSpeech? offlineSpeech;
 
   /// On-device translation engine (also used by [translationRepository]):
   /// Mozilla's Bergamot engine (`lib/platform/offline_engine.dart`), or an
