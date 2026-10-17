@@ -25,9 +25,10 @@ Open items as of 17 October 2026. No tag or GitHub release exists yet.
       SHA-256 in the README section
       [Verify a release](../README.md#verify-a-release). It's a
       placeholder until the secrets exist.
-- [ ] **Default branch.** The default branch is still
-      `claude/magical-einstein-k02w13`, and no branch is protected. Create
-      `main`, make it the default and protect it (require the CI checks,
+- [ ] **Default branch.** `main` exists (created at `d937a1d`, a commit
+      on which every CI job passed), but the default branch is still
+      `claude/magical-einstein-k02w13`, and no branch is protected. Make
+      `main` the default and protect it (require the CI checks,
       block force pushes). Signed `v*` tags are also worth requiring. See
       [the audit, §8](audit/2026-audit.md#8-default-branch).
       `license_check.yaml` only runs on `main`, and Dependabot opens its
