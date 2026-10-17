@@ -138,9 +138,22 @@ async function fillField(locator, text) {
   }).toPass({ timeout: 20_000 });
 }
 
-/** Types [text] into the translate screen's input. */
+/**
+ * Types [text] into the translate screen's input and waits until the app
+ * has it: the character count under the field is built from the app's
+ * state. The field's DOM value alone can be ahead of the app on a slow
+ * machine, and a Translate pressed then would translate the previous text.
+ */
 async function typeSource(page, text) {
   await fillField(sourceInput(page), text);
+  if (text.trim().length === 0) return;
+  // Grapheme clusters, as Dart's `characters.length` counts them.
+  const count = [...new Intl.Segmenter().segment(text)].length;
+  await expect(
+    page.getByText(count === 1 ? '1 character' : `${count} characters`, {
+      exact: true,
+    }),
+  ).toBeVisible();
 }
 
 /**
