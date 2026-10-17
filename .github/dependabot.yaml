@@ -44,13 +44,16 @@ updates:
       - dependency-name: "record"
         versions: [">=7.0.0"]
 
-  # The app's Android build and the offline engine's plugin build. Keep the
-  # Android Gradle Plugin the same in both, and Gradle, AGP and Kotlin within
-  # the range Flutter supports (flutter build apk warns otherwise).
+  # The app's Android build and the on-device engines' plugin builds. Keep
+  # the Android Gradle Plugin the same in all of them, and Gradle, AGP and
+  # Kotlin within the range Flutter supports (flutter build apk warns
+  # otherwise).
   - package-ecosystem: "gradle"
     directories:
       - "/android"
       - "/packages/bergamot_translator/android"
+      - "/packages/tesseract_ocr/android"
+      - "/packages/whisper_speech/android"
     schedule:
       interval: "weekly"
     groups:

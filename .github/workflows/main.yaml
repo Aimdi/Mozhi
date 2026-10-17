@@ -260,17 +260,19 @@ jobs:
       # universal APK and libc++ is linked statically (no libc++_shared.so).
       # Exports, dependencies and 16 KB alignment are checked by the job
       # "Build Bergamot native (Android)".
-      - name: Check the offline engine is in the APK
+      - name: Check the on-device engines are in the APK
         run: |
           set -euo pipefail
           apk=dist/mozhi-universal.apk
           entries=$(unzip -l "$apk")
           failed=0
           for abi in arm64-v8a armeabi-v7a x86_64; do
-            if ! grep -q "lib/$abi/libmozhi_bergamot\.so" <<< "$entries"; then
-              echo "::error::$apk has no lib/$abi/libmozhi_bergamot.so"
-              failed=1
-            fi
+            for engine in bergamot tesseract whisper; do
+              if ! grep -q "lib/$abi/libmozhi_$engine\.so" <<< "$entries"; then
+                echo "::error::$apk has no lib/$abi/libmozhi_$engine.so"
+                failed=1
+              fi
+            done
           done
           if grep -q 'libc++_shared\.so' <<< "$entries"; then
             echo "::error::$apk contains libc++_shared.so"
@@ -561,33 +563,82 @@ jobs:
           retention-days: 14
           if-no-files-found: ignore
 
-  # libmozhi_bergamot.so (packages/bergamot_translator/native: Mozilla's open
-  # Firefox Translations engine, the app's offline translator) for the three
-  # release ABIs, built exactly like the plugin's Gradle build does (same
-  # NDK, CMake, toolchain file and arguments; see
-  # packages/bergamot_translator/android/build.gradle). The APK jobs build
-  # it again through Gradle; this job exists for diagnostics: it needs
-  # nothing else, so it starts at once, keeps going after compile errors
-  # (ninja -k 0, every ABI) so one run lists all of them, prints a per-ABI
-  # summary, checks exports, dependencies and 16 KB alignment, and uploads
-  # the libraries and the benchmark CLI (mozhi_bergamot_cli, for adb shell).
-  build-bergamot-android:
-    name: Build Bergamot native (Android)
+  # The data the app downloads (Whisper models from Hugging Face, Tesseract
+  # language data from GitHub) must still be served with the sizes the
+  # bundled catalogues pin: the app rejects any other file. HEAD requests
+  # only; nothing is downloaded.
+  check-model-downloads:
+    name: Check model downloads
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Compare the served sizes with the catalogues
+        run: python3 tool/check_model_downloads.py
+
+  # The on-device engines' native libraries for the three release ABIs,
+  # built exactly like the plugins' Gradle builds do (same NDK, CMake,
+  # toolchain file and arguments; see packages/<engine>/android/build.gradle):
+  #   libmozhi_bergamot.so   offline translation (Mozilla's Firefox
+  #                          Translations engine)
+  #   libmozhi_tesseract.so  text recognition in photos (Tesseract)
+  #   libmozhi_whisper.so    offline voice input (whisper.cpp)
+  # The APK jobs build them again through Gradle; this job exists for
+  # diagnostics: it needs nothing else, so it starts at once, keeps going
+  # after compile errors (ninja -k 0, every ABI) so one run lists all of
+  # them, prints a per-ABI summary, checks exports, dependencies and 16 KB
+  # alignment, and uploads the libraries and each engine's CLI (for adb
+  # shell).
+  build-native-android:
+    name: Build ${{ matrix.title }} native (Android)
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - engine: bergamot
+            title: Bergamot
+            package: packages/bergamot_translator
+            # The C API (mozhi_bergamot_<name>).
+            exports: >-
+              abi_version version model_create model_destroy translate
+              translate_pivot free_string last_error detect
+            # Stable NDK system libraries (libandroid: cpuinfo on arm64).
+            needed: libc.so libm.so libdl.so liblog.so libandroid.so
+          - engine: tesseract
+            title: Tesseract
+            package: packages/tesseract_ocr
+            exports: >-
+              abi_version version create destroy recognize free_string
+              last_error
+            needed: libc.so libm.so libdl.so
+          - engine: whisper
+            title: Whisper
+            package: packages/whisper_speech
+            exports: >-
+              abi_version version model_load model_free model_is_multilingual
+              transcribe cancel free_string last_error
+            # liblog: assertion messages go to logcat.
+            needed: libc.so libm.so libdl.so liblog.so
     env:
       ANDROID_PLATFORM: android-24
       CCACHE_DIR: ${{ github.workspace }}/.ccache
       CCACHE_BASEDIR: ${{ github.workspace }}
       CCACHE_COMPRESS: "true"
       CCACHE_MAXSIZE: 2G
+      ENGINE: ${{ matrix.engine }}
+      TITLE: ${{ matrix.title }}
+      PACKAGE: ${{ matrix.package }}
+      EXPORTS: ${{ matrix.exports }}
+      NEEDED: ${{ matrix.needed }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Only the submodules the engine compiles (not mozilla/translations'
-      # training tools), then native/patches/.
+      # Only the submodules the engine compiles, then its native/patches/.
       - name: Fetch the pinned engine sources
-        run: bash packages/bergamot_translator/tool/fetch_native_deps.sh
+        run: bash "$PACKAGE/tool/fetch_native_deps.sh"
 
       - name: Install the NDK, CMake and ccache
         run: |
@@ -603,10 +654,10 @@ jobs:
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .ccache
-          key: bergamot-ccache-${{ env.NDK_VERSION }}-native-${{ github.sha }}
+          key: ${{ matrix.engine }}-ccache-${{ env.NDK_VERSION }}-native-${{ github.sha }}
           restore-keys: |
-            bergamot-ccache-${{ env.NDK_VERSION }}-native-
-            bergamot-ccache-${{ env.NDK_VERSION }}-
+            ${{ matrix.engine }}-ccache-${{ env.NDK_VERSION }}-native-
+            ${{ matrix.engine }}-ccache-${{ env.NDK_VERSION }}-
 
       # Every ABI is configured and built even when another one fails, and
       # ninja keeps going after errors (-k 0), so a single run reports all
@@ -617,21 +668,22 @@ jobs:
           # attempted and the step decides at the end (exit "$failed").
           set +e -uo pipefail
           cmake --version | head -1
-          native=packages/bergamot_translator/native
-          logs="$RUNNER_TEMP/bergamot-logs"
+          native="$PACKAGE/native"
+          lib="libmozhi_$ENGINE.so"
+          logs="$RUNNER_TEMP/$ENGINE-logs"
           mkdir -p "$logs" dist
-          : > "$RUNNER_TEMP/bergamot-built"
-          : > "$RUNNER_TEMP/bergamot-failed"
+          : > "$RUNNER_TEMP/$ENGINE-built"
+          : > "$RUNNER_TEMP/$ENGINE-failed"
           failed=0
           {
-            echo "### Bergamot native build (NDK $NDK_VERSION)"
+            echo "### $TITLE native build (NDK $NDK_VERSION)"
             echo
             echo "| ABI | Configure | Build | Compile errors |"
             echo "| --- | --- | --- | ---: |"
           } >> "$GITHUB_STEP_SUMMARY"
           for abi in arm64-v8a armeabi-v7a x86_64; do
             echo "::group::$abi"
-            build="$RUNNER_TEMP/bergamot-$abi"
+            build="$RUNNER_TEMP/$ENGINE-$abi"
             configure=failed
             result=skipped
             if cmake -S "$native" -B "$build" -G Ninja \
@@ -644,12 +696,12 @@ jobs:
               -DCMAKE_C_COMPILER_LAUNCHER=ccache \
               -DCMAKE_CXX_COMPILER_LAUNCHER=ccache 2>&1 | tee "$logs/$abi-configure.log"; then
               configure=ok
-              if cmake --build "$build" --target mozhi_bergamot mozhi_bergamot_cli \
+              if cmake --build "$build" --target "mozhi_$ENGINE" "mozhi_${ENGINE}_cli" \
                 --parallel -- -k 0 2>&1 | tee "$logs/$abi-build.log"; then
                 result=ok
                 mkdir -p "dist/$abi"
-                cp "$build/libmozhi_bergamot.so" "$build/mozhi_bergamot_cli" "dist/$abi/"
-                echo "$abi" >> "$RUNNER_TEMP/bergamot-built"
+                cp "$build/$lib" "$build/mozhi_${ENGINE}_cli" "dist/$abi/"
+                echo "$abi" >> "$RUNNER_TEMP/$ENGINE-built"
               else
                 result=failed
               fi
@@ -661,21 +713,21 @@ jobs:
             echo "::endgroup::"
             if [ "$configure" != ok ] || [ "$result" != ok ]; then
               failed=1
-              echo "::error title=Bergamot $abi::configure $configure, build $result, $errors compile errors"
+              echo "::error title=$TITLE $abi::configure $configure, build $result, $errors compile errors"
               # Every distinct error once, annotated, so the run page lists them.
               cat "$logs/$abi-configure.log" "$logs/$abi-build.log" 2>/dev/null |
                 grep -E '(error|fatal error): |CMake Error' | sort -u | head -n 50 |
-                sed "s/^/::error title=Bergamot $abi::/" || true
+                sed "s/^/::error title=$TITLE $abi::/" || true
             fi
             echo "| $abi | $configure | $result | $errors |" >> "$GITHUB_STEP_SUMMARY"
-            if [ "$result" != ok ]; then echo "$abi" >> "$RUNNER_TEMP/bergamot-failed"; fi
+            if [ "$result" != ok ]; then echo "$abi" >> "$RUNNER_TEMP/$ENGINE-failed"; fi
           done
           ccache --show-stats || true
           if [ "$failed" != 0 ]; then
             {
               echo
               echo "#### Errors (each once, per ABI)"
-              for abi in $(cat "$RUNNER_TEMP/bergamot-failed"); do
+              for abi in $(cat "$RUNNER_TEMP/$ENGINE-failed"); do
                 echo
                 echo "**$abi**"
                 echo
@@ -692,8 +744,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: bergamot-android-logs
-          path: ${{ runner.temp }}/bergamot-logs
+          name: ${{ matrix.engine }}-android-logs
+          path: ${{ runner.temp }}/${{ matrix.engine }}-logs
           if-no-files-found: ignore
           retention-days: 14
 
@@ -705,49 +757,45 @@ jobs:
         run: |
           set -euo pipefail
           bin="$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          lib_name="libmozhi_$ENGINE.so"
           failed=0
           {
-            echo "### Bergamot native libraries"
+            echo "### $TITLE native libraries"
             echo
             echo "| ABI | Unstripped | Stripped |"
             echo "| --- | ---: | ---: |"
           } >> "$GITHUB_STEP_SUMMARY"
-          built=$(cat "$RUNNER_TEMP/bergamot-built" 2>/dev/null || true)
+          built=$(cat "$RUNNER_TEMP/$ENGINE-built" 2>/dev/null || true)
           [ -n "$built" ] || { echo "No ABI built."; exit 1; }
           for abi in $built; do
-            lib="dist/$abi/libmozhi_bergamot.so"
+            lib="dist/$abi/$lib_name"
             exports=$("$bin/llvm-nm" -D --defined-only "$lib" | awk '{print $NF}' | sort)
-            unexpected=$(printf '%s\n' "$exports" | grep -v '^mozhi_bergamot_' || true)
+            unexpected=$(printf '%s\n' "$exports" | grep -v "^mozhi_${ENGINE}_" || true)
             if [ -n "$unexpected" ]; then
               echo "::error::$abi exports more than the C API: $unexpected"
               failed=1
             fi
-            for name in abi_version version model_create model_destroy \
-              translate translate_pivot free_string last_error detect; do
-              if ! grep -qx "mozhi_bergamot_$name" <<< "$exports"; then
-                echo "::error::$abi does not export mozhi_bergamot_$name"
+            for name in $EXPORTS; do
+              if ! grep -qx "mozhi_${ENGINE}_$name" <<< "$exports"; then
+                echo "::error::$abi does not export mozhi_${ENGINE}_$name"
                 failed=1
               fi
             done
             for needed in $("$bin/llvm-readelf" -d "$lib" |
               sed -n 's/.*Shared library: \[\(.*\)\]/\1/p'); do
-              case "$needed" in
-                # Stable NDK system libraries (libandroid: cpuinfo on arm64).
-                libc.so | libm.so | libdl.so | liblog.so | libandroid.so) ;;
-                *)
-                  echo "::error::$abi needs $needed"
-                  failed=1
-                  ;;
-              esac
+              if ! grep -qwF -- "$needed" <<< "$NEEDED"; then
+                echo "::error::$abi needs $needed"
+                failed=1
+              fi
             done
             if "$bin/llvm-readelf" -lW "$lib" |
               awk '$1 == "LOAD" && $NF != "0x4000" { bad = 1 } END { exit !bad }'; then
               echo "::error::$abi has LOAD segments that are not 16 KB aligned"
               failed=1
             fi
-            "$bin/llvm-strip" --strip-unneeded -o "dist/$abi/libmozhi_bergamot.stripped.so" "$lib"
+            "$bin/llvm-strip" --strip-unneeded -o "dist/$abi/libmozhi_$ENGINE.stripped.so" "$lib"
             size() { numfmt --to=iec-i --suffix=B --format='%.1f' "$(stat -c %s "$1")"; }
-            echo "| $abi | $(size "$lib") | $(size "dist/$abi/libmozhi_bergamot.stripped.so") |" \
+            echo "| $abi | $(size "$lib") | $(size "dist/$abi/libmozhi_$ENGINE.stripped.so") |" \
               >> "$GITHUB_STEP_SUMMARY"
           done
           (cd dist && sha256sum -- */*.so > SHA256SUMS.txt)
@@ -756,6 +804,6 @@ jobs:
       - name: Upload libraries
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: bergamot-android-native
+          name: ${{ matrix.engine }}-android-native
           path: dist
           if-no-files-found: error

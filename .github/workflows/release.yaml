@@ -164,7 +164,7 @@ jobs:
             sh tool/check_no_google.sh "$file"
           done
 
-      - name: Check the offline engine is in the APK
+      - name: Check the on-device engines are in the APK
         env:
           TAG: ${{ github.ref_name }}
         run: |
@@ -172,10 +172,12 @@ jobs:
           entries=$(unzip -l "$apk")
           failed=0
           for abi in arm64-v8a armeabi-v7a x86_64; do
-            if ! grep -q "lib/$abi/libmozhi_bergamot\.so" <<< "$entries"; then
-              echo "::error::$apk has no lib/$abi/libmozhi_bergamot.so"
-              failed=1
-            fi
+            for engine in bergamot tesseract whisper; do
+              if ! grep -q "lib/$abi/libmozhi_$engine\.so" <<< "$entries"; then
+                echo "::error::$apk has no lib/$abi/libmozhi_$engine.so"
+                failed=1
+              fi
+            done
           done
           if grep -q 'libc++_shared\.so' <<< "$entries"; then
             echo "::error::$apk contains libc++_shared.so"
