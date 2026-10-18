@@ -61,7 +61,6 @@ Status as of 18 October 2026.
 | Job | Builds | Checks |
 | --- | --- | --- |
 | *Build Android APKs and app bundle* | the default (Google-free) build: one APK per ABI, a universal APK and the `.aab`, all obfuscated | `tool/check_no_google.sh` on every APK and the bundle; `tool/check_signing.sh` (the release certificate; a release tag fails without the signing secrets); the universal APK has `libmozhi_bergamot.so` for all three ABIs and no `libc++_shared.so`; warns when the tag doesn't match the `pubspec.yaml` version |
-| *Build Play variant APK (ML Kit)* | `tool/play_prepare.sh`, then a universal APK | the release certificate; none for Google code (it contains ML Kit by design) |
 | *Build web* | the static web build, zipped | |
 | *Publish GitHub release* | `SHA256SUMS.txt` over every file | publishes the release; it's marked as a **pre-release** when the tag contains `-` |
 
@@ -71,16 +70,14 @@ Release files, for tag `<tag>`:
 | --- | --- |
 | `mozhi-<tag>-arm64-v8a.apk`, `-armeabi-v7a.apk`, `-x86_64.apk` | default build, one ABI each |
 | `mozhi-<tag>-universal.apk` | default build, all ABIs |
-| `mozhi-<tag>-play-universal.apk` | Play variant (ML Kit text recognition) |
 | `mozhi-<tag>.aab` | app bundle for Google Play (not installable) |
 | `mozhi-<tag>-web.zip` | web build for the root of a web server |
 | `SHA256SUMS.txt` | SHA-256 of all of the above |
 
-The Dart debug symbols of the obfuscated builds are kept as private
-workflow artifacts (`debug-symbols-android-<tag>` and
-`debug-symbols-android-play-<tag>`, 90 days) for `flutter symbolize`. They
-never reach the release. The release notes are GitHub's generated notes
-plus a fixed description of the files.
+The Dart debug symbols of the obfuscated builds are kept as a private
+workflow artifact (`debug-symbols-android-<tag>`, 90 days) for
+`flutter symbolize`. They never reach the release. The release notes are
+GitHub's generated notes plus a fixed description of the files.
 
 ## Checklist
 
@@ -139,8 +136,7 @@ plus a fixed description of the files.
      done
      ```
 
-     All of them must pass. `mozhi-v0.1.0-play-universal.apk` must
-     *fail*: that confirms it is the ML Kit build its name says it is.
+     All of them must pass.
    - The [εxodus scan](#tracker-scan-εxodus) of the universal default APK
      must report **0 trackers**.
    - Install the APK over the previous release on a phone and spot-check
@@ -167,7 +163,7 @@ paste a value into an issue, a log or a commit.
 | `ANDROID_KEY_ALIAS` | the key alias |
 | `ANDROID_KEY_PASSWORD` | the key password |
 
-The same key signs the APKs, the Play variant and the bundle. Keep an
+The same key signs the APKs and the bundle. Keep an
 offline backup of the keystore and its passwords: losing them means users
 must uninstall to update.
 
@@ -210,10 +206,6 @@ It prints a report and exits with the number of trackers it found, so 0
 means none. Add `-j` for JSON. Once the app is on F-Droid, IzzyOnDroid or
 Play, the public εxodus site can analyse it by its package name,
 `io.github.aimdi.mozhi`. Link that report from the release notes.
-
-Also scan the Play variant and note the result in the release notes.
-ML Kit is closed source and sends diagnostics to Google, whether or not
-εxodus lists it as a tracker.
 
 ## Dependency updates
 

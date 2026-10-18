@@ -339,8 +339,7 @@ because they come from the same release. The certificate shows who signed
 it.
 
 The default APKs contain no Google code. To check one from a checkout, run
-`sh tool/check_no_google.sh <apk>`. The `-play-` APK contains ML Kit by
-design.
+`sh tool/check_no_google.sh <apk>`.
 
 More: [Releasing](docs/release.md) and
 [Building and reproducible builds](docs/building.md).
