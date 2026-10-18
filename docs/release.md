@@ -15,24 +15,19 @@ compare builds is in [Building](building.md).
 
 ## Before the first release
 
-Open items as of 17 October 2026. No tag or GitHub release exists yet.
+Status as of 18 October 2026.
 
-- [ ] **Signing secrets.** Add the four secrets ([Signing](#signing)).
-      Without them every APK and the bundle are signed with a throwaway
-      debug key, and such a release can never be updated by a properly
-      signed one. Don't publish a debug-signed release.
-- [ ] **Certificate fingerprint.** Publish the signing certificate's
-      SHA-256 in the README section
-      [Verify a release](../README.md#verify-a-release). It's a
-      placeholder until the secrets exist.
-- [ ] **Default branch.** `main` exists (created at `d937a1d`, a commit
-      on which every CI job passed), but the default branch is still
-      `claude/magical-einstein-k02w13`, and no branch is protected. Make
-      `main` the default and protect it (require the CI checks,
-      block force pushes). Signed `v*` tags are also worth requiring. See
+- [x] **Signing secrets.** The four secrets ([Signing](#signing)) are set
+      (18 October 2026). A release tag (no `-`) now fails without them
+      instead of publishing a debug-signed release, which a properly
+      signed one could never update.
+- [x] **Certificate fingerprint.** Published in the README section
+      [Verify a release](../README.md#verify-a-release) and kept in
+      `tool/release-certificate.sha256`, which `tool/check_signing.sh`
+      compares every signed APK and bundle with (CI and release).
+- [x] **Default branch.** `main` is the default branch and is
+      protected. Signed `v*` tags are also worth requiring. See
       [the audit, §8](audit/2026-audit.md#8-default-branch).
-      `license_check.yaml` only runs on `main`, and Dependabot opens its
-      pull requests against the default branch.
 - [x] **GitHub Actions updates** (Dependabot PRs #1, #2, #5 and their
       successors #6 to #10): every action is on its Node 24 release since
       `e2a438a`, pinned by the commit of its release tag. `release.yaml`
@@ -65,8 +60,8 @@ Open items as of 17 October 2026. No tag or GitHub release exists yet.
 
 | Job | Builds | Checks |
 | --- | --- | --- |
-| *Build Android APKs and app bundle* | the default (Google-free) build: one APK per ABI, a universal APK and the `.aab`, all obfuscated | `tool/check_no_google.sh` on every APK and the bundle; the universal APK has `libmozhi_bergamot.so` for all three ABIs and no `libc++_shared.so`; warns when the tag doesn't match the `pubspec.yaml` version |
-| *Build Play variant APK (ML Kit)* | `tool/play_prepare.sh`, then a universal APK | none for Google code (it contains ML Kit by design) |
+| *Build Android APKs and app bundle* | the default (Google-free) build: one APK per ABI, a universal APK and the `.aab`, all obfuscated | `tool/check_no_google.sh` on every APK and the bundle; `tool/check_signing.sh` (the release certificate; a release tag fails without the signing secrets); the universal APK has `libmozhi_bergamot.so` for all three ABIs and no `libc++_shared.so`; warns when the tag doesn't match the `pubspec.yaml` version |
+| *Build Play variant APK (ML Kit)* | `tool/play_prepare.sh`, then a universal APK | the release certificate; none for Google code (it contains ML Kit by design) |
 | *Build web* | the static web build, zipped | |
 | *Publish GitHub release* | `SHA256SUMS.txt` over every file | publishes the release; it's marked as a **pre-release** when the tag contains `-` |
 
@@ -184,10 +179,12 @@ keytool -list -v -keystore release.jks -alias <alias> | grep 'SHA256:'
 apksigner verify --print-certs mozhi-v0.1.0-universal.apk | grep 'SHA-256'
 ```
 
-Publish it in the README under
-[Verify a release](../README.md#verify-a-release). F-Droid
-(`AllowedAPKSigningKeys`, for reproducible builds) and IzzyOnDroid want
-the same value in lowercase hex without colons.
+It's published in the README under
+[Verify a release](../README.md#verify-a-release) and kept in
+`tool/release-certificate.sha256` (lowercase hex without colons, the form
+F-Droid's `AllowedAPKSigningKeys` and IzzyOnDroid want), which
+`tool/check_signing.sh` compares every signed build with. If the key ever
+changes, update both.
 
 ## Tracker scan (εxodus)
 

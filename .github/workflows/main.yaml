@@ -258,6 +258,17 @@ jobs:
             sh tool/check_no_google.sh "$apk"
           done
 
+      # With the signing secrets every APK must carry the release
+      # certificate (tool/release-certificate.sha256, as in the README);
+      # without them (forks, Dependabot) the debug key's is only printed.
+      - name: Check the signing certificate
+        run: |
+          if [ -n "${ANDROID_KEYSTORE_PATH:-}" ]; then
+            sh tool/check_signing.sh --expect dist/*.apk
+          else
+            sh tool/check_signing.sh dist/*.apk
+          fi
+
       # The εxodus scan: every class against the code signatures of the
       # trackers εxodus knows (its public list; a warning when it can't be
       # fetched, the Google check above is the hard one).

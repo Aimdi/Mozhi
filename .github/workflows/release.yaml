@@ -92,14 +92,22 @@ jobs:
           flutter pub get
           flutter gen-l10n
 
-      # Without these secrets the APKs are signed with a throwaway debug key.
+      # Without these secrets only a pre-release (a tag with "-") can be
+      # built, signed with a throwaway debug key; a release fails here.
       - name: Decode signing key
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          TAG: ${{ github.ref_name }}
         run: |
           if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
-            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret: the release is signed with a debug key."
-            exit 0
+            case "$TAG" in
+              *-*)
+                echo "::warning::No ANDROID_KEYSTORE_BASE64 secret: the pre-release is signed with a debug key."
+                exit 0
+                ;;
+            esac
+            echo "::error::No ANDROID_KEYSTORE_BASE64 secret: a release must be signed with the release key (docs/release.md#signing)."
+            exit 1
           fi
           keystore="$RUNNER_TEMP/release.jks"
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode --ignore-garbage > "$keystore"
@@ -163,6 +171,16 @@ jobs:
           for file in dist/*.apk dist/*.aab; do
             sh tool/check_no_google.sh "$file"
           done
+
+      # Signed with the release key, every file must carry the release
+      # certificate (tool/release-certificate.sha256, as in the README).
+      - name: Check the signing certificate
+        run: |
+          if [ -n "${ANDROID_KEYSTORE_PATH:-}" ]; then
+            sh tool/check_signing.sh --expect dist/*.apk dist/*.aab
+          else
+            sh tool/check_signing.sh dist/*.apk dist/*.aab
+          fi
 
       # The εxodus scan of the APKs (see the CI workflow).
       - name: Scan the APKs for trackers (εxodus signatures)
@@ -332,10 +350,17 @@ jobs:
       - name: Decode signing key
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          TAG: ${{ github.ref_name }}
         run: |
           if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
-            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret: the Play variant is signed with a debug key."
-            exit 0
+            case "$TAG" in
+              *-*)
+                echo "::warning::No ANDROID_KEYSTORE_BASE64 secret: the Play variant is signed with a debug key."
+                exit 0
+                ;;
+            esac
+            echo "::error::No ANDROID_KEYSTORE_BASE64 secret: a release must be signed with the release key (docs/release.md#signing)."
+            exit 1
           fi
           keystore="$RUNNER_TEMP/release.jks"
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode --ignore-garbage > "$keystore"
@@ -355,6 +380,14 @@ jobs:
           cp build/app/outputs/flutter-apk/app-production-release.apk \
             "dist/mozhi-$TAG-play-universal.apk"
           ls -lh dist
+
+      - name: Check the signing certificate
+        run: |
+          if [ -n "${ANDROID_KEYSTORE_PATH:-}" ]; then
+            sh tool/check_signing.sh --expect dist/*.apk
+          else
+            sh tool/check_signing.sh dist/*.apk
+          fi
 
       - name: Upload APK
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
