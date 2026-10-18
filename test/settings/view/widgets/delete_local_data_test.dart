@@ -222,7 +222,9 @@ void main() {
         );
         await glossaries.load();
         await glossaries.create(name: 'Private terms');
-        await usage.record('p1', 100, 100);
+        // Generated ids are lowercase letters, digits and dashes, so this
+        // key can't turn up inside one by chance.
+        await usage.record('Erased provider', 100, 100);
         expect(usage.snapshot.isEmpty, isFalse);
 
         await eraser(
@@ -240,11 +242,12 @@ void main() {
         // The next change writes only what is left.
         await presets.add(name: 'New', options: const TranslationOptions());
         await glossaries.create(name: 'New glossary');
-        await usage.record('p2', 1, 1);
+        await usage.record('Kept provider', 1, 1);
         final stored = preferences.values.values.join();
         expect(stored, isNot(contains('Letters to my landlord')));
         expect(stored, isNot(contains('Private terms')));
-        expect(stored, isNot(contains('p1')));
+        expect(stored, isNot(contains('Erased provider')));
+        expect(stored, contains('Kept provider'));
       },
     );
 
