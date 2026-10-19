@@ -112,7 +112,7 @@ class CheckKeystoreTest(unittest.TestCase):
             bad, ANDROID_KEYSTORE_PASSWORD=PASSWORD, ANDROID_KEY_ALIAS="mozhi"
         )
         self.assertEqual(result.returncode, 1)
-        self.assertIn("::error", result.stdout)
+        self.assertIn("ANDROID_KEYSTORE_BASE64 isn't a keystore: it decodes to 14 bytes", result.stdout)
 
     def test_usage(self) -> None:
         result = subprocess.run(

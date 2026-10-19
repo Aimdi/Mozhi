@@ -60,9 +60,12 @@ def problems(keystore: str) -> list[str]:
                 "ANDROID_KEYSTORE_BASE64. Paste the keystore's password again "
                 "(only the password, on one line)."
             ]
+        size = os.path.getsize(keystore) if os.path.exists(keystore) else 0
         return [
-            "The keystore in ANDROID_KEYSTORE_BASE64 can't be read: "
-            + (output.strip().splitlines() or ["keytool failed"])[-1]
+            f"ANDROID_KEYSTORE_BASE64 isn't a keystore: it decodes to {size} "
+            "bytes that keytool can't read. Paste the whole base64 of the "
+            "keystore file (one line, several thousand characters), not a "
+            "password or an alias."
         ]
     if keytool(keystore, password, "-alias", alias).returncode != 0:
         found.append(
