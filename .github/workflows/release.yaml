@@ -181,9 +181,9 @@ jobs:
       - name: Check the signing certificate
         run: |
           if [ -n "${ANDROID_KEYSTORE_PATH:-}" ]; then
-            sh tool/check_signing.sh --expect dist/*.apk dist/*.aab
+            python3 tool/check_signing.py --expect dist/*.apk dist/*.aab
           else
-            sh tool/check_signing.sh dist/*.apk dist/*.aab
+            python3 tool/check_signing.py dist/*.apk dist/*.aab
           fi
 
       # The εxodus scan of the APKs (see the CI workflow).

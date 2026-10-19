@@ -23,7 +23,7 @@ Status as of 18 October 2026.
       signed one could never update.
 - [x] **Certificate fingerprint.** Published in the README section
       [Verify a release](../README.md#verify-a-release) and kept in
-      `tool/release-certificate.sha256`, which `tool/check_signing.sh`
+      `tool/release-certificate.sha256`, which `tool/check_signing.py`
       compares every signed APK and bundle with (CI and release).
 - [x] **Default branch.** `main` is the default branch and is
       protected. Signed `v*` tags are also worth requiring. See
@@ -60,7 +60,7 @@ Status as of 18 October 2026.
 
 | Job | Builds | Checks |
 | --- | --- | --- |
-| *Build Android APKs and app bundle* | the default (Google-free) build: one APK per ABI, a universal APK and the `.aab`, all obfuscated | `tool/check_no_google.sh` on every APK and the bundle; `tool/check_signing.sh` (the release certificate; a release tag fails without the signing secrets); the universal APK has `libmozhi_bergamot.so` for all three ABIs and no `libc++_shared.so`; warns when the tag doesn't match the `pubspec.yaml` version |
+| *Build Android APKs and app bundle* | the default (Google-free) build: one APK per ABI, a universal APK and the `.aab`, all obfuscated | `tool/check_no_google.sh` on every APK and the bundle; `tool/check_signing.py` (the release certificate; a release tag fails without the signing secrets); the universal APK has `libmozhi_bergamot.so` for all three ABIs and no `libc++_shared.so`; warns when the tag doesn't match the `pubspec.yaml` version |
 | *Build web* | the static web build, zipped | |
 | *Publish GitHub release* | `SHA256SUMS.txt` over every file | publishes the release; it's marked as a **pre-release** when the tag contains `-` |
 
@@ -185,7 +185,7 @@ It's published in the README under
 [Verify a release](../README.md#verify-a-release) and kept in
 `tool/release-certificate.sha256` (lowercase hex without colons, the form
 F-Droid's `AllowedAPKSigningKeys` and IzzyOnDroid want), which
-`tool/check_signing.sh` compares every signed build with. If the key ever
+`tool/check_signing.py` compares every signed build with. If the key ever
 changes, update both.
 
 ## Tracker scan (εxodus)

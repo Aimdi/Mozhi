@@ -93,6 +93,7 @@ jobs:
           sh tool/check_no_google_test.sh
           python3 tool/check_trackers_test.py
           python3 tool/check_keystore_test.py
+          python3 tool/check_signing_test.py
 
       - name: Test app
         run: flutter test --coverage
@@ -269,9 +270,9 @@ jobs:
       - name: Check the signing certificate
         run: |
           if [ -n "${ANDROID_KEYSTORE_PATH:-}" ]; then
-            sh tool/check_signing.sh --expect dist/*.apk
+            python3 tool/check_signing.py --expect dist/*.apk
           else
-            sh tool/check_signing.sh dist/*.apk
+            python3 tool/check_signing.py dist/*.apk
           fi
 
       # The εxodus scan: every class against the code signatures of the
