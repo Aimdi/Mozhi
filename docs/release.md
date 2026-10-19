@@ -167,6 +167,12 @@ The same key signs the APKs and the bundle. Keep an
 offline backup of the keystore and its passwords: losing them means users
 must uninstall to update.
 
+Before building, both workflows run `tool/check_keystore.py`: it fails in
+seconds, naming the secret to fix, when the password doesn't open the
+keystore, the alias names no key in it, or (for a PKCS12 keystore, which
+has one password) the key password differs. Surrounding spaces and line
+breaks in the secrets are ignored.
+
 **The certificate fingerprint** identifies your builds. Read it from the
 keystore or from a signed APK:
 
