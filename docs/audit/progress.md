@@ -197,7 +197,8 @@ commit.
   (and the Whisper SHA-256) Hugging Face and GitHub serve with the
   catalogues. **Delete all local data** removes their files.
 - GitHub Actions moved to their Node 24 releases (`e2a438a`), Gradle to
-  9.8.1 and Kotlin to 2.4.21 (`31e441c`).
+  9.5.1 and Kotlin to 2.4.21 (`d937a1d`; Gradle 9.6+ needs the Android
+  Gradle Plugin 9).
 
 ## Phase 6: release and build documentation (done, 2026-10-17)
 
@@ -237,13 +238,15 @@ commit.
   Gradle Plugin 9) are open; the new action versions in `release.yaml`
   need a pre-release tag to be exercised
   ([release.md](../release.md#before-the-first-release)).
-- **Default branch.** Create `main` from the current tip, make it the
-  default and protect it. Until then `license_check.yaml` never runs, and
+- **Default branch.** `main` exists (at `d937a1d`); make it the default
+  and protect it. Until then `license_check.yaml` never runs, and
   Dependabot targets the `claude/*` branch.
 - **Releases**:
   - the signing secrets and the published certificate fingerprint;
   - a byte-for-byte comparison of two builds (CI artifacts couldn't be
     downloaded from this session).
 - **Tracker scan**: CI matches every class of each default APK against
-  εxodus' tracker signatures (`tool/check_trackers.py`, `410dc6b`); the
-  official εxodus report needs the published APK.
+  εxodus' tracker signatures (`tool/check_trackers.py`, `410dc6b`). First
+  result (`d937a1d`): none of the 432 trackers εxodus knows in any of the
+  four APKs (3,177 classes each). The official εxodus report needs the
+  published APK.

@@ -92,17 +92,29 @@ jobs:
           flutter pub get
           flutter gen-l10n
 
-      # Without these secrets the APKs are signed with a throwaway debug key.
+      # Without these secrets only a pre-release (a tag with "-") can be
+      # built, signed with a throwaway debug key; a release fails here.
       - name: Decode signing key
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          TAG: ${{ github.ref_name }}
         run: |
           if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
-            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret: the release is signed with a debug key."
-            exit 0
+            case "$TAG" in
+              *-*)
+                echo "::warning::No ANDROID_KEYSTORE_BASE64 secret: the pre-release is signed with a debug key."
+                exit 0
+                ;;
+            esac
+            echo "::error::No ANDROID_KEYSTORE_BASE64 secret: a release must be signed with the release key (docs/release.md#signing)."
+            exit 1
           fi
           keystore="$RUNNER_TEMP/release.jks"
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode --ignore-garbage > "$keystore"
+          python3 tool/check_keystore.py "$keystore"
           echo "ANDROID_KEYSTORE_PATH=$keystore" >> "$GITHUB_ENV"
 
       - name: Build APKs
@@ -163,6 +175,16 @@ jobs:
           for file in dist/*.apk dist/*.aab; do
             sh tool/check_no_google.sh "$file"
           done
+
+      # Signed with the release key, every file must carry the release
+      # certificate (tool/release-certificate.sha256, as in the README).
+      - name: Check the signing certificate
+        run: |
+          if [ -n "${ANDROID_KEYSTORE_PATH:-}" ]; then
+            python3 tool/check_signing.py --expect dist/*.apk dist/*.aab
+          else
+            python3 tool/check_signing.py dist/*.apk dist/*.aab
+          fi
 
       # The εxodus scan of the APKs (see the CI workflow).
       - name: Scan the APKs for trackers (εxodus signatures)
@@ -265,116 +287,9 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  # The Play variant (tool/play_prepare.sh): the default app plus Google ML
-  # Kit's on-device text recognition (closed source). Published next to the
-  # default APKs as mozhi-<tag>-play-universal.apk; not checked for Google
-  # code (it contains ML Kit by design).
-  android-play:
-    name: Build Play variant APK (ML Kit)
-    runs-on: ubuntu-latest
-    timeout-minutes: 150
-    env:
-      # CMake (>= 3.17) reads the compiler launcher from the environment, so
-      # the plugin's Gradle externalNativeBuild compiles through ccache.
-      CMAKE_C_COMPILER_LAUNCHER: ccache
-      CMAKE_CXX_COMPILER_LAUNCHER: ccache
-      CCACHE_DIR: ${{ github.workspace }}/.ccache
-      CCACHE_BASEDIR: ${{ github.workspace }}
-      CCACHE_COMPRESS: "true"
-      CCACHE_MAXSIZE: 2G
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
-        with:
-          distribution: temurin
-          java-version: "17"
-          cache: gradle
-
-      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
-          cache: true
-
-      # The pinned sources of every on-device engine (translation, text
-      # recognition, voice), then their patches.
-      - name: Fetch the on-device engines' sources
-        run: bash tool/fetch_native_deps.sh
-
-      - name: Install the NDK, CMake and ccache
-        run: |
-          sdk="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
-          sdkmanager="$sdk/cmdline-tools/latest/bin/sdkmanager"
-          yes | "$sdkmanager" --licenses > /dev/null || true
-          "$sdkmanager" --install "ndk;$NDK_VERSION" "cmake;$CMAKE_VERSION" > /dev/null
-          sudo apt-get install -y -q ccache > /dev/null
-
-      # Warm from the CI runs on the branches (same sources).
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: .ccache
-          key: bergamot-ccache-${{ env.NDK_VERSION }}-release-play-${{ github.sha }}
-          restore-keys: |
-            bergamot-ccache-${{ env.NDK_VERSION }}-play-
-            bergamot-ccache-${{ env.NDK_VERSION }}-
-
-      - name: Add ML Kit
-        run: |
-          sh tool/play_prepare.sh
-          git status --short
-
-      - name: Install dependencies
-        run: |
-          flutter pub get
-          flutter gen-l10n
-
-      - name: Decode signing key
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-        run: |
-          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
-            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret: the Play variant is signed with a debug key."
-            exit 0
-          fi
-          keystore="$RUNNER_TEMP/release.jks"
-          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode --ignore-garbage > "$keystore"
-          echo "ANDROID_KEYSTORE_PATH=$keystore" >> "$GITHUB_ENV"
-
-      - name: Build APK
-        env:
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          TAG: ${{ github.ref_name }}
-        run: |
-          mkdir -p dist
-          flutter build apk --release --flavor production \
-            -t lib/main_production.dart \
-            --obfuscate --split-debug-info=build/symbols/apk-play-universal
-          cp build/app/outputs/flutter-apk/app-production-release.apk \
-            "dist/mozhi-$TAG-play-universal.apk"
-          ls -lh dist
-
-      - name: Upload APK
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: release-android-play
-          path: dist/*.apk
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Upload debug symbols
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: debug-symbols-android-play-${{ github.ref_name }}
-          path: build/symbols
-          if-no-files-found: error
-          retention-days: 90
-
   publish:
     name: Publish GitHub release
-    needs: [android, android-play, web]
+    needs: [android, web]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -408,7 +323,6 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-') }}
           body: |
             - **Android**: `arm64-v8a` fits almost every modern phone, `armeabi-v7a` old 32-bit devices, `x86_64` emulators and Chromebooks; `universal` works everywhere but is larger. These builds contain no Google code: offline translation uses Mozilla's open Firefox Translations models, text recognition in photos uses Tesseract and offline voice input uses Whisper (their data is downloaded only when you ask for it, or imported from files).
-            - **Play variant**: `mozhi-${{ github.ref_name }}-play-universal.apk` uses Google ML Kit's on-device text recognition (closed source, no download needed) instead of Tesseract for camera and image translation; otherwise the same app.
             - **Google Play bundle**: `mozhi-${{ github.ref_name }}.aab` is the Android App Bundle uploaded to Play; it can't be installed directly.
             - **Web**: `mozhi-${{ github.ref_name }}-web.zip` is a static build for the root of any web server (edit `<base href>` in `index.html` to serve it from a sub-path).
             - Verify downloads against `SHA256SUMS.txt`.

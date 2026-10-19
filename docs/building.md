@@ -79,7 +79,7 @@ flutter pub get --enforce-lockfile        # fails if pubspec.lock would change
 | Variant | Made by | Google code | Ships as |
 | --- | --- | --- | --- |
 | **Default** | the tree as committed | none (checked by `tool/check_no_google.sh`) | GitHub release APKs, the Play bundle (`.aab`), F-Droid |
-| **Play** | `sh tool/play_prepare.sh` | Google ML Kit text recognition (closed source) | `mozhi-<tag>-play-universal.apk` next to the release |
+| **Play** | `sh tool/play_prepare.sh` | Google ML Kit text recognition (closed source) not released; build it yourself if you want it |
 | **F-Droid** | `sh tool/fdroid_prepare.sh` | none: the same app as the default | F-Droid's own build |
 
 - **`play_prepare.sh`** adds `google_mlkit_text_recognition` to

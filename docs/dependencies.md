@@ -18,8 +18,8 @@ licences page (**Settings > About Mozhi > Open-source licenses**) and in
 - **Default build** (GitHub releases, F-Droid, the Play bundle): MIT,
   BSD-2-Clause, BSD-3-Clause, Apache-2.0, Zlib and MPL-2.0 (Mozilla's
   bergamot-translator). Nothing is GPL or proprietary.
-- **Play variant** (`tool/play_prepare.sh`, the optional
-  `mozhi-<tag>-play-universal.apk`): the default build plus Google ML Kit
+- **Play variant** (`tool/play_prepare.sh`; not released, build it
+  yourself): the default build plus Google ML Kit
   text recognition. Its Dart wrapper is MIT, but the native SDK is
   **proprietary** (ML Kit terms) and pulls in Play services and Google's
   data transport. Those rows are flagged below.

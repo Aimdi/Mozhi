@@ -20,7 +20,9 @@ if (keystorePropertiesFile.exists()) {
     keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
 }
 
-fun env(name: String): String? = System.getenv(name)?.takeIf { it.isNotBlank() }
+// Trimmed: a secret pasted with a trailing line break still works
+// (tool/check_keystore.py trims the same way).
+fun env(name: String): String? = System.getenv(name)?.trim()?.takeIf { it.isNotEmpty() }
 
 val useEnvSigning = env("ANDROID_KEYSTORE_PATH") != null
 val releaseStoreFile = (

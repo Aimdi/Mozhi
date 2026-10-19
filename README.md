@@ -327,8 +327,11 @@ apksigner verify --print-certs mozhi-<version>-arm64-v8a.apk | grep SHA-256
 The signing certificate's SHA-256 must be:
 
 ```text
-not published yet (the release signing key is still being set up)
+664e9435c343dc1961a91e9efcbe43e86bb6a4cb058de94afe5dc9af22e884a4
 ```
+
+(`keytool` prints the same value in capitals with colons:
+`66:4E:94:35:…:22:E8:84:A4`.)
 
 `apksigner` comes with the Android SDK build-tools (`apt install apksigner`
 on Debian and Ubuntu). The checksums only prove the download is intact,
@@ -336,8 +339,7 @@ because they come from the same release. The certificate shows who signed
 it.
 
 The default APKs contain no Google code. To check one from a checkout, run
-`sh tool/check_no_google.sh <apk>`. The `-play-` APK contains ML Kit by
-design.
+`sh tool/check_no_google.sh <apk>`.
 
 More: [Releasing](docs/release.md) and
 [Building and reproducible builds](docs/building.md).

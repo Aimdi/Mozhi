@@ -339,7 +339,7 @@ back or says so).
 | Anti-feature | Declare? | Why |
 | --- | --- | --- |
 | **NonFreeNet** | **Yes** | The built-in public Mozhi instances relay to Google, DeepL, Reverso, Yandex, Bing and MyMemory; image translation through Mozhi uses Google Lens; read-aloud through Mozhi uses Google/Reverso; the AI presets (OpenAI, Anthropic, Gemini, …) and the DeepL API are non-free services. Free alternatives exist (self-hosted Mozhi with LibreTranslate, local models), but the defaults promote non-free services. |
-| UpstreamNonFree | Probably not | The GitHub releases and the Play bundle are the same free build. Upstream also offers an optional Play variant APK with ML Kit text recognition, built from the `tool/play/` overlay that `fdroid_prepare.sh` removes; reviewers may still ask for the flag because of it. |
+| UpstreamNonFree | Probably not | The GitHub releases and the Play bundle are the same free build. The optional Play variant with ML Kit text recognition isn't released; it can only be built from the `tool/play/` overlay, which `fdroid_prepare.sh` removes. |
 | Tracking | No | Nothing reports usage. Offline models are downloaded on request from Mozilla's bucket on Google Cloud Storage, which sees the device's IP address and the model files fetched. |
 | NonFreeDep | No | The app doesn't require any non-free app to be installed. |
 | NonFreeAdd, Ads, TetheredNet, KnownVuln, NSFW, NoSourceSince, NonFreeAssets | No | No ads or add-ons, no service run by the developer, source and assets under MIT. |
