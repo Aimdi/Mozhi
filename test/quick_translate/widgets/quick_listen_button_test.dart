@@ -3,10 +3,13 @@ import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/quick_translate/quick_translate.dart';
+import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/speech/speech_service.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -56,8 +59,9 @@ void main() {
     WidgetTester tester, {
     String text = 'Bonjour',
     String? languageCode = 'fr',
-  }) => tester.pumpQuick(
-    Center(
+    SettingsCubit? settings,
+  }) {
+    final Widget button = Center(
       child: QuickListenButton(
         speech: speech,
         text: text,
@@ -67,8 +71,13 @@ void main() {
           lastListenOnline = listenOnline;
         },
       ),
-    ),
-  );
+    );
+    return tester.pumpQuick(
+      settings == null
+          ? button
+          : BlocProvider<SettingsCubit>.value(value: settings, child: button),
+    );
+  }
 
   void verifySlow([int times = 1]) => verify(
     () =>
@@ -145,6 +154,38 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 3));
       verifyNoToggle();
     });
+
+    for (final enabled in [true, false]) {
+      testWidgets('a long press vibrates only with haptic feedback on '
+          '(${enabled ? 'on' : 'off'})', (tester) async {
+        final haptics = <String>[];
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          (call) async {
+            if (call.method.startsWith('HapticFeedback')) {
+              haptics.add(call.method);
+            }
+            return null;
+          },
+        );
+        addTearDown(
+          () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SystemChannels.platform,
+            null,
+          ),
+        );
+        await pump(
+          tester,
+          settings: mockSettings(AppSettings(hapticFeedback: enabled)),
+        );
+
+        await tester.longPress(_button());
+        await tester.pumpAndSettle(const Duration(seconds: 3));
+
+        verifySlow();
+        expect(haptics, enabled ? ['HapticFeedback.vibrate'] : isEmpty);
+      });
+    }
 
     testWidgets('a long press while playing starts over slowly', (
       tester,

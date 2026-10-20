@@ -411,7 +411,11 @@ void main() {
       await flush();
       expect(
         service.state,
-        SpeechInputListening(partialText: 'hello world', owner: owner),
+        SpeechInputListening(
+          partialText: 'hello world',
+          owner: owner,
+          heardSpeech: true,
+        ),
       );
 
       recognizer.emitResult('Hello world.', isFinal: true);
@@ -423,6 +427,27 @@ void main() {
       ]);
       expect(service.state, const SpeechInputIdle());
       expect(service.isListening, isFalse);
+    });
+
+    test('words are speech, loudness alone is not', () async {
+      final owner = Object();
+      await service.listen('en', owner: owner);
+      recognizer
+        ..emitLevel(-2)
+        ..emitLevel(10)
+        ..emitResult(' ');
+      await flush();
+      expect(
+        service.state,
+        SpeechInputListening(level: 1, partialText: ' ', owner: owner),
+      );
+      recognizer.emitResult('hi');
+      await flush();
+      expect((service.state as SpeechInputListening).heardSpeech, isTrue);
+      // Once heard, it stays heard.
+      recognizer.emitResult('');
+      await flush();
+      expect((service.state as SpeechInputListening).heardSpeech, isTrue);
     });
 
     test('normalises sound levels to 0..1', () async {

@@ -1,4 +1,5 @@
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -73,15 +74,19 @@ void main() {
     Future<void> pumpRouter(
       WidgetTester tester, {
       String initialLocation = AppRoutes.translate,
+      SettingsCubit? settings,
     }) async {
       createRouter(initialLocation);
       addTearDown(router.dispose);
+      final app = MaterialApp.router(
+        routerConfig: router,
+        localizationsDelegates: appLocalizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+      );
       await tester.pumpWidget(
-        MaterialApp.router(
-          routerConfig: router,
-          localizationsDelegates: appLocalizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-        ),
+        settings == null
+            ? app
+            : BlocProvider<SettingsCubit>.value(value: settings, child: app),
       );
       await tester.pump();
     }
@@ -136,6 +141,48 @@ void main() {
         await tester.tap(find.byType(BackButton));
         await settle(tester);
         expect(location(), AppRoutes.translate);
+      });
+
+      group('vibrates', () {
+        late List<String> haptics;
+
+        setUp(() {
+          haptics = [];
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+              .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+                if (call.method.startsWith('HapticFeedback')) {
+                  haptics.add(call.method);
+                }
+                return null;
+              });
+        });
+
+        tearDown(
+          () => TestDefaultBinaryMessengerBinding
+              .instance
+              .defaultBinaryMessenger
+              .setMockMethodCallHandler(SystemChannels.platform, null),
+        );
+
+        for (final enabled in [true, false]) {
+          testWidgets(
+            'only with haptic feedback on (${enabled ? 'on' : 'off'})',
+            (tester) async {
+              await pumpRouter(
+                tester,
+                settings: createSettingsCubit(
+                  AppSettings(hapticFeedback: enabled),
+                ),
+              );
+
+              await tester.longPress(find.byKey(TopLevelActions.historyKey));
+              await settle(tester);
+
+              expect(historyUri.toString(), '/history?tab=favorites');
+              expect(haptics, enabled ? ['HapticFeedback.vibrate'] : isEmpty);
+            },
+          );
+        }
       });
 
       testWidgets('is announced by screen readers', (tester) async {

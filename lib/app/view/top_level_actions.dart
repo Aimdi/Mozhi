@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
+import 'package:mozhi/core/haptics.dart';
 import 'package:mozhi/history/view/history_page.dart'
     show HistoryPage, HistoryTab;
 import 'package:mozhi/l10n/l10n.dart';
@@ -20,7 +21,9 @@ import 'package:mozhi/settings/models/app_settings.dart';
 /// A long press on History opens it on the Favorites tab (quick access to
 /// the favourites, like Kagi Translate's star, without another button in
 /// a full app bar). Pointing at the button shows that in its tooltip, and
-/// TalkBack announces it ("double-tap and hold to open favorites").
+/// TalkBack announces it ("double-tap and hold to open favorites"). The
+/// long press vibrates only with haptic feedback on
+/// (`AppSettings.hapticFeedback`).
 class TopLevelActions extends StatelessWidget {
   const new({super.key});
 
@@ -30,9 +33,23 @@ class TopLevelActions extends StatelessWidget {
   /// Key of the Settings button.
   static const settingsKey = Key('top_level_settings');
 
+  /// Whether presses give feedback (the long press vibrates): the haptic
+  /// feedback setting, rebuilt when it changes ([Haptics.enabled] without
+  /// a [SettingsCubit]).
+  static bool _feedback(BuildContext context) {
+    try {
+      return context.select<SettingsCubit, bool>(
+        (cubit) => cubit.state.hapticFeedback,
+      );
+    } on ProviderNotFoundException {
+      return Haptics.enabled(context);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final feedback = _feedback(context);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -48,6 +65,7 @@ class TopLevelActions extends StatelessWidget {
               onLongPressHint: l10n.historyOpenFavorites,
               child: IconButton(
                 key: historyKey,
+                enableFeedback: feedback,
                 icon: Icon(Icons.history, semanticLabel: l10n.navHistory),
                 onPressed: () =>
                     unawaited(context.push<void>(AppRoutes.history)),

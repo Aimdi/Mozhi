@@ -24,7 +24,8 @@ import 'package:whisper_speech/whisper_speech.dart';
 ///   of silence after speech ([VoiceActivityDetector]) or until
 ///   [maxDuration] (Whisper's 30 s window; at most
 ///   [SpeechListenRequest.listenFor]), reporting the loudness of every
-///   chunk (dBFS) as the sound level. Then it reports
+///   chunk (dBFS) as the sound level and whether the detector heard
+///   speech yet as [heardSpeech]. Then it reports
 ///   [SpeechRecognizerStatus.transcribing], transcribes and delivers one
 ///   final result, followed by [SpeechRecognizerStatus.done]. A recording
 ///   without speech is not transcribed: it fails with `error_no_match`,
@@ -35,7 +36,8 @@ import 'package:whisper_speech/whisper_speech.dart';
 class WhisperSpeechRecognizerAdapter
     implements
         OfflineSpeechRecognizerAdapter,
-        LanguageDetectingSpeechRecognizer {
+        LanguageDetectingSpeechRecognizer,
+        VoiceActivitySpeechRecognizer {
   new({
     required this._speech,
     PcmRecorder? recorder,
@@ -55,6 +57,9 @@ class WhisperSpeechRecognizerAdapter
 
   @override
   String? get detectedLanguage => _detectedLanguage;
+
+  @override
+  bool get heardSpeech => _session?.voice.heardSpeech ?? false;
 
   @override
   Future<bool> isReady() async {

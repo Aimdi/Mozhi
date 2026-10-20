@@ -113,6 +113,12 @@ class HistoryImport extends Equatable {
 /// languages ([HistoryEntry.isSameLookUp], wherever it is in the list)
 /// replaces that entry: the new look-up becomes the newest entry, keeping
 /// the existing id and favourite, so repeated look-ups update one entry.
+/// [restore] merges a look-up with one of the same word the same way.
+///
+/// Entries kept only as favourites ([HistoryEntry.favoriteOnly], starred
+/// while history was paused) are deleted by [toggleFavorite] instead of
+/// being kept as ordinary entries. An entry merged with an ordinary one is
+/// ordinary.
 ///
 /// Retention (history auto-delete): [load], [add] and [importJson] take an
 /// optional `maxAge` and then also drop non-favourite entries created more
@@ -120,9 +126,9 @@ class HistoryImport extends Equatable {
 /// Favourites are always kept. [load] writes the pruned history back when
 /// it dropped expired entries.
 ///
-/// [toggleFavorite], [delete], [clear] and [restore] apply no caps (and no
-/// retention), so an un-starred or restored entry survives until the next
-/// [add] / [load].
+/// [toggleFavorite], [delete], [clear], [restore] and [restoreFavorite]
+/// apply no caps (and no retention), so an un-starred or restored entry
+/// survives until the next [add] / [load].
 ///
 /// [store] defaults to [PreferencesStore], [cipher] to [HistoryCipher] and
 /// `clock` (the current time for retention) to [DateTime.now]. Operations
@@ -284,17 +290,17 @@ class HistoryRepository {
       if (added.isDictionary) {
         final previous = entries.where(added.isSameLookUp).firstOrNull;
         return [
-          added.copyWith(
-            id: previous?.id,
-            isFavorite: added.isFavorite || (previous?.isFavorite ?? false),
-          ),
+          if (previous == null)
+            added
+          else
+            _merged(added, previous, id: previous.id),
           ...entries.where((e) => e.id != added.id && !identical(e, previous)),
         ];
       }
       final newest = entries.firstOrNull;
       if (newest != null && _replaces(newest, added)) {
         return [
-          added.copyWith(isFavorite: newest.isFavorite || added.isFavorite),
+          _merged(added, newest),
           ...entries.skip(1).where((e) => e.id != added.id),
         ];
       }
@@ -306,24 +312,41 @@ class HistoryRepository {
   /// position of its [HistoryEntry.createdAt] (before the first older
   /// entry) and replaces only an entry with the same id. Unlike [add] it
   /// never merges with the newest entry and applies no caps.
+  ///
+  /// A dictionary look-up of a word the history has a look-up of again
+  /// (with another id, e.g. looked up anew after the delete) is merged with
+  /// it instead of being added beside it: the newer of the two stays, a
+  /// favourite if either is.
   Future<List<HistoryEntry>> restore(HistoryEntry entry) {
     final restored = _limited(entry);
+    return _mutate((entries) => _restored(entries, restored), cap: false);
+  }
+
+  /// Undoes taking [entry] out of the favourites ([toggleFavorite]): the
+  /// entry with its id is a favourite again, with what it holds now (a new
+  /// look-up of the word may have updated it since). Without one (deleted,
+  /// or it was kept only as a favourite) [entry] is put back as a
+  /// favourite, like [restore] does.
+  Future<List<HistoryEntry>> restoreFavorite(HistoryEntry entry) {
+    final restored = _limited(entry).copyWith(isFavorite: true);
     return _mutate((entries) {
-      final others = entries.where((e) => e.id != restored.id).toList();
-      final index = others.indexWhere(
-        (e) => e.createdAt.isBefore(restored.createdAt),
-      );
-      return others..insert(index == -1 ? others.length : index, restored);
+      final index = entries.indexWhere((e) => e.id == restored.id);
+      if (index == -1) return _restored(entries, restored);
+      return entries..[index] = entries[index].copyWith(isFavorite: true);
     }, cap: false);
   }
 
+  /// Stars or un-stars the entry [id]. Un-starring an entry kept only as a
+  /// favourite ([HistoryEntry.favoriteOnly]) deletes it.
   Future<List<HistoryEntry>> toggleFavorite(String id) => _mutate(
     (entries) => [
       for (final entry in entries)
-        if (entry.id == id)
-          entry.copyWith(isFavorite: !entry.isFavorite)
-        else
-          entry,
+        if (entry.id != id)
+          entry
+        else if (!entry.isFavorite)
+          entry.copyWith(isFavorite: true)
+        else if (!entry.favoriteOnly)
+          entry.copyWith(isFavorite: false),
     ],
     cap: false,
   );
@@ -384,8 +407,9 @@ class HistoryRepository {
             final newer = entry.createdAt.isAfter(other.createdAt)
                 ? entry
                 : other;
-            added[earlier] = newer.copyWith(
-              isFavorite: entry.isFavorite || other.isFavorite,
+            added[earlier] = _merged(
+              newer,
+              identical(newer, entry) ? other : entry,
             );
             continue;
           }
@@ -426,6 +450,45 @@ class HistoryRepository {
         (text.startsWith(previous) || previous.startsWith(text)) &&
         entry.createdAt.difference(newest.createdAt).abs() <= refinementWindow;
   }
+
+  /// [entries] with [restored] at the position of its createdAt, replacing
+  /// the entry with its id (see [restore]).
+  static List<HistoryEntry> _restored(
+    List<HistoryEntry> entries,
+    HistoryEntry restored,
+  ) {
+    final others = entries.where((e) => e.id != restored.id).toList();
+    var entry = restored;
+    if (restored.isDictionary) {
+      final same = others.indexWhere(restored.isSameLookUp);
+      if (same != -1) {
+        final existing = others[same];
+        if (!restored.createdAt.isAfter(existing.createdAt)) {
+          // The look-up made since is newer: it stays where it is.
+          return others..[same] = _merged(existing, restored);
+        }
+        others.removeAt(same);
+        entry = _merged(restored, existing);
+      }
+    }
+    final index = others.indexWhere(
+      (e) => e.createdAt.isBefore(entry.createdAt),
+    );
+    return others..insert(index == -1 ? others.length : index, entry);
+  }
+
+  /// [kept] taking the place of [other], the same look-up or translation:
+  /// with [kept]'s content and [id] (default: [kept]'s), a favourite if
+  /// either is, and kept only as a favourite only if both are.
+  static HistoryEntry _merged(
+    HistoryEntry kept,
+    HistoryEntry other, {
+    String? id,
+  }) => kept.copyWith(
+    id: id,
+    isFavorite: kept.isFavorite || other.isFavorite,
+    favoriteOnly: kept.favoriteOnly && other.favoriteOnly,
+  );
 
   /// [entry] with `text` and `translation` truncated to [maxTextLength].
   HistoryEntry _limited(HistoryEntry entry) {

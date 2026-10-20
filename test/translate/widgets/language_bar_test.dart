@@ -363,6 +363,36 @@ void main() {
       expect(findTooltipMessage('Portuguese (Brazil)'), findsOneWidget);
     });
 
+    testWidgets('a new name that fits shows whole while it slides in', (
+      tester,
+    ) async {
+      // "Portuguese (Brazil)" does not fit the 90 dp button ("PT-BR");
+      // "French" does. The old name, fading out, is not measured: the new
+      // one is not shown as "FR" until the motion ends.
+      const brazil = Language(code: 'pt-BR', name: 'Portuguese (Brazil)');
+      final states = StreamController<TranslateState>();
+      addTearDown(states.close);
+      final initial = readyState(source: english, target: brazil);
+      final harness = TranslateHarness(state: initial);
+      whenListen(harness.translate, states.stream, initialState: initial);
+      await pumpBar(tester, harness, width: 360);
+      expect(find.text('PT-BR'), findsOneWidget);
+
+      // The target goes back to the default, French.
+      states.add(readyState(source: english));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.byType(SlideTransition), findsWidgets);
+      expect(find.text('French'), findsOneWidget);
+      expect(find.text('FR'), findsNothing);
+      final during = rectOf(tester, 'translate_target_button');
+
+      await tester.pumpAndSettle();
+      expect(find.text('French'), findsOneWidget);
+      expect(rectOf(tester, 'translate_target_button'), during);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('"Detect language" falls back to the sparkle', (tester) async {
       final harness = TranslateHarness(state: readyState(target: german));
       // 90 dp: the sparkle and "Auto".

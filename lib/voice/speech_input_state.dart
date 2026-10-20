@@ -90,10 +90,13 @@ final class SpeechInputListening extends SpeechInputState {
     this.partialText = '',
     this.owner,
     this.detectsLanguage = false,
+    this.heardSpeech = false,
   });
 
   /// Input loudness normalised to `0..1` (0 when the platform does not
-  /// report sound levels, e.g. on the web).
+  /// report sound levels, e.g. on the web). Relative to the quietest and
+  /// loudest moments of the session, so background noise can be loud too:
+  /// [heardSpeech] says whether someone spoke.
   final double level;
 
   /// Words recognised so far in this session.
@@ -105,22 +108,39 @@ final class SpeechInputListening extends SpeechInputState {
   /// [SpeechInputResult.language] then says which one was heard.
   final bool detectsLanguage;
 
+  /// Whether someone was heard speaking in this session: words were
+  /// recognised ([partialText]), or the recogniser's own voice activity
+  /// detection heard speech (offline engines such as Whisper, which only
+  /// recognise words after recording; see `VoiceActivitySpeechRecognizer`).
+  /// Unlike [level], background noise does not count.
+  final bool heardSpeech;
+
   @override
   bool get isListening => true;
 
   @override
   bool isOwnedBy(Object? candidate) => identical(owner, candidate);
 
-  SpeechInputListening copyWith({double? level, String? partialText}) =>
-      SpeechInputListening(
-        level: level ?? this.level,
-        partialText: partialText ?? this.partialText,
-        owner: owner,
-        detectsLanguage: detectsLanguage,
-      );
+  SpeechInputListening copyWith({
+    double? level,
+    String? partialText,
+    bool? heardSpeech,
+  }) => SpeechInputListening(
+    level: level ?? this.level,
+    partialText: partialText ?? this.partialText,
+    owner: owner,
+    detectsLanguage: detectsLanguage,
+    heardSpeech: heardSpeech ?? this.heardSpeech,
+  );
 
   @override
-  List<Object?> get props => [level, partialText, owner, detectsLanguage];
+  List<Object?> get props => [
+    level,
+    partialText,
+    owner,
+    detectsLanguage,
+    heardSpeech,
+  ];
 }
 
 /// The microphone closed and the recording is being transcribed (offline

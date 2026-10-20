@@ -205,7 +205,8 @@ class _HistoryViewState extends State<HistoryView>
       context,
       message: l10n.historyUnfavorited,
       onUndo: () {
-        unawaited(cubit.restore(entry));
+        // Stars the entry as it is now: a new look-up may have updated it.
+        unawaited(cubit.restoreFavorite(entry));
         if (mounted) setState(() => _unfavorited.remove(entry.id));
       },
     );

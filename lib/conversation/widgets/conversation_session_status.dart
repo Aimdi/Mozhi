@@ -65,7 +65,8 @@ String conversationSessionStatus(
 ///
 /// It is not a live region: announcing every change would talk over the
 /// translations read aloud (and the microphone would hear it). The
-/// microphone's semantics carry the status instead.
+/// microphone's semantics carry the status instead; `ConversationView`
+/// announces why a conversation paused.
 class ConversationSessionStatus extends StatelessWidget {
   const new({this.compact = false, super.key});
 

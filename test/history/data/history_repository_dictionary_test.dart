@@ -381,5 +381,66 @@ void main() {
 
       expect(await repository.clear(), isEmpty);
     });
+
+    group('restore', () {
+      test('merges with a look-up of the same word made since', () async {
+        // Undo of deleting "hola", after it was looked up again.
+        final deleted = _lookUp('1', minute: 1, isFavorite: true);
+        await repository.add(deleted);
+        await repository.add(_translation('2', minute: 2));
+        await repository.delete('1');
+        final again = _lookUp('3', summary: 'newer', minute: 3);
+        await repository.add(again);
+
+        final entries = await repository.restore(deleted);
+
+        // One entry: the newer look-up, a favourite as the deleted one was.
+        expect(entries, [
+          again.copyWith(isFavorite: true),
+          _translation('2', minute: 2),
+        ]);
+        expect(await stored(), hasLength(2));
+      });
+
+      test(
+        'the restored look-up replaces an older one of the same word',
+        () async {
+          await repository.add(_lookUp('1', minute: 1, isFavorite: true));
+          await repository.add(_translation('2', minute: 2));
+
+          final entries = await repository.restore(
+            _lookUp('3', summary: 'newer', minute: 3),
+          );
+
+          expect(entries, [
+            _lookUp('3', summary: 'newer', minute: 3, isFavorite: true),
+            _translation('2', minute: 2),
+          ]);
+        },
+      );
+
+      test('keeps look-ups of other words and translations apart', () async {
+        await repository.add(_lookUp('1', word: 'perro', minute: 1));
+        await repository.add(_translation('2', text: 'hola', minute: 2));
+
+        final entries = await repository.restore(_lookUp('3', minute: 3));
+
+        expect(entries.map((e) => e.id), ['3', '2', '1']);
+      });
+
+      test('restoreFavorite stars the look-up a new look-up updated', () async {
+        final starred = _lookUp('1', isFavorite: true);
+        await repository.add(starred);
+        await repository.toggleFavorite('1');
+        // Looked up again: the entry keeps its id and gets the new summary.
+        await repository.add(_lookUp('2', summary: 'newer', minute: 2));
+
+        final entries = await repository.restoreFavorite(starred);
+
+        expect(entries, [
+          _lookUp('1', summary: 'newer', minute: 2, isFavorite: true),
+        ]);
+      });
+    });
   });
 }

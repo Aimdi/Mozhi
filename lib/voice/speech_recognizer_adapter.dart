@@ -169,6 +169,17 @@ abstract interface class LanguageDetectingSpeechRecognizer {
   String? get detectedLanguage;
 }
 
+/// A recogniser that tells speech from silence and noise itself (voice
+/// activity detection), e.g. Whisper (`WhisperSpeechRecognizerAdapter`),
+/// which only recognises words after recording: [heardSpeech] says whether
+/// the session being recorded heard speech yet (read it while the sound
+/// level listener runs). `SpeechInputService` reports it as
+/// `SpeechInputListening.heardSpeech`.
+abstract interface class VoiceActivitySpeechRecognizer {
+  /// Whether the current recording heard speech; false between sessions.
+  bool get heardSpeech;
+}
+
 /// [SpeechRecognizerAdapter] backed by `speech_to_text`.
 ///
 /// The plugin singleton is only touched on first use, so constructing the

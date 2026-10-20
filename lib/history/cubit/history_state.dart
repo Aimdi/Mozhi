@@ -27,6 +27,7 @@ class HistoryState extends Equatable {
     this.query = '',
     this.favoritesOnly = false,
     this.incognito = false,
+    this.saveHistory = true,
     this.pair,
     this.destination,
   });
@@ -41,6 +42,16 @@ class HistoryState extends Equatable {
   /// Incognito: new entries are not saved, except favourites
   /// (`HistoryCubit.setIncognito`).
   final bool incognito;
+
+  /// Whether history is saved ("Save history",
+  /// `HistoryCubit.setSaveHistory`): when off, as in [incognito], only
+  /// favourites are.
+  final bool saveHistory;
+
+  /// Whether history is paused ([incognito], or [saveHistory] off): only
+  /// favourites are saved, and kept only as long as they are favourites
+  /// ([HistoryEntry.favoriteOnly]).
+  bool get paused => incognito || !saveHistory;
 
   /// Only entries of this language pair (null: all).
   final HistoryPair? pair;
@@ -140,6 +151,7 @@ class HistoryState extends Equatable {
     String? query,
     bool? favoritesOnly,
     bool? incognito,
+    bool? saveHistory,
     HistoryPair? Function()? pair,
     HistoryDestination? Function()? destination,
   }) => HistoryState(
@@ -148,6 +160,7 @@ class HistoryState extends Equatable {
     query: query ?? this.query,
     favoritesOnly: favoritesOnly ?? this.favoritesOnly,
     incognito: incognito ?? this.incognito,
+    saveHistory: saveHistory ?? this.saveHistory,
     pair: pair != null ? pair() : this.pair,
     destination: destination != null ? destination() : this.destination,
   );
@@ -159,6 +172,7 @@ class HistoryState extends Equatable {
     query,
     favoritesOnly,
     incognito,
+    saveHistory,
     pair,
     destination,
   ];

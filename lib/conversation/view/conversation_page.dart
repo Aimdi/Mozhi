@@ -93,8 +93,8 @@ class ConversationPage extends StatelessWidget {
 /// its keyboard button. A conversation that is running stops when the
 /// app goes to the background or the page is covered (another tab, a
 /// pushed page); voice input failures are explained in a snack bar, and
-/// new translations are announced to screen readers (unless they are read
-/// aloud anyway).
+/// new translations (unless they are read aloud anyway) and why a
+/// hands-free conversation paused are announced to screen readers.
 ///
 /// Face-to-face mode ([ConversationState.faceToFace]) is pushed as a
 /// full-screen route ([ConversationFaceToFaceView]) on the root navigator,
@@ -205,7 +205,7 @@ class ConversationView extends StatelessWidget {
         ),
       ],
       child: _SessionGuard(
-        child: _TranslationAnnouncer(
+        child: _ConversationAnnouncer(
           child: _FaceToFacePresenter(
             micBuilder: micBuilder,
             share: share,
@@ -261,45 +261,82 @@ class _SessionGuardState extends State<_SessionGuard> {
   Widget build(BuildContext context) => widget.child;
 }
 
-/// Announces each new translation to screen readers, politely and once
-/// ([StatusAnnouncer]): "Spanish: Hola". Not while translations are read
-/// aloud ([ConversationState.autoSpeak]): the announcement would talk over
-/// them (and a hands-free conversation's microphone could hear it).
-class _TranslationAnnouncer extends StatefulWidget {
+/// Tells screen readers, politely and once ([StatusAnnouncer]):
+/// * each new translation, "Spanish: Hola"; not while translations are
+///   read aloud ([ConversationState.autoSpeak]), as the announcement would
+///   talk over them. With a screen reader on, a hands-free conversation
+///   keeps its microphone closed until the announcement was probably said
+///   ([ConversationCubit.announced]), so it does not hear it;
+/// * why a hands-free conversation paused and how to go on
+///   ([conversationSessionStatus]), unless something of the conversation
+///   is read aloud. A pause because a translation may only be read aloud
+///   online, and voice input failures, are explained by their snack bars,
+///   which screen readers announce already.
+class _ConversationAnnouncer extends StatefulWidget {
   const new({required this.child});
 
   final Widget child;
 
   @override
-  State<_TranslationAnnouncer> createState() => _TranslationAnnouncerState();
+  State<_ConversationAnnouncer> createState() => _ConversationAnnouncerState();
 }
 
-class _TranslationAnnouncerState extends State<_TranslationAnnouncer> {
+class _ConversationAnnouncerState extends State<_ConversationAnnouncer> {
   final Set<int> _announced = {};
   String? _message;
-  int? _turnId;
+
+  /// What [_message] is about: `('turn', id)` or `('pause', count)`.
+  Object? _announcementId;
+  int _pauses = 0;
+
+  void _say(Object id, String message) => setState(() {
+    _announcementId = id;
+    _message = message;
+  });
+
+  void _onTurns(BuildContext context, ConversationState state) {
+    final completed = _newlyCompleted(state);
+    if (completed == null || state.autoSpeak) return;
+    final message = context.l10n.conversationTranslationAnnouncement(
+      completed.target.name,
+      completed.translation.trim(),
+    );
+    _say(('turn', completed.id), message);
+    if (MediaQuery.accessibleNavigationOf(context)) {
+      context.read<ConversationCubit>().announced(message);
+    }
+  }
+
+  void _onPaused(BuildContext context, ConversationState state) {
+    final session = state.session;
+    if (session is! ConversationSessionPaused ||
+        session.reason == ConversationPauseReason.speechConsent ||
+        state.speakingTurnId != null) {
+      return;
+    }
+    _say(('pause', ++_pauses), conversationSessionStatus(context.l10n, state));
+  }
 
   @override
-  Widget build(BuildContext context) =>
+  Widget build(BuildContext context) => MultiBlocListener(
+    listeners: [
       BlocListener<ConversationCubit, ConversationState>(
         listenWhen: (previous, current) => previous.turns != current.turns,
-        listener: (context, state) {
-          final completed = _newlyCompleted(state);
-          if (completed == null || state.autoSpeak) return;
-          setState(() {
-            _turnId = completed.id;
-            _message = context.l10n.conversationTranslationAnnouncement(
-              completed.target.name,
-              completed.translation.trim(),
-            );
-          });
-        },
-        child: StatusAnnouncer(
-          message: _message,
-          announcementId: _turnId,
-          child: widget.child,
-        ),
-      );
+        listener: _onTurns,
+      ),
+      BlocListener<ConversationCubit, ConversationState>(
+        listenWhen: (previous, current) =>
+            current.session is ConversationSessionPaused &&
+            previous.session != current.session,
+        listener: _onPaused,
+      ),
+    ],
+    child: StatusAnnouncer(
+      message: _message,
+      announcementId: _announcementId,
+      child: widget.child,
+    ),
+  );
 
   /// The newest turn that completed since the last check, if any.
   ConversationTurn? _newlyCompleted(ConversationState state) {

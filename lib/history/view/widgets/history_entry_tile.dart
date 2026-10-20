@@ -241,6 +241,8 @@ class _HistoryEntryTileState extends State<HistoryEntryTile> {
                 child: InkWell(
                   onTap: widget.onTap,
                   onLongPress: () => _menuKey.currentState?.showButtonMenu(),
+                  // The long press vibrates only with haptic feedback on.
+                  enableFeedback: Haptics.enabled(context),
                   child: Padding(
                     padding: const EdgeInsetsDirectional.fromSTEB(4, 12, 4, 2),
                     child: Row(

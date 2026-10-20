@@ -73,14 +73,22 @@ typedef ConversationTimerFactory = Timer Function(
 ///
 /// * The microphone is never open while anything is read aloud: reading
 ///   aloud closes it, and it opens again `echoDelay` after the reading
-///   ended, so the app does not hear itself.
+///   ended, so the app does not hear itself. A reading whose end is never
+///   reported is stopped after [speakingTimeout] plus
+///   [speakingTimeoutPerCharacter] per character. A translation that is
+///   not read aloud is also followed by `echoDelay`, and an announcement
+///   by a screen reader ([announced]) keeps the microphone closed until
+///   it was probably said.
 /// * Recognisers that detect the spoken language (on-device Whisper)
 ///   assign the turn to the side whose language was heard; any other
 ///   language, or a recogniser that cannot detect, keeps the side whose
 ///   turn it is.
 /// * Without speech for `silenceTimeout` the session pauses; silence or
-///   unintelligible speech before that listens again. Voice input errors
-///   stop it as [ConversationSessionFailed].
+///   unintelligible speech before that listens again. Speech is what the
+///   recogniser recognised or detected ([ConversationHeardPartial],
+///   [ConversationHeardSpeech]), not loudness: background noise does not
+///   keep the microphone open. Voice input errors stop it as
+///   [ConversationSessionFailed].
 /// * A translation that needs consent or fails pauses the session at that
 ///   turn; [retry] (after consent) continues it.
 /// * The cubit owns the recogniser and disposes it in [close].
@@ -128,13 +136,23 @@ class ConversationCubit extends Cubit<ConversationState> {
   /// of the speech (or its echo) is not heard.
   static const defaultEchoDelay = Duration(milliseconds: 600);
 
-  /// Input level (`0..1`) from which the microphone is taken to hear
-  /// someone speak (the silence timeout stops counting).
-  static const voiceLevel = 0.5;
-
   /// How many utterances in a row may come out empty (silence, noise)
   /// before a hands-free conversation pauses.
   static const maxEmptyUtterances = 4;
+
+  /// How long reading aloud may take in a hands-free conversation, plus
+  /// [speakingTimeoutPerCharacter] for each character, before it is
+  /// stopped and the next side is listened for: some players never report
+  /// the end (Chrome's speech synthesis drops long texts without an `end`
+  /// event, an audio player may miss the completion).
+  static const speakingTimeout = Duration(seconds: 10);
+
+  /// See [speakingTimeout]; twice as much when read slowly.
+  static const speakingTimeoutPerCharacter = Duration(milliseconds: 100);
+
+  /// How long a screen reader takes per character of an announcement, on
+  /// top of the echo delay (see [announced]).
+  static const announcementPerCharacter = Duration(milliseconds: 80);
 
   final TranslationRepository _repository;
   final SpeechService _speech;
@@ -173,8 +191,16 @@ class ConversationCubit extends Cubit<ConversationState> {
   /// Runs while waiting for speech (see `silenceTimeout`).
   Timer? _silence;
 
-  /// Delays opening the microphone after reading aloud.
+  /// Delays opening the microphone after reading aloud (or while a
+  /// screen reader announces something).
   Timer? _echo;
+
+  /// Gives up a reading aloud whose end is never reported (see
+  /// [speakingTimeout]).
+  Timer? _speakingWatchdog;
+
+  /// [close] was called: nothing may read aloud or open the microphone.
+  bool _closing = false;
 
   /// Someone was heard in the current utterance.
   bool _heardVoice = false;
@@ -256,13 +282,8 @@ class ConversationCubit extends Cubit<ConversationState> {
       // microphone must not hear it. Listen again once it ended.
       _closeMicrophone();
       _cancelSilence();
-      emit(
-        state.copyWith(
-          session: ConversationSessionSpeaking(
-            turnId: turnId,
-            next: session.side,
-          ),
-        ),
+      _enterSpeaking(
+        ConversationSessionSpeaking(turnId: turnId, next: session.side),
       );
     } else if (speechId == null &&
         session is ConversationSessionSpeaking &&
@@ -502,8 +523,9 @@ class ConversationCubit extends Cubit<ConversationState> {
     bool slow = false,
     ConsentRequiredException? allowOnline,
   }) async {
+    if (isClosed || _closing) return;
     final turn = state.turnById(turnId);
-    if (turn == null || turn.translation.trim().isEmpty || isClosed) return;
+    if (turn == null || turn.translation.trim().isEmpty) return;
     if (state.session
         case ConversationSessionPaused(
           :final next,
@@ -685,7 +707,8 @@ class ConversationCubit extends Cubit<ConversationState> {
   /// it is) unless one is active. Turns reading aloud on unless the user
   /// chose otherwise ([setAutoSpeak]).
   void startSession({ConversationSide? side}) {
-    if (_recognizer == null || isClosed || state.session.isActive) return;
+    if (_recognizer == null || isClosed || _closing) return;
+    if (state.session.isActive) return;
     if (!_autoSpeakChosen && !state.autoSpeak) {
       emit(state.copyWith(autoSpeak: true));
     }
@@ -705,6 +728,7 @@ class ConversationCubit extends Cubit<ConversationState> {
     _speakToken++;
     _speakPending = false;
     _cancelSilence();
+    _cancelSpeakingWatchdog();
     _dropHearing();
     final stopped = <Future<void>>[?_recognizer?.cancel()];
     var turns = state.turns;
@@ -763,31 +787,50 @@ class ConversationCubit extends Cubit<ConversationState> {
     }
   }
 
-  /// Listens for [side]: at once, or [_echoDelay] after reading aloud
-  /// ([afterSpeech]); while something is read aloud only once it ended.
-  /// [fresh] starts a new turn (the silence timeout starts over).
+  /// Tells a hands-free conversation that a screen reader announces
+  /// [message] (a translation that is not read aloud): like after reading
+  /// aloud, the microphone opens only once the announcement was probably
+  /// said (the echo delay plus [announcementPerCharacter] for each
+  /// character), so it does not hear it; an open microphone closes until
+  /// then. Does nothing unless the conversation is listening.
+  void announced(String message) {
+    final text = message.trim();
+    if (text.isEmpty || isClosed || _closing) return;
+    final session = state.session;
+    if (session is! ConversationSessionListening) return;
+    final side = session.side;
+    _closeMicrophone();
+    _cancelSilence();
+    final token = _listenToken;
+    emit(state.copyWith(session: ConversationSessionListening(side: side)));
+    _echo = _timer(_echoDelay + announcementPerCharacter * text.length, () {
+      if (token == _listenToken) _openMicrophone(side, token);
+    });
+  }
+
+  /// Listens for [side]: at once, or [_echoDelay] after reading aloud or
+  /// showing a translation ([afterSpeech]); while something is read aloud
+  /// only once it ended (unless [ignoreSpeech]: it was stopped). [fresh]
+  /// starts a new turn (the silence timeout starts over).
   void _listen(
     ConversationSide side, {
     bool fresh = true,
     bool afterSpeech = false,
+    bool ignoreSpeech = false,
   }) {
     final recognizer = _recognizer;
-    if (recognizer == null || isClosed) return;
+    if (recognizer == null || isClosed || _closing) return;
+    _cancelSpeakingWatchdog();
     if (fresh) {
       _cancelSilence();
       _emptyUtterances = 0;
     }
-    final current = _speech.current;
+    final current = ignoreSpeech ? null : _speech.current;
     if (current != null) {
       // Never while something is read aloud (_onSpeaking continues).
       _closeMicrophone();
-      emit(
-        state.copyWith(
-          session: ConversationSessionSpeaking(
-            turnId: _turnIdOf(current),
-            next: side,
-          ),
-        ),
+      _enterSpeaking(
+        ConversationSessionSpeaking(turnId: _turnIdOf(current), next: side),
       );
       return;
     }
@@ -810,7 +853,7 @@ class ConversationCubit extends Cubit<ConversationState> {
   }
 
   void _openMicrophone(ConversationSide side, int token) {
-    if (isClosed) return;
+    if (isClosed || _closing) return;
     _heardVoice = false;
     final a = _primaryLanguage(state.languageA);
     final b = _primaryLanguage(state.languageB);
@@ -834,10 +877,14 @@ class ConversationCubit extends Cubit<ConversationState> {
           ),
         );
         if (!_heardVoice) _silence ??= _timer(_silenceTimeout, _onSilence);
-      case ConversationHeardLevel(:final level):
-        if (level >= voiceLevel) _onVoice();
-      case ConversationHeardPartial(:final text):
+      case ConversationHeardLevel():
+        // Loudness alone is not speech: the level is relative to the
+        // quietest moment, so background noise is loud too.
+        break;
+      case ConversationHeardSpeech():
         _onVoice();
+      case ConversationHeardPartial(:final text):
+        if (text.trim().isNotEmpty) _onVoice();
         emit(state.copyWith(session: session.copyWith(heard: text)));
       case ConversationHeardTranscribing():
         _onVoice();
@@ -886,7 +933,8 @@ class ConversationCubit extends Cubit<ConversationState> {
     }
   }
 
-  /// Someone is speaking: the silence timeout stops counting.
+  /// Someone is speaking (words, or the recogniser's voice activity
+  /// detection; not just a loud room): the silence timeout stops counting.
   void _onVoice() {
     _heardVoice = true;
     _cancelSilence();
@@ -920,6 +968,7 @@ class ConversationCubit extends Cubit<ConversationState> {
     int? turnId,
   }) {
     _cancelSilence();
+    _cancelSpeakingWatchdog();
     emit(
       state.copyWith(
         session: ConversationSessionPaused(
@@ -984,8 +1033,13 @@ class ConversationCubit extends Cubit<ConversationState> {
   void _onSessionTurnTranslated(ConversationTurn turn) {
     final session = state.session;
     if (session is! ConversationSessionTranslating) return;
-    if (!state.autoSpeak || turn.translation.trim().isEmpty) {
+    if (turn.translation.trim().isEmpty) {
       _listen(session.next);
+    } else if (!state.autoSpeak) {
+      // Shown, not read aloud: a screen reader may announce it, so the
+      // microphone waits as after reading aloud (and [announced] can keep
+      // it closed for longer).
+      _listen(session.next, afterSpeech: true);
     } else {
       unawaited(_speakForSession(turn, session.next));
     }
@@ -1016,12 +1070,13 @@ class ConversationCubit extends Cubit<ConversationState> {
     bool slow = false,
     ConsentRequiredException? allowOnline,
   }) async {
+    if (isClosed || _closing) return;
     final token = ++_speakToken;
     _closeMicrophone();
-    emit(
-      state.copyWith(
-        session: ConversationSessionSpeaking(turnId: turn.id, next: next),
-      ),
+    _enterSpeaking(
+      ConversationSessionSpeaking(turnId: turn.id, next: next),
+      text: turn.translation,
+      slow: slow,
     );
     _speakPending = true;
     Object? failure;
@@ -1055,6 +1110,54 @@ class ConversationCubit extends Cubit<ConversationState> {
     }
   }
 
+  /// Moves the session to [session] (reading [text] aloud; null when it is
+  /// unknown, e.g. something else is read aloud) and starts the watchdog
+  /// that gives the reading up should its end never be reported.
+  void _enterSpeaking(
+    ConversationSessionSpeaking session, {
+    String? text,
+    bool slow = false,
+  }) {
+    final turnId = session.turnId;
+    final read =
+        text ?? (turnId == null ? null : state.turnById(turnId)?.translation);
+    final characters = read?.length ?? 0;
+    emit(state.copyWith(session: session));
+    _cancelSpeakingWatchdog();
+    _speakingWatchdog = _timer(
+      speakingTimeout +
+          speakingTimeoutPerCharacter * (characters * (slow ? 2 : 1)),
+      _onSpeakingTimeout,
+    );
+  }
+
+  /// Reading aloud took too long: its end was never reported (or the
+  /// read-aloud call never returned). It is stopped, then the next side is
+  /// listened for.
+  void _onSpeakingTimeout() {
+    _speakingWatchdog = null;
+    if (isClosed || _closing) return;
+    if (state.session is! ConversationSessionSpeaking) return;
+    // A read-aloud call that returns after all changes nothing any more.
+    _speakToken++;
+    _speakPending = false;
+    unawaited(_giveUpSpeaking());
+  }
+
+  Future<void> _giveUpSpeaking() async {
+    await _stopSpeech();
+    // Stopping usually reports the end (_onSpeaking listened already); a
+    // player that still says it is speaking is not believed any more.
+    if (state.session case ConversationSessionSpeaking(:final next)) {
+      _listen(next, afterSpeech: true, ignoreSpeech: true);
+    }
+  }
+
+  void _cancelSpeakingWatchdog() {
+    _speakingWatchdog?.cancel();
+    _speakingWatchdog = null;
+  }
+
   /// Stops listening to the current utterance (its events are ignored)
   /// without closing the microphone, e.g. because it is opened again.
   void _dropHearing() {
@@ -1080,17 +1183,24 @@ class ConversationCubit extends Cubit<ConversationState> {
 
   @override
   Future<void> close() async {
+    // Nothing may read aloud or open the microphone from now on, though
+    // the cubit is only closed at the end.
+    _closing = true;
     _speakToken++;
     _cancelSilence();
+    _cancelSpeakingWatchdog();
     _dropHearing();
-    final jobs = _jobs.values.toList();
+    // Cancelled before the first await, so a translation cannot finish
+    // (and be read aloud) while closing.
+    final cancelled = [for (final job in _jobs.values) job.cancel()];
     _jobs.clear();
-    final speaking = state.speakingTurnId != null;
+    final speaking =
+        state.speakingTurnId != null ||
+        _speakPending ||
+        _turnIdOf(_speech.current) != null;
+    _speakPending = false;
     await _speaking.cancel();
-    await Future.wait([
-      for (final job in jobs) job.cancel(),
-      ?_recognizer?.dispose(),
-    ]);
+    await Future.wait([...cancelled, ?_recognizer?.dispose()]);
     if (speaking) await _stopSpeech();
     await super.close();
   }

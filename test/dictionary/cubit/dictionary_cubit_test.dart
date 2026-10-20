@@ -977,6 +977,33 @@ void main() {
         verifyNever(() => history.toggleFavorite(any()));
       });
 
+      test('a quick second tap takes the new favourite out again', () async {
+        when(() => settings.state)
+            .thenReturn(const AppSettings(saveHistory: false));
+        var entries = <HistoryEntry>[];
+        when(() => history.state).thenAnswer(
+          (_) => HistoryState(status: HistoryStatus.ready, entries: entries),
+        );
+        final saving = Completer<void>();
+        when(() => history.add(any())).thenAnswer((invocation) async {
+          await saving.future;
+          entries = [invocation.positionalArguments.single as HistoryEntry];
+        });
+        final cubit = build();
+        await cubit.lookUp();
+
+        // Both taps before the favourite is in the history.
+        final first = cubit.toggleFavorite();
+        final second = cubit.toggleFavorite();
+        await Future<void>.delayed(Duration.zero);
+        verifyNever(() => history.toggleFavorite(any()));
+        saving.complete();
+        await Future.wait([first, second]);
+
+        verify(() => history.add(any())).called(1);
+        verify(() => history.toggleFavorite(entries.single.id)).called(1);
+      });
+
       test('does nothing without a shown entry', () async {
         final cubit = build();
         await cubit.toggleFavorite();

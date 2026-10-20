@@ -78,7 +78,15 @@ Future<void> showQuickTranslate(
           onClose: () => Navigator.of(routeContext).pop(),
           padding: dialog
               ? const EdgeInsets.fromLTRB(16, 12, 16, 16)
-              : const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              // The sheet's safe area leaves out the bottom: keep the
+              // actions above the navigation bar (edge to edge). The
+              // padding is gone while the keyboard covers the bar.
+              : EdgeInsets.fromLTRB(
+                  16,
+                  0,
+                  16,
+                  16 + MediaQuery.paddingOf(routeContext).bottom,
+                ),
         ),
       ),
     );

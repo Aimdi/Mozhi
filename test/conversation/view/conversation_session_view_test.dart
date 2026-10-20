@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
@@ -422,6 +423,77 @@ void main() {
       expect(
         tester.widget<StatusAnnouncer>(find.byType(StatusAnnouncer)).message,
         isNull,
+      );
+    });
+
+    String? announced(WidgetTester tester) =>
+        tester.widget<StatusAnnouncer>(find.byType(StatusAnnouncer)).message;
+
+    /// Side A says "Hello" in a conversation that does not read aloud.
+    Future<void> sayUnread(WidgetTester tester) async {
+      await pumpPage(tester);
+      tester
+          .element(find.byType(ConversationView))
+          .read<ConversationCubit>()
+          .setAutoSpeak(enabled: false);
+      await tapMic(tester);
+      recognizer.start();
+      await pumpFor(tester);
+      recognizer.say('Hello');
+      await pumpFor(tester);
+      expect(announced(tester), 'Spanish: Hello!');
+    }
+
+    testWidgets('with a screen reader the microphone waits until a '
+        'translation was announced', (tester) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(accessibleNavigation: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      await sayUnread(tester);
+      // The echo delay alone would have opened it by now.
+      await tester.pump(const Duration(milliseconds: 1000));
+      expect(recognizer.listens, hasLength(1));
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(recognizer.listens, hasLength(2));
+      expect(recognizer.language, spanish);
+    });
+
+    testWidgets('without a screen reader it opens after the echo delay', (
+      tester,
+    ) async {
+      await sayUnread(tester);
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(recognizer.listens, hasLength(2));
+    });
+
+    testWidgets('a paused conversation says why', (tester) async {
+      await pumpPage(tester);
+      await tapMic(tester);
+      recognizer.start();
+      await pumpFor(tester);
+      await tester.pump(ConversationCubit.defaultSilenceTimeout);
+      await tester.pump();
+      expect(
+        announced(tester),
+        "Didn't hear anything. Tap the microphone to continue.",
+      );
+    });
+
+    testWidgets('a failed translation pauses and says so', (tester) async {
+      when(() => repository.translate(any(), any()))
+          .thenAnswer((_) => Stream.error(Exception('offline')));
+      await pumpPage(tester);
+      await tapMic(tester);
+      recognizer.start();
+      await pumpFor(tester);
+      recognizer.say('Hello');
+      await pumpFor(tester);
+      expect(
+        announced(tester),
+        'The translation failed. Retry it, or tap the microphone to '
+        'continue.',
       );
     });
   });

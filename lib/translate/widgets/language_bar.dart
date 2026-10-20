@@ -740,16 +740,29 @@ class _SharedAxisSwitcher extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final rtl = Directionality.of(context) == TextDirection.rtl;
+    final direction = Directionality.of(context);
+    final rtl = direction == TextDirection.rtl;
     final fromRight = (slideFrom == AxisDirection.right) != rtl;
     final current = child.key;
     return AnimatedSwitcher(
       duration: _swapMotion(context),
       switchInCurve: Curves.easeOutCubic,
       switchOutCurve: Curves.easeInCubic,
+      // As big as the new label alone (positioned children do not count):
+      // the button picks its form ([FirstThatFits]) and its width for the
+      // new name, not for the wider of the two while the old one fades out.
       layoutBuilder: (current, previous) => Stack(
         alignment: AlignmentDirectional.centerStart,
-        children: [...previous, ?current],
+        clipBehavior: Clip.none,
+        children: [
+          for (final outgoing in previous)
+            Positioned.directional(
+              textDirection: direction,
+              start: 0,
+              child: outgoing,
+            ),
+          ?current,
+        ],
       ),
       transitionBuilder: (child, animation) {
         // The incoming label enters from [slideFrom]; the outgoing one

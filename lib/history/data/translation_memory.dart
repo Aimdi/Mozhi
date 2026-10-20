@@ -162,14 +162,16 @@ class TranslationMemory {
     Set<String>? queryTrigrams;
     var seen = 0;
     for (final entry in entries) {
+      // Look-ups share the history but are no translations: they do not
+      // count towards the entries searched.
+      if (entry.isDictionary) continue;
       if (seen++ >= maxEntries) break;
       if (cutoff != null &&
           !entry.isFavorite &&
           entry.createdAt.isBefore(cutoff)) {
         continue;
       }
-      if (entry.isDictionary ||
-          entry.translation.trim().isEmpty ||
+      if (entry.translation.trim().isEmpty ||
           !_compatible(entry, source: source, target: target)) {
         continue;
       }

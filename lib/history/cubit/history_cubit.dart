@@ -14,11 +14,14 @@ export 'history_state.dart';
 /// [load], [add] and [importJson]; [applyRetention] changes it and deletes
 /// expired entries right away. Favourites are always kept.
 ///
-/// Incognito ([setIncognito], [HistoryState.incognito], kept in step with
-/// the settings by `HistoryRetentionListener`): [add] ignores entries that
-/// are not favourites, so no automatic history is written whichever screen
+/// Paused history ([HistoryState.paused]: incognito, [setIncognito], or
+/// "Save history" off, [setSaveHistory]; both kept in step with the
+/// settings by `HistoryRetentionListener`): [add] ignores entries that are
+/// not favourites, so no automatic history is written whichever screen
 /// translates or looks a word up. Starring a translation (or a dictionary
-/// entry) is an explicit save and still works.
+/// entry) is an explicit save and still works, but only as a favourite
+/// ([HistoryEntry.favoriteOnly]): un-starring it later deletes it rather
+/// than leaving an ordinary entry made while history was paused.
 ///
 /// Storage errors of [load] switch to [HistoryStatus.failure], history that
 /// cannot be decrypted to [HistoryStatus.unreadable] (see
@@ -27,9 +30,13 @@ export 'history_state.dart';
 /// except by [exportJson] / [importJson] / [deleteAll] whose callers need to
 /// show the outcome.
 class HistoryCubit extends Cubit<HistoryState> {
-  new({HistoryRepository? repository, this._maxAge, bool incognito = false})
-    : _repository = repository ?? HistoryRepository(),
-      super(HistoryState(incognito: incognito));
+  new({
+    HistoryRepository? repository,
+    this._maxAge,
+    bool incognito = false,
+    bool saveHistory = true,
+  }) : _repository = repository ?? HistoryRepository(),
+       super(HistoryState(incognito: incognito, saveHistory: saveHistory));
 
   final HistoryRepository _repository;
 
@@ -51,16 +58,26 @@ class HistoryCubit extends Cubit<HistoryState> {
     }
   }
 
-  /// Saves [entry] (see [HistoryRepository.add]); ignored while
-  /// [HistoryState.incognito] unless it is a favourite.
+  /// Saves [entry] (see [HistoryRepository.add]). While history is
+  /// [HistoryState.paused] only a favourite is saved, as kept only as a
+  /// favourite ([HistoryEntry.favoriteOnly]).
   Future<void> add(HistoryEntry entry) async {
-    if (state.incognito && !entry.isFavorite) return;
-    await _run(() => _repository.add(entry, maxAge: _maxAge));
+    var saved = entry;
+    if (state.paused) {
+      if (!entry.isFavorite) return;
+      saved = entry.copyWith(favoriteOnly: true);
+    }
+    await _run(() => _repository.add(saved, maxAge: _maxAge));
   }
 
   /// Turns incognito on or off: while on, [add] only saves favourites.
   void setIncognito({required bool enabled}) =>
       emit(state.copyWith(incognito: enabled));
+
+  /// Follows "Save history": while off, [add] only saves favourites (as
+  /// in incognito).
+  void setSaveHistory({required bool enabled}) =>
+      emit(state.copyWith(saveHistory: enabled));
 
   /// Sets the history that cannot be decrypted aside and starts a new one
   /// (see [HistoryRepository.discardUnreadable]).
@@ -94,6 +111,15 @@ class HistoryCubit extends Cubit<HistoryState> {
   /// undo [delete]; see [HistoryRepository.restore]).
   Future<void> restore(HistoryEntry entry) =>
       _run(() => _repository.restore(entry));
+
+  /// Undoes taking [entry] out of the favourites: stars the entry as it is
+  /// now, or puts [entry] back when it is gone (see
+  /// [HistoryRepository.restoreFavorite]).
+  Future<void> restoreFavorite(HistoryEntry entry) =>
+      _run(() => _repository.restoreFavorite(entry));
+
+  /// Stars or un-stars the entry [id] (un-starring an entry kept only as a
+  /// favourite deletes it, see [HistoryRepository.toggleFavorite]).
 
   Future<void> toggleFavorite(String id) =>
       _run(() => _repository.toggleFavorite(id));

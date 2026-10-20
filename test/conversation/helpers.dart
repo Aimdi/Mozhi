@@ -233,6 +233,9 @@ class FakeConversationRecognizer implements ConversationRecognizer {
 
   void level(double level) => emit(ConversationHeardLevel(level));
 
+  /// Someone is heard speaking (words, or voice activity detection).
+  void speech() => emit(const ConversationHeardSpeech());
+
   void partial(String text) => emit(ConversationHeardPartial(text));
 
   void transcribing() => emit(const ConversationHeardTranscribing());

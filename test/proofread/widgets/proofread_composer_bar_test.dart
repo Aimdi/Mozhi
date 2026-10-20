@@ -103,6 +103,29 @@ void main() {
       expect(find.byKey(const Key('proofread_options_sheet')), findsOneWidget);
       expect(find.byType(ProofreadControls), findsOneWidget);
     });
+
+    testWidgets('the options stay above the keyboard', (tester) async {
+      await pumpBar(tester, readyState.copyWith(context: 'An email'));
+      // A 300 dp keyboard at the bottom of the 800 dp screen.
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      const keyboardTop = 800.0 - 300;
+
+      await tester.tap(find.byKey(const Key('proofread_options_button')));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getRect(find.byKey(const Key('proofread_options_sheet'))).bottom,
+        lessThanOrEqualTo(keyboardTop),
+      );
+
+      // The context field scrolls into view above the keyboard.
+      await tester.showKeyboard(find.byKey(const Key('proofread_context')));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getRect(find.byKey(const Key('proofread_context'))).bottom,
+        lessThanOrEqualTo(keyboardTop),
+      );
+      expect(tester.takeException(), isNull);
+    });
   });
 
   group('ProofreadLanguageButton', () {

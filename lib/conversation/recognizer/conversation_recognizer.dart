@@ -26,7 +26,8 @@ final class ConversationHeardStart extends ConversationHearing {
   List<Object?> get props => [detectsLanguage];
 }
 
-/// The input loudness, normalised to `0..1`.
+/// The input loudness, normalised to `0..1`. Loudness alone is not speech
+/// (background noise is loud too): see [ConversationHeardSpeech].
 final class ConversationHeardLevel extends ConversationHearing {
   const new(this.level);
 
@@ -34,6 +35,13 @@ final class ConversationHeardLevel extends ConversationHearing {
 
   @override
   List<Object?> get props => [level];
+}
+
+/// Someone is speaking: the recogniser recognised words, or its own voice
+/// activity detection heard speech (on-device recognisers, which only
+/// recognise words after recording). Reported once per utterance.
+final class ConversationHeardSpeech extends ConversationHearing {
+  const new();
 }
 
 /// The words recognised so far (the whole utterance, not just new words).

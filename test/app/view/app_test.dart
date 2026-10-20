@@ -616,6 +616,32 @@ void main() {
         expect(location(tester), AppRoutes.translate);
       });
 
+      testWidgets('stays on the translate tab when started there', (
+        tester,
+      ) async {
+        // The home-screen widget's Type button (mozhi://translate), or a
+        // reload of the web app at #/translate.
+        tester.platformDispatcher.defaultRouteNameTestValue =
+            AppRoutes.translate;
+        addTearDown(tester.platformDispatcher.clearDefaultRouteNameTestValue);
+        await pumpApp(
+          tester,
+          settings: const AppSettings(
+            instances: [testInstance],
+            onboardingComplete: true,
+            tabOrder: [
+              AppTab.dictionary,
+              AppTab.translate,
+              AppTab.proofread,
+              AppTab.conversation,
+            ],
+          ),
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+
+        expect(location(tester), AppRoutes.translate);
+      });
+
       testWidgets('starts in the default quality mode unless remembered', (
         tester,
       ) async {

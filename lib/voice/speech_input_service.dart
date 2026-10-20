@@ -75,7 +75,8 @@ enum VoiceInputEngine {
 /// explicit [initialize]) because that may show the permission prompt.
 /// [states] reports [SpeechInputUnavailable] when initialisation fails or
 /// the platform is unsupported, [SpeechInputListening] (with a normalised
-/// sound level and the partial text) while the microphone is open,
+/// sound level, the partial text and whether someone was heard speaking)
+/// while the microphone is open,
 /// [SpeechInputTranscribing] while an offline engine transcribes what was
 /// recorded, [SpeechInputError] after a failed session and
 /// [SpeechInputIdle] otherwise. Recognised text arrives on [results].
@@ -654,7 +655,12 @@ class SpeechInputService {
         _emit(const SpeechInputIdle());
       }
     } else if (current is SpeechInputListening) {
-      _emit(current.copyWith(partialText: text));
+      _emit(
+        current.copyWith(
+          partialText: text,
+          heardSpeech: current.heardSpeech || text.trim().isNotEmpty,
+        ),
+      );
     }
   }
 
@@ -666,7 +672,15 @@ class SpeechInputService {
     final max = _maxLevel = math.max(_maxLevel ?? raw, raw);
     final span = math.max(max - min, _minLevelSpan);
     final level = ((raw - min) / span).clamp(0.0, 1.0);
-    if (level != current.level) _emit(current.copyWith(level: level));
+    // Loudness alone is not speech (the level is relative, so background
+    // noise is loud too); a recogniser that detects voice activity says.
+    final heardSpeech =
+        current.heardSpeech ||
+        switch (_current.adapter) {
+          final VoiceActivitySpeechRecognizer detector => detector.heardSpeech,
+          _ => false,
+        };
+    _emit(current.copyWith(level: level, heardSpeech: heardSpeech));
   }
 
   /// Minimum dB range used to normalise sound levels, so near-silence does

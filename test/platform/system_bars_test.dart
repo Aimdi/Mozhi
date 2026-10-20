@@ -2,9 +2,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/platform/privacy_channel.dart';
 import 'package:mozhi/platform/system_bars.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('systemBarsStyle', () {
     test('dark icons over a light theme', () {
       final style = systemBarsStyle(Brightness.light);
@@ -30,23 +33,48 @@ void main() {
         expect(style.systemStatusBarContrastEnforced, isNull);
       }
     });
+
+    test('an opaque navigation bar keeps the icons of the theme', () {
+      const surface = Color(0xFF101010);
+      final style = systemBarsStyle(
+        Brightness.dark,
+        navigationBarColor: surface,
+      );
+      expect(style.systemNavigationBarColor, surface);
+      expect(style.systemNavigationBarIconBrightness, Brightness.light);
+      // The status bar stays transparent: the app is drawn behind it.
+      expect(style.statusBarColor, Colors.transparent);
+    });
   });
 
   group(SystemBarsStyle, () {
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     late List<MethodCall> calls;
+    late List<MethodCall> privacyCalls;
 
     setUp(() {
       calls = [];
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(SystemChannels.platform, (call) async {
-            calls.add(call);
-            return null;
-          });
+      privacyCalls = [];
+      messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        calls.add(call);
+        return null;
+      });
       addTearDown(
-        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-            .setMockMethodCallHandler(SystemChannels.platform, null),
+        () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
       );
     });
+
+    /// Android answers [sdk] for its API level.
+    void androidVersion(int sdk) {
+      messenger.setMockMethodCallHandler(privacyChannel(), (call) async {
+        privacyCalls.add(call);
+        return call.method == 'sdkInt' ? sdk : null;
+      });
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(privacyChannel(), null),
+      );
+    }
 
     Future<void> pump(
       WidgetTester tester, {
@@ -135,6 +163,7 @@ void main() {
     });
 
     testWidgets('leaves the system UI mode alone elsewhere', (tester) async {
+      androidVersion(28);
       await pump(tester);
 
       expect(
@@ -143,6 +172,56 @@ void main() {
         ),
         isEmpty,
       );
+      expect(privacyCalls, isEmpty);
+      expect(region(tester).systemNavigationBarColor, Colors.transparent);
+    });
+
+    testWidgets('keeps the navigation bar transparent from Android 10', (
+      tester,
+    ) async {
+      androidVersion(29);
+      await pump(tester, isAndroid: true, themeMode: ThemeMode.dark);
+      await tester.pump();
+
+      expect(privacyCalls.single.method, 'sdkInt');
+      expect(region(tester), systemBarsStyle(Brightness.dark));
+    });
+
+    testWidgets('makes the navigation bar opaque below Android 10', (
+      tester,
+    ) async {
+      // A dark app on Android 9: not drawn behind the bar, whose window
+      // background follows the (light) system theme.
+      androidVersion(28);
+      await pump(tester, isAndroid: true, themeMode: ThemeMode.dark);
+      await tester.pump();
+
+      final surface = ThemeData(brightness: Brightness.dark)
+          .colorScheme
+          .surface;
+      final style = region(tester);
+      expect(style.systemNavigationBarColor, surface);
+      expect(style.systemNavigationBarIconBrightness, Brightness.light);
+      expect(SystemChrome.latestStyle?.systemNavigationBarColor, surface);
+
+      // It follows a change of theme.
+      await pump(tester, isAndroid: true);
+      await tester.pumpAndSettle();
+      expect(
+        region(tester).systemNavigationBarColor,
+        ThemeData(brightness: Brightness.light).colorScheme.surface,
+      );
+      expect(region(tester).systemNavigationBarIconBrightness, Brightness.dark);
+      expect(privacyCalls, hasLength(1));
+    });
+
+    testWidgets('stays transparent when Android cannot tell its version', (
+      tester,
+    ) async {
+      await pump(tester, isAndroid: true);
+      await tester.pump();
+
+      expect(region(tester).systemNavigationBarColor, Colors.transparent);
     });
   });
 }

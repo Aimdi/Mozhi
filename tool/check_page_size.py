@@ -21,11 +21,12 @@ libflutter.so and libapp.so and the plugins' libraries too.
   again by bundletool or Google Play.
 
 32-bit libraries (armeabi-v7a, x86) are listed but never fail: 16 KB page
-devices are 64-bit. Nothing but the Python standard library is needed (no
-Android SDK).
+devices are 64-bit. One that cannot be read (not an ELF file, a truncated
+program header table) is listed as such. Nothing but the Python standard
+library is needed (no Android SDK).
 
 Exit status: 0 when every 64-bit library passes, 1 when one doesn't, 2 on
-a usage or file error.
+a usage or file error (including a 64-bit library that cannot be read).
 """
 
 from __future__ import annotations
@@ -58,6 +59,7 @@ class Result:
     abi: str
     load_alignments: list[int]
     zip_offset: int | None  # data offset of an uncompressed APK entry
+    unreadable: str | None = None  # why a 32-bit library could not be read
 
     @property
     def checked(self) -> bool:
@@ -131,6 +133,19 @@ def load_alignments(read) -> list[int]:
     return alignments
 
 
+def alignments_of(name: str, abi: str, read) -> tuple[list[int], str | None]:
+    """(load_alignments, None), or for a 32-bit [abi] ([], why) when the
+    library cannot be read: those are never checked. A 64-bit library that
+    cannot be read raises ValueError."""
+    try:
+        return load_alignments(read), None
+    except (ValueError, struct.error) as error:
+        reason = str(error) or type(error).__name__
+        if abi in ABIS_64:
+            raise ValueError(f"{name}: {reason}") from error
+        return [], reason
+
+
 def data_offset(archive: zipfile.ZipFile, info: zipfile.ZipInfo) -> int:
     """Where the data of [info] starts in the zip file (after its local header)."""
     archive.fp.seek(info.header_offset)
@@ -156,12 +171,15 @@ def check_archive(path: Path) -> list[Result]:
                     return entry.read(size)
 
             stored = info.compress_type == zipfile.ZIP_STORED
+            abi = match.group("abi")
+            alignments, unreadable = alignments_of(info.filename, abi, read)
             results.append(
                 Result(
                     name=info.filename,
-                    abi=match.group("abi"),
-                    load_alignments=load_alignments(read),
+                    abi=abi,
+                    load_alignments=alignments,
                     zip_offset=data_offset(archive, info) if stored and not bundle else None,
+                    unreadable=unreadable,
                 )
             )
     return results
@@ -176,7 +194,8 @@ def check_library(path: Path) -> list[Result]:
             return file.read(size)
 
         abi = machine_abi(read(HEAD))
-        return [Result(name=path.name, abi=abi, load_alignments=load_alignments(read), zip_offset=None)]
+        alignments, unreadable = alignments_of(path.name, abi, read)
+        return [Result(name=path.name, abi=abi, load_alignments=alignments, zip_offset=None, unreadable=unreadable)]
 
 
 def check(path: Path) -> list[Result]:
@@ -204,6 +223,9 @@ def main() -> int:
         checked = [result for result in results if result.checked]
         print(f"{path}: {len(checked)} 64-bit and {len(results) - len(checked)} 32-bit libraries")
         for result in results:
+            if result.unreadable is not None:
+                print(f"  {result.name}: unreadable ({result.unreadable}), not checked (32-bit)")
+                continue
             smallest = min(result.load_alignments, default=0)
             problems = result.problems() if result.checked else []
             verdict = "FAIL" if problems else ("ok" if result.checked else "not checked (32-bit)")

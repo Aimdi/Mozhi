@@ -4,6 +4,11 @@ import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/platform/android_device.dart';
 
+/// The first Android API level (Android 10) on which the app is drawn edge
+/// to edge, behind the navigation bar ([SystemUiMode.edgeToEdge] does
+/// nothing on older versions).
+const edgeToEdgeMinSdk = 29;
+
 /// The style of the system bars over an app drawn in [brightness]:
 /// transparent status and navigation bars (the app draws behind them, edge
 /// to edge) with light icons over a dark theme (Lights out, Dim) and dark
@@ -13,7 +18,17 @@ import 'package:mozhi/platform/android_device.dart';
 /// three-button navigation Android keeps a translucent scrim behind the
 /// buttons, so they stay legible over photos; the gesture handle needs
 /// none.
-SystemUiOverlayStyle systemBarsStyle(Brightness brightness) {
+///
+/// With [navigationBarColor] the navigation bar is that opaque colour
+/// instead, for Android 8 and 9 ([edgeToEdgeMinSdk]): the app is not drawn
+/// behind it there, so a transparent bar would show the window background,
+/// which follows the system's theme rather than the app's (white buttons
+/// on a white bar for a dark app on a light system). The colour must suit
+/// the icons, i.e. be of the theme's [brightness].
+SystemUiOverlayStyle systemBarsStyle(
+  Brightness brightness, {
+  Color? navigationBarColor,
+}) {
   final icons = brightness == Brightness.dark
       ? Brightness.light
       : Brightness.dark;
@@ -22,7 +37,7 @@ SystemUiOverlayStyle systemBarsStyle(Brightness brightness) {
     statusBarIconBrightness: icons,
     // iOS reads the brightness of the bar's background instead.
     statusBarBrightness: brightness,
-    systemNavigationBarColor: Colors.transparent,
+    systemNavigationBarColor: navigationBarColor ?? Colors.transparent,
     systemNavigationBarDividerColor: Colors.transparent,
     systemNavigationBarIconBrightness: icons,
   );
@@ -44,9 +59,11 @@ SystemUiOverlayStyle systemBarsStyle(Brightness brightness) {
 ///
 /// On Android it also switches the app to edge to edge once
 /// ([SystemUiMode.edgeToEdge]): Android 15 and later enforce that for apps
-/// targeting SDK 35+ (Mozhi targets 36), so doing the same on Android 13
-/// and 14 gives every version one layout and one look. Elsewhere (the web,
-/// tests on a desktop host) only the region is added.
+/// targeting SDK 35+ (Mozhi targets 36), so doing the same on Android 10
+/// to 14 gives them one layout and one look. Older versions ignore it:
+/// once [androidSdkInt] reports one, the navigation bar is the theme's
+/// opaque [ColorScheme.surface] instead (see [systemBarsStyle]). Elsewhere
+/// (the web, tests on a desktop host) only the region is added.
 class SystemBarsStyle extends StatefulWidget {
   const new({required this.child, this.isAndroid, super.key});
 
@@ -61,18 +78,33 @@ class SystemBarsStyle extends StatefulWidget {
 }
 
 class _SystemBarsStyleState extends State<SystemBarsStyle> {
+  /// Whether the app is drawn behind the navigation bar: unknown (assumed)
+  /// until Android tells its version.
+  bool _edgeToEdge = true;
+
   @override
   void initState() {
     super.initState();
     if (widget.isAndroid ?? runsOnAndroid) {
       unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
+      unawaited(_readSdk());
     }
+  }
+
+  Future<void> _readSdk() async {
+    final sdk = await androidSdkInt(isAndroid: true);
+    if (!mounted || sdk == null || sdk >= edgeToEdgeMinSdk) return;
+    setState(() => _edgeToEdge = false);
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: systemBarsStyle(Theme.of(context).brightness),
+      value: systemBarsStyle(
+        theme.brightness,
+        navigationBarColor: _edgeToEdge ? null : theme.colorScheme.surface,
+      ),
       child: widget.child,
     );
   }

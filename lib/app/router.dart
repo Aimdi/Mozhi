@@ -205,6 +205,11 @@ typedef TranslateLinkCallback = void Function(TranslateLink link);
 
 /// Decides where the app goes instead of the plain start location it was
 /// launched at (e.g. the first-run onboarding); null keeps it.
+///
+/// `location` is `/` for a plain launch (the launcher icon, a fresh visit
+/// of the web app) and [AppRoutes.translate] when the translate tab was
+/// asked for explicitly (the home-screen widget's Type button,
+/// `mozhi://translate`, a reload of the web app at `#/translate`).
 typedef LaunchRedirect = String? Function(String location);
 
 /// Builds the app's router.
@@ -239,10 +244,16 @@ typedef LaunchRedirect = String? Function(String location);
 /// are never redirected. The app uses it for the onboarding and to open on
 /// the first tab of the user's order ([homeRedirect]); the onboarding
 /// finishes on that tab too.
+///
+/// [initialLocation] is where a plain launch starts: `/` (which shows the
+/// translate tab). The platform's own start location wins over it (the
+/// route of a deep link, the address of a reloaded web page), so `/` is
+/// only seen for a plain launch and an explicit `/translate` (the
+/// home-screen widget's Type button) can be told apart from it.
 GoRouter createAppRouter({
   TranslateLinkCallback? onTranslateLink,
   LaunchRedirect? launchRedirect,
-  String initialLocation = AppRoutes.translate,
+  String initialLocation = '/',
   GlobalKey<NavigatorState>? navigatorKey,
 }) {
   final rootKey = navigatorKey ?? GlobalKey<NavigatorState>();
@@ -277,7 +288,7 @@ GoRouter createAppRouter({
       if (!launched) {
         launched = true;
         if (launchRedirect != null && isLaunchLocation(uri)) {
-          final target = launchRedirect(AppRoutes.translate);
+          final target = launchRedirect(uri.path.isEmpty ? '/' : uri.path);
           if (target != null) return target;
         }
       }
@@ -511,11 +522,13 @@ String? deepLinkLocation(Uri uri) {
 }
 
 /// [LaunchRedirect] to the first tab of the user's order
-/// ([AppSettings.tabOrder]): its location, or null when that is [location]
-/// already (the translate tab, by default).
+/// ([AppSettings.tabOrder]) for a plain launch ([location] `/`): that
+/// tab's location. Null for any other location: a start at `/translate`
+/// asked for it explicitly (the home-screen widget's Type button, a reload
+/// of the web app at `#/translate`) and stays there.
 String? homeRedirect(AppSettings settings, String location) {
-  final home = AppRoutes.tab(settings.tabOrder.first);
-  return home == location ? null : home;
+  if (location.isNotEmpty && location != '/') return null;
+  return AppRoutes.tab(settings.tabOrder.first);
 }
 
 /// The location of the first tab of the user's order (read from the

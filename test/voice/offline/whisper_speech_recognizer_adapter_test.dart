@@ -330,6 +330,30 @@ void main() {
       expect(statuses, contains(SpeechRecognizerStatus.transcribing));
     });
 
+    test('says whether it heard speech, not just noise', () async {
+      expect(adapter, isA<VoiceActivitySpeechRecognizer>());
+      expect(adapter.heardSpeech, isFalse);
+      final heard = <bool>[];
+      await initialize();
+      await adapter.listen(
+        request: const SpeechListenRequest(localeId: 'de', onDevice: true),
+        onResult: (text, {required isFinal}) {},
+        // Read while the level is reported.
+        onSoundLevel: (_) => heard.add(adapter.heardSpeech),
+      );
+      recorder
+        // Digital silence, a noisy room (-60 dBFS), then speech.
+        ..emit(chunk(0))
+        ..emit(chunk(0.001))
+        ..emit(chunk(0.5));
+      await flush();
+      expect(heard, [false, false, true]);
+      await adapter.stop();
+      await flush();
+      // Between sessions nothing is heard.
+      expect(adapter.heardSpeech, isFalse);
+    });
+
     test('stops after a pause following speech', () async {
       await listen(pauseFor: const Duration(milliseconds: 200));
       recorder

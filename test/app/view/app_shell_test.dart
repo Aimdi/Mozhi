@@ -306,6 +306,85 @@ void main() {
         Icons.spellcheck,
       );
     });
+
+    group('edge to edge', () {
+      // A cutout at the left, three-button navigation at the right and a
+      // gesture bar below, as drawn behind the system bars.
+      const padding = FakeViewPadding(left: 24, top: 30, right: 48, bottom: 20);
+      const tab = Key('tab');
+
+      Future<void> pumpPadded(
+        WidgetTester tester, {
+        required double width,
+        TextDirection direction = TextDirection.ltr,
+      }) async {
+        tester.view
+          ..physicalSize = Size(width, 900)
+          ..devicePixelRatio = 1
+          ..padding = padding
+          ..viewPadding = padding;
+        addTearDown(tester.view.reset);
+        await tester.pumpApp(
+          Directionality(
+            textDirection: direction,
+            child: AppShell(
+              selectedIndex: 0,
+              onDestinationSelected: (_) {},
+              child: const SizedBox.expand(key: tab),
+            ),
+          ),
+          theme: theme,
+        );
+      }
+
+      EdgeInsets tabPadding(WidgetTester tester) =>
+          MediaQuery.paddingOf(tester.element(find.byKey(tab)));
+
+      testWidgets('keeps the tab and the rail clear of the system bars', (
+        tester,
+      ) async {
+        await pumpPadded(tester, width: 1000);
+
+        final rail = tester.getRect(find.byType(NavigationRail));
+        expect(rail.left, 24);
+        expect(rail.bottom, 900 - 20);
+        final body = tester.getRect(find.byKey(tab));
+        // The app bar covers the top.
+        expect(body.top, 0);
+        expect(body.left, greaterThan(rail.right));
+        expect(body.right, 1000 - 48);
+        expect(body.bottom, 900 - 20);
+        // Nothing inside pads again, but for the app bar.
+        expect(tabPadding(tester), const EdgeInsets.only(top: 30));
+      });
+
+      testWidgets('puts the rail on the right in right-to-left languages', (
+        tester,
+      ) async {
+        await pumpPadded(tester, width: 1000, direction: TextDirection.rtl);
+
+        final rail = tester.getRect(find.byType(NavigationRail));
+        expect(rail.right, 1000 - 48);
+        final body = tester.getRect(find.byKey(tab));
+        expect(body.left, 24);
+        expect(body.right, lessThan(rail.left));
+        expect(body.bottom, 900 - 20);
+        expect(tabPadding(tester), const EdgeInsets.only(top: 30));
+      });
+
+      testWidgets('keeps the tab clear of the sides above the bottom bar', (
+        tester,
+      ) async {
+        await pumpPadded(tester, width: 400);
+
+        final body = tester.getRect(find.byKey(tab));
+        expect(body.left, 24);
+        expect(body.right, 400 - 48);
+        expect(body.bottom, tester.getRect(find.byType(BlurBar)).top);
+        // The bar pads itself below; nothing in the tab pads again.
+        expect(tabPadding(tester), const EdgeInsets.only(top: 30));
+      });
+    });
   });
 
   group('NavIcon', () {

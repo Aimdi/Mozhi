@@ -21,6 +21,16 @@ const _consent = ConsentRequiredException(
 const Duration _echo = ConversationCubit.defaultEchoDelay;
 const Duration _silence = ConversationCubit.defaultSilenceTimeout;
 
+/// How long reading [text] aloud may take before the session gives up.
+Duration _speakingFor(String text, {bool slow = false}) =>
+    ConversationCubit.speakingTimeout +
+    ConversationCubit.speakingTimeoutPerCharacter *
+        (text.length * (slow ? 2 : 1));
+
+/// How long the microphone stays closed while [message] is announced.
+Duration _announcing(String message) =>
+    _echo + ConversationCubit.announcementPerCharacter * message.length;
+
 void main() {
   setUpAll(registerConversationFallbacks);
 
@@ -164,6 +174,13 @@ void main() {
           ..setAutoSpeak(enabled: false)
           ..startSession();
         await hear('Hello');
+        // Without reading aloud the other side is listened for after the
+        // echo delay too: a screen reader may announce the translation.
+        expect(cubit.state.session, listeningB);
+        expect(recognizer.listens, hasLength(1));
+        expect(timers.pending(_echo), isTrue);
+        timers.fire(_echo);
+        expect(recognizer.open, isTrue);
       },
       verify: (cubit) {
         expect(cubit.state.autoSpeak, isFalse);
@@ -176,10 +193,7 @@ void main() {
             allowOnline: any(named: 'allowOnline'),
           ),
         );
-        // Without reading aloud the other side is listened for at once.
-        expect(cubit.state.session, listeningB);
         expect(recognizer.language, spanish);
-        expect(timers.pending(_echo), isFalse);
       },
     );
 
@@ -313,8 +327,13 @@ void main() {
         expect(recognizer.listens, hasLength(1));
         timers.fire(_echo);
         expect(recognizer.open, isTrue);
+        // The reading ended: nothing is given up.
+        expect(timers.pending(_speakingFor('Hello!')), isFalse);
       },
-      verify: (cubit) => expect(recognizer.listens.last.language, spanish),
+      verify: (cubit) {
+        expect(recognizer.listens.last.language, spanish);
+        verifyNever(speech.stop);
+      },
     );
 
     blocTest<ConversationCubit, ConversationState>(
@@ -515,7 +534,9 @@ void main() {
         });
         await hear('Hello');
         expect(cubit.state.session, isA<ConversationSessionSpeaking>());
+        expect(timers.pending(_speakingFor('Hello!')), isTrue);
         await cubit.toggleSession();
+        expect(timers.pending(_speakingFor('Hello!')), isFalse);
         current = null;
         speaking.add(null);
         await settle();
@@ -588,6 +609,314 @@ void main() {
       expect(recognizer.disposed, isTrue);
       expect(recognizer.open, isFalse);
     });
+
+    test('closing while reading aloud gives nothing up later', () async {
+      when(
+        () => speech.speak(
+          id: any(named: 'id'),
+          text: any(named: 'text'),
+          languageCode: any(named: 'languageCode'),
+          slow: any(named: 'slow'),
+          allowOnline: any(named: 'allowOnline'),
+        ),
+      ).thenAnswer((invocation) async {
+        current = invocation.namedArguments[#id] as String;
+      });
+      final cubit = build();
+      await cubit.toggleSession();
+      await hear('Hello');
+      expect(timers.pending(_speakingFor('Hello!')), isTrue);
+      await cubit.close();
+      expect(timers.pending(_speakingFor('Hello!')), isFalse);
+      // What it read aloud is stopped with the page.
+      verify(speech.stop).called(1);
+    });
+
+    test('closing while a translation finishes neither reads aloud nor '
+        'listens', () async {
+      // Closing waits a while for the speech subscription to end.
+      final cancelling = Completer<void>();
+      final slowly = StreamController<String?>(
+        onCancel: () => cancelling.future,
+      );
+      when(() => speech.speaking).thenAnswer((_) => slowly.stream);
+      final pending = StreamController<TranslationResult>();
+      when(() => repository.translate(any(), any()))
+          .thenAnswer((_) => pending.stream);
+      final cubit = build();
+      await cubit.toggleSession();
+      await hear('Hello');
+      expect(cubit.state.session, isA<ConversationSessionTranslating>());
+
+      final closing = cubit.close();
+      // The translation finishes while closing waits.
+      pending.add(resultOf('Hola'));
+      unawaited(pending.close());
+      await settle();
+      verifyNever(
+        () => speech.speak(
+          id: any(named: 'id'),
+          text: any(named: 'text'),
+          languageCode: any(named: 'languageCode'),
+          slow: any(named: 'slow'),
+          allowOnline: any(named: 'allowOnline'),
+        ),
+      );
+      timers.fire(_echo);
+      expect(recognizer.listens, hasLength(1));
+      // Nothing can start a conversation any more either.
+      cubit.startSession();
+      expect(recognizer.listens, hasLength(1));
+      cancelling.complete();
+      await closing;
+      expect(recognizer.disposed, isTrue);
+    });
+  });
+
+  group('reading aloud that never ends', () {
+    /// Reading aloud starts but never reports its end (Chrome's speech
+    /// synthesis drops long texts without an `end` event).
+    void neverEnds() =>
+        when(
+          () => speech.speak(
+            id: any(named: 'id'),
+            text: any(named: 'text'),
+            languageCode: any(named: 'languageCode'),
+            slow: any(named: 'slow'),
+            allowOnline: any(named: 'allowOnline'),
+          ),
+        ).thenAnswer((invocation) async {
+          current = invocation.namedArguments[#id] as String;
+          speaking.add(current);
+        });
+
+    blocTest<ConversationCubit, ConversationState>(
+      'is stopped after a while; then the other side is listened for',
+      build: build,
+      act: (cubit) async {
+        await cubit.toggleSession();
+        neverEnds();
+        await hear('Hello');
+        expect(
+          cubit.state.session,
+          const ConversationSessionSpeaking(
+            turnId: 0,
+            next: ConversationSide.b,
+          ),
+        );
+        timers.fire(_speakingFor('Hello!'));
+        await settle();
+        verify(speech.stop).called(1);
+        // Listened for even though the player still reports it.
+        expect(cubit.state.session, listeningB);
+        expect(recognizer.listens, hasLength(1));
+        timers.fire(_echo);
+        expect(recognizer.open, isTrue);
+      },
+      verify: (cubit) => expect(recognizer.language, spanish),
+    );
+
+    blocTest<ConversationCubit, ConversationState>(
+      'is listened for once when stopping it reports the end',
+      build: build,
+      act: (cubit) async {
+        await cubit.toggleSession();
+        neverEnds();
+        when(speech.stop).thenAnswer((_) async {
+          current = null;
+          speaking.add(null);
+        });
+        await hear('Hello');
+        final echoes = timers.timers.where((t) => t.duration == _echo).length;
+        timers.fire(_speakingFor('Hello!'));
+        await settle();
+        expect(
+          timers.timers.where((t) => t.duration == _echo),
+          hasLength(echoes + 1),
+        );
+        timers.fire(_echo);
+      },
+      verify: (cubit) {
+        expect(cubit.state.session, listeningB);
+        expect(recognizer.listens, hasLength(2));
+      },
+    );
+
+    late Completer<void> returns;
+    blocTest<ConversationCubit, ConversationState>(
+      'a read-aloud that never returns is given up too',
+      setUp: () => returns = Completer<void>(),
+      build: build,
+      act: (cubit) async {
+        await cubit.toggleSession();
+        when(
+          () => speech.speak(
+            id: any(named: 'id'),
+            text: any(named: 'text'),
+            languageCode: any(named: 'languageCode'),
+            slow: any(named: 'slow'),
+            allowOnline: any(named: 'allowOnline'),
+          ),
+        ).thenAnswer((_) => returns.future);
+        await hear('Hello');
+        expect(cubit.state.session, isA<ConversationSessionSpeaking>());
+        timers.fire(_speakingFor('Hello!'));
+        await settle();
+        timers.fire(_echo);
+        expect(recognizer.open, isTrue);
+        // When it returns at last, nothing changes.
+        returns.complete();
+        await settle();
+        expect(recognizer.open, isTrue);
+      },
+      verify: (cubit) {
+        verify(speech.stop).called(1);
+        expect(cubit.state.session, listeningB);
+        expect(recognizer.listens, hasLength(2));
+      },
+    );
+
+    blocTest<ConversationCubit, ConversationState>(
+      'a session started while the player wrongly reports something '
+      'recovers',
+      setUp: () => current = 'translate:target',
+      build: build,
+      act: (cubit) async {
+        await cubit.toggleSession();
+        expect(
+          cubit.state.session,
+          const ConversationSessionSpeaking(next: ConversationSide.a),
+        );
+        // Nothing to go by but the base time.
+        timers.fire(ConversationCubit.speakingTimeout);
+        await settle();
+        timers.fire(_echo);
+        expect(recognizer.open, isTrue);
+      },
+      verify: (cubit) {
+        verify(speech.stop).called(1);
+        expect(cubit.state.session, listeningA);
+      },
+    );
+
+    blocTest<ConversationCubit, ConversationState>(
+      'reading slowly may take twice as long per character',
+      build: build,
+      act: (cubit) async {
+        when(
+          () => speech.speak(
+            id: any(named: 'id'),
+            text: any(named: 'text'),
+            languageCode: any(named: 'languageCode'),
+            slow: any(named: 'slow'),
+            allowOnline: any(named: 'allowOnline'),
+          ),
+        ).thenAnswer((invocation) async {
+          if (invocation.namedArguments[#allowOnline] == null) {
+            throw const SpeechUnavailableException('es', cause: _consent);
+          }
+          current = invocation.namedArguments[#id] as String;
+        });
+        await cubit.toggleSession();
+        await hear('Hello');
+        await cubit.speak(0, slow: true, allowOnline: _consent);
+        expect(cubit.state.session, isA<ConversationSessionSpeaking>());
+        expect(timers.pending(_speakingFor('Hello!', slow: true)), isTrue);
+        expect(timers.pending(_speakingFor('Hello!')), isFalse);
+      },
+    );
+
+    blocTest<ConversationCubit, ConversationState>(
+      'switching turns meanwhile listens for the chosen side',
+      build: build,
+      act: (cubit) async {
+        await cubit.toggleSession();
+        neverEnds();
+        await hear('Hello');
+        cubit.switchTurn(ConversationSide.a);
+        timers.fire(_speakingFor('Hello!'));
+        await settle();
+        timers.fire(_echo);
+      },
+      verify: (cubit) {
+        expect(cubit.state.session, listeningA);
+        expect(recognizer.language, english);
+      },
+    );
+  });
+
+  group('screen reader announcements', () {
+    const announcement = 'Spanish: Hello!';
+
+    blocTest<ConversationCubit, ConversationState>(
+      'hold the microphone until they were probably said',
+      build: build,
+      act: (cubit) async {
+        cubit
+          ..setAutoSpeak(enabled: false)
+          ..startSession();
+        await hear('Hello');
+        expect(timers.pending(_echo), isTrue);
+        cubit.announced(announcement);
+        expect(timers.pending(_echo), isFalse);
+        expect(timers.pending(_announcing(announcement)), isTrue);
+        expect(cubit.state.session, listeningB);
+        expect(recognizer.listens, hasLength(1));
+        timers.fire(_announcing(announcement));
+        expect(recognizer.open, isTrue);
+      },
+      verify: (cubit) {
+        expect(recognizer.listens, hasLength(2));
+        expect(recognizer.language, spanish);
+      },
+    );
+
+    blocTest<ConversationCubit, ConversationState>(
+      'close an open microphone until they ended',
+      build: build,
+      act: (cubit) async {
+        cubit.startSession();
+        recognizer.start();
+        await settle();
+        expect(timers.pending(_silence), isTrue);
+        cubit.announced(announcement);
+        expect(recognizer.open, isFalse);
+        expect(cubit.state.session, listeningA);
+        expect(timers.pending(_silence), isFalse);
+        timers.fire(_announcing(announcement));
+        expect(recognizer.open, isTrue);
+      },
+      verify: (cubit) {
+        expect(recognizer.listens, hasLength(2));
+        expect(recognizer.language, english);
+      },
+    );
+
+    blocTest<ConversationCubit, ConversationState>(
+      'change nothing unless the conversation listens',
+      build: build,
+      act: (cubit) => cubit
+        ..announced(announcement)
+        ..announced('  '),
+      expect: () => <ConversationState>[],
+      verify: (_) => expect(timers.timers, isEmpty),
+    );
+
+    blocTest<ConversationCubit, ConversationState>(
+      'stopping meanwhile never opens the microphone',
+      build: build,
+      act: (cubit) async {
+        cubit
+          ..startSession()
+          ..announced(announcement);
+        await cubit.stopSession();
+        timers.fire(_announcing(announcement));
+      },
+      verify: (cubit) {
+        expect(recognizer.open, isFalse);
+        expect(cubit.state.session, ConversationSession.idle);
+      },
+    );
   });
 
   group('switching turns', () {
@@ -856,6 +1185,33 @@ void main() {
     );
 
     blocTest<ConversationCubit, ConversationState>(
+      'background noise does not stop the timeout',
+      build: build,
+      act: (cubit) async {
+        await cubit.toggleSession();
+        recognizer
+          ..start()
+          // Loud relative to the digital silence of the first chunk.
+          ..level(1)
+          ..partial('  ');
+        await settle();
+        expect(timers.pending(_silence), isTrue);
+        timers.fire(_silence);
+      },
+      verify: (cubit) {
+        expect(
+          cubit.state.session,
+          const ConversationSessionPaused(
+            next: ConversationSide.a,
+            reason: ConversationPauseReason.silence,
+          ),
+        );
+        expect(recognizer.open, isFalse);
+        expect(recognizer.listens, hasLength(1));
+      },
+    );
+
+    blocTest<ConversationCubit, ConversationState>(
       'someone speaking stops the timeout; unintelligible speech retries',
       build: build,
       act: (cubit) async {
@@ -865,7 +1221,7 @@ void main() {
           ..level(0.2);
         await settle();
         expect(timers.pending(_silence), isTrue);
-        recognizer.level(0.8);
+        recognizer.speech();
         await settle();
         expect(timers.pending(_silence), isFalse);
         recognizer.say('   ');

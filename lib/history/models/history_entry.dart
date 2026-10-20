@@ -32,6 +32,7 @@ class HistoryEntry extends Equatable {
     this.isFavorite = false,
     this.kind = HistoryEntryKind.translation,
     this.verbosity,
+    this.favoriteOnly = false,
   });
 
   /// Parses an entry written by [toJson].
@@ -90,6 +91,7 @@ class HistoryEntry extends Equatable {
             DictionaryVerbosity.values.asNameMap()[name],
           _ => null,
         },
+        favoriteOnly: json['favoriteOnly'] == true,
       );
     }
     throw FormatException('Invalid history entry', json);
@@ -109,6 +111,14 @@ class HistoryEntry extends Equatable {
   final DateTime createdAt;
   final String? detectedSource;
   final bool isFavorite;
+
+  /// Whether the entry is in the history only as a favourite: it was
+  /// starred while history was paused (incognito, or "Save history" off),
+  /// when nothing else is saved. Taking it out of the favourites deletes it
+  /// (`HistoryRepository.toggleFavorite`), as nothing else would keep it. A
+  /// look-up or translation saved while history is on that updates the
+  /// entry makes it an ordinary one.
+  final bool favoriteOnly;
 
   /// A translation or a dictionary look-up.
   final HistoryEntryKind kind;
@@ -153,6 +163,7 @@ class HistoryEntry extends Equatable {
     bool? isFavorite,
     String? translation,
     String? text,
+    bool? favoriteOnly,
   }) => HistoryEntry(
     id: id ?? this.id,
     text: text ?? this.text,
@@ -166,11 +177,13 @@ class HistoryEntry extends Equatable {
     isFavorite: isFavorite ?? this.isFavorite,
     kind: kind,
     verbosity: verbosity,
+    favoriteOnly: favoriteOnly ?? this.favoriteOnly,
   );
 
   /// [createdAt] is written as a UTC ISO-8601 string. Translations are
   /// written exactly as before kinds existed (no `kind`); dictionary
-  /// look-ups add `"kind": "dictionary"` and their `verbosity`.
+  /// look-ups add `"kind": "dictionary"` and their `verbosity`, and entries
+  /// kept only as favourites `"favoriteOnly": true`.
   Map<String, dynamic> toJson() => {
     'id': id,
     if (isDictionary) 'kind': kind.name,
@@ -184,6 +197,7 @@ class HistoryEntry extends Equatable {
     if (detectedSource != null) 'detectedSource': detectedSource,
     if (isDictionary && verbosity != null) 'verbosity': verbosity!.name,
     'isFavorite': isFavorite,
+    if (favoriteOnly) 'favoriteOnly': true,
   };
 
   @override
@@ -200,6 +214,7 @@ class HistoryEntry extends Equatable {
     isFavorite,
     kind,
     verbosity,
+    favoriteOnly,
   ];
 }
 

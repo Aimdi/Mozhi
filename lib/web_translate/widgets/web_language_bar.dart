@@ -15,6 +15,33 @@ import 'package:mozhi/translate/widgets/translate_layout.dart'
 import 'package:mozhi/web_translate/cubit/web_translate_cubit.dart';
 import 'package:translation_repository/translation_repository.dart';
 
+/// The languages the web page's swap button applies for [state] (the text
+/// translator's): its target becomes the source, and its source the target
+/// — with "Detect language", the language detected for the page
+/// ([detectedSource], `WebTranslateState.detectedSource`), not the one the
+/// translate screen detected for its own text. Both as the engine lists
+/// them. Null when the languages cannot be swapped: a custom target, no
+/// language detected for the page yet, or a language the engine does not
+/// offer on its new side.
+LanguagePair? webSwapPair(TranslateState state, String? detectedSource) {
+  if (!state.canSwap) return null;
+  final Language from;
+  if (state.source.isAuto) {
+    final code = detectedSource?.trim() ?? '';
+    if (code.isEmpty) return null;
+    from = Language(
+      code: code,
+      name: languageNameFor(code, state.sourceLanguages),
+    );
+  } else {
+    from = state.source;
+  }
+  final target = state.usableTarget(from);
+  final source = LanguageMatcher.match(state.target, state.sourceLanguages);
+  if (target == null || source == null) return null;
+  return LanguagePair(source: source, target: target);
+}
+
 /// The web page's bar, like the translate screen's language bar: the
 /// translation options ([OptionsButton]), the languages of the text
 /// translator ([TranslateCubit]: picking or swapping them translates the
@@ -22,8 +49,11 @@ import 'package:translation_repository/translation_repository.dart';
 /// while the page loads, a ring turns around it meanwhile).
 ///
 /// With "Detect language" the source shows the language detected for the
-/// page (with a sparkle), not the one of the translate screen's text.
-/// Long-pressing the swap button opens the recent language pairs.
+/// page (with a sparkle), not the one of the translate screen's text, and
+/// the swap button swaps with it ([webSwapPair]; disabled until it is
+/// detected). Swapping only changes the languages, like picking them: the
+/// translate screen's text stays as it is. Long-pressing the swap button
+/// opens the recent language pairs.
 class WebLanguageBar extends StatelessWidget {
   const new({required this.onGo, super.key});
 
@@ -32,20 +62,23 @@ class WebLanguageBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final (source, target, canSwap, languages) = context
-        .select<TranslateCubit, (Language, Language, bool, List<Language>)>(
-          (cubit) => (
-            cubit.state.source,
-            cubit.state.target,
-            cubit.state.canSwap,
-            cubit.state.sourceLanguages,
-          ),
-        );
     final (detectedCode, loading) = context
         .select<WebTranslateCubit, (String?, bool)>(
           (cubit) => (
             cubit.state.detectedSource,
             cubit.state.status == WebTranslateStatus.loading,
+          ),
+        );
+    final (source, target, swapped, languages) = context
+        .select<
+          TranslateCubit,
+          (Language, Language, LanguagePair?, List<Language>)
+        >(
+          (cubit) => (
+            cubit.state.source,
+            cubit.state.target,
+            webSwapPair(cubit.state, detectedCode),
+            cubit.state.sourceLanguages,
           ),
         );
     final detected = source.isAuto && detectedCode != null
@@ -84,7 +117,12 @@ class WebLanguageBar extends StatelessWidget {
       middle: LanguageSwapButton(
         key: const Key('web_translate_swap_button'),
         tooltip: l10n.translateSwapLanguages,
-        onPressed: canSwap ? context.read<TranslateCubit>().swap : null,
+        // Only the languages: not `TranslateCubit.swap`, which uses the
+        // translate screen's detection and moves its translation into its
+        // input.
+        onPressed: swapped == null
+            ? null
+            : () => context.read<TranslateCubit>().applyLanguagePair(swapped),
         onLongPress: () => unawaited(showRecentPairsSheet(context)),
         longPressHint: l10n.translateRecentPairsShow,
       ),

@@ -20,7 +20,7 @@ sys.path.insert(0, str(TOOL.parent))
 
 import check_page_size  # noqa: E402
 
-AARCH64, X86_64, ARM = 183, 62, 40
+AARCH64, X86_64, ARM, X86 = 183, 62, 40, 3
 PT_LOAD, PT_DYNAMIC = 1, 2
 
 
@@ -184,6 +184,37 @@ class CheckPageSizeTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("libnothing.so has no LOAD segments", result.stdout)
 
+    def test_unreadable_32_bit_libraries_never_fail(self) -> None:
+        apk = self.root / "old.apk"
+        write_archive(
+            apk,
+            [
+                ("lib/arm64-v8a/libok.so", elf([0x4000]), "aligned"),
+                ("lib/armeabi-v7a/libtext.so", b"INPUT(-lc)\n", "deflated"),
+                # The program header table ends past the end of the file.
+                ("lib/x86/libcut.so", elf([0x1000], bits=32, machine=X86)[:100], "stored"),
+            ],
+        )
+        result = self.run_tool(apk)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("1 64-bit and 2 32-bit libraries", result.stdout)
+        self.assertIn("lib/arm64-v8a/libok.so: LOAD align 0x4000, ok", result.stdout)
+        self.assertIn(
+            "lib/armeabi-v7a/libtext.so: unreadable (not an ELF file), not checked (32-bit)", result.stdout
+        )
+        self.assertIn(
+            "lib/x86/libcut.so: unreadable (truncated program header table), not checked (32-bit)", result.stdout
+        )
+        self.assertNotIn("::error", result.stdout)
+        self.assertEqual(result.stderr, "")
+
+        single = self.root / "libcut32.so"
+        single.write_bytes(elf([0x4000], bits=32, machine=ARM)[:100])
+        [library] = check_page_size.check(single)
+        self.assertEqual(library.abi, "armeabi-v7a")
+        self.assertEqual(library.unreadable, "truncated program header table")
+        self.assertEqual(self.run_tool(single).returncode, 0)
+
     def test_apk_without_native_code_passes(self) -> None:
         apk = self.root / "java.apk"
         write_archive(apk, [("classes.dex", b"dex\n035\0", "deflated")])
@@ -200,7 +231,13 @@ class CheckPageSizeTest(unittest.TestCase):
         write_archive(truncated, [("lib/arm64-v8a/libcut.so", elf([0x4000])[:40], "deflated")])
         result = self.run_tool(truncated)
         self.assertEqual(result.returncode, 2)
-        self.assertIn("not an ELF file", result.stderr)
+        self.assertIn("lib/arm64-v8a/libcut.so: not an ELF file", result.stderr)
+
+        headers = self.root / "headers.apk"
+        write_archive(headers, [("lib/x86_64/libcut.so", elf([0x4000], machine=X86_64)[:100], "deflated")])
+        result = self.run_tool(headers)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("lib/x86_64/libcut.so: truncated program header table", result.stderr)
 
         self.assertEqual(self.run_tool(self.root / "missing.apk").returncode, 2)
 

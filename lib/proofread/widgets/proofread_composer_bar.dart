@@ -79,28 +79,33 @@ class ProofreadOptionsButton extends StatelessWidget {
 }
 
 /// The proofreading options in a bottom sheet: correction level, style,
-/// formality, reading level, region, model and context.
+/// formality, reading level, region, model and context. It stays above the
+/// keyboard (the bottom sheet does not avoid it), scrolling when it does
+/// not fit.
 class ProofreadOptionsSheet extends StatelessWidget {
   const new({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      key: const Key('proofread_options_sheet'),
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: 20,
-        children: [
-          Semantics(
-            header: true,
-            child: Text(
-              context.l10n.proofreadOptionsTitle,
-              style: TranslateLayout.sectionHeadingStyle(context),
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: SingleChildScrollView(
+        key: const Key('proofread_options_sheet'),
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: 20,
+          children: [
+            Semantics(
+              header: true,
+              child: Text(
+                context.l10n.proofreadOptionsTitle,
+                style: TranslateLayout.sectionHeadingStyle(context),
+              ),
             ),
-          ),
-          const ProofreadControls(),
-        ],
+            const ProofreadControls(),
+          ],
+        ),
       ),
     );
   }

@@ -39,13 +39,27 @@ ConversationRecognizer? speechInputConversationRecognizer(
 ///
 /// Failures to start are read from [SpeechInputService.state] like
 /// `VoiceInputButton` does (the service does not repeat an unchanged
-/// state). A session that ends without a result is reported as
-/// [ConversationHeardEnd], `interrupted` when another owner took the
-/// microphone over.
+/// state). When the microphone closes without a result the utterance
+/// waits [finalResultGrace] for it (Android reports the end of listening
+/// before the final result); a session that ends without a result is
+/// reported as [ConversationHeardEnd], `interrupted` when another owner
+/// took the microphone over. [ConversationHeardSpeech] follows
+/// [SpeechInputListening.heardSpeech] (words, or the voice activity
+/// detection of an on-device recogniser), not the loudness.
+///
+/// `timer` creates the grace timers (default [Timer.new]); tests pass fake
+/// ones.
 class SpeechInputConversationRecognizer implements ConversationRecognizer {
-  new(this._service);
+  new(this._service, {Timer Function(Duration, void Function())? timer})
+    : _timer = timer ?? Timer.new;
+
+  /// How long an utterance whose microphone closed waits for its final
+  /// result: a little longer than `speech_to_text`'s final timeout (2 s),
+  /// after which it delivers the last words as the final result.
+  static const finalResultGrace = Duration(milliseconds: 2500);
 
   final SpeechInputService _service;
+  final Timer Function(Duration duration, void Function() callback) _timer;
   _Utterance? _current;
   bool _disposed = false;
 
@@ -127,6 +141,11 @@ class SpeechInputConversationRecognizer implements ConversationRecognizer {
             ..level = state.level
             ..add(ConversationHeardLevel(state.level));
         }
+        if (state.heardSpeech && !utterance.heardSpeech) {
+          utterance
+            ..heardSpeech = true
+            ..add(const ConversationHeardSpeech());
+        }
       case SpeechInputTranscribing() when state.isOwnedBy(utterance):
         utterance
           ..active = true
@@ -145,10 +164,23 @@ class SpeechInputConversationRecognizer implements ConversationRecognizer {
             _failure(failure ?? SpeechInputFailure.recognizerUnavailable),
           );
         }
-      case SpeechInputIdle() || SpeechInputError():
-        // Ended without a final result (results arrive before the state).
+      case SpeechInputIdle():
+        // The microphone closed. The final result may still follow:
+        // Android reports `notListening` before it.
+        if (utterance.active) _awaitFinalResult(utterance);
+      case SpeechInputError():
+        // Someone else's session failed: ours is over.
         if (utterance.active) _finish(utterance, const ConversationHeardEnd());
     }
+  }
+
+  /// Waits [finalResultGrace] for [utterance]'s final result (or error);
+  /// without one it ended without a result.
+  void _awaitFinalResult(_Utterance utterance) {
+    utterance.grace ??= _timer(
+      finalResultGrace,
+      () => _finish(utterance, const ConversationHeardEnd()),
+    );
   }
 
   void _onResult(_Utterance utterance, SpeechInputResult result) {
@@ -203,6 +235,12 @@ final class _Utterance {
   bool closed = false;
   double level = 0;
 
+  /// [ConversationHeardSpeech] was reported.
+  bool heardSpeech = false;
+
+  /// Runs while the closed microphone's final result is awaited.
+  Timer? grace;
+
   void add(ConversationHearing event) {
     if (!closed) events.add(event);
   }
@@ -210,6 +248,7 @@ final class _Utterance {
   Future<void> close() async {
     if (closed) return;
     closed = true;
+    grace?.cancel();
     // Not awaited: it only completes once a listener has seen the end.
     unawaited(events.close());
     await states?.cancel();

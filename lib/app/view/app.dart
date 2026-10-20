@@ -73,6 +73,7 @@ class _AppState extends State<App> {
       repository: _deps.historyRepository,
       maxAge: _settingsCubit.state.historyRetention.maxAge,
       incognito: _settingsCubit.state.incognito,
+      saveHistory: _settingsCubit.state.saveHistory,
     );
     // Before anything can send text: the privacy settings guard every
     // request of the repository.

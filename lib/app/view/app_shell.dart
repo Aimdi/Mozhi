@@ -60,6 +60,12 @@ class AppDestination {
 /// The bottom bar hides its labels visually only: each destination keeps
 /// its name as its semantic label and tooltip.
 ///
+/// The app is drawn edge to edge (Android 10+), and the shell keeps every
+/// tab clear of the system bars below and beside it: the bottom bar and the
+/// sidebar avoid them on their side, and the tab ([child]) on the other
+/// sides but the top, which its app bar covers. The sidebar follows the
+/// text direction (on the right in right-to-left languages).
+///
 /// The destinations are shown in [order] (by default the user's order,
 /// `AppSettings.tabOrder`, from the [SettingsCubit] above, else the
 /// default order). [selectedIndex] and [onDestinationSelected] always use
@@ -113,7 +119,9 @@ class AppShell extends StatelessWidget {
 
     if (width < kExpandedBreakpoint) {
       return Scaffold(
-        body: child,
+        // The bar keeps clear of the system's navigation bar below; the tab
+        // of the one at a side (three-button navigation in landscape).
+        body: SafeArea(top: false, bottom: false, child: child),
         // Pages pad their own last rows for an opaque bar, so content does
         // not scroll under it: no blur needed behind the translucent bar.
         bottomNavigationBar: BlurBar(
@@ -137,6 +145,8 @@ class AppShell extends StatelessWidget {
 
     final extended = width >= extendedBreakpoint;
     final theme = Theme.of(context);
+    // The sidebar is at the start: on the right in right-to-left languages.
+    final rtl = Directionality.of(context) == TextDirection.rtl;
     return Scaffold(
       body: Row(
         children: [
@@ -145,7 +155,8 @@ class AppShell extends StatelessWidget {
                 theme.navigationRailTheme.backgroundColor ??
                 theme.colorScheme.surface,
             child: SafeArea(
-              right: false,
+              left: !rtl,
+              right: rtl,
               child: NavigationRail(
                 selectedIndex: selectedPosition,
                 onDestinationSelected: select,
@@ -176,7 +187,17 @@ class AppShell extends StatelessWidget {
             ),
           ),
           const Hairline(vertical: true),
-          Expanded(child: child),
+          Expanded(
+            // The sidebar keeps clear of its side and the app bars of the
+            // top: the tab avoids the system bars below and at the far
+            // side (the docked composers, the language bars).
+            child: MediaQuery.removePadding(
+              context: context,
+              removeLeft: !rtl,
+              removeRight: rtl,
+              child: SafeArea(top: false, child: child),
+            ),
+          ),
         ],
       ),
     );

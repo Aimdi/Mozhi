@@ -91,6 +91,9 @@ class DictionaryCubit extends Cubit<DictionaryState> {
   /// [lookUp] was called while no engine was available.
   bool _pending = false;
 
+  /// The last [toggleFavorite] (taps run one after the other).
+  Future<void> _favorite = Future.value();
+
   static TranslationEngine? _usable(TranslationEngine? engine) =>
       engine != null && engine.supportsExtras ? engine : null;
 
@@ -232,7 +235,16 @@ class DictionaryCubit extends Cubit<DictionaryState> {
   /// (also with history off or in incognito: starring is an explicit save,
   /// as for translations). Does nothing without a shown entry (or a
   /// history).
-  Future<void> toggleFavorite() async {
+  ///
+  /// A toggle starts once the previous one is done, so a quick second tap
+  /// (before the new favourite is in the history) takes it out again
+  /// rather than saving it twice.
+  Future<void> toggleFavorite() {
+    final next = _favorite.then((_) => _toggleFavorite());
+    return _favorite = next;
+  }
+
+  Future<void> _toggleFavorite() async {
     final history = _history;
     final entry = state.entry;
     final engine = _entryEngine;

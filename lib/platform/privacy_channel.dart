@@ -11,6 +11,8 @@ import 'package:flutter/services.dart';
 /// * `isActiveNetworkMetered()` -> `Boolean`:
 ///   `ConnectivityManager.isActiveNetworkMetered()` (true when there is no
 ///   network or the app may not ask; see `MeteredNetwork`).
+/// * `sdkInt()` -> `Int`: `Build.VERSION.SDK_INT`, the Android API level
+///   (see `androidSdkInt`; the system bars depend on it).
 const privacyChannelName = 'io.github.aimdi.mozhi/privacy';
 
 /// The [MethodChannel] named [privacyChannelName] on [messenger] (the

@@ -350,6 +350,31 @@ void main() {
       expect(lookup('three', entries), isNull);
     });
 
+    test('dictionary look-ups do not count towards maxEntries', () {
+      memory = TranslationMemory(maxEntries: 2);
+      HistoryEntry lookUp(String id) => HistoryEntry(
+        id: 'dictionary:$id',
+        kind: HistoryEntryKind.dictionary,
+        text: 'word $id',
+        translation: 'noun · A word.',
+        source: Language.auto,
+        target: _de,
+        engineId: 'ai:claude',
+        engineName: 'Claude',
+        createdAt: _now,
+      );
+      final entries = [
+        lookUp('1'),
+        lookUp('2'),
+        lookUp('3'),
+        _entry('1', text: 'one'),
+        _entry('2', text: 'two'),
+        _entry('3', text: 'three'),
+      ];
+      expect(lookup('two', entries)?.entry, entries[4]);
+      expect(lookup('three', entries), isNull);
+    });
+
     test('retention: expired non-favourites are skipped', () {
       final old = _entry('1', text: 'hello', age: const Duration(days: 8));
       final starred = _entry(
