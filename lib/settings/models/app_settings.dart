@@ -41,7 +41,7 @@ class AppSettings extends Equatable {
   const new({
     this.themeMode = ThemeMode.system,
     this.dynamicColor = true,
-    this.pureBlack = false,
+    this.pureBlack = true,
     this.seedColor = 0xFF1D9BF0,
     this.instances = MozhiInstance.publicInstances,
     this.providers = const [],
@@ -170,8 +170,9 @@ class AppSettings extends Equatable {
   /// available; surfaces stay neutral either way.
   final bool dynamicColor;
 
-  /// The dark look: "Lights out" (true black, AMOLED-friendly) when true,
-  /// "Dim" (dark blue-grey) when false.
+  /// The dark look: "Lights out" (true black, AMOLED-friendly; the
+  /// default) when true, "Dim" (dark blue-grey) when false. Saved settings
+  /// always store it, so a stored choice is kept.
   final bool pureBlack;
 
   /// ARGB accent colour when [dynamicColor] is off/unavailable.

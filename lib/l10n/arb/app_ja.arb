@@ -1501,5 +1501,6 @@
   "conversationHeroHint": "マイクをタップして開始・停止",
   "conversationHeroMicLanguage": "{language}で話す",
   "dictionaryHeroTitle": "これはどういう意味？",
-  "proofreadHeroTitle": "これで合っていますか？"
+  "proofreadHeroTitle": "これで合っていますか？",
+  "settingsColorLavender": "ラベンダー"
 }

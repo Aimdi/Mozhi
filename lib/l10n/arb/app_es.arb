@@ -1501,5 +1501,6 @@
   "conversationHeroHint": "Toca el micrófono para empezar o parar",
   "conversationHeroMicLanguage": "Habla en {language}",
   "dictionaryHeroTitle": "¿Qué significa esto?",
-  "proofreadHeroTitle": "¿Está bien así?"
+  "proofreadHeroTitle": "¿Está bien así?",
+  "settingsColorLavender": "Lavanda"
 }

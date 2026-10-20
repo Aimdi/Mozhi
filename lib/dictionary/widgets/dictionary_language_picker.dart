@@ -134,13 +134,6 @@ class _DictionaryLanguagePickerState extends State<DictionaryLanguagePicker> {
                           setState(() => _query = '');
                         },
                       ),
-                filled: true,
-                // A filled pill: the label floats inside it (an outline border
-                // would put the label across its top edge).
-                border: const UnderlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(28)),
-                  borderSide: BorderSide.none,
-                ),
               ),
             ),
           ),

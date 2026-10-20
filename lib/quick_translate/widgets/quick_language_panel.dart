@@ -106,12 +106,7 @@ class _QuickLanguagePanelState extends State<QuickLanguagePanel> {
                       setState(() => _query = '');
                     },
                   ),
-            filled: true,
             isDense: true,
-            border: const OutlineInputBorder(
-              borderRadius: BorderRadius.all(Radius.circular(28)),
-              borderSide: BorderSide.none,
-            ),
           ),
         ),
         const SizedBox(height: 12),

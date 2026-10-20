@@ -55,7 +55,8 @@ const DisplayFeature duoHinge = DisplayFeature(
   state: DisplayFeatureState.unknown,
 );
 
-/// The app's themes with the default settings (accent, "Dim" dark look).
+/// The app's themes with the default settings (accent, "Lights out" dark
+/// look).
 final AppThemes goldenThemes = AppThemes.fromSettings(const AppSettings());
 
 /// The app theme of [brightness].

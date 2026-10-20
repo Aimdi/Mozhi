@@ -190,11 +190,6 @@ class _DocumentLanguageSheetState extends State<DocumentLanguageSheet> {
               decoration: InputDecoration(
                 hintText: l10n.documentsSearchLanguages,
                 prefixIcon: const Icon(Icons.search),
-                filled: true,
-                border: const OutlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(28)),
-                  borderSide: BorderSide.none,
-                ),
               ),
             ),
           ),

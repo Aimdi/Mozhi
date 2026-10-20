@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/network/network_policy.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
@@ -428,7 +429,7 @@ class _UnavailableBanner extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           border: Border.all(color: palette.hairline),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: AppRadius.cardBorderRadius,
         ),
         child: Padding(
           padding: const EdgeInsets.all(16),

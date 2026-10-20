@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/usage/cubit/usage_cubit.dart';
@@ -84,7 +85,7 @@ class UsageCardView extends StatelessWidget {
       key: const Key('usage_card'),
       decoration: BoxDecoration(
         border: Border.all(color: palette.hairline),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: AppRadius.cardBorderRadius,
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -263,7 +264,7 @@ class UsageLevelBadge extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: const BorderRadius.all(Radius.circular(AppRadius.badge)),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),

@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -25,8 +26,12 @@ abstract final class TranslateLayout {
   static const double paneGap = 48;
 
   /// Radius of the few outlined boxes (a quoted earlier translation, the
-  /// compare entries): X's quoted-post card.
-  static const double cardRadius = 16;
+  /// compare entries): X's quoted-post card, as round as the app's cards
+  /// ([AppRadius.card]).
+  static const double cardRadius = AppRadius.card;
+
+  /// Radius of the empty screen's composer card ([AppRadius.sheet]).
+  static const double composerRadius = AppRadius.sheet;
 
   /// Inner padding of the input and output (start edge).
   static const double cardPadding = 4;
@@ -76,10 +81,18 @@ abstract final class TranslateLayout {
   /// Surface of the output: the page itself, like the input.
   static Color outputSurface(ColorScheme scheme) => scheme.surface;
 
-  /// Bold heading style of the flat sections ("Refine & learn").
+  /// Bold sub-heading style inside panels and sheets ("Style" in the
+  /// options sheet, the meaning check): the text theme's `titleMedium`.
   static TextStyle? headingStyle(BuildContext context) =>
       Theme.of(context).textTheme.titleMedium
           ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.2);
+
+  /// Bold heading style of the flat sections of the translate screen
+  /// ("Refine & learn"): the text theme's `titleLarge`, like the settings
+  /// sections.
+  static TextStyle? sectionHeadingStyle(BuildContext context) =>
+      Theme.of(context).textTheme.titleLarge
+          ?.copyWith(fontWeight: FontWeight.w800);
 }
 
 /// Material's fade-through between the states of one area (the empty
@@ -151,7 +164,7 @@ enum TranslateCardLook {
   /// No box and no line (input and output).
   plain,
 
-  /// A 16 px hairline-outlined box without fill (X's quoted post).
+  /// A rounded hairline-outlined box without fill (X's quoted post).
   quote,
 }
 
@@ -294,13 +307,13 @@ class TranslateSectionHeader extends StatelessWidget {
         child: Row(
           children: [
             if (icon != null) ...[
-              Icon(icon, size: 20, color: theme.colorScheme.primary),
+              Icon(icon, size: 22, color: theme.colorScheme.primary),
               const SizedBox(width: 8),
             ],
             Expanded(
               child: Text(
                 title,
-                style: TranslateLayout.headingStyle(context)
+                style: TranslateLayout.sectionHeadingStyle(context)
                     ?.copyWith(color: theme.colorScheme.onSurface),
               ),
             ),

@@ -1501,5 +1501,6 @@
   "conversationHeroHint": "தொடங்க அல்லது நிறுத்த மைக்ரோஃபோனைத் தட்டவும்",
   "conversationHeroMicLanguage": "{language} மொழியில் பேசுங்கள்",
   "dictionaryHeroTitle": "இதன் அர்த்தம் என்ன?",
-  "proofreadHeroTitle": "இது சரியாக இருக்கிறதா?"
+  "proofreadHeroTitle": "இது சரியாக இருக்கிறதா?",
+  "settingsColorLavender": "லாவெண்டர்"
 }

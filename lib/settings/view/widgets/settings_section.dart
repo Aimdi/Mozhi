@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 
 /// Horizontal padding that keeps content at most [maxWidth] wide and
@@ -41,7 +42,6 @@ class SettingsSection extends StatelessWidget {
       title,
       style: theme.textTheme.titleLarge?.copyWith(
         color: theme.colorScheme.onSurface,
-        fontSize: 20,
         fontWeight: FontWeight.w800,
       ),
     );
@@ -195,7 +195,9 @@ class StatusBadge extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: background,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: const BorderRadius.all(
+            Radius.circular(AppRadius.badge),
+          ),
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),

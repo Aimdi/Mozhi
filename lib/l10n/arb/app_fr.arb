@@ -1501,5 +1501,6 @@
   "conversationHeroHint": "Touchez le micro pour commencer ou arrêter",
   "conversationHeroMicLanguage": "Parlez {language}",
   "dictionaryHeroTitle": "Qu’est-ce que ça veut dire ?",
-  "proofreadHeroTitle": "Est-ce que c’est correct ?"
+  "proofreadHeroTitle": "Est-ce que c’est correct ?",
+  "settingsColorLavender": "Lavande"
 }

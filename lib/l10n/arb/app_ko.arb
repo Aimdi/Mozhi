@@ -1501,5 +1501,6 @@
   "conversationHeroHint": "마이크를 탭하여 시작하거나 중지하세요",
   "conversationHeroMicLanguage": "{language}로 말하기",
   "dictionaryHeroTitle": "이게 무슨 뜻일까요?",
-  "proofreadHeroTitle": "이렇게 쓰는 게 맞을까요?"
+  "proofreadHeroTitle": "이렇게 쓰는 게 맞을까요?",
+  "settingsColorLavender": "라벤더"
 }

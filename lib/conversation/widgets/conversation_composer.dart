@@ -88,11 +88,11 @@ class _ConversationComposerState extends State<ConversationComposer> {
                 textInputAction: TextInputAction.send,
                 textCapitalization: TextCapitalization.sentences,
                 onSubmitted: (_) => _submit(),
+                // The theme's outlined, rounded field (no fill), like the
+                // other text fields.
                 decoration: InputDecoration(
                   hintText: l10n.conversationInputHint(language.name),
                   hintStyle: TextStyle(color: palette.secondaryText),
-                  filled: true,
-                  fillColor: theme.colorScheme.surfaceContainerHigh,
                   prefixIcon: Padding(
                     padding: const EdgeInsetsDirectional.only(start: 8, end: 8),
                     child: LanguageAvatar(
@@ -109,18 +109,6 @@ class _ConversationComposerState extends State<ConversationComposer> {
                     12,
                     20,
                     12,
-                  ),
-                  border: const OutlineInputBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(28)),
-                    borderSide: BorderSide.none,
-                  ),
-                  enabledBorder: const OutlineInputBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(28)),
-                    borderSide: BorderSide.none,
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: const BorderRadius.all(Radius.circular(28)),
-                    borderSide: BorderSide(color: theme.colorScheme.primary),
                   ),
                 ),
               ),

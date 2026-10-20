@@ -116,9 +116,6 @@ class _ConversationLanguagePickerState
                 decoration: InputDecoration(
                   hintText: l10n.conversationSearchLanguages,
                   prefixIcon: const Icon(Icons.search),
-                  border: const OutlineInputBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(28)),
-                  ),
                 ),
               ),
             ),

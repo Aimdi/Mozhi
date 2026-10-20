@@ -159,6 +159,56 @@ void main() {
       expect(light.onPrimary, white);
     });
 
+    test('Lavender: the pastel on dark, a darker violet on white', () {
+      const lavender = Color(0xFFC4B5FD);
+      expect(
+        AccentColorOption.options.map((o) => o.argb),
+        contains(lavender.toARGB32()),
+      );
+      for (final black in [false, true]) {
+        final dark = scheme(Brightness.dark, seed: lavender, pureBlack: black);
+        // Light enough to read as text on Dim and Lights out as it is.
+        expect(dark.primary, lavender);
+        expect(
+          contrastRatio(dark.primary, dark.surface),
+          greaterThanOrEqualTo(kTextContrast),
+        );
+        // Filled with the pastel, buttons carry near-black text.
+        expect(dark.onPrimary, const Color(0xFF0F1419));
+        expect(
+          contrastRatio(dark.onPrimary, dark.primary),
+          greaterThanOrEqualTo(kTextContrast),
+        );
+      }
+      // Too light for white: a darker shade of the same hue.
+      final light = scheme(Brightness.light, seed: lavender);
+      expect(contrastRatio(lavender, white), lessThan(2));
+      expect(
+        contrastRatio(light.primary, white),
+        greaterThanOrEqualTo(kTextContrast),
+      );
+      expect(hue(light.primary), closeTo(hue(lavender), 1));
+      expect(
+        HSLColor.fromColor(light.primary).lightness,
+        lessThan(HSLColor.fromColor(lavender).lightness),
+      );
+      expect(light.onPrimary, white);
+      // Icons on white (switch track, FAB) get 3:1 too.
+      final theme = buildAppTheme(scheme(Brightness.dark, seed: lavender));
+      expect(
+        contrastRatio(white, theme.floatingActionButtonTheme.backgroundColor!),
+        greaterThanOrEqualTo(kNonTextContrast),
+      );
+    });
+
+    test('a too light seed is darkened the same way (Yellow)', () {
+      const yellow = Color(0xFFFFD400);
+      final light = scheme(Brightness.light, seed: yellow);
+      expect(contrastRatio(light.primary, white), greaterThanOrEqualTo(4.5));
+      expect(hue(light.primary), closeTo(hue(yellow), 1));
+      expect(scheme(Brightness.dark, seed: yellow).primary, yellow);
+    });
+
     test('a dark accent keeps dark text off it in dark mode', () {
       // Raw blue is too light for white text: onPrimary turns dark.
       final dim = scheme(Brightness.dark);
@@ -306,12 +356,23 @@ void main() {
       expect(theme.extension<AppPalette>(), palette);
     });
 
-    test('bold typography', () {
+    test('bold, larger headings (Kagi-sized page titles and sections)', () {
       final text = light.textTheme;
-      expect(text.titleLarge?.fontSize, 20);
+      expect(text.headlineLarge?.fontSize, AppTypeScale.headlineLarge);
+      expect(text.headlineMedium?.fontSize, AppTypeScale.headlineMedium);
+      expect(text.headlineSmall?.fontSize, AppTypeScale.headlineSmall);
+      expect(text.titleLarge?.fontSize, AppTypeScale.titleLarge);
+      expect(text.titleMedium?.fontSize, AppTypeScale.titleMedium);
+      expect(text.headlineMedium?.fontSize, 30);
+      expect(text.headlineSmall?.fontSize, 26);
+      expect(text.titleLarge?.fontSize, 22);
       expect(text.titleLarge?.fontWeight, FontWeight.w800);
       expect(text.titleLarge?.letterSpacing, lessThan(0));
       expect(text.titleMedium?.fontWeight, FontWeight.w700);
+      // Control labels (titleSmall) keep Material's size: the theme sets
+      // none, the platform's type geometry does (14).
+      expect(text.titleSmall?.fontSize, isNull);
+      expect(text.titleSmall?.fontWeight, FontWeight.w700);
       for (final style in [
         text.displayLarge,
         text.displayMedium,
@@ -376,29 +437,60 @@ void main() {
       final chips = light.chipTheme;
       expect(chips.shape, const StadiumBorder());
       expect(chips.showCheckmark, isTrue);
+      expect(resolve(light.searchBarTheme.shape), const StadiumBorder());
       expect(chips.backgroundColor, Colors.transparent);
       final side = chips.side! as WidgetStateBorderSide;
       expect(side.resolve({})?.color, colors.outline);
       expect(side.resolve({WidgetState.selected})?.color, colors.primary);
     });
 
-    test('cards are flat hairline boxes', () {
+    test('cards are flat, rounded hairline boxes', () {
       expect(light.cardTheme.elevation, 0);
       expect(light.cardTheme.color, white);
       expect(
         light.cardTheme.shape,
         const RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(kCardRadius)),
+          borderRadius: BorderRadius.all(Radius.circular(AppRadius.card)),
           side: BorderSide(color: Color(0xFFEFF3F4)),
         ),
       );
     });
 
-    test('inputs are outlined with a 2 px accent focus', () {
+    test('the radius tokens grow from badges to sheets', () {
+      expect(AppRadius.badge, lessThan(AppRadius.menu));
+      expect(AppRadius.menu, lessThan(AppRadius.field));
+      expect(AppRadius.field, lessThan(AppRadius.card));
+      expect(AppRadius.card, lessThan(AppRadius.sheet));
+      expect(AppRadius.field, inInclusiveRange(20, 28));
+      expect(AppRadius.card, inInclusiveRange(20, 28));
+      expect(AppRadius.sheet, inInclusiveRange(20, 28));
+      expect(kCardRadius, AppRadius.card);
+      expect(kSheetRadius, AppRadius.sheet);
+      expect(kChipRadius, AppRadius.badge);
+      expect(AppRadius.cardBorderRadius, BorderRadius.circular(AppRadius.card));
+      expect(
+        AppRadius.fieldBorderRadius,
+        BorderRadius.circular(AppRadius.field),
+      );
+    });
+
+    test('inputs are rounded outlines with a 2 px accent focus', () {
       final inputs = light.inputDecorationTheme;
       expect(inputs.filled, isFalse);
       final enabled = inputs.enabledBorder! as OutlineInputBorder;
-      expect(enabled.borderRadius, BorderRadius.circular(8));
+      expect(enabled.borderRadius, BorderRadius.circular(AppRadius.field));
+      for (final border in [
+        inputs.border,
+        inputs.disabledBorder,
+        inputs.focusedBorder,
+        inputs.errorBorder,
+        inputs.focusedErrorBorder,
+      ]) {
+        expect(
+          (border! as OutlineInputBorder).borderRadius,
+          AppRadius.fieldBorderRadius,
+        );
+      }
       expect(enabled.borderSide.color, const Color(0xFFCFD9DE));
       final focused = inputs.focusedBorder! as OutlineInputBorder;
       expect(focused.borderSide.width, 2);
@@ -435,11 +527,13 @@ void main() {
       expect(tabs.dividerColor, const Color(0xFFEFF3F4));
     });
 
-    test('app bars: surface, bold title, hairline, no tint', () {
+    test('app bars: surface, big bold title, hairline, no tint', () {
       final bar = light.appBarTheme;
       expect(bar.backgroundColor, white);
       expect(bar.surfaceTintColor, Colors.transparent);
       expect(bar.titleTextStyle?.fontWeight, FontWeight.w800);
+      expect(bar.titleTextStyle?.fontSize, AppTypeScale.headlineSmall);
+      expect(bar.titleTextStyle?.color, colors.onSurface);
       expect(
         bar.shape,
         const Border(bottom: BorderSide(color: Color(0xFFEFF3F4))),
@@ -469,6 +563,9 @@ void main() {
       expect(rail.indicatorColor, Colors.transparent);
       expect(rail.selectedLabelTextStyle?.fontWeight, FontWeight.w800);
       expect(rail.unselectedLabelTextStyle?.fontWeight, FontWeight.w400);
+      // Labels, not headings: they keep Material's size.
+      expect(rail.selectedLabelTextStyle?.fontSize, 16);
+      expect(rail.unselectedLabelTextStyle?.fontSize, 16);
     });
 
     test('switches: accent track, white thumb, no icon', () {
@@ -489,22 +586,45 @@ void main() {
     test('lists, sheets, dialogs, snack bars and progress', () {
       expect(light.listTileTheme.shape, const RoundedRectangleBorder());
       expect(light.listTileTheme.iconColor, const Color(0xFF536471));
+      // Hairline edges: in Lights out a black sheet would otherwise melt
+      // into the dimmed black page.
       expect(
-        light.bottomSheetTheme.shape,
+        black.bottomSheetTheme.shape,
         const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(AppRadius.sheet),
+          ),
+          side: BorderSide(color: Color(0xFF2F3336)),
         ),
       );
       expect(light.bottomSheetTheme.backgroundColor, white);
       expect(light.dialogTheme.backgroundColor, white);
       expect(light.dialogTheme.titleTextStyle?.fontWeight, FontWeight.w800);
       expect(
+        light.dialogTheme.titleTextStyle?.fontSize,
+        AppTypeScale.titleLarge,
+      );
+      expect(
         light.dialogTheme.shape,
         const RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(16)),
+          borderRadius: BorderRadius.all(Radius.circular(AppRadius.sheet)),
+          side: BorderSide(color: Color(0xFFEFF3F4)),
+        ),
+      );
+      expect(
+        light.popupMenuTheme.shape,
+        const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(AppRadius.menu)),
+          side: BorderSide(color: Color(0xFFEFF3F4)),
         ),
       );
       final snack = light.snackBarTheme;
+      expect(
+        snack.shape,
+        const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(AppRadius.menu)),
+        ),
+      );
       expect(snack.behavior, SnackBarBehavior.floating);
       expect(snack.backgroundColor, colors.inverseSurface);
       expect(light.progressIndicatorTheme.color, colors.primary);
@@ -524,7 +644,7 @@ void main() {
       brightness: Brightness.dark,
     );
 
-    test('defaults to the X blue accent', () {
+    test('defaults to the X blue accent and Lights out', () {
       expect(const AppSettings().seedColor, 0xFF1D9BF0);
       final themes = AppThemes.fromSettings(
         const AppSettings(dynamicColor: false),
@@ -532,7 +652,7 @@ void main() {
       expect(themes.light.brightness, Brightness.light);
       expect(themes.dark.brightness, Brightness.dark);
       expect(themes.dark.colorScheme.primary, blue);
-      expect(themes.dark.colorScheme.surface, const Color(0xFF15202B));
+      expect(themes.dark.colorScheme.surface, const Color(0xFF000000));
       expect(themes.light.colorScheme.surface, white);
     });
 
@@ -564,9 +684,22 @@ void main() {
       expect(themes.dark.colorScheme.primary, const Color(0xFF00BA7C));
     });
 
+    test('Dim when pure black is off', () {
+      final themes = AppThemes.fromSettings(
+        const AppSettings(pureBlack: false),
+        darkDynamic: darkDynamic,
+      );
+      expect(themes.dark.colorScheme.surface, const Color(0xFF15202B));
+      expect(
+        themes.dark.extension<AppPalette>()?.hairline,
+        const Color(0xFF38444D),
+      );
+      expect(themes.light.colorScheme.surface, white);
+    });
+
     test('Lights out applies to the dark theme only', () {
       final themes = AppThemes.fromSettings(
-        const AppSettings(pureBlack: true),
+        const AppSettings(),
         darkDynamic: darkDynamic,
       );
       expect(themes.dark.colorScheme.surface, const Color(0xFF000000));

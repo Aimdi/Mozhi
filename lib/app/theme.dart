@@ -2,14 +2,46 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 
-/// Corner radius used by flat cards (a hairline box, no fill).
-const double kCardRadius = 16;
+/// Corner radii (logical pixels) shared by the screens, in the soft,
+/// rounded style of Kagi Translate: chips, buttons and other controls are
+/// pills ([StadiumBorder]); boxes use these. Use them instead of ad-hoc
+/// radii so shapes stay consistent.
+abstract final class AppRadius {
+  /// Small badges and tags inside a row (not controls: those are pills).
+  static const double badge = 8;
 
-/// Corner radius of small badges, menus and text fields.
-const double kChipRadius = 8;
+  /// Menus, pop-ups, snack bars and small boxes nested in a row or card.
+  static const double menu = 16;
+
+  /// Text and search fields.
+  static const double field = 20;
+
+  /// Cards and outlined boxes (a hairline box, no fill).
+  static const double card = 24;
+
+  /// The large surfaces: bottom sheets (their top corners), dialogs and
+  /// the translate composer.
+  static const double sheet = 28;
+
+  /// [card] as a [BorderRadius].
+  static const BorderRadius cardBorderRadius = BorderRadius.all(
+    Radius.circular(card),
+  );
+
+  /// [field] as a [BorderRadius].
+  static const BorderRadius fieldBorderRadius = BorderRadius.all(
+    Radius.circular(field),
+  );
+}
+
+/// Corner radius used by flat cards (a hairline box, no fill).
+const double kCardRadius = AppRadius.card;
+
+/// Corner radius of small badges ([AppRadius.badge]).
+const double kChipRadius = AppRadius.badge;
 
 /// Corner radius of the top of bottom sheets.
-const double kSheetRadius = 20;
+const double kSheetRadius = AppRadius.sheet;
 
 /// Spacing scale (logical pixels) shared by the screens: use these instead
 /// of ad-hoc gaps so groups line up.
@@ -146,7 +178,8 @@ class AppThemes {
   /// The accent is [AppSettings.seedColor], or the platform's Material You
   /// primary ([lightDynamic] / [darkDynamic]) when [AppSettings.dynamicColor]
   /// is on and one was reported. Surfaces are always neutral; the dark
-  /// theme is "Dim", or "Lights out" (black) with [AppSettings.pureBlack].
+  /// theme is "Lights out" (black) with [AppSettings.pureBlack] (the
+  /// default), else "Dim".
   factory fromSettings(
     AppSettings settings, {
     ColorScheme? lightDynamic,
@@ -305,7 +338,7 @@ ThemeData buildAppTheme(ColorScheme scheme, {AppPalette? palette}) {
   final hairline = BorderSide(color: pal.hairline);
   const pill = StadiumBorder();
   final inputBorder = OutlineInputBorder(
-    borderRadius: BorderRadius.circular(kChipRadius),
+    borderRadius: AppRadius.fieldBorderRadius,
     borderSide: BorderSide(color: _tonesOf(scheme).inputBorder),
   );
   final buttonText = textTheme.labelLarge?.copyWith(
@@ -325,7 +358,19 @@ ThemeData buildAppTheme(ColorScheme scheme, {AppPalette? palette}) {
     darken: true,
   );
   final menuShape = RoundedRectangleBorder(
-    borderRadius: const BorderRadius.all(Radius.circular(12)),
+    borderRadius: const BorderRadius.all(Radius.circular(AppRadius.menu)),
+    side: hairline,
+  );
+  // Sheets and dialogs carry a hairline too: in Lights out they are as
+  // black as the dimmed page behind them.
+  final sheetShape = RoundedRectangleBorder(
+    borderRadius: const BorderRadius.vertical(
+      top: Radius.circular(AppRadius.sheet),
+    ),
+    side: hairline,
+  );
+  final dialogShape = RoundedRectangleBorder(
+    borderRadius: const BorderRadius.all(Radius.circular(AppRadius.sheet)),
     side: hairline,
   );
 
@@ -343,7 +388,10 @@ ThemeData buildAppTheme(ColorScheme scheme, {AppPalette? palette}) {
       scrolledUnderElevation: 0,
       centerTitle: false,
       shape: Border(bottom: hairline),
-      titleTextStyle: textTheme.titleLarge?.copyWith(color: scheme.onSurface),
+      // Page titles: big and bold, like Kagi's.
+      titleTextStyle: textTheme.headlineSmall?.copyWith(
+        color: scheme.onSurface,
+      ),
     ),
     cardTheme: CardThemeData(
       elevation: 0,
@@ -353,12 +401,13 @@ ThemeData buildAppTheme(ColorScheme scheme, {AppPalette? palette}) {
       shadowColor: Colors.transparent,
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
-        borderRadius: const BorderRadius.all(Radius.circular(kCardRadius)),
+        borderRadius: AppRadius.cardBorderRadius,
         side: hairline,
       ),
     ),
     inputDecorationTheme: InputDecorationThemeData(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      // A little more room at the sides for the rounder corners.
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       border: inputBorder,
       enabledBorder: inputBorder,
       disabledBorder: inputBorder.copyWith(
@@ -582,11 +631,14 @@ ThemeData buildAppTheme(ColorScheme scheme, {AppPalette? palette}) {
       groupAlignment: -1,
       selectedIconTheme: IconThemeData(color: scheme.onSurface, size: 26),
       unselectedIconTheme: IconThemeData(color: scheme.onSurface, size: 26),
+      // Labels, not headings: they keep their size.
       selectedLabelTextStyle: textTheme.titleMedium?.copyWith(
+        fontSize: 16,
         fontWeight: FontWeight.w800,
         color: scheme.onSurface,
       ),
       unselectedLabelTextStyle: textTheme.titleMedium?.copyWith(
+        fontSize: 16,
         fontWeight: FontWeight.w400,
         color: scheme.onSurface,
       ),
@@ -594,7 +646,7 @@ ThemeData buildAppTheme(ColorScheme scheme, {AppPalette? palette}) {
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.all(Radius.circular(10)),
+        borderRadius: BorderRadius.all(Radius.circular(AppRadius.menu)),
       ),
       elevation: 2,
       backgroundColor: scheme.inverseSurface,
@@ -609,16 +661,12 @@ ThemeData buildAppTheme(ColorScheme scheme, {AppPalette? palette}) {
       modalBackgroundColor: scheme.surface,
       surfaceTintColor: Colors.transparent,
       dragHandleColor: scheme.outline,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(kSheetRadius)),
-      ),
+      shape: sheetShape,
     ),
     dialogTheme: DialogThemeData(
       backgroundColor: scheme.surface,
       surfaceTintColor: Colors.transparent,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.all(Radius.circular(kCardRadius)),
-      ),
+      shape: dialogShape,
       titleTextStyle: textTheme.titleLarge?.copyWith(color: scheme.onSurface),
     ),
     dividerTheme: DividerThemeData(color: pal.hairline, space: 1, thickness: 1),
@@ -639,22 +687,61 @@ ThemeData buildAppTheme(ColorScheme scheme, {AppPalette? palette}) {
   );
 }
 
+/// Sizes (logical pixels) of the bold headings of [buildAppTheme]'s text
+/// theme: bigger than Material's, like Kagi Translate's page titles and
+/// section headings. Body, label and `titleSmall` styles (the labels of
+/// controls such as the language bar) keep Material's sizes.
+abstract final class AppTypeScale {
+  /// `headlineLarge`.
+  static const double headlineLarge = 34;
+
+  /// `headlineMedium`: the greetings of empty screens.
+  static const double headlineMedium = 30;
+
+  /// `headlineSmall`: page titles (app bars).
+  static const double headlineSmall = 26;
+
+  /// `titleLarge`: section headings (settings sections, sheet and dialog
+  /// titles, "Refine & learn", history days).
+  static const double titleLarge = 22;
+
+  /// `titleMedium`: sub-headings ("Style" in the options sheet).
+  static const double titleMedium = 17;
+}
+
 TextTheme _textTheme(TextTheme base) {
-  TextStyle? heading(TextStyle? style, double spacing) =>
-      style?.copyWith(fontWeight: FontWeight.w800, letterSpacing: spacing);
+  TextStyle? heading(TextStyle? style, double spacing, [double? size]) =>
+      style?.copyWith(
+        fontSize: size,
+        fontWeight: FontWeight.w800,
+        letterSpacing: spacing,
+      );
   return base.copyWith(
     displayLarge: heading(base.displayLarge, -1),
     displayMedium: heading(base.displayMedium, -0.8),
     displaySmall: heading(base.displaySmall, -0.6),
-    headlineLarge: heading(base.headlineLarge, -0.6),
-    headlineMedium: heading(base.headlineMedium, -0.5),
-    headlineSmall: heading(base.headlineSmall, -0.4),
-    titleLarge: base.titleLarge?.copyWith(
-      fontSize: 20,
-      fontWeight: FontWeight.w800,
-      letterSpacing: -0.3,
+    headlineLarge: heading(
+      base.headlineLarge,
+      -0.7,
+      AppTypeScale.headlineLarge,
     ),
-    titleMedium: base.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+    headlineMedium: heading(
+      base.headlineMedium,
+      -0.6,
+      AppTypeScale.headlineMedium,
+    ),
+    headlineSmall: heading(
+      base.headlineSmall,
+      -0.5,
+      AppTypeScale.headlineSmall,
+    ),
+    titleLarge: heading(base.titleLarge, -0.4, AppTypeScale.titleLarge),
+    // Also emphasised values (a dropdown's value, a proofread change): a
+    // bold 700; sub-headings ask for 800 (see `TranslateLayout`).
+    titleMedium: base.titleMedium?.copyWith(
+      fontSize: AppTypeScale.titleMedium,
+      fontWeight: FontWeight.w700,
+    ),
     titleSmall: base.titleSmall?.copyWith(fontWeight: FontWeight.w700),
     bodyLarge: base.bodyLarge?.copyWith(fontSize: 16, height: 1.4),
     bodyMedium: base.bodyMedium?.copyWith(fontSize: 15, height: 1.4),

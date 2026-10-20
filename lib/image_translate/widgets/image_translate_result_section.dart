@@ -241,9 +241,6 @@ class _SourceTextCardState extends State<_SourceTextCard> {
               maxLines: 8,
               keyboardType: TextInputType.multiline,
               decoration: InputDecoration(
-                border: const OutlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(16)),
-                ),
                 helperText: l10n.imageTranslateEditHint,
                 helperMaxLines: 2,
               ),
