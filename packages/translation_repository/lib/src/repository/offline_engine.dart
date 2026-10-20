@@ -59,8 +59,10 @@ class OfflineEngine {
 
   /// Translates [request] on the device; one final result.
   ///
-  /// An auto source is identified with [OfflineTranslator.identifyLanguage]
-  /// ([SourceLanguageRequiredException] when it cannot tell). Languages
+  /// An auto source is identified with [OfflineTranslator.identifyLanguage];
+  /// when it cannot tell, the only downloaded language that can be
+  /// translated into the target is used ([onlyDownloadedSource]), else
+  /// [SourceLanguageRequiredException] is thrown. Languages
   /// without a model throw [OfflineLanguageUnsupportedException]; models
   /// that are not downloaded throw [OfflineModelMissingException] (from the
   /// backend).
@@ -90,10 +92,13 @@ class OfflineEngine {
     String? detected;
     final String source;
     if (request.source.isAuto) {
-      final identified = await translator.identifyLanguage(request.text);
+      var identified = await translator.identifyLanguage(request.text);
       detected = normalizeDetected(identified);
       if (identified == null || detected == null) {
-        throw SourceLanguageRequiredException(engineId: engine.id);
+        identified =
+            await onlyDownloadedSource(target) ??
+            (throw SourceLanguageRequiredException(engineId: engine.id));
+        detected = normalizeDetected(identified);
       }
       source =
           codeFor(Language(code: identified, name: identified)) ??
@@ -117,5 +122,26 @@ class OfflineEngine {
       detectedSource: detected,
       elapsed: stopwatch.elapsed,
     );
+  }
+
+  /// The backend code of the one downloaded language other than [target]
+  /// (a backend code), or null when there are none or several: with only
+  /// English and German on the device, text into German is English and
+  /// text into English is German, whatever a word or two looks like.
+  Future<String?> onlyDownloadedSource(String target) async {
+    final Set<String> downloaded;
+    try {
+      downloaded = await translator.downloadedLanguages();
+    } on Object {
+      return null;
+    }
+    final wanted = LanguageMatcher.normalize(target);
+    final candidates = {
+      for (final code in downloaded)
+        if (codeFor(Language(code: code, name: code)) case final mapped?
+            when LanguageMatcher.normalize(mapped) != wanted)
+          mapped,
+    };
+    return candidates.length == 1 ? candidates.single : null;
   }
 }

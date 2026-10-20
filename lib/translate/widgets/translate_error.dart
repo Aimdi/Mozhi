@@ -102,6 +102,11 @@ TranslateErrorInfo describeTranslateError(
     final MozhiApiException mozhi => _describeMozhi(l10n, mozhi),
     TimeoutException() => TranslateErrorInfo(l10n.translateErrorTimeout),
     // The offline engine may wrap the exception (e.g. in a platform error).
+    _ when '$error'.contains('SourceLanguageRequiredException') =>
+      TranslateErrorInfo(
+        l10n.translateErrorSourceLanguageRequired,
+        chooseSourceLanguage: true,
+      ),
     _ when '$error'.contains('OfflineModelMissingException') =>
       TranslateErrorInfo(
         l10n.translateErrorOfflineModelMissing,
@@ -253,6 +258,13 @@ String _redactUrl(String url) {
 /// offline languages. A Mozhi instance error offers "Switch instance"
 /// instead of "Manage instances" when [onSwitchInstance] is given.
 ///
+/// When the engine cannot detect the source language
+/// ([TranslateErrorInfo.chooseSourceLanguage]) and [onChooseSourceLanguage]
+/// is given, the main action is "Translate from German"
+/// ([suggestedSourceLanguage] with [onUseSourceLanguage]) or else "Choose
+/// language"; Retry becomes a secondary action, and is left out when the
+/// detection had nothing to go on (it would fail the same way again).
+///
 /// The message is a live region, so screen readers announce it when it
 /// appears.
 class TranslateErrorView extends StatelessWidget {
@@ -262,6 +274,9 @@ class TranslateErrorView extends StatelessWidget {
     this.dense = false,
     this.retrySemanticsLabel,
     this.onSwitchInstance,
+    this.onChooseSourceLanguage,
+    this.suggestedSourceLanguage,
+    this.onUseSourceLanguage,
     super.key,
   });
 
@@ -271,6 +286,20 @@ class TranslateErrorView extends StatelessWidget {
   /// Lets the user pick another Mozhi instance (e.g. with
   /// `showInstanceSwitcher`); shown for instance errors only.
   final VoidCallback? onSwitchInstance;
+
+  /// Opens the source language picker (e.g. with `pickTranslateLanguage`);
+  /// shown as "Choose language" when the engine needs the source language
+  /// ([TranslateErrorInfo.chooseSourceLanguage]) only.
+  final VoidCallback? onChooseSourceLanguage;
+
+  /// A likely source language (e.g. `TranslateState.recentSourceSuggestion`)
+  /// offered as "Translate from German" next to "Choose language"; needs
+  /// [onChooseSourceLanguage] and [onUseSourceLanguage].
+  final Language? suggestedSourceLanguage;
+
+  /// Translates from [suggestedSourceLanguage] (e.g.
+  /// `TranslateCubit.setSource`).
+  final ValueChanged<Language>? onUseSourceLanguage;
 
   /// What screen readers call the Retry button (it shows "Retry"), e.g.
   /// "Retry German" when several can fail on one screen.
@@ -319,6 +348,27 @@ class TranslateErrorView extends StatelessWidget {
         fixLabel != null &&
         !dense &&
         switchInstance == null;
+    final chooseSource = info.chooseSourceLanguage
+        ? onChooseSourceLanguage
+        : null;
+    // "Translate from German": one tap instead of the language picker.
+    final useSuggested = switch ((
+      suggestedSourceLanguage,
+      onUseSourceLanguage,
+    )) {
+      (final language?, final use?) when chooseSource != null => (
+        label: l10n.translateUseSourceLanguage(language.name),
+        onPressed: () => use(language),
+      ),
+      _ => null,
+    };
+    // Retrying a detection that found nothing to go on (no failed request
+    // behind it) fails the same way: choosing the language is the way out.
+    final retry = switch (error) {
+      SourceLanguageRequiredException(cause: null) when chooseSource != null =>
+        null,
+      _ => onRetry,
+    };
     final details = info.details;
     return Column(
       key: const Key('translate_error_view'),
@@ -346,7 +396,8 @@ class TranslateErrorView extends StatelessWidget {
             ),
           ],
         ),
-        if (onRetry != null ||
+        if (retry != null ||
+            chooseSource != null ||
             showFix ||
             switchInstance != null ||
             details != null) ...[
@@ -356,9 +407,42 @@ class TranslateErrorView extends StatelessWidget {
             runSpacing: 4,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              if (onRetry != null)
+              if (chooseSource != null) ...[
+                if (useSuggested != null)
+                  FilledButton.tonalIcon(
+                    key: const Key('translate_error_use_source'),
+                    onPressed: useSuggested.onPressed,
+                    icon: const Icon(Icons.translate),
+                    label: Text(useSuggested.label),
+                  ),
+                if (useSuggested == null)
+                  FilledButton.tonalIcon(
+                    key: const Key('translate_error_choose_source'),
+                    onPressed: chooseSource,
+                    icon: const Icon(Icons.language),
+                    label: Text(l10n.translateChooseSourceLanguage),
+                  )
+                else
+                  TextButton.icon(
+                    key: const Key('translate_error_choose_source'),
+                    onPressed: chooseSource,
+                    icon: const Icon(Icons.language),
+                    label: Text(l10n.translateChooseSourceLanguage),
+                  ),
+                if (retry != null)
+                  TextButton.icon(
+                    key: const Key('translate_error_retry'),
+                    onPressed: retry,
+                    icon: const Icon(Icons.refresh),
+                    label: Text(
+                      l10n.commonRetry,
+                      semanticsLabel: retrySemanticsLabel,
+                    ),
+                  ),
+              ] else if (retry != null)
                 FilledButton.tonalIcon(
-                  onPressed: onRetry,
+                  key: const Key('translate_error_retry'),
+                  onPressed: retry,
                   icon: const Icon(Icons.refresh),
                   label: Text(
                     l10n.commonRetry,

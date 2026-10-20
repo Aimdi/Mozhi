@@ -207,6 +207,70 @@ void main() {
       expect(unsupported.offlineModels, isFalse);
     });
 
+    test('asks for the source language when it cannot be detected', () {
+      final direct = describeTranslateError(
+        l10n,
+        const SourceLanguageRequiredException(engineId: 'offline:bergamot'),
+      );
+      expect(direct.message, l10n.translateErrorSourceLanguageRequired);
+      expect(direct.chooseSourceLanguage, isTrue);
+      expect(direct.offlineModels, isFalse);
+      expect(direct.fix, TranslateErrorFix.none);
+      expect(direct.consent, isNull);
+
+      // A detection that failed on the way (e.g. Mozhi unreachable) too.
+      final failed = describeTranslateError(
+        l10n,
+        const SourceLanguageRequiredException(
+          engineId: 'ai:gemma',
+          cause: MozhiApiException('Connection refused'),
+        ),
+      );
+      expect(failed.message, l10n.translateErrorSourceLanguageRequired);
+      expect(failed.chooseSourceLanguage, isTrue);
+      expect(failed.fix, TranslateErrorFix.none);
+    });
+
+    test('asks for the source language when the exception is wrapped', () {
+      final wrapped = describeTranslateError(
+        l10n,
+        StateError(
+          'PlatformException(${const SourceLanguageRequiredException()})',
+        ),
+      );
+      expect(wrapped.message, l10n.translateErrorSourceLanguageRequired);
+      expect(wrapped.chooseSourceLanguage, isTrue);
+      expect(wrapped.offlineModels, isFalse);
+
+      // The outer exception wins over a cause named in its message.
+      const inner = SourceLanguageRequiredException(
+        cause: OfflineModelMissingException(['de']),
+      );
+      final withCause = describeTranslateError(
+        l10n,
+        StateError('Wrapped($inner)'),
+      );
+      expect(withCause.chooseSourceLanguage, isTrue);
+      expect(withCause.offlineModels, isFalse);
+    });
+
+    test('does not ask for the source language for other errors', () {
+      for (final error in <Object?>[
+        null,
+        StateError('boom'),
+        const OfflineModelMissingException(['de']),
+        const OfflineLanguageUnsupportedException('tlh'),
+        const MozhiApiException('Source language code invalid'),
+        const LlmApiException('down'),
+      ]) {
+        expect(
+          describeTranslateError(l10n, error).chooseSourceLanguage,
+          isFalse,
+          reason: '$error',
+        );
+      }
+    });
+
     test('keeps the AI provider mapping', () {
       expect(
         describeTranslateError(l10n, const LlmRefusalException('no')).message,
@@ -408,6 +472,190 @@ void main() {
           find.byKey(const Key('translate_error_switch_instance')),
           findsNothing,
         );
+      });
+    });
+
+    group('source language required', () {
+      const undetected = SourceLanguageRequiredException(
+        engineId: 'offline:bergamot',
+      );
+      const german = Language(code: 'de', name: 'German');
+
+      Finder filled(String label) => find.ancestor(
+        of: find.text(label),
+        matching: find.byWidgetPredicate((widget) => widget is FilledButton),
+      );
+      Finder text(String label) => find.ancestor(
+        of: find.text(label),
+        matching: find.byWidgetPredicate((widget) => widget is TextButton),
+      );
+
+      testWidgets('offers "Choose language" instead of Retry', (tester) async {
+        var chosen = 0;
+        var retried = 0;
+        final harness = TranslateHarness();
+        await harness.pump(
+          tester,
+          child: TranslateErrorView(
+            error: undetected,
+            onRetry: () => retried++,
+            onChooseSourceLanguage: () => chosen++,
+          ),
+        );
+        expect(
+          find.text(l10n.translateErrorSourceLanguageRequired),
+          findsOneWidget,
+        );
+        // Detection had nothing to go on: retrying fails the same way.
+        expect(find.text(l10n.commonRetry), findsNothing);
+        expect(filled(l10n.translateChooseSourceLanguage), findsOneWidget);
+        await tester.tap(
+          find.byKey(const Key('translate_error_choose_source')),
+        );
+        expect(chosen, 1);
+        expect(retried, 0);
+      });
+
+      testWidgets('keeps Retry as a secondary action after a failed check', (
+        tester,
+      ) async {
+        var retried = 0;
+        final harness = TranslateHarness();
+        await harness.pump(
+          tester,
+          child: TranslateErrorView(
+            error: const SourceLanguageRequiredException(
+              cause: MozhiApiException('Connection refused'),
+            ),
+            onRetry: () => retried++,
+            onChooseSourceLanguage: () {},
+            retrySemanticsLabel: 'Retry German',
+          ),
+        );
+        expect(filled(l10n.translateChooseSourceLanguage), findsOneWidget);
+        expect(text(l10n.commonRetry), findsOneWidget);
+        expect(filled(l10n.commonRetry), findsNothing);
+        expect(
+          tester.widget<Text>(find.text(l10n.commonRetry)).semanticsLabel,
+          'Retry German',
+        );
+        await tester.tap(find.byKey(const Key('translate_error_retry')));
+        expect(retried, 1);
+      });
+
+      testWidgets('offers the suggested language as the main action', (
+        tester,
+      ) async {
+        final used = <Language>[];
+        var chosen = 0;
+        final harness = TranslateHarness();
+        await harness.pump(
+          tester,
+          child: TranslateErrorView(
+            error: undetected,
+            onRetry: () {},
+            onChooseSourceLanguage: () => chosen++,
+            suggestedSourceLanguage: german,
+            onUseSourceLanguage: used.add,
+          ),
+        );
+        final label = l10n.translateUseSourceLanguage('German');
+        expect(label, 'Translate from German');
+        expect(filled(label), findsOneWidget);
+        expect(text(l10n.translateChooseSourceLanguage), findsOneWidget);
+        await tester.tap(find.byKey(const Key('translate_error_use_source')));
+        expect(used, [german]);
+        await tester.tap(
+          find.byKey(const Key('translate_error_choose_source')),
+        );
+        expect(chosen, 1);
+      });
+
+      testWidgets('needs a callback for the suggestion', (tester) async {
+        final harness = TranslateHarness();
+        await harness.pump(
+          tester,
+          child: TranslateErrorView(
+            error: undetected,
+            onChooseSourceLanguage: () {},
+            suggestedSourceLanguage: german,
+          ),
+        );
+        expect(
+          find.byKey(const Key('translate_error_use_source')),
+          findsNothing,
+        );
+        expect(filled(l10n.translateChooseSourceLanguage), findsOneWidget);
+      });
+
+      testWidgets('dense views offer it too', (tester) async {
+        var chosen = 0;
+        final harness = TranslateHarness();
+        await harness.pump(
+          tester,
+          child: TranslateErrorView(
+            error: StateError('Wrapped($undetected)'),
+            dense: true,
+            onRetry: () {},
+            onChooseSourceLanguage: () => chosen++,
+          ),
+        );
+        // Wrapped: whether the check failed is unknown, so Retry stays.
+        expect(text(l10n.commonRetry), findsOneWidget);
+        await tester.tap(
+          find.byKey(const Key('translate_error_choose_source')),
+        );
+        expect(chosen, 1);
+      });
+
+      testWidgets('keeps Retry as the main action without a picker', (
+        tester,
+      ) async {
+        var retried = 0;
+        final harness = TranslateHarness();
+        await harness.pump(
+          tester,
+          child: TranslateErrorView(
+            error: undetected,
+            onRetry: () => retried++,
+            suggestedSourceLanguage: german,
+            onUseSourceLanguage: (_) {},
+          ),
+        );
+        expect(
+          find.byKey(const Key('translate_error_choose_source')),
+          findsNothing,
+        );
+        expect(
+          find.byKey(const Key('translate_error_use_source')),
+          findsNothing,
+        );
+        expect(filled(l10n.commonRetry), findsOneWidget);
+        await tester.tap(find.byKey(const Key('translate_error_retry')));
+        expect(retried, 1);
+      });
+
+      testWidgets('is not offered for other errors', (tester) async {
+        final harness = TranslateHarness();
+        await harness.pump(
+          tester,
+          child: TranslateErrorView(
+            error: const LlmApiException('down'),
+            onRetry: () {},
+            onChooseSourceLanguage: () {},
+            suggestedSourceLanguage: german,
+            onUseSourceLanguage: (_) {},
+          ),
+        );
+        expect(
+          find.byKey(const Key('translate_error_choose_source')),
+          findsNothing,
+        );
+        expect(
+          find.byKey(const Key('translate_error_use_source')),
+          findsNothing,
+        );
+        expect(filled(l10n.commonRetry), findsOneWidget);
       });
     });
 

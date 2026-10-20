@@ -269,6 +269,78 @@ void main() {
       verify(() => harness.router.go('/settings/providers')).called(1);
     });
 
+    group('an undetectable source language', () {
+      TranslateState undetected({Language target = french}) =>
+          readyState(input: 'Hi', target: target).copyWith(
+            status: TranslateStatus.failure,
+            error: () => const SourceLanguageRequiredException(
+              engineId: 'offline:bergamot',
+            ),
+          );
+
+      Finder inPicker(Finder finder) => find.descendant(
+        of: find.byType(LanguagePickerSheet),
+        matching: finder,
+      );
+
+      testWidgets('"Choose language" opens the source language picker', (
+        tester,
+      ) async {
+        final harness = TranslateHarness(state: undetected());
+        await harness.pump(tester, child: const OutputCard(), more: true);
+        expect(
+          find.textContaining("can't detect the language"),
+          findsOneWidget,
+        );
+        expect(find.text('Something went wrong. Try again.'), findsNothing);
+        // Retrying would fail the same way.
+        expect(find.text('Retry'), findsNothing);
+        expect(find.text('Translate from German'), findsNothing);
+        await tester.tap(find.text('Choose language'));
+        await tester.pumpAndSettle();
+        expect(inPicker(find.text('Translate from')), findsOneWidget);
+        await tester.tap(inPicker(find.text('German')).last);
+        await tester.pumpAndSettle();
+        verify(() => harness.translate.setSource(german)).called(1);
+        verifyNever(harness.translate.translate);
+      });
+
+      testWidgets('offers the last source language in one tap', (tester) async {
+        final harness = TranslateHarness(
+          state: undetected(),
+          settings: const AppSettings(
+            recentPairs: [
+              LanguagePair(source: Language.auto, target: french),
+              LanguagePair(source: german, target: french),
+              LanguagePair(source: english, target: french),
+            ],
+          ),
+        );
+        await harness.pump(tester, child: const OutputCard(), more: true);
+        expect(find.text('Choose language'), findsOneWidget);
+        await tester.tap(find.text('Translate from German'));
+        verify(() => harness.translate.setSource(german)).called(1);
+      });
+
+      testWidgets('never suggests the target language', (tester) async {
+        final harness = TranslateHarness(
+          state: undetected(target: german),
+          settings: const AppSettings(
+            recentPairs: [LanguagePair(source: german, target: french)],
+          ),
+        );
+        await harness.pump(tester, child: const OutputCard(), more: true);
+        expect(
+          find.byKey(const Key('translate_error_use_source')),
+          findsNothing,
+        );
+        expect(
+          find.byKey(const Key('translate_error_choose_source')),
+          findsOneWidget,
+        );
+      });
+    });
+
     testWidgets('copy copies the translation', (tester) async {
       final clipboard = FakeClipboard(tester);
       final harness = TranslateHarness(state: translatedState());

@@ -391,6 +391,18 @@ void main() {
       expect(await translator.identifyLanguage('Habari ya asubuhi'), 'sw');
     });
 
+    test('counts weak guesses for languages with installed models', () async {
+      // "Hallo" scores low: not enough on its own...
+      languageId.detection = _detection('un', guess: 'de', score: 120);
+      expect(await translator.identifyLanguage('Hallo'), isNull);
+      // ...but German models are on the device.
+      await translator.downloadLanguage('de');
+      expect(await translator.identifyLanguage('Hallo'), 'de');
+      // English (always "installed") still needs a strong guess.
+      languageId.detection = _detection('un', guess: 'en', score: 170);
+      expect(await translator.identifyLanguage('Hvala'), isNull);
+    });
+
     test('falls back to the heuristic without CLD2', () async {
       // No native identifier (null), or a failing one.
       expect(await translator.identifyLanguage('안녕하세요'), 'ko');

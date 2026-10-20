@@ -7440,5 +7440,85 @@
   "translateChooseSourceLanguage": "Choose language",
   "@translateChooseSourceLanguage": {
     "description": "translateChooseSourceLanguage"
+  },
+  "translateUseSourceLanguage": "Translate from {language}",
+  "@translateUseSourceLanguage": {
+    "description": "Action of a translation error when the engine cannot detect the source language: translate from this language (the most recent source language)",
+    "placeholders": {
+      "language": {
+        "type": "String",
+        "example": "German"
+      }
+    }
+  },
+  "voiceInputUnavailable": "Voice input unavailable",
+  "@voiceInputUnavailable": {
+    "description": "voiceInputUnavailable"
+  },
+  "voiceInputStarting": "Starting voice input…",
+  "@voiceInputStarting": {
+    "description": "voiceInputStarting"
+  },
+  "voiceInputCancelStart": "Cancel voice input",
+  "@voiceInputCancelStart": {
+    "description": "voiceInputCancelStart"
+  },
+  "voiceErrorUnavailableOfflineModel": "There’s no speech recognition service on this device. Download the offline speech model in Settings › Voice input to use voice input.",
+  "@voiceErrorUnavailableOfflineModel": {
+    "description": "voiceErrorUnavailableOfflineModel"
+  },
+  "voiceDownloadModelAction": "Download model",
+  "@voiceDownloadModelAction": {
+    "description": "voiceDownloadModelAction"
+  },
+  "imageTranslateMethodMozhiGoogle": "Mozhi via Google Translate (experimental)",
+  "@imageTranslateMethodMozhiGoogle": {
+    "description": "imageTranslateMethodMozhiGoogle"
+  },
+  "imageTranslateMethodMozhiGoogleDescription": "Experimental. Your Mozhi instance passes the photo on to Google Translate, which often refuses such requests. When it works, the translation is drawn into the picture.",
+  "@imageTranslateMethodMozhiGoogleDescription": {
+    "description": "imageTranslateMethodMozhiGoogleDescription"
+  },
+  "imageTranslateMethodOnDeviceRecommended": "Recommended. Reads the text on this device, so the photo stays on it, then translates the text with the translator’s engine.",
+  "@imageTranslateMethodOnDeviceRecommended": {
+    "description": "imageTranslateMethodOnDeviceRecommended"
+  },
+  "imageTranslatePhaseMozhiGoogle": "Sending the image to Google Translate through your Mozhi instance. This can take up to {seconds} seconds.",
+  "@imageTranslatePhaseMozhiGoogle": {
+    "description": "Progress while Mozhi relays the image to Google Translate",
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "imageTranslateErrorServiceRefused": "Google Translate sent nothing back for this image through your Mozhi instance. It may have refused the request, or found no text in the image.",
+  "@imageTranslateErrorServiceRefused": {
+    "description": "imageTranslateErrorServiceRefused"
+  },
+  "imageTranslateErrorTimeoutMozhi": "Google Translate didn’t answer through your Mozhi instance within {seconds} seconds. Try again or use a smaller image.",
+  "@imageTranslateErrorTimeoutMozhi": {
+    "description": "Mozhi image translation ran out of time",
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "imageTranslateErrorTimeoutGeneric": "Image translation took too long. Try again or use a smaller image.",
+  "@imageTranslateErrorTimeoutGeneric": {
+    "description": "imageTranslateErrorTimeoutGeneric"
+  },
+  "imageTranslateUseOnDevice": "Use on-device text recognition",
+  "@imageTranslateUseOnDevice": {
+    "description": "imageTranslateUseOnDevice"
+  },
+  "imageTranslateChooseSourceLanguage": "Choose the language of the text",
+  "@imageTranslateChooseSourceLanguage": {
+    "description": "imageTranslateChooseSourceLanguage"
+  },
+  "imageTranslateLowConfidence": "Wrong language?",
+  "@imageTranslateLowConfidence": {
+    "description": "imageTranslateLowConfidence"
   }
 }
