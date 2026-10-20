@@ -1,5 +1,6 @@
 export 'conversation_actions.dart';
 export 'conversation_composer.dart';
+export 'conversation_hero.dart';
 export 'conversation_language_button.dart';
 export 'conversation_language_picker.dart';
 export 'conversation_listen_button.dart';

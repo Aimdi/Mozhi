@@ -185,7 +185,9 @@ class _NoMethods extends StatelessWidget {
               children: [
                 FilledButton(
                   key: const Key('image_translate_providers_button'),
-                  onPressed: () => context.go(ImageTranslateLinks.providers),
+                  onPressed: () => unawaited(
+                    context.push<Object?>(ImageTranslateLinks.providers),
+                  ),
                   style: FilledButton.styleFrom(
                     minimumSize: const Size(0, 48),
                     shape: const StadiumBorder(),
@@ -195,7 +197,9 @@ class _NoMethods extends StatelessWidget {
                 ),
                 TextButton(
                   key: const Key('image_translate_instances_button'),
-                  onPressed: () => context.go(ImageTranslateLinks.instances),
+                  onPressed: () => unawaited(
+                    context.push<Object?>(ImageTranslateLinks.instances),
+                  ),
                   style: TextButton.styleFrom(minimumSize: const Size(0, 48)),
                   child: Text(l10n.translateManageInstances),
                 ),

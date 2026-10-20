@@ -76,10 +76,12 @@ void main() {
   setUpAll(registerTranslateFallbacks);
 
   group('OutputCard', () {
-    testWidgets('shows a hint when idle', (tester) async {
+    testWidgets('shows nothing when idle', (tester) async {
+      // The empty screen greets instead (TranslateHero).
       final harness = TranslateHarness();
       await harness.pump(tester, child: const OutputCard(), more: true);
-      expect(find.text('Your translation appears here'), findsOneWidget);
+      expect(find.byKey(const Key('translate_empty_output')), findsOneWidget);
+      expect(find.text('Your translation appears here'), findsNothing);
       expect(find.byKey(const Key('translate_output_progress')), findsNothing);
       expect(find.byTooltip('Copy'), findsNothing);
     });
@@ -253,7 +255,7 @@ void main() {
       verify(harness.translate.translate).called(1);
       // A single instance: nothing to switch to.
       await tester.tap(find.text('Manage instances'));
-      verify(() => harness.router.go('/settings/instances')).called(1);
+      verify(() => harness.router.push<void>('/settings/instances')).called(1);
     });
 
     testWidgets('auth errors point to the API key', (tester) async {
@@ -266,7 +268,7 @@ void main() {
       await harness.pump(tester, child: const OutputCard(), more: true);
       expect(find.textContaining('Check the API key'), findsOneWidget);
       await tester.tap(find.text('AI providers'));
-      verify(() => harness.router.go('/settings/providers')).called(1);
+      verify(() => harness.router.push<void>('/settings/providers')).called(1);
     });
 
     group('an undetectable source language', () {

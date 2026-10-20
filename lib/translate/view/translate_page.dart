@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/view/top_level_actions.dart';
 import 'package:mozhi/core/widgets/fold_aware_split.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -101,12 +103,16 @@ class _ShortcutAction<T extends Intent> extends Action<T> {
 /// Undo ([SmartSwapListener]).
 ///
 /// The screen shows one task: the languages, the input and the
-/// translation. The language bar ([LanguageBar]) also holds the
-/// translation options button and the go button, which translates right
-/// away (translation is otherwise automatic while typing, see
-/// `AppSettings.instantTranslate` / `instantTranslateAi`). Everything else (check meaning, insights, romanization,
-/// matching phrases, compare, "Refine & learn", definitions, "Also
-/// translate into…") is in the "More" area under the translation
+/// translation. Empty, it greets ([TranslateHero]) above a composer card
+/// docked at the bottom; once the input has focus or text it is the
+/// thread of the input and its translation, with the language bar docked
+/// at the bottom (see [_TranslateBody]). The language bar ([LanguageBar])
+/// also holds the translation options button and the go button, which
+/// translates right away (translation is otherwise automatic while
+/// typing, see `AppSettings.instantTranslate` / `instantTranslateAi`).
+/// Everything else (check meaning, insights, romanization, matching
+/// phrases, compare, "Refine & learn", definitions, "Also translate
+/// into…") is in the "More" area under the translation
 /// ([TranslateMoreToggle]); whether it is open is remembered for the
 /// session ([TranslateMoreHost]). Compare mode is also in the "More tools"
 /// menu, so it can be turned on before translating.
@@ -297,9 +303,11 @@ class TranslateView extends StatelessWidget {
                             final fold = FoldAwareSplit.featureDirectionOf(
                               context,
                             );
-                            return wide || fold != null
-                                ? _WideLayout(fold: fold, wide: wide)
-                                : const _NarrowLayout();
+                            return _TranslateBody(
+                              wide: wide,
+                              fold: fold,
+                              height: constraints.maxHeight,
+                            );
                           },
                         );
                       },
@@ -393,7 +401,11 @@ class _TranslateAppBar extends StatelessWidget implements PreferredSizeWidget {
     if (noEngines) {
       return AppBar(
         title: Text(l10n.translateTitle),
-        actions: const [MoreToolsButton(), SizedBox(width: 4)],
+        actions: const [
+          TopLevelActions(),
+          MoreToolsButton(),
+          SizedBox(width: 4),
+        ],
       );
     }
     final hasQualityModes = context.select<TranslateCubit, bool>(
@@ -439,7 +451,7 @@ class _TranslateAppBar extends StatelessWidget implements PreferredSizeWidget {
           );
         },
       ),
-      actions: const [MoreToolsButton(), SizedBox(width: 4)],
+      actions: const [TopLevelActions(), MoreToolsButton(), SizedBox(width: 4)],
     );
   }
 }
@@ -465,11 +477,20 @@ bool outputJoinsThread(TranslateState state) =>
 
 /// The input as the first post of the thread: the source language's avatar
 /// beside it, joined to the translation's avatar by a connector while there
-/// is one ([connector]).
+/// is one ([connector]). [compact]: the empty screen's composer (no avatar,
+/// no tools row, see [InputCard.compact]).
 class _InputThread extends StatelessWidget {
-  const new({this.connector = true, this.minLines = 4, this.footer});
+  const new({
+    required this.focusNode,
+    this.connector = true,
+    this.compact = false,
+    this.minLines = 4,
+    this.footer,
+  });
 
+  final FocusNode focusNode;
   final bool connector;
+  final bool compact;
   final int minLines;
 
   /// Shown under the input, inside the thread (the memory match).
@@ -482,6 +503,7 @@ class _InputThread extends StatelessWidget {
     );
     final joined =
         connector &&
+        !compact &&
         context.select<TranslateCubit, bool>(
           (cubit) => !cubit.state.compareMode && outputJoinsThread(cubit.state),
         );
@@ -490,10 +512,11 @@ class _InputThread extends StatelessWidget {
       key: const Key('translate_input_thread'),
       code: code,
       connector: joined,
+      showAvatar: !compact,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          InputCard(minLines: minLines),
+          InputCard(minLines: minLines, focusNode: focusNode, compact: compact),
           ?footer,
           if (joined) const SizedBox(height: TranslateLayout.gap),
         ],
@@ -551,6 +574,9 @@ class _OutputSectionState extends State<_OutputSection> {
     final hasOutput = context.select<TranslateCubit, bool>(
       (cubit) => cubit.state.output.trim().isNotEmpty,
     );
+    final outputEmpty = context.select<TranslateCubit, bool>(
+      (cubit) => translateOutputIsEmpty(cubit.state),
+    );
     final more = TranslateMoreScope.maybeOf(context);
     final expanded = hasOutput && (more?.expanded ?? false);
     final output = OutputCard(meaningButtonFocusNode: _meaningButton);
@@ -566,7 +592,7 @@ class _OutputSectionState extends State<_OutputSection> {
             child: output,
           )
         else ...[
-          if (widget.separated) const Hairline(),
+          if (widget.separated && !outputEmpty) const Hairline(),
           output,
         ],
         MeaningCheckPanel(
@@ -589,33 +615,285 @@ class _OutputSectionState extends State<_OutputSection> {
   }
 }
 
-class _NarrowLayout extends StatelessWidget {
-  const new();
+/// Whether the screen shows nothing but the greeting and the composer
+/// for [state] (as long as the input has no focus): no input, not
+/// comparing, and nothing in the output (no translation, prompt or
+/// error).
+bool translateComposerIsIdle(TranslateState state) =>
+    state.input.isEmpty && !state.compareMode && translateOutputIsEmpty(state);
+
+/// The fill of the empty screen's composer card on [scheme]'s page: a
+/// shade off the page (`surfaceContainerLow`) while quiet text keeps its
+/// contrast on it (else the page itself).
+Color translateComposerFill(ColorScheme scheme, Color secondaryText) {
+  final fill = scheme.surfaceContainerLow;
+  double contrast(Color a, Color b) {
+    final la = a.computeLuminance();
+    final lb = b.computeLuminance();
+    return (math.max(la, lb) + 0.05) / (math.min(la, lb) + 0.05);
+  }
+
+  return contrast(secondaryText, fill) >= 4.5 ? fill : scheme.surface;
+}
+
+/// The translate screen below the app bar.
+///
+/// Empty ([translateComposerIsIdle] and the field without focus), like
+/// Kagi Translate: the greeting ([TranslateHero]) in the middle and the
+/// composer docked at the bottom, a hairline-outlined card around the text
+/// field (with the microphone at its top end) and the language bar. On
+/// large screens the card sits under the greeting, at most
+/// [TranslateLayout.maxColumnWidth] wide. A window too low for both
+/// ([heroMinHeight]) skips this.
+///
+/// Active (the field has focus or text): the thread layout, the input
+/// with its language avatar and the translation below it joined by the
+/// connector (side by side from [TranslateLayout.wideBreakpoint]), with
+/// the language bar docked at the bottom of the screen: above the
+/// navigation bar, or above the keyboard while it is open.
+///
+/// It is one tree in both: the greeting's slot collapses, the composer's
+/// slot fills the screen, the card's outline and fill fade and the avatar
+/// fades in, so the text field keeps its focus, text and keyboard. A
+/// sheet or dialog that takes the focus for a while (the language picker)
+/// does not switch back. A hinge or half-opened fold always shows the
+/// panes, split at it, with the language bar under the input pane.
+class _TranslateBody extends StatefulWidget {
+  const new({required this.wide, required this.fold, required this.height});
+
+  final bool wide;
+  final Axis? fold;
+
+  /// Height of the screen's content (without the keyboard).
+  final double height;
+
+  /// The lowest content height that shows the greeting and the docked
+  /// composer at [textScale].
+  static double heroMinHeight(double textScale) =>
+      300 + 120 * textScale.clamp(1, 2);
+
+  @override
+  State<_TranslateBody> createState() => _TranslateBodyState();
+}
+
+class _TranslateBodyState extends State<_TranslateBody> {
+  final _inputFocus = FocusNode(debugLabel: 'translate_input');
+
+  /// Whether the field had focus last time the screen counted it.
+  bool _focused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _inputFocus.addListener(_onFocusChanged);
+  }
+
+  @override
+  void dispose() {
+    _inputFocus
+      ..removeListener(_onFocusChanged)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _onFocusChanged() {
+    final focused = _inputFocus.hasFocus;
+    if (focused == _focused) return;
+    // A sheet or dialog over the screen holds the focus for a while: keep
+    // the layout under it (the focus comes back when it closes).
+    if (!focused && !(ModalRoute.of(context)?.isCurrent ?? true)) return;
+    setState(() => _focused = focused);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fold = widget.fold;
+    if (fold != null) {
+      return _FoldLayout(fold: fold, wide: widget.wide, focusNode: _inputFocus);
+    }
+    final idle = context.select<TranslateCubit, bool>(
+      (cubit) => translateComposerIsIdle(cubit.state),
+    );
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
+    final hero =
+        idle &&
+        !_focused &&
+        widget.height >= _TranslateBody.heroMinHeight(textScale);
+    return _ComposerLayout(
+      hero: hero,
+      wide: widget.wide,
+      focusNode: _inputFocus,
+    );
+  }
+}
+
+/// [_TranslateBody] without a hinge or fold: the greeting's slot, the
+/// composer card (the input region, the active options and the language
+/// bar) and, on large screens, a spacer under the card that centres it
+/// while the greeting shows ([hero]).
+class _ComposerLayout extends StatelessWidget {
+  const new({required this.hero, required this.wide, required this.focusNode});
+
+  final bool hero;
+  final bool wide;
+  final FocusNode focusNode;
+
+  /// Corner radius of the empty screen's composer card.
+  static const double cardRadius = 28;
+
+  /// Space between the card's outline and what is inside it.
+  static const double cardPadding = 6;
+
+  /// Space around the card on phones.
+  static const double cardMargin = 12;
+
+  /// Side padding of the large-screen layout.
+  static const double wideSide = 24;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = AppPalette.of(context);
+    final motion = TranslateLayout.motion(context);
+    const gutter = TranslateLayout.gutter;
+    final fill = translateComposerFill(
+      theme.colorScheme,
+      palette.secondaryText,
+    );
+    final outline = theme.colorScheme.outlineVariant;
+    final region = wide
+        ? _WideRegion(hero: hero, focusNode: focusNode)
+        : _NarrowRegion(hero: hero, focusNode: focusNode);
+    final card = AnimatedContainer(
+      key: const Key('translate_composer'),
+      duration: motion,
+      curve: Curves.easeOutCubic,
+      margin: wide
+          ? const EdgeInsets.symmetric(horizontal: wideSide)
+          : hero
+          ? const EdgeInsets.fromLTRB(cardMargin, 8, cardMargin, cardMargin)
+          : EdgeInsets.zero,
+      padding: EdgeInsets.all(hero ? cardPadding : 0),
+      decoration: BoxDecoration(
+        color: hero ? fill : fill.withValues(alpha: 0),
+        // No border at all once active (a transparent one would still
+        // take a pixel).
+        border: Border.fromBorderSide(
+          hero ? BorderSide(color: outline) : BorderSide.none,
+        ),
+        borderRadius: const BorderRadius.all(Radius.circular(cardRadius)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Flexible(
+            flex: hero ? 0 : 1,
+            fit: hero ? FlexFit.loose : FlexFit.tight,
+            child: region,
+          ),
+          AnimatedPadding(
+            duration: motion,
+            padding: EdgeInsets.symmetric(
+              horizontal: hero || wide ? 0 : gutter,
+            ),
+            child: const ActiveOptionsBar(),
+          ),
+          AnimatedPadding(
+            duration: motion,
+            curve: Curves.easeOutCubic,
+            padding: hero
+                ? const EdgeInsets.only(top: 4)
+                : wide
+                ? const EdgeInsets.symmetric(vertical: 8)
+                : const EdgeInsets.fromLTRB(gutter, 8, gutter, 8),
+            child: const LanguageBar(),
+          ),
+        ],
+      ),
+    );
+    return Column(
+      children: [
+        // The greeting fills the space above the docked composer (on large
+        // screens it sits right above the card).
+        Flexible(
+          flex: hero ? (wide ? 3 : 1) : 0,
+          fit: FlexFit.tight,
+          child: hero
+              ? Align(
+                  alignment: wide ? Alignment.bottomCenter : Alignment.center,
+                  child: const SingleChildScrollView(child: TranslateHero()),
+                )
+              : const SizedBox(width: double.infinity),
+        ),
+        Flexible(
+          flex: hero ? 0 : 1,
+          fit: hero ? FlexFit.loose : FlexFit.tight,
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: hero || !wide
+                    ? TranslateLayout.maxColumnWidth +
+                          2 * (wide ? wideSide : gutter)
+                    : TranslateLayout.maxWideWidth,
+              ),
+              // Taps on the card's empty space go to the text field.
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                excludeFromSemantics: true,
+                onTap: hero ? focusNode.requestFocus : null,
+                child: card,
+              ),
+            ),
+          ),
+        ),
+        Flexible(
+          flex: hero && wide ? 2 : 0,
+          fit: FlexFit.tight,
+          child: const SizedBox(width: double.infinity),
+        ),
+      ],
+    );
+  }
+}
+
+/// The input region on phones: the input thread and, once active, the
+/// translation below it, in one scroll view.
+class _NarrowRegion extends StatelessWidget {
+  const new({required this.hero, required this.focusNode});
+
+  final bool hero;
+  final FocusNode focusNode;
 
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       key: const Key('translate_narrow_layout'),
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.fromLTRB(
-        TranslateLayout.gutter,
-        4,
-        TranslateLayout.gutter,
-        32,
-      ),
+      physics: hero ? const NeverScrollableScrollPhysics() : null,
+      padding: hero
+          ? const EdgeInsetsDirectional.only(start: _ComposerLayout.cardPadding)
+          : const EdgeInsets.fromLTRB(
+              TranslateLayout.gutter,
+              4,
+              TranslateLayout.gutter,
+              16,
+            ),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(
             maxWidth: TranslateLayout.maxColumnWidth,
           ),
-          child: const Column(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              LanguageBar(),
-              ActiveOptionsBar(),
-              SizedBox(height: TranslateLayout.gap),
-              _InputThread(footer: TranslationMemoryCard()),
-              _OutputSection(memory: false),
+              _InputThread(
+                focusNode: focusNode,
+                compact: hero,
+                minLines: hero ? 3 : 4,
+                footer: hero ? null : const TranslationMemoryCard(),
+              ),
+              if (!hero) const _OutputSection(memory: false),
             ],
           ),
         ),
@@ -624,36 +902,92 @@ class _NarrowLayout extends StatelessWidget {
   }
 }
 
-/// Input and output side by side, like X's web columns: flat panes
-/// separated by a vertical hairline.
-///
-/// On a foldable the panes split exactly at a hinge or half-opened fold
-/// ([FoldAwareSplit]), also below [TranslateLayout.wideBreakpoint]: side
-/// by side at a vertical one (book posture; the languages then head the
-/// input pane, so nothing sits under the hinge), the input above the
-/// output at a horizontal one (tabletop posture).
-class _WideLayout extends StatelessWidget {
-  const new({this.fold, this.wide = true});
+/// The input region on large screens: the input pane and, once active, a
+/// hairline and the output pane beside it, like X's web columns.
+class _WideRegion extends StatelessWidget {
+  const new({required this.hero, required this.focusNode});
 
-  /// How a hinge or half-opened fold splits the screen
-  /// ([FoldAwareSplit.featureDirectionOf]), or null.
-  final Axis? fold;
+  final bool hero;
+  final FocusNode focusNode;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final output = hero ? 0.0 : (constraints.maxWidth - 1) / 2;
+        return Row(
+          key: const Key('translate_wide_layout'),
+          crossAxisAlignment: hero
+              ? CrossAxisAlignment.start
+              : CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                key: const Key('translate_input_pane'),
+                physics: hero ? const NeverScrollableScrollPhysics() : null,
+                padding: hero
+                    ? const EdgeInsetsDirectional.only(
+                        start: _ComposerLayout.cardPadding,
+                      )
+                    : const EdgeInsetsDirectional.only(
+                        top: 8,
+                        end: TranslateLayout.paneGap / 2,
+                        bottom: 32,
+                      ),
+                child: _InputThread(
+                  focusNode: focusNode,
+                  connector: false,
+                  compact: hero,
+                  minLines: hero ? 3 : 8,
+                ),
+              ),
+            ),
+            SizedBox(
+              width: hero ? 0 : 1,
+              child: hero ? null : const Hairline(vertical: true),
+            ),
+            SizedBox(
+              width: output,
+              child: hero
+                  ? null
+                  : const SingleChildScrollView(
+                      key: Key('translate_output_pane'),
+                      padding: EdgeInsetsDirectional.only(
+                        top: 8,
+                        start: TranslateLayout.paneGap / 2,
+                        bottom: 32,
+                      ),
+                      child: _OutputSection(separated: false),
+                    ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// [_TranslateBody] at a hinge or half-opened fold: the panes split
+/// exactly at it ([FoldAwareSplit]), also below
+/// [TranslateLayout.wideBreakpoint]: side by side at a vertical one (book
+/// posture; the language bar docks under the input pane, so nothing sits
+/// under the hinge), the input above the output at a horizontal one
+/// (tabletop posture; the bar docks at the bottom).
+class _FoldLayout extends StatelessWidget {
+  const new({required this.fold, required this.wide, required this.focusNode});
+
+  /// How the hinge or fold splits the screen
+  /// ([FoldAwareSplit.featureDirectionOf]).
+  final Axis fold;
 
   /// Whether the pane is at least [TranslateLayout.wideBreakpoint] wide
-  /// (narrower ones only get here because of a fold: phone gutters).
+  /// (narrower ones get phone gutters).
   final bool wide;
-
-  static const List<Widget> _languages = [
-    LanguageBar(),
-    ActiveOptionsBar(),
-    SizedBox(height: TranslateLayout.gap),
-    Hairline(),
-  ];
+  final FocusNode focusNode;
 
   @override
   Widget build(BuildContext context) {
     final stacked = fold == Axis.vertical;
-    final bookPosture = fold == Axis.horizontal;
     final input = SingleChildScrollView(
       key: const Key('translate_input_pane'),
       padding: stacked
@@ -663,7 +997,11 @@ class _WideLayout extends StatelessWidget {
               end: TranslateLayout.paneGap / 2,
               bottom: 32,
             ),
-      child: _InputThread(connector: false, minLines: stacked ? 4 : 8),
+      child: _InputThread(
+        focusNode: focusNode,
+        connector: false,
+        minLines: stacked ? 4 : 8,
+      ),
     );
     const output = SingleChildScrollView(
       key: Key('translate_output_pane'),
@@ -679,23 +1017,17 @@ class _WideLayout extends StatelessWidget {
       padding: EdgeInsetsDirectional.only(top: 16, bottom: 32),
       child: _OutputSection(separated: false),
     );
-    final split = FoldAwareSplit(
-      key: const Key('translate_pane_split'),
-      direction: stacked ? Axis.vertical : Axis.horizontal,
-      // The hairline between the panes (a hinge or fold replaces it).
-      gap: 1,
-      divider: Hairline(vertical: !stacked),
-      first: bookPosture
-          ? Column(
-              children: [
-                ..._languages,
-                Expanded(child: input),
-              ],
-            )
-          : input,
-      second: stacked ? stackedOutput : output,
+    const bar = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ActiveOptionsBar(),
+        Padding(
+          padding: EdgeInsets.symmetric(vertical: 8),
+          child: LanguageBar(),
+        ),
+      ],
     );
-    final side = wide ? 24.0 : TranslateLayout.gutter;
+    final side = wide ? _ComposerLayout.wideSide : TranslateLayout.gutter;
     return Center(
       key: const Key('translate_wide_layout'),
       child: ConstrainedBox(
@@ -704,13 +1036,38 @@ class _WideLayout extends StatelessWidget {
         ),
         child: Padding(
           padding: EdgeInsets.fromLTRB(side, 4, side, 0),
-          child: bookPosture
-              ? split
-              : Column(
+          child: stacked
+              ? Column(
                   children: [
-                    ..._languages,
-                    Expanded(child: split),
+                    Expanded(
+                      child: FoldAwareSplit(
+                        key: const Key('translate_pane_split'),
+                        direction: Axis.vertical,
+                        gap: 1,
+                        divider: const Hairline(),
+                        first: input,
+                        second: stackedOutput,
+                      ),
+                    ),
+                    bar,
                   ],
+                )
+              : FoldAwareSplit(
+                  key: const Key('translate_pane_split'),
+                  gap: 1,
+                  divider: const Hairline(vertical: true),
+                  first: Column(
+                    children: [
+                      Expanded(child: input),
+                      const Padding(
+                        padding: EdgeInsetsDirectional.only(
+                          end: TranslateLayout.paneGap / 2,
+                        ),
+                        child: bar,
+                      ),
+                    ],
+                  ),
+                  second: output,
                 ),
         ),
       ),

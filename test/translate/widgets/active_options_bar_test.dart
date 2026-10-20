@@ -226,9 +226,8 @@ void main() {
       expect(find.byType(TranslationOptionsSheet), findsOneWidget);
     });
 
-    testWidgets('appears under the language bar on the translate screen', (
-      tester,
-    ) async {
+    testWidgets('sits right above the docked language bar on the translate '
+        'screen', (tester) async {
       final harness = TranslateHarness(
         state: translatedState(engine: claude)
             .copyWith(options: const TranslationOptions(context: 'landlord')),
@@ -237,8 +236,8 @@ void main() {
       final bar = tester.getRect(find.byType(LanguageBar));
       final chip = tester.getRect(find.byType(InputChip));
       final input = tester.getRect(find.byType(InputCard));
-      expect(chip.top, greaterThanOrEqualTo(bar.bottom));
-      expect(input.top, greaterThan(chip.bottom));
+      expect(chip.bottom, lessThanOrEqualTo(bar.top));
+      expect(chip.top, greaterThan(input.bottom));
     });
   });
 }

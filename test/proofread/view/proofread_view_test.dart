@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/app/view/top_level_actions.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/proofread/proofread.dart';
@@ -109,8 +110,10 @@ void main() {
         expect(find.text('Proofreading needs an AI provider'), findsOneWidget);
         expect(find.byType(ProofreadInputCard), findsNothing);
 
+        when(() => router.push<void>(any())).thenAnswer((_) async {});
         await tester.tap(find.text('Add AI provider'));
-        verify(() => router.go('/settings/providers')).called(1);
+        // Above the tabs: back returns to proofreading.
+        verify(() => router.push<void>('/settings/providers')).called(1);
       });
 
       testWidgets('offers a retry when the engines failed to load', (
@@ -180,6 +183,49 @@ void main() {
           preferred: ollamaEngine,
         ),
       ).called(1);
+    });
+
+    group('hero', () {
+      testWidgets('greets above the input until the first check', (
+        tester,
+      ) async {
+        await pumpView(tester, readyState);
+        expect(find.byKey(const Key('proofread_hero')), findsOneWidget);
+        expect(find.text('Does this look right?'), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('proofread_hero')),
+            matching: find.byIcon(Icons.spellcheck_rounded),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          tester.getCenter(find.text('Does this look right?')).dy,
+          lessThan(tester.getCenter(find.byType(ProofreadInputCard)).dy),
+        );
+      });
+
+      testWidgets('is gone once proofreading started', (tester) async {
+        await pumpView(
+          tester,
+          readyState.copyWith(
+            input: 'I has a cat.',
+            status: ProofreadStatus.loading,
+          ),
+        );
+        expect(find.byKey(const Key('proofread_hero')), findsNothing);
+        expect(find.byType(ProofreadInputCard), findsOneWidget);
+      });
+
+      testWidgets('sits above the input on wide screens too', (tester) async {
+        await pumpView(tester, readyState, size: const Size(1200, 900));
+        expect(find.byKey(const Key('proofread_hero')), findsOneWidget);
+      });
+    });
+
+    testWidgets('has History and Settings in the app bar', (tester) async {
+      await pumpView(tester, readyState);
+      expect(find.byType(TopLevelActions), findsOneWidget);
     });
 
     group('input', () {

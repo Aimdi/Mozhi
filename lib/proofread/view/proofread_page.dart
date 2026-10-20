@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/view/top_level_actions.dart';
 import 'package:mozhi/core/widgets/fold_aware_split.dart';
+import 'package:mozhi/core/widgets/tab_hero.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/proofread/cubit/proofread_cubit.dart';
@@ -148,31 +150,57 @@ class ProofreadView extends StatelessWidget {
         preferred: state.assistEngine,
       ),
       child: Scaffold(
-        appBar: AppBar(title: Text(context.l10n.proofreadTitle)),
+        appBar: AppBar(
+          title: Text(context.l10n.proofreadTitle),
+          actions: const [TopLevelActions(), SizedBox(width: 4)],
+        ),
         body: SafeArea(top: false, child: body),
       ),
     );
   }
 }
 
+/// "Does this look right?" above the input until the first check (the
+/// status is idle); the input's hint says what to do.
+class ProofreadHero extends StatelessWidget {
+  const new({super.key});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    key: const Key('proofread_hero'),
+    padding: const EdgeInsets.fromLTRB(8, 16, 8, 8),
+    child: TabHero(
+      icon: Icons.spellcheck_rounded,
+      title: context.l10n.proofreadHeroTitle,
+    ),
+  );
+}
+
+/// Whether nothing was proofread yet: the [ProofreadHero] is shown.
+bool _idle(BuildContext context) => context.select<ProofreadCubit, bool>(
+  (cubit) => cubit.state.status == ProofreadStatus.idle,
+);
+
 class _NarrowLayout extends StatelessWidget {
   const new();
 
   @override
   Widget build(BuildContext context) {
+    final idle = _idle(context);
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
-          child: const Column(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             spacing: 16,
             children: [
-              ProofreadInputCard(),
-              ProofreadControls(),
-              ProofreadButton(),
-              ProofreadResultSection(),
+              if (idle) const ProofreadHero(),
+              const ProofreadInputCard(),
+              const ProofreadControls(),
+              const ProofreadButton(),
+              const ProofreadResultSection(),
             ],
           ),
         ),
@@ -186,25 +214,27 @@ class _WideLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final idle = _idle(context);
     // Side by side, split exactly at a vertical hinge or half-opened fold.
-    return const FoldAwareSplit(
+    return FoldAwareSplit(
       // The panes are divided by a hairline, not boxed.
       gap: 1,
-      divider: Hairline(vertical: true),
-      foldDirections: {Axis.horizontal},
+      divider: const Hairline(vertical: true),
+      foldDirections: const {Axis.horizontal},
       first: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(24, 16, 12, 24),
+        padding: const EdgeInsets.fromLTRB(24, 16, 12, 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           spacing: 16,
           children: [
-            ProofreadInputCard(),
-            ProofreadControls(initiallyExpanded: true),
-            ProofreadButton(),
+            if (idle) const ProofreadHero(),
+            const ProofreadInputCard(),
+            const ProofreadControls(initiallyExpanded: true),
+            const ProofreadButton(),
           ],
         ),
       ),
-      second: SingleChildScrollView(
+      second: const SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(12, 16, 24, 24),
         child: ProofreadResultSection(showPlaceholder: true),
       ),

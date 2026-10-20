@@ -118,10 +118,11 @@ void main() {
       expect(output.left, 574);
       expect(tester.getRect(find.byType(InputCard)).right, lessThan(540));
       expect(tester.getRect(find.byType(OutputCard)).left, greaterThan(574));
-      // The languages head the input pane: nothing under the hinge.
+      // The language bar docks under the input pane: nothing under the
+      // hinge.
       final languages = tester.getRect(find.byType(LanguageBar));
       expect(languages.right, lessThanOrEqualTo(540));
-      expect(languages.bottom, lessThanOrEqualTo(input.top));
+      expect(languages.top, greaterThanOrEqualTo(input.bottom));
       // The hinge separates the panes; no hairline is drawn.
       expect(tester.getSize(_paneHairline), Size.zero);
     });
@@ -168,9 +169,10 @@ void main() {
       expect(input.bottom, 450);
       expect(output.top, 450);
       expect(input.width, output.width);
-      // The languages stay on top, across the screen.
+      // The language bar docks at the bottom, across the screen.
       final languages = tester.getRect(find.byType(LanguageBar));
-      expect(languages.bottom, lessThanOrEqualTo(input.top));
+      expect(languages.top, greaterThanOrEqualTo(output.bottom));
+      expect(languages.width, greaterThan(input.width - 1));
       expect(tester.getRect(find.byType(InputCard)).top, lessThan(450));
       expect(tester.getRect(find.byType(OutputCard)).top, greaterThan(450));
     });
@@ -198,8 +200,10 @@ void main() {
       expect(input.width, output.width);
       expect(output.left - input.right, 1);
       expect(tester.getSize(_paneHairline).width, 1);
-      // The languages span both panes.
-      expect(tester.getRect(find.byType(LanguageBar)).width, 1114 - 48);
+      // The language bar docks at the bottom, across both panes.
+      final languages = tester.getRect(find.byType(LanguageBar));
+      expect(languages.width, 1114 - 48);
+      expect(languages.top, greaterThanOrEqualTo(output.bottom));
     });
   });
 

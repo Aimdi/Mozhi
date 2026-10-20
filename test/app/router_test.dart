@@ -8,6 +8,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/app/router.dart';
 import 'package:mozhi/app/translate_link.dart';
 import 'package:mozhi/app/view/app_shell.dart';
+import 'package:mozhi/app/view/top_level_actions.dart';
 import 'package:mozhi/conversation/view/conversation_page.dart';
 import 'package:mozhi/dictionary/view/dictionary_page.dart';
 import 'package:mozhi/documents/view/document_translate_page.dart';
@@ -306,8 +307,30 @@ void main() {
       expect(find.byType(NavigationBar), findsOneWidget);
     });
 
-    final pages = <String, Type>{
+    final tabs = <String, Type>{
+      '/translate': TranslatePage,
+      '/dictionary': DictionaryPage,
       '/proofread': ProofreadPage,
+      '/conversation': ConversationPage,
+    };
+    for (final MapEntry(key: path, value: page) in tabs.entries) {
+      testWidgets('builds the $path tab', (tester) async {
+        await pumpRouter(tester);
+        await go(tester, path);
+
+        expect(location(), path);
+        expect(find.byType(page), findsOneWidget);
+        expect(find.byType(AppShell), findsOneWidget);
+        // History and Settings are in every tab's app bar.
+        expect(find.byType(TopLevelActions), findsOneWidget);
+      });
+    }
+
+    final fullScreenPages = <String, Type>{
+      '/onboarding': OnboardingPage,
+      '/image': ImageTranslatePage,
+      '/documents': DocumentTranslatePage,
+      '/web': WebTranslatePage,
       '/history': HistoryPage,
       '/settings': SettingsPage,
       '/settings/instances': InstancesPage,
@@ -320,26 +343,6 @@ void main() {
       '/settings/usage': UsageSummaryPage,
       '/settings/quality': QualityModesPage,
       AppRoutes.voiceSettings: VoiceInputSettingsPage,
-      '/translate': TranslatePage,
-    };
-    for (final MapEntry(key: path, value: page) in pages.entries) {
-      testWidgets('builds $path', (tester) async {
-        await pumpRouter(tester);
-        await go(tester, path);
-
-        expect(location(), path);
-        expect(find.byType(page), findsOneWidget);
-        expect(find.byType(AppShell), findsOneWidget);
-      });
-    }
-
-    final fullScreenPages = <String, Type>{
-      '/onboarding': OnboardingPage,
-      '/image': ImageTranslatePage,
-      '/documents': DocumentTranslatePage,
-      '/web': WebTranslatePage,
-      '/conversation': ConversationPage,
-      '/dictionary': DictionaryPage,
     };
     for (final MapEntry(key: path, value: page) in fullScreenPages.entries) {
       testWidgets('builds $path full screen', (tester) async {
@@ -467,6 +470,24 @@ void main() {
       expect(page.autoLookUp, isFalse);
     });
 
+    testWidgets('the translate screen\'s "Open dictionary" selects the '
+        'Dictionary tab and looks the word up', (tester) async {
+      await pumpRouter(tester);
+      // As DictionaryCard.openDictionary navigates.
+      router.go(
+        AppRoutes.dictionaryWord(word: 'gato', from: 'es'),
+        extra: DictionaryLaunch.lookUp,
+      );
+      await tester.pump();
+      await tester.pump(_transition);
+
+      final page = tester.widget<DictionaryPage>(find.byType(DictionaryPage));
+      expect(page.word, 'gato');
+      expect(page.from, 'es');
+      expect(page.autoLookUp, isTrue);
+      expect(location(), '/dictionary?word=gato&from=es');
+    });
+
     testWidgets('passes proofread link text', (tester) async {
       await pumpRouter(tester);
       await go(tester, AppRoutes.proofreadText(text: 'I has a cat'));
@@ -556,7 +577,7 @@ void main() {
       await tester.pump(_transition);
 
       expect(find.byType(GlossariesPage), findsOneWidget);
-      expect(find.byType(AppShell), findsOneWidget);
+      expect(find.byType(AppShell), findsNothing);
     });
 
     testWidgets('usage lists the providers and opens their editor', (
@@ -659,51 +680,204 @@ void main() {
       expect(editor.presetId, 'ollama');
     });
 
-    testWidgets('switches tabs from the navigation bar', (tester) async {
-      await pumpRouter(tester);
-
+    Future<void> tapTab(WidgetTester tester, String label) async {
       await tester.tap(
         find.descendant(
           of: find.byType(NavigationBar),
-          matching: find.text('History'),
+          matching: find.text(label),
         ),
       );
       await tester.pump();
       await tester.pump(_transition);
+    }
 
-      expect(location(), '/history');
-      expect(find.byType(HistoryPage), findsOneWidget);
+    testWidgets('switches tabs from the navigation bar', (tester) async {
+      await pumpRouter(tester);
+
+      await tapTab(tester, 'Dictionary');
+      expect(location(), '/dictionary');
+      expect(find.byType(DictionaryPage), findsOneWidget);
+
+      await tapTab(tester, 'Proofread');
+      expect(location(), '/proofread');
+      expect(find.byType(ProofreadPage), findsOneWidget);
+
+      await tapTab(tester, 'Conversation');
+      expect(location(), '/conversation');
+      expect(find.byType(ConversationPage), findsOneWidget);
+
+      await tapTab(tester, 'Translate');
+      expect(location(), '/translate');
+      expect(find.byType(TranslatePage), findsOneWidget);
     });
 
-    testWidgets("keeps each tab's stack and pops on re-tap", (tester) async {
+    testWidgets("keeps each tab's location and resets it on re-tap", (
+      tester,
+    ) async {
       await pumpRouter(tester);
-      await go(tester, '/settings/about');
+      await go(tester, '/dictionary?word=gato');
 
-      await tester.tap(
-        find.descendant(
-          of: find.byType(NavigationBar),
-          matching: find.text('Translate'),
-        ),
-      );
-      await tester.pump();
+      await tapTab(tester, 'Translate');
       expect(location(), '/translate');
 
-      Future<void> tapSettings() async {
-        await tester.tap(
-          find.descendant(
-            of: find.byType(NavigationBar),
-            matching: find.text('Settings'),
-          ),
-        );
+      await tapTab(tester, 'Dictionary');
+      expect(location(), '/dictionary?word=gato');
+      expect(
+        tester.widget<DictionaryPage>(find.byType(DictionaryPage)).word,
+        'gato',
+      );
+
+      await tapTab(tester, 'Dictionary');
+      expect(location(), '/dictionary');
+      expect(
+        tester.widget<DictionaryPage>(find.byType(DictionaryPage)).word,
+        isNull,
+      );
+    });
+
+    Future<void> tapAction(WidgetTester tester, Key key) async {
+      await tester.tap(find.byKey(key));
+      await tester.pump();
+      await tester.pump(_transition);
+    }
+
+    for (final (key, page) in [
+      (TopLevelActions.historyKey, HistoryPage),
+      (TopLevelActions.settingsKey, SettingsPage),
+    ]) {
+      testWidgets('the app bar opens $page above the tabs and back returns', (
+        tester,
+      ) async {
+        await pumpRouter(tester);
+        await go(tester, '/proofread');
+
+        await tapAction(tester, key);
+        expect(find.byType(page), findsOneWidget);
+        expect(find.byType(AppShell, skipOffstage: false), findsOneWidget);
+        expect(find.byType(NavigationBar).hitTestable(), findsNothing);
+        // The app bar's own back arrow (there is a page below).
+        expect(find.byKey(const Key('top_level_back')), findsNothing);
+        expect(find.byType(BackButton), findsOneWidget);
+
+        await tester.tap(find.byType(BackButton));
         await tester.pump();
         await tester.pump(_transition);
-      }
+        expect(find.byType(page), findsNothing);
+        expect(location(), '/proofread');
+        expect(find.byType(ProofreadPage), findsOneWidget);
+      });
+    }
 
-      await tapSettings();
-      expect(location(), '/settings/about');
+    testWidgets('settings pages pushed from a tab go back to it', (
+      tester,
+    ) async {
+      await pumpRouter(tester);
+      await go(tester, '/conversation');
 
-      await tapSettings();
-      expect(location(), '/settings');
+      unawaited(router.push<void>(AppRoutes.voiceSettings));
+      await tester.pump();
+      await tester.pump(_transition);
+      expect(find.byType(VoiceInputSettingsPage), findsOneWidget);
+
+      router.pop();
+      await tester.pump();
+      await tester.pump(_transition);
+      expect(location(), '/conversation');
+      expect(find.byType(ConversationPage), findsOneWidget);
+    });
+
+    for (final (path, page) in [
+      (AppRoutes.history, HistoryPage),
+      (AppRoutes.settings, SettingsPage),
+    ]) {
+      testWidgets('$path opened on its own goes back to the translate tab', (
+        tester,
+      ) async {
+        await pumpRouter(tester);
+        await go(tester, path);
+        expect(find.byType(page), findsOneWidget);
+        expect(find.byType(AppShell), findsNothing);
+
+        await tester.tap(find.byKey(const Key('top_level_back')));
+        await tester.pump();
+        await tester.pump(_transition);
+        expect(location(), AppRoutes.translate);
+        expect(find.byType(TranslatePage), findsOneWidget);
+      });
+
+      testWidgets('system back on $path opened on its own goes to translate', (
+        tester,
+      ) async {
+        await pumpRouter(tester);
+        await go(tester, path);
+
+        final handled = await tester.binding.handlePopRoute();
+        await tester.pump();
+        await tester.pump(_transition);
+        expect(handled, isTrue);
+        expect(location(), AppRoutes.translate);
+      });
+    }
+
+    testWidgets('a settings sub-page opened on its own stacks on Settings', (
+      tester,
+    ) async {
+      await pumpRouter(tester);
+      await go(tester, AppRoutes.about);
+
+      router.pop();
+      await tester.pump();
+      await tester.pump(_transition);
+      expect(location(), AppRoutes.settings);
+      expect(find.byType(SettingsPage), findsOneWidget);
+    });
+
+    testWidgets('a page pushed right after going to a tab sits above it', (
+      tester,
+    ) async {
+      // How the onboarding opens the AI provider settings.
+      await pumpRouter(tester);
+      await go(tester, AppRoutes.onboarding);
+
+      router.go(AppRoutes.translate);
+      unawaited(router.push<void>(AppRoutes.providers));
+      await tester.pump();
+      await tester.pump(_transition);
+      expect(find.byType(ProvidersPage), findsOneWidget);
+      expect(find.byType(AppShell, skipOffstage: false), findsOneWidget);
+
+      router.pop();
+      await tester.pump();
+      await tester.pump(_transition);
+      expect(location(), AppRoutes.translate);
+      expect(find.byType(TranslatePage), findsOneWidget);
+    });
+
+    testWidgets('face-to-face mode covers the tabs and back leaves it', (
+      tester,
+    ) async {
+      await pumpRouter(tester);
+      await go(tester, AppRoutes.conversation);
+
+      await tester.tap(find.byKey(const Key('conversation_layout_toggle')));
+      await tester.pump();
+      await tester.pump(_transition);
+      expect(
+        find.byKey(const Key('conversation_face_to_face_layout')),
+        findsOneWidget,
+      );
+      expect(find.byType(NavigationBar).hitTestable(), findsNothing);
+
+      final handled = await tester.binding.handlePopRoute();
+      await tester.pump();
+      await tester.pump(_transition);
+      expect(handled, isTrue);
+      expect(
+        find.byKey(const Key('conversation_face_to_face_layout')),
+        findsNothing,
+      );
+      expect(find.byType(NavigationBar).hitTestable(), findsOneWidget);
+      expect(location(), AppRoutes.conversation);
     });
 
     testWidgets('uses a navigation rail on wide screens', (tester) async {

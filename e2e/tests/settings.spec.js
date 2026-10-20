@@ -3,8 +3,11 @@
 const { expect } = require('@playwright/test');
 const {
   copiedTranslation,
+  goBack,
   meanLuminance,
   openApp,
+  openHistory,
+  openSettings,
   scrollTo,
   seedSettings,
   test,
@@ -26,13 +29,14 @@ test('with Save history off, translations are not saved', async ({
   await saveHistory.click();
   await expect(saveHistory).not.toBeChecked();
 
-  await page.getByRole('tab', { name: 'Translate' }).click();
+  // Opened on its own, Settings goes back to the translate tab.
+  await goBack(page);
   await typeSource(page, 'Good evening');
   await expect
     .poll(() => copiedTranslation(page))
     .toBe('[AI→French (Français)] Good evening');
 
-  await page.getByRole('tab', { name: 'History' }).click();
+  await openHistory(page);
   // "History is paused" + the reason (the name matches a substring).
   const banner = page.getByRole('group', {
     name: "History is off. New translations aren't saved.",
@@ -50,10 +54,12 @@ test('with Save history off, translations are not saved', async ({
   await expect(saveHistory).not.toBeChecked();
 
   // The banner turns it back on.
-  await page.getByRole('tab', { name: 'History' }).click();
+  await goBack(page);
+  await openHistory(page);
   await banner.getByRole('button', { name: 'Turn on' }).click();
   await expect(banner).toBeHidden();
-  await page.getByRole('tab', { name: 'Settings' }).click();
+  await goBack(page);
+  await openSettings(page);
   await scrollTo(page, saveHistory);
   await expect(saveHistory).toBeChecked();
 });
@@ -96,7 +102,7 @@ test('the dark theme and its look persist after a reload', async ({
   await expect.poll(() => meanLuminance(page)).toBeLessThan(100);
 
   // Other screens use it too.
-  await page.getByRole('tab', { name: 'Translate' }).click();
+  await goBack(page);
   await expect(
     page.getByRole('textbox', { name: 'Text to translate' }),
   ).toBeVisible();

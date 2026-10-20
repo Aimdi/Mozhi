@@ -254,7 +254,8 @@ void main() {
 
       await tester.tap(find.byKey(const Key('translate_quality_settings')));
       await tester.pumpAndSettle();
-      verify(() => harness.router.go(translateQualityLocation)).called(1);
+      verify(() => harness.router.push<void>(translateQualityLocation))
+          .called(1);
     });
 
     testWidgets('leaves out empty sections', (tester) async {
@@ -298,14 +299,14 @@ void main() {
       final harness = await open(tester);
       await tester.tap(find.text('Add AI provider'));
       await tester.pumpAndSettle();
-      verify(() => harness.router.go('/settings/providers')).called(1);
+      verify(() => harness.router.push<void>('/settings/providers')).called(1);
     });
 
     testWidgets('"Manage instances" opens instance settings', (tester) async {
       final harness = await open(tester);
       await tester.tap(find.text('Manage instances'));
       await tester.pumpAndSettle();
-      verify(() => harness.router.go('/settings/instances')).called(1);
+      verify(() => harness.router.push<void>('/settings/instances')).called(1);
     });
   });
 

@@ -340,7 +340,8 @@ void main() {
       );
       await tester.tap(find.byKey(const Key('translate_quality_settings')));
       await tester.pumpAndSettle();
-      verify(() => harness.router.go(translateQualityLocation)).called(1);
+      verify(() => harness.router.push<void>(translateQualityLocation))
+          .called(1);
       expect(translateQualityLocation, '/settings/quality');
     });
 

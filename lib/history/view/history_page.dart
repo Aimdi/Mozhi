@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
+import 'package:mozhi/app/view/top_level_actions.dart';
 import 'package:mozhi/core/bidi.dart';
 import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/core/undo_snack_bar.dart';
@@ -24,6 +25,10 @@ import 'package:translation_repository/translation_repository.dart';
 /// On-device translation history with search, favorites, filters by
 /// language pair and by where the text went, and swipe to delete. Reads
 /// the app-wide [HistoryCubit], [SettingsCubit] and [TranslateCubit].
+///
+/// A full page above the tabs, opened from their app bars
+/// ([TopLevelActions]): its back arrow returns to the tab
+/// ([topLevelBackButton]); opening an entry goes to the translate tab.
 class HistoryPage extends StatelessWidget {
   const new({super.key});
 
@@ -166,6 +171,7 @@ class _HistoryViewState extends State<HistoryView>
       ],
       child: Scaffold(
         appBar: AppBar(
+          leading: topLevelBackButton(context),
           title: Text(l10n.historyTitle),
           actions: [
             if (hasEntries)

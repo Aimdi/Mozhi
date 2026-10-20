@@ -3001,10 +3001,6 @@
   "@conversationTitle": {
     "description": "conversationTitle"
   },
-  "conversationOpen": "Conversation mode",
-  "@conversationOpen": {
-    "description": "conversationOpen"
-  },
   "conversationFaceToFaceEnter": "Face-to-face mode",
   "@conversationFaceToFaceEnter": {
     "description": "conversationFaceToFaceEnter"
@@ -4089,10 +4085,6 @@
   "@translateToolWebPage": {
     "description": "translateToolWebPage"
   },
-  "translateToolConversation": "Conversation",
-  "@translateToolConversation": {
-    "description": "translateToolConversation"
-  },
   "appSecureStorageUnavailable": "API keys can't be stored securely on this device; they will be kept only for this session.",
   "@appSecureStorageUnavailable": {
     "description": "Shown once on start when the platform secure storage is unavailable and API keys are kept in memory only"
@@ -4393,10 +4385,6 @@
   "@dictionaryPickerNoMatches": {
     "description": "dictionaryPickerNoMatches"
   },
-  "dictionaryEmptyTitle": "Look up any word",
-  "@dictionaryEmptyTitle": {
-    "description": "dictionaryEmptyTitle"
-  },
   "dictionaryEmptyBody": "See definitions, pronunciation, examples and translations, written by your AI provider.",
   "@dictionaryEmptyBody": {
     "description": "dictionaryEmptyBody"
@@ -4445,10 +4433,6 @@
   "dictionaryReady": "Dictionary entry ready",
   "@dictionaryReady": {
     "description": "dictionaryReady"
-  },
-  "dictionaryBack": "Back to Translate",
-  "@dictionaryBack": {
-    "description": "dictionaryBack"
   },
   "settingsHistoryRetentionConfirmTitle": "Delete older translations now?",
   "@settingsHistoryRetentionConfirmTitle": {
@@ -4620,10 +4604,6 @@
         "type": "String"
       }
     }
-  },
-  "translateToolDictionary": "Dictionary",
-  "@translateToolDictionary": {
-    "description": "More tools menu entry that opens the dictionary"
   },
   "translateRefineMoreFormal": "More formal",
   "@translateRefineMoreFormal": {
@@ -5573,14 +5553,6 @@
   "translateToolAlignment": "Matching phrases",
   "@translateToolAlignment": {
     "description": "Chip label: highlight which phrases of the input and the translation match"
-  },
-  "translateEmptyTitle": "Your translation appears here",
-  "@translateEmptyTitle": {
-    "description": "Title of the empty output card"
-  },
-  "translateEmptyHint": "Type or paste text, speak, or translate a photo.",
-  "@translateEmptyHint": {
-    "description": "Hint in the empty output card"
   },
   "translateEmptyRecentPairs": "Recent pairs",
   "@translateEmptyRecentPairs": {
@@ -7532,5 +7504,59 @@
   "translateOptionsChooseAi": "Choose an AI translator",
   "@translateOptionsChooseAi": {
     "description": "Action of the note in the translation options sheet: closes the sheet and opens the engine picker to switch to an AI translator."
+  },
+  "translateGreetingMorning": "Good morning",
+  "@translateGreetingMorning": {
+    "description": "Greeting in the middle of the empty translate screen, from 5:00 to 11:59."
+  },
+  "translateGreetingAfternoon": "Good afternoon",
+  "@translateGreetingAfternoon": {
+    "description": "Greeting in the middle of the empty translate screen, from 12:00 to 17:59."
+  },
+  "translateGreetingEvening": "Good evening",
+  "@translateGreetingEvening": {
+    "description": "Greeting in the middle of the empty translate screen, from 18:00 to 4:59."
+  },
+  "translateHeroCamera": "Camera",
+  "@translateHeroCamera": {
+    "description": "Short label of the chip under the greeting of the empty translate screen that opens image translation (take or pick a photo)."
+  },
+  "translateHeroDocument": "Document",
+  "@translateHeroDocument": {
+    "description": "Short label of the chip under the greeting of the empty translate screen that opens document translation."
+  },
+  "navDictionary": "Dictionary",
+  "@navDictionary": {
+    "description": "Bottom bar / sidebar destination: the AI dictionary tab"
+  },
+  "navConversation": "Conversation",
+  "@navConversation": {
+    "description": "Bottom bar / sidebar destination: the conversation tab"
+  },
+  "conversationHeroTitle": "Let's talk!",
+  "@conversationHeroTitle": {
+    "description": "Big headline of the conversation tab while the conversation is empty"
+  },
+  "conversationHeroHint": "Tap the microphone to start or stop",
+  "@conversationHeroHint": {
+    "description": "Hint under conversationHeroTitle, above the large microphone button"
+  },
+  "conversationHeroMicLanguage": "Speak {language}",
+  "@conversationHeroMicLanguage": {
+    "description": "Caption under the large microphone of the empty conversation: the language it listens for (the first language of the pair)",
+    "placeholders": {
+      "language": {
+        "type": "String",
+        "example": "English"
+      }
+    }
+  },
+  "dictionaryHeroTitle": "What does this mean?",
+  "@dictionaryHeroTitle": {
+    "description": "Big headline above the dictionary search before the first look-up"
+  },
+  "proofreadHeroTitle": "Does this look right?",
+  "@proofreadHeroTitle": {
+    "description": "Big headline above the proofreading input before the first check"
   }
 }

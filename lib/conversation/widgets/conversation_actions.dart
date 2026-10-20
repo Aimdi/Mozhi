@@ -28,21 +28,6 @@ Future<void> shareConversationText(
   );
 }
 
-/// Entry point for the translate screen's app bar: opens conversation mode.
-class ConversationModeButton extends StatelessWidget {
-  const new({required this.onPressed, super.key});
-
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) => IconButton(
-    key: const Key('conversation_mode_button'),
-    tooltip: context.l10n.conversationOpen,
-    icon: const Icon(Icons.forum_outlined),
-    onPressed: onPressed,
-  );
-}
-
 /// Toggles reading each new translation aloud.
 class ConversationAutoSpeakButton extends StatelessWidget {
   const new({super.key});
@@ -88,13 +73,22 @@ class ConversationLayoutButton extends StatelessWidget {
   }
 }
 
-enum _MenuAction { copy, share, clear }
+enum _MenuAction { autoSpeak, copy, share, clear }
 
-/// Overflow menu: copy or share the transcript, clear the conversation.
+/// Overflow menu: copy or share the transcript, clear the conversation;
+/// with [showAutoSpeak] (narrow app bars) also the
+/// [ConversationAutoSpeakButton]'s toggle, as a checked item.
 class ConversationMenuButton extends StatelessWidget {
-  const new({this.share = shareConversationText, super.key});
+  const new({
+    this.share = shareConversationText,
+    this.showAutoSpeak = false,
+    super.key,
+  });
 
   final ConversationShareCallback share;
+
+  /// Offer "Read translations aloud" as the first item.
+  final bool showAutoSpeak;
 
   String _transcript(BuildContext context, ConversationState state) =>
       ConversationTranscript.format(
@@ -164,14 +158,29 @@ class ConversationMenuButton extends StatelessWidget {
       tooltip: l10n.commonMoreOptions,
       icon: const Icon(Icons.more_vert),
       onSelected: (action) {
-        final state = context.read<ConversationCubit>().state;
-        unawaited(switch (action) {
-          _MenuAction.copy => _copy(context, state),
-          _MenuAction.share => _share(context, state),
-          _MenuAction.clear => _clear(context),
-        });
+        final cubit = context.read<ConversationCubit>();
+        final state = cubit.state;
+        switch (action) {
+          case _MenuAction.autoSpeak:
+            cubit.setAutoSpeak(enabled: !state.autoSpeak);
+          case _MenuAction.copy:
+            unawaited(_copy(context, state));
+          case _MenuAction.share:
+            unawaited(_share(context, state));
+          case _MenuAction.clear:
+            unawaited(_clear(context));
+        }
       },
       itemBuilder: (context) => [
+        if (showAutoSpeak) ...[
+          CheckedPopupMenuItem(
+            key: const Key('conversation_menu_auto_speak'),
+            value: _MenuAction.autoSpeak,
+            checked: context.read<ConversationCubit>().state.autoSpeak,
+            child: Text(l10n.conversationAutoSpeak),
+          ),
+          const PopupMenuDivider(),
+        ],
         PopupMenuItem(
           key: const Key('conversation_menu_copy'),
           value: _MenuAction.copy,

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/view/top_level_actions.dart';
 import 'package:mozhi/core/on_device_ml.dart';
 import 'package:mozhi/core/widgets/fold_aware_split.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
@@ -25,6 +26,10 @@ export 'widgets/privacy_settings_section.dart' show historyRetentionLabel;
 /// AI providers (advanced), Appearance, Read aloud, Voice input and About.
 /// Reads [SettingsCubit] (and `HistoryCubit` for the history rows) from the
 /// app-wide providers.
+///
+/// A full page above the tabs, opened from their app bars
+/// ([TopLevelActions]): its back arrow returns to the tab
+/// ([topLevelBackButton]).
 class SettingsPage extends StatelessWidget {
   const new({super.key});
 
@@ -74,7 +79,10 @@ class SettingsView extends StatelessWidget {
       child: FocusTraversalGroup(child: Column(children: children)),
     );
     return Scaffold(
-      appBar: AppBar(title: Text(context.l10n.settingsTitle)),
+      appBar: AppBar(
+        leading: topLevelBackButton(context),
+        title: Text(context.l10n.settingsTitle),
+      ),
       body: LayoutBuilder(
         builder: (context, constraints) {
           final width = constraints.maxWidth;

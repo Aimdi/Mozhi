@@ -104,11 +104,13 @@ void main() {
       await tester.tap(
         find.byKey(const Key('image_translate_providers_button')),
       );
-      verify(() => harness.router.go('/settings/providers')).called(1);
+      verify(() => harness.router.push<Object?>('/settings/providers'))
+          .called(1);
       await tester.tap(
         find.byKey(const Key('image_translate_instances_button')),
       );
-      verify(() => harness.router.go('/settings/instances')).called(1);
+      verify(() => harness.router.push<Object?>('/settings/instances'))
+          .called(1);
     });
 
     testWidgets('lists on-device recognition when supported', (tester) async {

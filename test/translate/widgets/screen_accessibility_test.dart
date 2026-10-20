@@ -116,26 +116,39 @@ void main() {
       ('phone', const Size(400, 1400)),
       ('two panes', const Size(1200, 1400)),
     ]) {
-      testWidgets('source, then result, then actions ($name)', (tester) async {
+      testWidgets('input and tools, then the result, then the docked bar '
+          '($name)', (tester) async {
         final handle = tester.ensureSemantics();
         final harness = TranslateHarness(state: translatedState());
         await harness.pump(tester, size: size);
         final labels = _readingOrder(tester, find.byType(Scaffold).first);
-        final source = _indexOf(labels, 'Source language');
         final input = _indexOf(labels, 'Text to translate');
-        // Exactly: "Translation options" (the bar) comes first.
+        final clear = labels.indexOf('Clear');
         final result = labels.indexOf('Translation');
         final copy = _indexOf(labels, 'Copy');
         final more = labels.indexOf('More');
-        expect(
-          [source, input, result, copy, more].every((i) => i >= 0),
-          isTrue,
-          reason: '$labels',
-        );
-        expect(source, lessThan(input));
-        expect(input, lessThan(result));
-        expect(result, lessThan(copy));
-        expect(copy, lessThan(more));
+        final options = labels.indexOf('Translation options');
+        final source = _indexOf(labels, 'Source language');
+        final swap = labels.indexOf('Swap languages');
+        final target = _indexOf(labels, 'Target language');
+        // The app bar's title also reads "Translate".
+        final go = labels.lastIndexOf('Translate');
+        final order = [
+          input,
+          clear,
+          result,
+          copy,
+          more,
+          options,
+          source,
+          swap,
+          target,
+          go,
+        ];
+        expect(order.every((i) => i >= 0), isTrue, reason: '$labels');
+        for (var i = 1; i < order.length; i++) {
+          expect(order[i], greaterThan(order[i - 1]), reason: '$labels');
+        }
         handle.dispose();
       });
     }

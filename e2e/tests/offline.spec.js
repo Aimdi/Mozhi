@@ -5,7 +5,9 @@ const { expect } = require('@playwright/test');
 const {
   collectPageErrors,
   copiedTranslation,
+  goBack,
   openApp,
+  openHistory,
   seedSettings,
   takeMockDown,
   test,
@@ -28,12 +30,9 @@ test('an unreachable AI provider shows a friendly error', async ({
   await expect(page.getByRole('button', { name: 'Copy', exact: true }))
     .toBeHidden();
 
-  // The app still works: other tabs open and the input is kept.
-  await page.getByRole('tab', { name: 'History' }).click();
-  await expect(
-    page.getByRole('heading', { name: 'History', exact: true }),
-  ).toBeVisible();
-  await page.getByRole('tab', { name: 'Translate' }).click();
+  // The app still works: other pages open and the input is kept.
+  await openHistory(page);
+  await goBack(page);
   await expect(
     page.getByRole('textbox', { name: 'Text to translate' }),
   ).toBeVisible();

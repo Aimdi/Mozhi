@@ -584,7 +584,8 @@ void main() {
       await tester.tap(action());
       await tester.pumpAndSettle();
       expect(find.byType(TranslationOptionsSheet), findsNothing);
-      verify(() => harness.router.go(translateProvidersLocation)).called(1);
+      verify(() => harness.router.push<void>(translateProvidersLocation))
+          .called(1);
     });
 
     testWidgets('offers no action without an AI translator or a router', (

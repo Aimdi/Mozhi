@@ -9,8 +9,5 @@ export 'cubit/conversation_cubit.dart';
 export 'models/models.dart';
 export 'view/conversation_page.dart';
 export 'widgets/conversation_actions.dart'
-    show
-        ConversationModeButton,
-        ConversationShareCallback,
-        shareConversationText;
+    show ConversationShareCallback, shareConversationText;
 export 'widgets/conversation_voice_mic.dart';

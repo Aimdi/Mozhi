@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/core/network/network.dart'
     show describeNetworkPolicyError;
 import 'package:mozhi/core/widgets/consent_prompt.dart';
@@ -46,7 +47,7 @@ class TranslateErrorInfo {
 }
 
 /// Route of the offline language models page.
-const offlineModelsRoute = '/settings/offline';
+const String offlineModelsRoute = AppRoutes.offline;
 
 /// Maps `MozhiApiException` / `LlmApiException` / `LlmRefusalException`,
 /// offline engine failures and other errors to friendly text.
@@ -322,23 +323,21 @@ class TranslateErrorView extends StatelessWidget {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final info = describeTranslateError(l10n, error);
-    final (fixLabel, fixRoute, push) = switch (info.fix) {
+    // Every fix is pushed above the tabs, so back returns here.
+    final (fixLabel, fixRoute) = switch (info.fix) {
       _ when info.offlineModels => (
         _offlineFixLabel(context, l10n) ?? l10n.translateOfflineModelsAction,
         offlineModelsRoute,
-        true,
       ),
       TranslateErrorFix.instances => (
         l10n.translateManageInstances,
-        '/settings/instances',
-        false,
+        AppRoutes.instances,
       ),
       TranslateErrorFix.providers => (
         l10n.translateProvidersAction,
-        '/settings/providers',
-        false,
+        AppRoutes.providers,
       ),
-      TranslateErrorFix.none => (null, null, false),
+      TranslateErrorFix.none => (null, null),
     };
     final switchInstance = info.fix == TranslateErrorFix.instances && !dense
         ? onSwitchInstance
@@ -459,9 +458,7 @@ class TranslateErrorView extends StatelessWidget {
               if (showFix)
                 TextButton(
                   key: const Key('translate_error_fix'),
-                  onPressed: () => push
-                      ? unawaited(context.push<void>(fixRoute))
-                      : context.go(fixRoute),
+                  onPressed: () => unawaited(context.push<void>(fixRoute)),
                   child: Text(fixLabel),
                 ),
             ],

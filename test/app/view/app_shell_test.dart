@@ -57,9 +57,16 @@ void main() {
         NavigationDestinationLabelBehavior.alwaysHide,
       );
       // Labels are hidden visually but still name each destination.
-      for (final label in ['Translate', 'Proofread', 'History', 'Settings']) {
+      for (final label in [
+        'Translate',
+        'Dictionary',
+        'Proofread',
+        'Conversation',
+      ]) {
         expect(find.bySemanticsLabel(RegExp(label)), findsOneWidget);
       }
+      // History and Settings are app bar actions, not destinations.
+      expect(find.bySemanticsLabel(RegExp('History|Settings')), findsNothing);
       handle.dispose();
     });
 
@@ -97,30 +104,67 @@ void main() {
       expect(AppShell.extendedBreakpoint, 1200);
     });
 
+    testWidgets('lists Translate, Dictionary, Proofread, Conversation', (
+      tester,
+    ) async {
+      expect(AppDestination.all.map((d) => d.icon), [
+        Icons.translate_outlined,
+        Icons.menu_book_outlined,
+        Icons.spellcheck_outlined,
+        Icons.forum_outlined,
+      ]);
+      expect(AppDestination.all.map((d) => d.selectedIcon), [
+        Icons.translate,
+        Icons.menu_book,
+        Icons.spellcheck,
+        Icons.forum,
+      ]);
+      await pumpShell(tester, width: 400);
+      final bar = tester.widget<NavigationBar>(find.byType(NavigationBar));
+      expect(
+        bar.destinations
+            .cast<NavigationDestination>()
+            .map((d) => d.label)
+            .toList(),
+        ['Translate', 'Dictionary', 'Proofread', 'Conversation'],
+      );
+      // Each destination names itself in a tooltip as well.
+      for (final label in bar.destinations.cast<NavigationDestination>().map(
+        (d) => d.label,
+      )) {
+        expect(
+          find.byWidgetPredicate((w) => w is Tooltip && w.message == label),
+          findsOneWidget,
+        );
+      }
+    });
+
     testWidgets('reports the tapped destination (bar)', (tester) async {
       final selected = await pumpShell(tester, width: 400);
 
-      await tester.tap(navIcon(Icons.history_outlined));
-      await tester.tap(navIcon(Icons.settings_outlined));
+      await tester.tap(navIcon(Icons.menu_book_outlined));
+      await tester.tap(navIcon(Icons.spellcheck_outlined));
+      await tester.tap(navIcon(Icons.forum_outlined));
 
-      expect(selected, [2, 3]);
+      expect(selected, [1, 2, 3]);
     });
 
     testWidgets('reports the tapped destination (rail)', (tester) async {
-      final selected = await pumpShell(tester, width: 1000, selectedIndex: 2);
+      final selected = await pumpShell(tester, width: 1000, selectedIndex: 3);
 
       final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
-      expect(rail.selectedIndex, 2);
+      expect(rail.selectedIndex, 3);
       await tester.tap(navIcon(Icons.spellcheck_outlined));
+      await tester.tap(navIcon(Icons.menu_book_outlined));
 
-      expect(selected, [1]);
+      expect(selected, [2, 1]);
     });
 
     testWidgets('marks the selected destination', (tester) async {
-      await pumpShell(tester, width: 400, selectedIndex: 1);
+      await pumpShell(tester, width: 400, selectedIndex: 2);
 
       final bar = tester.widget<NavigationBar>(find.byType(NavigationBar));
-      expect(bar.selectedIndex, 1);
+      expect(bar.selectedIndex, 2);
       expect(find.byIcon(Icons.spellcheck), findsOneWidget);
       expect(find.byIcon(Icons.translate_outlined), findsOneWidget);
       final marker = find.byKey(const Key('nav_icon_marker'));

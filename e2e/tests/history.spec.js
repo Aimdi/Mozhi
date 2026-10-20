@@ -6,6 +6,7 @@ const {
   copiedTranslation,
   fillField,
   openApp,
+  openHistory,
   seedSettings,
   sourceInput,
   test,
@@ -40,7 +41,7 @@ test('a translation appears in History and can be starred', async ({
 }) => {
   const errors = collectPageErrors(page);
   await translate(page, FIRST);
-  await page.getByRole('tab', { name: 'History' }).click();
+  await openHistory(page);
 
   const item = entry(page, FIRST);
   await expect(item).toBeVisible();
@@ -90,7 +91,7 @@ test('search filters the history', async ({ page }) => {
   await page.getByRole('button', { name: 'Clear' }).click();
   await expect(sourceInput(page)).toBeVisible();
   await translate(page, SECOND);
-  await page.getByRole('tab', { name: 'History' }).click();
+  await openHistory(page);
 
   await expect(entry(page, FIRST)).toBeVisible();
   await expect(entry(page, SECOND)).toBeVisible();
@@ -112,7 +113,7 @@ test('search filters the history', async ({ page }) => {
 
 test('a deleted entry comes back with Undo', async ({ page }) => {
   await translate(page, FIRST);
-  await page.getByRole('tab', { name: 'History' }).click();
+  await openHistory(page);
   const item = entry(page, FIRST);
   await expect(item).toBeVisible();
 
@@ -143,7 +144,7 @@ test('the language pair filter narrows the history', async ({ page }) => {
     page.getByRole('button', { name: 'Target language: English' }),
   ).toBeVisible();
   await expect.poll(() => copiedTranslation(page)).toMatch(/^\[AI→English/);
-  await page.getByRole('tab', { name: 'History' }).click();
+  await openHistory(page);
 
   const english = page.getByRole('group', {
     name: /English \(detected\).*→.*French/,

@@ -15,7 +15,6 @@ import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/aligned_text.dart';
 import 'package:mozhi/translate/widgets/detection_chips.dart';
-import 'package:mozhi/translate/widgets/empty_output.dart';
 import 'package:mozhi/translate/widgets/extras_section.dart';
 import 'package:mozhi/translate/widgets/insight_sheet.dart';
 import 'package:mozhi/translate/widgets/instance_switcher.dart';
@@ -39,7 +38,6 @@ import 'package:translation_repository/translation_repository.dart';
 
 export 'package:mozhi/translate/widgets/aligned_text.dart';
 export 'package:mozhi/translate/widgets/detection_chips.dart';
-export 'package:mozhi/translate/widgets/empty_output.dart';
 export 'package:mozhi/translate/widgets/romanization_line.dart';
 
 /// Copies [text] (marked as sensitive, see [copyText]) and confirms with a
@@ -89,6 +87,24 @@ TextDirection? outputTextDirection(TranslateState state) =>
     textDirectionForLanguage(state.target) ??
     textDirectionForText(state.output);
 
+/// Whether the engine's languages could not be loaded (e.g. offline first
+/// has not loaded the lists of this server yet): the output shows the
+/// error with Retry.
+bool showsTranslateEngineError(TranslateState state) =>
+    state.enginesStatus == EnginesStatus.failure &&
+    state.error != null &&
+    state.status == TranslateStatus.idle &&
+    state.output.isEmpty;
+
+/// Whether the output has nothing to show for [state]: no translation (nor
+/// one in progress), no consent prompt and no error.
+bool translateOutputIsEmpty(TranslateState state) =>
+    state.output.isEmpty &&
+    state.status != TranslateStatus.translating &&
+    state.status != TranslateStatus.failure &&
+    state.consent == null &&
+    !showsTranslateEngineError(state);
+
 /// The translation: streaming text, progress, errors, romanization,
 /// detected language (with other likely languages when uncertain),
 /// engine/latency footer, the everyday actions (copy, listen, favourite;
@@ -97,7 +113,8 @@ TextDirection? outputTextDirection(TranslateState state) =>
 /// romanization, matching phrases, compare engines). The toggle's state is
 /// the [TranslateMoreScope]'s above (shared with the sections under the
 /// card), else the card's own; it starts closed. Without a translation it
-/// shows [EmptyOutput].
+/// shows nothing ([translateOutputIsEmpty]; the empty screen shows the
+/// greeting instead, `TranslateHero`).
 ///
 /// Progress (the bar and placeholder lines) appears only once a
 /// translation has taken [loadingRevealDelay]; a new result, the empty
@@ -452,7 +469,7 @@ class _OutputCardState extends State<OutputCard> {
     if (state.consent != null && output.isEmpty) {
       return const ValueKey('translate_phase_consent');
     }
-    if (_showsEngineError(state)) {
+    if (showsTranslateEngineError(state)) {
       return const ValueKey('translate_phase_engine_error');
     }
     if (state.status == TranslateStatus.failure && output.isEmpty) {
@@ -470,14 +487,6 @@ class _OutputCardState extends State<OutputCard> {
       state.result?.engineId,
     ));
   }
-
-  /// The engine's languages could not be loaded (e.g. offline first has
-  /// not loaded the lists of this server yet).
-  static bool _showsEngineError(TranslateState state) =>
-      state.enginesStatus == EnginesStatus.failure &&
-      state.error != null &&
-      state.status == TranslateStatus.idle &&
-      state.output.isEmpty;
 
   /// "Switch instance" for Mozhi errors when there is another instance.
   VoidCallback? _switchInstance(BuildContext context) {
@@ -513,7 +522,7 @@ class _OutputCardState extends State<OutputCard> {
       );
     }
 
-    if (_showsEngineError(state)) {
+    if (showsTranslateEngineError(state)) {
       // The engine's languages could not be loaded (e.g. offline first has
       // not loaded the lists of this server yet).
       return Padding(
@@ -550,7 +559,10 @@ class _OutputCardState extends State<OutputCard> {
 
     if (output.isEmpty) {
       if (state.status != TranslateStatus.translating) {
-        return EmptyOutput(state: state);
+        return const SizedBox(
+          key: Key('translate_empty_output'),
+          width: double.infinity,
+        );
       }
       // Placeholder lines once it takes a while (the bar above says
       // "Translating…" to screen readers).

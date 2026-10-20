@@ -1,10 +1,14 @@
-// Smoke tests: the app starts, the More tools menu opens and the main
-// (including deferred, separately downloaded) routes render.
+// Smoke tests: the app starts with its four tabs, History and Settings open
+// from the app bar, the More tools menu opens and the main (including
+// deferred, separately downloaded) routes render.
 const { expect } = require('@playwright/test');
 const {
   collectPageErrors,
   enableSemantics,
+  goBack,
   openApp,
+  openHistory,
+  openSettings,
   scrollTo,
   seedSettings,
   test,
@@ -22,8 +26,15 @@ test('app loads on the translate tab', async ({ page }) => {
     'aria-selected',
     'true',
   );
-  for (const tab of ['Proofread', 'History', 'Settings']) {
+  for (const tab of ['Dictionary', 'Proofread', 'Conversation']) {
     await expect(page.getByRole('tab', { name: tab })).toBeVisible();
+  }
+  // History and Settings are app bar buttons, not tabs.
+  for (const name of ['History', 'Settings']) {
+    await expect(
+      page.getByRole('button', { name, exact: true }).first(),
+    ).toBeVisible();
+    await expect(page.getByRole('tab', { name })).toHaveCount(0);
   }
   await expect(
     page.getByRole('textbox', { name: 'Text to translate' }),
@@ -86,14 +97,53 @@ test('first run: at most three steps after the welcome', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test('the tabs switch and keep History and Settings at hand', async ({
+  page,
+}) => {
+  const errors = collectPageErrors(page);
+  await openApp(page, '/translate');
+
+  // Dictionary and Conversation are deferred: loaded on first open.
+  await page.getByRole('tab', { name: 'Dictionary' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'What does this mean?' }),
+  ).toBeVisible();
+  await page.getByRole('tab', { name: 'Proofread' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Does this look right?' }),
+  ).toBeVisible();
+  await page.getByRole('tab', { name: 'Conversation' }).click();
+  await expect(page.getByRole('heading', { name: "Let's talk!" }))
+    .toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Conversation' }))
+    .toHaveAttribute('aria-selected', 'true');
+
+  // History opens above the tabs; back returns to the same tab.
+  await openHistory(page);
+  await expect(page.getByRole('tab', { name: 'Conversation' })).toHaveCount(0);
+  await goBack(page);
+  await expect(page.getByRole('heading', { name: "Let's talk!" }))
+    .toBeVisible();
+
+  await openSettings(page);
+  await goBack(page);
+  await expect(page.getByRole('tab', { name: 'Conversation' }))
+    .toHaveAttribute('aria-selected', 'true');
+  expect(errors).toEqual([]);
+});
+
 test('More tools menu opens and closes', async ({ page }) => {
   await openApp(page, '/translate');
   await page.getByRole('button', { name: 'More tools' }).click();
 
   const menu = page.getByRole('menu');
   await expect(menu).toBeVisible();
-  for (const item of ['Documents', 'Web page', 'Conversation', 'Dictionary']) {
+  for (const item of ['Documents', 'Web page']) {
     await expect(menu.getByRole('menuitem', { name: item })).toBeVisible();
+  }
+  // The dictionary and conversation mode are tabs now.
+  for (const item of ['Conversation', 'Dictionary']) {
+    await expect(menu.getByRole('menuitem', { name: item })).toHaveCount(0);
   }
 
   await page.keyboard.press('Escape');
@@ -104,6 +154,11 @@ test.describe('routes render', () => {
   test('settings', async ({ page }) => {
     await openApp(page, '/settings');
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+    // A page above the tabs, with a way back even when opened on its own.
+    await expect(page.getByRole('tab', { name: 'Translate' })).toHaveCount(0);
+    await expect(
+      page.getByRole('button', { name: 'Back', exact: true }),
+    ).toBeVisible();
     // Privacy comes first; the other sections follow below it (scroll them
     // into the semantics tree).
     await expect(
@@ -172,6 +227,9 @@ test.describe('routes render', () => {
     });
     await openApp(page, '/dictionary?word=hello&from=en&to=fr');
     await expect(page.getByRole('heading', { name: 'Dictionary' })).toBeVisible();
+    // A tab of its own.
+    await expect(page.getByRole('tab', { name: 'Dictionary' }))
+      .toHaveAttribute('aria-selected', 'true');
     await expect(
       page.getByRole('button', { name: 'Language of the word: English' }),
     ).toBeVisible();

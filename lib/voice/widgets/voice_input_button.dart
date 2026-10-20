@@ -34,6 +34,10 @@ typedef VoiceInputResultCallback = void Function(
 /// offers to open the voice input settings ([settingsLocation]) to
 /// download one (with a [GoRouter] above).
 ///
+/// With [prominent] it is a large filled accent circle
+/// ([prominentSize] dp) instead of a plain 48 dp icon button, e.g. the main
+/// control of an empty conversation.
+///
 /// The default constructor reads the app-wide service with
 /// `context.read<SpeechInputService>()` (provide it with a
 /// `RepositoryProvider<SpeechInputService>`);
@@ -44,6 +48,7 @@ class VoiceInputButton extends StatefulWidget {
     required this.onResult,
     this.preferOnDevice,
     this.onListeningChanged,
+    this.prominent = false,
     super.key,
   }) : service = null;
 
@@ -53,8 +58,12 @@ class VoiceInputButton extends StatefulWidget {
     required this.onResult,
     this.preferOnDevice,
     this.onListeningChanged,
+    this.prominent = false,
     super.key,
   });
+
+  /// Diameter of the [prominent] button.
+  static const double prominentSize = 80;
 
   /// Key of the sound level ring shown while listening.
   static const ValueKey<String> levelRingKey = ValueKey('voiceInputLevelRing');
@@ -87,6 +96,9 @@ class VoiceInputButton extends StatefulWidget {
 
   /// Called when this button starts or stops listening.
   final ValueChanged<bool>? onListeningChanged;
+
+  /// A large filled accent circle ([prominentSize]) instead of an icon.
+  final bool prominent;
 
   @override
   State<VoiceInputButton> createState() => _VoiceInputButtonState();
@@ -270,31 +282,39 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
     final level = listening && state is SpeechInputListening
         ? state.level
         : 0.0;
+    final prominent = widget.prominent;
+    final size = prominent ? VoiceInputButton.prominentSize : 48.0;
     return SizedBox.square(
-      dimension: 48,
+      dimension: size,
       child: Stack(
         alignment: Alignment.center,
         clipBehavior: Clip.none,
         children: [
           if (listening) ...[
-            const _PulseRing(),
+            _PulseRing(size: size),
             Semantics(
               liveRegion: true,
               label: l10n.voiceInputListening,
-              child: _LevelRing(level: level),
+              child: _LevelRing(level: level, size: size),
             ),
           ],
           if (transcribing)
             Semantics(
               liveRegion: true,
               label: l10n.voiceInputTranscribing,
-              child: const _ProgressRing(key: VoiceInputButton.transcribingKey),
+              child: _ProgressRing(
+                key: VoiceInputButton.transcribingKey,
+                size: size - 4,
+              ),
             ),
           if (starting)
             Semantics(
               liveRegion: true,
               label: l10n.voiceInputStarting,
-              child: const _ProgressRing(key: VoiceInputButton.startingKey),
+              child: _ProgressRing(
+                key: VoiceInputButton.startingKey,
+                size: size - 4,
+              ),
             ),
           IconButton(
             tooltip: listening
@@ -307,10 +327,22 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
                 ? l10n.voiceInputUnavailable
                 : l10n.voiceInputStart,
             isSelected: listening,
+            iconSize: prominent ? 36 : null,
             // An accent mic; a filled accent circle while listening; a
             // dimmed crossed-out mic while voice input is unavailable (still
-            // tappable: it explains why).
-            style: listening
+            // tappable: it explains why). The prominent button is always a
+            // filled circle (a neutral one while unavailable).
+            style: prominent
+                ? IconButton.styleFrom(
+                    fixedSize: Size.square(size),
+                    backgroundColor: off
+                        ? scheme.surfaceContainerHighest
+                        : scheme.primary,
+                    foregroundColor: off
+                        ? scheme.onSurfaceVariant
+                        : scheme.onPrimary,
+                  )
+                : listening
                 ? IconButton.styleFrom(
                     backgroundColor: scheme.primary,
                     foregroundColor: scheme.onPrimary,
@@ -320,7 +352,13 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
                         ? scheme.onSurfaceVariant
                         : scheme.primary,
                   ),
-            icon: Icon(off ? Icons.mic_off_outlined : Icons.mic_none_outlined),
+            icon: Icon(
+              off
+                  ? Icons.mic_off_outlined
+                  : prominent
+                  ? Icons.mic
+                  : Icons.mic_none_outlined,
+            ),
             selectedIcon: const Icon(Icons.mic),
             onPressed: () => unawaited(_toggle()),
           ),
@@ -332,13 +370,15 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
 
 /// A thin progress ring around the button (starting, transcribing).
 class _ProgressRing extends StatelessWidget {
-  const new({super.key});
+  const new({required this.size, super.key});
+
+  final double size;
 
   @override
-  Widget build(BuildContext context) => const IgnorePointer(
+  Widget build(BuildContext context) => IgnorePointer(
     child: SizedBox.square(
-      dimension: 44,
-      child: CircularProgressIndicator(strokeWidth: 2),
+      dimension: size,
+      child: const CircularProgressIndicator(strokeWidth: 2),
     ),
   );
 }
@@ -346,9 +386,10 @@ class _ProgressRing extends StatelessWidget {
 /// Translucent accent circle behind the button, scaled by the input
 /// [level] (static when animations are disabled).
 class _LevelRing extends StatelessWidget {
-  const new({required this.level});
+  const new({required this.level, required this.size});
 
   final double level;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
@@ -367,7 +408,7 @@ class _LevelRing extends StatelessWidget {
             shape: BoxShape.circle,
             color: scheme.primary.withValues(alpha: 0.16),
           ),
-          child: const SizedBox.square(dimension: 48),
+          child: SizedBox.square(dimension: size),
         ),
       ),
     );
@@ -377,7 +418,9 @@ class _LevelRing extends StatelessWidget {
 /// A subtle accent ring that keeps pulsing outwards while listening;
 /// nothing when animations are disabled.
 class _PulseRing extends StatefulWidget {
-  const new();
+  const new({required this.size});
+
+  final double size;
 
   @override
   State<_PulseRing> createState() => _PulseRingState();
@@ -429,7 +472,7 @@ class _PulseRingState extends State<_PulseRing>
             shape: BoxShape.circle,
             border: Border.all(color: color, width: 2),
           ),
-          child: const SizedBox.square(dimension: 48),
+          child: SizedBox.square(dimension: widget.size),
         ),
       ),
     );

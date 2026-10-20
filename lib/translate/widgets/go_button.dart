@@ -115,38 +115,43 @@ class _GoButtonState extends State<_GoButton> {
     return Stack(
       alignment: Alignment.center,
       children: [
-        Tooltip(
-          message: stoppable
-              ? l10n.translateStopTranslating
-              : l10n.translateShortcutTranslate,
-          // The label already says "Stop translating".
-          excludeFromSemantics: stoppable,
-          child: IconButton(
-            key: const Key('translate_translate_button'),
-            // Filled (accent) to go, tonal to stop.
-            style: stoppable
-                ? IconButton.styleFrom(
-                    backgroundColor: scheme.secondaryContainer,
-                    foregroundColor: scheme.onSecondaryContainer,
-                  )
-                : IconButton.styleFrom(
-                    backgroundColor: scheme.primary,
-                    foregroundColor: scheme.onPrimary,
-                    disabledBackgroundColor: scheme.onSurface.withValues(
-                      alpha: 0.12,
+        // Its own node, so the tooltip stays with the button (else it
+        // would join the nearest container, e.g. the whole screen).
+        Semantics(
+          container: true,
+          child: Tooltip(
+            message: stoppable
+                ? l10n.translateStopTranslating
+                : l10n.translateShortcutTranslate,
+            // The label already says "Stop translating".
+            excludeFromSemantics: stoppable,
+            child: IconButton(
+              key: const Key('translate_translate_button'),
+              // Filled (accent) to go, tonal to stop.
+              style: stoppable
+                  ? IconButton.styleFrom(
+                      backgroundColor: scheme.secondaryContainer,
+                      foregroundColor: scheme.onSecondaryContainer,
+                    )
+                  : IconButton.styleFrom(
+                      backgroundColor: scheme.primary,
+                      foregroundColor: scheme.onPrimary,
+                      disabledBackgroundColor: scheme.onSurface.withValues(
+                        alpha: 0.12,
+                      ),
+                      disabledForegroundColor: scheme.onSurface.withValues(
+                        alpha: 0.38,
+                      ),
                     ),
-                    disabledForegroundColor: scheme.onSurface.withValues(
-                      alpha: 0.38,
-                    ),
-                  ),
-            onPressed: !widget.enabled
-                ? null
-                : stoppable
-                ? widget.onStop
-                : widget.onGo,
-            icon: Icon(
-              stoppable ? Icons.stop_rounded : Icons.rocket_launch,
-              semanticLabel: label,
+              onPressed: !widget.enabled
+                  ? null
+                  : stoppable
+                  ? widget.onStop
+                  : widget.onGo,
+              icon: Icon(
+                stoppable ? Icons.stop_rounded : Icons.rocket_launch,
+                semanticLabel: label,
+              ),
             ),
           ),
         ),

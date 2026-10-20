@@ -4,11 +4,16 @@ library;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'package:mozhi/translate/widgets/widgets.dart';
+
 import '../translate/helpers/helpers.dart';
 import 'helpers/golden_helpers.dart';
 
 void main() {
   setUpAll(registerTranslateFallbacks);
+  // A morning greeting in every screenshot.
+  setUp(() => TranslateHero.clock = () => DateTime(2026, 10, 20, 9));
+  tearDown(() => TranslateHero.clock = DateTime.now);
 
   goldenGroup('Translate screen', () {
     for (final brightness in [Brightness.light, Brightness.dark]) {
@@ -34,6 +39,26 @@ void main() {
         await expectScreenGolden('translate_result_phone_$look');
       });
     }
+
+    testWidgets('typing on a phone (light)', (tester) async {
+      await pumpTranslateGolden(
+        tester,
+        TranslateHarness(),
+        device: GoldenDevice.phone,
+      );
+      await tester.tap(find.byKey(const Key('translate_input_field')));
+      await tester.pumpAndSettle();
+      await expectScreenGolden('translate_typing_phone_light');
+    });
+
+    testWidgets('empty on a tablet (light)', (tester) async {
+      await pumpTranslateGolden(
+        tester,
+        TranslateHarness(),
+        device: GoldenDevice.tablet,
+      );
+      await expectScreenGolden('translate_empty_tablet_light');
+    });
 
     testWidgets('options for a Mozhi engine on a phone (light)', (
       tester,

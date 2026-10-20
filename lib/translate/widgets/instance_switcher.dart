@@ -89,7 +89,7 @@ Future<String?> showInstanceSwitcher(BuildContext context) {
                 title: Text(l10n.translateManageInstances),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
-                  router.go(AppRoutes.instances);
+                  unawaited(router.push<void>(AppRoutes.instances));
                 },
               ),
           ],

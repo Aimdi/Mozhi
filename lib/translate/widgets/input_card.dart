@@ -78,11 +78,17 @@ SpeechInputService? _speechInputServiceOf(BuildContext context) {
   }
 }
 
-/// The source text field with listen/voice/image/paste/clear actions,
-/// character count (plus a token estimate for AI engines) and a notice
-/// when long text was shortened. Esc clears the field while it is focused
-/// and not empty. The go button ("Translate") is at the end of the
-/// language bar (`TranslateGoButton`).
+/// The source text field with voice input (and paste while empty) at its
+/// top end, as on Kagi Translate, then the tools row: listen, image and
+/// paste at the start, the character count (plus a token estimate for AI
+/// engines), its ring and clear at the end. [compact] (the composer of
+/// the empty screen) leaves the tools row out and keeps paste next to the
+/// microphone. A notice says when long text was shortened. Esc clears the
+/// field while it is focused and not empty. The go button ("Translate")
+/// is at the end of the language bar (`TranslateGoButton`).
+///
+/// [focusNode] is the field's focus node (the screen follows it to leave
+/// the empty screen); without one the card makes its own.
 ///
 /// The field is limited to [TranslateCubit.maxInputLength] characters;
 /// longer pasted text is passed on whole so the cubit cuts it and reports
@@ -98,9 +104,20 @@ SpeechInputService? _speechInputServiceOf(BuildContext context) {
 /// The difference highlighted in the meaning check
 /// (`TranslateState.focusedMeaningIssue`) is highlighted the same way.
 class InputCard extends StatefulWidget {
-  const new({this.minLines = 4, super.key});
+  const new({
+    this.minLines = 4,
+    this.focusNode,
+    this.compact = false,
+    super.key,
+  });
 
   final int minLines;
+
+  /// The text field's focus node; null: the card's own.
+  final FocusNode? focusNode;
+
+  /// Whether the tools row is left out (the empty screen's composer).
+  final bool compact;
 
   @override
   State<InputCard> createState() => _InputCardState();
@@ -110,7 +127,11 @@ class _InputCardState extends State<InputCard> {
   late final TranslateCubit _cubit = context.read<TranslateCubit>();
   late final HighlightTextEditingController _controller =
       HighlightTextEditingController(text: _cubit.state.input);
-  final _focusNode = FocusNode(debugLabel: 'translate_input');
+  FocusNode? _ownFocusNode;
+
+  FocusNode get _focusNode =>
+      widget.focusNode ??
+      (_ownFocusNode ??= FocusNode(debugLabel: 'translate_input'));
 
   /// The field's value at the last controller notification (to tell cursor
   /// moves from edits).
@@ -139,7 +160,7 @@ class _InputCardState extends State<InputCard> {
     _controller
       ..removeListener(_onValueChanged)
       ..dispose();
-    _focusNode.dispose();
+    _ownFocusNode?.dispose();
     super.dispose();
   }
 
@@ -263,6 +284,12 @@ class _InputCardState extends State<InputCard> {
         final transliteration = state.result?.sourceTransliteration ?? '';
         final accent = theme.colorScheme.primary;
         final palette = AppPalette.of(context);
+        final paste = IconButton(
+          key: const Key('translate_paste_button'),
+          tooltip: l10n.translatePaste,
+          icon: const Icon(Icons.content_paste),
+          onPressed: () => unawaited(_paste()),
+        );
         return TranslateFlatCard(
           key: const Key('translate_input_card'),
           look: TranslateCardLook.plain,
@@ -276,61 +303,100 @@ class _InputCardState extends State<InputCard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Focus(
-                  canRequestFocus: false,
-                  skipTraversal: true,
-                  onKeyEvent: _onKeyEvent,
-                  // The hint disappears once there is text, so name the
-                  // field explicitly for screen readers.
-                  child: Semantics(
-                    label: l10n.translateInputLabel,
-                    child: TextField(
-                      key: const Key('translate_input_field'),
-                      controller: _controller,
-                      focusNode: _focusNode,
-                      enableIMEPersonalizedLearning: imeLearningAllowed(
-                        context,
-                      ),
-                      onChanged: _onChanged,
-                      maxLength: TranslateCubit.maxInputLength,
-                      inputFormatters: [
-                        _LengthOverflowFormatter(
-                          TranslateCubit.maxInputLength,
-                          onOverflow: (text) => _overflow = text,
-                        ),
-                      ],
-                      // The toolbar shows its own character count.
-                      buildCounter: (
-                        context, {
-                        required currentLength,
-                        required isFocused,
-                        required maxLength,
-                      }) => null,
-                      keyboardType: TextInputType.multiline,
-                      textInputAction: TextInputAction.newline,
-                      textDirection: inputTextDirection(state),
-                      minLines: widget.minLines,
-                      maxLines: null,
-                      style: TranslateLayout.textStyle(context, input.length),
-                      decoration: InputDecoration(
-                        hintText: l10n.translateInputHint,
-                        hintStyle: TranslateLayout.textStyle(
-                          context,
-                          0,
-                        )?.copyWith(color: palette.secondaryText),
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        filled: false,
-                        isDense: true,
-                        contentPadding: const EdgeInsetsDirectional.only(
-                          top: 14,
-                          bottom: 8,
-                          end: 8,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Focus(
+                        canRequestFocus: false,
+                        skipTraversal: true,
+                        onKeyEvent: _onKeyEvent,
+                        // The hint disappears once there is text, so name the
+                        // field explicitly for screen readers.
+                        child: Semantics(
+                          label: l10n.translateInputLabel,
+                          child: TextField(
+                            key: const Key('translate_input_field'),
+                            controller: _controller,
+                            focusNode: _focusNode,
+                            enableIMEPersonalizedLearning: imeLearningAllowed(
+                              context,
+                            ),
+                            onChanged: _onChanged,
+                            maxLength: TranslateCubit.maxInputLength,
+                            inputFormatters: [
+                              _LengthOverflowFormatter(
+                                TranslateCubit.maxInputLength,
+                                onOverflow: (text) => _overflow = text,
+                              ),
+                            ],
+                            // The toolbar shows its own character count.
+                            buildCounter: (
+                              context, {
+                              required currentLength,
+                              required isFocused,
+                              required maxLength,
+                            }) => null,
+                            keyboardType: TextInputType.multiline,
+                            textInputAction: TextInputAction.newline,
+                            textDirection: inputTextDirection(state),
+                            minLines: widget.minLines,
+                            maxLines: null,
+                            style: TranslateLayout.textStyle(
+                              context,
+                              input.length,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: l10n.translateInputHint,
+                              hintStyle: TranslateLayout.textStyle(
+                                context,
+                                0,
+                              )?.copyWith(color: palette.secondaryText),
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              filled: false,
+                              isDense: true,
+                              contentPadding: const EdgeInsetsDirectional.only(
+                                top: 14,
+                                bottom: 8,
+                                end: 8,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                    // Kagi's top end: paste (empty composer) and the
+                    // microphone, in one place in both layouts so a
+                    // dictation keeps going when the screen changes.
+                    IconButtonTheme(
+                      data: IconButtonThemeData(
+                        style: IconButton.styleFrom(
+                          foregroundColor: accent,
+                          disabledForegroundColor: accent.withValues(
+                            alpha: 0.38,
+                          ),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (widget.compact && input.isEmpty) paste,
+                          if (_speechInputServiceOf(context) case final speech?)
+                            VoiceInputButton.standalone(
+                              key: const Key('translate_voice_input'),
+                              service: speech,
+                              // `auto` uses the device's recognition
+                              // language.
+                              languageCode: state.source.code,
+                              onResult: _onVoiceResult,
+                              onListeningChanged: _onListeningChanged,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
                 if (state.inputTruncated)
                   _TruncatedNotice(limit: truncatedInputLimit(state)),
@@ -350,134 +416,119 @@ class _InputCardState extends State<InputCard> {
                   ),
                 // X's compose toolbar: accent icons at the start, the
                 // count ring and clear at the end.
-                SizedBox(
-                  width: double.infinity,
-                  child: Wrap(
-                    key: const Key('translate_input_toolbar'),
-                    alignment: WrapAlignment.spaceBetween,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    runSpacing: 4,
-                    children: [
-                      IconButtonTheme(
-                        data: IconButtonThemeData(
-                          style: IconButton.styleFrom(
-                            foregroundColor: accent,
-                            disabledForegroundColor: accent.withValues(
-                              alpha: 0.38,
+                if (!widget.compact)
+                  SizedBox(
+                    width: double.infinity,
+                    child: Wrap(
+                      key: const Key('translate_input_toolbar'),
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      runSpacing: 4,
+                      children: [
+                        IconButtonTheme(
+                          data: IconButtonThemeData(
+                            style: IconButton.styleFrom(
+                              foregroundColor: accent,
+                              disabledForegroundColor: accent.withValues(
+                                alpha: 0.38,
+                              ),
                             ),
                           ),
-                        ),
-                        child: Transform.translate(
-                          // Line the first icon up with the text.
-                          offset: Offset(
-                            Directionality.of(context) == TextDirection.rtl
-                                ? 8
-                                : -8,
-                            0,
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              ListenButton(
-                                id: 'source',
-                                text: input,
-                                languageCode: state.effectiveSourceCode,
-                              ),
-                              if (_speechInputServiceOf(context)
-                                  case final speech?)
-                                VoiceInputButton.standalone(
-                                  key: const Key('translate_voice_input'),
-                                  service: speech,
-                                  // `auto` uses the device's recognition
-                                  // language.
-                                  languageCode: state.source.code,
-                                  onResult: _onVoiceResult,
-                                  onListeningChanged: _onListeningChanged,
-                                ),
-                              if (GoRouter.maybeOf(context) != null)
-                                const ImageTranslateButton(
-                                  key: Key('translate_image_button'),
-                                ),
-                              if (input.isEmpty)
-                                IconButton(
-                                  key: const Key('translate_paste_button'),
-                                  tooltip: l10n.translatePaste,
-                                  icon: const Icon(Icons.content_paste),
-                                  onPressed: () => unawaited(_paste()),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      Wrap(
-                        alignment: WrapAlignment.end,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        spacing: 4,
-                        runSpacing: 4,
-                        children: [
-                          if (input.isNotEmpty)
-                            Row(
+                          child: Transform.translate(
+                            // Line the first icon up with the text.
+                            offset: Offset(
+                              Directionality.of(context) == TextDirection.rtl
+                                  ? 8
+                                  : -8,
+                              0,
+                            ),
+                            child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Flexible(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Text(
-                                        l10n.translateCharacterCount(
-                                          input.characters.length,
-                                        ),
-                                        key: const Key(
-                                          'translate_character_count',
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: theme.textTheme.labelMedium
-                                            ?.copyWith(
-                                              color: palette.secondaryText,
-                                            ),
-                                      ),
-                                      // Nothing below 500 characters; one line
-                                      // like the count.
-                                      if (state.isAiEngine)
-                                        DefaultTextStyle.merge(
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          child: TokenEstimateLabel(
-                                            key: const Key(
-                                              'translate_token_estimate',
-                                            ),
-                                            text: input,
-                                          ),
-                                        ),
-                                    ],
+                                ListenButton(
+                                  id: 'source',
+                                  text: input,
+                                  languageCode: state.effectiveSourceCode,
+                                ),
+                                if (GoRouter.maybeOf(context) != null)
+                                  const ImageTranslateButton(
+                                    key: Key('translate_image_button'),
                                   ),
-                                ),
-                                const SizedBox(width: 10),
-                                // The count above says the same in words.
-                                ExcludeSemantics(
-                                  child: CountRing(
-                                    key: const Key('translate_count_ring'),
-                                    count: input.characters.length,
-                                    limit: TranslateCubit.maxInputLength,
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
-                                IconButton(
-                                  key: const Key('translate_clear_button'),
-                                  tooltip: l10n.commonClear,
-                                  color: palette.secondaryText,
-                                  icon: const Icon(Icons.close),
-                                  onPressed: _clear,
-                                ),
+                                if (input.isEmpty) paste,
                               ],
                             ),
-                        ],
-                      ),
-                    ],
+                          ),
+                        ),
+                        Wrap(
+                          alignment: WrapAlignment.end,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 4,
+                          runSpacing: 4,
+                          children: [
+                            if (input.isNotEmpty)
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Flexible(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                      children: [
+                                        Text(
+                                          l10n.translateCharacterCount(
+                                            input.characters.length,
+                                          ),
+                                          key: const Key(
+                                            'translate_character_count',
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: theme.textTheme.labelMedium
+                                              ?.copyWith(
+                                                color: palette.secondaryText,
+                                              ),
+                                        ),
+                                        // Nothing below 500 characters;
+                                        // one line like the count.
+                                        if (state.isAiEngine)
+                                          DefaultTextStyle.merge(
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            child: TokenEstimateLabel(
+                                              key: const Key(
+                                                'translate_token_estimate',
+                                              ),
+                                              text: input,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  // The count above says the same in words.
+                                  ExcludeSemantics(
+                                    child: CountRing(
+                                      key: const Key('translate_count_ring'),
+                                      count: input.characters.length,
+                                      limit: TranslateCubit.maxInputLength,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  IconButton(
+                                    key: const Key('translate_clear_button'),
+                                    tooltip: l10n.commonClear,
+                                    color: palette.secondaryText,
+                                    icon: const Icon(Icons.close),
+                                    onPressed: _clear,
+                                  ),
+                                ],
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
               ],
             ),
           ),

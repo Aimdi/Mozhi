@@ -477,7 +477,7 @@ class _LanguageButton extends StatelessWidget {
       child: TextButton(
         style: TextButton.styleFrom(
           minimumSize: const Size(48, 48),
-          padding: const EdgeInsetsDirectional.only(start: 10, end: 4),
+          padding: const EdgeInsetsDirectional.only(start: 8, end: 2),
           shape: const StadiumBorder(),
           foregroundColor: scheme.onSurface,
           backgroundColor: Colors.transparent,

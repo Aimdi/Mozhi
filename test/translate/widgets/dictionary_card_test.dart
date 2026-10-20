@@ -271,13 +271,14 @@ void main() {
     });
 
     group('Open dictionary', () {
-      testWidgets('opens the input in the detected language', (tester) async {
+      testWidgets('switches to the Dictionary tab with the input in the '
+          'detected language', (tester) async {
         final harness = TranslateHarness(state: _state());
         stubOutputExtras(harness);
         await harness.pump(tester, child: const DictionaryCard());
         await tester.tap(find.byKey(const Key('translate_dictionary_open')));
         verify(
-          () => harness.router.push<Object?>(
+          () => harness.router.go(
             '/dictionary?word=helo&from=en&to=fr',
             extra: DictionaryLaunch.lookUp,
           ),
@@ -303,7 +304,7 @@ void main() {
         );
         await tester.tap(find.byKey(const Key('translate_dictionary_open')));
         verify(
-          () => harness.router.push<Object?>(
+          () => harness.router.go(
             '/dictionary?word=hello+there&from=en&to=de',
             extra: DictionaryLaunch.lookUp,
           ),
@@ -329,7 +330,7 @@ void main() {
         await harness.pump(tester, child: const DictionaryCard());
         await tester.tap(find.byKey(const Key('translate_dictionary_open')));
         verify(
-          () => harness.router.push<Object?>(
+          () => harness.router.go(
             '/dictionary?word=hello',
             extra: DictionaryLaunch.lookUp,
           ),
@@ -344,7 +345,7 @@ void main() {
         await harness.pump(tester, child: const DictionaryCard());
         await tester.tap(find.byKey(const Key('translate_dictionary_open')));
         verify(
-          () => harness.router.push<Object?>(
+          () => harness.router.go(
             '/dictionary?word=helo&to=fr',
             extra: DictionaryLaunch.lookUp,
           ),

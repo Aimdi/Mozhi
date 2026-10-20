@@ -61,6 +61,13 @@ void main() {
     );
     expect(micA.languageCode, 'en');
     expect(micB.languageCode, 'es');
+    expect(micA.prominent, isFalse);
+    // The empty conversation's large microphone dictates for side A.
+    final hero = tester.widget<VoiceInputButton>(
+      find.byKey(const ValueKey('conversation_hero_mic_a')),
+    );
+    expect(hero.prominent, isTrue);
+    expect(hero.languageCode, 'en');
 
     micA.onResult('Hello', isFinal: true);
     await tester.pumpAndSettle();

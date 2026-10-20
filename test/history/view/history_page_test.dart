@@ -113,6 +113,13 @@ void main() {
       );
     }
 
+    testWidgets('is a page with a back arrow to the tabs', (tester) async {
+      await pump(tester);
+      // Opened on its own (the only page): the arrow goes to Translate.
+      await tester.tap(find.byKey(const Key('top_level_back')));
+      verify(() => router.go('/translate')).called(1);
+    });
+
     testWidgets('groups entries by day', (tester) async {
       await pump(tester);
       expect(find.text('History'), findsOneWidget);
