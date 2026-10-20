@@ -71,6 +71,14 @@ Status as of 18 October 2026.
 `.github/workflows/release.yaml` runs on every pushed tag that starts with
 `v`. Branch pushes only run CI (`main.yaml`).
 
+It can also be started by hand (**Actions › release › Run workflow**, or
+`gh workflow run release.yaml -f tag=v0.1.0-rc.3`) when pushing a tag isn't
+possible: it builds the chosen branch and publishes the release under the
+given tag, which GitHub then creates at the built commit. The tag must look
+like `v0.1.0` or `v0.1.0-rc.3` and must not exist yet; the run fails before
+building otherwise. The tag isn't signed this way, so prefer a pushed,
+signed tag for final releases.
+
 | Job | Builds | Checks |
 | --- | --- | --- |
 | *Build Android APKs and app bundle* | the default (Google-free) build: one APK per ABI, a universal APK and the `.aab`, all obfuscated | `tool/check_no_google.sh` on every APK and the bundle; `tool/check_signing.py` (the release certificate; a release tag fails without the signing secrets); the universal APK has the three engines (`libmozhi_bergamot.so`, `libmozhi_tesseract.so`, `libmozhi_whisper.so`) for all three ABIs and no `libc++_shared.so`; `tool/check_page_size.py`: every 64-bit native library loads on 16 KB page phones ([Building](building.md#check-an-apk-for-16-kb-pages)); warns when the tag doesn't match the `pubspec.yaml` version |
@@ -125,7 +133,9 @@ GitHub's generated notes plus a fixed description of the files.
    - Check the files ([step 6](#checklist)), then delete the pre-release
      and its tag: `gh release delete v0.1.0-rc.1 --cleanup-tag --yes`.
 5. **Tag the release**: `git tag -s v0.1.0 -m "Mozhi 0.1.0" && git push
-   origin v0.1.0` (`-a` instead of `-s` if you don't sign tags).
+   origin v0.1.0` (`-a` instead of `-s` if you don't sign tags), or start
+   the workflow by hand with the tag (see
+   [What the release workflow does](#what-the-release-workflow-does)).
 6. **Verify what was published.** Download every file of the release into
    an empty folder:
 

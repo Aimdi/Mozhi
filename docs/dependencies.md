@@ -26,8 +26,11 @@ licences page (**Settings > About Mozhi > Open-source licenses**) and in
 - `packages/mlkit_translator` (ML Kit translation) is kept for reference
   only. No build depends on it.
 - `.github/workflows/license_check.yaml` allows MIT, BSD-2-Clause,
-  BSD-3-Clause and Apache-2.0 for pub dependencies. It only runs on
-  `main`, which doesn't exist yet (see [Releasing](release.md#before-the-first-release)).
+  BSD-3-Clause and Apache-2.0 for pub dependencies. It runs on pull
+  requests to `main` and pushes to `main` that change `pubspec.yaml` or
+  `pubspec.lock`, with the Flutter SDK and Very Good CLI's
+  `packages check licenses` (the shared Very Good workflow resolves
+  dependencies with `dart pub`, which can't resolve a Flutter app).
 
 ## Regenerating the tables
 

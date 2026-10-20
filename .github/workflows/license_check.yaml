@@ -10,16 +10,46 @@ on:
       - main
     paths:
       - "pubspec.yaml"
+      - "pubspec.lock"
       - ".github/workflows/license_check.yaml"
   push:
     branches:
       - main
     paths:
       - "pubspec.yaml"
+      - "pubspec.lock"
       - ".github/workflows/license_check.yaml"
 
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: "3.47.7"
+  VERY_GOOD_CLI_VERSION: "1.5.0"
+
 jobs:
+  # The app is a Flutter package, so the check needs the Flutter SDK: the
+  # shared Very Good workflow resolves dependencies with `dart pub` and
+  # fails before checking anything.
   license_check:
-    uses: VeryGoodOpenSource/very_good_workflows/.github/workflows/license_check.yml@61d25935870f12a1f2c23f2a04d5f193c83f4e5d # v1.21.1
-    with:
-      allowed: "MIT,BSD-3-Clause,BSD-2-Clause,Apache-2.0"
+    name: Check dependency licenses
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install dependencies and Very Good CLI
+        run: |
+          flutter pub get
+          dart pub global activate very_good_cli "$VERY_GOOD_CLI_VERSION"
+
+      - name: Check licenses
+        run: |
+          very_good packages check licenses \
+            --allowed="MIT,BSD-3-Clause,BSD-2-Clause,Apache-2.0"
