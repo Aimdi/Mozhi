@@ -1370,13 +1370,13 @@ void main() {
           of: find.byType(DictionaryLanguagePicker),
           matching: find.byType(ListView),
         );
-        expect(tester.getRect(list).bottom, 800);
+        expect(tester.getRect(list).bottom, moreOrLessEquals(800));
 
         // The search field opens a 300 dp keyboard.
         tester.view.viewInsets = const FakeViewPadding(bottom: 300);
         await tester.pumpAndSettle();
 
-        expect(tester.getRect(list).bottom, 800 - 300);
+        expect(tester.getRect(list).bottom, moreOrLessEquals(800 - 300));
         expect(tester.takeException(), isNull);
       });
 
