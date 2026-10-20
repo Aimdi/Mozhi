@@ -28,21 +28,6 @@ Future<void> shareConversationText(
   );
 }
 
-/// Entry point for the translate screen's app bar: opens conversation mode.
-class ConversationModeButton extends StatelessWidget {
-  const new({required this.onPressed, super.key});
-
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) => IconButton(
-    key: const Key('conversation_mode_button'),
-    tooltip: context.l10n.conversationOpen,
-    icon: const Icon(Icons.forum_outlined),
-    onPressed: onPressed,
-  );
-}
-
 /// Toggles reading each new translation aloud.
 class ConversationAutoSpeakButton extends StatelessWidget {
   const new({super.key});

@@ -255,7 +255,7 @@ void main() {
       verify(harness.translate.translate).called(1);
       // A single instance: nothing to switch to.
       await tester.tap(find.text('Manage instances'));
-      verify(() => harness.router.go('/settings/instances')).called(1);
+      verify(() => harness.router.push<void>('/settings/instances')).called(1);
     });
 
     testWidgets('auth errors point to the API key', (tester) async {
@@ -268,7 +268,7 @@ void main() {
       await harness.pump(tester, child: const OutputCard(), more: true);
       expect(find.textContaining('Check the API key'), findsOneWidget);
       await tester.tap(find.text('AI providers'));
-      verify(() => harness.router.go('/settings/providers')).called(1);
+      verify(() => harness.router.push<void>('/settings/providers')).called(1);
     });
 
     group('an undetectable source language', () {

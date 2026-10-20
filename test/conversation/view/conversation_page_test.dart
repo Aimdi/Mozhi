@@ -1211,19 +1211,4 @@ void main() {
       expect(clipboard, hasLength(1));
     });
   });
-
-  testWidgets('ConversationModeButton opens conversation mode', (tester) async {
-    var opened = 0;
-    await tester.pumpConversation(
-      Scaffold(
-        appBar: AppBar(
-          actions: [ConversationModeButton(onPressed: () => opened++)],
-        ),
-      ),
-      translate: translate,
-      settings: settings,
-    );
-    await tester.tap(find.byTooltip('Conversation mode'));
-    expect(opened, 1);
-  });
 }

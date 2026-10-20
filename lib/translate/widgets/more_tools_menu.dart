@@ -44,41 +44,6 @@ enum TranslateTool {
   };
 }
 
-/// The word the dictionary would open with for the translate screen's
-/// input: the trimmed input when it is one to three words
-/// (`TranslateState.isShortInput`) and at most
-/// [TranslateCubit.maxDictionaryWordLength] characters, else null.
-String? translateDictionaryWord(TranslateState state) {
-  final word = state.input.trim();
-  if (!state.isShortInput ||
-      word.length > TranslateCubit.maxDictionaryWordLength) {
-    return null;
-  }
-  return word;
-}
-
-/// The dictionary location for [state]: its word
-/// ([translateDictionaryWord]) in the current languages. The source is the
-/// detected language while detecting (when the result is current), and
-/// custom languages are left out (the dictionary does not take them).
-String translateDictionaryLocation(TranslateState state) {
-  final source = state.source;
-  final detected = state.isResultStale ? null : state.result?.detectedSource;
-  final String? from;
-  if (source.isCustom) {
-    from = null;
-  } else if (source.isAuto && detected != null && detected.isNotEmpty) {
-    from = detected;
-  } else {
-    from = source.code;
-  }
-  return AppRoutes.dictionaryWord(
-    word: translateDictionaryWord(state),
-    from: from,
-    to: state.target.isCustom ? null : state.target.code,
-  );
-}
-
 /// Whether the output card's Listen button can read the translation: there
 /// is one, in a language that is not a custom one.
 bool canListenToTranslation(TranslateState state) =>

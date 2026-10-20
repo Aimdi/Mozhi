@@ -120,7 +120,7 @@ Future<void> showEngineSheet(BuildContext context) {
 }
 
 /// Location of the quality modes settings (Fast / Best engines).
-const translateQualityLocation = AppRoutes.quality;
+const String translateQualityLocation = AppRoutes.quality;
 
 /// Engines grouped by kind: "On this device" (offline engines, with the
 /// offline badge), "Mozhi engines (via host)", "Machine translation"

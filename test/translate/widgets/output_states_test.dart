@@ -317,7 +317,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('translate_instance_manage')));
       await tester.pumpAndSettle();
-      verify(() => harness.router.go('/settings/instances')).called(1);
+      verify(() => harness.router.push<void>('/settings/instances')).called(1);
     });
 
     testWidgets('dismissing changes nothing', (tester) async {

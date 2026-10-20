@@ -78,11 +78,11 @@ class OptionsButton extends StatelessWidget {
 }
 
 /// Location of the presets page ("Manage presets" in the preset picker).
-const translatePresetsLocation = AppRoutes.presets;
+const String translatePresetsLocation = AppRoutes.presets;
 
 /// Location of the AI provider settings ("Add AI provider" in the note of
 /// the options sheet, like the engine picker's).
-const translateProvidersLocation = AppRoutes.providers;
+const String translateProvidersLocation = AppRoutes.providers;
 
 /// What the options sheet asks [showOptionsSheet] to do once it is closed.
 enum OptionsSheetAction {

@@ -47,7 +47,7 @@ class TranslateErrorInfo {
 }
 
 /// Route of the offline language models page.
-const offlineModelsRoute = '/settings/offline';
+const String offlineModelsRoute = AppRoutes.offline;
 
 /// Maps `MozhiApiException` / `LlmApiException` / `LlmRefusalException`,
 /// offline engine failures and other errors to friendly text.
@@ -458,8 +458,7 @@ class TranslateErrorView extends StatelessWidget {
               if (showFix)
                 TextButton(
                   key: const Key('translate_error_fix'),
-                  onPressed: () =>
-                      unawaited(context.push<void>(fixRoute)),
+                  onPressed: () => unawaited(context.push<void>(fixRoute)),
                   child: Text(fixLabel),
                 ),
             ],

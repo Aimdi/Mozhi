@@ -470,6 +470,24 @@ void main() {
       expect(page.autoLookUp, isFalse);
     });
 
+    testWidgets('the translate screen\'s "Open dictionary" selects the '
+        'Dictionary tab and looks the word up', (tester) async {
+      await pumpRouter(tester);
+      // As DictionaryCard.openDictionary navigates.
+      router.go(
+        AppRoutes.dictionaryWord(word: 'gato', from: 'es'),
+        extra: DictionaryLaunch.lookUp,
+      );
+      await tester.pump();
+      await tester.pump(_transition);
+
+      final page = tester.widget<DictionaryPage>(find.byType(DictionaryPage));
+      expect(page.word, 'gato');
+      expect(page.from, 'es');
+      expect(page.autoLookUp, isTrue);
+      expect(location(), '/dictionary?word=gato&from=es');
+    });
+
     testWidgets('passes proofread link text', (tester) async {
       await pumpRouter(tester);
       await go(tester, AppRoutes.proofreadText(text: 'I has a cat'));

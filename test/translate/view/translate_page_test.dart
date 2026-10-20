@@ -41,10 +41,10 @@ void main() {
       expect(find.text('No translation engines available'), findsOneWidget);
 
       await tester.tap(find.text('Add AI provider'));
-      verify(() => harness.router.go('/settings/providers')).called(1);
+      verify(() => harness.router.push<void>('/settings/providers')).called(1);
 
       await tester.tap(find.text('Manage instances'));
-      verify(() => harness.router.go('/settings/instances')).called(1);
+      verify(() => harness.router.push<void>('/settings/instances')).called(1);
 
       await tester.tap(find.text('Retry'));
       verify(() => harness.translate.loadEngines(refresh: true)).called(1);

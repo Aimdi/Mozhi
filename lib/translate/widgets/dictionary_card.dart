@@ -31,13 +31,15 @@ class DictionaryCard extends StatelessWidget {
     return query.isNotEmpty ? query : state.input.trim();
   }
 
-  /// Opens the full-screen dictionary for [word] in the languages of
-  /// [state] (the detected source when it is auto) and looks it up.
-  static Future<void> openDictionary(
+  /// Switches to the Dictionary tab for [word] in the languages of [state]
+  /// (the detected source when it is auto) and looks it up there. The tab
+  /// is selected (a `go`, not a push onto the translate tab), so back is
+  /// the tab's own.
+  static void openDictionary(
     BuildContext context,
     TranslateState state,
     String word,
-  ) async {
+  ) {
     final source = state.source;
     final detected = state.result?.detectedSource?.trim() ?? '';
     final from = source.isCustom
@@ -46,7 +48,7 @@ class DictionaryCard extends StatelessWidget {
         ? (detected.isEmpty ? null : detected)
         : source.code;
     final target = state.target;
-    await context.push<Object?>(
+    context.go(
       AppRoutes.dictionaryWord(
         word: word,
         from: from,
@@ -133,8 +135,7 @@ class DictionaryCard extends StatelessWidget {
                       alignment: AlignmentDirectional.centerEnd,
                       child: TextButton.icon(
                         key: const Key('translate_dictionary_open'),
-                        onPressed: () =>
-                            unawaited(openDictionary(context, state, word)),
+                        onPressed: () => openDictionary(context, state, word),
                         icon: const Icon(Icons.open_in_new),
                         label: Text(l10n.translateDictionaryOpen),
                       ),

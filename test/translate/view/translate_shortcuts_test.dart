@@ -2,7 +2,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:mozhi/dictionary/view/dictionary_page.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/translate.dart';
@@ -428,7 +427,6 @@ void main() {
       ('Image (camera)', '/image'),
       ('Documents', '/documents'),
       ('Web page', '/web'),
-      ('Conversation', '/conversation'),
     ]) {
       testWidgets('$label opens $route', (tester) async {
         final harness = TranslateHarness(state: translatedState());
@@ -448,64 +446,16 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets('Dictionary looks up a short input', (tester) async {
-      final harness = TranslateHarness(
-        state: translatedState(input: '  Hello world '),
-      );
+    testWidgets('has no Dictionary or Conversation (they are tabs)', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(state: translatedState(input: 'Hola'));
       await harness.pump(tester);
-      await openTool(tester, 'Dictionary');
-      verify(
-        () => harness.router.push<void>(
-          '/dictionary?word=Hello+world&from=en&to=fr',
-          extra: DictionaryLaunch.lookUp,
-        ),
-      ).called(1);
-    });
-
-    testWidgets('Dictionary opens empty for longer text', (tester) async {
-      final harness = TranslateHarness(
-        state: readyState(
-          input: 'One two three four',
-          source: german,
-          target: const Language.custom('Pirate speak'),
-          engine: claude,
-        ),
-      );
-      await harness.pump(tester);
-      await openTool(tester, 'Dictionary');
-      verify(() => harness.router.push<void>('/dictionary?from=de')).called(1);
-    });
-
-    test('translateDictionaryLocation', () {
-      expect(
-        translateDictionaryLocation(readyState(input: 'gato')),
-        '/dictionary?word=gato&from=auto&to=fr',
-      );
-      expect(
-        translateDictionaryLocation(translatedState(input: 'Hola')),
-        '/dictionary?word=Hola&from=en&to=fr',
-      );
-      // A stale detection is not used.
-      expect(
-        translateDictionaryLocation(
-          translatedState(input: 'Hola')
-              .copyWith(resultInput: () => 'Hello world'),
-        ),
-        '/dictionary?word=Hola&from=auto&to=fr',
-      );
-      expect(
-        translateDictionaryLocation(
-          readyState(
-            input: 'x',
-            engine: claude,
-            source: const Language.custom('Gen Z slang'),
-          ),
-        ),
-        '/dictionary?word=x&to=fr',
-      );
-      final long = 'a' * (TranslateCubit.maxDictionaryWordLength + 1);
-      expect(translateDictionaryWord(readyState(input: long)), isNull);
-      expect(translateDictionaryWord(readyState()), isNull);
+      await tester.tap(find.byKey(const Key('translate_more_tools')));
+      await tester.pumpAndSettle();
+      expect(find.text('Image (camera)'), findsOneWidget);
+      expect(find.text('Dictionary'), findsNothing);
+      expect(find.text('Conversation'), findsNothing);
     });
 
     testWidgets('Recent language pairs opens the pairs', (tester) async {
@@ -535,7 +485,7 @@ void main() {
       await tester.tap(find.byKey(const Key('translate_more_tools')));
       await tester.pumpAndSettle();
       expect(find.text('Recent language pairs'), findsNothing);
-      expect(find.text('Dictionary'), findsOneWidget);
+      expect(find.text('Image (camera)'), findsOneWidget);
       expect(find.text('Keyboard shortcuts'), findsOneWidget);
     });
 
