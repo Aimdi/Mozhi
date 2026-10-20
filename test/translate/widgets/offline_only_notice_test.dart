@@ -148,7 +148,7 @@ void main() {
       );
       await tester.pump();
       expect(find.text(_noPacks), findsOneWidget);
-      expect(find.text('Download German (12 MB)'), findsOneWidget);
+      expect(find.text('Download German (24.0 MB)'), findsOneWidget);
     });
 
     testWidgets('"Download languages" without a language pair', (tester) async {

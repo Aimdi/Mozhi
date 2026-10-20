@@ -279,9 +279,7 @@ void main() {
     ) async {
       await pump(
         tester,
-        successState(
-          result: const ImageTranslation(translatedText: 'Bonjour'),
-        ),
+        successState(result: const ImageTranslation(translatedText: 'Bonjour')),
       );
       final text = tester.widget<SelectableText>(
         find.descendant(

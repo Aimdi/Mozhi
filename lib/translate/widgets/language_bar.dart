@@ -544,7 +544,7 @@ class _LanguageButton extends StatelessWidget {
           label: semanticLabel,
           // Hides only the visible content, not the button's actions.
           excludeSemantics: true,
-          child: _FirstThatFits(
+          child: FirstThatFits(
             children: [
               for (final form in forms) ...[
                 content(form, chevron: true),
@@ -568,19 +568,18 @@ class _LanguageButton extends StatelessWidget {
 ///
 /// The other children are laid out at their own width but neither painted,
 /// hit-tested, nor visible to semantics or (onstage) test finders.
-class _FirstThatFits extends MultiChildRenderObjectWidget {
-  const new({required super.children});
+class FirstThatFits extends MultiChildRenderObjectWidget {
+  const new({required super.children, super.key});
 
   @override
   MultiChildRenderObjectElement createElement() => _FirstThatFitsElement(this);
 
   @override
-  _RenderFirstThatFits createRenderObject(BuildContext context) =>
-      _RenderFirstThatFits();
+  RenderBox createRenderObject(BuildContext context) => _RenderFirstThatFits();
 }
 
 class _FirstThatFitsElement extends MultiChildRenderObjectElement {
-  new(_FirstThatFits super.widget);
+  new(FirstThatFits super.widget);
 
   @override
   void debugVisitOnstageChildren(ElementVisitor visitor) {
@@ -594,7 +593,7 @@ class _FirstThatFitsElement extends MultiChildRenderObjectElement {
 
 class _FirstThatFitsParentData extends ContainerBoxParentData<RenderBox>;
 
-/// The render object of [_FirstThatFits].
+/// The render object of [FirstThatFits].
 class _RenderFirstThatFits extends RenderBox
     with
         ContainerRenderObjectMixin<RenderBox, _FirstThatFitsParentData>,
