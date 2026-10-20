@@ -5,19 +5,23 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/conversation/cubit/conversation_cubit.dart';
 import 'package:mozhi/conversation/models/conversation_mic.dart';
 import 'package:mozhi/conversation/models/conversation_turn.dart';
+import 'package:mozhi/conversation/widgets/conversation_session_dock.dart';
 import 'package:mozhi/core/widgets/tab_hero.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-/// The empty conversation: "Let's talk!", how to start and a large
-/// microphone ([ConversationMicRequest.prominent]) that dictates in side
-/// A's language (the first of the pair) and sends what was said, like
-/// side A's composer.
+/// The empty conversation: "Let's talk!".
 ///
-/// What is being said replaces the hint until it is sent. Without
-/// a [micBuilder] (no voice input) it explains how to type instead.
+/// With a hands-free conversation ([ConversationState.handsFree]) it is a
+/// "Beta" badge above the title: the microphone and how to start sit in
+/// the dock below ([ConversationSessionDock]). Otherwise it adds how to
+/// start and a large microphone ([ConversationMicRequest.prominent]) that
+/// dictates in side A's language (the first of the pair) and sends what
+/// was said, like side A's composer; what is being said replaces the hint
+/// until it is sent. Without a [micBuilder] (no voice input) it explains
+/// how to type instead.
 class ConversationHero extends StatefulWidget {
   const new({this.micBuilder, super.key});
 
@@ -54,8 +58,20 @@ class _ConversationHeroState extends State<ConversationHero> {
     final language = context.select<ConversationCubit, Language>(
       (cubit) => cubit.state.languageOf(ConversationHero.side),
     );
+    final handsFree = context.select<ConversationCubit, bool>(
+      (cubit) => cubit.state.handsFree,
+    );
     final Widget hero;
-    if (micBuilder == null) {
+    if (handsFree && micBuilder != null) {
+      hero = Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const ConversationBetaBadge(),
+          const SizedBox(height: 16),
+          TabHero(icon: Icons.forum_rounded, title: l10n.conversationHeroTitle),
+        ],
+      );
+    } else if (micBuilder == null) {
       hero = TabHero(
         icon: Icons.forum_rounded,
         title: l10n.conversationHeroTitle,

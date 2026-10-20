@@ -36,7 +36,10 @@ Future<void> pickDictionaryLanguage(
   }
 }
 
-/// The word's language, a swap button and the translations' language.
+/// The word's language, a swap button and the translations' language, as
+/// outlined pills with the language avatars: the languages section of the
+/// options sheet (`DictionaryOptionsSheet`). The composer's bar shows them
+/// compactly (`DictionaryLanguagePair`).
 class DictionaryLanguageBar extends StatelessWidget {
   const new({super.key});
 

@@ -88,7 +88,9 @@ class ConversationSessionStatus extends StatelessWidget {
           ? theme.colorScheme.onSurface
           : AppPalette.of(context).secondaryText,
     );
+    // While active the microphone's semantics carry the status.
     return ExcludeSemantics(
+      excluding: session.isActive,
       child: Row(
         key: const Key('conversation_session_status'),
         mainAxisSize: compact ? MainAxisSize.max : MainAxisSize.min,

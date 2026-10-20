@@ -21,7 +21,7 @@ import 'package:mozhi/l10n/l10n.dart';
 ///
 /// Its semantics say what a tap does ("Start conversation", "Stop
 /// conversation", "Continue conversation") and, while active, the status
-/// ([conversationSessionStatus], e.g. "Listening in Spanish…").
+/// (`conversationSessionStatus`, e.g. "Listening in Spanish…").
 class ConversationSessionMic extends StatelessWidget {
   const new({this.size = defaultSize, super.key});
 
@@ -64,7 +64,7 @@ class ConversationSessionMic extends StatelessWidget {
       _ => false,
     };
     final busy = switch (session) {
-      ConversationSessionListening(stage: final stage) =>
+      ConversationSessionListening(:final stage) =>
         stage != ConversationListenStage.listening,
       ConversationSessionTranslating() => true,
       _ => false,
@@ -160,7 +160,7 @@ class _PulseRingState extends State<_PulseRing>
     if (_reduceMotion) {
       _controller.stop();
     } else if (!_controller.isAnimating) {
-      unawaited(_controller.repeat());
+      _controller.repeat();
     }
   }
 

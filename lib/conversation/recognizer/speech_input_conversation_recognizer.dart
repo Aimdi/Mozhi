@@ -1,9 +1,34 @@
 import 'dart:async';
 
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/conversation/recognizer/conversation_recognizer.dart';
 import 'package:mozhi/voice/speech_input_service.dart';
 import 'package:mozhi/voice/speech_input_state.dart';
 import 'package:translation_repository/translation_repository.dart';
+
+/// Creates the recogniser of a hands-free conversation; null when there is
+/// none (no hands-free conversation).
+typedef ConversationRecognizerBuilder = ConversationRecognizer? Function(
+  BuildContext context,
+);
+
+/// The default [ConversationRecognizerBuilder]: a
+/// [SpeechInputConversationRecognizer] over the app-wide
+/// [SpeechInputService] (`RepositoryProvider<SpeechInputService>`) where it
+/// can recognise speech; null without one.
+ConversationRecognizer? speechInputConversationRecognizer(
+  BuildContext context,
+) {
+  try {
+    final service = context.read<SpeechInputService>();
+    return service.isPlatformSupported
+        ? SpeechInputConversationRecognizer(service)
+        : null;
+  } on ProviderNotFoundException {
+    return null;
+  }
+}
 
 /// [ConversationRecognizer] over the app-wide [SpeechInputService]: each
 /// utterance is a session of the service with its own owner token, so it
