@@ -1491,5 +1491,10 @@
   "imageTranslateErrorTimeoutGeneric": "图片翻译耗时过长。请重试或使用更小的图片。",
   "imageTranslateUseOnDevice": "使用设备端文字识别",
   "imageTranslateChooseSourceLanguage": "选择文字的语言",
-  "imageTranslateLowConfidence": "语言不对？"
+  "imageTranslateLowConfidence": "语言不对？",
+  "translateStopTranslating": "停止翻译",
+  "translateOptionsDone": "完成",
+  "translateOptionsNeedAi": "{engine}翻译时不使用这些选项。风格、正式程度、性别和上下文需要 AI 翻译。你的选择会保存下来，在使用 AI 翻译时生效。",
+  "translateOptionsPartlyNeedAi": "{engine}只应用正式程度、上下文和格式。风格、阅读难度、性别和术语表需要 AI 翻译。你的选择会保存下来，在使用 AI 翻译时生效。",
+  "translateOptionsChooseAi": "选择 AI 翻译"
 }

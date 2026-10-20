@@ -916,9 +916,10 @@ class TranslateCubit extends Cubit<TranslateState> {
   /// * [source] and [target] (e.g. from a link) are applied first, as by
   ///   [setSource]/[setTarget] but without re-translating the old input.
   /// * It is translated right away only when that costs nothing: Mozhi (and
-  ///   other non-AI) engines, or AI engines when `instantTranslateAi` is on.
-  ///   Compare mode never starts on its own. Otherwise the user presses
-  ///   Translate.
+  ///   other non-AI) engines. AI engines wait for the user to press
+  ///   Translate, even with `instantTranslateAi` on (that covers typing
+  ///   only), so a link or share never starts a paid request on its own.
+  ///   Compare mode never starts on its own either.
   void setExternalInput(String text, {Language? source, Language? target}) {
     final now = _clock();
     final last = _lastExternal;
@@ -954,11 +955,12 @@ class TranslateCubit extends Cubit<TranslateState> {
         : _settings.state.instantTranslate;
   }
 
-  /// Whether external input may be translated without a user action.
+  /// Whether external input may be translated without a user action: only
+  /// by engines that are not AI models.
   bool get _mayAutoTranslateExternal {
     final engine = state.engine;
     if (engine == null || state.compareMode) return false;
-    return !engine.isAi || _settings.state.instantTranslateAi;
+    return !engine.isAi;
   }
 
   void _applyInput(

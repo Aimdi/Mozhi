@@ -1491,5 +1491,10 @@
   "imageTranslateErrorTimeoutGeneric": "Het vertalen van de afbeelding duurde te lang. Probeer het opnieuw of gebruik een kleinere afbeelding.",
   "imageTranslateUseOnDevice": "Tekstherkenning op apparaat gebruiken",
   "imageTranslateChooseSourceLanguage": "Taal van de tekst kiezen",
-  "imageTranslateLowConfidence": "Verkeerde taal?"
+  "imageTranslateLowConfidence": "Verkeerde taal?",
+  "translateStopTranslating": "Vertalen stoppen",
+  "translateOptionsDone": "Klaar",
+  "translateOptionsNeedAi": "{engine} vertaalt zonder deze opties. Stijl, formaliteit, geslacht en context vereisen een AI-vertaler. Je keuzes worden bewaard en gelden zodra je er een gebruikt.",
+  "translateOptionsPartlyNeedAi": "{engine} past alleen formaliteit, context en opmaak toe. Stijl, leesniveau, geslacht en de woordenlijst vereisen een AI-vertaler. Je keuzes worden bewaard en gelden zodra je er een gebruikt.",
+  "translateOptionsChooseAi": "Kies een AI-vertaler"
 }

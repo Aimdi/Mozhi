@@ -1491,5 +1491,10 @@
   "imageTranslateErrorTimeoutGeneric": "画像の翻訳に時間がかかりすぎました。再試行するか、小さい画像をお使いください。",
   "imageTranslateUseOnDevice": "オンデバイス文字認識を使用",
   "imageTranslateChooseSourceLanguage": "テキストの言語を選択",
-  "imageTranslateLowConfidence": "言語が違いますか？"
+  "imageTranslateLowConfidence": "言語が違いますか？",
+  "translateStopTranslating": "翻訳を停止",
+  "translateOptionsDone": "完了",
+  "translateOptionsNeedAi": "{engine}はこれらのオプションを使わずに翻訳します。スタイル、丁寧さ、性別、文脈には AI 翻訳が必要です。選んだ内容は保存され、AI 翻訳を使うときに適用されます。",
+  "translateOptionsPartlyNeedAi": "{engine}が反映するのは丁寧さ、文脈、書式だけです。スタイル、読解レベル、性別、用語集には AI 翻訳が必要です。選んだ内容は保存され、AI 翻訳を使うときに適用されます。",
+  "translateOptionsChooseAi": "AI 翻訳を選ぶ"
 }

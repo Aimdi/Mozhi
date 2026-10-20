@@ -1491,5 +1491,10 @@
   "imageTranslateErrorTimeoutGeneric": "इमेज का अनुवाद करने में बहुत देर लगी। फिर से कोशिश करें या छोटी इमेज इस्तेमाल करें।",
   "imageTranslateUseOnDevice": "डिवाइस पर टेक्स्ट पहचान इस्तेमाल करें",
   "imageTranslateChooseSourceLanguage": "टेक्स्ट की भाषा चुनें",
-  "imageTranslateLowConfidence": "गलत भाषा?"
+  "imageTranslateLowConfidence": "गलत भाषा?",
+  "translateStopTranslating": "अनुवाद रोकें",
+  "translateOptionsDone": "हो गया",
+  "translateOptionsNeedAi": "{engine} इन विकल्पों के बिना अनुवाद करता है। शैली, औपचारिकता, लिंग और संदर्भ के लिए AI अनुवादक चाहिए। आपकी पसंद सहेज ली जाती है और AI अनुवादक इस्तेमाल करने पर लागू होती है।",
+  "translateOptionsPartlyNeedAi": "{engine} केवल औपचारिकता, संदर्भ और फ़ॉर्मैटिंग लागू करता है। शैली, पढ़ने का स्तर, लिंग और शब्दावली के लिए AI अनुवादक चाहिए। आपकी पसंद सहेज ली जाती है और AI अनुवादक इस्तेमाल करने पर लागू होती है।",
+  "translateOptionsChooseAi": "AI अनुवादक चुनें"
 }

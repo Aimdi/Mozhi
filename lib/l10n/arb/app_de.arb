@@ -1491,5 +1491,10 @@
   "imageTranslateErrorTimeoutGeneric": "Die Bildübersetzung hat zu lange gedauert. Versuche es erneut oder verwende ein kleineres Bild.",
   "imageTranslateUseOnDevice": "Texterkennung auf dem Gerät verwenden",
   "imageTranslateChooseSourceLanguage": "Sprache des Textes wählen",
-  "imageTranslateLowConfidence": "Falsche Sprache?"
+  "imageTranslateLowConfidence": "Falsche Sprache?",
+  "translateStopTranslating": "Übersetzung stoppen",
+  "translateOptionsDone": "Fertig",
+  "translateOptionsNeedAi": "{engine} übersetzt ohne diese Optionen. Stil, Förmlichkeit, Geschlecht und Kontext brauchen einen KI-Übersetzer. Deine Auswahl wird gespeichert und gilt, sobald du einen verwendest.",
+  "translateOptionsPartlyNeedAi": "{engine} berücksichtigt nur Förmlichkeit, Kontext und Formatierung. Stil, Sprachniveau, Geschlecht und das Glossar brauchen einen KI-Übersetzer. Deine Auswahl wird gespeichert und gilt, sobald du einen verwendest.",
+  "translateOptionsChooseAi": "KI-Übersetzer wählen"
 }

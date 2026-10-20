@@ -851,7 +851,8 @@ void main() {
     );
 
     blocTest<TranslateCubit, TranslateState>(
-      'is translated by AI engines when instantTranslateAi is on',
+      'is not auto-translated by AI engines even when instantTranslateAi '
+      'is on',
       setUp: () {
         mocks
           ..stubTranslate()
@@ -859,7 +860,26 @@ void main() {
       },
       build: () => mocks.build(),
       seed: () => readyState(engine: claude),
-      act: (cubit) => cubit.setExternalInput('shared'),
+      act: (cubit) async {
+        cubit.setExternalInput('shared');
+        await Future<void>.delayed(afterDebounce);
+      },
+      verify: (cubit) {
+        expect(cubit.state.input, 'shared');
+        expect(cubit.state.status, TranslateStatus.idle);
+        verifyNever(() => mocks.repository.translate(any(), any()));
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'is translated by AI engines when the user presses Translate',
+      setUp: () => mocks.stubTranslate(),
+      build: () => mocks.build(),
+      seed: () => readyState(engine: claude),
+      act: (cubit) async {
+        cubit.setExternalInput('shared');
+        await cubit.translate();
+      },
       verify: (cubit) {
         verify(() => mocks.repository.translate(claude, any())).called(1);
       },
@@ -980,14 +1000,11 @@ void main() {
     );
 
     blocTest<TranslateCubit, TranslateState>(
-      'arriving before engines load is not auto-translated by AI while '
-      'instantTranslateAi is off',
+      'arriving before engines load is not auto-translated by AI',
       setUp: () {
         mocks
           ..stubTranslate()
-          ..stubSettings(
-            const AppSettings(engineId: 'ai:claude', instantTranslateAi: false),
-          );
+          ..stubSettings(const AppSettings(engineId: 'ai:claude'));
       },
       build: () => mocks.build(),
       act: (cubit) async {
@@ -1054,16 +1071,18 @@ void main() {
     );
 
     blocTest<TranslateCubit, TranslateState>(
-      'an automatic translation on an AI engine counts as not asked for',
-      setUp: () {
-        mocks
-          ..stubTranslate()
-          ..stubSettings(const AppSettings());
-      },
+      'on an AI engine, the translation the user starts counts as asked for',
+      setUp: () => mocks.stubTranslate(),
       build: () => mocks.build(),
       seed: () => readyState(engine: claude),
-      act: (cubit) => cubit.setExternalInput('shared'),
-      verify: (cubit) => expect(cubit.state.instantResult, isTrue),
+      act: (cubit) async {
+        cubit.setExternalInput('shared');
+        await cubit.translate();
+      },
+      verify: (cubit) {
+        expect(cubit.state.output, 'shared->en');
+        expect(cubit.state.instantResult, isFalse);
+      },
     );
 
     blocTest<TranslateCubit, TranslateState>(

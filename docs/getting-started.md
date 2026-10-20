@@ -116,9 +116,11 @@ After that you land on the **Translate** tab:
    Mozhi instance offers (Google, DeepL, ...) or one of your AI models. Once
    you have chosen a Fast and a Best engine under **Settings > Quality
    modes**, a **Fast** / **Best** toggle next to it switches between them.
-3. Type or paste text. With **Instant translate** on (the default for Mozhi
-   engines) the translation appears as you type; otherwise press
-   **Translate** (or Ctrl+Enter on a keyboard).
+3. Type or paste text. With instant translation on (the default, for
+   Mozhi and AI engines) the translation appears as you type; otherwise
+   press the go button at the right of the language bar (the rocket,
+   **Translate**) or Ctrl+Enter on a keyboard. The tune icon at the left of
+   the language bar opens the translation options.
 4. The screen shows only the languages, your text and the translation.
    **More**, under the translation, opens the other tools: check meaning,
    insights, romanization, compare, **Refine & learn** (the **More formal**,
@@ -243,8 +245,8 @@ translator with the text and languages filled in. The parameters are the same
 as Kagi Translate's, including options such as `formality` and `quality`;
 `q`, `sl` and `tl` work too. The text is translated straight away with Mozhi
 engines and other engines that aren't AI models. With an AI model, press
-**Translate**: a link never starts a paid AI request on its own, unless you
-turned on **Instant translate with AI**. See [Features](features.md#links).
+**Translate**: a link never starts a paid AI request on its own. See
+[Features](features.md#links).
 
 ## Next steps
 

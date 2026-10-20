@@ -1491,5 +1491,10 @@
   "imageTranslateErrorTimeoutGeneric": "Görsel çevirisi çok uzun sürdü. Tekrar deneyin veya daha küçük bir görsel kullanın.",
   "imageTranslateUseOnDevice": "Cihaz üzerinde metin tanımayı kullan",
   "imageTranslateChooseSourceLanguage": "Metnin dilini seç",
-  "imageTranslateLowConfidence": "Yanlış dil mi?"
+  "imageTranslateLowConfidence": "Yanlış dil mi?",
+  "translateStopTranslating": "Çeviriyi durdur",
+  "translateOptionsDone": "Bitti",
+  "translateOptionsNeedAi": "{engine} bu seçenekler olmadan çevirir. Üslup, resmiyet, cinsiyet ve bağlam için bir yapay zekâ çevirmeni gerekir. Seçimleriniz kaydedilir ve bir yapay zekâ çevirmeni kullandığınızda uygulanır.",
+  "translateOptionsPartlyNeedAi": "{engine} yalnızca resmiyet, bağlam ve biçimlendirmeyi uygular. Üslup, okuma düzeyi, cinsiyet ve sözlük için bir yapay zekâ çevirmeni gerekir. Seçimleriniz kaydedilir ve bir yapay zekâ çevirmeni kullandığınızda uygulanır.",
+  "translateOptionsChooseAi": "Yapay zekâ çevirmeni seç"
 }

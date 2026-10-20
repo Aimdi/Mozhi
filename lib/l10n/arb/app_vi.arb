@@ -1491,5 +1491,10 @@
   "imageTranslateErrorTimeoutGeneric": "Dịch ảnh mất quá nhiều thời gian. Hãy thử lại hoặc dùng ảnh nhỏ hơn.",
   "imageTranslateUseOnDevice": "Dùng nhận dạng chữ trên thiết bị",
   "imageTranslateChooseSourceLanguage": "Chọn ngôn ngữ của văn bản",
-  "imageTranslateLowConfidence": "Sai ngôn ngữ?"
+  "imageTranslateLowConfidence": "Sai ngôn ngữ?",
+  "translateStopTranslating": "Dừng dịch",
+  "translateOptionsDone": "Xong",
+  "translateOptionsNeedAi": "{engine} dịch mà không dùng các tùy chọn này. Văn phong, mức độ trang trọng, giới tính và ngữ cảnh cần một trình dịch AI. Lựa chọn của bạn được lưu lại và sẽ áp dụng khi bạn dùng trình dịch AI.",
+  "translateOptionsPartlyNeedAi": "{engine} chỉ áp dụng mức độ trang trọng, ngữ cảnh và định dạng. Văn phong, trình độ đọc, giới tính và bảng thuật ngữ cần một trình dịch AI. Lựa chọn của bạn được lưu lại và sẽ áp dụng khi bạn dùng trình dịch AI.",
+  "translateOptionsChooseAi": "Chọn trình dịch AI"
 }

@@ -1491,5 +1491,10 @@
   "imageTranslateErrorTimeoutGeneric": "Перевод изображения занял слишком много времени. Повторите попытку или используйте изображение поменьше.",
   "imageTranslateUseOnDevice": "Распознать текст на устройстве",
   "imageTranslateChooseSourceLanguage": "Выбрать язык текста",
-  "imageTranslateLowConfidence": "Не тот язык?"
+  "imageTranslateLowConfidence": "Не тот язык?",
+  "translateStopTranslating": "Остановить перевод",
+  "translateOptionsDone": "Готово",
+  "translateOptionsNeedAi": "{engine} переводит без этих параметров. Для стиля, уровня формальности, рода и контекста нужен ИИ-переводчик. Ваш выбор сохранится и начнёт действовать, когда вы его используете.",
+  "translateOptionsPartlyNeedAi": "{engine} учитывает только уровень формальности, контекст и форматирование. Для стиля, уровня сложности, рода и глоссария нужен ИИ-переводчик. Ваш выбор сохранится и начнёт действовать, когда вы его используете.",
+  "translateOptionsChooseAi": "Выбрать ИИ-переводчик"
 }

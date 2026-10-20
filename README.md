@@ -69,7 +69,8 @@ history anywhere.
 
 **Everyday use**
 
-- Instant translation while typing (debounced; optional for AI engines),
+- Instant translation while typing (debounced, also for AI engines; can be
+  turned off), a Kagi-style language bar with a go button,
   detected source language with smart swap, transliteration.
 - **Also translate into…** up to four more languages at once (remembered),
   with the same engine and options, each with copy, listen and

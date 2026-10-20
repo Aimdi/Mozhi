@@ -1491,5 +1491,10 @@
   "imageTranslateErrorTimeoutGeneric": "Terjemahan gambar memakan waktu terlalu lama. Coba lagi atau gunakan gambar yang lebih kecil.",
   "imageTranslateUseOnDevice": "Gunakan pengenalan teks di perangkat",
   "imageTranslateChooseSourceLanguage": "Pilih bahasa teks",
-  "imageTranslateLowConfidence": "Bahasa salah?"
+  "imageTranslateLowConfidence": "Bahasa salah?",
+  "translateStopTranslating": "Hentikan terjemahan",
+  "translateOptionsDone": "Selesai",
+  "translateOptionsNeedAi": "{engine} menerjemahkan tanpa opsi ini. Gaya, tingkat formalitas, gender, dan konteks memerlukan penerjemah AI. Pilihan Anda disimpan dan berlaku saat Anda menggunakannya.",
+  "translateOptionsPartlyNeedAi": "{engine} hanya menerapkan tingkat formalitas, konteks, dan format. Gaya, tingkat bacaan, gender, dan glosarium memerlukan penerjemah AI. Pilihan Anda disimpan dan berlaku saat Anda menggunakannya.",
+  "translateOptionsChooseAi": "Pilih penerjemah AI"
 }

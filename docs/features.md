@@ -35,10 +35,18 @@ alone.
 
 ## Translate
 
-- **Instant translate.** With Mozhi engines the translation updates shortly
-  after you stop typing. For AI engines this is off by default because each
-  request costs tokens; turn on **Settings > Instant translate with AI** if you
-  want it. Otherwise press **Translate**.
+- **Language bar.** Above the input, as on Kagi Translate: **Translation
+  options** (the tune icon) on the left, the source and target languages
+  with the swap button in the middle, and the go button (the rocket,
+  **Translate**) on the right. The go button translates right away, or
+  again; in compare mode it runs the comparison. While a translation is
+  running it turns into **Stop translating**.
+- **Instant translate.** The translation updates shortly after you stop
+  typing, with Mozhi engines and AI engines alike. Each pause sends an AI
+  model a request, which costs tokens with a paid provider; turn off
+  **Settings > Instant translate with AI** to translate only when you press
+  the go button. Text shared from other apps and links wait for the go
+  button with an AI model either way (see [Links](#links)).
 - **Output actions:** copy, share, listen, add to favourites,
   [**Check meaning**](#meaning-check), and the elapsed time per engine. With
   an AI model available, the output also offers **Insights**, **Show
@@ -127,10 +135,9 @@ main one.
   chose) and offers **Undo**. A language that failed has its own **Retry**.
 - **Same engine, same rules.** The extra languages are translated with the
   same engine and translation options as the main translation, one request
-  per language. They follow the main translation: instantly while you type
-  only where that is free (Mozhi engines, the DeepL API, LibreTranslate,
-  offline) or with **Instant translate with AI** on, otherwise when you press
-  **Translate**. A language you add while a translation is shown is
+  per language. They follow the main translation: while you type when
+  instant translation is on for the engine (**Instant translate**, or
+  **Instant translate with AI**), otherwise when you press **Translate**. A language you add while a translation is shown is
   translated right away. Translations of text you have since edited are
   dimmed until the new ones arrive.
 - **Skipped languages.** The main target language, your source language (the
@@ -149,8 +156,7 @@ main one.
 - **Shared text and links too.** Text shared into the app or opened from a
   [link](#links) is translated into your extra languages as well whenever
   it is translated straight away: with Mozhi engines, the DeepL API,
-  LibreTranslate and offline (or an AI model with **Instant translate with
-  AI** on), also right after the app starts. With a paid DeepL API or
+  LibreTranslate and offline, also right after the app starts. With a paid DeepL API or
   LibreTranslate plan, each shared text is then billed once per language;
   remove the extra languages you don't need, or use **Remove all**.
 - Screen readers hear which languages arrived (**Also translated into
@@ -204,9 +210,10 @@ mode for that text with `quality=fast`, `quality=best` or `quality=standard`
 
 ## AI translation options
 
-Open **Translation options** (the tune icon) to shape AI translations. The
-icon changes when any option differs from the defaults, and **Reset to
-defaults** clears them. Options are remembered, and the ones in use are shown
+Open **Translation options** (the tune icon at the left of the language
+bar) to shape AI translations. The icon changes when any option differs
+from the defaults, **Reset to defaults** clears them, and **Done** closes
+the sheet. Options are remembered, and the ones in use are shown
 as chips above the input; remove one with its chip, or all of them with
 **Reset options**.
 
@@ -223,6 +230,10 @@ as chips above the input; remove one with its chip, or all of them with
 
 Mozhi engines ignore these options. The DeepL API applies the formality and
 the context; translation-only models (TranslateGemma, Hy-MT) ignore them.
+With such an engine the sheet says so at the top and offers **Choose an AI
+translator** (or **Add AI provider** when you have none). Your choices are
+kept for when you use an AI model, and changing them doesn't translate
+again with an engine that ignores them.
 
 ## Presets
 
@@ -298,7 +309,7 @@ extras.
   Tap one to read why, and to swap in one of the **Other ways to say it**.
   Once switched on, insights load for each translation you start; after an
   instant translation with a cloud model they switch off instead, so typing
-  never starts paid requests.
+  never starts paid insight requests.
 - **Explain**: a plain-language explanation of the translation, its grammar
   and its word choices. Ask follow-up questions in the same sheet.
 - **Dictionary**: for inputs of one to three words; see
@@ -751,8 +762,9 @@ Links come from outside the app, so they are limited:
   either.
 - **A link never starts a paid AI request on its own.** The text is
   translated straight away only with engines that are not AI models (Mozhi,
-  the DeepL API, LibreTranslate, offline), or with an AI model when you
-  turned on **Instant translate with AI**; otherwise press **Translate**.
+  the DeepL API, LibreTranslate, offline); with an AI model press
+  **Translate**, even with **Instant translate with AI** on (it covers
+  typing only).
   When it is translated straight away, it is also translated into your
   [extra target languages](#extra-target-languages), one request each.
   Changing the quality mode or the options for a link doesn't translate

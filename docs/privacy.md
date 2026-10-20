@@ -107,8 +107,8 @@ stores on the device and what the other party may keep.
 Text from other apps (text selection, the share sheet, the Quick Settings
 tile and widget) and links (`/translate?text=…`, `mozhi://…`) is treated
 like typed text and follows the same rules and prompts. Shared text and
-links never start a paid AI request on their own unless **Instant translate
-with AI** is on (the quick-translate sheet of the selection menu translates
+links never start a paid AI request on their own, even with **Instant
+translate with AI** on (the quick-translate sheet of the selection menu translates
 right away, since you asked for it). Links to the dictionary, Proofread and
 the web page translator send nothing until you ask. In the web app, a
 translate link puts the text in the page address, which reaches the server

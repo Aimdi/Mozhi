@@ -1491,5 +1491,10 @@
   "imageTranslateErrorTimeoutGeneric": "이미지 번역 시간이 너무 오래 걸렸습니다. 다시 시도하거나 더 작은 이미지를 사용하세요.",
   "imageTranslateUseOnDevice": "기기 내 텍스트 인식 사용",
   "imageTranslateChooseSourceLanguage": "텍스트의 언어 선택",
-  "imageTranslateLowConfidence": "언어가 잘못되었나요?"
+  "imageTranslateLowConfidence": "언어가 잘못되었나요?",
+  "translateStopTranslating": "번역 중지",
+  "translateOptionsDone": "완료",
+  "translateOptionsNeedAi": "{engine}은(는) 이 옵션 없이 번역합니다. 문체, 격식, 성별, 문맥은 AI 번역기가 있어야 적용됩니다. 선택한 내용은 저장되며 AI 번역기를 사용할 때 적용됩니다.",
+  "translateOptionsPartlyNeedAi": "{engine}은(는) 격식, 문맥, 서식만 적용합니다. 문체, 읽기 수준, 성별, 용어집은 AI 번역기가 있어야 적용됩니다. 선택한 내용은 저장되며 AI 번역기를 사용할 때 적용됩니다.",
+  "translateOptionsChooseAi": "AI 번역기 선택"
 }

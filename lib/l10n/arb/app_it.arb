@@ -1491,5 +1491,10 @@
   "imageTranslateErrorTimeoutGeneric": "La traduzione dell’immagine ha richiesto troppo tempo. Riprova o usa un’immagine più piccola.",
   "imageTranslateUseOnDevice": "Usa il riconoscimento testo sul dispositivo",
   "imageTranslateChooseSourceLanguage": "Scegli la lingua del testo",
-  "imageTranslateLowConfidence": "Lingua sbagliata?"
+  "imageTranslateLowConfidence": "Lingua sbagliata?",
+  "translateStopTranslating": "Interrompi la traduzione",
+  "translateOptionsDone": "Fine",
+  "translateOptionsNeedAi": "{engine} traduce senza queste opzioni. Stile, formalità, genere e contesto richiedono un traduttore IA. Le tue scelte vengono salvate e si applicano quando ne usi uno.",
+  "translateOptionsPartlyNeedAi": "{engine} applica solo formalità, contesto e formattazione. Stile, livello di lettura, genere e glossario richiedono un traduttore IA. Le tue scelte vengono salvate e si applicano quando ne usi uno.",
+  "translateOptionsChooseAi": "Scegli un traduttore IA"
 }

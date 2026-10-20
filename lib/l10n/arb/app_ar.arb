@@ -1491,5 +1491,10 @@
   "imageTranslateErrorTimeoutGeneric": "استغرقت ترجمة الصورة وقتًا طويلًا. أعِد المحاولة أو استخدم صورة أصغر.",
   "imageTranslateUseOnDevice": "استخدام التعرّف على النص على الجهاز",
   "imageTranslateChooseSourceLanguage": "اختيار لغة النص",
-  "imageTranslateLowConfidence": "لغة خاطئة؟"
+  "imageTranslateLowConfidence": "لغة خاطئة؟",
+  "translateStopTranslating": "إيقاف الترجمة",
+  "translateOptionsDone": "تم",
+  "translateOptionsNeedAi": "يترجم {engine} دون هذه الخيارات. يحتاج الأسلوب ودرجة الرسمية والجنس والسياق إلى مترجم بالذكاء الاصطناعي. تُحفظ اختياراتك وتُطبَّق عند استخدامك واحدًا.",
+  "translateOptionsPartlyNeedAi": "لا يطبّق {engine} إلا درجة الرسمية والسياق والتنسيق. يحتاج الأسلوب ومستوى القراءة والجنس والمسرد إلى مترجم بالذكاء الاصطناعي. تُحفظ اختياراتك وتُطبَّق عند استخدامك واحدًا.",
+  "translateOptionsChooseAi": "اختيار مترجم بالذكاء الاصطناعي"
 }

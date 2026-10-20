@@ -1491,5 +1491,10 @@
   "imageTranslateErrorTimeoutGeneric": "Переклад зображення тривав надто довго. Спробуйте ще раз або використайте менше зображення.",
   "imageTranslateUseOnDevice": "Розпізнати текст на пристрої",
   "imageTranslateChooseSourceLanguage": "Вибрати мову тексту",
-  "imageTranslateLowConfidence": "Не та мова?"
+  "imageTranslateLowConfidence": "Не та мова?",
+  "translateStopTranslating": "Зупинити переклад",
+  "translateOptionsDone": "Готово",
+  "translateOptionsNeedAi": "{engine} перекладає без цих параметрів. Для стилю, рівня формальності, роду й контексту потрібен ШІ-перекладач. Ваш вибір збережеться й почне діяти, коли ви ним скористаєтеся.",
+  "translateOptionsPartlyNeedAi": "{engine} враховує лише рівень формальності, контекст і форматування. Для стилю, рівня складності, роду та глосарію потрібен ШІ-перекладач. Ваш вибір збережеться й почне діяти, коли ви ним скористаєтеся.",
+  "translateOptionsChooseAi": "Вибрати ШІ-перекладач"
 }
