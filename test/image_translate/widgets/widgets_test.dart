@@ -445,7 +445,8 @@ void main() {
       await tester.tap(find.byKey(const Key('image_translate_retry_button')));
       expect(retried, 1);
       await tester.tap(find.text(l10n.translateProvidersAction));
-      verify(() => harness.router.go('/settings/providers')).called(1);
+      verify(() => harness.router.push<Object?>('/settings/providers'))
+          .called(1);
     });
 
     testWidgets('links to instances for unreachable instances', (tester) async {
@@ -460,7 +461,8 @@ void main() {
         findsNothing,
       );
       await tester.tap(find.text(l10n.translateManageInstances));
-      verify(() => harness.router.go('/settings/instances')).called(1);
+      verify(() => harness.router.push<Object?>('/settings/instances'))
+          .called(1);
     });
 
     testWidgets('shows image errors without a shortcut', (tester) async {
@@ -512,7 +514,8 @@ void main() {
       await tester.tap(find.byKey(const Key('image_translate_retry_button')));
       expect(retried, 1);
       await tester.tap(find.text(l10n.translateManageInstances));
-      verify(() => harness.router.go('/settings/instances')).called(1);
+      verify(() => harness.router.push<Object?>('/settings/instances'))
+          .called(1);
 
       // The technical message, on request.
       expect(

@@ -44,7 +44,8 @@ class OnboardingPage extends StatelessWidget {
     super.key,
   });
 
-  /// Where "Start translating" / "Skip" navigate (with `context.go`).
+  /// Where "Start translating" / "Skip" navigate (with `context.go`); "Open
+  /// AI provider settings" pushes those above it.
   final String finishLocation;
   final OfflineTranslator? translator;
   final KeyValueStore? store;
@@ -133,9 +134,13 @@ class _OnboardingViewState extends State<OnboardingView> {
     super.dispose();
   }
 
-  void _finish([String? location]) {
+  /// Goes to [OnboardingView.finishLocation]; with [above] (the AI
+  /// provider settings) that page is pushed on top of it, so its back
+  /// arrow returns to the tabs.
+  void _finish([String? above]) {
     context.read<OnboardingCubit>().finish();
-    context.go(location ?? widget.finishLocation);
+    final router = GoRouter.of(context)..go(widget.finishLocation);
+    if (above != null) unawaited(router.push<void>(above));
   }
 
   void _showStep(OnboardingStep step) {

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/view/top_level_actions.dart';
 import 'package:mozhi/conversation/cubit/conversation_cubit.dart';
 import 'package:mozhi/conversation/models/conversation_mic.dart';
 import 'package:mozhi/conversation/models/conversation_turn.dart';
@@ -23,9 +24,9 @@ import 'package:translation_repository/translation_repository.dart';
 ///
 /// Requires [TranslationRepository], [SpeechService], [TranslateCubit] and
 /// `SettingsCubit` above it (all provided app-wide by `App`); a
-/// [UsageTracker] above it (optional) counts AI requests. Best pushed as
-/// a full-screen route (outside the tab shell) so face-to-face mode gets
-/// the whole screen.
+/// [UsageTracker] above it (optional) counts AI requests. A tab of the
+/// app: face-to-face mode is pushed as a full-screen route on the root
+/// navigator, above the tabs.
 class ConversationPage extends StatelessWidget {
   const new({this.micBuilder, this.share = shareConversationText, super.key});
 
@@ -64,15 +65,21 @@ class ConversationPage extends StatelessWidget {
   }
 }
 
-/// Builds the standard or the face-to-face layout of the
-/// [ConversationCubit] above it.
+/// The standard layout of the [ConversationCubit] above it: the
+/// transcript (an empty conversation shows [ConversationHero]), the
+/// language pair ([ConversationLanguagePill]) and one composer per side.
+///
+/// Face-to-face mode ([ConversationState.faceToFace]) is pushed as a
+/// full-screen route ([ConversationFaceToFaceView]) on the root navigator,
+/// above the tabs; leaving it (its toggle or back) pops it.
 class ConversationView extends StatelessWidget {
   const new({this.micBuilder, this.share = shareConversationText, super.key});
 
   /// At and above this width the two composers sit side by side.
   static const double wideBreakpoint = 840;
 
-  /// Below this width the app bar shows only the engine selector.
+  /// Below this width the app bar shows only the engine selector, and
+  /// "Read translations aloud" moves into the overflow menu.
   static const double compactBreakpoint = 600;
 
   final ConversationMicBuilder? micBuilder;
@@ -81,28 +88,9 @@ class ConversationView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final faceToFace = context.select<ConversationCubit, bool>(
-      (cubit) => cubit.state.faceToFace,
-    );
-    final noEngines = context.select<TranslateCubit, bool>((cubit) {
-      final state = cubit.state;
-      return state.engines.isEmpty &&
-          (state.enginesStatus == EnginesStatus.ready ||
-              state.enginesStatus == EnginesStatus.failure);
-    });
+    final noEngines = _noEngines(context);
     final width = MediaQuery.sizeOf(context).width;
-
-    final Widget body;
-    if (noEngines) {
-      body = const NoEnginesView();
-    } else if (faceToFace) {
-      body = _FaceToFaceLayout(micBuilder: micBuilder, share: share);
-    } else {
-      body = _StandardLayout(
-        micBuilder: micBuilder,
-        wide: width >= wideBreakpoint,
-      );
-    }
+    final compact = width < compactBreakpoint;
 
     return BlocListener<ConversationCubit, ConversationState>(
       // Every failure is kept in `lastSpeechFailure`.
@@ -128,38 +116,168 @@ class ConversationView extends StatelessWidget {
                 ),
         );
       },
-      child: Scaffold(
-        appBar: faceToFace && !noEngines
-            ? null
-            : AppBar(
-                titleSpacing: width >= compactBreakpoint ? null : 0,
-                title: noEngines
-                    ? Text(l10n.conversationTitle)
-                    : width >= compactBreakpoint
-                    ? Row(
-                        children: [
-                          Text(l10n.conversationTitle),
-                          const SizedBox(width: 16),
-                          const Flexible(child: EngineSelectorButton()),
-                        ],
-                      )
-                    : const EngineSelectorButton(),
-                actions: noEngines
-                    ? null
-                    : [
-                        const ConversationLayoutButton(),
-                        const ConversationAutoSpeakButton(),
-                        ConversationMenuButton(share: share),
-                        const SizedBox(width: 4),
-                      ],
-              ),
-        body: body,
+      child: _FaceToFacePresenter(
+        micBuilder: micBuilder,
+        share: share,
+        child: Scaffold(
+          appBar: AppBar(
+            titleSpacing: noEngines || !compact ? null : 8,
+            title: noEngines
+                ? Text(l10n.conversationTitle)
+                : !compact
+                ? Row(
+                    children: [
+                      Text(l10n.conversationTitle),
+                      const SizedBox(width: 16),
+                      const Flexible(child: EngineSelectorButton()),
+                    ],
+                  )
+                : const EngineSelectorButton(),
+            actions: noEngines
+                ? const [TopLevelActions(), SizedBox(width: 4)]
+                : [
+                    const ConversationLayoutButton(),
+                    if (!compact) const ConversationAutoSpeakButton(),
+                    const TopLevelActions(),
+                    ConversationMenuButton(
+                      share: share,
+                      showAutoSpeak: compact,
+                    ),
+                    const SizedBox(width: 4),
+                  ],
+          ),
+          body: noEngines
+              ? const NoEnginesView()
+              : _StandardLayout(
+                  micBuilder: micBuilder,
+                  wide: width >= wideBreakpoint,
+                ),
+        ),
       ),
     );
   }
 }
 
-/// Shared layout: languages on top, transcript, one composer per side.
+/// Whether no engine is configured (or loading them failed).
+bool _noEngines(BuildContext context) =>
+    context.select<TranslateCubit, bool>((cubit) {
+      final state = cubit.state;
+      return state.engines.isEmpty &&
+          (state.enginesStatus == EnginesStatus.ready ||
+              state.enginesStatus == EnginesStatus.failure);
+    });
+
+/// Pushes [ConversationFaceToFaceView] on the root navigator while the
+/// [ConversationCubit]'s face-to-face mode is on, and turns the mode off
+/// when that route is popped (back, or the layout toggle in it).
+class _FaceToFacePresenter extends StatefulWidget {
+  const new({
+    required this.micBuilder,
+    required this.share,
+    required this.child,
+  });
+
+  final ConversationMicBuilder? micBuilder;
+  final ConversationShareCallback share;
+  final Widget child;
+
+  @override
+  State<_FaceToFacePresenter> createState() => _FaceToFacePresenterState();
+}
+
+class _FaceToFacePresenterState extends State<_FaceToFacePresenter> {
+  Route<void>? _route;
+
+  @override
+  void initState() {
+    super.initState();
+    if (context.read<ConversationCubit>().state.faceToFace) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _show());
+    }
+  }
+
+  @override
+  void dispose() {
+    // The route cannot outlive the page (it shares its cubit); the
+    // navigator cannot change while the tree is being torn down.
+    final route = _route;
+    _route = null;
+    if (route != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (route.isActive) route.navigator?.removeRoute(route);
+      });
+    }
+    super.dispose();
+  }
+
+  void _show() {
+    if (!mounted || _route != null) return;
+    final cubit = context.read<ConversationCubit>();
+    final route = _route = MaterialPageRoute<void>(
+      builder: (_) => BlocProvider<ConversationCubit>.value(
+        value: cubit,
+        child: ConversationFaceToFaceView(
+          micBuilder: widget.micBuilder,
+          share: widget.share,
+        ),
+      ),
+    );
+    unawaited(
+      Navigator.of(context, rootNavigator: true).push(route).then((_) {
+        if (identical(_route, route)) _route = null;
+        if (!cubit.isClosed && cubit.state.faceToFace) {
+          cubit.setFaceToFace(enabled: false);
+        }
+      }),
+    );
+  }
+
+  void _hide() {
+    final route = _route;
+    _route = null;
+    if (route == null || !route.isActive) return;
+    final navigator = route.navigator!;
+    if (route.isCurrent) {
+      navigator.pop();
+    } else {
+      navigator.removeRoute(route);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      BlocListener<ConversationCubit, ConversationState>(
+        listenWhen: (previous, current) =>
+            previous.faceToFace != current.faceToFace,
+        listener: (context, state) => state.faceToFace ? _show() : _hide(),
+        child: widget.child,
+      );
+}
+
+/// Face-to-face mode on its own full-screen route (see [ConversationView]):
+/// the split screen, or the no-engines view should the engines go away.
+class ConversationFaceToFaceView extends StatelessWidget {
+  const new({this.micBuilder, this.share = shareConversationText, super.key});
+
+  final ConversationMicBuilder? micBuilder;
+  final ConversationShareCallback share;
+
+  @override
+  Widget build(BuildContext context) {
+    if (_noEngines(context)) {
+      return Scaffold(
+        appBar: AppBar(title: Text(context.l10n.conversationTitle)),
+        body: const NoEnginesView(),
+      );
+    }
+    return Scaffold(
+      body: _FaceToFaceLayout(micBuilder: micBuilder, share: share),
+    );
+  }
+}
+
+/// Shared layout: the transcript (or, while empty, the hero with the large
+/// microphone), the language pair, one composer per side.
 class _StandardLayout extends StatelessWidget {
   const new({required this.micBuilder, required this.wide});
 
@@ -168,6 +286,9 @@ class _StandardLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final empty = context.select<ConversationCubit, bool>(
+      (cubit) => cubit.state.turns.isEmpty,
+    );
     final composerA = ConversationComposer(
       side: ConversationSide.a,
       micBuilder: micBuilder,
@@ -184,26 +305,20 @@ class _StandardLayout extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 1040),
           child: Column(
             children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(16, 4, 16, 4),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: ConversationLanguageButton(
-                        side: ConversationSide.a,
-                      ),
-                    ),
-                    ConversationSwapButton(),
-                    Expanded(
-                      child: ConversationLanguageButton(
-                        side: ConversationSide.b,
-                      ),
-                    ),
-                  ],
+              Expanded(
+                child: empty
+                    ? ConversationHero(micBuilder: micBuilder)
+                    : const ConversationTranscriptList(),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 560),
+                    child: const ConversationLanguagePill(),
+                  ),
                 ),
               ),
-              const Hairline(),
-              const Expanded(child: ConversationTranscriptList()),
               if (wide)
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.end,

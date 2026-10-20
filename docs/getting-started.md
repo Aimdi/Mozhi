@@ -108,10 +108,13 @@ Then tap **Start translating**.
 
 After that you land on the **Translate** tab:
 
-1. The **language bar** at the top shows the source language (Detect language
-   by default) and the target language. Tap either one to search all
-   languages, pin favourites or pick a recent one. The arrows in the middle
-   swap them; long-press them for your recent language pairs.
+1. The **language bar** at the bottom shows the source language (Detect
+   language by default) and the target language. Tap either one to search
+   all languages, pin favourites or pick a recent one. The arrows in the
+   middle swap them; long-press them for your recent language pairs. With
+   no text yet, the bar sits in a card with the text box under a greeting
+   and chips for **Camera** and **Document**; once you type, it stays
+   docked at the bottom of the screen, right above the keyboard.
 2. The **engine button** chooses who translates: one of the engines your
    Mozhi instance offers (Google, DeepL, ...) or one of your AI models. Once
    you have chosen a Fast and a Best engine under **Settings > Quality
@@ -130,8 +133,11 @@ After that you land on the **Translate** tab:
    prompt also offers **Translate on this device** (or, first, the download
    that language pair needs) if the offline engine supports the pair.
 
-The other tabs are **Proofread** (grammar and style checks with an AI model),
-**History** and **Settings**. On wide screens, such as tablets and wide
+The other tabs are **Dictionary** (definitions, examples and translations of
+a word) and **Proofread** (grammar and style checks), which use an AI model,
+and **Conversation** (two people, two languages). **History** and
+**Settings** are the clock and gear buttons at the top of every tab; their
+back arrow returns to the tab. On wide screens, such as tablets and wide
 browser windows, the tabs move into a side rail and input and output sit side
 by side.
 

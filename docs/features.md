@@ -35,12 +35,23 @@ alone.
 
 ## Translate
 
-- **Language bar.** Above the input, as on Kagi Translate: **Translation
-  options** (the tune icon) on the left, the source and target languages
-  with the swap button in the middle, and the go button (the rocket,
-  **Translate**) on the right. The go button translates right away, or
-  again; in compare mode it runs the comparison. While a translation is
-  running it turns into **Stop translating**.
+- **Start screen.** With no text, the tab greets you (**Good morning**,
+  **Good afternoon** or **Good evening**) with chips for **Camera** (image
+  translation) and **Document**, and your recent language pairs. The
+  composer waits at the bottom, as on Kagi Translate: a card with the text
+  box (the microphone, and paste, at its top right) and the language bar.
+  Tap it to type: the screen turns into the usual thread, your text with
+  its language at the top and the translation under it, and the language
+  bar stays docked at the bottom of the screen, right above the keyboard
+  while it is open. Leave the empty text box to get the start screen back.
+  On wide screens the composer sits under the greeting, and your text and
+  the translation open side by side.
+- **Language bar.** At the bottom of the screen, as on Kagi Translate:
+  **Translation options** (the tune icon) on the left, the source and
+  target languages with the swap button in the middle, and the go button
+  (the rocket, **Translate**) on the right. The go button translates right
+  away, or again; in compare mode it runs the comparison. While a
+  translation is running it turns into **Stop translating**.
 - **Instant translate.** The translation updates shortly after you stop
   typing, with Mozhi engines and AI engines alike. Each pause sends an AI
   model a request, which costs tokens with a paid provider; turn off
@@ -212,10 +223,10 @@ mode for that text with `quality=fast`, `quality=best` or `quality=standard`
 
 Open **Translation options** (the tune icon at the left of the language
 bar) to shape AI translations. The icon changes when any option differs
-from the defaults, **Reset to defaults** clears them, and **Done** closes
-the sheet. Options are remembered, and the ones in use are shown
-as chips above the input; remove one with its chip, or all of them with
-**Reset options**.
+from the defaults. **Done**, at the top right, closes the sheet, and
+**Reset to defaults**, at the bottom, clears them. Options are remembered,
+and the ones in use are shown as chips right above the language bar;
+remove one with its chip, or all of them with **Reset options**.
 
 | Option | Choices |
 | --- | --- |
@@ -404,10 +415,10 @@ Screen readers hear the verdict and the number of differences (or
   **Look up "…"** shows the entry. Choose the **Detail level** (**Concise**,
   **Standard** or **Detailed**) before or after looking up. **Open
   dictionary** shows the word on the full dictionary page.
-- **The dictionary page** (**More tools > Dictionary**): type a word or
-  phrase, choose its language (or **Detect language**) and the language of
-  the translations, and press **Look up**. Opened from the translator with a
-  short input, it looks that word up straight away.
+- **The Dictionary tab** (*What does this mean?*): type a word or phrase,
+  choose its language (or **Detect language**) and the language of the
+  translations, and press **Look up**. Opened from a translation's
+  dictionary card, it looks that word up straight away.
 
 Entries have the pronunciation (IPA), parts of speech, senses with
 translations, examples, synonyms, etymology, usage notes and **Related
@@ -416,13 +427,13 @@ words** (tap one to look it up). For a misspelled word the entry offers
 AI model (the one under **Settings > AI assistant for insights** when you
 translate with a Mozhi engine) and are marked **AI-generated**.
 
-A link such as `/dictionary?word=gato&from=es&to=en` opens the page with the
-word filled in, but never looks it up on its own: press **Look up**.
+A link such as `/dictionary?word=gato&from=es&to=en` opens the Dictionary tab
+with the word filled in, but never looks it up on its own: press **Look up**.
 
 ## Proofread
 
-**AI.** The **Proofread** tab checks grammar, spelling, punctuation and style
-in any language.
+**AI.** The **Proofread** tab (*Does this look right?*) checks grammar,
+spelling, punctuation and style in any language.
 
 - Choose the **Style** (General, Academic, Business, Casual, Creative, Email),
   the **Correction level** (*Light*: clear mistakes only; *Standard*: also
@@ -500,8 +511,14 @@ reported before anything is uploaded.
   imported from a file) recognises 99 languages on the phone, so your voice
   never leaves it. **Offline only** always uses Whisper (see
   [Voice input](voice-input.md)).
-- **Conversation**: two people, two languages. Each person speaks in turn and
-  hears or reads the other's words in their own language.
+- **Conversation** (a tab of its own): two people, two languages. Each
+  person speaks or types in turn and hears or reads the other's words in
+  their own language. While the conversation is empty, a large microphone
+  (*Let's talk!*) dictates in the first language of the pair; the pair sits
+  in one pill above the two input fields (tap a language to change it, the
+  arrows to swap). **Face to face** (the two-people button) turns the screen
+  into two halves, the far one upside down, and covers the tabs; back
+  returns to the tab.
 - **Device voices**: besides your Mozhi instance's voices, the app can read
   text aloud with the device's built-in text-to-speech voices, with a speech
   rate and a voice per language of your choice (see
@@ -566,7 +583,8 @@ the device. Offline translation is not available on the web.
   after picking an alternative, the newest entry is updated instead of
   duplicated. Only the main translation is saved, not the translations into
   [extra target languages](#extra-target-languages).
-- **History** groups entries by day, with search across the text, the
+- **History** (the clock button at the top of every tab) groups entries by
+  day, with search across the text, the
   translation and the language names, and an **All / Favorites** filter.
   Below the search, **All language pairs** narrows the list to one pair
   (each with its number of translations; a detected source counts as the
@@ -581,7 +599,7 @@ the device. Offline translation is not available on the web.
 - **Settings > Delete history automatically** removes translations older
   than 1, 7 or 30 days (**Never** by default); starred translations are
   always kept. If older translations already exist, Mozhi asks first
-  (**Delete older translations now?**). While it is on, the History tab says
+  (**Delete older translations now?**). While it is on, the History page says
   so, and **Import history** skips entries older than the setting.
 - **Clear history** can keep your favourites.
 - **Settings > Export history** copies your history as JSON or shares it as a
@@ -780,7 +798,9 @@ Other screens can be linked too, and never send anything until you ask:
 
 As `mozhi://` links: `mozhi://proofread?text=...`,
 `mozhi://dictionary?word=...` and `mozhi://web?url=...`; `mozhi://image`,
-`mozhi://documents` and `mozhi://conversation` open those screens. In the web
+`mozhi://documents` and `mozhi://conversation` (the Conversation tab) open
+those screens; `/history` and `/settings` (and `/settings/...`) open those
+pages. In the web
 app, put the path after `#`, for example
 `https://<host>/#/dictionary?word=gato`.
 
@@ -803,8 +823,14 @@ The same list is under **More tools > Keyboard shortcuts**.
 
 - Light, dark or system theme; **Pure black** for OLED screens; Dynamic color
   or one of ten accent colours.
-- Phones use a bottom navigation bar. From 840 dp wide (tablets, foldables,
-  wide browser windows) the app switches to a navigation rail with input and
+- Four tabs: **Translate**, **Dictionary**, **Proofread** and
+  **Conversation**. **History** and **Settings** are the clock and gear
+  buttons at the top of every tab; they open as full pages above the tabs,
+  and their back arrow returns to the tab (or to Translate when a link or
+  shortcut opened them).
+- Phones use a bottom navigation bar (icons; each names itself to screen
+  readers and in a tooltip). From 840 dp wide (tablets, foldables, wide
+  browser windows) the app switches to a navigation rail with input and
   output side by side.
 - Large touch targets and screen-reader labels throughout.
 

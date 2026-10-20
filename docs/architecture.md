@@ -76,14 +76,16 @@ lib/
   app/          bootstrap wiring (AppDependencies), App widget, go_router
                 router, adaptive shell, theme, translate links, shared text
   core/         KeyValueStore abstraction (preferences / secure storage)
-  translate/    TranslateCubit + translate screen widgets
+  translate/    TranslateCubit + Translate tab widgets
+  dictionary/   DictionaryCubit + Dictionary tab (deferred)
   proofread/    ProofreadCubit + Proofread tab
-  history/      HistoryRepository, HistoryCubit, History tab
+  conversation/ ConversationCubit + Conversation tab (deferred)
+  history/      HistoryRepository, HistoryCubit, History page
   settings/     AppSettings model, SettingsRepository, SettingsCubit, pages
   speech/       SpeechService (text-to-speech playback)
   platform/     SharedTextService (Android share / text selection bridge)
   image_translate/, voice/, documents/, offline/, presets/, onboarding/,
-  conversation/, quick_translate/, usage/, web_translate/
+  quick_translate/, usage/, web_translate/
                 feature modules, each with its own Cubits and views
   l10n/         ARB files and generated localisations
 ```
@@ -102,8 +104,14 @@ lib/
   replaces the instance list and provider configs and clears the affected
   caches.
 - **Routing.** `go_router` with a `StatefulShellRoute` that keeps the four
-  tabs (Translate, Proofread, History, Settings) alive. Settings sub-pages are
-  nested routes (`/settings/instances`, `/settings/providers/edit?id=…`, ...).
+  tabs (Translate, Dictionary, Proofread, Conversation) alive; Dictionary and
+  Conversation are deferred libraries, loaded when first opened. History and
+  Settings are top-level routes outside the tabs, pushed above them from
+  every tab's app bar (`TopLevelActions`); opened on their own (a link or an
+  app shortcut) their back arrow and system back go to `/translate`.
+  Settings sub-pages are nested routes (`/settings/instances`,
+  `/settings/providers/edit?id=…`, ...). Conversation's face-to-face mode is
+  pushed on the root navigator, above the tabs.
 - **Layout.** `AppShell` shows a bottom navigation bar on phones and a
   navigation rail from 840 dp; the translate screen puts input and output
   side by side on wide screens.

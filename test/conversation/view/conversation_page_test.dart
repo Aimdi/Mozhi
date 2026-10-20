@@ -1,9 +1,11 @@
 import 'dart:async';
 
+import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/app/view/top_level_actions.dart';
 import 'package:mozhi/conversation/conversation.dart';
 import 'package:mozhi/conversation/widgets/widgets.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
@@ -98,7 +100,7 @@ void main() {
   }
 
   group('standard layout', () {
-    testWidgets('shows languages, an empty transcript and two composers', (
+    testWidgets('shows the hero, the language pill and two composers', (
       tester,
     ) async {
       await pumpPage(tester);
@@ -106,7 +108,42 @@ void main() {
         find.byKey(const Key('conversation_standard_layout')),
         findsOneWidget,
       );
-      expect(find.text('Start talking'), findsOneWidget);
+      expect(find.byKey(const Key('conversation_hero')), findsOneWidget);
+      expect(find.text("Let's talk!"), findsOneWidget);
+      // Without voice input it explains typing instead of the microphone.
+      expect(
+        find.text(
+          'Type or use the microphone. Each message is translated for the '
+          'other person.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Tap the microphone to start or stop'), findsNothing);
+      // The pair as one pill: A, swap, B.
+      final pill = find.byKey(const Key('conversation_language_pill'));
+      for (final key in [
+        'conversation_language_a',
+        'conversation_swap',
+        'conversation_language_b',
+      ]) {
+        expect(
+          find.descendant(of: pill, matching: find.byKey(Key(key))),
+          findsOneWidget,
+        );
+      }
+      expect(
+        tester.getCenter(find.byKey(const Key('conversation_language_a'))).dx,
+        lessThan(
+          tester.getCenter(find.byKey(const Key('conversation_language_b'))).dx,
+        ),
+      );
+      // The pill sits between the hero and the composers.
+      expect(
+        tester.getCenter(pill).dy,
+        lessThan(
+          tester.getCenter(find.byKey(const Key('conversation_input_a'))).dy,
+        ),
+      );
       expect(
         find.descendant(
           of: find.byKey(const Key('conversation_language_a')),
@@ -461,9 +498,11 @@ void main() {
       await pumpPage(
         tester,
         micBuilder: (context, request) {
-          requests[request.side] = request;
+          if (!request.prominent) requests[request.side] = request;
           return IconButton(
-            key: Key('mic_${request.side.name}'),
+            key: Key(
+              'mic_${request.side.name}${request.prominent ? '_hero' : ''}',
+            ),
             onPressed: () {},
             icon: const Icon(Icons.mic),
           );
@@ -500,7 +539,9 @@ void main() {
       await pumpPage(
         tester,
         micBuilder: (context, value) {
-          if (value.side == ConversationSide.a) request = value;
+          if (value.side == ConversationSide.a && !value.prominent) {
+            request = value;
+          }
           return const SizedBox.shrink();
         },
       );
@@ -516,13 +557,108 @@ void main() {
       await pumpPage(
         tester,
         micBuilder: (context, value) {
-          if (value.side == ConversationSide.a) request = value;
+          if (value.side == ConversationSide.a && !value.prominent) {
+            request = value;
+          }
           return const SizedBox.shrink();
         },
       );
       await tester.pumpWidget(const SizedBox());
       request.onResult('Hello', isFinal: true);
       verifyNever(() => repository.translate(any(), any()));
+    });
+  });
+
+  group('hero microphone', () {
+    ConversationMicRequest? hero;
+
+    Future<void> pumpWithMics(WidgetTester tester) => pumpPage(
+      tester,
+      micBuilder: (context, request) {
+        if (request.prominent) hero = request;
+        return IconButton(
+          key: Key(
+            'mic_${request.side.name}${request.prominent ? '_hero' : ''}',
+          ),
+          onPressed: () {},
+          icon: const Icon(Icons.mic),
+        );
+      },
+    );
+
+    setUp(() => hero = null);
+
+    testWidgets('is a prominent mic for the first language', (tester) async {
+      await pumpWithMics(tester);
+      expect(find.text("Let's talk!"), findsOneWidget);
+      expect(find.text('Tap the microphone to start or stop'), findsOneWidget);
+      expect(find.text('Speak English'), findsOneWidget);
+      expect(find.byKey(const Key('mic_a_hero')), findsOneWidget);
+      expect(hero!.side, ConversationSide.a);
+      expect(hero!.language, english);
+      // Its own owner token: it never reacts to side A's composer mic.
+      expect(hero!.owner, isNot(ConversationSide.a));
+      expect(identical(hero!.owner, hero!.owner), isTrue);
+      // The hero sits above the language pill.
+      expect(
+        tester.getCenter(find.byKey(const Key('mic_a_hero'))).dy,
+        lessThan(
+          tester
+              .getCenter(find.byKey(const Key('conversation_language_pill')))
+              .dy,
+        ),
+      );
+    });
+
+    testWidgets('shows what is heard and sends it from side A', (tester) async {
+      await pumpWithMics(tester);
+      hero!.onResult('Good', isFinal: false);
+      await tester.pump();
+      expect(find.text('Good'), findsOneWidget);
+      expect(find.text('Tap the microphone to start or stop'), findsNothing);
+      verifyNever(() => repository.translate(any(), any()));
+
+      hero!.onResult('Good morning', isFinal: true);
+      await tester.pumpAndSettle();
+      final request =
+          verify(() => repository.translate(any(), captureAny()))
+                  .captured
+                  .single
+              as TranslationRequest;
+      expect(request.text, 'Good morning');
+      expect(request.source, english);
+      expect(request.target, spanish);
+      // The transcript replaces the hero.
+      expect(find.byKey(const Key('conversation_hero')), findsNothing);
+      expect(find.byType(ConversationTurnBubble), findsOneWidget);
+    });
+
+    testWidgets('sends nothing for silence or without an engine', (
+      tester,
+    ) async {
+      await pumpWithMics(tester);
+      hero!.onResult('  ', isFinal: true);
+      await tester.pump();
+      expect(find.text('Tap the microphone to start or stop'), findsOneWidget);
+
+      when(() => translate.state).thenReturn(
+        translateState(
+          engine: null,
+          engines: const [],
+          enginesStatus: EnginesStatus.loading,
+        ),
+      );
+      hero!.onResult('Hello', isFinal: true);
+      await tester.pump();
+      verifyNever(() => repository.translate(any(), any()));
+    });
+
+    testWidgets('follows the first language', (tester) async {
+      await pumpWithMics(tester);
+      await tester.tap(find.byKey(const Key('conversation_swap')));
+      await tester.pump();
+      expect(find.text('Speak Spanish'), findsOneWidget);
+      expect(hero!.language, spanish);
     });
   });
 
@@ -681,7 +817,8 @@ void main() {
           languageCode: any(named: 'languageCode'),
         ),
       ).thenThrow(const MozhiApiException('no audio'));
-      await pumpPage(tester);
+      // A wide app bar has the toggle (a narrow one moves it to the menu).
+      await pumpPage(tester, size: const Size(800, 800));
       await tester.tap(find.byKey(const Key('conversation_auto_speak')));
       await tester.pump();
       expect(
@@ -804,7 +941,7 @@ void main() {
       await tester.tap(find.text('Delete message'));
       await tester.pumpAndSettle();
       expect(find.byType(ConversationTurnBubble), findsNothing);
-      expect(find.text('Start talking'), findsOneWidget);
+      expect(find.text("Let's talk!"), findsOneWidget);
 
       // Dismissing the dialog does nothing.
       await send(tester, ConversationSide.a, 'Hi');
@@ -824,6 +961,160 @@ void main() {
         findsOneWidget,
       );
       semantics.dispose();
+    });
+  });
+
+  group('app bar', () {
+    testWidgets('has History and Settings in every state', (tester) async {
+      await pumpPage(tester);
+      expect(find.byType(TopLevelActions), findsOneWidget);
+
+      when(() => translate.state)
+          .thenReturn(translateState(engine: null, engines: const []));
+      await pumpPage(tester);
+      expect(find.byType(NoEnginesView), findsOneWidget);
+      expect(find.byType(TopLevelActions), findsOneWidget);
+    });
+
+    testWidgets('narrow: "Read translations aloud" is in the menu', (
+      tester,
+    ) async {
+      await pumpPage(tester);
+      expect(find.byKey(const Key('conversation_auto_speak')), findsNothing);
+      expect(
+        find.byKey(const Key('conversation_layout_toggle')),
+        findsOneWidget,
+      );
+
+      await openMenuItem(tester, 'conversation_menu_auto_speak');
+      await tester.tap(find.byKey(const Key('conversation_menu')));
+      await tester.pumpAndSettle();
+      final item = tester.widget<CheckedPopupMenuItem<Object?>>(
+        find.byKey(const Key('conversation_menu_auto_speak')),
+      );
+      expect(item.checked, isTrue);
+      expect(item.enabled, isTrue);
+      await tester.tap(find.byKey(const Key('conversation_menu_auto_speak')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('conversation_menu')));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<CheckedPopupMenuItem<Object?>>(
+              find.byKey(const Key('conversation_menu_auto_speak')),
+            )
+            .checked,
+        isFalse,
+      );
+    });
+
+    testWidgets('wide: the toggle is in the bar, not the menu', (tester) async {
+      await pumpPage(tester, size: const Size(800, 800));
+      expect(find.byKey(const Key('conversation_auto_speak')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('conversation_menu')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('conversation_menu_auto_speak')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('fits 320 dp with 200 % text', (tester) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await pumpPage(tester, size: const Size(320, 640));
+      expect(tester.takeException(), isNull);
+      expect(find.text("Let's talk!"), findsOneWidget);
+    });
+  });
+
+  group('face-to-face route', () {
+    testWidgets('back leaves face-to-face mode', (tester) async {
+      await pumpPage(tester);
+      await tester.tap(find.byKey(const Key('conversation_layout_toggle')));
+      await tester.pumpAndSettle();
+      expect(find.byType(ConversationFaceToFaceView), findsOneWidget);
+
+      final handled = await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(handled, isTrue);
+      expect(find.byType(ConversationFaceToFaceView), findsNothing);
+      // The toggle shows the standard layout's state again.
+      expect(
+        tester
+            .widget<IconButton>(
+              find.byKey(const Key('conversation_layout_toggle')),
+            )
+            .isSelected,
+        isFalse,
+      );
+    });
+
+    testWidgets('opens when the conversation starts face to face', (
+      tester,
+    ) async {
+      final cubit = ConversationCubit(
+        repository: repository,
+        speech: speech,
+        engine: () => deepl,
+        options: () => const TranslationOptions(),
+        availableLanguages: () => languages,
+        languageA: english,
+        languageB: spanish,
+      )..setFaceToFace(enabled: true);
+      addTearDown(cubit.close);
+      await tester.pumpConversation(
+        const ConversationView(),
+        translate: translate,
+        settings: settings,
+        repository: repository,
+        speech: speech,
+        conversation: cubit,
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('conversation_face_to_face_layout')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('closes with the page', (tester) async {
+      await pumpPage(tester);
+      await tester.tap(find.byKey(const Key('conversation_layout_toggle')));
+      await tester.pumpAndSettle();
+
+      await tester.pumpConversation(
+        const Scaffold(body: Text('elsewhere')),
+        translate: translate,
+        settings: settings,
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(ConversationFaceToFaceView), findsNothing);
+      expect(find.text('elsewhere'), findsOneWidget);
+    });
+
+    testWidgets('shows the no-engines view if the engines go away', (
+      tester,
+    ) async {
+      final states = StreamController<TranslateState>.broadcast();
+      addTearDown(states.close);
+      whenListen(translate, states.stream, initialState: translateState());
+      await pumpPage(tester);
+      await tester.tap(find.byKey(const Key('conversation_layout_toggle')));
+      await tester.pumpAndSettle();
+
+      final none = translateState(engine: null, engines: const []);
+      when(() => translate.state).thenReturn(none);
+      states.add(none);
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: find.byType(ConversationFaceToFaceView),
+          matching: find.byType(NoEnginesView),
+        ),
+        findsOneWidget,
+      );
     });
   });
 
@@ -908,7 +1199,7 @@ void main() {
       await tester.tap(find.byKey(const Key('conversation_clear_confirm')));
       await tester.pumpAndSettle();
       expect(find.byType(ConversationTurnBubble), findsNothing);
-      expect(find.text('Start talking'), findsOneWidget);
+      expect(find.text("Let's talk!"), findsOneWidget);
     });
 
     testWidgets('works from the face-to-face controls', (tester) async {

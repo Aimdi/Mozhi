@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/app/app.dart';
 import 'package:mozhi/app/fallback_key_value_store.dart';
+import 'package:mozhi/app/view/top_level_actions.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/onboarding/view/onboarding_page.dart';
@@ -269,14 +270,10 @@ void main() {
 
     testWidgets('brings shared text to the translate tab', (tester) async {
       await pumpApp(tester);
-      await tester.tap(
-        find.descendant(
-          of: find.byType(NavigationBar),
-          matching: find.byIcon(Icons.history_outlined),
-        ),
-      );
+      // History, a page above the tabs.
+      await tester.tap(find.byKey(TopLevelActions.historyKey));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(seconds: 1));
       expect(find.byType(TranslatePage).hitTestable(), findsNothing);
 
       sharedTexts.add(const SharedText('bonjour'));

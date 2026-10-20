@@ -4,7 +4,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/privacy/ime_learning.dart';
-import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/presets/presets.dart' show PresetPicker, PresetsCubit;
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -140,7 +139,8 @@ String? translateOptionsNote(AppLocalizations l10n, TranslationEngine engine) {
 /// formality is chosen), reading level, genders, context, formatting and
 /// glossary (Kagi translation settings), for every engine. Every change
 /// calls `TranslateCubit.setOptions` (which saves it); the text fields are
-/// debounced. "Done" closes the sheet.
+/// debounced. "Done" (at the top end of the header, as on Kagi
+/// Translate) closes the sheet; "Reset to defaults" is at the bottom.
 ///
 /// When the engine does not apply every option ([translateOptionsNote]:
 /// Mozhi, offline and most machine translation engines translate plainly),
@@ -291,6 +291,31 @@ class _TranslationOptionsSheetState extends State<TranslationOptionsSheet> {
         minChildSize: 0.4,
         builder: (context, controller) => Column(
           children: [
+            // Kagi's header: the title and "Done", always in view.
+            Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(24, 0, 12, 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Semantics(
+                      header: true,
+                      child: Text(
+                        l10n.translateOptionsTitle,
+                        style: theme.textTheme.titleLarge,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    key: const Key('translate_options_done'),
+                    onPressed: _done,
+                    style: TextButton.styleFrom(
+                      textStyle: theme.textTheme.titleMedium,
+                    ),
+                    child: Text(l10n.translateOptionsDone),
+                  ),
+                ],
+              ),
+            ),
             Expanded(
               child: BlocBuilder<TranslateCubit, TranslateState>(
                 buildWhen: (previous, current) =>
@@ -309,26 +334,6 @@ class _TranslationOptionsSheetState extends State<TranslationOptionsSheet> {
                     controller: controller,
                     padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Semantics(
-                              header: true,
-                              child: Text(
-                                l10n.translateOptionsTitle,
-                                style: theme.textTheme.titleLarge,
-                              ),
-                            ),
-                          ),
-                          TextButton(
-                            key: const Key('translate_options_reset'),
-                            onPressed: optionsAreDefault(options)
-                                ? null
-                                : _reset,
-                            child: Text(l10n.translateOptionsReset),
-                          ),
-                        ],
-                      ),
                       if (note != null)
                         _AiNote(
                           message: note,
@@ -557,12 +562,21 @@ class _TranslationOptionsSheetState extends State<TranslationOptionsSheet> {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 24),
+                      Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: TextButton.icon(
+                          key: const Key('translate_options_reset'),
+                          onPressed: optionsAreDefault(options) ? null : _reset,
+                          icon: const Icon(Icons.restart_alt),
+                          label: Text(l10n.translateOptionsReset),
+                        ),
+                      ),
                     ],
                   );
                 },
               ),
             ),
-            _DoneBar(onDone: _done),
           ],
         ),
       ),
@@ -632,36 +646,6 @@ class _AiNote extends StatelessWidget {
   }
 }
 
-/// "Done" under the options, always in view.
-class _DoneBar extends StatelessWidget {
-  const new({required this.onDone});
-
-  final VoidCallback onDone;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: AppPalette.of(context).hairline)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
-          child: Align(
-            alignment: AlignmentDirectional.centerEnd,
-            child: FilledButton(
-              key: const Key('translate_options_done'),
-              onPressed: onDone,
-              child: Text(context.l10n.translateOptionsDone),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _Label extends StatelessWidget {
   const new(this.text);
 
@@ -670,15 +654,15 @@ class _Label extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // A bold section heading, as on the translate screen.
     return Semantics(
       header: true,
       child: Padding(
-        padding: const EdgeInsets.only(top: 20, bottom: 8),
+        padding: const EdgeInsets.only(top: 24, bottom: 10),
         child: Text(
           text,
-          style: theme.textTheme.labelLarge?.copyWith(
-            color: theme.colorScheme.primary,
-          ),
+          style: TranslateLayout.headingStyle(context)
+              ?.copyWith(color: theme.colorScheme.onSurface),
         ),
       ),
     );

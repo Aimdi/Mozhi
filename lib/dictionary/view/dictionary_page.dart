@@ -1,10 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/translate_link.dart'
     show TranslateLink, matchLanguage;
+import 'package:mozhi/app/view/top_level_actions.dart';
+import 'package:mozhi/core/widgets/tab_hero.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/dictionary/cubit/dictionary_cubit.dart';
 import 'package:mozhi/dictionary/widgets/widgets.dart';
@@ -21,7 +22,8 @@ import 'package:translation_repository/translation_repository.dart';
 enum DictionaryLaunch { lookUp }
 
 /// The AI dictionary: definitions, pronunciation, examples and
-/// translations of a word or phrase ([TranslationRepository.lookUp]).
+/// translations of a word or phrase ([TranslationRepository.lookUp]). A
+/// tab of the app; the translate screen also pushes it with a word.
 ///
 /// Needs the app-wide [TranslateCubit] (for the AI engine: its assist
 /// engine, else the first engine with AI extras) and a
@@ -130,6 +132,10 @@ UsageTracker? _usageTracker(BuildContext context) {
   }
 }
 
+/// The dictionary screen: before the first look-up a big headline
+/// ([DictionaryHero]) above the search, then the search, languages and
+/// detail level, and the entry (below them on phones, beside them from
+/// [wideBreakpoint]). History and Settings are in the app bar.
 class DictionaryView extends StatelessWidget {
   const new({this.autofocus = false, super.key});
 
@@ -139,16 +145,16 @@ class DictionaryView extends StatelessWidget {
   /// Width from which the search and the entry are side by side.
   static const wideBreakpoint = 840.0;
 
-  /// Where the back button goes when there is nothing to go back to (the
-  /// page was opened by a link).
-  static const translateRoute = '/translate';
-
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final router = GoRouter.maybeOf(context);
-    final canPop = router?.canPop() ?? Navigator.of(context).canPop();
-    final controls = _Controls(autofocus: autofocus);
+    final controls = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const DictionaryHero(),
+        _Controls(autofocus: autofocus),
+      ],
+    );
     return BlocListener<TranslateCubit, TranslateState>(
       // Engine equality ignores details such as the model, so compare
       // instances to pick up edited providers.
@@ -160,14 +166,7 @@ class DictionaryView extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           title: Text(l10n.dictionaryTitle),
-          leading: canPop || router == null
-              ? null
-              : IconButton(
-                  key: const Key('dictionary_back'),
-                  tooltip: l10n.dictionaryBack,
-                  icon: const BackButtonIcon(),
-                  onPressed: () => router.go(translateRoute),
-                ),
+          actions: const [TopLevelActions(), SizedBox(width: 4)],
         ),
         body: SafeArea(
           top: false,
@@ -209,6 +208,30 @@ class DictionaryView extends StatelessWidget {
             },
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// "What does this mean?" with what the dictionary does, above the search
+/// until the first look-up (the status is idle).
+class DictionaryHero extends StatelessWidget {
+  const new({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final idle = context.select<DictionaryCubit, bool>(
+      (cubit) => cubit.state.status == DictionaryStatus.idle,
+    );
+    if (!idle) return const SizedBox.shrink();
+    final l10n = context.l10n;
+    return Padding(
+      key: const Key('dictionary_hero'),
+      padding: const EdgeInsets.fromLTRB(8, 16, 8, 24),
+      child: TabHero(
+        icon: Icons.menu_book_rounded,
+        title: l10n.dictionaryHeroTitle,
+        body: l10n.dictionaryEmptyBody,
       ),
     );
   }

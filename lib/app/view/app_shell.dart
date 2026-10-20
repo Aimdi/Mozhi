@@ -15,7 +15,10 @@ class AppDestination {
   final IconData selectedIcon;
   final String Function(AppLocalizations l10n) label;
 
-  /// Translate, Proofread, History, Settings (in branch order).
+  /// Translate, Dictionary, Proofread, Conversation (in branch order).
+  ///
+  /// History and Settings are not tabs: they are app bar actions of every
+  /// tab (`TopLevelActions`) that open full pages above the tabs.
   static final all = <AppDestination>[
     AppDestination(
       icon: Icons.translate_outlined,
@@ -23,19 +26,19 @@ class AppDestination {
       label: (l10n) => l10n.navTranslate,
     ),
     AppDestination(
+      icon: Icons.menu_book_outlined,
+      selectedIcon: Icons.menu_book,
+      label: (l10n) => l10n.navDictionary,
+    ),
+    AppDestination(
       icon: Icons.spellcheck_outlined,
       selectedIcon: Icons.spellcheck,
       label: (l10n) => l10n.navProofread,
     ),
     AppDestination(
-      icon: Icons.history_outlined,
-      selectedIcon: Icons.history,
-      label: (l10n) => l10n.navHistory,
-    ),
-    AppDestination(
-      icon: Icons.settings_outlined,
-      selectedIcon: Icons.settings,
-      label: (l10n) => l10n.navSettings,
+      icon: Icons.forum_outlined,
+      selectedIcon: Icons.forum,
+      label: (l10n) => l10n.navConversation,
     ),
   ];
 }

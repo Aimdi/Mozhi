@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -20,7 +22,8 @@ class ProofreadEmptyState extends StatelessWidget {
           title: l10n.proofreadEmptyTitle,
           body: l10n.proofreadEmptyBody,
           action: FilledButton.icon(
-            onPressed: () => context.go(providersRoute),
+            // Above the tabs: back returns to proofreading.
+            onPressed: () => unawaited(context.push<void>(providersRoute)),
             icon: const Icon(Icons.add),
             label: Text(l10n.proofreadEmptyAction),
           ),

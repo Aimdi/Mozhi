@@ -44,6 +44,7 @@ void main() {
     String? languageCode = 'en',
     bool? preferOnDevice,
     SpeechInputService? using,
+    bool prominent = false,
   }) => VoiceInputButton.standalone(
     key: key,
     service: using ?? service,
@@ -51,6 +52,7 @@ void main() {
     preferOnDevice: preferOnDevice,
     onResult: onResult,
     onListeningChanged: listeningChanges.add,
+    prominent: prominent,
   );
 
   Future<void> pump(WidgetTester tester, Widget child, {GoRouter? router}) {
@@ -543,6 +545,76 @@ void main() {
       expect(mic(), findsOneWidget);
       expect(find.byIcon(Icons.mic_off_outlined), findsOneWidget);
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('prominent VoiceInputButton', () {
+    const size = Size.square(VoiceInputButton.prominentSize);
+
+    ButtonStyle styleOf(WidgetTester tester) => iconButton(tester).style!;
+
+    Color? background(WidgetTester tester) =>
+        styleOf(tester).backgroundColor?.resolve(const {});
+
+    testWidgets('is a large filled accent circle', (tester) async {
+      await pump(tester, button(prominent: true));
+      final scheme = Theme.of(tester.element(mic())).colorScheme;
+
+      expect(tester.getSize(find.byType(VoiceInputButton)), size);
+      expect(tester.getSize(mic()), size);
+      expect(iconButton(tester).iconSize, 36);
+      expect(iconButton(tester).tooltip, l10n.voiceInputStart);
+      expect(find.byIcon(Icons.mic), findsOneWidget);
+      expect(background(tester), scheme.primary);
+      expect(
+        styleOf(tester).foregroundColor?.resolve(const {}),
+        scheme.onPrimary,
+      );
+    });
+
+    testWidgets('sizes its rings while listening', (tester) async {
+      await pump(tester, button(prominent: true));
+      await tapMic(tester);
+
+      expect(iconButton(tester).isSelected, isTrue);
+      expect(iconButton(tester).tooltip, l10n.voiceInputStop);
+      expect(tester.getSize(ring()), size);
+      expect(tester.getSize(find.byKey(VoiceInputButton.pulseRingKey)), size);
+      recognizer.emitResult('hi', isFinal: true);
+      await tester.pump();
+      expect(received, [('hi', true)]);
+    });
+
+    testWidgets('shows a large progress ring while starting', (tester) async {
+      recognizer.initGate = Completer<void>();
+      await pump(tester, button(prominent: true));
+      await tester.tap(mic());
+      await tester.pump();
+
+      expect(
+        tester.getSize(find.byKey(VoiceInputButton.startingKey)),
+        const Size.square(VoiceInputButton.prominentSize - 4),
+      );
+      recognizer.initGate!.complete();
+      await tester.pump();
+      await tester.pump();
+    });
+
+    testWidgets('turns neutral while voice input is unavailable', (
+      tester,
+    ) async {
+      recognizer.initResult = false;
+      await pump(tester, button(prominent: true));
+      await tapMic(tester);
+      final scheme = Theme.of(tester.element(mic())).colorScheme;
+
+      expect(find.byIcon(Icons.mic_off_outlined), findsOneWidget);
+      expect(background(tester), scheme.surfaceContainerHighest);
+      expect(
+        styleOf(tester).foregroundColor?.resolve(const {}),
+        scheme.onSurfaceVariant,
+      );
+      expect(tester.getSize(find.byType(VoiceInputButton)), size);
     });
   });
 

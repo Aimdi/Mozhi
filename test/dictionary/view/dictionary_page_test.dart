@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/app/view/top_level_actions.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/dictionary/dictionary.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -165,11 +166,29 @@ void main() {
   );
 
   group('DictionaryPage', () {
-    testWidgets('shows the empty state and the engine', (tester) async {
+    testWidgets('shows the hero above the search and the engine', (
+      tester,
+    ) async {
       await pumpPage(tester);
 
       expect(find.byKey(const Key('dictionary_empty')), findsOneWidget);
-      expect(find.text('Look up any word'), findsOneWidget);
+      expect(find.byKey(const Key('dictionary_hero')), findsOneWidget);
+      expect(find.text('What does this mean?'), findsOneWidget);
+      expect(
+        find.text(
+          'See definitions, pronunciation, examples and translations, '
+          'written by your AI provider.',
+        ),
+        findsOneWidget,
+      );
+      // The hero says it all: no second empty message below the search.
+      expect(find.text('Look up any word'), findsNothing);
+      expect(
+        tester.getCenter(find.text('What does this mean?')).dy,
+        lessThan(
+          tester.getCenter(find.byKey(const Key('dictionary_search_field'))).dy,
+        ),
+      );
       expect(find.text('Dictionary entries by Claude'), findsOneWidget);
       final field = tester.widget<TextField>(
         find.byKey(const Key('dictionary_search_field')),
@@ -474,7 +493,10 @@ void main() {
       testWidgets('links to the AI provider settings', (tester) async {
         final router = _MockGoRouter();
         when(router.canPop).thenReturn(true);
+        when(() => router.push<void>(any())).thenAnswer((_) async {});
         await pumpPage(tester, state: _readyWithoutAi, router: router);
+        // The hero stays above the search.
+        expect(find.text('What does this mean?'), findsOneWidget);
 
         expect(find.byKey(const Key('dictionary_no_engine')), findsOneWidget);
         expect(
@@ -488,7 +510,8 @@ void main() {
         expect(lookUp.onPressed, isNull);
 
         await tester.tap(find.text('Add AI provider'));
-        verify(() => router.go('/settings/providers')).called(1);
+        // Above the tabs: back returns to the dictionary.
+        verify(() => router.push<void>('/settings/providers')).called(1);
       });
 
       testWidgets('offers a retry when the engines failed to load', (
@@ -575,12 +598,14 @@ void main() {
         await tester.pump();
         verifyLookUps(1);
         expect(find.byType(DictionaryEntryView), findsOneWidget);
+        expect(find.byKey(const Key('dictionary_hero')), findsNothing);
 
         await tester.tap(find.byKey(const Key('dictionary_clear')));
         await tester.pump();
         expect(dictionaryState(tester).word, isEmpty);
         expect(find.byKey(const Key('dictionary_clear')), findsNothing);
         expect(find.byKey(const Key('dictionary_empty')), findsOneWidget);
+        expect(find.byKey(const Key('dictionary_hero')), findsOneWidget);
         final field = tester.widget<TextField>(
           find.byKey(const Key('dictionary_search_field')),
         );
@@ -885,21 +910,54 @@ void main() {
     });
 
     group('navigation', () {
-      testWidgets('goes to Translate when opened by a link', (tester) async {
+      testWidgets('is a tab: History and Settings, no back arrow', (
+        tester,
+      ) async {
         final router = _MockGoRouter();
         when(router.canPop).thenReturn(false);
         await pumpPage(tester, router: router);
 
-        await tester.tap(find.byKey(const Key('dictionary_back')));
-        verify(() => router.go('/translate')).called(1);
+        expect(find.byType(TopLevelActions), findsOneWidget);
+        expect(find.byType(BackButton), findsNothing);
+        expect(find.byKey(const Key('dictionary_back')), findsNothing);
       });
 
-      testWidgets('keeps the normal back button otherwise', (tester) async {
-        final router = _MockGoRouter();
-        when(router.canPop).thenReturn(true);
-        await pumpPage(tester, router: router);
+      testWidgets('pushed above a page it has the usual back button', (
+        tester,
+      ) async {
+        await tester.pumpApp(
+          Builder(
+            builder: (context) => TextButton(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => MultiBlocProvider(
+                    providers: [
+                      BlocProvider<TranslateCubit>.value(value: translateCubit),
+                      BlocProvider<SettingsCubit>.value(value: settingsCubit),
+                    ],
+                    child: RepositoryProvider<TranslationRepository>.value(
+                      value: repository,
+                      child: const DictionaryPage(word: 'gato'),
+                    ),
+                  ),
+                ),
+              ),
+              child: const Text('open'),
+            ),
+          ),
+        );
+        whenListen(
+          translateCubit,
+          const Stream<TranslateState>.empty(),
+          initialState: _readyWithAi,
+        );
+        await tester.tap(find.text('open'));
+        await tester.pumpAndSettle();
 
-        expect(find.byKey(const Key('dictionary_back')), findsNothing);
+        expect(find.byType(BackButton), findsOneWidget);
+        await tester.tap(find.byType(BackButton));
+        await tester.pumpAndSettle();
+        expect(find.byType(DictionaryPage), findsNothing);
       });
     });
 

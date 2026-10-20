@@ -265,7 +265,8 @@ OfflineOffer? offlineOfferFor(
   final router = GoRouter.maybeOf(context);
   return (
     language: LanguageCatalog.nameOf(download),
-    onDownload: () => router?.go(AppRoutes.offline),
+    // Settings pages sit above the tabs: back returns here.
+    onDownload: () => unawaited(router?.push<void>(AppRoutes.offline)),
   );
 }
 
@@ -347,7 +348,7 @@ Future<bool> requestConsent(
       onDownloadOffline?.call();
       return false;
     case _Answer.changeMode:
-      router?.go(AppRoutes.settings);
+      unawaited(router?.push<void>(AppRoutes.settings));
       return false;
     case null:
       return false;

@@ -76,6 +76,194 @@ void main() {
       expect(find.text('Translate'), findsWidgets);
     });
 
+    group('empty screen', () {
+      setUp(() => TranslateHero.clock = () => DateTime(2026, 10, 20, 9));
+      tearDown(() => TranslateHero.clock = DateTime.now);
+
+      Finder hero() => find.byKey(const Key('translate_hero'));
+      Finder field() => find.byKey(const Key('translate_input_field'));
+      Finder toolbar() => find.byKey(const Key('translate_input_toolbar'));
+      Finder composer() => find.byKey(const Key('translate_composer'));
+
+      /// Whether the input thread's avatar shows.
+      bool avatarShown(WidgetTester tester) => tester
+          .widget<TranslateThreadRow>(
+            find.byKey(const Key('translate_input_thread')),
+          )
+          .showAvatar;
+
+      testWidgets('greets, with the composer docked at the bottom', (
+        tester,
+      ) async {
+        final harness = TranslateHarness();
+        await harness.pump(tester, size: const Size(400, 800));
+        expect(hero(), findsOneWidget);
+        expect(find.text('Good morning'), findsOneWidget);
+        // The card (with its 12 dp margin) holds the field and the
+        // language bar, at the bottom.
+        final card = tester.getRect(composer());
+        expect(card.bottom, 800);
+        expect(
+          tester.getRect(find.byType(LanguageBar)).bottom,
+          closeTo(800 - 12 - 1 - 6, 1),
+        );
+        expect(tester.getRect(hero()).bottom, lessThanOrEqualTo(card.top));
+        for (final part in [field(), find.byType(LanguageBar)]) {
+          final rect = tester.getRect(part);
+          expect(card.contains(rect.topLeft), isTrue);
+          expect(card.contains(rect.bottomRight - const Offset(1, 1)), isTrue);
+        }
+        final decoration =
+            tester.widget<AnimatedContainer>(composer()).decoration!
+                as BoxDecoration;
+        expect(decoration.border, isNotNull);
+        // No avatar and no tools row yet; paste sits at the top end.
+        expect(avatarShown(tester), isFalse);
+        expect(toolbar(), findsNothing);
+        expect(find.byKey(const Key('translate_paste_button')), findsOneWidget);
+        expect(
+          tester.getCenter(find.byKey(const Key('translate_paste_button'))).dx,
+          greaterThan(tester.getCenter(field()).dx),
+        );
+      });
+
+      testWidgets('turns into the thread when the field gets the focus, '
+          'keeping the field', (tester) async {
+        final harness = TranslateHarness();
+        await harness.pump(tester, size: const Size(400, 800));
+        final editable = tester.state<EditableTextState>(
+          find.byType(EditableText),
+        );
+        await tester.tap(field());
+        await tester.pumpAndSettle();
+        expect(hero(), findsNothing);
+        expect(avatarShown(tester), isTrue);
+        expect(toolbar(), findsOneWidget);
+        // The same field, still focused (the keyboard stays up).
+        expect(
+          tester.state<EditableTextState>(find.byType(EditableText)),
+          same(editable),
+        );
+        expect(editable.widget.focusNode.hasFocus, isTrue);
+        // The card's outline is gone; the bar docks at the bottom.
+        final decoration =
+            tester.widget<AnimatedContainer>(composer()).decoration!
+                as BoxDecoration;
+        expect((decoration.border! as Border).top, BorderSide.none);
+        expect(
+          tester.getRect(find.byType(LanguageBar)).bottom,
+          closeTo(800 - 8, 1),
+        );
+        expect(tester.getRect(field()).top, lessThan(120));
+
+        // Leaving the empty field brings the greeting back.
+        editable.widget.focusNode.unfocus();
+        await tester.pumpAndSettle();
+        expect(hero(), findsOneWidget);
+        expect(
+          tester.state<EditableTextState>(find.byType(EditableText)),
+          same(editable),
+        );
+      });
+
+      testWidgets('tapping the card around the field focuses it', (
+        tester,
+      ) async {
+        final harness = TranslateHarness();
+        await harness.pump(tester, size: const Size(400, 800));
+        final card = tester.getRect(composer());
+        // Between the field and the bar.
+        await tester.tapAt(
+          Offset(
+            card.center.dx,
+            tester.getRect(find.byType(LanguageBar)).top - 2,
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(hero(), findsNothing);
+        expect(
+          tester
+              .state<EditableTextState>(find.byType(EditableText))
+              .widget
+              .focusNode
+              .hasFocus,
+          isTrue,
+        );
+      });
+
+      testWidgets('a sheet over the focused field keeps the layout', (
+        tester,
+      ) async {
+        final harness = TranslateHarness();
+        await harness.pump(tester, size: const Size(400, 800));
+        await tester.tap(field());
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('translate_options_button')));
+        await tester.pumpAndSettle();
+        expect(find.byType(TranslationOptionsSheet), findsOneWidget);
+        expect(hero(), findsNothing);
+        await tester.tap(find.byKey(const Key('translate_options_done')));
+        await tester.pumpAndSettle();
+        expect(hero(), findsNothing);
+      });
+
+      testWidgets('is not shown with input, in compare mode or for errors', (
+        tester,
+      ) async {
+        for (final state in [
+          readyState(input: 'Hi'),
+          readyState().copyWith(compareMode: true),
+          readyState().copyWith(
+            status: TranslateStatus.failure,
+            error: () => Exception('x'),
+          ),
+        ]) {
+          final harness = TranslateHarness(state: state);
+          await harness.pump(tester, size: const Size(400, 800));
+          expect(hero(), findsNothing, reason: '$state');
+        }
+      });
+
+      testWidgets('is skipped in a low window', (tester) async {
+        final harness = TranslateHarness();
+        await harness.pump(tester, size: const Size(700, 380));
+        expect(hero(), findsNothing);
+        expect(avatarShown(tester), isTrue);
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('centres the composer under the greeting on large screens', (
+        tester,
+      ) async {
+        final harness = TranslateHarness();
+        await harness.pump(tester, size: const Size(1280, 800));
+        expect(hero(), findsOneWidget);
+        final card = tester.getRect(composer());
+        expect(card.center.dx, closeTo(640, 1));
+        // At most 760 dp, plus its 24 dp margins.
+        expect(card.width, lessThanOrEqualTo(760 + 48));
+        expect(tester.getRect(hero()).bottom, lessThanOrEqualTo(card.top));
+        // The output pane opens once the field has the focus.
+        expect(find.byKey(const Key('translate_output_pane')), findsNothing);
+        await tester.tap(field());
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('translate_output_pane')), findsOneWidget);
+      });
+
+      testWidgets('moves without motion with reduced motion', (tester) async {
+        final harness = TranslateHarness();
+        await harness.pump(
+          tester,
+          size: const Size(400, 800),
+          disableAnimations: true,
+        );
+        expect(
+          tester.widget<AnimatedContainer>(composer()).duration,
+          Duration.zero,
+        );
+      });
+    });
+
     testWidgets('does not overflow at 320 dp with large text', (tester) async {
       final harness = TranslateHarness(
         state: translatedState(engine: claude).copyWith(

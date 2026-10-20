@@ -203,12 +203,17 @@ class TranslateFlatCard extends StatelessWidget {
 /// A row of the X-thread layout: a [LanguageAvatar] for [code] at the
 /// start, [child] beside it, and (with [connector]) a thin vertical line
 /// from below the avatar down to the next row's avatar.
+///
+/// Without [showAvatar] (the empty screen's composer) neither the avatar
+/// nor its column is there; the avatar fades in and the child moves over
+/// (motion: [TranslateLayout.motion]) when it is shown.
 class TranslateThreadRow extends StatelessWidget {
   const new({
     required this.code,
     required this.child,
     this.connector = false,
     this.avatarTop = 8,
+    this.showAvatar = true,
     super.key,
   });
 
@@ -221,21 +226,34 @@ class TranslateThreadRow extends StatelessWidget {
   /// of text).
   final double avatarTop;
 
+  /// Whether the avatar (and its column) is shown.
+  final bool showAvatar;
+
   @override
   Widget build(BuildContext context) {
     const size = TranslateLayout.avatarSize;
+    final motion = TranslateLayout.motion(context);
     return Stack(
       children: [
-        Padding(
-          padding: const EdgeInsetsDirectional.only(
-            start: size + TranslateLayout.avatarGap,
+        AnimatedPadding(
+          duration: motion,
+          curve: Curves.easeOutCubic,
+          padding: EdgeInsetsDirectional.only(
+            start: showAvatar ? size + TranslateLayout.avatarGap : 0,
           ),
           child: child,
         ),
         PositionedDirectional(
           start: 0,
           top: avatarTop,
-          child: LanguageAvatar(code: code),
+          child: IgnorePointer(
+            ignoring: !showAvatar,
+            child: AnimatedOpacity(
+              duration: motion,
+              opacity: showAvatar ? 1 : 0,
+              child: LanguageAvatar(code: code),
+            ),
+          ),
         ),
         if (connector)
           PositionedDirectional(

@@ -4,8 +4,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
-import 'package:mozhi/dictionary/view/dictionary_page.dart'
-    show DictionaryLaunch;
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/listen_button.dart';
@@ -15,12 +13,13 @@ import 'package:mozhi/translate/widgets/recent_pairs_sheet.dart';
 import 'package:mozhi/translate/widgets/shortcuts_help.dart';
 
 /// Entries of the translate screen's "More tools" menu.
+///
+/// The dictionary and conversation mode are tabs of their own (see
+/// `AppDestination.all`), not entries here.
 enum TranslateTool {
-  image('/image', Icons.photo_camera_outlined),
-  documents('/documents', Icons.description_outlined),
-  webPage('/web', Icons.language),
-  conversation('/conversation', Icons.forum_outlined),
-  dictionary(AppRoutes.dictionary, Icons.menu_book_outlined),
+  image(AppRoutes.image, Icons.photo_camera_outlined),
+  documents(AppRoutes.documents, Icons.description_outlined),
+  webPage(AppRoutes.web, Icons.language),
   compare(null, Icons.difference_outlined),
   recentPairs(null, Icons.history),
   listenSlowly(null, Icons.slow_motion_video),
@@ -30,8 +29,7 @@ enum TranslateTool {
 
   /// Route pushed on top of the translate screen (null: opens a sheet or a
   /// dialog, turns compare mode on or off, or reads the translation
-  /// slowly). The dictionary is opened with the input's word, see
-  /// [translateDictionaryLocation].
+  /// slowly).
   final String? route;
   final IconData icon;
 
@@ -39,8 +37,6 @@ enum TranslateTool {
     TranslateTool.image => l10n.translateToolImage,
     TranslateTool.documents => l10n.translateToolDocuments,
     TranslateTool.webPage => l10n.translateToolWebPage,
-    TranslateTool.conversation => l10n.translateToolConversation,
-    TranslateTool.dictionary => l10n.translateToolDictionary,
     TranslateTool.compare => l10n.translateCompareModeEnter,
     TranslateTool.recentPairs => l10n.translateRecentPairsTitle,
     TranslateTool.listenSlowly => l10n.translateToolListenSlowly,
@@ -48,8 +44,9 @@ enum TranslateTool {
   };
 }
 
-/// The word the dictionary opens with: the trimmed input when it is one to
-/// three words (`TranslateState.isShortInput`) and at most
+/// The word the dictionary would open with for the translate screen's
+/// input: the trimmed input when it is one to three words
+/// (`TranslateState.isShortInput`) and at most
 /// [TranslateCubit.maxDictionaryWordLength] characters, else null.
 String? translateDictionaryWord(TranslateState state) {
   final word = state.input.trim();
@@ -88,14 +85,12 @@ bool canListenToTranslation(TranslateState state) =>
     state.output.trim().isNotEmpty && !state.target.isCustom;
 
 /// App bar overflow menu with the other translators (image, documents, web
-/// page, conversation), the dictionary, compare mode (also in the "More"
-/// tools under a translation; "Exit compare mode" while it is on), the
-/// recent language pairs (also on a long press of the swap button),
-/// reading the translation slowly (also on a long press of its Listen
-/// button) and the keyboard shortcut cheat sheet.
+/// page), compare mode (also in the "More" tools under a translation;
+/// "Exit compare mode" while it is on), the recent language pairs (also on
+/// a long press of the swap button), reading the translation slowly (also
+/// on a long press of its Listen button) and the keyboard shortcut cheat
+/// sheet. The dictionary and conversation mode are tabs.
 ///
-/// The dictionary opens with the input's word and looks it up right away
-/// ([DictionaryLaunch.lookUp]) when the input is a word or short phrase.
 /// Recent pairs and slow reading are only offered while engines are
 /// available; slow reading is disabled while there is no translation the
 /// output card's Listen button could read ([canListenToTranslation]).
@@ -104,15 +99,6 @@ class MoreToolsButton extends StatelessWidget {
 
   void _open(BuildContext context, TranslateTool tool) {
     switch (tool) {
-      case TranslateTool.dictionary:
-        final state = context.read<TranslateCubit>().state;
-        final lookUp = translateDictionaryWord(state) != null;
-        unawaited(
-          context.push<void>(
-            translateDictionaryLocation(state),
-            extra: lookUp ? DictionaryLaunch.lookUp : null,
-          ),
-        );
       case TranslateTool.compare:
         final cubit = context.read<TranslateCubit>();
         cubit.setCompareMode(enabled: !cubit.state.compareMode);
@@ -134,8 +120,7 @@ class MoreToolsButton extends StatelessWidget {
         unawaited(showTranslateShortcuts(context));
       case TranslateTool.image ||
           TranslateTool.documents ||
-          TranslateTool.webPage ||
-          TranslateTool.conversation:
+          TranslateTool.webPage:
         unawaited(context.push<void>(tool.route!));
     }
   }

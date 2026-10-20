@@ -94,15 +94,16 @@ class ImageTranslateErrorView extends StatelessWidget {
         offlineModelsRoute,
         true,
       ),
+      // Settings pages sit above the translator: back returns here.
       TranslateErrorFix.instances => (
         l10n.translateManageInstances,
         ImageTranslateLinks.instances,
-        false,
+        true,
       ),
       TranslateErrorFix.providers => (
         l10n.translateProvidersAction,
         ImageTranslateLinks.providers,
-        false,
+        true,
       ),
       TranslateErrorFix.none => (null, null, false),
     };

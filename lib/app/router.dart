@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/translate_link.dart';
 import 'package:mozhi/app/view/app_shell.dart';
 import 'package:mozhi/app/view/deferred_page.dart';
+import 'package:mozhi/app/view/top_level_actions.dart';
 import 'package:mozhi/conversation/view/conversation_page.dart'
     deferred as conversation_page;
 import 'package:mozhi/conversation/widgets/conversation_voice_mic.dart'
@@ -42,6 +43,7 @@ import 'package:mozhi/settings/view/voice_input_settings_page.dart';
 import 'package:mozhi/translate/view/translate_page.dart';
 import 'package:mozhi/usage/view/usage_summary_page.dart'
     deferred as usage_page;
+import 'package:mozhi/voice/speech_input_service.dart';
 import 'package:mozhi/voice/widgets/voice_input_button.dart'
     show VoiceInputButton;
 import 'package:mozhi/web_translate/view/web_translate_page.dart'
@@ -51,8 +53,14 @@ import 'package:translation_repository/translation_repository.dart';
 
 /// Every location the app can show.
 abstract final class AppRoutes {
+  /// The four tabs (in this order).
   static const translate = '/translate';
+  static const dictionary = '/dictionary';
   static const proofread = '/proofread';
+  static const conversation = '/conversation';
+
+  /// Full pages above the tabs, opened from every tab's app bar
+  /// ([TopLevelActions]); the settings sub-pages stack above the settings.
   static const history = '/history';
   static const settings = '/settings';
   static const instances = '/settings/instances';
@@ -83,10 +91,6 @@ abstract final class AppRoutes {
   static const image = '/image';
   static const documents = '/documents';
   static const web = '/web';
-  static const conversation = '/conversation';
-
-  /// The AI dictionary (full screen).
-  static const dictionary = '/dictionary';
 
   /// Scheme of the app's deep links, `mozhi://<screen>[/<path>][?<query>]`
   /// (see [deepLinkLocation]).
@@ -191,11 +195,16 @@ typedef LaunchRedirect = String? Function(String location);
 
 /// Builds the app's router.
 ///
-/// Four tabs are kept alive in a [StatefulShellRoute.indexedStack] with an
-/// adaptive [AppShell]. The settings sub-pages stay inside the settings
-/// tab; the onboarding, the image, document, web page and conversation
-/// translators and the dictionary are full-screen routes on the root
-/// navigator ([navigatorKey]) above the tabs.
+/// Four tabs (Translate, Dictionary, Proofread, Conversation) are kept
+/// alive in a [StatefulShellRoute.indexedStack] with an adaptive
+/// [AppShell]; the Dictionary and Conversation tabs are deferred (loaded
+/// when first opened). History and Settings (with the settings sub-pages
+/// nested below it), the onboarding and the image, document and web page
+/// translators are full-screen routes on the root navigator
+/// ([navigatorKey]) outside the tabs: pushed (see [TopLevelActions]) they
+/// sit above the tabs and go back to them. Opened on their own (a link, an
+/// app shortcut or a `go`), History and Settings go back to the translate
+/// tab ([TopLevelPageScope], `topLevelBackButton`).
 ///
 /// Translate links (`/translate?text=…&from=…&to=…` or the same query on
 /// `/`, including Kagi's option parameters, see [TranslateLink.fromUri])
@@ -292,27 +301,70 @@ GoRouter createAppRouter({
           autoLoad: false,
         );
       }),
-      fullScreenDeferred(
-        AppRoutes.conversation,
-        DeferredFeatures.conversation,
-        (context, state) => conversation_page.ConversationPage(
-          micBuilder: conversation_mic.conversationVoiceMicBuilder,
-        ),
+      GoRoute(
+        path: AppRoutes.history,
+        builder: (context, state) =>
+            const TopLevelPageScope(child: HistoryPage()),
       ),
-      fullScreenDeferred(AppRoutes.dictionary, DeferredFeatures.dictionary, (
-        context,
-        state,
-      ) {
-        final query = state.uri.queryParameters;
-        return dictionary_page.DictionaryPage(
-          // A new word (another link while the page is open) starts afresh.
-          key: ValueKey(state.uri.query),
-          word: query['word'],
-          from: query['from'],
-          to: query['to'],
-          autoLookUp: state.extra == DictionaryLaunch.lookUp,
-        );
-      }),
+      GoRoute(
+        path: AppRoutes.settings,
+        builder: (context, state) =>
+            const TopLevelPageScope(child: SettingsPage()),
+        routes: [
+          GoRoute(
+            path: 'instances',
+            builder: (context, state) => const InstancesPage(),
+          ),
+          GoRoute(
+            path: 'providers',
+            builder: (context, state) => const ProvidersPage(),
+            routes: [
+              GoRoute(
+                path: 'edit',
+                builder: (context, state) => ProviderEditorPage(
+                  providerId: state.uri.queryParameters['id'],
+                  presetId: state.uri.queryParameters['preset'],
+                ),
+              ),
+            ],
+          ),
+          deferredRoute(
+            'offline',
+            DeferredFeatures.offline,
+            (context, state) => offline_page.OfflineModelsPage(),
+          ),
+          deferredRoute(
+            'presets',
+            DeferredFeatures.presets,
+            (context, state) => presets_page.PresetsPage(
+              onOpenGlossaries: () =>
+                  unawaited(context.push<void>(AppRoutes.glossaries)),
+            ),
+          ),
+          deferredRoute(
+            'glossaries',
+            DeferredFeatures.glossaries,
+            (context, state) => glossaries_page.GlossariesPage(),
+          ),
+          GoRoute(
+            path: 'quality',
+            builder: (context, state) => const QualityModesPage(),
+          ),
+          GoRoute(
+            path: 'voice',
+            builder: (context, state) => const VoiceInputSettingsPage(),
+          ),
+          deferredRoute(
+            'usage',
+            DeferredFeatures.usage,
+            (context, state) => const _UsageRoute(),
+          ),
+          GoRoute(
+            path: 'about',
+            builder: (context, state) => const AboutPage(),
+          ),
+        ],
+      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) => AppShell(
           selectedIndex: navigationShell.currentIndex,
@@ -334,6 +386,25 @@ GoRouter createAppRouter({
           ),
           StatefulShellBranch(
             routes: [
+              deferredRoute(AppRoutes.dictionary, DeferredFeatures.dictionary, (
+                context,
+                state,
+              ) {
+                final query = state.uri.queryParameters;
+                return dictionary_page.DictionaryPage(
+                  // A new word (another link while the tab is open) starts
+                  // afresh.
+                  key: ValueKey(state.uri.query),
+                  word: query['word'],
+                  from: query['from'],
+                  to: query['to'],
+                  autoLookUp: state.extra == DictionaryLaunch.lookUp,
+                );
+              }),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
               GoRoute(
                 path: AppRoutes.proofread,
                 builder: (context, state) => ProofreadPage(
@@ -344,71 +415,15 @@ GoRouter createAppRouter({
           ),
           StatefulShellBranch(
             routes: [
-              GoRoute(
-                path: AppRoutes.history,
-                builder: (context, state) => const HistoryPage(),
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: AppRoutes.settings,
-                builder: (context, state) => const SettingsPage(),
-                routes: [
-                  GoRoute(
-                    path: 'instances',
-                    builder: (context, state) => const InstancesPage(),
-                  ),
-                  GoRoute(
-                    path: 'providers',
-                    builder: (context, state) => const ProvidersPage(),
-                    routes: [
-                      GoRoute(
-                        path: 'edit',
-                        builder: (context, state) => ProviderEditorPage(
-                          providerId: state.uri.queryParameters['id'],
-                          presetId: state.uri.queryParameters['preset'],
-                        ),
-                      ),
-                    ],
-                  ),
-                  deferredRoute(
-                    'offline',
-                    DeferredFeatures.offline,
-                    (context, state) => offline_page.OfflineModelsPage(),
-                  ),
-                  deferredRoute(
-                    'presets',
-                    DeferredFeatures.presets,
-                    (context, state) => presets_page.PresetsPage(
-                      onOpenGlossaries: () =>
-                          unawaited(context.push<void>(AppRoutes.glossaries)),
-                    ),
-                  ),
-                  deferredRoute(
-                    'glossaries',
-                    DeferredFeatures.glossaries,
-                    (context, state) => glossaries_page.GlossariesPage(),
-                  ),
-                  GoRoute(
-                    path: 'quality',
-                    builder: (context, state) => const QualityModesPage(),
-                  ),
-                  GoRoute(
-                    path: 'voice',
-                    builder: (context, state) => const VoiceInputSettingsPage(),
-                  ),
-                  deferredRoute(
-                    'usage',
-                    DeferredFeatures.usage,
-                    (context, state) => const _UsageRoute(),
-                  ),
-                  GoRoute(
-                    path: 'about',
-                    builder: (context, state) => const AboutPage(),
-                  ),
-                ],
+              deferredRoute(
+                AppRoutes.conversation,
+                DeferredFeatures.conversation,
+                (context, state) => conversation_page.ConversationPage(
+                  // No microphones where speech recognition is unavailable.
+                  micBuilder: _speechInputSupported(context)
+                      ? conversation_mic.conversationVoiceMicBuilder
+                      : null,
+                ),
               ),
             ],
           ),
@@ -464,6 +479,16 @@ String? deepLinkLocation(Uri uri) {
     path: '/${path.path}',
     query: uri.hasQuery && uri.query.isNotEmpty ? uri.query : null,
   ).toString();
+}
+
+/// Whether the app-wide [SpeechInputService] can recognise speech on this
+/// platform (false without one).
+bool _speechInputSupported(BuildContext context) {
+  try {
+    return context.read<SpeechInputService>().isPlatformSupported;
+  } on ProviderNotFoundException {
+    return false;
+  }
 }
 
 /// [usage_page.UsageSummaryPage] for the configured providers; tapping a

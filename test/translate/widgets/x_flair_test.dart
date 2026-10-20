@@ -187,12 +187,12 @@ void main() {
     });
   });
 
-  group('EmptyOutput', () {
-    testWidgets('shows a big bold headline', (tester) async {
+  group('TranslateHero', () {
+    testWidgets('greets with a big bold headline', (tester) async {
       final harness = TranslateHarness();
-      await harness.pump(tester, child: const OutputCard());
+      await harness.pump(tester, child: const TranslateHero());
       final title = tester.widget<Text>(
-        find.byKey(const Key('translate_empty_title')),
+        find.byKey(const Key('translate_greeting')),
       );
       expect(title.style?.fontWeight, FontWeight.w800);
       expect(title.style?.fontSize, greaterThanOrEqualTo(26));
@@ -370,7 +370,8 @@ void main() {
       await harness.pump(tester, size: const Size(400, 900));
       expect(find.byKey(const Key('translate_output_thread')), findsNothing);
       expect(find.byKey(const Key('translate_thread_connector')), findsNothing);
-      expect(find.byKey(const Key('translate_empty_title')), findsOneWidget);
+      // The greeting shows instead.
+      expect(find.byKey(const Key('translate_greeting')), findsOneWidget);
     });
 
     testWidgets('detected source shows in the input avatar', (tester) async {

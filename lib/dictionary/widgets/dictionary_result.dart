@@ -14,7 +14,9 @@ import 'package:mozhi/translate/widgets/status_announcer.dart';
 import 'package:mozhi/translate/widgets/translate_error.dart';
 
 /// What the dictionary shows below the search: the entry, or the loading,
-/// error, empty and "no AI provider" states.
+/// error, "not found" and "no AI provider" states. Nothing before the
+/// first look-up: the page's headline (`DictionaryHero`) says what the
+/// dictionary does.
 ///
 /// The entry's related words (chips) and "Did you mean …?" (a link) look
 /// that word up ([DictionaryCubit.lookUpWord]).
@@ -68,7 +70,10 @@ class DictionaryResult extends StatelessWidget {
               action: FilledButton.icon(
                 key: const Key('dictionary_set_up_providers'),
                 style: FilledButton.styleFrom(shape: const StadiumBorder()),
-                onPressed: () => GoRouter.maybeOf(context)?.go(providersRoute),
+                // Above the tabs: back returns to the dictionary.
+                onPressed: () => unawaited(
+                  GoRouter.maybeOf(context)?.push<void>(providersRoute),
+                ),
                 icon: const Icon(Icons.add),
                 label: Text(l10n.dictionaryNoEngineAction),
               ),
@@ -76,11 +81,8 @@ class DictionaryResult extends StatelessWidget {
           };
         } else {
           body = switch (state.status) {
-            DictionaryStatus.idle => _Message(
-              key: const Key('dictionary_empty'),
-              icon: Icons.menu_book_outlined,
-              title: l10n.dictionaryEmptyTitle,
-              body: l10n.dictionaryEmptyBody,
+            DictionaryStatus.idle => const SizedBox.shrink(
+              key: Key('dictionary_empty'),
             ),
             DictionaryStatus.loading => Padding(
               padding: const EdgeInsets.symmetric(vertical: 24),

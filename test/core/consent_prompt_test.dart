@@ -79,6 +79,7 @@ void main() {
     settings = _MockSettingsCubit();
     repository = _MockRepository();
     router = _MockGoRouter();
+    when(() => router.push<void>(any())).thenAnswer((_) async {});
     when(() => settings.state).thenReturn(const AppSettings());
     when(() => repository.instances)
         .thenReturn(const [MozhiInstance(url: 'https://mozhi.example.org')]);
@@ -398,7 +399,7 @@ void main() {
       );
       expect(offer?.language, 'German');
       offer!.onDownload();
-      verify(() => router.go(AppRoutes.offline)).called(1);
+      verify(() => router.push<void>(AppRoutes.offline)).called(1);
     });
 
     testWidgets('English only downloads English', (tester) async {
@@ -527,7 +528,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Download German for offline use'));
       await tester.pumpAndSettle();
-      verify(() => router.go(AppRoutes.offline)).called(1);
+      verify(() => router.push<void>(AppRoutes.offline)).called(1);
     });
 
     testWidgets('a cloud provider: Allow consents to it', (tester) async {
@@ -561,7 +562,7 @@ void main() {
       await tester.tap(find.text('Change privacy mode'));
       await tester.pumpAndSettle();
       expect(_result, isFalse);
-      verify(() => router.go(AppRoutes.settings)).called(1);
+      verify(() => router.push<void>(AppRoutes.settings)).called(1);
     });
 
     testWidgets('lists: Allow loads them for this session', (tester) async {

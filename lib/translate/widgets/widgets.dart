@@ -32,6 +32,7 @@ export 'smart_swap_listener.dart';
 export 'status_announcer.dart';
 export 'tool_chip.dart';
 export 'translate_error.dart';
+export 'translate_hero.dart';
 export 'translate_layout.dart';
 export 'translate_more.dart';
 export 'translation_memory_card.dart';

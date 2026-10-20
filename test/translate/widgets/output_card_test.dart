@@ -76,10 +76,12 @@ void main() {
   setUpAll(registerTranslateFallbacks);
 
   group('OutputCard', () {
-    testWidgets('shows a hint when idle', (tester) async {
+    testWidgets('shows nothing when idle', (tester) async {
+      // The empty screen greets instead (TranslateHero).
       final harness = TranslateHarness();
       await harness.pump(tester, child: const OutputCard(), more: true);
-      expect(find.text('Your translation appears here'), findsOneWidget);
+      expect(find.byKey(const Key('translate_empty_output')), findsOneWidget);
+      expect(find.text('Your translation appears here'), findsNothing);
       expect(find.byKey(const Key('translate_output_progress')), findsNothing);
       expect(find.byTooltip('Copy'), findsNothing);
     });
