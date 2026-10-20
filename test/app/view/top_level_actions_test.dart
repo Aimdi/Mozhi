@@ -1,11 +1,16 @@
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/app/view/top_level_actions.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/models/app_settings.dart';
 
 import '../../helpers/helpers.dart';
+import '../../settings/view/helpers.dart' show createSettingsCubit;
 
 /// Longer than any page transition.
 const _transition = Duration(seconds: 1);
@@ -34,6 +39,9 @@ void main() {
   group('TopLevelActions', () {
     late GoRouter router;
 
+    /// The location History was last opened at.
+    Uri? historyUri;
+
     GoRouter createRouter(String initialLocation) => router = GoRouter(
       initialLocation: initialLocation,
       routes: [
@@ -48,7 +56,10 @@ void main() {
         ),
         GoRoute(
           path: AppRoutes.history,
-          builder: (context, state) => const _TopLevelPage('History page'),
+          builder: (context, state) {
+            historyUri = state.uri;
+            return const _TopLevelPage('History page');
+          },
         ),
         GoRoute(
           path: AppRoutes.settings,
@@ -56,6 +67,8 @@ void main() {
         ),
       ],
     );
+
+    setUp(() => historyUri = null);
 
     Future<void> pumpRouter(
       WidgetTester tester, {
@@ -85,23 +98,99 @@ void main() {
       final handle = tester.ensureSemantics();
       await pumpRouter(tester);
 
-      for (final (key, label) in [
-        (TopLevelActions.historyKey, 'History'),
-        (TopLevelActions.settingsKey, 'Settings'),
+      for (final key in [
+        TopLevelActions.historyKey,
+        TopLevelActions.settingsKey,
       ]) {
-        final button = find.byKey(key);
-        expect(tester.widget<IconButton>(button).tooltip, label);
-        final size = tester.getSize(button);
+        final size = tester.getSize(find.byKey(key));
         expect(size.width, greaterThanOrEqualTo(48));
         expect(size.height, greaterThanOrEqualTo(48));
-        expect(
-          tester.getSemantics(button),
-          isSemantics(tooltip: label, isButton: true),
-        );
       }
+      // History is named by its icon: its tooltip says more (below).
+      expect(
+        tester.getSemantics(find.byKey(TopLevelActions.historyKey)),
+        isSemantics(label: 'History', isButton: true),
+      );
+      final settings = find.byKey(TopLevelActions.settingsKey);
+      expect(tester.widget<IconButton>(settings).tooltip, 'Settings');
+      expect(
+        tester.getSemantics(settings),
+        isSemantics(tooltip: 'Settings', isButton: true),
+      );
       expect(find.byIcon(Icons.history), findsOneWidget);
       expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
+      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
       handle.dispose();
+    });
+
+    group('a long press on History', () {
+      testWidgets('opens it on the Favorites tab', (tester) async {
+        await pumpRouter(tester);
+
+        await tester.longPress(find.byKey(TopLevelActions.historyKey));
+        await settle(tester);
+        expect(find.text('History page'), findsOneWidget);
+        expect(historyUri.toString(), '/history?tab=favorites');
+        // Pushed above the tab: back returns to it.
+        await tester.tap(find.byType(BackButton));
+        await settle(tester);
+        expect(location(), AppRoutes.translate);
+      });
+
+      testWidgets('is announced by screen readers', (tester) async {
+        final handle = tester.ensureSemantics();
+        await pumpRouter(tester);
+        expect(
+          tester.getSemantics(find.byKey(TopLevelActions.historyKey)),
+          isSemantics(
+            label: 'History',
+            isButton: true,
+            hasTapAction: true,
+            hasLongPressAction: true,
+            hasFocusAction: true,
+            isFocusable: true,
+            hasEnabledState: true,
+            isEnabled: true,
+            onLongPressHint: 'Open favorites',
+          ),
+        );
+        handle.dispose();
+      });
+
+      testWidgets('is in the tooltip shown when pointing at the button', (
+        tester,
+      ) async {
+        await pumpRouter(tester);
+        const tooltip = 'History\nLong-press to open favorites';
+        expect(find.text(tooltip), findsNothing);
+
+        final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+        addTearDown(mouse.removePointer);
+        await mouse.addPointer(location: Offset.zero);
+        await mouse.moveTo(
+          tester.getCenter(find.byKey(TopLevelActions.historyKey)),
+        );
+        await tester.pump(const Duration(seconds: 1));
+        expect(find.text(tooltip), findsOneWidget);
+        await mouse.moveTo(Offset.zero);
+        await tester.pumpAndSettle();
+      });
+
+      testWidgets('shows no tooltip on a touch screen', (tester) async {
+        await pumpRouter(tester);
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.byKey(TopLevelActions.historyKey)),
+        );
+        await tester.pump(const Duration(seconds: 1));
+        expect(
+          find.text('History\nLong-press to open favorites'),
+          findsNothing,
+        );
+        await gesture.up();
+        await settle(tester);
+        expect(historyUri.toString(), '/history?tab=favorites');
+      });
     });
 
     for (final (key, title) in [
@@ -114,6 +203,11 @@ void main() {
         await tester.tap(find.byKey(key));
         await settle(tester);
         expect(find.text(title), findsOneWidget);
+        // History opens on the tab shown last.
+        expect(
+          historyUri?.toString(),
+          title == 'History page' ? '/history' : null,
+        );
         // The app bar's own back button: there is a page below.
         expect(find.byKey(const Key('top_level_back')), findsNothing);
 
@@ -129,7 +223,11 @@ void main() {
   group('a page opened on its own', () {
     late GoRouter router;
 
-    Future<void> pumpAt(WidgetTester tester, String location) async {
+    Future<void> pumpAt(
+      WidgetTester tester,
+      String location, {
+      AppSettings? settings,
+    }) async {
       router = GoRouter(
         initialLocation: location,
         routes: [
@@ -138,23 +236,85 @@ void main() {
             builder: (context, state) => const Scaffold(body: Text('Tab')),
           ),
           GoRoute(
+            path: AppRoutes.dictionary,
+            builder: (context, state) =>
+                const Scaffold(body: Text('Dictionary tab')),
+          ),
+          GoRoute(
+            path: AppRoutes.history,
+            builder: (context, state) => const _TopLevelPage('History page'),
+          ),
+          GoRoute(
             path: AppRoutes.settings,
             builder: (context, state) => const _TopLevelPage('Settings page'),
           ),
         ],
       );
       addTearDown(router.dispose);
+      final app = MaterialApp.router(
+        routerConfig: router,
+        localizationsDelegates: appLocalizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+      );
       await tester.pumpWidget(
-        MaterialApp.router(
-          routerConfig: router,
-          localizationsDelegates: appLocalizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-        ),
+        settings == null
+            ? app
+            : BlocProvider<SettingsCubit>.value(
+                value: createSettingsCubit(settings),
+                child: app,
+              ),
       );
       await tester.pump();
     }
 
-    testWidgets('has a back arrow to the translate tab', (tester) async {
+    const dictionaryFirst = AppSettings(
+      tabOrder: [
+        AppTab.dictionary,
+        AppTab.translate,
+        AppTab.proofread,
+        AppTab.conversation,
+      ],
+    );
+
+    for (final page in [AppRoutes.history, AppRoutes.settings]) {
+      testWidgets('$page has a back arrow to the first tab', (tester) async {
+        await pumpAt(tester, page, settings: dictionaryFirst);
+
+        await tester.tap(find.byKey(const Key('top_level_back')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Dictionary tab'), findsOneWidget);
+        expect(
+          router.routerDelegate.currentConfiguration.uri.path,
+          AppRoutes.dictionary,
+        );
+      });
+
+      testWidgets('$page goes to the first tab on system back', (tester) async {
+        await pumpAt(tester, page, settings: dictionaryFirst);
+
+        final handled = await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+
+        expect(handled, isTrue);
+        expect(find.text('Dictionary tab'), findsOneWidget);
+      });
+    }
+
+    testWidgets('goes to the translate tab when it comes first', (
+      tester,
+    ) async {
+      await pumpAt(tester, AppRoutes.history, settings: const AppSettings());
+
+      await tester.tap(find.byKey(const Key('top_level_back')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Tab'), findsOneWidget);
+    });
+
+    testWidgets('without settings has a back arrow to the translate tab', (
+      tester,
+    ) async {
       await pumpAt(tester, AppRoutes.settings);
 
       final back = find.byKey(const Key('top_level_back'));
@@ -169,7 +329,9 @@ void main() {
       );
     });
 
-    testWidgets('goes to the translate tab on system back', (tester) async {
+    testWidgets('without settings goes to the translate tab on system back', (
+      tester,
+    ) async {
       await pumpAt(tester, AppRoutes.settings);
 
       final handled = await tester.binding.handlePopRoute();

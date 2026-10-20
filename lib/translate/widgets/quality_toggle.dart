@@ -169,6 +169,24 @@ class _QualitySegments extends StatelessWidget {
   }
 }
 
+/// The entries of the quality menu: every available mode with its engine,
+/// the current one checked.
+List<PopupMenuEntry<QualityMode>> _menuItems(
+  AppLocalizations l10n,
+  TranslateState state,
+) => [
+  for (final option in state.availableQualityModes)
+    CheckedPopupMenuItem(
+      key: ValueKey('translate_quality_${option.name}'),
+      value: option,
+      checked: option == state.qualityMode,
+      child: _MenuEntry(
+        label: translateQualityLabel(l10n, option),
+        engine: state.qualityEngine(option)?.name,
+      ),
+    ),
+];
+
 class _QualityMenu extends StatelessWidget {
   const new({required this.state, required this.onSelected});
 
@@ -197,18 +215,71 @@ class _QualityMenu extends StatelessWidget {
       onSelected: (selected) {
         if (selected != mode) onSelected(selected);
       },
-      itemBuilder: (context) => [
-        for (final option in state.availableQualityModes)
-          CheckedPopupMenuItem(
-            key: ValueKey('translate_quality_${option.name}'),
-            value: option,
-            checked: option == mode,
-            child: _MenuEntry(
-              label: translateQualityLabel(l10n, option),
-              engine: state.qualityEngine(option)?.name,
+      itemBuilder: (context) => _menuItems(l10n, state),
+    );
+  }
+}
+
+/// The quality mode as an outlined pill, like Kagi Translate's
+/// quality chip at the top of its start screen: the mode's icon and name
+/// ("⚡ Fast"). The empty translate screen shows it in its greeting
+/// (`TranslateHero`) instead of the app bar's [QualityToggle].
+///
+/// Tapping it opens the menu of [QualityToggleLayout.menu]: every
+/// available mode with its engine, the current one checked; choosing
+/// another mode calls `TranslateCubit.setQualityMode`. For screen readers
+/// it is that menu button too ("Quality mode: Fast", collapsed or
+/// expanded). Nothing at all while no quality engine is configured.
+class QualityChip extends StatelessWidget {
+  const new({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<TranslateCubit, TranslateState>(
+      buildWhen: (previous, current) =>
+          previous.qualityMode != current.qualityMode ||
+          previous.fastEngine != current.fastEngine ||
+          previous.bestEngine != current.bestEngine,
+      builder: (context, state) {
+        if (!state.hasQualityModes) return const SizedBox.shrink();
+        final l10n = context.l10n;
+        final theme = Theme.of(context);
+        final scheme = theme.colorScheme;
+        final mode = state.qualityMode;
+        final label = translateQualityLabel(l10n, mode);
+        return PopupMenuButton<QualityMode>(
+          key: const Key('translate_quality_chip'),
+          tooltip: l10n.translateQualityMenuTooltip(label),
+          padding: const EdgeInsetsDirectional.only(start: 14, end: 18),
+          style: ButtonStyle(
+            shape: WidgetStatePropertyAll(
+              StadiumBorder(side: BorderSide(color: scheme.outlineVariant)),
             ),
+            foregroundColor: WidgetStatePropertyAll(scheme.onSurface),
+            textStyle: WidgetStatePropertyAll(
+              theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            minimumSize: const WidgetStatePropertyAll(Size(48, 40)),
+            tapTargetSize: MaterialTapTargetSize.padded,
           ),
-      ],
+          initialValue: mode,
+          onSelected: (selected) {
+            if (selected == mode) return;
+            unawaited(context.read<TranslateCubit>().setQualityMode(selected));
+          },
+          itemBuilder: (context) => _menuItems(l10n, state),
+          icon: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(translateQualityIcon(mode), size: 18, color: scheme.primary),
+              const SizedBox(width: 8),
+              // The tooltip names the button ("Quality mode: Fast"), as in
+              // the app bar's menu.
+              ExcludeSemantics(child: Text(label)),
+            ],
+          ),
+        );
+      },
     );
   }
 }

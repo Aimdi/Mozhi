@@ -6,6 +6,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/haptics.dart';
+import 'package:mozhi/core/widgets/composer_card.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -66,10 +67,10 @@ bool detectionIsUncertain(TranslateState state) {
 }
 
 /// The language bar, like Kagi Translate's: one hairline-outlined pill
-/// with the options button ([OptionsButton]) at the start, the source
-/// button, the swap button and the target button, and the go button
-/// ([TranslateGoButton]) at the end; thin dividers set the options and go
-/// buttons off.
+/// ([ComposerBar]) with the options button ([OptionsButton]) at the
+/// start, the source button, the swap button and the target button, and
+/// the go button ([TranslateGoButton]) at the end; thin dividers set the
+/// options and go buttons off.
 ///
 /// The source and target buttons share the space between the dividers:
 /// half each while both names fit (the swap button then sits in the
@@ -93,40 +94,14 @@ class LanguageBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hairline = AppPalette.of(context).hairline;
-    return DecoratedBox(
-      key: const Key('translate_language_bar'),
-      decoration: ShapeDecoration(
-        shape: StadiumBorder(side: BorderSide(color: hairline)),
-      ),
-      child: Padding(
-        // Inside the outline.
-        padding: const EdgeInsets.all(1),
-        child: Row(
-          children: [
-            const OptionsButton(),
-            _BarDivider(color: hairline),
-            const Expanded(child: _LanguagePair()),
-            _BarDivider(color: hairline),
-            const TranslateGoButton(),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// A short vertical hairline between the parts of the [LanguageBar].
-class _BarDivider extends StatelessWidget {
-  const new({required this.color});
-
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 3),
-      child: SizedBox(width: 1, height: 24, child: ColoredBox(color: color)),
+    // The shared composer bar (Dictionary and Proofread use it too).
+    return const ComposerBar(
+      key: Key('translate_language_bar'),
+      children: [
+        OptionsButton(),
+        Expanded(child: _LanguagePair()),
+        TranslateGoButton(),
+      ],
     );
   }
 }

@@ -44,5 +44,6 @@ Future<T?> showConversationDialog<T>({
 String describeConversationError(AppLocalizations l10n, Object? error) =>
     switch (error) {
       ConversationNoEngineException() => l10n.conversationNoEngine,
+      ConversationStoppedException() => l10n.conversationTranslationStopped,
       _ => describeTranslateError(l10n, error).message,
     };

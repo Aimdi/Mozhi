@@ -209,6 +209,35 @@ void main() {
       verify(() => speech.transcribe(any())).called(1);
     });
 
+    test('reports the language of the final result', () async {
+      expect(adapter.detectedLanguage, isNull);
+      when(() => speech.transcribe(any(), language: any(named: 'language')))
+          .thenAnswer(
+            (_) async => const WhisperTranscription('ok', language: 'jw'),
+          );
+      String? seen;
+      await initialize();
+      await adapter.listen(
+        request: const SpeechListenRequest(onDevice: true),
+        onResult: (text, {required isFinal}) => seen = adapter.detectedLanguage,
+        onSoundLevel: levels.add,
+      );
+      await speak();
+      await adapter.stop();
+      await flush();
+      // The app code (Whisper's `jw` is Javanese, `jv`).
+      expect(seen, 'jv');
+      expect(adapter, isA<LanguageDetectingSpeechRecognizer>());
+
+      when(() => speech.transcribe(any(), language: any(named: 'language')))
+          .thenAnswer((_) async => const WhisperTranscription('ok'));
+      await listen();
+      await speak();
+      await adapter.stop();
+      await flush();
+      expect(adapter.detectedLanguage, isNull);
+    });
+
     test('silence is not transcribed', () async {
       await listen();
       recorder

@@ -437,13 +437,17 @@ class ConversationFaceToFaceView extends StatelessWidget {
 ///
 /// With a hands-free conversation the composers hide behind the dock's
 /// keyboard button on phones (side by side on wide screens they stay), and
-/// their microphones while the conversation is active; with little height
-/// (an open keyboard) the dock is a single row.
+/// their microphones while the conversation is active; while they are
+/// shown on a phone, or with little height, the dock is a single row.
 class _StandardLayout extends StatefulWidget {
   const new({required this.micBuilder, required this.wide});
 
   /// Below this height the dock is a single row.
   static const double compactDockHeight = 560;
+
+  /// The largest share of the height the controls below the transcript
+  /// take; beyond it they scroll.
+  static const double maxControlsShare = 0.7;
 
   final ConversationMicBuilder? micBuilder;
   final bool wide;
@@ -491,46 +495,64 @@ class _StandardLayoutState extends State<_StandardLayout> {
           key: const Key('conversation_standard_layout'),
           constraints: const BoxConstraints(maxWidth: 1040),
           child: LayoutBuilder(
-            builder: (context, constraints) => Column(
-              children: [
-                Expanded(
-                  child: empty
-                      ? ConversationHero(micBuilder: micBuilder)
-                      : const ConversationTranscriptList(),
-                ),
-                if (handsFree)
-                  ConversationSessionDock(
-                    composersShown: composersShown,
-                    onToggleComposers: wide ? null : _toggleComposers,
-                    compact:
-                        constraints.maxHeight <
-                        _StandardLayout.compactDockHeight,
-                  ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 560),
-                      child: const ConversationLanguagePill(),
+            builder: (context, constraints) {
+              final height = constraints.maxHeight;
+              final controls = Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (handsFree)
+                    ConversationSessionDock(
+                      composersShown: composersShown,
+                      onToggleComposers: wide ? null : _toggleComposers,
+                      // One row while typing on a phone or when short.
+                      compact:
+                          (composersShown && !wide) ||
+                          height < _StandardLayout.compactDockHeight,
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 560),
+                        child: const ConversationLanguagePill(),
+                      ),
                     ),
                   ),
-                ),
-                if (!composersShown)
-                  const SizedBox.shrink()
-                else if (wide)
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Expanded(child: composerA),
-                      Expanded(child: composerB),
-                    ],
-                  )
-                else ...[
-                  composerA,
-                  composerB,
+                  if (composersShown && wide)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(child: composerA),
+                        Expanded(child: composerB),
+                      ],
+                    )
+                  else if (composersShown) ...[
+                    composerA,
+                    composerB,
+                  ],
                 ],
-              ],
-            ),
+              );
+              return Column(
+                children: [
+                  Expanded(
+                    child: empty
+                        ? ConversationHero(micBuilder: micBuilder)
+                        : const ConversationTranscriptList(),
+                  ),
+                  // The transcript keeps some room; with large text or an
+                  // open keyboard the controls scroll instead.
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: height * _StandardLayout.maxControlsShare,
+                    ),
+                    child: SingleChildScrollView(
+                      reverse: true,
+                      child: controls,
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ),

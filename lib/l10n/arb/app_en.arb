@@ -7856,5 +7856,47 @@
   "proofreadLanguageAutoSemantics": "Language: detected automatically",
   "@proofreadLanguageAutoSemantics": {
     "description": "proofreadLanguageAutoSemantics"
+  },
+  "historyUnfavorited": "Removed from favorites",
+  "@historyUnfavorited": {
+    "description": "Snack bar after a translation is taken out of the Favorites tab (swiped, or its heart tapped); it offers Undo"
+  },
+  "historyNoFavoritesHeartBody": "Tap the heart on a translation to keep it here.",
+  "@historyNoFavoritesHeartBody": {
+    "description": "Body of the empty Favorites tab of History: favourites are marked with a heart button"
+  },
+  "historyButtonTooltip": "History\nLong-press to open favorites",
+  "@historyButtonTooltip": {
+    "description": "Tooltip of the History button in the app bar of every tab (shown when pointing at it): its name and that a long press opens the Favorites tab"
+  },
+  "historyOpenFavorites": "Open favorites",
+  "@historyOpenFavorites": {
+    "description": "What a long press on the History button does, announced by TalkBack as \"double-tap and hold to open favorites\""
+  },
+  "translateShortcutEnterTranslates": "Translate (while typing)",
+  "@translateShortcutEnterTranslates": {
+    "description": "Keyboard shortcut cheat sheet, shown for Enter when Settings > Multiline input is off"
+  },
+  "translateShortcutNewLine": "Insert a new line (while typing)",
+  "@translateShortcutNewLine": {
+    "description": "Keyboard shortcut cheat sheet, shown for Shift+Enter when Settings > Multiline input is off"
+  },
+  "translateComposerHint": "Type or {paste} text",
+  "@translateComposerHint": {
+    "description": "Placeholder of the empty translate composer. {paste} is translateComposerHintPaste, shown as a link that pastes the clipboard.",
+    "placeholders": {
+      "paste": {
+        "type": "String",
+        "example": "paste"
+      }
+    }
+  },
+  "translateComposerHintPaste": "paste",
+  "@translateComposerHintPaste": {
+    "description": "The link word inside translateComposerHint that pastes the clipboard into the field."
+  },
+  "translatePasteFailed": "Couldn't read the clipboard. Paste into the text field instead.",
+  "@translatePasteFailed": {
+    "description": "Snack bar when the paste button or link cannot read the clipboard (e.g. a browser without clipboard access)."
   }
 }

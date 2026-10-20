@@ -1,11 +1,11 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/view/top_level_actions.dart';
+import 'package:mozhi/core/widgets/composer_card.dart';
 import 'package:mozhi/core/widgets/fold_aware_split.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -232,7 +232,6 @@ class TranslateView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width;
     return Shortcuts(
       shortcuts: shortcutsFor(web: kIsWeb),
       child: Actions(
@@ -264,56 +263,12 @@ class TranslateView extends StatelessWidget {
                 HardwareKeyboard.instance.isMetaPressed,
           ),
         },
-        child: _PinnedTargetActions(
+        child: const _PinnedTargetActions(
           child: Focus(
             autofocus: true,
             child: SmartSwapListener(
               child: TranslateConsentListener(
-                child: TranslateMoreHost(
-                  child: Scaffold(
-                    appBar: _TranslateAppBar(
-                      showTitle: width >= TranslateLayout.compactBreakpoint,
-                    ),
-                    body: BlocBuilder<TranslateCubit, TranslateState>(
-                      buildWhen: (previous, current) =>
-                          previous.enginesStatus != current.enginesStatus ||
-                          previous.engines.isEmpty != current.engines.isEmpty ||
-                          (previous.engine == null) != (current.engine == null),
-                      builder: (context, state) {
-                        if (state.engines.isEmpty) {
-                          return switch (state.enginesStatus) {
-                            EnginesStatus.initial ||
-                            EnginesStatus.loading => const TranslateSkeleton(),
-                            EnginesStatus.ready ||
-                            EnginesStatus.failure => const NoEnginesView(),
-                          };
-                        }
-                        if (state.engine == null &&
-                            state.enginesStatus == EnginesStatus.ready) {
-                          return const ChooseEngineView();
-                        }
-                        // Measure the pane itself: the shell's navigation rail
-                        // takes part of the window on large screens. A hinge
-                        // or half-opened fold makes two panes at any width.
-                        return LayoutBuilder(
-                          builder: (context, constraints) {
-                            final wide =
-                                constraints.maxWidth >=
-                                TranslateLayout.wideBreakpoint;
-                            final fold = FoldAwareSplit.featureDirectionOf(
-                              context,
-                            );
-                            return _TranslateBody(
-                              wide: wide,
-                              fold: fold,
-                              height: constraints.maxHeight,
-                            );
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                ),
+                child: TranslateMoreHost(child: _TranslateScaffold()),
               ),
             ),
           ),
@@ -381,10 +336,107 @@ class _PinnedTargetActionsState extends State<_PinnedTargetActions> {
   }
 }
 
+/// The translate screen's [Scaffold]: the app bar and the body (the
+/// skeleton, the no-engines view, the engine choice or [_TranslateBody]).
+///
+/// It knows whether the body shows the greeting ([TranslateHero]), which
+/// then holds the quality chip ([QualityChip]): the app bar leaves its
+/// [QualityToggle] out meanwhile, so the screen offers it once.
+class _TranslateScaffold extends StatefulWidget {
+  const new();
+
+  @override
+  State<_TranslateScaffold> createState() => _TranslateScaffoldState();
+}
+
+class _TranslateScaffoldState extends State<_TranslateScaffold> {
+  /// Whether the body shows the greeting. Until the body reports it, a
+  /// guess from the state (the greeting is how the screen starts), so the
+  /// quality control does not show twice on the first frame.
+  late final ValueNotifier<bool> _heroShown = ValueNotifier(
+    translateComposerIsIdle(context.read<TranslateCubit>().state),
+  );
+
+  /// The latest report of the body ([_onHeroChanged]).
+  late bool _reportedHero = _heroShown.value;
+  bool _updateScheduled = false;
+
+  @override
+  void dispose() {
+    _heroShown.dispose();
+    super.dispose();
+  }
+
+  /// The body (built after the app bar in the same frame) shows the
+  /// greeting or not: the app bar follows after this frame.
+  void _onHeroChanged(bool shown) {
+    _reportedHero = shown;
+    if (_updateScheduled || shown == _heroShown.value) return;
+    _updateScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _updateScheduled = false;
+      if (mounted) _heroShown.value = _reportedHero;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    return Scaffold(
+      appBar: _TranslateAppBar(
+        showTitle: width >= TranslateLayout.compactBreakpoint,
+        heroShown: _heroShown,
+      ),
+      body: BlocBuilder<TranslateCubit, TranslateState>(
+        buildWhen: (previous, current) =>
+            previous.enginesStatus != current.enginesStatus ||
+            previous.engines.isEmpty != current.engines.isEmpty ||
+            (previous.engine == null) != (current.engine == null),
+        builder: (context, state) {
+          if (state.engines.isEmpty) {
+            _onHeroChanged(false);
+            return switch (state.enginesStatus) {
+              EnginesStatus.initial ||
+              EnginesStatus.loading => const TranslateSkeleton(),
+              EnginesStatus.ready ||
+              EnginesStatus.failure => const NoEnginesView(),
+            };
+          }
+          if (state.engine == null &&
+              state.enginesStatus == EnginesStatus.ready) {
+            _onHeroChanged(false);
+            return const ChooseEngineView();
+          }
+          // Measure the pane itself: the shell's navigation rail takes part
+          // of the window on large screens. A hinge or half-opened fold
+          // makes two panes at any width.
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final wide =
+                  constraints.maxWidth >= TranslateLayout.wideBreakpoint;
+              final fold = FoldAwareSplit.featureDirectionOf(context);
+              return _TranslateBody(
+                wide: wide,
+                fold: fold,
+                height: constraints.maxHeight,
+                onHeroChanged: _onHeroChanged,
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
 class _TranslateAppBar extends StatelessWidget implements PreferredSizeWidget {
-  const new({required this.showTitle});
+  const new({required this.showTitle, required this.heroShown});
 
   final bool showTitle;
+
+  /// Whether the body shows the greeting, which then holds the quality
+  /// chip instead of the toggle here.
+  final ValueListenable<bool> heroShown;
 
   /// Largest part of the title area the screen title takes.
   static const _maxTitleShare = 0.4;
@@ -412,46 +464,57 @@ class _TranslateAppBar extends StatelessWidget implements PreferredSizeWidget {
       (cubit) => cubit.state.hasQualityModes,
     );
     // The quality toggle (Fast / Best) sits next to the engine selector;
-    // it is empty while no quality engine is configured. Its layout (and
-    // whether the screen title still fits) follows the available width
-    // and the text size.
-    return AppBar(
-      titleSpacing: showTitle ? null : 8,
-      title: LayoutBuilder(
-        builder: (context, constraints) {
-          final layout = QualityToggle.layoutFor(
-            constraints.maxWidth,
-            textScaler: MediaQuery.textScalerOf(context),
-            withTitle: showTitle,
-          );
-          final title =
-              showTitle &&
-              (!hasQualityModes || layout == QualityToggleLayout.labels);
-          return Row(
-            mainAxisSize: title ? MainAxisSize.max : MainAxisSize.min,
-            children: [
-              if (title) ...[
-                // Never more than part of the bar (long titles, large
-                // text): the rest is the selector's and the toggle's.
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: constraints.maxWidth * _maxTitleShare,
-                  ),
-                  child: Text(
-                    l10n.translateTitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 16),
-              ],
-              const Flexible(child: EngineSelectorButton()),
-              QualityToggle(layout: layout),
-            ],
-          );
-        },
-      ),
-      actions: const [TopLevelActions(), MoreToolsButton(), SizedBox(width: 4)],
+    // it is empty while no quality engine is configured, and left out
+    // while the greeting shows the quality chip. Its layout (and whether
+    // the screen title still fits) follows the available width and the
+    // text size.
+    return ValueListenableBuilder<bool>(
+      valueListenable: heroShown,
+      builder: (context, hero, _) {
+        final toggle = hasQualityModes && !hero;
+        return AppBar(
+          titleSpacing: showTitle ? null : 8,
+          title: LayoutBuilder(
+            builder: (context, constraints) {
+              final layout = QualityToggle.layoutFor(
+                constraints.maxWidth,
+                textScaler: MediaQuery.textScalerOf(context),
+                withTitle: showTitle,
+              );
+              final title =
+                  showTitle &&
+                  (!toggle || layout == QualityToggleLayout.labels);
+              return Row(
+                mainAxisSize: title ? MainAxisSize.max : MainAxisSize.min,
+                children: [
+                  if (title) ...[
+                    // Never more than part of the bar (long titles, large
+                    // text): the rest is the selector's and the toggle's.
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: constraints.maxWidth * _maxTitleShare,
+                      ),
+                      child: Text(
+                        l10n.translateTitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                  ],
+                  const Flexible(child: EngineSelectorButton()),
+                  if (toggle) QualityToggle(layout: layout),
+                ],
+              );
+            },
+          ),
+          actions: const [
+            TopLevelActions(),
+            MoreToolsButton(),
+            SizedBox(width: 4),
+          ],
+        );
+      },
     );
   }
 }
@@ -624,17 +687,10 @@ bool translateComposerIsIdle(TranslateState state) =>
 
 /// The fill of the empty screen's composer card on [scheme]'s page: a
 /// shade off the page (`surfaceContainerLow`) while quiet text keeps its
-/// contrast on it (else the page itself).
-Color translateComposerFill(ColorScheme scheme, Color secondaryText) {
-  final fill = scheme.surfaceContainerLow;
-  double contrast(Color a, Color b) {
-    final la = a.computeLuminance();
-    final lb = b.computeLuminance();
-    return (math.max(la, lb) + 0.05) / (math.min(la, lb) + 0.05);
-  }
-
-  return contrast(secondaryText, fill) >= 4.5 ? fill : scheme.surface;
-}
+/// contrast on it (else the page itself). The same as [composerFill]
+/// (the card is a [ComposerCard]).
+Color translateComposerFill(ColorScheme scheme, Color secondaryText) =>
+    composerFill(scheme, secondaryText);
 
 /// The translate screen below the app bar.
 ///
@@ -659,13 +715,21 @@ Color translateComposerFill(ColorScheme scheme, Color secondaryText) {
 /// does not switch back. A hinge or half-opened fold always shows the
 /// panes, split at it, with the language bar under the input pane.
 class _TranslateBody extends StatefulWidget {
-  const new({required this.wide, required this.fold, required this.height});
+  const new({
+    required this.wide,
+    required this.fold,
+    required this.height,
+    required this.onHeroChanged,
+  });
 
   final bool wide;
   final Axis? fold;
 
   /// Height of the screen's content (without the keyboard).
   final double height;
+
+  /// Told on every build whether the greeting shows.
+  final ValueChanged<bool> onHeroChanged;
 
   /// The lowest content height that shows the greeting and the docked
   /// composer at [textScale].
@@ -709,6 +773,7 @@ class _TranslateBodyState extends State<_TranslateBody> {
   Widget build(BuildContext context) {
     final fold = widget.fold;
     if (fold != null) {
+      widget.onHeroChanged(false);
       return _FoldLayout(fold: fold, wide: widget.wide, focusNode: _inputFocus);
     }
     final idle = context.select<TranslateCubit, bool>(
@@ -719,6 +784,7 @@ class _TranslateBodyState extends State<_TranslateBody> {
         idle &&
         !_focused &&
         widget.height >= _TranslateBody.heroMinHeight(textScale);
+    widget.onHeroChanged(hero);
     return _ComposerLayout(
       hero: hero,
       wide: widget.wide,
@@ -728,9 +794,13 @@ class _TranslateBodyState extends State<_TranslateBody> {
 }
 
 /// [_TranslateBody] without a hinge or fold: the greeting's slot, the
-/// composer card (the input region, the active options and the language
-/// bar) and, on large screens, a spacer under the card that centres it
-/// while the greeting shows ([hero]).
+/// composer card ([ComposerCard]: the input region, the active options and
+/// the language bar) and, on large screens, a spacer under the card that
+/// centres it while the greeting shows ([hero]).
+///
+/// The slots are this screen's own rather than [ComposerLayout]'s: the
+/// card's margin is part of it (taps there focus the field too), and its
+/// width leaves room for the phone gutters once it is flat.
 class _ComposerLayout extends StatelessWidget {
   const new({required this.hero, required this.wide, required this.focusNode});
 
@@ -738,51 +808,34 @@ class _ComposerLayout extends StatelessWidget {
   final bool wide;
   final FocusNode focusNode;
 
-  /// Corner radius of the empty screen's composer card.
-  static const double cardRadius = TranslateLayout.composerRadius;
-
-  /// Space between the card's outline and what is inside it.
-  static const double cardPadding = 6;
-
   /// Space around the card on phones.
-  static const double cardMargin = 12;
+  static const double cardMargin = ComposerLayout.margin;
 
   /// Side padding of the large-screen layout.
-  static const double wideSide = 24;
+  static const double wideSide = ComposerLayout.wideSide;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final palette = AppPalette.of(context);
     final motion = TranslateLayout.motion(context);
     const gutter = TranslateLayout.gutter;
-    final fill = translateComposerFill(
-      theme.colorScheme,
-      palette.secondaryText,
-    );
-    final outline = theme.colorScheme.outlineVariant;
     final region = wide
         ? _WideRegion(hero: hero, focusNode: focusNode)
         : _NarrowRegion(hero: hero, focusNode: focusNode);
-    final card = AnimatedContainer(
+    // Taps on the card's empty space (and its margin) go to the text field.
+    final card = ComposerCard(
       key: const Key('translate_composer'),
-      duration: motion,
-      curve: Curves.easeOutCubic,
+      outlined: hero,
+      expand: !hero,
+      onTap: hero ? focusNode.requestFocus : null,
       margin: wide
           ? const EdgeInsets.symmetric(horizontal: wideSide)
           : hero
           ? const EdgeInsets.fromLTRB(cardMargin, 8, cardMargin, cardMargin)
           : EdgeInsets.zero,
-      padding: EdgeInsets.all(hero ? cardPadding : 0),
-      decoration: BoxDecoration(
-        color: hero ? fill : fill.withValues(alpha: 0),
-        // No border at all once active (a transparent one would still
-        // take a pixel).
-        border: Border.fromBorderSide(
-          hero ? BorderSide(color: outline) : BorderSide.none,
-        ),
-        borderRadius: const BorderRadius.all(Radius.circular(cardRadius)),
-      ),
+      flatBarPadding: wide
+          ? const EdgeInsets.symmetric(vertical: 8)
+          : const EdgeInsets.fromLTRB(gutter, 8, gutter, 8),
+      bar: const LanguageBar(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -797,16 +850,6 @@ class _ComposerLayout extends StatelessWidget {
               horizontal: hero || wide ? 0 : gutter,
             ),
             child: const ActiveOptionsBar(),
-          ),
-          AnimatedPadding(
-            duration: motion,
-            curve: Curves.easeOutCubic,
-            padding: hero
-                ? const EdgeInsets.only(top: 4)
-                : wide
-                ? const EdgeInsets.symmetric(vertical: 8)
-                : const EdgeInsets.fromLTRB(gutter, 8, gutter, 8),
-            child: const LanguageBar(),
           ),
         ],
       ),
@@ -837,13 +880,7 @@ class _ComposerLayout extends StatelessWidget {
                           2 * (wide ? wideSide : gutter)
                     : TranslateLayout.maxWideWidth,
               ),
-              // Taps on the card's empty space go to the text field.
-              child: GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                excludeFromSemantics: true,
-                onTap: hero ? focusNode.requestFocus : null,
-                child: card,
-              ),
+              child: card,
             ),
           ),
         ),
@@ -872,7 +909,7 @@ class _NarrowRegion extends StatelessWidget {
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       physics: hero ? const NeverScrollableScrollPhysics() : null,
       padding: hero
-          ? const EdgeInsetsDirectional.only(start: _ComposerLayout.cardPadding)
+          ? const EdgeInsetsDirectional.only(start: ComposerCard.padding)
           : const EdgeInsets.fromLTRB(
               TranslateLayout.gutter,
               4,
@@ -927,7 +964,7 @@ class _WideRegion extends StatelessWidget {
                 physics: hero ? const NeverScrollableScrollPhysics() : null,
                 padding: hero
                     ? const EdgeInsetsDirectional.only(
-                        start: _ComposerLayout.cardPadding,
+                        start: ComposerCard.padding,
                       )
                     : const EdgeInsetsDirectional.only(
                         top: 8,

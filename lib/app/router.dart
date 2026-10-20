@@ -323,8 +323,13 @@ GoRouter createAppRouter({
       }),
       GoRoute(
         path: AppRoutes.history,
-        builder: (context, state) =>
-            const TopLevelPageScope(child: HistoryPage()),
+        builder: (context, state) => TopLevelPageScope(
+          child: HistoryPage(
+            initialTab: HistoryTab.tryParse(
+              state.uri.queryParameters[HistoryPage.tabParameter],
+            ),
+          ),
+        ),
       ),
       GoRoute(
         path: AppRoutes.settings,

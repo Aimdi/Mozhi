@@ -1,16 +1,26 @@
 import 'dart:async';
 
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
+import 'package:mozhi/history/view/history_page.dart'
+    show HistoryPage, HistoryTab;
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/models/app_settings.dart';
 
 /// History and Settings as app bar icon buttons, shared by the app bars of
 /// the four tabs (Translate, Dictionary, Proofread, Conversation).
 ///
 /// Each pushes its page ([AppRoutes.history], [AppRoutes.settings]) above
 /// the tabs, so its back arrow returns to the tab it was opened from. Both
-/// are 48 dp targets named by their tooltips.
+/// are 48 dp targets named "History" and "Settings".
+///
+/// A long press on History opens it on the Favorites tab (quick access to
+/// the favourites, like Kagi Translate's star, without another button in
+/// a full app bar). Pointing at the button shows that in its tooltip, and
+/// TalkBack announces it ("double-tap and hold to open favorites").
 class TopLevelActions extends StatelessWidget {
   const new({super.key});
 
@@ -26,11 +36,29 @@ class TopLevelActions extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        IconButton(
-          key: historyKey,
-          tooltip: l10n.navHistory,
-          icon: const Icon(Icons.history),
-          onPressed: () => unawaited(context.push<void>(AppRoutes.history)),
+        // The tooltip adds the long press for sighted users; the name stays
+        // "History". A touch long press opens the favourites rather than
+        // the tooltip (it shows when pointing at the button).
+        Tooltip(
+          message: l10n.historyButtonTooltip,
+          excludeFromSemantics: true,
+          triggerMode: TooltipTriggerMode.manual,
+          child: MergeSemantics(
+            child: Semantics(
+              onLongPressHint: l10n.historyOpenFavorites,
+              child: IconButton(
+                key: historyKey,
+                icon: Icon(Icons.history, semanticLabel: l10n.navHistory),
+                onPressed: () =>
+                    unawaited(context.push<void>(AppRoutes.history)),
+                onLongPress: () => unawaited(
+                  context.push<void>(
+                    HistoryPage.location(tab: HistoryTab.favorites),
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
         IconButton(
           key: settingsKey,
@@ -43,28 +71,41 @@ class TopLevelActions extends StatelessWidget {
   }
 }
 
+/// The location of the user's first tab ([AppSettings.tabOrder]), where a
+/// page [TopLevelActions] opens goes back to when there is nothing below
+/// it; the translate tab without a [SettingsCubit].
+String topLevelHomeLocation(BuildContext context) {
+  try {
+    return AppRoutes.tab(context.read<SettingsCubit>().state.tabOrder.first);
+  } on ProviderNotFoundException {
+    return AppRoutes.tab(const AppSettings().tabOrder.first);
+  }
+}
+
 /// The leading back arrow of a page [TopLevelActions] opens (History,
 /// Settings).
 ///
 /// Null, the app bar's own back button, while there is a page to go back
 /// to (the page was pushed above the tabs) or without a [GoRouter]. When
 /// the page is the only one (opened by a link, an app shortcut or a `go`),
-/// an arrow that goes to the translate tab, so these pages always have a
-/// way back.
+/// an arrow that goes to the user's first tab ([topLevelHomeLocation]), so
+/// these pages always have a way back.
 Widget? topLevelBackButton(BuildContext context) {
   final route = ModalRoute.of(context);
   final router = GoRouter.maybeOf(context);
   if (route == null || route.canPop || router == null) return null;
   return BackButton(
     key: const Key('top_level_back'),
-    onPressed: () => router.go(AppRoutes.translate),
+    // Read when pressed: the tab order may have changed in the meantime
+    // (Settings > Tab order).
+    onPressed: () => router.go(topLevelHomeLocation(context)),
   );
 }
 
 /// Wraps a page [TopLevelActions] opens: when it is the only page (opened
 /// by a link or an app shortcut), the system back gesture goes to the
-/// translate tab instead of leaving the app. Otherwise (or without a
-/// [GoRouter]) back works as usual.
+/// user's first tab ([topLevelHomeLocation]) instead of leaving the app.
+/// Otherwise (or without a [GoRouter]) back works as usual.
 class TopLevelPageScope extends StatelessWidget {
   const new({required this.child, super.key});
 
@@ -77,7 +118,7 @@ class TopLevelPageScope extends StatelessWidget {
     return PopScope<Object?>(
       canPop: canPop,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) router?.go(AppRoutes.translate);
+        if (!didPop) router?.go(topLevelHomeLocation(context));
       },
       child: child,
     );

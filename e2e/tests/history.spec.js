@@ -168,3 +168,22 @@ test('the language pair filter narrows the history', async ({ page }) => {
   await expect(english).toBeVisible();
   await expect(pairs).toBeVisible();
 });
+
+test('a link opens History on the Favorites tab', async ({ page }) => {
+  await translate(page, FIRST);
+  await openHistory(page);
+  await expect(entry(page, FIRST)).toBeVisible();
+
+  // What a long press on the History button opens.
+  await page.reload();
+  await openApp(page, '/history?tab=favorites');
+
+  const favourites = page.getByRole('tab', { name: 'Favorites' });
+  await expect(favourites).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('heading', { name: /^No favorites yet/ }))
+    .toBeVisible();
+  await expect(entry(page, FIRST)).toBeHidden();
+
+  await page.getByRole('tab', { name: 'All' }).click();
+  await expect(entry(page, FIRST)).toBeVisible();
+});

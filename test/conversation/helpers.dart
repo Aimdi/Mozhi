@@ -12,6 +12,7 @@ import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/speech/speech_service.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/usage/usage.dart';
+import 'package:mozhi/voice/speech_input_state.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 class MockTranslationRepository extends Mock implements TranslationRepository;
@@ -197,3 +198,130 @@ String listenTooltip(String label) => '$label\nLong-press to listen slowly';
 Finder findTooltipMessage(String message) => find.byWidgetPredicate(
   (widget) => widget is Tooltip && widget.message == message,
 );
+
+/// A scriptable [ConversationRecognizer]: records what it was asked to
+/// listen for; tests drive the current utterance ([start], [say], ...).
+class FakeConversationRecognizer implements ConversationRecognizer {
+  /// Every [listen] call: the language and whether detection was asked.
+  final listens = <({Language language, bool detectLanguage})>[];
+  StreamController<ConversationHearing>? _utterance;
+  int cancels = 0;
+  bool disposed = false;
+
+  /// Whether an utterance is being listened to (the microphone is open).
+  bool get open => _utterance != null;
+
+  /// The language of the last [listen].
+  Language get language => listens.last.language;
+
+  @override
+  Stream<ConversationHearing> listen(
+    Language language, {
+    bool detectLanguage = false,
+  }) {
+    final previous = _utterance;
+    if (previous != null) unawaited(previous.close());
+    listens.add((language: language, detectLanguage: detectLanguage));
+    final utterance = _utterance = StreamController<ConversationHearing>();
+    return utterance.stream;
+  }
+
+  void emit(ConversationHearing event) => _utterance!.add(event);
+
+  void start({bool detectsLanguage = false}) =>
+      emit(ConversationHeardStart(detectsLanguage: detectsLanguage));
+
+  void level(double level) => emit(ConversationHeardLevel(level));
+
+  void partial(String text) => emit(ConversationHeardPartial(text));
+
+  void transcribing() => emit(const ConversationHeardTranscribing());
+
+  /// Ends the utterance with [text] (heard in [language], if detected).
+  void say(String text, {String? language}) =>
+      _end(ConversationHeardFinal(text, language: language));
+
+  void fail(
+    SpeechInputFailure failure, {
+    bool onDevice = false,
+    bool offlineSupported = false,
+  }) => _end(
+    ConversationHeardFailure(
+      failure,
+      onDevice: onDevice,
+      offlineSupported: offlineSupported,
+    ),
+  );
+
+  void end({bool interrupted = false}) =>
+      _end(ConversationHeardEnd(interrupted: interrupted));
+
+  void _end(ConversationHearing last) {
+    final utterance = _utterance!;
+    _utterance = null;
+    utterance.add(last);
+    unawaited(utterance.close());
+  }
+
+  @override
+  Future<void> cancel() async {
+    cancels++;
+    final utterance = _utterance;
+    _utterance = null;
+    if (utterance != null) unawaited(utterance.close());
+  }
+
+  @override
+  Future<void> dispose() async {
+    disposed = true;
+    await cancel();
+  }
+}
+
+/// Timers that only fire when a test says so ([fire]).
+class FakeTimers {
+  final timers = <FakeTimer>[];
+
+  Timer call(Duration duration, void Function() callback) {
+    final timer = FakeTimer(duration, callback);
+    timers.add(timer);
+    return timer;
+  }
+
+  /// Whether a timer of [duration] is waiting.
+  bool pending(Duration duration) =>
+      timers.any((timer) => timer.isActive && timer.duration == duration);
+
+  /// Fires the waiting timers of [duration].
+  void fire(Duration duration) {
+    for (final timer in [...timers]) {
+      if (timer.isActive && timer.duration == duration) timer.fire();
+    }
+  }
+}
+
+class FakeTimer implements Timer {
+  new(this.duration, this._callback);
+
+  final Duration duration;
+  final void Function() _callback;
+  bool _active = true;
+
+  void fire() {
+    if (!_active) return;
+    _active = false;
+    _callback();
+  }
+
+  @override
+  bool get isActive => _active;
+
+  @override
+  int get tick => _active ? 0 : 1;
+
+  @override
+  void cancel() => _active = false;
+}
+
+/// Lets streams and futures deliver what they have.
+Future<void> settle() => Future<void>.delayed(Duration.zero);

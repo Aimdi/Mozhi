@@ -9,11 +9,15 @@ import 'package:mozhi/image_translate/view/image_translate_page.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/translate/widgets/quality_toggle.dart';
 import 'package:mozhi/translate/widgets/recent_pairs_sheet.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
 
 /// Most recent language pairs offered in [TranslateHero].
 const translateHeroMaxPairs = 3;
+
+/// Space between [TranslateHero]'s quality chip and the app mark.
+const double translateHeroChipGap = 32;
 
 /// The greeting for the time of day of [now]: morning from 5:00, afternoon
 /// from 12:00, evening from 18:00 (and through the night).
@@ -25,12 +29,14 @@ String translateGreeting(AppLocalizations l10n, DateTime now) =>
     };
 
 /// The middle of the empty translate screen (like Kagi Translate's start
-/// screen): the app mark, a greeting for the time of day and chips for the
-/// other ways in (Camera: image translation, Document: document
-/// translation). Below them, up to [translateHeroMaxPairs] recent language
-/// pairs other than the current one (`AppSettings.recentPairs`; one tap
-/// applies a pair with `TranslateCubit.applyLanguagePair`) and, on large
-/// screens, where the keyboard shortcuts are. Everything comes from local
+/// screen): the quality mode chip ([QualityChip], while Fast and Best
+/// engines are set up; the app bar leaves its toggle out meanwhile), the
+/// app mark, a greeting for the time of day and chips for the other ways
+/// in (Camera: image translation, Document: document translation). Below
+/// them, up to [translateHeroMaxPairs] recent language pairs other than
+/// the current one (`AppSettings.recentPairs`; one tap applies a pair with
+/// `TranslateCubit.applyLanguagePair`) and, on large screens, where the
+/// keyboard shortcuts are. Everything comes from local
 /// settings: no requests.
 ///
 /// The composer is docked below it (see `TranslateView`); the hero gives
@@ -68,6 +74,10 @@ class TranslateHero extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (state.hasQualityModes) ...[
+            const QualityChip(),
+            const SizedBox(height: translateHeroChipGap),
+          ],
           // The app mark (as in the navigation rail); decorative.
           ExcludeSemantics(
             child: Icon(

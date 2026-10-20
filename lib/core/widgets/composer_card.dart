@@ -39,7 +39,8 @@ Duration composerMotion(BuildContext context) =>
 /// given (e.g. a scroll view of the input and its result) and the bar
 /// sits at the bottom with [flatBarPadding] around it.
 ///
-/// Taps on the card's empty space call [onTap] (focus the field).
+/// Taps on the card's empty space call [onTap] (focus the field), also
+/// taps on its [margin] (animated like the outline).
 class ComposerCard extends StatelessWidget {
   const new({
     required this.child,
@@ -49,6 +50,7 @@ class ComposerCard extends StatelessWidget {
     this.expand = false,
     this.onTap,
     this.flatBarPadding = const EdgeInsets.fromLTRB(16, 8, 16, 8),
+    this.margin = EdgeInsets.zero,
     super.key,
   });
 
@@ -80,6 +82,10 @@ class ComposerCard extends StatelessWidget {
   /// Padding around [bar] while the card is not [outlined].
   final EdgeInsetsGeometry flatBarPadding;
 
+  /// Space around the card; changes animate (e.g. a docked card's margin
+  /// giving way when it turns flat).
+  final EdgeInsetsGeometry margin;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -91,6 +97,7 @@ class ComposerCard extends StatelessWidget {
     final card = AnimatedContainer(
       duration: motion,
       curve: Curves.easeOutCubic,
+      margin: margin,
       padding: EdgeInsets.all(outlined ? padding : 0),
       decoration: BoxDecoration(
         color: outlined ? fill : fill.withValues(alpha: 0),
