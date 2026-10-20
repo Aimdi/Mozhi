@@ -496,6 +496,12 @@ void main() {
     });
 
     group('on a narrow phone with 200 % text', () {
+      /// [finder] in the language bar (the screen has other "EN"s).
+      Finder inBar(Finder finder) => find.descendant(
+        of: find.byKey(const Key('translate_language_bar')),
+        matching: finder,
+      );
+
       /// Every name in the bar is shown whole, never cut.
       void expectNoCutNames(WidgetTester tester) {
         final paragraphs = find.descendant(
@@ -545,8 +551,8 @@ void main() {
         expectUsableBar(tester);
         // "Detect language" is the sparkle. (In Roboto "DE" fits, see the
         // golden; the test font's "DE" is wider than the 51 dp left.)
-        expect(find.text('Detect language'), findsNothing);
-        expect(find.text('German'), findsNothing);
+        expect(inBar(find.text('Detect language')), findsNothing);
+        expect(inBar(find.text('German')), findsNothing);
         expect(
           find.descendant(
             of: find.byKey(const Key('translate_source_button')),
@@ -584,8 +590,8 @@ void main() {
         final harness = TranslateHarness(state: readyState(target: german));
         await harness.pump(tester, size: const Size(360, 800), textScale: 2);
         expectUsableBar(tester);
-        expect(find.text('DE'), findsOneWidget);
-        expect(find.text('German'), findsNothing);
+        expect(inBar(find.text('DE')), findsOneWidget);
+        expect(inBar(find.text('German')), findsNothing);
         expect(
           find.descendant(
             of: find.byKey(const Key('translate_source_button')),
@@ -605,10 +611,10 @@ void main() {
         );
         await harness.pump(tester, size: const Size(360, 800), textScale: 2);
         expectUsableBar(tester);
-        expect(find.text('EN'), findsOneWidget);
-        expect(find.text('JA'), findsOneWidget);
+        expect(inBar(find.text('EN')), findsOneWidget);
+        expect(inBar(find.text('JA')), findsOneWidget);
         // Tapping the code still opens the picker.
-        await tester.tap(find.text('JA'));
+        await tester.tap(inBar(find.text('JA')));
         await tester.pumpAndSettle();
         expect(find.byType(LanguagePickerSheet), findsOneWidget);
       });
