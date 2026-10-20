@@ -252,7 +252,7 @@ void main() {
       expectOff(tester);
     });
 
-    testWidgets('starts listening in the default language when the '
+    testWidgets('starts listening in the chosen language when the '
         'recogniser never lists its locales', (tester) async {
       recognizer.localesGate = Completer<void>();
       await pump(tester, button(languageCode: 'fr'));
@@ -263,7 +263,7 @@ void main() {
 
       await tester.pump(SpeechInputService.defaultQueryTimeout);
       await tester.pump();
-      expect(recognizer.lastRequest.localeId, isNull);
+      expect(recognizer.lastRequest.localeId, 'fr-FR');
       expect(iconButton(tester).isSelected, isTrue);
       expect(find.byKey(VoiceInputButton.startingKey), findsNothing);
       expect(listeningChanges, [true]);

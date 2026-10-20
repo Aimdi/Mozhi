@@ -46,6 +46,32 @@ abstract final class SpeechLocaleMatcher {
     return best;
   }
 
+  /// A language tag for [languageCode] when the recogniser's locales are
+  /// unknown (some Android recognisers never answer the query): the system
+  /// locale when it has the same language, else the language with its
+  /// region (or the common default region, `de` -> `de-DE`; Traditional
+  /// Chinese `zh-TW`). Null for `auto`, null and invalid codes.
+  static String? guess(String? languageCode, {String? systemLocaleId}) {
+    if (languageCode == null) return null;
+    final wanted = _Tag.parse(languageCode);
+    if (wanted == null || wanted.language == 'auto') return null;
+    final system = systemLocaleId == null ? null : _Tag.parse(systemLocaleId);
+    if (system != null &&
+        system.language == wanted.language &&
+        (wanted.region == null || system.region == wanted.region) &&
+        (wanted.script == null || system.script == wanted.script)) {
+      return system.toString();
+    }
+    if (wanted.region != null) {
+      return _Tag(wanted.language, null, wanted.region).toString();
+    }
+    if (wanted.language == 'zh') {
+      return wanted.script == 'Hant' ? 'zh-TW' : 'zh-CN';
+    }
+    final region = _defaultRegions[wanted.language];
+    return _Tag(wanted.language, null, region).toString();
+  }
+
   /// Normalises a locale id to `language[-Script][-REGION]` with canonical
   /// casing and aliases applied (`EN_us` -> `en-US`, `iw_IL` -> `he-IL`).
   /// Returns null when [code] is not a language tag.

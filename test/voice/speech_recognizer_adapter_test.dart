@@ -225,7 +225,7 @@ void main() {
       ]);
     });
 
-    test('a session still starts, in the default language, without '
+    test('a session still starts, in the chosen language, without '
         'waiting again', () async {
       neverAnswerLocales();
       when(
@@ -266,7 +266,7 @@ void main() {
           listenOptions: captureAny(named: 'listenOptions'),
         ),
       ).captured.cast<SpeechListenOptions>();
-      expect(requests.map((options) => options.localeId), [null, null]);
+      expect(requests.map((options) => options.localeId), ['fr-FR', 'de-DE']);
       verify(() => speech.locales()).called(1);
     });
   });

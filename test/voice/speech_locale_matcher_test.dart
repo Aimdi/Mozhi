@@ -86,4 +86,30 @@ void main() {
       expect(SpeechLocaleMatcher.normalize(' '), isNull);
     });
   });
+
+  group('SpeechLocaleMatcher.guess', () {
+    test('asks for the chosen language without a locale list', () {
+      expect(SpeechLocaleMatcher.guess('de'), 'de-DE');
+      expect(SpeechLocaleMatcher.guess('pt-BR'), 'pt-BR');
+      expect(SpeechLocaleMatcher.guess('ko'), 'ko');
+      expect(SpeechLocaleMatcher.guess('zh'), 'zh-CN');
+      expect(SpeechLocaleMatcher.guess('zh-Hant'), 'zh-TW');
+      expect(SpeechLocaleMatcher.guess('iw'), 'he');
+    });
+
+    test("prefers the system locale's region for the same language", () {
+      expect(SpeechLocaleMatcher.guess('de', systemLocaleId: 'de_AT'), 'de-AT');
+      expect(SpeechLocaleMatcher.guess('de', systemLocaleId: 'en_US'), 'de-DE');
+      expect(
+        SpeechLocaleMatcher.guess('pt-PT', systemLocaleId: 'pt_BR'),
+        'pt-PT',
+      );
+    });
+
+    test('is null for auto, null and invalid codes', () {
+      expect(SpeechLocaleMatcher.guess('auto'), isNull);
+      expect(SpeechLocaleMatcher.guess(null), isNull);
+      expect(SpeechLocaleMatcher.guess('!!'), isNull);
+    });
+  });
 }

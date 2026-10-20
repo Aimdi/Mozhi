@@ -487,6 +487,15 @@ class SpeechInputService {
   ) async {
     if (languageCode == null) return null;
     final available = await _localesOf(recognizer);
+    // Without the recogniser's list (it may never answer), the chosen
+    // language is still asked for: listening in the system language would
+    // turn German speech into English nonsense.
+    if (available.isEmpty && recognizer.offline == null) {
+      return SpeechLocaleMatcher.guess(
+        languageCode,
+        systemLocaleId: recognizer.systemLocaleId,
+      );
+    }
     return SpeechLocaleMatcher.match(
       languageCode,
       available.map((locale) => locale.id),

@@ -281,7 +281,7 @@ void main() {
       );
     });
 
-    test('unanswered locales: listening starts in the default language, '
+    test('unanswered locales: listening starts in the chosen language, '
         'and later sessions do not wait again', () async {
       recognizer.localesGate = Completer<void>();
       service = build(queryTimeout: timeout);
@@ -290,14 +290,16 @@ void main() {
       final elapsed = Stopwatch()..start();
       expect(await service.listen('fr', owner: owner), isTrue);
       expect(elapsed.elapsed, lessThan(const Duration(seconds: 1)));
-      expect(recognizer.lastRequest.localeId, isNull);
+      expect(recognizer.lastRequest.localeId, 'fr-FR');
       expect(service.state, SpeechInputListening(owner: owner));
 
       await service.cancel();
       expect(await service.listen('pt'), isTrue);
-      expect(recognizer.lastRequest.localeId, isNull);
+      expect(recognizer.lastRequest.localeId, 'pt-BR');
       expect(await service.locales(), isEmpty);
-      expect(await service.localeIdFor('fr'), isNull);
+      expect(await service.localeIdFor('fr'), 'fr-FR');
+      await service.listen('auto');
+      expect(recognizer.lastRequest.localeId, isNull);
       expect(recognizer.localeCalls, 1);
     });
 
