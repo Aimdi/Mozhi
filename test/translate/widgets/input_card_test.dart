@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:bloc_test/bloc_test.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
@@ -419,6 +420,196 @@ void main() {
         speech.say('two', isFinal: true);
         await tester.pump();
         verify(() => harness.translate.setInput('Line\ntwo')).called(1);
+      });
+    });
+
+    group('multiline input', () {
+      Finder field() => find.byKey(const Key('translate_input_field'));
+
+      TextField textField(WidgetTester tester) =>
+          tester.widget<TextField>(field());
+
+      Future<TranslateHarness> pump(
+        WidgetTester tester, {
+        bool multiline = true,
+        String input = 'Hello',
+      }) async {
+        final harness = TranslateHarness(
+          state: readyState(input: input),
+          settings: AppSettings(multilineInput: multiline),
+        );
+        await harness.pump(tester, child: const InputCard());
+        await tester.showKeyboard(field());
+        await tester.pump();
+        return harness;
+      }
+
+      testWidgets('on (the default): Enter adds a new line', (tester) async {
+        final harness = await pump(tester);
+
+        expect(textField(tester).textInputAction, TextInputAction.newline);
+        expect(textField(tester).keyboardType, TextInputType.multiline);
+        expect(textField(tester).onSubmitted, isNull);
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+
+        verifyNever(harness.translate.translate);
+      });
+
+      testWidgets('off: the keyboard shows a go key that translates', (
+        tester,
+      ) async {
+        final harness = await pump(tester, multiline: false);
+
+        expect(textField(tester).textInputAction, TextInputAction.go);
+        // Still multiline: pasted text keeps its lines, Shift+Enter adds one.
+        expect(textField(tester).keyboardType, TextInputType.multiline);
+        await tester.testTextInput.receiveAction(TextInputAction.go);
+        await tester.pump();
+
+        verify(harness.translate.translate).called(1);
+      });
+
+      testWidgets('off: a hardware Enter translates', (tester) async {
+        final harness = await pump(tester, multiline: false);
+
+        final handled = await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+        verify(harness.translate.translate).called(1);
+        expect(handled, isTrue);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.numpadEnter);
+        await tester.pump();
+        verify(harness.translate.translate).called(1);
+      });
+
+      testWidgets('off: a held Enter translates once and adds no lines', (
+        tester,
+      ) async {
+        final harness = await pump(tester, multiline: false);
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.enter);
+        final repeat = await tester.sendKeyRepeatEvent(
+          LogicalKeyboardKey.enter,
+        );
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+
+        expect(repeat, isTrue);
+        verify(harness.translate.translate).called(1);
+      });
+
+      testWidgets('off: the go key keeps the keyboard open', (tester) async {
+        await pump(tester, multiline: false);
+
+        await tester.testTextInput.receiveAction(TextInputAction.go);
+        await tester.pump();
+
+        expect(textField(tester).focusNode?.hasFocus, isTrue);
+      });
+
+      testWidgets('off: Shift with the keyboard action adds a new line '
+          '(browsers report every Enter as the action)', (tester) async {
+        final harness = await pump(tester, multiline: false);
+        await tester.tap(field());
+        tester.testTextInput.updateEditingValue(
+          const TextEditingValue(
+            text: 'Hello',
+            selection: TextSelection.collapsed(offset: 5),
+          ),
+        );
+        await tester.pump();
+        clearInteractions(harness.translate);
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.testTextInput.receiveAction(TextInputAction.go);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.pump();
+
+        verifyNever(harness.translate.translate);
+        verify(() => harness.translate.setInput('Hello\n')).called(1);
+        final controller = textField(tester).controller!;
+        expect(controller.text, 'Hello\n');
+        expect(controller.selection, const TextSelection.collapsed(offset: 6));
+      });
+
+      testWidgets('off: Ctrl with the keyboard action is left to the '
+          'screen shortcut', (tester) async {
+        final harness = await pump(tester, multiline: false);
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+        await tester.testTextInput.receiveAction(TextInputAction.go);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+        await tester.pump();
+
+        verifyNever(harness.translate.translate);
+      });
+
+      testWidgets('off: Shift+Enter is left to the field (a new line)', (
+        tester,
+      ) async {
+        final harness = await pump(tester, multiline: false);
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        final handled = await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.pump();
+
+        expect(handled, isFalse);
+        verifyNever(harness.translate.translate);
+      });
+
+      testWidgets('off: Ctrl+Enter is left to the screen shortcut', (
+        tester,
+      ) async {
+        final harness = await pump(tester, multiline: false);
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+        final handled = await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+        await tester.pump();
+
+        expect(handled, isFalse);
+        verifyNever(harness.translate.translate);
+      });
+
+      testWidgets('off: Enter confirms what an input method composes', (
+        tester,
+      ) async {
+        final harness = await pump(tester, multiline: false, input: '');
+        tester.testTextInput.updateEditingValue(
+          const TextEditingValue(
+            text: 'にほ',
+            selection: TextSelection.collapsed(offset: 2),
+            composing: TextRange(start: 0, end: 2),
+          ),
+        );
+        await tester.pump();
+
+        final handled = await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+
+        expect(handled, isFalse);
+        verifyNever(harness.translate.translate);
+      });
+
+      testWidgets('off: Enter does nothing without input', (tester) async {
+        final harness = await pump(tester, multiline: false, input: '  ');
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.testTextInput.receiveAction(TextInputAction.go);
+        await tester.pump();
+
+        verifyNever(harness.translate.translate);
+      });
+
+      testWidgets('Esc still clears the field', (tester) async {
+        final harness = await pump(tester, multiline: false);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pump();
+
+        verify(harness.translate.clear).called(1);
       });
     });
 

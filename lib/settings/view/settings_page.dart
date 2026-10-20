@@ -146,7 +146,7 @@ class _GeneralSection extends StatelessWidget {
         _AppLanguageTile(appLocale: settings.appLocale),
         ListTile(
           key: const Key('settings_tab_order'),
-          leading: const SettingsIcon(Icons.reorder),
+          leading: const SettingsIcon(Icons.swap_vert),
           title: Text(l10n.settingsTabOrder),
           subtitle: Text(l10n.settingsTabOrderSubtitle(home)),
           trailing: const Icon(Icons.chevron_right),

@@ -133,9 +133,12 @@ class ProofreadLanguageButton extends StatelessWidget {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final (label, detected) = context.select<ProofreadCubit, (String, bool)>(
-      (cubit) => proofreadLanguageLabel(l10n, cubit.state),
-    );
+    final (label, detected, auto) = context
+        .select<ProofreadCubit, (String, bool, bool)>((cubit) {
+          final (label, detected) = proofreadLanguageLabel(l10n, cubit.state);
+          final auto = cubit.state.variety == null && !detected;
+          return (label, detected, auto);
+        });
     final description = detected
         ? l10n.proofreadLanguageDetected(label)
         : label;
@@ -151,7 +154,10 @@ class ProofreadLanguageButton extends StatelessWidget {
         ),
         onPressed: () => unawaited(showProofreadLanguages(context)),
         child: Semantics(
-          label: l10n.proofreadLanguageButton(description),
+          // Not "Language: Detect language", as if that were one.
+          label: auto
+              ? l10n.proofreadLanguageAutoSemantics
+              : l10n.proofreadLanguageButton(description),
           excludeSemantics: true,
           child: Row(
             children: [

@@ -1,10 +1,16 @@
+import 'package:bloc_test/bloc_test.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/app/view/app_shell.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
+import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/models/app_settings.dart';
 
 import '../../helpers/helpers.dart';
+
+class MockSettingsCubit extends MockCubit<AppSettings> implements SettingsCubit;
 
 void main() {
   group('AppShell', () {
@@ -16,21 +22,34 @@ void main() {
       WidgetTester tester, {
       required double width,
       int selectedIndex = 0,
+      List<AppTab>? order,
+      SettingsCubit? settings,
     }) async {
       tester.view.physicalSize = Size(width, 900);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       final selected = <int>[];
+      final shell = AppShell(
+        selectedIndex: selectedIndex,
+        onDestinationSelected: selected.add,
+        order: order,
+        child: const Text('body'),
+      );
       await tester.pumpApp(
-        AppShell(
-          selectedIndex: selectedIndex,
-          onDestinationSelected: selected.add,
-          child: const Text('body'),
-        ),
+        settings == null
+            ? shell
+            : BlocProvider<SettingsCubit>.value(value: settings, child: shell),
         theme: theme,
       );
       return selected;
     }
+
+    List<String> barLabels(WidgetTester tester) => tester
+        .widget<NavigationBar>(find.byType(NavigationBar))
+        .destinations
+        .cast<NavigationDestination>()
+        .map((d) => d.label)
+        .toList();
 
     Finder navIcon(IconData icon) => find.byIcon(icon);
 
@@ -158,6 +177,111 @@ void main() {
       await tester.tap(navIcon(Icons.menu_book_outlined));
 
       expect(selected, [2, 1]);
+    });
+
+    group('tab order', () {
+      const order = [
+        AppTab.proofread,
+        AppTab.translate,
+        AppTab.conversation,
+        AppTab.dictionary,
+      ];
+
+      testWidgets('shows the destinations in the given order', (tester) async {
+        await pumpShell(tester, width: 400, order: order);
+
+        expect(barLabels(tester), [
+          'Proofread',
+          'Translate',
+          'Conversation',
+          'Dictionary',
+        ]);
+      });
+
+      testWidgets('maps the bar to the branch indexes', (tester) async {
+        // Branch 2 (Proofread) is shown first.
+        final selected = await pumpShell(
+          tester,
+          width: 400,
+          order: order,
+          selectedIndex: 2,
+        );
+
+        final bar = tester.widget<NavigationBar>(find.byType(NavigationBar));
+        expect(bar.selectedIndex, 0);
+        await tester.tap(navIcon(Icons.menu_book_outlined));
+        await tester.tap(navIcon(Icons.translate_outlined));
+        await tester.tap(navIcon(Icons.forum_outlined));
+        expect(selected, [1, 0, 3]);
+      });
+
+      testWidgets('maps the rail to the branch indexes', (tester) async {
+        final selected = await pumpShell(
+          tester,
+          width: 1000,
+          order: order,
+          selectedIndex: 1,
+        );
+
+        final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
+        expect(rail.selectedIndex, 3);
+        await tester.tap(navIcon(Icons.spellcheck_outlined));
+        expect(selected, [2]);
+      });
+
+      testWidgets("follows the user's order from the settings", (tester) async {
+        final settings = MockSettingsCubit();
+        whenListen(
+          settings,
+          Stream.fromIterable(const [
+            AppSettings(
+              tabOrder: [
+                AppTab.conversation,
+                AppTab.translate,
+                AppTab.dictionary,
+                AppTab.proofread,
+              ],
+            ),
+          ]),
+          initialState: const AppSettings(tabOrder: order),
+        );
+        await pumpShell(tester, width: 400, settings: settings);
+        expect(barLabels(tester).first, 'Proofread');
+
+        await tester.pump();
+        expect(barLabels(tester), [
+          'Conversation',
+          'Translate',
+          'Dictionary',
+          'Proofread',
+        ]);
+      });
+
+      testWidgets('uses the default order without settings', (tester) async {
+        await pumpShell(tester, width: 400);
+        expect(barLabels(tester), [
+          'Translate',
+          'Dictionary',
+          'Proofread',
+          'Conversation',
+        ]);
+      });
+
+      testWidgets('completes an incomplete order', (tester) async {
+        await pumpShell(tester, width: 400, order: const [AppTab.conversation]);
+        expect(barLabels(tester), [
+          'Conversation',
+          'Translate',
+          'Dictionary',
+          'Proofread',
+        ]);
+      });
+
+      test('maps every tab to its destination', () {
+        for (final tab in AppTab.values) {
+          expect(AppDestination.of(tab), AppDestination.all[tab.index]);
+        }
+      });
     });
 
     testWidgets('marks the selected destination', (tester) async {

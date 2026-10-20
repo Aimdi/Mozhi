@@ -146,18 +146,27 @@ class _TabTile extends StatelessWidget {
         ),
       ],
     );
+    // The enabled arrows in the text colour, so the disabled ones (at the
+    // ends of the list) stand out from them in both themes.
+    final onSurface = theme.colorScheme.onSurface;
+    final arrowStyle = IconButton.styleFrom(
+      foregroundColor: onSurface,
+      disabledForegroundColor: onSurface.withValues(alpha: 0.38),
+    );
     final buttons = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         IconButton(
           key: Key('tab_order_up_${tab.name}'),
           tooltip: l10n.settingsTabOrderMoveUp(name),
+          style: arrowStyle,
           icon: const Icon(Icons.arrow_upward),
           onPressed: index > 0 ? () => onMove(index - 1) : null,
         ),
         IconButton(
           key: Key('tab_order_down_${tab.name}'),
           tooltip: l10n.settingsTabOrderMoveDown(name),
+          style: arrowStyle,
           icon: const Icon(Icons.arrow_downward),
           onPressed: index < count - 1 ? () => onMove(index + 1) : null,
         ),

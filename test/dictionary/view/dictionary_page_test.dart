@@ -99,6 +99,7 @@ void main() {
     Size size = const Size(600, 1600),
     SpeechService? speech,
     SpeechInputService? speechInput,
+    TextDirection? direction,
   }) async {
     tester.view
       ..physicalSize = size
@@ -114,7 +115,9 @@ void main() {
         BlocProvider<TranslateCubit>.value(value: translateCubit),
         BlocProvider<SettingsCubit>.value(value: settingsCubit),
       ],
-      child: page,
+      child: direction == null
+          ? page
+          : Directionality(textDirection: direction, child: page),
     );
     if (withTracker) {
       tree = RepositoryProvider<UsageTracker>.value(
@@ -181,8 +184,14 @@ void main() {
   Finder buttonIn(Key key) => find.descendant(
     of: find.byKey(key),
     matching: find.byWidgetPredicate(
-      (widget) => widget is IconButton || widget is ButtonStyleButton,
+      (widget) => widget is IconButton || widget is TextButton,
     ),
+  );
+
+  /// Tooltips that leave the semantics to their child (`find.byTooltip`
+  /// only knows Flutter's own `Tooltip` class for those).
+  Finder tooltip(String message) => find.byWidgetPredicate(
+    (widget) => widget is Tooltip && widget.message == message,
   );
 
   /// The go button ("Look up").
@@ -276,7 +285,7 @@ void main() {
       await pumpPage(tester, page: const DictionaryPage(word: 'gato'));
 
       expect(find.bySemanticsLabel('Look up'), findsOneWidget);
-      expect(find.byTooltip('Look up'), findsOneWidget);
+      expect(tooltip('Look up'), findsOneWidget);
       expect(
         find.bySemanticsLabel('Language of the word: detected automatically'),
         findsOneWidget,
@@ -550,6 +559,7 @@ void main() {
             definition: 'A car jack.',
             partOfSpeech: 'noun',
             translations: ['jack'],
+            usage: 'colloquial',
           ),
         ],
         examples: [
@@ -681,6 +691,7 @@ void main() {
 
         final chip = find.byKey(const ValueKey('dictionary_related:gatito'));
         await tester.ensureVisible(chip);
+        stubLookUp(repository, () async => gatoEntry);
         await tester.tap(chip);
         await tester.pump();
         await tester.pump();
@@ -724,6 +735,40 @@ void main() {
         expect(find.byKey(const Key('dictionary_translations')), findsNothing);
       });
 
+      testWidgets('sets long words and phrases smaller', (tester) async {
+        double sizeOf(WidgetTester tester) => tester
+            .widget<Text>(find.byKey(const Key('dictionary_headword')))
+            .style!
+            .fontSize!;
+        await pumpEntry(tester);
+        final short = sizeOf(tester);
+
+        // A new page each time (with its own cubit and look-up).
+        await tester.pumpWidget(const SizedBox());
+        await pumpEntry(
+          tester,
+          entry: const DictionaryEntry(
+            word: 'Donaudampfschiff',
+            senses: [DictionarySense(definition: 'A Danube steamer.')],
+          ),
+        );
+        final long = sizeOf(tester);
+
+        await tester.pumpWidget(const SizedBox());
+        await pumpEntry(
+          tester,
+          entry: const DictionaryEntry(
+            word: 'to take the bull by the horns',
+            senses: [DictionarySense(definition: 'To face a problem.')],
+          ),
+        );
+        final phrase = sizeOf(tester);
+
+        expect(long, lessThan(short));
+        expect(phrase, lessThan(long));
+        expect(tester.takeException(), isNull);
+      });
+
       testWidgets('reads the word aloud in its language', (tester) async {
         final speech = speechService();
         await pumpEntry(tester, speech: speech);
@@ -758,7 +803,7 @@ void main() {
         );
         expect(tester.widget<IconButton>(button).onPressed, isNull);
         expect(
-          find.byTooltip('Choose the word’s language to listen to it'),
+          tooltip('Choose the word’s language to listen to it'),
           findsOneWidget,
         );
       });
@@ -806,8 +851,12 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(tester.takeException(), isNull);
+        // The tabs scroll: "More" is past the edge.
+        await tester.ensureVisible(find.text('More'));
+        await tester.pumpAndSettle();
         await tester.tap(find.text('More'));
         await tester.pumpAndSettle();
+        expect(find.text('Other meanings'), findsOneWidget);
         expect(tester.takeException(), isNull);
       });
     });
@@ -977,6 +1026,7 @@ void main() {
 
         await tester.binding.handlePopRoute();
         await tester.pump();
+        await tester.pump();
 
         expect(dictionaryState(tester).status, DictionaryStatus.idle);
         expect(find.byKey(const Key('dictionary_hero')), findsOneWidget);
@@ -1066,6 +1116,31 @@ void main() {
           tester.widget<EditableText>(searchEditable()).focusNode,
           same(FocusManager.instance.primaryFocus),
         );
+      });
+
+      testWidgets('works without a focus node of its own', (tester) async {
+        final cubit = DictionaryCubit(
+          repository: repository,
+          engine: claudeEngine,
+          word: 'gato',
+        );
+        addTearDown(cubit.close);
+        await tester.pumpApp(
+          BlocProvider.value(
+            value: cubit,
+            child: const Scaffold(body: DictionarySearchField()),
+          ),
+        );
+
+        await tester.tap(find.byKey(const Key('dictionary_search_field')));
+        await tester.pump();
+        expect(
+          tester.widget<EditableText>(searchEditable()).focusNode.hasFocus,
+          isTrue,
+        );
+        await tester.testTextInput.receiveAction(TextInputAction.search);
+        await tester.pump();
+        verifyLookUps(1);
       });
 
       testWidgets('stays named once it holds a word', (tester) async {
@@ -1296,9 +1371,20 @@ void main() {
         );
         await tester.tap(find.byKey(const Key('dictionary_source_language')));
         await tester.pumpAndSettle();
+        await tester.enterText(
+          find.byKey(const Key('dictionary_language_search')),
+          'French',
+        );
+        await tester.pump();
         await tester.tap(find.byKey(const Key('dictionary_language_fr')));
         await tester.pumpAndSettle();
         expect(dictionaryState(tester).source.code, 'fr');
+        expect(
+          tester
+              .widget<IconButton>(find.byKey(const Key('dictionary_swap')))
+              .onPressed,
+          isNotNull,
+        );
       });
 
       testWidgets('names a detected word language for screen readers', (
@@ -1543,6 +1629,21 @@ void main() {
         );
       });
 
+      testWidgets('keeps the composer above the keyboard', (tester) async {
+        tester.view.viewInsets = const FakeViewPadding(bottom: 600);
+        addTearDown(tester.view.resetViewInsets);
+        await pumpPage(tester);
+        await tester.pumpAndSettle();
+
+        final composer = tester.getRect(
+          find.byKey(const Key('dictionary_composer')),
+        );
+        expect(composer.bottom, lessThanOrEqualTo(1600 - 600));
+        // Still room for the greeting above it.
+        expect(find.byKey(const Key('dictionary_hero')), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+
       testWidgets('shows only the composer in a low window', (tester) async {
         await pumpPage(tester, size: const Size(600, 300));
 
@@ -1552,10 +1653,11 @@ void main() {
       });
 
       testWidgets('mirrors in right-to-left languages', (tester) async {
-        await tester.binding.setLocale('ar', '');
-        addTearDown(() => tester.binding.setLocale('en', ''));
-        await pumpPage(tester, page: const DictionaryPage(word: 'gato'));
-        await tester.pumpAndSettle();
+        await pumpPage(
+          tester,
+          page: const DictionaryPage(word: 'gato'),
+          direction: TextDirection.rtl,
+        );
 
         final options = tester.getCenter(
           find.byKey(const Key('dictionary_options_button')),

@@ -1,3 +1,7 @@
+import 'dart:async';
+
+import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/voice/speech_input_state.dart';
 
@@ -38,3 +42,57 @@ bool voiceInputFailureNeedsOfflineModel(
 }) =>
     failure == SpeechInputFailure.offlineModelMissing ||
     (offlineSupported && failure == SpeechInputFailure.recognizerUnavailable);
+
+/// Location of the voice input settings (the offline speech models).
+const voiceSettingsLocation = '/settings/voice';
+
+/// Explains a voice input [failure] in a [SnackBar] (replacing the current
+/// one), like the microphone buttons do: permanent failures stay longer and
+/// can be closed; when an offline speech model would help
+/// ([voiceInputFailureNeedsOfflineModel]) and a [GoRouter] is above
+/// [context], it offers to open the voice input settings
+/// ([voiceSettingsLocation]) to download one.
+///
+/// [onDevice] and [offlineSupported] are what [voiceInputErrorMessage] and
+/// [voiceInputFailureNeedsOfflineModel] need (`SpeechInputService`'s
+/// `preferOnDevice` and `isOfflineSupported`). Does nothing without a
+/// [ScaffoldMessenger].
+void showVoiceInputErrorSnackBar(
+  BuildContext context,
+  SpeechInputFailure failure, {
+  required bool onDevice,
+  required bool offlineSupported,
+}) {
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  if (messenger == null) return;
+  final l10n = context.l10n;
+  final needsModel = voiceInputFailureNeedsOfflineModel(
+    failure,
+    offlineSupported: offlineSupported,
+  );
+  final router = needsModel ? GoRouter.maybeOf(context) : null;
+  final message = voiceInputErrorMessage(
+    l10n,
+    failure,
+    onDevice: onDevice,
+    offlineModelDownloadable: needsModel,
+  );
+  messenger
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        content: Text(message),
+        showCloseIcon: failure.isPermanent,
+        duration: failure.isPermanent
+            ? const Duration(seconds: 8)
+            : const Duration(seconds: 4),
+        action: router == null
+            ? null
+            : SnackBarAction(
+                label: l10n.voiceDownloadModelAction,
+                onPressed: () =>
+                    unawaited(router.push<void>(voiceSettingsLocation)),
+              ),
+      ),
+    );
+}

@@ -28,6 +28,7 @@ import 'package:mozhi/settings/view/provider_editor_page.dart';
 import 'package:mozhi/settings/view/providers_page.dart';
 import 'package:mozhi/settings/view/quality_modes_page.dart';
 import 'package:mozhi/settings/view/settings_page.dart';
+import 'package:mozhi/settings/view/tab_order_page.dart';
 import 'package:mozhi/settings/view/voice_input_settings_page.dart';
 import 'package:mozhi/translate/view/translate_page.dart';
 import 'package:mozhi/usage/view/usage_summary_page.dart';
@@ -98,6 +99,38 @@ void main() {
 
     test('onboarding is outside the settings', () {
       expect(AppRoutes.onboarding, '/onboarding');
+    });
+
+    test('tab maps every tab to its location', () {
+      expect(
+        [for (final tab in AppTab.values) AppRoutes.tab(tab)],
+        [
+          AppRoutes.translate,
+          AppRoutes.dictionary,
+          AppRoutes.proofread,
+          AppRoutes.conversation,
+        ],
+      );
+      expect(AppRoutes.tabOrder, '/settings/tabs');
+    });
+  });
+
+  group('homeRedirect', () {
+    test('keeps the translate tab in the default order', () {
+      expect(homeRedirect(const AppSettings(), AppRoutes.translate), isNull);
+    });
+
+    test('sends the start to the first tab of the order', () {
+      const settings = AppSettings(
+        tabOrder: [
+          AppTab.proofread,
+          AppTab.translate,
+          AppTab.dictionary,
+          AppTab.conversation,
+        ],
+      );
+      expect(homeRedirect(settings, AppRoutes.translate), AppRoutes.proofread);
+      expect(homeRedirect(settings, AppRoutes.proofread), isNull);
     });
   });
 
@@ -342,6 +375,7 @@ void main() {
       '/settings/glossaries': GlossariesPage,
       '/settings/usage': UsageSummaryPage,
       '/settings/quality': QualityModesPage,
+      '/settings/tabs': TabOrderPage,
       AppRoutes.voiceSettings: VoiceInputSettingsPage,
     };
     for (final MapEntry(key: path, value: page) in fullScreenPages.entries) {
@@ -649,6 +683,68 @@ void main() {
 
         expect(location(), AppRoutes.translate);
         expect(launches, isEmpty);
+      });
+
+      testWidgets('opens on the first tab of the order', (tester) async {
+        const settings = AppSettings(
+          tabOrder: [
+            AppTab.conversation,
+            AppTab.translate,
+            AppTab.dictionary,
+            AppTab.proofread,
+          ],
+        );
+        router.dispose();
+        router = createAppRouter(
+          launchRedirect: (location) => homeRedirect(settings, location),
+        );
+        when(() => env.settingsCubit.state).thenReturn(settings);
+        await pumpRouter(tester);
+        await tester.pump(_transition);
+
+        expect(location(), AppRoutes.conversation);
+        expect(find.byType(ConversationPage), findsOneWidget);
+        // The tab shows first in the bar.
+        final bar = tester.widget<NavigationBar>(find.byType(NavigationBar));
+        expect(bar.selectedIndex, 0);
+      });
+
+      testWidgets('the onboarding finishes on the first tab of the order', (
+        tester,
+      ) async {
+        when(() => env.settingsCubit.state).thenReturn(
+          const AppSettings(
+            tabOrder: [
+              AppTab.dictionary,
+              AppTab.translate,
+              AppTab.proofread,
+              AppTab.conversation,
+            ],
+          ),
+        );
+        await pumpRouter(tester);
+        await go(tester, AppRoutes.onboarding);
+
+        expect(
+          tester
+              .widget<OnboardingPage>(find.byType(OnboardingPage))
+              .finishLocation,
+          AppRoutes.dictionary,
+        );
+      });
+
+      testWidgets('the onboarding finishes on translate by default', (
+        tester,
+      ) async {
+        await pumpRouter(tester);
+        await go(tester, AppRoutes.onboarding);
+
+        expect(
+          tester
+              .widget<OnboardingPage>(find.byType(OnboardingPage))
+              .finishLocation,
+          AppRoutes.translate,
+        );
       });
 
       testWidgets('keeps the start location when it returns null', (

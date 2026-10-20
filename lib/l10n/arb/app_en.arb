@@ -7740,5 +7740,121 @@
         "type": "String"
       }
     }
+  },
+  "conversationBeta": "Beta",
+  "@conversationBeta": {
+    "description": "Small badge next to the conversation title: the hands-free conversation is new."
+  },
+  "conversationSessionStart": "Start conversation",
+  "@conversationSessionStart": {
+    "description": "Label of the large microphone that starts a hands-free conversation."
+  },
+  "conversationSessionStop": "Stop conversation",
+  "@conversationSessionStop": {
+    "description": "Label of the large microphone while a hands-free conversation runs (tapping stops it)."
+  },
+  "conversationSessionContinue": "Continue conversation",
+  "@conversationSessionContinue": {
+    "description": "Label of the large microphone while a hands-free conversation is paused."
+  },
+  "conversationSessionListening": "Listening in {language}…",
+  "@conversationSessionListening": {
+    "description": "Status while the hands-free conversation listens for one side.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "conversationSessionListeningEither": "Listening in {first} or {second}…",
+  "@conversationSessionListeningEither": {
+    "description": "Status while the hands-free conversation listens and the recogniser detects which of the two languages is spoken; {first} is the side whose turn it is.",
+    "placeholders": {
+      "first": {
+        "type": "String"
+      },
+      "second": {
+        "type": "String"
+      }
+    }
+  },
+  "conversationSessionTranscribing": "Transcribing what was said…",
+  "@conversationSessionTranscribing": {
+    "description": "Status while an on-device recogniser transcribes the recording."
+  },
+  "conversationSessionSpeaking": "Reading aloud in {language}…",
+  "@conversationSessionSpeaking": {
+    "description": "Status while the translation is read aloud.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "conversationSessionPausedSilence": "Didn't hear anything. Tap the microphone to continue.",
+  "@conversationSessionPausedSilence": {
+    "description": "Status when the hands-free conversation paused because nobody spoke."
+  },
+  "conversationSessionPaused": "Paused. Tap the microphone to continue.",
+  "@conversationSessionPaused": {
+    "description": "Status when the hands-free conversation paused because the microphone was taken over."
+  },
+  "conversationSessionPausedConsent": "Allow the translation above, or tap the microphone to continue.",
+  "@conversationSessionPausedConsent": {
+    "description": "Status when the hands-free conversation waits for permission to send a message to a translation service."
+  },
+  "conversationSessionPausedSpeechConsent": "Allow reading aloud, or tap the microphone to continue.",
+  "@conversationSessionPausedSpeechConsent": {
+    "description": "Status when the hands-free conversation waits for permission to read a translation aloud online."
+  },
+  "conversationSessionPausedFailed": "The translation failed. Retry it, or tap the microphone to continue.",
+  "@conversationSessionPausedFailed": {
+    "description": "Status when the hands-free conversation paused because a translation failed."
+  },
+  "conversationSessionFailed": "{error} Tap the microphone to try again.",
+  "@conversationSessionFailed": {
+    "description": "Status when the hands-free conversation stopped because voice input failed; {error} explains why.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "conversationSessionSpeakNext": "{language} speaks next",
+  "@conversationSessionSpeakNext": {
+    "description": "Tooltip and label of a language in the language pill during a hands-free conversation: tapping it lets that side speak next.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "conversationShowKeyboard": "Type a message",
+  "@conversationShowKeyboard": {
+    "description": "Button that shows the text fields of a hands-free conversation."
+  },
+  "conversationHideKeyboard": "Hide text fields",
+  "@conversationHideKeyboard": {
+    "description": "Button that hides the text fields of a hands-free conversation."
+  },
+  "conversationTranslationStopped": "Translation stopped",
+  "@conversationTranslationStopped": {
+    "description": "A message whose translation was stopped together with the hands-free conversation."
+  },
+  "conversationTranslationAnnouncement": "{language}: {translation}",
+  "@conversationTranslationAnnouncement": {
+    "description": "Screen reader announcement of a new translation.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      },
+      "translation": {
+        "type": "String"
+      }
+    }
+  },
+  "proofreadLanguageAutoSemantics": "Language: detected automatically",
+  "@proofreadLanguageAutoSemantics": {
+    "description": "proofreadLanguageAutoSemantics"
   }
 }

@@ -125,7 +125,6 @@ void main() {
           state: const DictionaryState(
             word: 'hola',
             source: spanish,
-            target: english,
             engine: claudeEngine,
             status: DictionaryStatus.success,
             entry: _hola,

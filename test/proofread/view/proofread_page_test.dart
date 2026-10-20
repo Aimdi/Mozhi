@@ -63,7 +63,7 @@ void main() {
       final state = proofreadState(tester);
       expect(state.availableEngines, [openAiEngine, ollamaEngine]);
       expect(state.engine, ollamaEngine);
-      await tester.tap(find.text('Options'));
+      await tester.tap(find.byKey(const Key('proofread_options_button')));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('proofread_engine_menu')), findsOneWidget);
     });
@@ -109,11 +109,14 @@ void main() {
         sampleInput,
       );
       await tester.pump();
-      await tester.tap(find.text('Options'));
+      await tester.tap(find.byKey(const Key('proofread_options_button')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('proofread_style_menu')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Business'));
+      await tester.pumpAndSettle();
+      // Close the sheet.
+      await tester.tapAt(const Offset(10, 10));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('proofread_button')));
       await tester.pumpAndSettle();

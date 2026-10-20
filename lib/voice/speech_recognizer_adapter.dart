@@ -158,6 +158,17 @@ abstract interface class OfflineSpeechRecognizerAdapter
   Future<bool> isReady();
 }
 
+/// A recogniser that can tell which language was spoken, e.g. Whisper
+/// (`WhisperSpeechRecognizerAdapter`): listening without a locale id
+/// ([SpeechListenRequest.localeId] null) detects the language, and
+/// [detectedLanguage] reports it for the final result being delivered.
+abstract interface class LanguageDetectingSpeechRecognizer {
+  /// The app (BCP-47) code of the language of the final result being
+  /// delivered (read it while the result listener runs), or null when
+  /// unknown.
+  String? get detectedLanguage;
+}
+
 /// [SpeechRecognizerAdapter] backed by `speech_to_text`.
 ///
 /// The plugin singleton is only touched on first use, so constructing the

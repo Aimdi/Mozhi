@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:bloc_test/bloc_test.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -73,7 +74,7 @@ void main() {
     );
   }
 
-  /// Pumps the view and expands its collapsed "Options" card.
+  /// Pumps the view and opens its options sheet.
   Future<void> pumpControls(
     WidgetTester tester,
     ProofreadState state, {
@@ -88,10 +89,39 @@ void main() {
       translateState: translateState,
       size: size,
     );
-    if (find.byKey(const Key('proofread_style_menu')).evaluate().isEmpty) {
-      await tester.tap(find.text('Options'));
-      await tester.pumpAndSettle();
-    }
+    await tester.tap(find.byKey(const Key('proofread_options_button')));
+    await tester.pumpAndSettle();
+  }
+
+  /// Pumps [ProofreadControls] alone, [width] wide (the options sheet is
+  /// at most 640 wide, too narrow for the segmented correction level in
+  /// the test font).
+  Future<void> pumpControlsAlone(
+    WidgetTester tester,
+    ProofreadState state, {
+    double width = 760,
+  }) async {
+    setSurface(tester, const Size(800, 1600));
+    whenListen(
+      cubit,
+      const Stream<ProofreadState>.empty(),
+      initialState: state,
+    );
+    whenListen(
+      translateCubit,
+      const Stream<TranslateState>.empty(),
+      initialState: readyTranslateState,
+    );
+    await tester.pumpProofread(
+      Scaffold(
+        body: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(width: width, child: const ProofreadControls()),
+        ),
+      ),
+      translateCubit: translateCubit,
+      proofreadCubit: cubit,
+    );
   }
 
   /// Expects the menu button [key] to show [value].
@@ -215,6 +245,71 @@ void main() {
         );
         expect(find.byKey(const Key('proofread_hero')), findsNothing);
         expect(find.byType(ProofreadInputCard), findsOneWidget);
+      });
+
+      testWidgets('gives way to the input once it has focus, keeping it', (
+        tester,
+      ) async {
+        await pumpView(tester, readyState, size: const Size(400, 800));
+        final field = find.byKey(const Key('proofread_input'));
+        final editable = tester.state(
+          find.descendant(of: field, matching: find.byType(EditableText)),
+        );
+        // Docked at the bottom.
+        expect(tester.getCenter(field).dy, greaterThan(500));
+
+        await tester.tap(field);
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(const Key('proofread_hero')), findsNothing);
+        // At the top now, the same field with the focus and keyboard.
+        expect(tester.getCenter(field).dy, lessThan(200));
+        expect(
+          tester.state(
+            find.descendant(of: field, matching: find.byType(EditableText)),
+          ),
+          same(editable),
+        );
+        expect(tester.testTextInput.isVisible, isTrue);
+        await tester.enterText(field, 'I has a cat.');
+        verify(() => cubit.setInput('I has a cat.')).called(1);
+        // The bar stays docked at the bottom.
+        expect(
+          tester.getRect(find.byKey(const Key('proofread_bar'))).bottom,
+          greaterThan(700),
+        );
+      });
+
+      testWidgets('keeps the bar above the keyboard', (tester) async {
+        tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+        addTearDown(tester.view.resetViewInsets);
+        await pumpView(
+          tester,
+          readyState.copyWith(input: 'I has a cat.'),
+          size: const Size(400, 800),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          tester.getRect(find.byKey(const Key('proofread_bar'))).bottom,
+          lessThanOrEqualTo(800 - 300),
+        );
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('keeps the docked layout while a sheet has the focus', (
+        tester,
+      ) async {
+        await pumpView(tester, readyState, size: const Size(400, 800));
+        await tester.tap(find.byKey(const Key('proofread_options_button')));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('proofread_hero')), findsOneWidget);
+      });
+
+      testWidgets('is left out of a low window', (tester) async {
+        await pumpView(tester, readyState, size: const Size(400, 400));
+        expect(find.byKey(const Key('proofread_hero')), findsNothing);
+        expect(tester.takeException(), isNull);
       });
 
       testWidgets('sits above the input on wide screens too', (tester) async {
@@ -378,13 +473,40 @@ void main() {
     });
 
     group('proofread button', () {
-      FilledButton button(WidgetTester tester) => tester.widget<FilledButton>(
-        find.byKey(const Key('proofread_button')),
+      IconButton button(WidgetTester tester) => tester.widget<IconButton>(
+        find.descendant(
+          of: find.byKey(const Key('proofread_button')),
+          matching: find.byType(IconButton),
+        ),
       );
 
       testWidgets('is disabled without input', (tester) async {
         await pumpView(tester, readyState);
         expect(button(tester).onPressed, isNull);
+      });
+
+      testWidgets('is named "Proofread" and shows the shortcut', (
+        tester,
+      ) async {
+        final semantics = tester.ensureSemantics();
+        await pumpView(tester, readyState.copyWith(input: 'text'));
+        expect(
+          tester.getSemantics(
+            find.descendant(
+              of: find.byKey(const Key('proofread_button')),
+              matching: find.byType(IconButton),
+            ),
+          ),
+          isSemantics(label: 'Proofread', isButton: true, isEnabled: true),
+        );
+        expect(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is Tooltip && widget.message == 'Proofread (Ctrl+Enter)',
+          ),
+          findsOneWidget,
+        );
+        semantics.dispose();
       });
 
       testWidgets('proofreads on tap', (tester) async {
@@ -393,55 +515,114 @@ void main() {
         verify(() => cubit.proofread()).called(1);
       });
 
+      testWidgets(
+        'puts the on-screen keyboard away only on touch platforms',
+        (tester) async {
+          await pumpView(tester, readyState.copyWith(input: 'text'));
+          tester.testTextInput.log.clear();
+
+          await tester.tap(find.byKey(const Key('proofread_button')));
+          await tester.pump();
+
+          verify(() => cubit.proofread()).called(1);
+          final methods = tester.testTextInput.log.map((call) => call.method);
+          expect(
+            methods,
+            defaultTargetPlatform == TargetPlatform.android
+                ? contains('TextInput.hide')
+                : isNot(contains('TextInput.hide')),
+          );
+        },
+        variant: const TargetPlatformVariant({
+          TargetPlatform.android,
+          TargetPlatform.linux,
+        }),
+      );
+
       testWidgets('shows progress while loading', (tester) async {
+        final semantics = tester.ensureSemantics();
         await pumpView(
           tester,
           readyState.copyWith(input: 'text', status: ProofreadStatus.loading),
         );
-        expect(find.text('Checking…'), findsOneWidget);
+        expect(find.bySemanticsLabel('Checking…'), findsOneWidget);
+        expect(find.byKey(const Key('composer_go_progress')), findsOneWidget);
         expect(find.text('Checking your text…'), findsOneWidget);
         expect(button(tester).onPressed, isNull);
+        semantics.dispose();
       });
     });
 
     group('controls', () {
-      testWidgets('start collapsed with a summary on narrow screens', (
-        tester,
-      ) async {
-        await pumpView(
-          tester,
-          readyState.copyWith(
-            correctionLevel: CorrectionLevel.light,
-            writingStyle: WritingStyle.academic,
-            formality: Formality.more,
-            readingLevel: ReadingLevel.b2,
-            variety: () => ProofreadVariety.enGb,
-          ),
-        );
+      testWidgets('sit in a sheet behind the options button', (tester) async {
+        await pumpView(tester, readyState);
         expect(find.byKey(const Key('proofread_style_menu')), findsNothing);
+        final options = find.byKey(const Key('proofread_options_button'));
         expect(
-          find.text('Light · Academic · More formal · B2 · English (UK)'),
+          find.descendant(of: options, matching: find.byType(Badge)),
           findsOneWidget,
         );
-        await tester.tap(find.text('Options'));
+        expect(
+          tester
+              .widget<Badge>(
+                find.descendant(of: options, matching: find.byType(Badge)),
+              )
+              .isLabelVisible,
+          isFalse,
+        );
+        expect(find.byTooltip('Proofreading options'), findsOneWidget);
+
+        await tester.tap(options);
         await tester.pumpAndSettle();
+        expect(
+          find.byKey(const Key('proofread_options_sheet')),
+          findsOneWidget,
+        );
+        expect(find.text('Options'), findsOneWidget);
         expect(find.byKey(const Key('proofread_style_menu')), findsOneWidget);
+        expect(find.byKey(const Key('proofread_variety_menu')), findsOneWidget);
       });
 
-      testWidgets('summary names a set context', (tester) async {
-        await pumpView(tester, readyState.copyWith(context: 'thesis'));
-        expect(find.text('Standard · General · Context'), findsOneWidget);
-        // A set context keeps the options open.
+      testWidgets('mark changed options with a dot', (tester) async {
+        for (final state in [
+          readyState.copyWith(correctionLevel: CorrectionLevel.light),
+          readyState.copyWith(writingStyle: WritingStyle.academic),
+          readyState.copyWith(formality: Formality.more),
+          readyState.copyWith(readingLevel: ReadingLevel.b2),
+          readyState.copyWith(context: 'thesis'),
+        ]) {
+          // A new tree: the mocked cubit does not emit the new state.
+          await tester.pumpWidget(const SizedBox());
+          await pumpView(tester, state);
+          expect(
+            tester
+                .widget<Badge>(
+                  find.descendant(
+                    of: find.byKey(const Key('proofread_options_button')),
+                    matching: find.byType(Badge),
+                  ),
+                )
+                .isLabelVisible,
+            isTrue,
+          );
+          expect(find.byTooltip('Proofreading options (modified)'), findsOne);
+        }
+        // The language has its own button.
+        await tester.pumpWidget(const SizedBox());
+        await pumpView(
+          tester,
+          readyState.copyWith(variety: () => ProofreadVariety.enGb),
+        );
+        expect(find.byTooltip('Proofreading options'), findsOneWidget);
+      });
+
+      testWidgets('show a set context', (tester) async {
+        await pumpControls(tester, readyState.copyWith(context: 'thesis'));
         expect(find.byKey(const Key('proofread_context')), findsOneWidget);
       });
 
-      testWidgets('start expanded on wide screens', (tester) async {
-        await pumpView(tester, readyState, size: const Size(1200, 1600));
-        expect(find.byKey(const Key('proofread_style_menu')), findsOneWidget);
-      });
-
       testWidgets('lay the menus out in two equal columns', (tester) async {
-        await pumpControls(tester, readyState);
+        await pumpControlsAlone(tester, readyState);
         final style = tester.getRect(
           find.byKey(const Key('proofread_style_menu')),
         );
@@ -546,16 +727,19 @@ void main() {
       });
 
       testWidgets('updates when the new options change', (tester) async {
-        await pumpControls(
-          tester,
-          readyState,
-          stream: Stream.value(
-            readyState.copyWith(
-              readingLevel: ReadingLevel.a2,
-              variety: () => ProofreadVariety.ptBr,
-            ),
+        final states = StreamController<ProofreadState>();
+        addTearDown(states.close);
+        await pumpControls(tester, readyState, stream: states.stream);
+        expectMenuValue(tester, 'proofread_reading_level_menu', 'As written');
+
+        // While the sheet is open.
+        states.add(
+          readyState.copyWith(
+            readingLevel: ReadingLevel.a2,
+            variety: () => ProofreadVariety.ptBr,
           ),
         );
+        await tester.pump();
         await tester.pump();
         expectMenuValue(tester, 'proofread_reading_level_menu', 'A2');
         expectMenuValue(
@@ -563,6 +747,16 @@ void main() {
           'proofread_variety_menu',
           'Portuguese (Brazil)',
         );
+        // Other changes leave the options alone.
+        states.add(
+          readyState.copyWith(
+            input: 'text',
+            readingLevel: ReadingLevel.a2,
+            variety: () => ProofreadVariety.ptBr,
+          ),
+        );
+        await tester.pump();
+        expectMenuValue(tester, 'proofread_reading_level_menu', 'A2');
       });
 
       testWidgets('fit a phone at 200% text', (tester) async {
@@ -648,7 +842,8 @@ void main() {
       });
 
       testWidgets('changes the correction level', (tester) async {
-        await pumpControls(tester, readyState);
+        await pumpControlsAlone(tester, readyState);
+        expect(find.byType(SegmentedButton<CorrectionLevel>), findsOneWidget);
         await tester.tap(find.text('Comprehensive'));
         verify(() => cubit.setLevel(CorrectionLevel.comprehensive)).called(1);
       });
@@ -1486,7 +1681,11 @@ void main() {
 
     group('wide layout', () {
       testWidgets('shows input and result side by side', (tester) async {
-        await pumpView(tester, readyState, size: const Size(1400, 1000));
+        await pumpView(
+          tester,
+          readyState.copyWith(input: 'text'),
+          size: const Size(1400, 1000),
+        );
         expect(
           find.text(
             'Your corrected text and suggested edits will appear here.',
@@ -1499,7 +1698,7 @@ void main() {
       });
 
       testWidgets('narrow layout has no placeholder', (tester) async {
-        await pumpView(tester, readyState);
+        await pumpView(tester, readyState.copyWith(input: 'text'));
         expect(
           find.text(
             'Your corrected text and suggested edits will appear here.',

@@ -81,7 +81,7 @@ class VoiceInputButton extends StatefulWidget {
   static const ValueKey<String> startingKey = ValueKey('voiceInputStarting');
 
   /// Location of the voice input settings (the offline speech models).
-  static const settingsLocation = '/settings/voice';
+  static const String settingsLocation = voiceSettingsLocation;
 
   /// Explicit service; null reads it from the context.
   final SpeechInputService? service;
@@ -233,41 +233,12 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
     if (failure != null) _showError(failure);
   }
 
-  void _showError(SpeechInputFailure failure) {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    if (messenger == null) return;
-    final l10n = context.l10n;
-    final needsModel = voiceInputFailureNeedsOfflineModel(
-      failure,
-      offlineSupported: _service.isOfflineSupported,
-    );
-    final router = needsModel ? GoRouter.maybeOf(context) : null;
-    final message = voiceInputErrorMessage(
-      l10n,
-      failure,
-      onDevice: widget.preferOnDevice ?? _service.preferOnDevice.value,
-      offlineModelDownloadable: needsModel,
-    );
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          showCloseIcon: failure.isPermanent,
-          duration: failure.isPermanent
-              ? const Duration(seconds: 8)
-              : const Duration(seconds: 4),
-          action: router == null
-              ? null
-              : SnackBarAction(
-                  label: l10n.voiceDownloadModelAction,
-                  onPressed: () => unawaited(
-                    router.push<void>(VoiceInputButton.settingsLocation),
-                  ),
-                ),
-        ),
-      );
-  }
+  void _showError(SpeechInputFailure failure) => showVoiceInputErrorSnackBar(
+    context,
+    failure,
+    onDevice: widget.preferOnDevice ?? _service.preferOnDevice.value,
+    offlineSupported: _service.isOfflineSupported,
+  );
 
   @override
   Widget build(BuildContext context) {

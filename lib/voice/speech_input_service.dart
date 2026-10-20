@@ -515,10 +515,18 @@ class SpeechInputService {
   /// session's states and results (see [SpeechInputState.isOwnedBy]).
   /// A session that is already running is cancelled first. Returns whether
   /// listening started; failures are reported through [states].
+  ///
+  /// With [detectLanguage], a recogniser that can detect the spoken
+  /// language ([LanguageDetectingSpeechRecognizer], e.g. Whisper) listens
+  /// without a language and reports the one it heard in the final
+  /// [SpeechInputResult.language]; [SpeechInputListening.detectsLanguage]
+  /// says whether it does. Other recognisers listen in [languageCode] as
+  /// usual.
   Future<bool> listen(
     String? languageCode, {
     bool? preferOnDevice,
     Object? owner,
+    bool detectLanguage = false,
   }) async {
     if (_disposed) return false;
     if (_activeSession != null || _finishingSession != null) await cancel();
@@ -538,14 +546,19 @@ class SpeechInputService {
       return false;
     }
     if (_state is SpeechInputUnavailable) _emit(const SpeechInputIdle());
-    final localeId = await _localeIdFor(recognizer, languageCode);
+    final detects =
+        detectLanguage &&
+        recognizer.adapter is LanguageDetectingSpeechRecognizer;
+    final localeId = detects
+        ? null
+        : await _localeIdFor(recognizer, languageCode);
     if (session != _session || _disposed) return false;
 
     _activeSession = session;
     _owner = owner;
     _minLevel = null;
     _maxLevel = null;
-    _emit(SpeechInputListening(owner: owner));
+    _emit(SpeechInputListening(owner: owner, detectsLanguage: detects));
     try {
       await recognizer.adapter.listen(
         request: SpeechListenRequest(
@@ -618,7 +631,21 @@ class SpeechInputService {
 
   void _onResult(int session, String text, {required bool isFinal}) {
     if (session != _session || _disposed) return;
-    _results.add(SpeechInputResult(text, isFinal: isFinal, owner: _owner));
+    final language = isFinal
+        ? switch (_current.adapter) {
+            final LanguageDetectingSpeechRecognizer detector =>
+              detector.detectedLanguage,
+            _ => null,
+          }
+        : null;
+    _results.add(
+      SpeechInputResult(
+        text,
+        isFinal: isFinal,
+        owner: _owner,
+        language: language,
+      ),
+    );
     final current = _state;
     if (isFinal) {
       if (_activeSession == session || _finishingSession == session) {

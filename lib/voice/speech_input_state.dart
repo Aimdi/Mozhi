@@ -85,7 +85,12 @@ final class SpeechInputIdle extends SpeechInputState {
 
 /// Listening to the microphone.
 final class SpeechInputListening extends SpeechInputState {
-  const new({this.level = 0, this.partialText = '', this.owner});
+  const new({
+    this.level = 0,
+    this.partialText = '',
+    this.owner,
+    this.detectsLanguage = false,
+  });
 
   /// Input loudness normalised to `0..1` (0 when the platform does not
   /// report sound levels, e.g. on the web).
@@ -94,6 +99,11 @@ final class SpeechInputListening extends SpeechInputState {
   /// Words recognised so far in this session.
   final String partialText;
   final Object? owner;
+
+  /// Whether the recogniser detects the spoken language in this session
+  /// (`SpeechInputService.listen` with `detectLanguage`): the final
+  /// [SpeechInputResult.language] then says which one was heard.
+  final bool detectsLanguage;
 
   @override
   bool get isListening => true;
@@ -106,10 +116,11 @@ final class SpeechInputListening extends SpeechInputState {
         level: level ?? this.level,
         partialText: partialText ?? this.partialText,
         owner: owner,
+        detectsLanguage: detectsLanguage,
       );
 
   @override
-  List<Object?> get props => [level, partialText, owner];
+  List<Object?> get props => [level, partialText, owner, detectsLanguage];
 }
 
 /// The microphone closed and the recording is being transcribed (offline
@@ -158,7 +169,7 @@ final class SpeechInputError extends SpeechInputState {
 /// Partial results grow as the user speaks; [text] always holds the whole
 /// utterance so far, not just the new words.
 final class SpeechInputResult extends Equatable {
-  const new(this.text, {required this.isFinal, this.owner});
+  const new(this.text, {required this.isFinal, this.owner, this.language});
 
   final String text;
   final bool isFinal;
@@ -166,6 +177,11 @@ final class SpeechInputResult extends Equatable {
   /// The `owner` passed to `SpeechInputService.listen`.
   final Object? owner;
 
+  /// The app (BCP-47) code of the language a final result was heard in,
+  /// when the recogniser reports it (e.g. the one Whisper detected; see
+  /// `LanguageDetectingSpeechRecognizer`); null otherwise.
+  final String? language;
+
   @override
-  List<Object?> get props => [text, isFinal, owner];
+  List<Object?> get props => [text, isFinal, owner, language];
 }

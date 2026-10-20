@@ -148,8 +148,9 @@ class ComposerCard extends StatelessWidget {
         ],
       ),
     );
-    final onTap = this.onTap;
-    if (onTap == null) return card;
+    // Always there (with or without [onTap]), so the tree, and the text
+    // field's focus and keyboard with it, stays the same when the card
+    // turns flat.
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
       excludeFromSemantics: true,

@@ -213,8 +213,9 @@ typedef LaunchRedirect = String? Function(String location);
 /// alive in a [StatefulShellRoute.indexedStack] with an adaptive
 /// [AppShell] (which shows them in the user's order, `AppSettings.tabOrder`;
 /// the branches and their locations never move); the Dictionary and
-/// Conversation tabs are deferred (loaded when first opened). History and Settings (with the settings sub-pages
-/// nested below it), the onboarding and the image, document and web page
+/// Conversation tabs are deferred (loaded when first opened). History and
+/// Settings (with the settings sub-pages nested below it), the onboarding
+/// and the image, document and web page
 /// translators are full-screen routes on the root navigator
 /// ([navigatorKey]) outside the tabs: pushed (see [TopLevelActions]) they
 /// sit above the tabs and go back to them. Opened on their own (a link, an
@@ -512,15 +513,10 @@ String? homeRedirect(AppSettings settings, String location) {
   return home == location ? null : home;
 }
 
-/// The location of the first tab of the user's order (the translate tab
-/// without a [SettingsCubit]).
-String _homeLocation(BuildContext context) {
-  try {
-    return AppRoutes.tab(context.read<SettingsCubit>().state.tabOrder.first);
-  } on ProviderNotFoundException {
-    return AppRoutes.translate;
-  }
-}
+/// The location of the first tab of the user's order (read from the
+/// [SettingsCubit], which the onboarding needs anyway).
+String _homeLocation(BuildContext context) =>
+    AppRoutes.tab(context.read<SettingsCubit>().state.tabOrder.first);
 
 /// Whether the app-wide [SpeechInputService] can recognise speech on this
 /// platform (false without one).

@@ -238,6 +238,84 @@ void main() {
       ],
     );
 
+    group('closeEntry', () {
+      blocTest<DictionaryCubit, DictionaryState>(
+        'goes back to the search, keeping the word',
+        build: () => build(word: 'gato'),
+        act: (cubit) async {
+          await cubit.lookUp();
+          cubit.closeEntry();
+        },
+        skip: 2,
+        expect: () => const [
+          DictionaryState(word: 'gato', engine: claudeEngine),
+        ],
+      );
+
+      blocTest<DictionaryCubit, DictionaryState>(
+        'ignores the response of the look-up it leaves',
+        setUp: () {
+          final slow = Completer<DictionaryEntry>();
+          stubLookUp(repository, () => slow.future);
+          addTearDown(() => slow.complete(gatoEntry));
+        },
+        build: () => build(word: 'gato'),
+        act: (cubit) async {
+          unawaited(cubit.lookUp());
+          cubit.closeEntry();
+          await Future<void>.delayed(Duration.zero);
+        },
+        expect: () => [
+          isA<DictionaryState>().having(
+            (s) => s.status,
+            'status',
+            DictionaryStatus.loading,
+          ),
+          const DictionaryState(word: 'gato', engine: claudeEngine),
+        ],
+      );
+
+      blocTest<DictionaryCubit, DictionaryState>(
+        'cancels a look-up waiting for an engine',
+        build: () => build(engine: null, word: 'gato'),
+        act: (cubit) async {
+          await cubit.lookUp();
+          cubit
+            ..closeEntry()
+            ..setEngine(claudeEngine);
+        },
+        expect: () => const [
+          DictionaryState(word: 'gato'),
+          DictionaryState(word: 'gato', engine: claudeEngine),
+        ],
+        verify: (_) => verifyNever(
+          () => repository.lookUp(
+            any(),
+            any(),
+            source: any(named: 'source'),
+            target: any(named: 'target'),
+            uiLanguage: any(named: 'uiLanguage'),
+            verbosity: any(named: 'verbosity'),
+          ),
+        ),
+      );
+
+      blocTest<DictionaryCubit, DictionaryState>(
+        'a language change afterwards does not look up again',
+        build: () => build(word: 'gato'),
+        act: (cubit) async {
+          await cubit.lookUp();
+          cubit
+            ..closeEntry()
+            ..setTarget(french);
+        },
+        skip: 3,
+        expect: () => const [
+          DictionaryState(word: 'gato', target: french, engine: claudeEngine),
+        ],
+      );
+    });
+
     test('ignores a response that arrives after closing', () async {
       final slow = Completer<DictionaryEntry>();
       stubLookUp(repository, () => slow.future);

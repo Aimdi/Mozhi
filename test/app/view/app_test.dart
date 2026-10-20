@@ -515,8 +515,6 @@ void main() {
     });
 
     group('general settings', () {
-      setUpAll(DeferredFeatures.dictionary.load);
-
       String location(WidgetTester tester) =>
           GoRouter.of(shellContext(tester))
               .routerDelegate
@@ -544,7 +542,12 @@ void main() {
         // material_ui's own texts are German too (no crash in the
         // navigation bar).
         expect(MaterialLocalizations.of(context).backButtonTooltip, 'Zurück');
-        expect(find.byTooltip('Übersetzen'), findsOneWidget);
+        expect(
+          find.byWidgetPredicate(
+            (widget) => widget is Tooltip && widget.message == 'Übersetzen',
+          ),
+          findsOneWidget,
+        );
       });
 
       testWidgets('switches the app language at once', (tester) async {

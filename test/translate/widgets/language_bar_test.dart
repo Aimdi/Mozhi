@@ -106,6 +106,21 @@ void main() {
       verify(harness.translate.swap).called(1);
     });
 
+    testWidgets('swapping does not tick with haptic feedback off', (
+      tester,
+    ) async {
+      final clipboard = FakeClipboard(tester);
+      final harness = TranslateHarness(
+        state: translatedState(),
+        settings: const AppSettings(hapticFeedback: false),
+      );
+      await harness.pump(tester, child: const LanguageBar());
+      await tester.tap(find.byKey(const Key('translate_swap_button')));
+      await tester.pump();
+      expect(clipboard.haptics, isEmpty);
+      verify(harness.translate.swap).called(1);
+    });
+
     testWidgets('swapping ticks and turns the icon', (tester) async {
       final clipboard = FakeClipboard(tester);
       final harness = TranslateHarness(state: translatedState());

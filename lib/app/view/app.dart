@@ -21,6 +21,7 @@ import 'package:mozhi/onboarding/onboarding_redirect.dart';
 import 'package:mozhi/platform/android_device.dart';
 import 'package:mozhi/platform/secure_screen_listener.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
+import 'package:mozhi/platform/system_bars.dart';
 import 'package:mozhi/presets/view/presets_providers.dart';
 import 'package:mozhi/quick_translate/view/quick_translate_sheet.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
@@ -315,11 +316,15 @@ class _AppState extends State<App> {
                         localizationsDelegates: appLocalizationsDelegates,
                         supportedLocales: AppLanguages.supported,
                         routerConfig: _router,
-                        builder: (context, child) => UsageWarningListener(
-                          tracker: _deps.usageTracker,
-                          messengerKey: _messengerKey,
-                          providerName: _providerName,
-                          child: child ?? const SizedBox.shrink(),
+                        // Transparent system bars whose icons follow the
+                        // theme (edge to edge on Android).
+                        builder: (context, child) => SystemBarsStyle(
+                          child: UsageWarningListener(
+                            tracker: _deps.usageTracker,
+                            messengerKey: _messengerKey,
+                            providerName: _providerName,
+                            child: child ?? const SizedBox.shrink(),
+                          ),
                         ),
                       );
                     },

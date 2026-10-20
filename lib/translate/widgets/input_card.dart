@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -251,26 +252,51 @@ class _InputCardState extends State<InputCard> {
     _cubit.setInput(combined);
   }
 
-  /// Whether a submit ([_submit]) happened in this event loop turn: a
-  /// hardware Enter may also arrive as the keyboard's action.
-  bool _submitted = false;
-
   /// Enter with multiline input off (`AppSettings.multilineInput`):
   /// translates like the go button.
   void _submit() {
-    if (_submitted || _cubit.state.input.trim().isEmpty) return;
-    _submitted = true;
-    Timer.run(() => _submitted = false);
+    if (_cubit.state.input.trim().isEmpty) return;
     unawaited(_cubit.translate());
   }
 
-  /// With multiline input off, Enter without Shift (or another modifier:
-  /// Ctrl/Cmd+Enter is the screen's shortcut) translates instead of adding
-  /// a new line, except while an input method composes text.
+  /// The keyboard's action key (Go) with multiline input off translates.
+  /// In a browser every Enter in the field arrives this way (and adds no
+  /// new line): Shift+Enter then adds the new line itself and Ctrl/Cmd+Enter
+  /// is left to the screen's shortcut.
+  void _onSubmitted(String _) {
+    final keyboard = HardwareKeyboard.instance;
+    if (keyboard.isControlPressed || keyboard.isMetaPressed) return;
+    if (keyboard.isShiftPressed) {
+      _insertNewline();
+    } else {
+      _submit();
+    }
+  }
+
+  /// Replaces the selection with a new line.
+  void _insertNewline() {
+    final value = _controller.value;
+    final selection = value.selection.isValid
+        ? value.selection
+        : TextSelection.collapsed(offset: value.text.length);
+    final text = value.text.replaceRange(selection.start, selection.end, '\n');
+    _controller.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: selection.start + 1),
+    );
+    _onChanged(text);
+  }
+
+  /// With multiline input off, a hardware Enter without Shift (or another
+  /// modifier: Ctrl/Cmd+Enter is the screen's shortcut) translates instead
+  /// of adding a new line, except while an input method composes text. In
+  /// a browser the field reports Enter as its action instead
+  /// ([_onSubmitted]).
   KeyEventResult _onEnter(KeyEvent event) {
     final key = event.logicalKey;
     final keyboard = HardwareKeyboard.instance;
-    if (event is KeyUpEvent ||
+    if (kIsWeb ||
+        event is KeyUpEvent ||
         (key != LogicalKeyboardKey.enter &&
             key != LogicalKeyboardKey.numpadEnter) ||
         context.read<SettingsCubit>().state.multilineInput ||
@@ -381,7 +407,12 @@ class _InputCardState extends State<InputCard> {
                                 : TextInputAction.go,
                             onSubmitted: settings.multilineInput
                                 ? null
-                                : (_) => _submit(),
+                                : _onSubmitted,
+                            // Translating keeps the keyboard open, like the
+                            // go button.
+                            onEditingComplete: settings.multilineInput
+                                ? null
+                                : () {},
                             textDirection: inputTextDirection(state),
                             minLines: widget.minLines,
                             maxLines: null,
