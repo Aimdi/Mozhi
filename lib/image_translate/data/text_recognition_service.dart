@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:mozhi/image_translate/models/models.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -57,6 +58,40 @@ abstract interface class TextRecognitionLanguageData {
 
   /// Fires after installed data changed (download, import, deletion).
   Stream<void> get ocrLanguagesChanged;
+}
+
+/// Text recognised in an image, with how sure the recognizer is.
+@immutable
+class RecognizedText {
+  const new(this.text, {this.confidence});
+
+  final String text;
+
+  /// 0 to 100 (Tesseract's mean word confidence), null when unknown.
+  final int? confidence;
+
+  @override
+  bool operator ==(Object other) =>
+      other is RecognizedText &&
+      other.text == text &&
+      other.confidence == confidence;
+
+  @override
+  int get hashCode => Object.hash(text, confidence);
+
+  @override
+  String toString() => 'RecognizedText(${text.length} chars, $confidence%)';
+}
+
+/// [TextRecognitionLanguageData] that also says how sure it is of what it
+/// read (Tesseract). A low confidence for "Detect language" usually means
+/// the text is in a language whose data was not used.
+abstract interface class TextRecognitionConfidence {
+  /// Like [TextRecognitionLanguageData.recognizeWith], with the confidence.
+  Future<RecognizedText> recognizeWithConfidence(
+    PickedImage image,
+    List<String> codes,
+  );
 }
 
 /// [service]'s language data, when it downloads data per language (the

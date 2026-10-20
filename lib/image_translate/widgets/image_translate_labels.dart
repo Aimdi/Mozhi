@@ -8,23 +8,25 @@ import 'package:translation_repository/translation_repository.dart';
 /// Display name of [method], e.g. "AI vision · Claude".
 String imageMethodLabel(AppLocalizations l10n, ImageTranslateMethod method) =>
     switch (method.kind) {
-      ImageTranslateMethodKind.mozhiLens => l10n.imageTranslateMethodMozhi,
+      ImageTranslateMethodKind.mozhiLens =>
+        l10n.imageTranslateMethodMozhiGoogle,
       ImageTranslateMethodKind.aiVision => l10n.imageTranslateMethodAi(
         method.engine?.name ?? '',
       ),
       ImageTranslateMethodKind.onDevice => l10n.imageTranslateMethodOnDevice,
     };
 
-/// One-line explanation of a method [kind].
+/// One-line explanation of a method [kind]: on-device recognition is the
+/// recommended one, Mozhi via Google Translate is experimental.
 String imageMethodDescription(
   AppLocalizations l10n,
   ImageTranslateMethodKind kind,
 ) => switch (kind) {
   ImageTranslateMethodKind.mozhiLens =>
-    l10n.imageTranslateMethodMozhiDescription,
+    l10n.imageTranslateMethodMozhiGoogleDescription,
   ImageTranslateMethodKind.aiVision => l10n.imageTranslateMethodAiDescription,
   ImageTranslateMethodKind.onDevice =>
-    l10n.imageTranslateMethodOnDeviceDescription,
+    l10n.imageTranslateMethodOnDeviceRecommended,
 };
 
 IconData imageMethodIcon(ImageTranslateMethodKind kind) => switch (kind) {
@@ -40,7 +42,9 @@ String imagePhaseMessage(AppLocalizations l10n, ImageTranslateState state) =>
       ImageTranslatePhase.uploading
           when state.method?.kind == ImageTranslateMethodKind.aiVision =>
         l10n.imageTranslatePhaseAi(state.method?.engine?.name ?? ''),
-      ImageTranslatePhase.uploading => l10n.imageTranslatePhaseMozhi,
+      ImageTranslatePhase.uploading => l10n.imageTranslatePhaseMozhiGoogle(
+        TranslationRepository.mozhiImageTimeout.inSeconds,
+      ),
       ImageTranslatePhase.recognizing => l10n.imageTranslatePhaseRecognizing,
       ImageTranslatePhase.translatingText =>
         l10n.imageTranslatePhaseTranslatingText,
@@ -62,28 +66,51 @@ String imageLanguageNameFor(String code, List<Language> languages) {
 }
 
 /// Friendly description of an image translation error. Errors that are not
-/// [ImageTranslateException]s are described like translator errors.
+/// [ImageTranslateException]s are described like translator errors; image
+/// errors with a cause get its sanitized message as details.
+///
+/// [method] is the method that failed: a Mozhi timeout names the time
+/// Google Translate had (`TranslationRepository.mozhiImageTimeout`).
 TranslateErrorInfo describeImageTranslateError(
   AppLocalizations l10n,
-  Object? error,
-) => switch (error) {
-  ImageTranslateException(:final kind) => TranslateErrorInfo(switch (kind) {
-    ImageTranslateErrorKind.tooLarge => l10n.imageTranslateErrorTooLarge,
-    ImageTranslateErrorKind.unsupported => l10n.imageTranslateErrorUnsupported,
-    ImageTranslateErrorKind.invalidImage =>
-      l10n.imageTranslateErrorInvalidImage,
-    ImageTranslateErrorKind.noText => l10n.imageTranslateErrorNoText,
-    ImageTranslateErrorKind.permissionDenied =>
-      l10n.imageTranslateErrorPermission,
-    ImageTranslateErrorKind.pickFailed => l10n.imageTranslateErrorPick,
-    ImageTranslateErrorKind.noEngine => l10n.imageTranslateErrorNoEngine,
-    ImageTranslateErrorKind.unsupportedLanguage =>
-      l10n.imageTranslateErrorLanguage,
-    ImageTranslateErrorKind.recognitionFailed =>
-      l10n.imageTranslateErrorRecognition,
-    ImageTranslateErrorKind.recognitionLanguageUnsupported =>
-      l10n.imageTranslateErrorRecognitionLanguage,
-    ImageTranslateErrorKind.timeout => l10n.imageTranslateErrorTimeout,
-  }),
+  Object? error, {
+  ImageTranslateMethodKind? method,
+}) => switch (error) {
+  ImageTranslateException(:final kind, :final cause) => TranslateErrorInfo(
+    _imageErrorMessage(l10n, kind, method),
+    fix: kind == ImageTranslateErrorKind.serviceRefused
+        ? TranslateErrorFix.instances
+        : TranslateErrorFix.none,
+    details: sanitizeErrorDetails(cause),
+  ),
   _ => describeTranslateError(l10n, error),
+};
+
+String _imageErrorMessage(
+  AppLocalizations l10n,
+  ImageTranslateErrorKind kind,
+  ImageTranslateMethodKind? method,
+) => switch (kind) {
+  ImageTranslateErrorKind.tooLarge => l10n.imageTranslateErrorTooLarge,
+  ImageTranslateErrorKind.unsupported => l10n.imageTranslateErrorUnsupported,
+  ImageTranslateErrorKind.invalidImage => l10n.imageTranslateErrorInvalidImage,
+  ImageTranslateErrorKind.noText => l10n.imageTranslateErrorNoText,
+  ImageTranslateErrorKind.permissionDenied =>
+    l10n.imageTranslateErrorPermission,
+  ImageTranslateErrorKind.pickFailed => l10n.imageTranslateErrorPick,
+  ImageTranslateErrorKind.noEngine => l10n.imageTranslateErrorNoEngine,
+  ImageTranslateErrorKind.unsupportedLanguage =>
+    l10n.imageTranslateErrorLanguage,
+  ImageTranslateErrorKind.recognitionFailed =>
+    l10n.imageTranslateErrorRecognition,
+  ImageTranslateErrorKind.recognitionLanguageUnsupported =>
+    l10n.imageTranslateErrorRecognitionLanguage,
+  ImageTranslateErrorKind.timeout
+      when method == ImageTranslateMethodKind.mozhiLens =>
+    l10n.imageTranslateErrorTimeoutMozhi(
+      TranslationRepository.mozhiImageTimeout.inSeconds,
+    ),
+  ImageTranslateErrorKind.timeout => l10n.imageTranslateErrorTimeoutGeneric,
+  ImageTranslateErrorKind.serviceRefused =>
+    l10n.imageTranslateErrorServiceRefused,
 };

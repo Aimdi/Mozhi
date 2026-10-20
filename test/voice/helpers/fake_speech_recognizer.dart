@@ -9,6 +9,10 @@ class FakeSpeechRecognizer implements SpeechRecognizerAdapter {
   bool permission = true;
   Exception? permissionError;
 
+  /// Holds [hasPermission] until completed (never: a platform that does
+  /// not answer).
+  Completer<void>? permissionGate;
+
   /// Errors reported through `onError` while [initialize] runs.
   List<SpeechRecognizerError> initErrors = [];
 
@@ -22,7 +26,14 @@ class FakeSpeechRecognizer implements SpeechRecognizerAdapter {
     SpeechRecognizerLocale('pt_BR', 'Portuguese (Brazil)'),
   ];
   Exception? localesError;
+
+  /// Holds [locales] until completed (never: `speech_to_text` on Android
+  /// 13+ without an on-device recogniser).
+  Completer<void>? localesGate;
   String? systemLocale = 'en_US';
+
+  /// Holds [systemLocaleId] until completed.
+  Completer<void>? systemLocaleGate;
   Exception? listenError;
 
   /// Holds [listen] until completed.
@@ -31,6 +42,8 @@ class FakeSpeechRecognizer implements SpeechRecognizerAdapter {
 
   int initCalls = 0;
   int localeCalls = 0;
+  int systemLocaleCalls = 0;
+  int permissionCalls = 0;
   int stopCalls = 0;
   int cancelCalls = 0;
   final List<SpeechListenRequest> requests = [];
@@ -68,6 +81,8 @@ class FakeSpeechRecognizer implements SpeechRecognizerAdapter {
 
   @override
   Future<bool> hasPermission() async {
+    permissionCalls++;
+    if (permissionGate case final gate?) await gate.future;
     if (permissionError case final error?) throw error;
     return permission;
   }
@@ -75,12 +90,17 @@ class FakeSpeechRecognizer implements SpeechRecognizerAdapter {
   @override
   Future<List<SpeechRecognizerLocale>> locales() async {
     localeCalls++;
+    if (localesGate case final gate?) await gate.future;
     if (localesError case final error?) throw error;
     return localeList;
   }
 
   @override
-  Future<String?> systemLocaleId() async => systemLocale;
+  Future<String?> systemLocaleId() async {
+    systemLocaleCalls++;
+    if (systemLocaleGate case final gate?) await gate.future;
+    return systemLocale;
+  }
 
   @override
   Future<void> listen({

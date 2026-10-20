@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
 import 'package:speech_to_text/speech_to_text.dart';
@@ -160,11 +162,30 @@ abstract interface class OfflineSpeechRecognizerAdapter
 ///
 /// The plugin singleton is only touched on first use, so constructing the
 /// adapter never calls into platform code.
+///
+/// [locales] and [systemLocaleId] give up after [localeQueryTimeout] (an
+/// empty list / null: the recogniser's default language): on Android 13+
+/// `speech_to_text` 7.5 never answers its locale query when the device has
+/// no on-device recogniser or `checkRecognitionSupport` fails, and
+/// `systemLocale()` makes the same query. Once a query went unanswered,
+/// later ones are not tried again (they would not be answered either).
 class SpeechToTextAdapter implements SpeechRecognizerAdapter {
-  new({SpeechToText Function()? create}) : _create = create ?? SpeechToText.new;
+  new({
+    SpeechToText Function()? create,
+    this.localeQueryTimeout = defaultLocaleQueryTimeout,
+  }) : _create = create ?? SpeechToText.new;
+
+  /// Default of [localeQueryTimeout].
+  static const defaultLocaleQueryTimeout = Duration(seconds: 2);
+
+  /// How long [locales] and [systemLocaleId] wait for the platform.
+  final Duration localeQueryTimeout;
 
   final SpeechToText Function() _create;
   SpeechToText? _instance;
+
+  /// A locale query went unanswered: the platform cannot list locales.
+  bool _localesUnanswered = false;
 
   SpeechToText get _speech => _instance ??= _create();
 
@@ -196,13 +217,25 @@ class SpeechToTextAdapter implements SpeechRecognizerAdapter {
 
   @override
   Future<List<SpeechRecognizerLocale>> locales() async => [
-    for (final locale in await _speech.locales())
+    for (final locale in await _localeQuery(_speech.locales) ?? <LocaleName>[])
       SpeechRecognizerLocale(locale.localeId, locale.name),
   ];
 
   @override
   Future<String?> systemLocaleId() async =>
-      (await _speech.systemLocale())?.localeId;
+      (await _localeQuery(_speech.systemLocale))?.localeId;
+
+  /// Runs a locale [query]; null when it is not answered within
+  /// [localeQueryTimeout] (or an earlier one was not). Errors propagate.
+  Future<T?> _localeQuery<T extends Object>(Future<T?> Function() query) async {
+    if (_localesUnanswered) return null;
+    try {
+      return await query().timeout(localeQueryTimeout);
+    } on TimeoutException {
+      _localesUnanswered = true;
+      return null;
+    }
+  }
 
   @override
   Future<void> listen({

@@ -112,6 +112,7 @@ class ImageTranslateEmptyState extends StatelessWidget {
               ),
             ),
           ),
+          // Recommended first (the order of ImageTranslateMethodKind).
           for (final (index, kind) in [
             for (final kind in ImageTranslateMethodKind.values)
               if (kinds.contains(kind)) kind,
@@ -127,7 +128,7 @@ class ImageTranslateEmptyState extends StatelessWidget {
                 ImageTranslateMethodKind.aiVision =>
                   l10n.imageTranslateMethodAi(aiNames.join(', ')),
                 ImageTranslateMethodKind.mozhiLens =>
-                  l10n.imageTranslateMethodMozhi,
+                  l10n.imageTranslateMethodMozhiGoogle,
                 ImageTranslateMethodKind.onDevice =>
                   l10n.imageTranslateMethodOnDevice,
               }, style: const TextStyle(fontWeight: FontWeight.w700)),

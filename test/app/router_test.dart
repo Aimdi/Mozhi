@@ -27,6 +27,7 @@ import 'package:mozhi/settings/view/provider_editor_page.dart';
 import 'package:mozhi/settings/view/providers_page.dart';
 import 'package:mozhi/settings/view/quality_modes_page.dart';
 import 'package:mozhi/settings/view/settings_page.dart';
+import 'package:mozhi/settings/view/voice_input_settings_page.dart';
 import 'package:mozhi/translate/view/translate_page.dart';
 import 'package:mozhi/usage/view/usage_summary_page.dart';
 import 'package:mozhi/web_translate/cubit/web_translate_cubit.dart';
@@ -318,6 +319,7 @@ void main() {
       '/settings/glossaries': GlossariesPage,
       '/settings/usage': UsageSummaryPage,
       '/settings/quality': QualityModesPage,
+      AppRoutes.voiceSettings: VoiceInputSettingsPage,
       '/translate': TranslatePage,
     };
     for (final MapEntry(key: path, value: page) in pages.entries) {

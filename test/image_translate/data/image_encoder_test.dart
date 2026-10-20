@@ -34,6 +34,13 @@ Future<(int, int)> _size(Uint8List png) async {
 }
 
 void main() {
+  test('uploads stay small, and the retry copy smaller still', () {
+    expect(defaultMaxSide, 1600);
+    expect(defaultMaxBytes, 1500 * 1024);
+    expect(retryMaxSide, lessThan(defaultMaxSide));
+    expect(retryMaxBytes, 900 * 1024);
+  });
+
   group('UiImageEncoder.targetSize', () {
     test('keeps small images', () {
       final size = UiImageEncoder.targetSize(800, 600, 2048);

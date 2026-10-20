@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:bloc/bloc.dart';
+import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/image_translate/cubit/image_translate_state.dart';
 import 'package:mozhi/image_translate/data/data.dart';
 import 'package:mozhi/image_translate/models/models.dart';
@@ -13,10 +14,20 @@ export 'image_translate_state.dart';
 /// Drives the image translation screen.
 ///
 /// * [pickImage] / [setImage] load an image. It is translated right away
-///   only with on-device recognition (the preferred method when the device
-///   has it): a method that sends the photo off the device
-///   ([ImageTranslateMethod.uploadsImage], Mozhi / Google Lens, AI vision)
-///   waits for the user's explicit [translate].
+///   only with on-device recognition (the recommended and preferred method
+///   when the device has it): a method that sends the photo off the device
+///   ([ImageTranslateMethod.uploadsImage], Mozhi via Google Translate, AI
+///   vision) waits for the user's explicit [translate].
+/// * [recoverLostImage] continues with a photo Android could not hand over
+///   because it ended the app while the camera was open.
+/// * With a `store`, the method the user picks ([selectMethod]) is
+///   remembered and selected again next time while it is available and no
+///   image is shown yet ([methodRestored] completes once it was read).
+/// * Mozhi: a turned-down upload (HTTP 413, or the connection dropped while
+///   sending) is sent once more as a smaller copy ([retryMaxBytes]); an
+///   answer without image and text is
+///   [ImageTranslateErrorKind.serviceRefused]. [useOnDevice] switches a
+///   failed upload to on-device recognition.
 /// * Changing the method, source or target re-runs the translation the
 ///   same way (for on-device recognition a target change only
 ///   re-translates the recognised text); with an uploading method the
@@ -52,6 +63,7 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
     this.slowThreshold = const Duration(seconds: 12),
     this._usageTracker,
     List<String> preferredLanguages = const [],
+    this._store,
   }) : _picker = picker,
        _recognizer = recognizer,
        _preferredLanguages = List.unmodifiable(preferredLanguages),
@@ -69,7 +81,12 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
            options: options,
            canUseCamera: picker.supportsCamera,
          ),
-       );
+       ) {
+    methodRestored = _restoreMethod();
+  }
+
+  /// Where the chosen method's id is remembered ([KeyValueStore]).
+  static const methodKey = 'imageTranslate.method';
 
   static ImageTranslateState _initialState({
     required List<ImageTranslateMethod> methods,
@@ -109,6 +126,20 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
   /// bring-your-own-key provider; optional.
   final UsageTracker? _usageTracker;
 
+  /// Remembers the chosen method ([methodKey]); optional.
+  final KeyValueStore? _store;
+
+  /// Completes once the remembered method was read and, when it is
+  /// available and no image is shown yet, selected. Never fails.
+  late final Future<void> methodRestored;
+
+  /// The remembered method id (null until read, or when none is stored).
+  String? _rememberedId;
+
+  /// Whether the user picked a method on this screen: then the remembered
+  /// one is no longer restored.
+  bool _methodChosen = false;
+
   int _run = 0;
   Timer? _slowTimer;
   StreamSubscription<TranslationResult>? _subscription;
@@ -119,8 +150,10 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
   // ---------------------------------------------------------------------
 
   /// Recomputes the available methods (keeping the selected one when it is
-  /// still available) after engines, providers or the translator's engine
-  /// or options changed. Does not re-run the translation.
+  /// still available, or selecting the remembered one when it became
+  /// available before an image was picked) after engines, providers or the
+  /// translator's engine or options changed. Does not re-run the
+  /// translation.
   void updateContext({
     required List<TranslationEngine> engines,
     required List<AiProviderConfig> providers,
@@ -134,13 +167,12 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
       translateEngine: translateEngine,
     );
     final selected = state.method;
-    final kept = selected == null
-        ? null
-        : methods.where((method) => method.id == selected.id).firstOrNull;
+    final kept = ImageTranslateMethod.withId(methods, selected?.id);
     emit(
       state.copyWith(
         methods: methods,
         method: () =>
+            _remembered(methods) ??
             kept ??
             ImageTranslateMethod.preferred(
               methods,
@@ -150,6 +182,44 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
         options: options,
       ),
     );
+  }
+
+  /// The remembered method among [methods] while it may still replace the
+  /// selection: the user has not picked one here and no image is shown.
+  ImageTranslateMethod? _remembered(List<ImageTranslateMethod> methods) {
+    if (_methodChosen || state.status != ImageTranslateStatus.initial) {
+      return null;
+    }
+    return ImageTranslateMethod.withId(methods, _rememberedId);
+  }
+
+  Future<void> _restoreMethod() async {
+    final store = _store;
+    if (store == null) return;
+    try {
+      _rememberedId = await store.read(methodKey);
+    } on Object {
+      return;
+    }
+    if (isClosed) return;
+    final method = _remembered(state.methods);
+    if (method != null && method != state.method) {
+      emit(state.copyWith(method: () => method));
+    }
+  }
+
+  /// Remembers [method] for next time (never fails).
+  void _remember(ImageTranslateMethod method) {
+    _rememberedId = method.id;
+    final store = _store;
+    if (store == null) return;
+    try {
+      unawaited(
+        store.write(methodKey, method.id).then((_) {}, onError: (Object _) {}),
+      );
+    } on Object {
+      // Remembering the method must never break image translation.
+    }
   }
 
   // ---------------------------------------------------------------------
@@ -169,6 +239,22 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
       return;
     }
     if (image == null || isClosed) return;
+    await setImage(image);
+  }
+
+  /// Continues with a photo the picker could not deliver because Android
+  /// ended the app meanwhile (see [ImagePickerService.retrieveLost]), when
+  /// there is one and no image is shown yet. A failed pick is reported in
+  /// [ImageTranslateState.pickError].
+  Future<void> recoverLostImage() async {
+    final PickedImage? image;
+    try {
+      image = await _picker.retrieveLost();
+    } on Object catch (error) {
+      if (!isClosed) emit(state.copyWith(pickError: () => error));
+      return;
+    }
+    if (image == null || isClosed || state.hasImage) return;
     await setImage(image);
   }
 
@@ -215,8 +301,13 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
   // Options
   // ---------------------------------------------------------------------
 
+  /// Switches to [method] (one of [ImageTranslateState.methods]) and
+  /// remembers it; re-runs on-device recognition right away.
   Future<void> selectMethod(ImageTranslateMethod method) async {
-    if (method == state.method || !state.methods.contains(method)) return;
+    if (!state.methods.contains(method)) return;
+    _methodChosen = true;
+    if (method == state.method) return;
+    _remember(method);
     _cancelRun();
     emit(
       state.copyWith(
@@ -231,6 +322,15 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
       ),
     );
     await _translateUnlessUpload();
+  }
+
+  /// Translates the image with on-device recognition instead (after an
+  /// upload failed, see [ImageTranslateState.offersOnDevice]); no-op when
+  /// it is not available.
+  Future<void> useOnDevice() async {
+    final onDevice = state.onDeviceMethod;
+    if (onDevice == null) return;
+    await selectMethod(onDevice);
   }
 
   Future<void> setSource(Language language) async {
@@ -256,13 +356,14 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
 
   Future<void> setTarget(Language language) async {
     if (language == state.target || language.isAuto) return;
-    final recognized = state.canEditSourceText
-        ? state.result!.sourceText
-        : null;
+    final recognized = state.canEditSourceText ? state.result : null;
     _cancelRun();
     if (recognized != null) {
       emit(state.copyWith(target: language));
-      await translateText(recognized);
+      await _retranslate(
+        recognized.sourceText,
+        confidence: recognized.recognitionConfidence,
+      );
     } else {
       emit(_awaitingUpload(state.copyWith(target: language)));
       await _translateUnlessUpload();
@@ -312,12 +413,20 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
 
   /// Translates (edited) recognised [text] with the translator's engine,
   /// keeping the image.
-  Future<void> translateText(String text) async {
+  Future<void> translateText(String text) => _retranslate(text);
+
+  /// [translateText], keeping the recognition [confidence] of unedited
+  /// text.
+  Future<void> _retranslate(String text, {int? confidence}) async {
     final trimmed = text.trim();
     if (state.image == null || trimmed.isEmpty) return;
     final token = _start(ImageTranslatePhase.translatingText);
     try {
-      final result = await _translateRecognized(token, trimmed);
+      final result = await _translateRecognized(
+        token,
+        trimmed,
+        confidence: confidence,
+      );
       if (result != null) _succeed(token, result);
     } on Object catch (error) {
       _fail(token, error, ImageTranslateMethodKind.onDevice);
@@ -336,8 +445,12 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
       state.copyWith(
         status: ImageTranslateStatus.ready,
         slow: false,
-        result: () =>
-            keepText ? ImageTranslation(sourceText: recognized) : null,
+        result: () => keepText
+            ? ImageTranslation(
+                sourceText: recognized,
+                recognitionConfidence: state.result?.recognitionConfidence,
+              )
+            : null,
       ),
     );
   }
@@ -349,19 +462,43 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
   ) async {
     final png = await _encoder.encodePng(image.bytes);
     if (!_isCurrent(token)) return null;
-    emit(state.copyWith(phase: ImageTranslatePhase.uploading));
-    final result = await _repository.translateImage(
-      engine,
-      png,
-      mimeType: 'image/png',
-      source: state.source,
-      target: state.target,
-    );
+    Future<ImageTranslationResult> upload(Uint8List bytes) {
+      emit(state.copyWith(phase: ImageTranslatePhase.uploading));
+      return _repository.translateImage(
+        engine,
+        bytes,
+        mimeType: 'image/png',
+        source: state.source,
+        target: state.target,
+      );
+    }
+
+    ImageTranslationResult result;
+    try {
+      result = await upload(png);
+    } on Object catch (error) {
+      if (!_isCurrent(token) || !isUploadRejected(error)) rethrow;
+      // A proxy in front of the instance turned the upload down (or dropped
+      // it): once more, smaller.
+      emit(state.copyWith(phase: ImageTranslatePhase.preparing));
+      final smaller = await _encoder.encodePng(
+        image.bytes,
+        maxSide: retryMaxSide,
+        maxBytes: retryMaxBytes,
+      );
+      if (!_isCurrent(token)) return null;
+      if (smaller.lengthInBytes >= png.lengthInBytes) rethrow;
+      result = await upload(smaller);
+    }
     if (!_isCurrent(token)) return null;
     final translated = result.translatedImage;
     if ((translated == null || translated.isEmpty) &&
         result.translatedText.trim().isEmpty) {
-      throw const ImageTranslateException(ImageTranslateErrorKind.noText);
+      // Mozhi passes Google's answer on unchecked: nothing usable came
+      // back (refused, or no text found).
+      throw const ImageTranslateException(
+        ImageTranslateErrorKind.serviceRefused,
+      );
     }
     return ImageTranslation(
       translatedImage: translated == null || translated.isEmpty
@@ -431,23 +568,31 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
     int token,
     PickedImage image,
   ) async {
-    final text = (await _recognize(image)).trim();
+    final recognized = await _recognize(image);
+    final text = recognized.text.trim();
     if (!_isCurrent(token)) return null;
     if (text.isEmpty) {
       throw const ImageTranslateException(ImageTranslateErrorKind.noText);
     }
-    return await _translateRecognized(token, text);
+    return await _translateRecognized(
+      token,
+      text,
+      confidence: recognized.confidence,
+    );
   }
 
   /// The text in [image]. A recognizer with downloadable language data
   /// reads with the source's data, or for "Detect language" with the
   /// installed languages (the preferred ones first); missing data fails
   /// with [OcrDataMissingException] (offered for download by the view,
-  /// never downloaded here).
-  Future<String> _recognize(PickedImage image) async {
+  /// never downloaded here). The confidence is known when the recognizer
+  /// reports it ([TextRecognitionConfidence]).
+  Future<RecognizedText> _recognize(PickedImage image) async {
     final data = textRecognitionLanguageDataOf(_recognizer);
     if (data == null) {
-      return await _recognizer.recognize(image, source: state.source);
+      return RecognizedText(
+        await _recognizer.recognize(image, source: state.source),
+      );
     }
     final plan = await planTextRecognition(
       data,
@@ -455,10 +600,11 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
       preferred: _preferredLanguages,
     );
     return switch (plan) {
-      TextRecognitionReady(:final codes) => await data.recognizeWith(
-        image,
-        codes,
-      ),
+      TextRecognitionReady(:final codes) => switch (data) {
+        final TextRecognitionConfidence scored =>
+          await scored.recognizeWithConfidence(image, codes),
+        _ => RecognizedText(await data.recognizeWith(image, codes)),
+      },
       TextRecognitionNeedsData(:final missing) => throw missing,
       TextRecognitionUnsupported() => throw const ImageTranslateException(
         ImageTranslateErrorKind.recognitionLanguageUnsupported,
@@ -466,9 +612,18 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
     };
   }
 
-  /// Streams the translation of [text] into [ImageTranslateState.result].
-  Future<ImageTranslation?> _translateRecognized(int token, String text) async {
-    var current = ImageTranslation(sourceText: text, isComplete: false);
+  /// Streams the translation of [text] (read with [confidence]) into
+  /// [ImageTranslateState.result].
+  Future<ImageTranslation?> _translateRecognized(
+    int token,
+    String text, {
+    int? confidence,
+  }) async {
+    var current = ImageTranslation(
+      sourceText: text,
+      isComplete: false,
+      recognitionConfidence: confidence,
+    );
     emit(
       state.copyWith(
         phase: ImageTranslatePhase.translatingText,
@@ -632,7 +787,10 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
         // Keep recognised text so it can be fixed and translated again.
         result: () => result == null || result.sourceText.isEmpty
             ? null
-            : ImageTranslation(sourceText: result.sourceText),
+            : ImageTranslation(
+                sourceText: result.sourceText,
+                recognitionConfidence: result.recognitionConfidence,
+              ),
       ),
     );
   }
@@ -650,6 +808,24 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
     if (pending != null && !pending.isCompleted) pending.complete();
   }
 
+  /// Whether [error] means a proxy in front of the Mozhi instance turned
+  /// the upload down: HTTP 413, or the connection dropped while sending
+  /// (no status; not a timeout or a refused connection). A smaller copy may
+  /// get through.
+  static bool isUploadRejected(Object error) => switch (error) {
+    MozhiApiException(statusCode: 413) => true,
+    MozhiApiException(statusCode: null, :final message) =>
+      _writeFailure.hasMatch(message),
+    _ => false,
+  };
+
+  static final _writeFailure = RegExp(
+    'broken pipe|connection (?:was )?(?:reset|closed|aborted)|reset by peer|'
+    'connection abort|(?:write|send)(?:ing)? (?:failed|error)|'
+    'failed to (?:write|send)',
+    caseSensitive: false,
+  );
+
   /// Maps transport errors to [ImageTranslateException]s where image
   /// translation has a better explanation; other errors pass through.
   static Object mapError(Object error, {ImageTranslateMethodKind? method}) {
@@ -657,6 +833,10 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
         ImageTranslateException(kind, cause: error);
     return switch (error) {
       ImageTranslateException() => error,
+      MozhiApiException(statusCode: 502, :final message)
+          when method == ImageTranslateMethodKind.mozhiLens &&
+              message == TranslationRepository.imageNoResultMessage =>
+        wrap(ImageTranslateErrorKind.serviceRefused),
       MozhiApiException(statusCode: 413) || LlmApiException(statusCode: 413) =>
         wrap(ImageTranslateErrorKind.tooLarge),
       MozhiApiException(statusCode: 400 || 415 || 422) => wrap(

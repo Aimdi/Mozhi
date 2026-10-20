@@ -38,9 +38,12 @@ import 'package:mozhi/settings/view/provider_editor_page.dart';
 import 'package:mozhi/settings/view/providers_page.dart';
 import 'package:mozhi/settings/view/quality_modes_page.dart';
 import 'package:mozhi/settings/view/settings_page.dart';
+import 'package:mozhi/settings/view/voice_input_settings_page.dart';
 import 'package:mozhi/translate/view/translate_page.dart';
 import 'package:mozhi/usage/view/usage_summary_page.dart'
     deferred as usage_page;
+import 'package:mozhi/voice/widgets/voice_input_button.dart'
+    show VoiceInputButton;
 import 'package:mozhi/web_translate/view/web_translate_page.dart'
     deferred as web_page;
 import 'package:mozhi/web_translate/view/web_translate_route.dart';
@@ -69,6 +72,9 @@ abstract final class AppRoutes {
   /// AI provider usage this and last month.
   static const usage = '/settings/usage';
   static const quality = '/settings/quality';
+
+  /// Voice input settings (the offline speech models).
+  static const String voiceSettings = VoiceInputButton.settingsLocation;
 
   /// First-run flow (full screen, outside the tabs).
   static const String onboarding = onboardingLocation;
@@ -388,6 +394,10 @@ GoRouter createAppRouter({
                   GoRoute(
                     path: 'quality',
                     builder: (context, state) => const QualityModesPage(),
+                  ),
+                  GoRoute(
+                    path: 'voice',
+                    builder: (context, state) => const VoiceInputSettingsPage(),
                   ),
                   deferredRoute(
                     'usage',

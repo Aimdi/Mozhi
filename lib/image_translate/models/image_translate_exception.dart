@@ -35,8 +35,15 @@ enum ImageTranslateErrorKind {
   /// Xhosa, or Malay in Jawi script with Tesseract).
   recognitionLanguageUnsupported,
 
-  /// The server took too long (Google Lens can be slow on large images).
+  /// The server took too long (Mozhi's relay to Google Translate can be
+  /// slow on large images, see `TranslationRepository.mozhiImageTimeout`).
   timeout,
+
+  /// Mozhi answered without an image and without text: it passes Google
+  /// Translate's answer on unchecked, so Google refused the request (often
+  /// for that instance's address) or found no text. On-device recognition
+  /// does not depend on it.
+  serviceRefused,
 }
 
 @immutable

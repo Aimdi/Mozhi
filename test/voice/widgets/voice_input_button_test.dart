@@ -1,12 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/voice/voice.dart';
 
 import '../../helpers/helpers.dart';
 import '../helpers/fake_speech_recognizer.dart';
+
+class _MockGoRouter extends Mock implements GoRouter;
 
 void main() {
   late FakeSpeechRecognizer recognizer;
@@ -47,8 +53,11 @@ void main() {
     onListeningChanged: listeningChanges.add,
   );
 
-  Future<void> pump(WidgetTester tester, Widget child) =>
-      tester.pumpApp(Scaffold(body: Center(child: child)));
+  Future<void> pump(WidgetTester tester, Widget child, {GoRouter? router}) {
+    Widget page = Scaffold(body: Center(child: child));
+    if (router != null) page = InheritedGoRouter(goRouter: router, child: page);
+    return tester.pumpApp(page);
+  }
 
   Finder mic() => find.descendant(
     of: find.byType(VoiceInputButton),
@@ -74,6 +83,21 @@ void main() {
     await tester.tap(mic().first);
     await tester.pump();
     await tester.pump();
+  }
+
+  /// Dismisses the snack bar at once (so the next one can be found).
+  Future<void> dismissSnackBar(WidgetTester tester) async {
+    ScaffoldMessenger.of(tester.element(mic())).removeCurrentSnackBar();
+    await tester.pump();
+  }
+
+  void expectOff(WidgetTester tester) {
+    expect(mic(), findsOneWidget);
+    expect(find.byIcon(Icons.mic_off_outlined), findsOneWidget);
+    final off = iconButton(tester);
+    expect(off.tooltip, l10n.voiceInputUnavailable);
+    expect(off.onPressed, isNotNull);
+    expect(tester.getSize(find.byType(VoiceInputButton)), const Size(48, 48));
   }
 
   group(VoiceInputButton, () {
@@ -102,9 +126,8 @@ void main() {
       expect(tester.getSize(find.byType(VoiceInputButton)), Size.zero);
     });
 
-    testWidgets('hides itself and explains when permission is denied', (
-      tester,
-    ) async {
+    testWidgets('stays as an off mic and explains when permission is '
+        'denied', (tester) async {
       recognizer
         ..initResult = false
         ..permission = false;
@@ -112,22 +135,13 @@ void main() {
       await tapMic(tester);
       await tester.pump();
 
-      expect(mic(), findsNothing);
+      expectOff(tester);
       expect(find.text(l10n.voiceErrorPermission), findsOneWidget);
+      expect(find.byType(SnackBarAction), findsNothing);
       expect(received, isEmpty);
     });
 
-    testWidgets('explains when no recogniser is available', (tester) async {
-      recognizer.initResult = false;
-      await pump(tester, button());
-      await tapMic(tester);
-      await tester.pump();
-
-      expect(mic(), findsNothing);
-      expect(find.text(l10n.voiceErrorUnavailable), findsOneWidget);
-    });
-
-    testWidgets('reappears on resume once permission is granted', (
+    testWidgets('tapping the off mic tries again and explains again', (
       tester,
     ) async {
       recognizer
@@ -135,7 +149,47 @@ void main() {
         ..permission = false;
       await pump(tester, button());
       await tapMic(tester);
-      expect(mic(), findsNothing);
+      await dismissSnackBar(tester);
+      expect(find.text(l10n.voiceErrorPermission), findsNothing);
+
+      await tapMic(tester);
+      await tester.pump();
+      expect(recognizer.initCalls, 2);
+      expect(find.text(l10n.voiceErrorPermission), findsOneWidget);
+      expectOff(tester);
+
+      // Granted at the prompt this time.
+      recognizer
+        ..initResult = true
+        ..permission = true;
+      await tapMic(tester);
+      expect(iconButton(tester).isSelected, isTrue);
+      expect(find.byIcon(Icons.mic_off_outlined), findsNothing);
+      expect(listeningChanges, [true]);
+    });
+
+    testWidgets('explains when no recogniser is available, without an '
+        'offline model to offer', (tester) async {
+      recognizer.initResult = false;
+      final router = _MockGoRouter();
+      await pump(tester, button(), router: router);
+      await tapMic(tester);
+      await tester.pump();
+
+      expectOff(tester);
+      expect(find.text(l10n.voiceErrorUnavailable), findsOneWidget);
+      expect(find.byType(SnackBarAction), findsNothing);
+    });
+
+    testWidgets('is back to normal on resume once permission is granted', (
+      tester,
+    ) async {
+      recognizer
+        ..initResult = false
+        ..permission = false;
+      await pump(tester, button());
+      await tapMic(tester);
+      expectOff(tester);
 
       recognizer.permission = true;
       tester.binding
@@ -143,7 +197,98 @@ void main() {
         ..handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pump();
       await tester.pump();
-      expect(mic(), findsOneWidget);
+      expect(find.byIcon(Icons.mic_off_outlined), findsNothing);
+      expect(find.byIcon(Icons.mic_none_outlined), findsOneWidget);
+      expect(iconButton(tester).tooltip, l10n.voiceInputStart);
+    });
+
+    testWidgets('shows progress while starting; a second tap gives up', (
+      tester,
+    ) async {
+      recognizer.initGate = Completer<void>();
+      await pump(tester, button());
+      await tester.tap(mic());
+      await tester.pump();
+
+      expect(find.byKey(VoiceInputButton.startingKey), findsOneWidget);
+      expect(find.bySemanticsLabel(l10n.voiceInputStarting), findsOneWidget);
+      expect(iconButton(tester).tooltip, l10n.voiceInputCancelStart);
+      expect(iconButton(tester).isSelected, isFalse);
+      expect(listeningChanges, isEmpty);
+
+      await tapMic(tester);
+      expect(find.byKey(VoiceInputButton.startingKey), findsNothing);
+      expect(iconButton(tester).tooltip, l10n.voiceInputStart);
+
+      recognizer.initGate!.complete();
+      await tester.pump();
+      await tester.pump();
+      expect(recognizer.requests, isEmpty);
+      expect(service.isListening, isFalse);
+      expect(find.byKey(VoiceInputButton.startingKey), findsNothing);
+      expect(listeningChanges, isEmpty);
+    });
+
+    testWidgets('giving up a retry of the off mic shows no error', (
+      tester,
+    ) async {
+      recognizer.initResult = false;
+      await pump(tester, button());
+      await tapMic(tester);
+      await dismissSnackBar(tester);
+
+      recognizer.initGate = Completer<void>();
+      await tester.tap(mic());
+      await tester.pump();
+      // Trying again: progress instead of the off mic.
+      expect(find.byKey(VoiceInputButton.startingKey), findsOneWidget);
+      expect(find.byIcon(Icons.mic_off_outlined), findsNothing);
+
+      await tapMic(tester);
+      recognizer.initGate!.complete();
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(SnackBar), findsNothing);
+      expectOff(tester);
+    });
+
+    testWidgets('starts listening in the default language when the '
+        'recogniser never lists its locales', (tester) async {
+      recognizer.localesGate = Completer<void>();
+      await pump(tester, button(languageCode: 'fr'));
+      await tester.tap(mic());
+      await tester.pump();
+      expect(find.byKey(VoiceInputButton.startingKey), findsOneWidget);
+      expect(recognizer.requests, isEmpty);
+
+      await tester.pump(SpeechInputService.defaultQueryTimeout);
+      await tester.pump();
+      expect(recognizer.lastRequest.localeId, isNull);
+      expect(iconButton(tester).isSelected, isTrue);
+      expect(find.byKey(VoiceInputButton.startingKey), findsNothing);
+      expect(listeningChanges, [true]);
+
+      // The next session starts right away.
+      await tapMic(tester);
+      await tapMic(tester);
+      expect(recognizer.requests, hasLength(2));
+      expect(recognizer.localeCalls, 1);
+    });
+
+    testWidgets('cancels a session that is still starting when removed', (
+      tester,
+    ) async {
+      recognizer.initGate = Completer<void>();
+      await pump(tester, button());
+      await tester.tap(mic());
+      await tester.pump();
+      await pump(tester, const SizedBox());
+
+      recognizer.initGate!.complete();
+      await tester.pump();
+      await tester.pump();
+      expect(recognizer.requests, isEmpty);
+      expect(service.isListening, isFalse);
     });
 
     testWidgets('listens, shows the level ring and forwards results', (
@@ -395,7 +540,8 @@ void main() {
       );
       await tapMic(tester);
       await tester.pump();
-      expect(mic(), findsNothing);
+      expect(mic(), findsOneWidget);
+      expect(find.byIcon(Icons.mic_off_outlined), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });
@@ -428,6 +574,35 @@ void main() {
         ),
         l10n.voiceErrorLanguageOnDevice,
       );
+      expect(
+        voiceInputErrorMessage(
+          l10n,
+          SpeechInputFailure.recognizerUnavailable,
+          offlineModelDownloadable: true,
+        ),
+        l10n.voiceErrorUnavailableOfflineModel,
+      );
+    });
+
+    test('an offline model helps when it is missing or replaces a missing '
+        'recogniser', () {
+      for (final offlineSupported in [true, false]) {
+        expect(
+          {
+            for (final failure in SpeechInputFailure.values)
+              if (voiceInputFailureNeedsOfflineModel(
+                failure,
+                offlineSupported: offlineSupported,
+              ))
+                failure,
+          },
+          {
+            SpeechInputFailure.offlineModelMissing,
+            if (offlineSupported) SpeechInputFailure.recognizerUnavailable,
+          },
+          reason: 'offlineSupported: $offlineSupported',
+        );
+      }
     });
   });
 }

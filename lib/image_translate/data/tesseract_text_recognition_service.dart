@@ -24,7 +24,10 @@ import 'package:translation_repository/translation_repository.dart';
 /// (`dart:ui`). Downloads honour Wi-Fi only through
 /// `isMeteredConnection`.
 class TesseractTextRecognitionService
-    implements TextRecognitionService, TextRecognitionLanguageData {
+    implements
+        TextRecognitionService,
+        TextRecognitionLanguageData,
+        TextRecognitionConfidence {
   new({
     required this._open,
     required this.isSupported,
@@ -92,7 +95,14 @@ class TesseractTextRecognitionService
   }
 
   @override
-  Future<String> recognizeWith(PickedImage image, List<String> codes) async {
+  Future<String> recognizeWith(PickedImage image, List<String> codes) async =>
+      (await recognizeWithConfidence(image, codes)).text;
+
+  @override
+  Future<RecognizedText> recognizeWithConfidence(
+    PickedImage image,
+    List<String> codes,
+  ) async {
     final ocr = await _engine();
     final decoded = await _decoder.decode(image.bytes);
     try {
@@ -102,7 +112,7 @@ class TesseractTextRecognitionService
         decoded.height,
         languages: codes,
       );
-      return result.text;
+      return RecognizedText(result.text, confidence: result.meanConfidence);
     } on TessdataMissingException catch (error) {
       final language = ocr.catalog.byCode(error.missing.first);
       if (language == null) rethrow;
