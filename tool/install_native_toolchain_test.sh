@@ -6,6 +6,8 @@
 #
 #   sh tool/install_native_toolchain_test.sh
 set -eu
+# Only what each case passes may reach the script (CI sets some of these).
+unset ANDROID_SDK_ROOT INSTALL_RETRY_DELAY
 
 here=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 script="$here/install_native_toolchain.sh"
@@ -103,8 +105,12 @@ fi
 
 sdk=$(fresh no_version 0)
 status=0
-env ANDROID_HOME="$sdk" PATH="$sdk/bin:$PATH" CMAKE_VERSION=3.22.1 \
-  bash "$script" >/dev/null 2>"$sdk/stderr" || status=$?
+# CI sets NDK_VERSION for the whole job.
+(
+  unset NDK_VERSION
+  env ANDROID_HOME="$sdk" PATH="$sdk/bin:$PATH" CMAKE_VERSION=3.22.1 \
+    bash "$script" >/dev/null 2>"$sdk/stderr"
+) || status=$?
 if [ "$status" != 0 ] && grep -q 'NDK_VERSION' "$sdk/stderr" &&
   [ "$(installs "$sdk")" = 0 ]; then
   pass "fails before installing anything without NDK_VERSION"
