@@ -7,12 +7,12 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/engine_selector.dart';
-import 'package:mozhi/translate/widgets/language_bar.dart';
 import 'package:mozhi/usage/data/usage_tracker.dart';
 import 'package:mozhi/web_translate/core/readable_extractor.dart';
 import 'package:mozhi/web_translate/cubit/web_translate_cubit.dart';
 import 'package:mozhi/web_translate/data/page_extraction.dart';
 import 'package:mozhi/web_translate/data/web_page_fetcher.dart';
+import 'package:mozhi/web_translate/widgets/web_language_bar.dart';
 import 'package:mozhi/web_translate/widgets/web_reader.dart';
 import 'package:mozhi/web_translate/widgets/web_translate_status.dart';
 import 'package:mozhi/web_translate/widgets/web_url_field.dart';
@@ -108,6 +108,9 @@ class WebTranslateView extends StatefulWidget {
 
   /// From this width the side-by-side reader is available.
   static const wideBreakpoint = 840.0;
+
+  /// Max width of the address field and the language bar.
+  static const controlsMaxWidth = 760.0;
 
   @override
   State<WebTranslateView> createState() => _WebTranslateViewState();
@@ -205,11 +208,21 @@ class _WebTranslateViewState extends State<WebTranslateView> {
                   slivers: [
                     SliverPadding(
                       padding: EdgeInsets.fromLTRB(gutter, 16, gutter, 0),
+                      // The address and the bar keep the translate
+                      // composer's width; the reader below may be wider.
                       sliver: SliverToBoxAdapter(
-                        child: _Controls(
-                          controller: _url,
-                          isWeb: widget.isWeb,
-                          onLoad: _load,
+                        child: Align(
+                          alignment: Alignment.topCenter,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(
+                              maxWidth: WebTranslateView.controlsMaxWidth,
+                            ),
+                            child: _Controls(
+                              controller: _url,
+                              isWeb: widget.isWeb,
+                              onLoad: _load,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -241,13 +254,9 @@ class _Controls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = context.l10n;
     final cubit = context.read<WebTranslateCubit>();
     final urlInvalid = context.select<WebTranslateCubit, bool>(
       (cubit) => cubit.state.urlInvalid,
-    );
-    final loading = context.select<WebTranslateCubit, bool>(
-      (cubit) => cubit.state.status == WebTranslateStatus.loading,
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -263,25 +272,12 @@ class _Controls extends StatelessWidget {
           onSubmitted: onLoad,
         ),
         const SizedBox(height: 12),
-        const LanguageBar(),
+        // Options, languages and the go button, like the translate screen.
+        WebLanguageBar(onGo: onLoad),
         const SizedBox(height: 8),
-        Row(
-          children: [
-            const Expanded(
-              child: Align(
-                alignment: AlignmentDirectional.centerStart,
-                child: EngineSelectorButton(),
-              ),
-            ),
-            const SizedBox(width: 8),
-            FilledButton.icon(
-              key: const Key('web_translate_go_button'),
-              style: FilledButton.styleFrom(minimumSize: const Size(48, 48)),
-              onPressed: loading ? null : onLoad,
-              icon: const Icon(Icons.translate),
-              label: Text(l10n.webTranslateGo),
-            ),
-          ],
+        const Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: EngineSelectorButton(),
         ),
         const SizedBox(height: 16),
         WebTranslateStatusPanel(onRetryLoad: onLoad),

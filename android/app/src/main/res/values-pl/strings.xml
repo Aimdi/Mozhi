@@ -8,8 +8,8 @@
     <string name="tile_translate_description">Przetłumacz schowek za pomocą Mozhi</string>
     <string name="shortcut_clipboard_short">Schowek</string>
     <string name="shortcut_clipboard_long">Przetłumacz schowek</string>
-    <string name="shortcut_camera_short">Aparat</string>
-    <string name="shortcut_camera_long">Tłumaczenie z aparatu</string>
+    <string name="shortcut_dictionary_short">Słownik</string>
+    <string name="shortcut_dictionary_long">Słownik</string>
     <string name="shortcut_conversation_short">Rozmowa</string>
     <string name="shortcut_conversation_long">Rozmowa</string>
     <string name="shortcut_proofread_short">Korekta</string>

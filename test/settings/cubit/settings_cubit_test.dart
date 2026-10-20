@@ -201,6 +201,119 @@ void main() {
       );
     });
 
+    group('general', () {
+      mutation(
+        'setAppLocale',
+        act: (cubit) => cubit.setAppLocale(' de '),
+        expected: const AppSettings(appLocale: 'de'),
+      );
+      mutation(
+        'setAppLocale(null) follows the device again',
+        initial: const AppSettings(appLocale: 'ja'),
+        act: (cubit) => cubit.setAppLocale(null),
+        expected: const AppSettings(),
+      );
+      mutation(
+        'setAppLocale with a blank tag follows the device again',
+        initial: const AppSettings(appLocale: 'ja'),
+        act: (cubit) => cubit.setAppLocale('  '),
+        expected: const AppSettings(),
+      );
+      mutation(
+        'setHapticFeedback',
+        act: (cubit) => cubit.setHapticFeedback(enabled: false),
+        expected: const AppSettings(hapticFeedback: false),
+      );
+      mutation(
+        'setRememberQuality',
+        act: (cubit) => cubit.setRememberQuality(enabled: false),
+        expected: const AppSettings(rememberQuality: false),
+      );
+      mutation(
+        'setMultilineInput',
+        act: (cubit) => cubit.setMultilineInput(enabled: false),
+        expected: const AppSettings(multilineInput: false),
+      );
+      mutation(
+        'setTabOrder completes and dedupes the order',
+        act: (cubit) => cubit.setTabOrder(const [
+          AppTab.proofread,
+          AppTab.dictionary,
+          AppTab.proofread,
+        ]),
+        expected: const AppSettings(
+          tabOrder: [
+            AppTab.proofread,
+            AppTab.dictionary,
+            AppTab.translate,
+            AppTab.conversation,
+          ],
+        ),
+      );
+      mutation(
+        'moveTab moves a tab down to its final position',
+        act: (cubit) => cubit.moveTab(0, 2),
+        expected: const AppSettings(
+          tabOrder: [
+            AppTab.dictionary,
+            AppTab.proofread,
+            AppTab.translate,
+            AppTab.conversation,
+          ],
+        ),
+      );
+      mutation(
+        'moveTab moves a tab up',
+        act: (cubit) => cubit.moveTab(3, 0),
+        expected: const AppSettings(
+          tabOrder: [
+            AppTab.conversation,
+            AppTab.translate,
+            AppTab.dictionary,
+            AppTab.proofread,
+          ],
+        ),
+      );
+      mutation(
+        'moveTab clamps the target',
+        act: (cubit) => cubit.moveTab(1, 9),
+        expected: const AppSettings(
+          tabOrder: [
+            AppTab.translate,
+            AppTab.proofread,
+            AppTab.conversation,
+            AppTab.dictionary,
+          ],
+        ),
+      );
+      noOp(
+        'moveTab ignores an invalid index',
+        act: (cubit) {
+          cubit
+            ..moveTab(-1, 0)
+            ..moveTab(4, 0);
+        },
+      );
+      noOp('moveTab to the same place', act: (cubit) => cubit.moveTab(2, 2));
+      mutation(
+        'resetTabOrder',
+        initial: const AppSettings(
+          tabOrder: [
+            AppTab.conversation,
+            AppTab.translate,
+            AppTab.dictionary,
+            AppTab.proofread,
+          ],
+        ),
+        act: (cubit) => cubit.resetTabOrder(),
+        expected: const AppSettings(),
+      );
+      noOp(
+        'resetTabOrder in the default order',
+        act: (cubit) => cubit.resetTabOrder(),
+      );
+    });
+
     group('instances', () {
       const initial = AppSettings(instances: [_a, _b, _c]);
 

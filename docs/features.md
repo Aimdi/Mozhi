@@ -430,6 +430,17 @@ translate with a Mozhi engine) and are marked **AI-generated**.
 A link such as `/dictionary?word=gato&from=es&to=en` opens the Dictionary tab
 with the word filled in, but never looks it up on its own: press **Look up**.
 
+**Bookmarks.** Every look-up on the Dictionary tab that finds an entry is
+saved to [History](#history-and-favourites), under the same rules as
+translations (not with **Save history** off or in incognito). History keeps
+the word, its languages, the AI model, the detail level and a one-line
+summary (the part of speech and first definition, or else the first
+translation), not the whole entry; looking the same word up again with the
+same languages updates that one entry instead of adding another. The
+**heart** beside **New look-up** adds the word to your favourites (or takes
+it out), as on History; it saves the look-up even when history is off or in
+incognito, like the heart of a translation.
+
 ## Proofread
 
 **AI.** The **Proofread** tab (*Does this look right?*) checks grammar,
@@ -583,28 +594,45 @@ the device. Offline translation is not available on the web.
   after picking an alternative, the newest entry is updated instead of
   duplicated. Only the main translation is saved, not the translations into
   [extra target languages](#extra-target-languages).
+- [Dictionary](#dictionary) look-ups are saved too, as entries marked
+  **Dictionary** (a book icon): the word, its languages and a one-line
+  summary of the entry. Looking a word up again with the same languages
+  updates its entry and moves it to the top. Look-ups never count as
+  earlier translations ("From your history").
 - **History** (the clock button at the top of every tab) groups entries by
   day, with search across the text, the
-  translation and the language names, and an **All / Favorites** filter.
+  translation and the language names (for look-ups: the word and its
+  summary), and an **All / Favorites** filter.
   Below the search, **All language pairs** narrows the list to one pair
-  (each with its number of translations; a detected source counts as the
+  (each with its number of entries; a detected source counts as the
   language it was detected as), and the **On device**, **Self-hosted**, **Public server**
   and **Cloud** chips to where the text was translated (only those that occur
   in your history are shown). Mozhi entries are classed by your current
-  preferred instance, since an entry doesn't record which instance answered.
-  **Clear filters** shows everything again. Tap an entry to open it in the
-  translator; swipe it away to delete it (with undo).
-- Star a translation to make it a **favourite**. Favourites are never removed
-  automatically; the newest 1,000 other entries are kept.
-- **Settings > Delete history automatically** removes translations older
-  than 1, 7 or 30 days (**Never** by default); starred translations are
-  always kept. If older translations already exist, Mozhi asks first
+  preferred instance, since an entry doesn't record which instance answered;
+  look-ups by the AI model that wrote them (a local model is **Self-hosted**,
+  other providers **Cloud**).
+  **Clear filters** shows everything again. Tap a translation to open it in
+  the translator, or a look-up to open the Dictionary tab, which looks the
+  word up again with the detail level it was saved with (the entry itself is
+  not stored, so this is a new request to the AI model). Swipe an entry
+  towards the start to delete it, or towards the end to add it to (or
+  remove it from) your favourites; both offer **Undo**, and screen readers
+  get the same actions on each entry.
+- Tap the heart on a translation or a dictionary entry to make it a
+  **favourite**. Long-press the History button to open **Favorites**
+  directly. Favourites are never removed automatically; the newest 1,000
+  other entries (translations and look-ups together) are kept.
+- **Settings > Delete history automatically** removes translations and
+  look-ups older than 1, 7 or 30 days (**Never** by default); favourites
+  are always kept. If older entries already exist, Mozhi asks first
   (**Delete older translations now?**). While it is on, the History page says
   so, and **Import history** skips entries older than the setting.
-- **Clear history** can keep your favourites.
-- **Settings > Export history** copies your history as JSON or shares it as a
-  file (plain, unencrypted JSON); **Import history** merges such JSON into
-  your history, for example on a new phone.
+- **Clear history** removes look-ups too, and can keep your favourites.
+- **Settings > Export history** copies your history, look-ups included, as
+  JSON or shares it as a file (plain, unencrypted JSON); **Import history**
+  merges such JSON into your history, for example on a new phone. Exports
+  from older versions import as before; a look-up of a word you already
+  have keeps your entry (and becomes a favourite if the imported one was).
 - On the device the history is encrypted (AES-256-GCM, with the key in
   secure storage), and it is never part of a backup or a device transfer.
 
@@ -620,8 +648,8 @@ stays behind (details in [Privacy](privacy.md)):
   once each). A prompt shows the destination before anything is sent and
   offers **Once**, **Always for** the pair, downloading the pair for
   offline use, or changing the mode.
-- **Incognito**: new translations aren't saved, and keyboards are asked
-  not to learn what you type.
+- **Incognito**: new translations and dictionary look-ups aren't saved,
+  and keyboards are asked not to learn what you type.
 - **Hide content in recents & block screenshots** (Android): also blocks
   screen recording and screen sharing.
 - **HTTP proxy** (Android): every request goes through it, for example

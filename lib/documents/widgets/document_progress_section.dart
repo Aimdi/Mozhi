@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/composer_card.dart';
 import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/documents/cubit/document_translate_cubit.dart';
@@ -10,8 +11,40 @@ import 'package:mozhi/translate/widgets/translate_error.dart';
 import 'package:translation_repository/translation_repository.dart'
     show ConsentRequiredException;
 
-/// The translate button, or progress with a cancel button while running,
-/// then the outcome (complete / parts missing).
+/// The go button of the document (the translate screen's rocket, at the
+/// end of the language bar): translates the document, or translates it
+/// again once there is a translation. Disabled while there is nothing to
+/// translate; a progress ring turns around it while translating.
+class DocumentTranslateButton extends StatelessWidget {
+  const new({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final (canTranslate, hasTranslation, translating) = context
+        .select<DocumentTranslateCubit, (bool, bool, bool)>(
+          (cubit) => (
+            cubit.state.canTranslate,
+            cubit.state.hasTranslation,
+            cubit.state.isTranslating,
+          ),
+        );
+    return ComposerGoButton(
+      key: const Key('documents_translate'),
+      label: hasTranslation
+          ? l10n.documentsTranslateAgain
+          : l10n.documentsTranslate,
+      busy: translating,
+      onPressed: canTranslate
+          ? () => unawaited(context.read<DocumentTranslateCubit>().translate())
+          : null,
+    );
+  }
+}
+
+/// Progress with a cancel button while translating, then the outcome
+/// (complete / parts missing, with a retry). The translate button itself
+/// is the language bar's [DocumentTranslateButton].
 class DocumentProgressSection extends StatelessWidget {
   const new({super.key});
 
@@ -31,8 +64,7 @@ class DocumentProgressSection extends StatelessWidget {
             key: const Key('documents_progress'),
             value: state.progress,
             minHeight: 6,
-            borderRadius: BorderRadius.circular(3),
-            backgroundColor: AppPalette.of(context).hairline,
+            borderRadius: const BorderRadius.all(Radius.circular(3)),
             semanticsLabel: l10n.documentsProgress(
               state.doneChunks,
               state.chunkCount,
@@ -50,11 +82,6 @@ class DocumentProgressSection extends StatelessWidget {
               ),
               OutlinedButton.icon(
                 key: const Key('documents_cancel'),
-                style: OutlinedButton.styleFrom(
-                  shape: const StadiumBorder(),
-                  side: BorderSide(color: AppPalette.of(context).hairline),
-                  textStyle: const TextStyle(fontWeight: FontWeight.w700),
-                ),
                 onPressed: cubit.cancel,
                 icon: const Icon(Icons.stop_circle_outlined),
                 label: Text(l10n.commonCancel),
@@ -66,52 +93,27 @@ class DocumentProgressSection extends StatelessWidget {
     }
 
     final translated = state.status == DocumentStatus.translated;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: 12,
-      children: [
-        if (translated && state.isComplete)
-          _Status(
-            key: const Key('documents_done'),
-            icon: Icons.check_circle,
-            color: AppPalette.of(context).success,
-            text: l10n.documentsDone,
-          ),
-        if (translated && !state.isComplete)
-          _Status(
-            key: const Key('documents_pending'),
-            icon: Icons.warning_amber_rounded,
-            color: theme.colorScheme.error,
-            text: l10n.documentsPending(state.pendingChunks),
-            action: TextButton(
-              key: const Key('documents_retry_all'),
-              onPressed: state.canTranslate
-                  ? () => unawaited(cubit.retryFailed())
-                  : null,
-              child: Text(l10n.documentsRetryAll),
-            ),
-          ),
-        FilledButton.icon(
-          key: const Key('documents_translate'),
-          style: FilledButton.styleFrom(
-            shape: const StadiumBorder(),
-            minimumSize: const Size(0, 52),
-            textStyle: const TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 16,
-            ),
-          ),
-          onPressed: state.canTranslate
-              ? () => unawaited(cubit.translate())
-              : null,
-          icon: const Icon(Icons.translate),
-          label: Text(
-            state.hasTranslation
-                ? l10n.documentsTranslateAgain
-                : l10n.documentsTranslate,
-          ),
-        ),
-      ],
+    if (!translated) return const SizedBox.shrink();
+    if (state.isComplete) {
+      return _Status(
+        key: const Key('documents_done'),
+        icon: Icons.check_circle,
+        color: AppPalette.of(context).success,
+        text: l10n.documentsDone,
+      );
+    }
+    return _Status(
+      key: const Key('documents_pending'),
+      icon: Icons.warning_amber_rounded,
+      color: theme.colorScheme.error,
+      text: l10n.documentsPending(state.pendingChunks),
+      action: TextButton(
+        key: const Key('documents_retry_all'),
+        onPressed: state.canTranslate
+            ? () => unawaited(cubit.retryFailed())
+            : null,
+        child: Text(l10n.documentsRetryAll),
+      ),
     );
   }
 }
@@ -132,16 +134,12 @@ class _Status extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Row(
       spacing: 8,
       children: [
         Icon(icon, color: color),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
-        ),
+        Expanded(child: Text(text, style: theme.textTheme.titleSmall)),
         ?action,
       ],
     );
@@ -203,8 +201,7 @@ class DocumentFailuresCard extends StatelessWidget {
             header: true,
             child: Text(
               l10n.documentsFailedTitle,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
+              style: theme.textTheme.titleLarge?.copyWith(
                 color: theme.colorScheme.error,
               ),
             ),
@@ -217,14 +214,8 @@ class DocumentFailuresCard extends StatelessWidget {
             key: Key('documents_failure_$index'),
             contentPadding: const EdgeInsetsDirectional.only(start: 4),
             leading: Icon(Icons.error_outline, color: theme.colorScheme.error),
-            title: Text(
-              l10n.documentsPartLabel(index + 1),
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-            subtitle: Text(
-              describeTranslateError(l10n, error).message,
-              style: TextStyle(color: AppPalette.of(context).secondaryText),
-            ),
+            title: Text(l10n.documentsPartLabel(index + 1)),
+            subtitle: Text(describeTranslateError(l10n, error).message),
             trailing: IconButton(
               tooltip: l10n.documentsRetryPart(index + 1),
               color: theme.colorScheme.primary,

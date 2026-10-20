@@ -109,6 +109,11 @@ class ConversationSwapButton extends StatelessWidget {
 /// The language pair as one outlined pill: side A's language, the swap
 /// button and side B's language (source ⇄ target). Each language opens
 /// its picker ([pickConversationLanguage]).
+///
+/// During a hands-free conversation the language whose turn it is is
+/// highlighted in its side's colours, and tapping a language lets that
+/// side speak next ([ConversationCubit.switchTurn]); a long press still
+/// opens the picker.
 class ConversationLanguagePill extends StatelessWidget {
   const new({super.key});
 
@@ -148,42 +153,74 @@ class _PillLanguage extends StatelessWidget {
     final language = context.select<ConversationCubit, Language>(
       (cubit) => cubit.state.languageOf(side),
     );
-    final label = l10n.conversationChangeLanguage(language.name);
+    // During a hands-free conversation: whether it is this side's turn.
+    final turn = context.select<ConversationCubit, bool?>((cubit) {
+      final session = cubit.state.session;
+      return session.isActive ? session.side == side : null;
+    });
+    final inSession = turn != null;
+    final active = turn ?? false;
+    final colors = ConversationSideColors.of(context, side);
+    final pick = l10n.conversationChangeLanguage(language.name);
+    final label = inSession
+        ? l10n.conversationSessionSpeakNext(language.name)
+        : pick;
+    void openPicker() => unawaited(pickConversationLanguage(context, side));
+    void speakNext() => context.read<ConversationCubit>().switchTurn(side);
     return Tooltip(
       message: label,
       excludeFromSemantics: true,
       child: Semantics(
         button: true,
+        selected: inSession ? active : null,
         label: label,
         excludeSemantics: true,
-        child: InkWell(
-          key: Key('conversation_language_${side.name}'),
-          customBorder: const StadiumBorder(),
-          onTap: () => unawaited(pickConversationLanguage(context, side)),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 48),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  LanguageAvatar(
-                    code: language.isCustom ? language.name : language.code,
-                    size: 24,
+        onTap: inSession ? speakNext : openPicker,
+        onLongPress: inSession ? openPicker : null,
+        onLongPressHint: inSession ? pick : null,
+        child: Material(
+          type: MaterialType.transparency,
+          child: Ink(
+            decoration: ShapeDecoration(
+              shape: const StadiumBorder(),
+              color: active ? colors.container : null,
+            ),
+            child: InkWell(
+              key: Key('conversation_language_${side.name}'),
+              customBorder: const StadiumBorder(),
+              onTap: inSession ? speakNext : openPicker,
+              onLongPress: inSession ? openPicker : null,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 48),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 6,
                   ),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      language.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        color: theme.colorScheme.onSurface,
-                        fontWeight: FontWeight.w700,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      LanguageAvatar(
+                        code: language.isCustom ? language.name : language.code,
+                        size: 24,
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          language.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            color: active
+                                ? colors.onContainer
+                                : theme.colorScheme.onSurface,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),

@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:mozhi/core/widgets/x_ui.dart';
+import 'package:mozhi/core/widgets/language_pair_bar.dart';
 import 'package:mozhi/image_translate/cubit/image_translate_cubit.dart';
 import 'package:mozhi/image_translate/widgets/image_language_picker.dart';
 import 'package:mozhi/image_translate/widgets/image_translate_labels.dart';
@@ -43,8 +43,11 @@ Future<void> pickImageLanguage(
   unawaited(source ? cubit.setSource(picked) : cubit.setTarget(picked));
 }
 
-/// Source and target of the image translation. Starts from the translator's
-/// languages; changes only apply to image translation.
+/// Source and target of the image translation, in the look of the
+/// translate screen's language bar ([LanguagePairBar]); a detected source
+/// shows a sparkle, like there. Starts from the translator's languages;
+/// changes only apply to image translation. The languages cannot be
+/// swapped here: an arrow points from the photo's language to the target.
 class ImageLanguageBar extends StatelessWidget {
   const new({super.key});
 
@@ -55,94 +58,35 @@ class ImageLanguageBar extends StatelessWidget {
     final languages = context.select<TranslateCubit, List<Language>>(
       (cubit) => cubit.state.sourceLanguages,
     );
-    final detected = state.result?.detectedSource;
-    final sourceLabel = state.source.isAuto && detected != null
-        ? l10n.translateDetectedLanguage(
-            imageLanguageNameFor(detected, languages),
-          )
-        : imageLanguageLabel(l10n, state.source);
+    final detected = state.source.isAuto ? state.result?.detectedSource : null;
+    final detectedName = detected == null
+        ? null
+        : imageLanguageNameFor(detected, languages);
+    // Read out (and shown on hover) in full: "Detected: Japanese".
+    final sourceDescription = detectedName == null
+        ? imageLanguageLabel(l10n, state.source)
+        : l10n.translateDetectedLanguage(detectedName);
     final targetLabel = imageLanguageLabel(l10n, state.target);
-    return Row(
-      children: [
-        Expanded(
-          child: _LanguageButton(
-            key: const Key('image_translate_source_button'),
-            label: sourceLabel,
-            semanticLabel: l10n.translateSourceLanguage(sourceLabel),
-            code: state.source.isAuto && detected != null
-                ? detected
-                : state.source.code,
-            onPressed: () =>
-                unawaited(pickImageLanguage(context, source: true)),
-          ),
-        ),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 8),
-          child: ExcludeSemantics(child: Icon(Icons.arrow_forward, size: 20)),
-        ),
-        Expanded(
-          child: _LanguageButton(
-            key: const Key('image_translate_target_button'),
-            label: targetLabel,
-            semanticLabel: l10n.translateTargetLanguage(targetLabel),
-            code: state.target.isCustom ? null : state.target.code,
-            onPressed: () =>
-                unawaited(pickImageLanguage(context, source: false)),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// An outlined hairline pill with the language's avatar.
-class _LanguageButton extends StatelessWidget {
-  const new({
-    required this.label,
-    required this.semanticLabel,
-    required this.onPressed,
-    this.code,
-    super.key,
-  });
-
-  final String label;
-  final String semanticLabel;
-
-  /// Language code for the avatar; null shows none (custom targets).
-  final String? code;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = AppPalette.of(context);
-    final code = this.code;
-    return Semantics(
-      button: true,
-      label: semanticLabel,
-      excludeSemantics: true,
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          minimumSize: const Size(0, 48),
-          foregroundColor: Theme.of(context).colorScheme.onSurface,
-          side: BorderSide(color: palette.hairline),
-          shape: const StadiumBorder(),
-          padding: const EdgeInsetsDirectional.fromSTEB(6, 6, 8, 6),
-          textStyle: const TextStyle(fontWeight: FontWeight.w700),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (code != null) ...[
-              LanguageAvatar(code: code, size: 28),
-              const SizedBox(width: 8),
-            ],
-            Flexible(
-              child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-            ),
-            Icon(Icons.expand_more, size: 20, color: palette.secondaryText),
-          ],
-        ),
+    return LanguagePairBar(
+      key: const Key('image_translate_language_bar'),
+      source: LanguagePairSide(
+        key: const Key('image_translate_source_button'),
+        label: detectedName ?? sourceDescription,
+        semanticLabel: l10n.translateSourceLanguage(sourceDescription),
+        tooltip: sourceDescription,
+        icon: detectedName != null
+            ? Icons.auto_awesome_outlined
+            : state.source.isCustom
+            ? Icons.auto_awesome
+            : null,
+        onPressed: () => unawaited(pickImageLanguage(context, source: true)),
+      ),
+      target: LanguagePairSide(
+        key: const Key('image_translate_target_button'),
+        label: targetLabel,
+        semanticLabel: l10n.translateTargetLanguage(targetLabel),
+        icon: state.target.isCustom ? Icons.auto_awesome : null,
+        onPressed: () => unawaited(pickImageLanguage(context, source: false)),
       ),
     );
   }

@@ -113,5 +113,30 @@ void main() {
       );
       expect(find.text('Press ? for keyboard shortcuts'), findsOneWidget);
     });
+
+    testWidgets('shows the quality chip above the app mark', (tester) async {
+      final harness = TranslateHarness(
+        state: readyState(engine: claude).copyWith(
+          qualityMode: QualityMode.best,
+          fastEngine: () => google,
+          bestEngine: () => claude,
+        ),
+      );
+      await harness.pump(tester, child: const TranslateHero());
+      final chip = find.byKey(const Key('translate_quality_chip'));
+      expect(chip, findsOneWidget);
+      expect(find.text('Best'), findsOneWidget);
+      final mark = tester.getRect(find.byIcon(Icons.translate_rounded));
+      final rect = tester.getRect(chip);
+      expect(rect.bottom, lessThanOrEqualTo(mark.top - 24));
+      expect(rect.center.dx, closeTo(mark.center.dx, 0.5));
+    });
+
+    testWidgets('has no quality chip without quality modes', (tester) async {
+      final harness = TranslateHarness();
+      await harness.pump(tester, child: const TranslateHero());
+      expect(find.byKey(const Key('translate_quality_chip')), findsNothing);
+      expect(find.byType(QualityChip), findsNothing);
+    });
   });
 }

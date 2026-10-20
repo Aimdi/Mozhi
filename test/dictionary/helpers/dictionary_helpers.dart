@@ -1,6 +1,8 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/dictionary/cubit/dictionary_cubit.dart';
+import 'package:mozhi/history/cubit/history_cubit.dart';
+import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -18,6 +20,40 @@ class MockSettingsCubit extends MockCubit<AppSettings> implements SettingsCubit;
 
 class MockDictionaryCubit extends MockCubit<DictionaryState>
     implements DictionaryCubit;
+
+class MockHistoryCubit extends MockCubit<HistoryState> implements HistoryCubit;
+
+/// A [MockHistoryCubit] with [state] whose changes succeed.
+MockHistoryCubit createDictionaryHistory([
+  HistoryState state = const HistoryState(status: HistoryStatus.ready),
+]) {
+  final history = MockHistoryCubit();
+  when(() => history.state).thenReturn(state);
+  when(() => history.add(any())).thenAnswer((_) async {});
+  when(() => history.toggleFavorite(any())).thenAnswer((_) async {});
+  return history;
+}
+
+/// The history entry of a look-up of `gato` ([gatoEntry]) from Spanish
+/// into English with Claude.
+HistoryEntry gatoLookUp({
+  String id = 'dictionary:1',
+  bool isFavorite = false,
+  Language source = spanish,
+  Language target = english,
+}) => HistoryEntry(
+  id: id,
+  kind: HistoryEntryKind.dictionary,
+  text: 'gato',
+  translation: 'noun · A small domesticated feline.',
+  source: source,
+  target: target,
+  engineId: claudeEngine.id,
+  engineName: claudeEngine.name,
+  createdAt: DateTime(2026, 10, 20),
+  verbosity: DictionaryVerbosity.standard,
+  isFavorite: isFavorite,
+);
 
 const english = Language(code: 'en', name: 'English');
 const spanish = Language(code: 'es', name: 'Spanish', nativeName: 'Español');
@@ -84,4 +120,5 @@ void registerDictionaryFallbacks() {
   registerFallbackValue(claudeEngine);
   registerFallbackValue(english);
   registerFallbackValue(DictionaryVerbosity.standard);
+  registerFallbackValue(gatoLookUp());
 }

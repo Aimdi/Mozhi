@@ -1,6 +1,9 @@
 import 'package:equatable/equatable.dart';
+import 'package:mozhi/conversation/cubit/conversation_session.dart';
 import 'package:mozhi/conversation/models/conversation_turn.dart';
 import 'package:translation_repository/translation_repository.dart';
+
+export 'conversation_session.dart';
 
 class ConversationState extends Equatable {
   const new({
@@ -12,6 +15,8 @@ class ConversationState extends Equatable {
     this.speakingTurnId,
     this.speechFailures = 0,
     this.lastSpeechFailure,
+    this.handsFree = false,
+    this.session = ConversationSession.idle,
   });
 
   /// Language spoken by [ConversationSide.a] (the phone's owner).
@@ -42,6 +47,13 @@ class ConversationState extends Equatable {
   /// Mozhi instance to read it (`asked`: then nothing more is offered).
   final ConversationSpeechFailure? lastSpeechFailure;
 
+  /// Whether a hands-free conversation can be started ([session]): a speech
+  /// recogniser is available.
+  final bool handsFree;
+
+  /// The hands-free conversation (see [ConversationSession]).
+  final ConversationSession session;
+
   /// Language spoken by [side].
   Language languageOf(ConversationSide side) =>
       side == ConversationSide.a ? languageA : languageB;
@@ -65,6 +77,7 @@ class ConversationState extends Equatable {
     int? Function()? speakingTurnId,
     int? speechFailures,
     ConversationSpeechFailure? lastSpeechFailure,
+    ConversationSession? session,
   }) => ConversationState(
     languageA: languageA ?? this.languageA,
     languageB: languageB ?? this.languageB,
@@ -76,6 +89,8 @@ class ConversationState extends Equatable {
         : this.speakingTurnId,
     speechFailures: speechFailures ?? this.speechFailures,
     lastSpeechFailure: lastSpeechFailure ?? this.lastSpeechFailure,
+    handsFree: handsFree,
+    session: session ?? this.session,
   );
 
   @override
@@ -88,6 +103,8 @@ class ConversationState extends Equatable {
     speakingTurnId,
     speechFailures,
     lastSpeechFailure,
+    handsFree,
+    session,
   ];
 }
 

@@ -106,6 +106,21 @@ void main() {
       verify(harness.translate.swap).called(1);
     });
 
+    testWidgets('swapping does not tick with haptic feedback off', (
+      tester,
+    ) async {
+      final clipboard = FakeClipboard(tester);
+      final harness = TranslateHarness(
+        state: translatedState(),
+        settings: const AppSettings(hapticFeedback: false),
+      );
+      await harness.pump(tester, child: const LanguageBar());
+      await tester.tap(find.byKey(const Key('translate_swap_button')));
+      await tester.pump();
+      expect(clipboard.haptics, isEmpty);
+      verify(harness.translate.swap).called(1);
+    });
+
     testWidgets('swapping ticks and turns the icon', (tester) async {
       final clipboard = FakeClipboard(tester);
       final harness = TranslateHarness(state: translatedState());
@@ -280,6 +295,184 @@ void main() {
       );
     });
 
+    // (The test font draws every character 1 em wide: at 100 % text a name
+    // takes 14 dp per character, "German" 84 dp, "DE" 28 dp; the chevron
+    // takes 18 dp, the sparkle 24 dp.)
+
+    Finder inButton(String key, Finder finder) =>
+        find.descendant(of: find.byKey(Key(key)), matching: finder);
+
+    Finder chevronOf(String key) =>
+        inButton(key, find.byIcon(Icons.expand_more));
+
+    testWidgets('a name that does not fit first loses the chevron', (
+      tester,
+    ) async {
+      // 90 dp for each button's content.
+      final harness = TranslateHarness(
+        state: readyState(source: english, target: german),
+      );
+      await pumpBar(tester, harness, width: 360);
+      expect(find.text('German'), findsOneWidget);
+      expect(chevronOf('translate_target_button'), findsNothing);
+      // "English" needs 98 dp: its code, with the chevron.
+      expect(find.text('English'), findsNothing);
+      expect(find.text('EN'), findsOneWidget);
+      expect(chevronOf('translate_source_button'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('falls back to the language codes, then drops chevrons', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(
+        state: readyState(source: english, target: german),
+      );
+      // 51 dp each: "DE" and the chevron.
+      await pumpBar(tester, harness, width: 282);
+      expect(find.text('EN'), findsOneWidget);
+      expect(find.text('DE'), findsOneWidget);
+      expect(find.text('German'), findsNothing);
+      expect(chevronOf('translate_source_button'), findsOneWidget);
+      expect(chevronOf('translate_target_button'), findsOneWidget);
+
+      // 40 dp each: the codes alone.
+      await pumpBar(tester, harness, width: 260);
+      expect(find.text('EN'), findsOneWidget);
+      expect(find.text('DE'), findsOneWidget);
+      expect(find.byIcon(Icons.expand_more), findsNothing);
+      // Screen readers and the tooltip still get the names.
+      expect(find.bySemanticsLabel('Source language: English'), findsOneWidget);
+      expect(find.bySemanticsLabel('Target language: German'), findsOneWidget);
+      expect(findTooltipMessage('German'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a regional language falls back to its code, then its base', (
+      tester,
+    ) async {
+      const brazil = Language(code: 'pt-BR', name: 'Portuguese (Brazil)');
+      final harness = TranslateHarness(
+        state: readyState(source: english, target: brazil),
+      );
+      await pumpBar(tester, harness, width: 360);
+      expect(find.text('PT-BR'), findsOneWidget);
+      await pumpBar(tester, harness, width: 282);
+      expect(find.text('PT'), findsOneWidget);
+      expect(find.text('PT-BR'), findsNothing);
+      expect(findTooltipMessage('Portuguese (Brazil)'), findsOneWidget);
+    });
+
+    testWidgets('a new name that fits shows whole while it slides in', (
+      tester,
+    ) async {
+      // "Portuguese (Brazil)" does not fit the 90 dp button ("PT-BR");
+      // "French" does. The old name, fading out, is not measured: the new
+      // one is not shown as "FR" until the motion ends.
+      const brazil = Language(code: 'pt-BR', name: 'Portuguese (Brazil)');
+      final states = StreamController<TranslateState>();
+      addTearDown(states.close);
+      final initial = readyState(source: english, target: brazil);
+      final harness = TranslateHarness(state: initial);
+      whenListen(harness.translate, states.stream, initialState: initial);
+      await pumpBar(tester, harness, width: 360);
+      expect(find.text('PT-BR'), findsOneWidget);
+
+      // The target goes back to the default, French.
+      states.add(readyState(source: english));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.byType(SlideTransition), findsWidgets);
+      expect(find.text('French'), findsOneWidget);
+      expect(find.text('FR'), findsNothing);
+      final during = rectOf(tester, 'translate_target_button');
+
+      await tester.pumpAndSettle();
+      expect(find.text('French'), findsOneWidget);
+      expect(rectOf(tester, 'translate_target_button'), during);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('"Detect language" falls back to the sparkle', (tester) async {
+      final harness = TranslateHarness(state: readyState(target: german));
+      // 90 dp: the sparkle and "Auto".
+      await pumpBar(tester, harness, width: 360);
+      expect(find.text('Detect language'), findsNothing);
+      expect(find.text('Auto'), findsOneWidget);
+      expect(
+        inButton(
+          'translate_source_button',
+          find.byIcon(Icons.auto_awesome_outlined),
+        ),
+        findsOneWidget,
+      );
+      // 51 dp: the sparkle alone.
+      await pumpBar(tester, harness, width: 282);
+      expect(find.text('Auto'), findsNothing);
+      expect(
+        inButton(
+          'translate_source_button',
+          find.byIcon(Icons.auto_awesome_outlined),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsLabel('Source language: Detect language'),
+        findsOneWidget,
+      );
+      expect(findTooltipMessage('Detect language'), findsOneWidget);
+    });
+
+    testWidgets('a detected language keeps its code before its sparkle', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(state: translatedState());
+      // 60 dp: the sparkle and "EN".
+      await pumpBar(tester, harness, width: 300);
+      expect(find.text('EN'), findsOneWidget);
+      expect(
+        inButton(
+          'translate_source_button',
+          find.byIcon(Icons.auto_awesome_outlined),
+        ),
+        findsOneWidget,
+      );
+      // 50 dp: "EN" without the sparkle.
+      await pumpBar(tester, harness, width: 280);
+      expect(find.text('EN'), findsOneWidget);
+      expect(
+        inButton(
+          'translate_source_button',
+          find.byIcon(Icons.auto_awesome_outlined),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.bySemanticsLabel('Source language: Detected: English'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a custom language falls back to its sparkle', (tester) async {
+      final harness = TranslateHarness(
+        state: readyState(
+          engine: claude,
+          target: const Language.custom('Pirate speak'),
+        ),
+      );
+      await pumpBar(tester, harness, width: 282);
+      expect(find.text('Pirate speak'), findsNothing);
+      expect(find.text('PI'), findsNothing);
+      expect(
+        inButton('translate_target_button', find.byIcon(Icons.auto_awesome)),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsLabel('Target language: Pirate speak'),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('runs from right to left in right-to-left layouts', (
       tester,
     ) async {
@@ -332,6 +525,160 @@ void main() {
       expect(pair.getDryLayout(const BoxConstraints()).width, natural);
     });
 
+    group('on a narrow phone with 200 % text', () {
+      /// [finder] in the language bar (the screen has other "EN"s).
+      Finder inBar(Finder finder) => find.descendant(
+        of: find.byKey(const Key('translate_language_bar')),
+        matching: finder,
+      );
+
+      /// Every name in the bar is shown whole, never cut.
+      void expectNoCutNames(WidgetTester tester) {
+        final paragraphs = find.descendant(
+          of: find.byKey(const Key('translate_language_bar')),
+          matching: find.byType(RichText),
+        );
+        for (final element in paragraphs.evaluate()) {
+          final paragraph = element.renderObject! as RenderParagraph;
+          expect(paragraph.didExceedMaxLines, isFalse);
+          expect(
+            paragraph.size.width,
+            greaterThanOrEqualTo(
+              paragraph.getMaxIntrinsicWidth(double.infinity) - 0.01,
+            ),
+            reason: paragraph.text.toPlainText(),
+          );
+        }
+      }
+
+      void expectUsableBar(WidgetTester tester) {
+        expect(tester.takeException(), isNull);
+        final bar = rectOf(tester, 'translate_language_bar');
+        final keys = [
+          'translate_options_button',
+          'translate_source_button',
+          'translate_swap_button',
+          'translate_target_button',
+          'translate_translate_button',
+        ];
+        var previous = bar.left;
+        for (final key in keys) {
+          final rect = rectOf(tester, key);
+          expect(rect.left, greaterThanOrEqualTo(previous - 0.01), reason: key);
+          expect(rect.width, greaterThanOrEqualTo(48), reason: key);
+          expect(rect.height, greaterThanOrEqualTo(48), reason: key);
+          previous = rect.right;
+        }
+        expect(previous, lessThanOrEqualTo(bar.right));
+        expectNoCutNames(tester);
+      }
+
+      testWidgets('320 dp: names stay in semantics and tooltips', (
+        tester,
+      ) async {
+        final harness = TranslateHarness(state: readyState(target: german));
+        await harness.pump(tester, size: const Size(320, 800), textScale: 2);
+        expectUsableBar(tester);
+        // "Detect language" is the sparkle. (In Roboto "DE" fits, see the
+        // golden; the test font's "DE" is wider than the 51 dp left.)
+        expect(inBar(find.text('Detect language')), findsNothing);
+        expect(inBar(find.text('German')), findsNothing);
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('translate_source_button')),
+            matching: find.byIcon(Icons.auto_awesome_outlined),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.bySemanticsLabel('Source language: Detect language'),
+          findsOneWidget,
+        );
+        expect(
+          find.bySemanticsLabel('Target language: German'),
+          findsOneWidget,
+        );
+        expect(findTooltipMessage('Detect language'), findsOneWidget);
+        expect(findTooltipMessage('German'), findsOneWidget);
+      });
+
+      testWidgets('320 dp: a detected language and long names', (tester) async {
+        for (final state in [
+          translatedState(),
+          readyState(
+            source: const Language(code: 'pt-BR', name: 'Portuguese (Brazil)'),
+            target: const Language(code: 'zh-TW', name: 'Chinese (Taiwan)'),
+          ),
+        ]) {
+          final harness = TranslateHarness(state: state);
+          await harness.pump(tester, size: const Size(320, 800), textScale: 2);
+          expectUsableBar(tester);
+        }
+      });
+
+      testWidgets('360 dp: the language code', (tester) async {
+        final harness = TranslateHarness(state: readyState(target: german));
+        await harness.pump(tester, size: const Size(360, 800), textScale: 2);
+        expectUsableBar(tester);
+        expect(inBar(find.text('DE')), findsOneWidget);
+        expect(inBar(find.text('German')), findsNothing);
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('translate_source_button')),
+            matching: find.byIcon(Icons.auto_awesome_outlined),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.bySemanticsLabel('Target language: German'),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('360 dp: both codes', (tester) async {
+        final harness = TranslateHarness(
+          state: readyState(source: english, target: japanese),
+        );
+        await harness.pump(tester, size: const Size(360, 800), textScale: 2);
+        expectUsableBar(tester);
+        expect(inBar(find.text('EN')), findsOneWidget);
+        expect(inBar(find.text('JA')), findsOneWidget);
+        // Tapping the code still opens the picker.
+        await tester.tap(inBar(find.text('JA')));
+        await tester.pumpAndSettle();
+        expect(find.byType(LanguagePickerSheet), findsOneWidget);
+      });
+    });
+
+    group('languageShortNames', () {
+      test('is the code in upper case, then its language', () {
+        expect(languageShortNames('en'), ['EN']);
+        expect(languageShortNames('pt-BR'), ['PT-BR', 'PT']);
+        expect(languageShortNames('zh_TW'), ['ZH_TW', 'ZH']);
+        // Three letters stay whole (Filipino is not Finnish).
+        expect(languageShortNames('fil'), ['FIL']);
+        expect(languageShortNames(' '), isEmpty);
+      });
+
+      test('languageLabelForms: name, codes, then the icon or nothing', () {
+        expect(languageLabelForms(german), [
+          (icon: null, text: 'German'),
+          (icon: null, text: 'DE'),
+          (icon: null, text: null),
+        ]);
+        expect(languageLabelForms(const Language.custom('Pirate speak')), [
+          (icon: Icons.auto_awesome, text: 'Pirate speak'),
+          (icon: Icons.auto_awesome, text: null),
+        ]);
+        expect(languageLabelForms(english, icon: Icons.help_outline), [
+          (icon: Icons.help_outline, text: 'English'),
+          (icon: Icons.help_outline, text: 'EN'),
+          (icon: null, text: 'EN'),
+          (icon: Icons.help_outline, text: null),
+        ]);
+      });
+    });
+
     group('languagePairSplit', () {
       test('gives half each while both fit in half', () {
         expect(languagePairSplit(200, 80, 60), (100.0, 100.0));
@@ -351,6 +698,117 @@ void main() {
       test('never goes below zero', () {
         expect(languagePairSplit(-10, 50, 50), (0.0, 0.0));
       });
+    });
+  });
+
+  group('FirstThatFits', () {
+    // The test font: "Long name" is 126 dp wide, "LN" 28 dp, both 14 tall.
+    final taps = <String>[];
+
+    Widget child(String text) => GestureDetector(
+      onTap: () => taps.add(text),
+      child: Text(text, key: ValueKey(text)),
+    );
+
+    Future<void> pumpFit(
+      WidgetTester tester, {
+      double? width,
+      bool baseline = false,
+    }) {
+      taps.clear();
+      final fit = FirstThatFits(
+        key: const Key('fit'),
+        children: [child('Long name'), child('LN')],
+      );
+      return tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: Center(
+            child: SizedBox(
+              width: width,
+              child: Row(
+                key: const Key('row'),
+                crossAxisAlignment: baseline
+                    ? CrossAxisAlignment.baseline
+                    : CrossAxisAlignment.center,
+                textBaseline: TextBaseline.alphabetic,
+                children: [Flexible(child: fit)],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    RenderBox fitBox(WidgetTester tester) =>
+        tester.renderObject<RenderBox>(find.byKey(const Key('fit')));
+
+    testWidgets('shows the first child that fits whole', (tester) async {
+      await pumpFit(tester, width: 200);
+      expect(find.text('Long name'), findsOneWidget);
+      expect(find.text('LN'), findsNothing);
+      expect(fitBox(tester).size, const Size(126, 14));
+
+      await pumpFit(tester, width: 100);
+      expect(find.text('Long name'), findsNothing);
+      expect(find.text('LN'), findsOneWidget);
+      expect(fitBox(tester).size, const Size(28, 14));
+      await tester.tap(find.byKey(const Key('fit')));
+      expect(taps, ['LN']);
+      // The other child is still there, just not shown.
+      expect(find.text('Long name', skipOffstage: false), findsOneWidget);
+    });
+
+    testWidgets('shows nothing when nothing fits', (tester) async {
+      await pumpFit(tester, width: 20);
+      expect(find.text('Long name'), findsNothing);
+      expect(find.text('LN'), findsNothing);
+      expect(fitBox(tester).size, Size.zero);
+      await tester.tapAt(tester.getCenter(find.byKey(const Key('row'))));
+      expect(taps, isEmpty);
+    });
+
+    testWidgets('only the child shown reaches screen readers', (tester) async {
+      final semantics = tester.ensureSemantics();
+      await pumpFit(tester, width: 100);
+      expect(find.bySemanticsLabel('LN'), findsOneWidget);
+      expect(find.bySemanticsLabel('Long name'), findsNothing);
+      await pumpFit(tester, width: 20);
+      expect(find.bySemanticsLabel('LN'), findsNothing);
+      semantics.dispose();
+    });
+
+    testWidgets('reports its sizes for the child that would be shown', (
+      tester,
+    ) async {
+      await pumpFit(tester, width: 100);
+      final box = fitBox(tester);
+      // As wide as the first child likes; it can do with nothing.
+      expect(box.getMaxIntrinsicWidth(double.infinity), 126);
+      expect(box.getMinIntrinsicWidth(double.infinity), 0);
+      expect(box.getMinIntrinsicHeight(100), 14);
+      expect(box.getMaxIntrinsicHeight(double.infinity), 14);
+      expect(box.getMaxIntrinsicHeight(10), 0);
+      expect(
+        box.getDryLayout(const BoxConstraints(maxWidth: 100)),
+        const Size(28, 14),
+      );
+      expect(box.getDryLayout(const BoxConstraints()), const Size(126, 14));
+      expect(box.getDryLayout(const BoxConstraints(maxWidth: 10)), Size.zero);
+    });
+
+    testWidgets('has the baseline of the child shown', (tester) async {
+      await pumpFit(tester, width: 100, baseline: true);
+      expect(tester.takeException(), isNull);
+      final row = tester.renderObject<RenderBox>(find.byKey(const Key('row')));
+      // The row asks for (dry) baselines.
+      expect(
+        row.getDryLayout(const BoxConstraints(maxWidth: 100)).height,
+        greaterThan(0),
+      );
+      expect(row.getDryLayout(const BoxConstraints(maxWidth: 10)).height, 0);
+      await pumpFit(tester, width: 20, baseline: true);
+      expect(tester.takeException(), isNull);
     });
   });
 

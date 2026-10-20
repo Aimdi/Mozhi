@@ -7,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/core/widgets/language_pair_bar.dart';
+import 'package:mozhi/core/widgets/tab_hero.dart';
 import 'package:mozhi/image_translate/image_translate.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
@@ -65,7 +67,19 @@ void main() {
       await harness.pumpPage(tester);
       expect(find.text('Translate image'), findsOneWidget);
       expect(find.byKey(const Key('image_translate_empty_state')), findsOne);
-      expect(find.text('Translate text in photos'), findsOneWidget);
+      // The tabs' empty state: an accent icon over a bold headline.
+      expect(
+        find.descendant(
+          of: find.byType(TabHero),
+          matching: find.text('Take or pick a photo'),
+        ),
+        findsOneWidget,
+      );
+      // The languages in the translate screen's language bar, with an arrow
+      // instead of a swap button.
+      expect(find.byType(LanguagePairBar), findsOneWidget);
+      expect(find.byType(LanguagePairArrow), findsOneWidget);
+      expect(find.bySemanticsLabel('Target language: French'), findsOne);
       expect(find.text('Choose image'), findsOneWidget);
       expect(find.text('Take photo'), findsOneWidget);
       // Chip + method list entry.

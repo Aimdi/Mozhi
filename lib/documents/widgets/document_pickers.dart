@@ -43,11 +43,11 @@ class DocumentEngineSheet extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-            child: Text(
-              context.l10n.documentsEngineSheetTitle,
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.3,
+            child: Semantics(
+              header: true,
+              child: Text(
+                context.l10n.documentsEngineSheetTitle,
+                style: theme.textTheme.titleLarge,
               ),
             ),
           ),
@@ -56,18 +56,8 @@ class DocumentEngineSheet extends StatelessWidget {
             ListTile(
               key: Key('documents_engine_${engine.id}'),
               leading: EngineIcon(engine: engine),
-              title: Text(
-                engine.name,
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-              subtitle: engine.subtitle == null
-                  ? null
-                  : Text(
-                      engine.subtitle!,
-                      style: TextStyle(
-                        color: AppPalette.of(context).secondaryText,
-                      ),
-                    ),
+              title: Text(engine.name),
+              subtitle: engine.subtitle == null ? null : Text(engine.subtitle!),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 spacing: 8,
@@ -171,12 +161,9 @@ class _DocumentLanguageSheetState extends State<DocumentLanguageSheet> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-            child: Text(
-              widget.title,
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.3,
-              ),
+            child: Semantics(
+              header: true,
+              child: Text(widget.title, style: theme.textTheme.titleLarge),
             ),
           ),
           Padding(
@@ -220,18 +207,12 @@ class _DocumentLanguageSheetState extends State<DocumentLanguageSheet> {
                   ListTile(
                     key: Key('documents_language_${language.code}'),
                     leading: LanguageAvatar(code: language.code),
-                    title: Text(
-                      documentLanguageLabel(l10n, language),
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
+                    title: Text(documentLanguageLabel(l10n, language)),
                     subtitle:
                         language.nativeName == null ||
                             language.nativeName == language.name
                         ? null
-                        : Text(
-                            language.nativeName!,
-                            style: TextStyle(color: palette.secondaryText),
-                          ),
+                        : Text(language.nativeName!),
                     selected: language == widget.selected,
                     trailing: language == widget.selected
                         ? Icon(Icons.check, color: theme.colorScheme.primary)

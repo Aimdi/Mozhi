@@ -12,6 +12,8 @@ import 'package:mozhi/image_translate/widgets/image_language_bar.dart';
 import 'package:mozhi/image_translate/widgets/image_translate_links.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/translate/widgets/translate_layout.dart'
+    show TranslateLayout;
 import 'package:share_plus/share_plus.dart';
 
 /// Recognised text (editable for on-device recognition), the translation,
@@ -114,7 +116,6 @@ class _LowConfidenceHint extends StatelessWidget {
             flex: 2,
             child: TextButton(
               key: const Key('image_translate_low_confidence_choose'),
-              style: TextButton.styleFrom(minimumSize: const Size(0, 48)),
               onPressed: () =>
                   unawaited(pickImageLanguage(context, source: true)),
               child: Text(l10n.imageTranslateChooseSourceLanguage),
@@ -154,16 +155,17 @@ class _TextCard extends StatelessWidget {
           _Label(label),
           const SizedBox(height: 8),
           if (streaming) ...[
-            LinearProgressIndicator(
-              borderRadius: BorderRadius.circular(2),
-              backgroundColor: palette.hairline,
+            const LinearProgressIndicator(
+              borderRadius: BorderRadius.all(Radius.circular(2)),
             ),
             const SizedBox(height: 8),
           ],
           SelectableText(
             text,
+            // The translation reads like the translate screen's (body text,
+            // not the bold heading style).
             style: emphasized
-                ? theme.textTheme.titleLarge?.copyWith(height: 1.35)
+                ? TranslateLayout.outputTextStyle(context, text.length)
                 : theme.textTheme.bodyMedium?.copyWith(
                     color: palette.secondaryText,
                   ),
@@ -182,11 +184,7 @@ class _Label extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Semantics(
     header: true,
-    child: Text(
-      text,
-      style: Theme.of(context).textTheme.titleSmall
-          ?.copyWith(fontWeight: FontWeight.w800),
-    ),
+    child: Text(text, style: Theme.of(context).textTheme.titleSmall),
   );
 }
 
@@ -257,11 +255,6 @@ class _SourceTextCardState extends State<_SourceTextCard> {
                           _controller.text,
                         ),
                       ),
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(0, 48),
-                  shape: const StadiumBorder(),
-                  textStyle: const TextStyle(fontWeight: FontWeight.w700),
-                ),
                 icon: const Icon(Icons.translate),
                 label: Text(l10n.imageTranslateRetranslate),
               ),
@@ -390,9 +383,6 @@ class _ResultActionsState extends State<_ResultActions> {
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(0, 40),
                 tapTargetSize: MaterialTapTargetSize.padded,
-                shape: const StadiumBorder(),
-                side: BorderSide(color: palette.hairline),
-                textStyle: const TextStyle(fontWeight: FontWeight.w700),
               ),
               icon: const Icon(Icons.open_in_new),
               label: Text(l10n.imageTranslateOpenInTranslator),

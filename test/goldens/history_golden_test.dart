@@ -95,5 +95,70 @@ void main() {
         await expectScreenGolden('history_phone_${brightness.name}');
       });
     }
+
+    testWidgets('a dictionary look-up on a phone (light)', (tester) async {
+      final translate = MockTranslateCubit();
+      when(() => translate.state).thenReturn(const TranslateState());
+      final now = DateTime.now();
+      final entries = [
+        HistoryEntry(
+          id: 'dictionary:1',
+          kind: HistoryEntryKind.dictionary,
+          text: 'hola',
+          translation:
+              'interjection · A greeting used when meeting someone or '
+              'acknowledging their arrival.',
+          source: _spanish,
+          target: _english,
+          engineId: 'ai:p1',
+          engineName: 'Claude',
+          // Newer than the translations (all shown as "now").
+          createdAt: now.add(const Duration(seconds: 1)),
+          verbosity: DictionaryVerbosity.standard,
+          isFavorite: true,
+        ),
+        ..._entries().skip(1),
+      ];
+      useGoldenDevice(tester, GoldenDevice.phone);
+      await tester.pumpView(
+        const HistoryPage(),
+        settings: createSettingsCubit(),
+        history: createHistoryCubit(
+          HistoryState(status: HistoryStatus.ready, entries: entries),
+        ),
+        translate: translate,
+        router: createRouter(),
+        theme: goldenTheme(Brightness.light),
+      );
+      await tester.pumpAndSettle();
+      await expectScreenGolden('history_dictionary_entry_phone_light');
+    });
+
+    testWidgets('the Favorites tab on a phone (light)', (tester) async {
+      final translate = MockTranslateCubit();
+      when(() => translate.state).thenReturn(const TranslateState());
+      // Every entry but the German one is a favourite.
+      final entries = [
+        for (final entry in _entries())
+          entry.copyWith(isFavorite: entry.id != '2'),
+      ];
+      useGoldenDevice(tester, GoldenDevice.phone);
+      await tester.pumpView(
+        const HistoryPage(),
+        settings: createSettingsCubit(),
+        history: createHistoryCubit(
+          HistoryState(
+            status: HistoryStatus.ready,
+            entries: entries,
+            favoritesOnly: true,
+          ),
+        ),
+        translate: translate,
+        router: createRouter(),
+        theme: goldenTheme(Brightness.light),
+      );
+      await tester.pumpAndSettle();
+      await expectScreenGolden('history_favorites_phone_light');
+    });
   });
 }

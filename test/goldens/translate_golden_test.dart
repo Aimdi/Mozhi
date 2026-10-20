@@ -4,6 +4,7 @@ library;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'package:mozhi/translate/translate.dart';
 import 'package:mozhi/translate/widgets/widgets.dart';
 
 import '../translate/helpers/helpers.dart';
@@ -39,6 +40,22 @@ void main() {
         await expectScreenGolden('translate_result_phone_$look');
       });
     }
+
+    testWidgets('empty with quality modes on a phone (dark)', (tester) async {
+      await pumpTranslateGolden(
+        tester,
+        TranslateHarness(
+          state: readyState(engine: google).copyWith(
+            qualityMode: QualityMode.fast,
+            fastEngine: () => google,
+            bestEngine: () => claude,
+          ),
+        ),
+        device: GoldenDevice.phone,
+        brightness: Brightness.dark,
+      );
+      await expectScreenGolden('translate_empty_quality_phone_dark');
+    });
 
     testWidgets('typing on a phone (light)', (tester) async {
       await pumpTranslateGolden(
@@ -93,5 +110,30 @@ void main() {
       );
       await expectScreenGolden('translate_result_hinge_light');
     });
+
+    // At 200 % text on narrow phones, names that don't fit in the language
+    // bar fall back to codes (and "Detect language" to the sparkle).
+    for (final (width, state, name) in [
+      (320.0, () => readyState(target: german), 'empty'),
+      (360.0, translatedState, 'result'),
+    ]) {
+      testWidgets('$name at ${width.toInt()} dp with 200 % text (light)', (
+        tester,
+      ) async {
+        tester.platformDispatcher.textScaleFactorTestValue = 2;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        await pumpTranslateGolden(
+          tester,
+          TranslateHarness(state: state()),
+          device: GoldenDevice.phone,
+        );
+        tester.view.physicalSize = Size(width, GoldenDevice.phone.size.height);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        await expectScreenGolden(
+          'translate_${name}_${width.toInt()}_text200_light',
+        );
+      });
+    }
   });
 }

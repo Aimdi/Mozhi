@@ -1,4 +1,5 @@
 export 'proofread_button.dart';
+export 'proofread_composer_bar.dart';
 export 'proofread_controls.dart';
 export 'proofread_diff_colors.dart';
 export 'proofread_diff_text.dart';

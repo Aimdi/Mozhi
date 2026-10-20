@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -68,6 +70,27 @@ int? inputAlignmentIndexAt(TranslateState state, int offset) =>
     state.alignmentIndexAtSource(offset) ??
     (offset > 0 ? state.alignmentIndexAtSource(offset - 1) : null);
 
+/// The parts of the empty composer's placeholder
+/// (`translateComposerHint`, "Type or {paste} text"): the text before the
+/// link, the link (`translateComposerHintPaste`, "paste") and the text
+/// after it. A translation without the placeholder gets the link at its
+/// end.
+({String before, String link, String after}) translateComposerHintParts(
+  AppLocalizations l10n,
+) {
+  // A private-use character no translation contains.
+  const marker = '\u{E000}';
+  final link = l10n.translateComposerHintPaste;
+  final sentence = l10n.translateComposerHint(marker);
+  final index = sentence.indexOf(marker);
+  if (index < 0) return (before: '$sentence ', link: link, after: '');
+  return (
+    before: sentence.substring(0, index),
+    link: link,
+    after: sentence.substring(index + marker.length),
+  );
+}
+
 /// The app-wide [SpeechInputService], or null when none is provided (voice
 /// input is then not offered).
 SpeechInputService? _speechInputServiceOf(BuildContext context) {
@@ -78,14 +101,15 @@ SpeechInputService? _speechInputServiceOf(BuildContext context) {
   }
 }
 
-/// The source text field with voice input (and paste while empty) at its
-/// top end, as on Kagi Translate, then the tools row: listen, image and
-/// paste at the start, the character count (plus a token estimate for AI
-/// engines), its ring and clear at the end. [compact] (the composer of
-/// the empty screen) leaves the tools row out and keeps paste next to the
-/// microphone. A notice says when long text was shortened. Esc clears the
-/// field while it is focused and not empty. The go button ("Translate")
-/// is at the end of the language bar (`TranslateGoButton`).
+/// The source text field with voice input at its top end, as on Kagi
+/// Translate, then the tools row: listen, image and paste at the start,
+/// the character count (plus a token estimate for AI engines), its ring
+/// and clear at the end. [compact] (the composer of the empty screen)
+/// leaves the tools row out; while the field is empty its placeholder
+/// reads "Type or paste text", "paste" being a link that pastes
+/// ([_PastePrompt]). A notice says when long text was shortened. Esc
+/// clears the field while it is focused and not empty. The go button
+/// ("Translate") is at the end of the language bar (`TranslateGoButton`).
 ///
 /// [focusNode] is the field's focus node (the screen follows it to leave
 /// the empty screen); without one the card makes its own.
@@ -213,13 +237,43 @@ class _InputCardState extends State<InputCard> {
     );
   }
 
-  Future<void> _paste() async {
-    final data = await Clipboard.getData(Clipboard.kTextPlain);
-    final text = data?.text;
-    if (!mounted || text == null || text.isEmpty) return;
+  /// Puts the clipboard text into the field (the paste button and the
+  /// empty composer's "paste" link); an empty clipboard changes nothing.
+  /// [focusField]: the field takes the focus afterwards (the link had the
+  /// keyboard focus and goes away with the text).
+  ///
+  /// When the clipboard cannot be read (e.g. a browser that does not allow
+  /// it), a snack bar says so and the field takes the focus: the keyboard's
+  /// and the system's paste work there. (A platform without a clipboard
+  /// reads as an empty one.)
+  Future<void> _paste({bool focusField = false}) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final failure = context.l10n.translatePasteFailed;
+    String? text;
+    var failed = false;
+    try {
+      text = (await Clipboard.getData(Clipboard.kTextPlain))?.text;
+    } on PlatformException {
+      failed = true;
+    }
+    if (!mounted) return;
+    if (failed) {
+      _focusNode.requestFocus();
+      messenger
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(failure)));
+      return;
+    }
+    if (text == null || text.isEmpty) return;
     _syncController(text);
     _cubit.setInput(text);
+    if (focusField) _focusNode.requestFocus();
   }
+
+  /// Whether the empty composer's placeholder ([_PastePrompt]) shows for
+  /// the field's [value]: no text and no input method composing.
+  bool _showsPrompt(TextEditingValue value) =>
+      widget.compact && value.text.isEmpty && !value.composing.isValid;
 
   void _clear() {
     _syncController('');
@@ -251,9 +305,72 @@ class _InputCardState extends State<InputCard> {
     _cubit.setInput(combined);
   }
 
+  /// Enter with multiline input off (`AppSettings.multilineInput`):
+  /// translates like the go button.
+  void _submit() {
+    if (_cubit.state.input.trim().isEmpty) return;
+    unawaited(_cubit.translate());
+  }
+
+  /// The keyboard's action key (Go) with multiline input off translates.
+  /// In a browser every Enter in the field arrives this way (and adds no
+  /// new line): Shift+Enter then adds the new line itself and Ctrl/Cmd+Enter
+  /// is left to the screen's shortcut.
+  void _onSubmitted(String _) {
+    final keyboard = HardwareKeyboard.instance;
+    if (keyboard.isControlPressed || keyboard.isMetaPressed) return;
+    if (keyboard.isShiftPressed) {
+      _insertNewline();
+    } else {
+      _submit();
+    }
+  }
+
+  /// Replaces the selection with a new line.
+  void _insertNewline() {
+    final value = _controller.value;
+    final selection = value.selection.isValid
+        ? value.selection
+        : TextSelection.collapsed(offset: value.text.length);
+    final text = value.text.replaceRange(selection.start, selection.end, '\n');
+    _controller.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: selection.start + 1),
+    );
+    _onChanged(text);
+  }
+
+  /// With multiline input off, a hardware Enter without Shift (or another
+  /// modifier: Ctrl/Cmd+Enter is the screen's shortcut) translates instead
+  /// of adding a new line, except while an input method composes text. In
+  /// a browser the field reports Enter as its action instead
+  /// ([_onSubmitted]).
+  KeyEventResult _onEnter(KeyEvent event) {
+    final key = event.logicalKey;
+    final keyboard = HardwareKeyboard.instance;
+    if (kIsWeb ||
+        event is KeyUpEvent ||
+        (key != LogicalKeyboardKey.enter &&
+            key != LogicalKeyboardKey.numpadEnter) ||
+        context.read<SettingsCubit>().state.multilineInput ||
+        keyboard.isShiftPressed ||
+        keyboard.isControlPressed ||
+        keyboard.isMetaPressed ||
+        keyboard.isAltPressed ||
+        (_controller.value.composing.isValid &&
+            !_controller.value.composing.isCollapsed)) {
+      return KeyEventResult.ignored;
+    }
+    if (event is KeyDownEvent) _submit();
+    return KeyEventResult.handled;
+  }
+
   /// Esc clears a non-empty field; otherwise the key keeps bubbling (e.g.
-  /// to dismiss a route).
+  /// to dismiss a route). Enter: see [_onEnter].
   KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
+    if (_onEnter(event) == KeyEventResult.handled) {
+      return KeyEventResult.handled;
+    }
     if (event is! KeyDownEvent ||
         event.logicalKey != LogicalKeyboardKey.escape ||
         _controller.text.isEmpty ||
@@ -307,69 +424,103 @@ class _InputCardState extends State<InputCard> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      child: Focus(
-                        canRequestFocus: false,
-                        skipTraversal: true,
-                        onKeyEvent: _onKeyEvent,
-                        // The hint disappears once there is text, so name the
-                        // field explicitly for screen readers.
-                        child: Semantics(
-                          label: l10n.translateInputLabel,
-                          child: TextField(
-                            key: const Key('translate_input_field'),
-                            controller: _controller,
-                            focusNode: _focusNode,
-                            enableIMEPersonalizedLearning: imeLearningAllowed(
-                              context,
-                            ),
-                            onChanged: _onChanged,
-                            maxLength: TranslateCubit.maxInputLength,
-                            inputFormatters: [
-                              _LengthOverflowFormatter(
-                                TranslateCubit.maxInputLength,
-                                onOverflow: (text) => _overflow = text,
-                              ),
-                            ],
-                            // The toolbar shows its own character count.
-                            buildCounter: (
-                              context, {
-                              required currentLength,
-                              required isFocused,
-                              required maxLength,
-                            }) => null,
-                            keyboardType: TextInputType.multiline,
-                            textInputAction: TextInputAction.newline,
-                            textDirection: inputTextDirection(state),
-                            minLines: widget.minLines,
-                            maxLines: null,
-                            style: TranslateLayout.textStyle(
-                              context,
-                              input.length,
-                            ),
-                            decoration: InputDecoration(
-                              hintText: l10n.translateInputHint,
-                              hintStyle: TranslateLayout.textStyle(
-                                context,
-                                0,
-                              )?.copyWith(color: palette.secondaryText),
-                              border: InputBorder.none,
-                              enabledBorder: InputBorder.none,
-                              focusedBorder: InputBorder.none,
-                              filled: false,
-                              isDense: true,
-                              contentPadding: const EdgeInsetsDirectional.only(
-                                top: 14,
-                                bottom: 8,
-                                end: 8,
+                      // The field stays the first child, so it keeps its
+                      // state when the placeholder comes and goes.
+                      child: Stack(
+                        children: [
+                          Focus(
+                            canRequestFocus: false,
+                            skipTraversal: true,
+                            onKeyEvent: _onKeyEvent,
+                            // The hint disappears once there is text, so
+                            // name the field explicitly for screen readers.
+                            child: Semantics(
+                              label: l10n.translateInputLabel,
+                              child: TextField(
+                                key: const Key('translate_input_field'),
+                                controller: _controller,
+                                focusNode: _focusNode,
+                                enableIMEPersonalizedLearning:
+                                    imeLearningAllowed(context),
+                                onChanged: _onChanged,
+                                maxLength: TranslateCubit.maxInputLength,
+                                inputFormatters: [
+                                  _LengthOverflowFormatter(
+                                    TranslateCubit.maxInputLength,
+                                    onOverflow: (text) => _overflow = text,
+                                  ),
+                                ],
+                                // The toolbar shows its own character count.
+                                buildCounter: (
+                                  context, {
+                                  required currentLength,
+                                  required isFocused,
+                                  required maxLength,
+                                }) => null,
+                                keyboardType: TextInputType.multiline,
+                                textInputAction: settings.multilineInput
+                                    ? TextInputAction.newline
+                                    : TextInputAction.go,
+                                onSubmitted: settings.multilineInput
+                                    ? null
+                                    : _onSubmitted,
+                                // Translating keeps the keyboard open, like the
+                                // go button.
+                                onEditingComplete: settings.multilineInput
+                                    ? null
+                                    : () {},
+                                textDirection: inputTextDirection(state),
+                                minLines: widget.minLines,
+                                maxLines: null,
+                                style: TranslateLayout.textStyle(
+                                  context,
+                                  input.length,
+                                ),
+                                decoration: InputDecoration(
+                                  // The empty composer has its own placeholder
+                                  // with a link ([_PastePrompt]).
+                                  hintText: widget.compact
+                                      ? null
+                                      : l10n.translateInputHint,
+                                  hintStyle: TranslateLayout.textStyle(
+                                    context,
+                                    0,
+                                  )?.copyWith(color: palette.secondaryText),
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                  filled: false,
+                                  isDense: true,
+                                  contentPadding:
+                                      const EdgeInsetsDirectional.only(
+                                        top: 14,
+                                        bottom: 8,
+                                        end: 8,
+                                      ),
+                                ),
                               ),
                             ),
                           ),
-                        ),
+                          ValueListenableBuilder<TextEditingValue>(
+                            valueListenable: _controller,
+                            builder: (context, value, _) => _showsPrompt(value)
+                                ? _PastePrompt(
+                                    style: TranslateLayout.textStyle(
+                                      context,
+                                      0,
+                                    )?.copyWith(color: palette.secondaryText),
+                                    onPaste: (focusField) => unawaited(
+                                      _paste(focusField: focusField),
+                                    ),
+                                  )
+                                : const SizedBox.shrink(),
+                          ),
+                        ],
                       ),
                     ),
-                    // Kagi's top end: paste (empty composer) and the
-                    // microphone, in one place in both layouts so a
-                    // dictation keeps going when the screen changes.
+                    // Kagi's top end: the microphone, in one place in both
+                    // layouts so a dictation keeps going when the screen
+                    // changes.
                     IconButtonTheme(
                       data: IconButtonThemeData(
                         style: IconButton.styleFrom(
@@ -382,7 +533,6 @@ class _InputCardState extends State<InputCard> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (widget.compact && input.isEmpty) paste,
                           if (_speechInputServiceOf(context) case final speech?)
                             VoiceInputButton.standalone(
                               key: const Key('translate_voice_input'),
@@ -534,6 +684,169 @@ class _InputCardState extends State<InputCard> {
           ),
         );
       },
+    );
+  }
+}
+
+/// The empty composer's placeholder, like Kagi Translate's: "Type or paste
+/// text" in the quiet hint colour ([style]), where only "paste" is an
+/// accent link that pastes the clipboard ([onPaste]; its argument tells
+/// whether the link had the keyboard focus).
+///
+/// It lies over the empty field, laid out like the field's own hint: taps
+/// beside the link reach the field. Screen readers skip the sentence (the
+/// field is named "Text to translate") and find the link as a separate
+/// "Paste" button; the tools row's paste button and the field's own paste
+/// remain too.
+class _PastePrompt extends StatelessWidget {
+  const new({required this.style, required this.onPaste});
+
+  final TextStyle? style;
+  final ValueChanged<bool> onPaste;
+
+  /// The field's content padding (see the field's decoration), with room
+  /// below the last line for the link's touch target.
+  static const _padding = EdgeInsetsDirectional.only(
+    top: 14,
+    end: 8,
+    bottom: 12,
+  );
+
+  /// The link's touch target around its text [box]: at least
+  /// [kMinInteractiveDimension] square, a little wider than the word.
+  static Rect _target(Rect box) {
+    const size = kMinInteractiveDimension;
+    final dx = math.max(4, (size - box.width) / 2);
+    final dy = math.max(0, (size - box.height) / 2);
+    return Rect.fromLTRB(
+      box.left - dx,
+      box.top - dy,
+      box.right + dx,
+      box.bottom + dy,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final parts = translateComposerHintParts(l10n);
+    final direction = Directionality.of(context);
+    final scaler = MediaQuery.textScalerOf(context);
+    // The locale picks the fonts; the measuring and the drawing use it.
+    final locale = Localizations.maybeLocaleOf(context);
+    final span = TextSpan(
+      style: DefaultTextStyle.of(context).style.merge(style),
+      children: [
+        TextSpan(text: parts.before),
+        TextSpan(
+          text: parts.link,
+          style: TextStyle(color: Theme.of(context).colorScheme.primary),
+        ),
+        TextSpan(text: parts.after),
+      ],
+    );
+    final padding = _padding.resolve(direction);
+    return LayoutBuilder(
+      key: const Key('translate_composer_hint'),
+      builder: (context, constraints) {
+        // The link's place in the sentence, measured the way the sentence
+        // is drawn below (it may wrap, in any word order).
+        final painter =
+            TextPainter(
+              text: span,
+              textDirection: direction,
+              textScaler: scaler,
+              locale: locale,
+            )..layout(
+              maxWidth: math.max(0, constraints.maxWidth - padding.horizontal),
+            );
+        final start = parts.before.length;
+        final boxes = painter.getBoxesForSelection(
+          TextSelection(
+            baseOffset: start,
+            extentOffset: start + parts.link.length,
+          ),
+        );
+        painter.dispose();
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Padding(
+              padding: padding,
+              child: IgnorePointer(
+                child: ExcludeSemantics(
+                  child: RichText(
+                    text: span,
+                    textDirection: direction,
+                    textScaler: scaler,
+                    locale: locale,
+                  ),
+                ),
+              ),
+            ),
+            for (final (index, box) in boxes.indexed)
+              Positioned.fromRect(
+                rect: _target(box.toRect().shift(padding.topLeft)),
+                child: _PasteLink(
+                  label: l10n.translatePaste,
+                  // A link broken over two lines is one button.
+                  primary: index == 0,
+                  onPaste: onPaste,
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// The touch target of [_PastePrompt]'s link: a "Paste" button for screen
+/// readers and the keyboard ([primary]; a second line of the same link is
+/// only a touch target).
+class _PasteLink extends StatefulWidget {
+  const new({
+    required this.label,
+    required this.onPaste,
+    required this.primary,
+  });
+
+  final String label;
+  final ValueChanged<bool> onPaste;
+  final bool primary;
+
+  @override
+  State<_PasteLink> createState() => _PasteLinkState();
+}
+
+class _PasteLinkState extends State<_PasteLink> {
+  final _focusNode = FocusNode(debugLabel: 'translate_paste_link');
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Its own ink layer: the composer card's fill would hide the ripple.
+    final link = Material(
+      type: MaterialType.transparency,
+      child: InkWell(
+        focusNode: _focusNode,
+        canRequestFocus: widget.primary,
+        customBorder: const StadiumBorder(),
+        onTap: () => widget.onPaste(_focusNode.hasPrimaryFocus),
+      ),
+    );
+    if (!widget.primary) return ExcludeSemantics(child: link);
+    return Semantics(
+      key: const Key('translate_paste_link'),
+      container: true,
+      button: true,
+      label: widget.label,
+      child: link,
     );
   }
 }

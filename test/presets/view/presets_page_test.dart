@@ -8,12 +8,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/core/key_value_store.dart';
+import 'package:mozhi/core/widgets/tab_hero.dart';
 import 'package:mozhi/presets/cubit/presets_cubit.dart';
 import 'package:mozhi/presets/data/presets_repository.dart';
 import 'package:mozhi/presets/models/preset.dart';
 import 'package:mozhi/presets/view/presets_page.dart';
 import 'package:mozhi/presets/widgets/preset_editor_sheet.dart';
 import 'package:mozhi/presets/widgets/presets_share.dart';
+import 'package:mozhi/settings/view/widgets/settings_section.dart'
+    show StatusBadge;
 import 'package:translation_repository/translation_repository.dart';
 
 import '../helpers.dart';
@@ -79,7 +82,13 @@ void main() {
       await tester.tap(find.text('Use as default'));
       await settle(tester);
       expect(state().defaultId, 'builtin-chatCasual');
-      expect(find.byKey(const Key('presets_default_badge')), findsOneWidget);
+      // A theme badge (tinted, rounded like the app's badges).
+      expect(
+        tester
+            .widget<StatusBadge>(find.byKey(const Key('presets_default_badge')))
+            .label,
+        'Default',
+      );
 
       await openMenuFor(tester, _chat);
       await tester.tap(find.text('Stop using as default'));
@@ -264,7 +273,14 @@ void main() {
         const PresetCollection().toJson(),
       );
       await pumpLoaded(tester);
-      expect(find.text('No presets yet'), findsOneWidget);
+      // The tabs' empty state: an accent icon over a bold headline.
+      expect(
+        find.descendant(
+          of: find.byType(TabHero),
+          matching: find.text('No presets yet'),
+        ),
+        findsOneWidget,
+      );
       await tester.tap(find.byKey(const Key('presets_restore_examples')));
       await settle(tester);
       expect(find.text(_email), findsOneWidget);

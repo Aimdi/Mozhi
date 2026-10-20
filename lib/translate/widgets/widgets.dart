@@ -22,6 +22,7 @@ export 'meaning_check_panel.dart';
 export 'more_tools_menu.dart';
 export 'no_engines_view.dart';
 export 'offline_offer.dart';
+export 'offline_only_notice.dart';
 export 'options_sheet.dart';
 export 'output_card.dart';
 export 'quality_toggle.dart';

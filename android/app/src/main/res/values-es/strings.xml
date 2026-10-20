@@ -8,8 +8,8 @@
     <string name="tile_translate_description">Traducir el portapapeles con Mozhi</string>
     <string name="shortcut_clipboard_short">Portapapeles</string>
     <string name="shortcut_clipboard_long">Traducir el portapapeles</string>
-    <string name="shortcut_camera_short">Cámara</string>
-    <string name="shortcut_camera_long">Traducir con la cámara</string>
+    <string name="shortcut_dictionary_short">Diccionario</string>
+    <string name="shortcut_dictionary_long">Diccionario</string>
     <string name="shortcut_conversation_short">Conversación</string>
     <string name="shortcut_conversation_long">Conversación</string>
     <string name="shortcut_proofread_short">Corregir</string>

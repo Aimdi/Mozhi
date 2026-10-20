@@ -114,6 +114,25 @@ void main() {
       expect(lookup('hello', [_entry('1', text: 'goodbye')]), isNull);
     });
 
+    test('skip dictionary look-ups (their translation is a summary)', () {
+      final lookUp = HistoryEntry(
+        id: 'dictionary:1',
+        kind: HistoryEntryKind.dictionary,
+        text: _sentence,
+        translation: 'noun · A sentence with every letter.',
+        source: Language.auto,
+        target: _de,
+        engineId: 'ai:claude',
+        engineName: 'Claude',
+        createdAt: _now,
+      );
+      final translation = _entry('2', text: _sentence);
+
+      expect(lookup(_sentence, [lookUp]), isNull);
+      expect(lookup('${_sentence}s', [lookUp]), isNull);
+      expect(lookup(_sentence, [lookUp, translation])?.entry, translation);
+    });
+
     test('punctuation is not normalised', () {
       // Short text only matches exactly; punctuation is not normalised.
       expect(lookup('hello!', [_entry('1', text: 'hello')]), isNull);
@@ -328,6 +347,31 @@ void main() {
         _entry('3', text: 'three'),
       ];
       expect(lookup('two', entries)?.entry, entries[1]);
+      expect(lookup('three', entries), isNull);
+    });
+
+    test('dictionary look-ups do not count towards maxEntries', () {
+      memory = TranslationMemory(maxEntries: 2);
+      HistoryEntry lookUp(String id) => HistoryEntry(
+        id: 'dictionary:$id',
+        kind: HistoryEntryKind.dictionary,
+        text: 'word $id',
+        translation: 'noun · A word.',
+        source: Language.auto,
+        target: _de,
+        engineId: 'ai:claude',
+        engineName: 'Claude',
+        createdAt: _now,
+      );
+      final entries = [
+        lookUp('1'),
+        lookUp('2'),
+        lookUp('3'),
+        _entry('1', text: 'one'),
+        _entry('2', text: 'two'),
+        _entry('3', text: 'three'),
+      ];
+      expect(lookup('two', entries)?.entry, entries[4]);
       expect(lookup('three', entries), isNull);
     });
 

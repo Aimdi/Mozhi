@@ -53,6 +53,28 @@ void main() {
       expect(copy.createdAt, _entry.createdAt);
     });
 
+    group('favoriteOnly', () {
+      test('is off by default and not written then', () {
+        expect(_entry.favoriteOnly, isFalse);
+        expect(_entry.toJson().containsKey('favoriteOnly'), isFalse);
+        expect(HistoryEntry.fromJson(_json()).favoriteOnly, isFalse);
+      });
+
+      test('round-trips and takes part in equality', () {
+        final kept = _entry.copyWith(isFavorite: true, favoriteOnly: true);
+
+        expect(kept, isNot(_entry.copyWith(isFavorite: true)));
+        expect(kept.toJson()['favoriteOnly'], isTrue);
+        expect(
+          HistoryEntry.fromJson(
+            jsonDecode(jsonEncode(kept.toJson())) as Map<String, dynamic>,
+          ),
+          kept,
+        );
+        expect(kept.copyWith(isFavorite: false).favoriteOnly, isTrue);
+      });
+    });
+
     group('toJson', () {
       test('writes createdAt as UTC ISO-8601', () {
         final json = _entry.toJson();
@@ -164,6 +186,165 @@ void main() {
           ),
           throwsFormatException,
         );
+      });
+    });
+
+    group('kind', () {
+      final lookUp = HistoryEntry(
+        id: 'dictionary:1',
+        kind: HistoryEntryKind.dictionary,
+        text: 'gato',
+        translation: 'noun · A small domesticated feline.',
+        source: const Language(code: 'es', name: 'Spanish'),
+        target: const Language(code: 'en', name: 'English'),
+        engineId: 'ai:claude',
+        engineName: 'Claude',
+        createdAt: DateTime(2026, 10, 20, 9, 30),
+        verbosity: DictionaryVerbosity.comprehensive,
+      );
+
+      test('is translation by default', () {
+        expect(_entry.kind, HistoryEntryKind.translation);
+        expect(_entry.isDictionary, isFalse);
+        expect(_entry.verbosity, isNull);
+        expect(lookUp.isDictionary, isTrue);
+      });
+
+      test('JSON without a kind (older versions) is a translation', () {
+        final json = _json()
+          ..remove('kind')
+          ..remove('verbosity');
+
+        final entry = HistoryEntry.fromJson(json);
+
+        expect(entry.kind, HistoryEntryKind.translation);
+        expect(entry, _entry);
+      });
+
+      test('translations are written without kind or detail level', () {
+        final json = _entry.toJson();
+
+        expect(json, isNot(contains('kind')));
+        expect(json, isNot(contains('verbosity')));
+        expect(HistoryEntry.fromJson(_json({'kind': 'translation'})), _entry);
+      });
+
+      test('look-ups round-trip with their kind and detail level', () {
+        final json = lookUp.toJson();
+
+        expect(json['kind'], 'dictionary');
+        expect(json['verbosity'], 'comprehensive');
+        expect(
+          HistoryEntry.fromJson(
+            jsonDecode(jsonEncode(json)) as Map<String, dynamic>,
+          ),
+          lookUp,
+        );
+      });
+
+      test('a look-up without a detail level round-trips', () {
+        final entry = HistoryEntry(
+          id: lookUp.id,
+          kind: HistoryEntryKind.dictionary,
+          text: lookUp.text,
+          translation: '',
+          source: Language.auto,
+          target: lookUp.target,
+          engineId: lookUp.engineId,
+          engineName: lookUp.engineName,
+          createdAt: lookUp.createdAt,
+        );
+
+        expect(entry.toJson(), isNot(contains('verbosity')));
+        expect(HistoryEntry.fromJson(entry.toJson()), entry);
+      });
+
+      test('ignores an unknown detail level, and any on a translation', () {
+        expect(
+          HistoryEntry.fromJson({...lookUp.toJson(), 'verbosity': 'verbose'})
+              .verbosity,
+          isNull,
+        );
+        expect(
+          HistoryEntry.fromJson(_json({'verbosity': 'concise'})).verbosity,
+          isNull,
+        );
+      });
+
+      test('throws a FormatException for an unknown kind', () {
+        expect(
+          () => HistoryEntry.fromJson(_json({'kind': 'phrasebook'})),
+          throwsFormatException,
+        );
+        expect(
+          () => HistoryEntry.fromJson(_json({'kind': 1})),
+          throwsFormatException,
+        );
+      });
+
+      test('copyWith keeps the kind and detail level and can set the id', () {
+        final copy = lookUp.copyWith(id: '2', isFavorite: true);
+
+        expect(copy.id, '2');
+        expect(copy.isFavorite, isTrue);
+        expect(copy.kind, HistoryEntryKind.dictionary);
+        expect(copy.verbosity, DictionaryVerbosity.comprehensive);
+        expect(copy, isNot(lookUp));
+      });
+
+      group('isLookUpOf', () {
+        const spanish = Language(code: 'es', name: 'Español');
+        const english = Language(code: 'en', name: 'English');
+
+        test('matches the word trimmed, with runs of spaces as one', () {
+          final phrase = lookUp.copyWith(text: ' buenos   días ');
+
+          expect(
+            phrase.isLookUpOf('buenos días', source: spanish, target: english),
+            isTrue,
+          );
+          expect(
+            lookUp.isLookUpOf('gato', source: spanish, target: english),
+            isTrue,
+          );
+        });
+
+        test('needs the same case and languages', () {
+          expect(
+            lookUp.isLookUpOf('Gato', source: spanish, target: english),
+            isFalse,
+          );
+          expect(
+            lookUp.isLookUpOf('gato', source: Language.auto, target: english),
+            isFalse,
+          );
+          expect(
+            lookUp.isLookUpOf('gato', source: spanish, target: spanish),
+            isFalse,
+          );
+        });
+
+        test('never matches a translation', () {
+          final translation = HistoryEntry.fromJson(
+            _json({
+              'text': 'gato',
+              'source': spanish.toJson(),
+              'target': english.toJson(),
+            }),
+          );
+
+          expect(
+            translation.isLookUpOf('gato', source: spanish, target: english),
+            isFalse,
+          );
+          expect(lookUp.isSameLookUp(translation), isFalse);
+          expect(translation.isSameLookUp(lookUp), isFalse);
+        });
+
+        test('isSameLookUp compares two look-ups', () {
+          expect(lookUp.isSameLookUp(lookUp.copyWith(id: '2')), isTrue);
+          expect(lookUp.isSameLookUp(lookUp.copyWith(text: 'perro')), isFalse);
+        });
       });
     });
   });

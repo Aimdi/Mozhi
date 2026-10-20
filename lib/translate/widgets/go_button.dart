@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/haptics.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/skeleton.dart' show loadingRevealDelay;
@@ -42,7 +43,10 @@ class TranslateGoButton extends StatelessWidget {
         return _GoButton(
           enabled: translateGoEnabled(state),
           busy: translateGoBusy(state),
-          onGo: () => unawaited(cubit.translate()),
+          onGo: () {
+            Haptics.light(context);
+            unawaited(cubit.translate());
+          },
           onStop: cubit.stopTranslation,
         );
       },

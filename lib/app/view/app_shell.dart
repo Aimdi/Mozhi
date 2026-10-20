@@ -1,7 +1,10 @@
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/models/app_settings.dart';
 
 /// One top-level destination of the app.
 class AppDestination {
@@ -19,6 +22,8 @@ class AppDestination {
   ///
   /// History and Settings are not tabs: they are app bar actions of every
   /// tab (`TopLevelActions`) that open full pages above the tabs.
+  ///
+  /// The destination of an [AppTab] is `all[tab.index]` ([of]).
   static final all = <AppDestination>[
     AppDestination(
       icon: Icons.translate_outlined,
@@ -41,6 +46,9 @@ class AppDestination {
       label: (l10n) => l10n.navConversation,
     ),
   ];
+
+  /// The destination of [tab].
+  static AppDestination of(AppTab tab) => all[tab.index];
 }
 
 /// Adaptive app chrome in the style of X: an icon-only bottom
@@ -51,40 +59,77 @@ class AppDestination {
 ///
 /// The bottom bar hides its labels visually only: each destination keeps
 /// its name as its semantic label and tooltip.
+///
+/// The app is drawn edge to edge (Android 10+), and the shell keeps every
+/// tab clear of the system bars below and beside it: the bottom bar and the
+/// sidebar avoid them on their side, and the tab ([child]) on the other
+/// sides but the top, which its app bar covers. The sidebar follows the
+/// text direction (on the right in right-to-left languages).
+///
+/// The destinations are shown in [order] (by default the user's order,
+/// `AppSettings.tabOrder`, from the [SettingsCubit] above, else the
+/// default order). [selectedIndex] and [onDestinationSelected] always use
+/// the branch indexes ([AppTab.index]), whatever the order on screen.
 class AppShell extends StatelessWidget {
   const new({
     required this.selectedIndex,
     required this.onDestinationSelected,
     required this.child,
+    this.order,
     super.key,
   });
 
   /// Width from which the sidebar shows labels.
   static const extendedBreakpoint = 1200.0;
 
+  /// The branch index ([AppTab.index]) of the active tab.
   final int selectedIndex;
+
+  /// Called with the branch index ([AppTab.index]) of the chosen tab.
   final ValueChanged<int> onDestinationSelected;
+
+  /// The order of the destinations; null: the user's order.
+  final List<AppTab>? order;
 
   /// The active branch.
   final Widget child;
+
+  /// The user's tab order from the [SettingsCubit] above [context] (the
+  /// default order without one).
+  static List<AppTab> _userOrder(BuildContext context) {
+    try {
+      return context.select<SettingsCubit, List<AppTab>>(
+        (cubit) => cubit.state.tabOrder,
+      );
+    } on ProviderNotFoundException {
+      return AppTab.values;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final width = MediaQuery.sizeOf(context).width;
-    final destinations = AppDestination.all;
+    final tabs = AppSettings.normalizeTabOrder(order ?? _userOrder(context));
+    final destinations = [for (final tab in tabs) AppDestination.of(tab)];
+    // Positions on screen <-> branch indexes.
+    final selected = tabs.indexWhere((tab) => tab.index == selectedIndex);
+    final selectedPosition = selected == -1 ? 0 : selected;
+    void select(int position) => onDestinationSelected(tabs[position].index);
 
     if (width < kExpandedBreakpoint) {
       return Scaffold(
-        body: child,
+        // The bar keeps clear of the system's navigation bar below; the tab
+        // of the one at a side (three-button navigation in landscape).
+        body: SafeArea(top: false, bottom: false, child: child),
         // Pages pad their own last rows for an opaque bar, so content does
         // not scroll under it: no blur needed behind the translucent bar.
         bottomNavigationBar: BlurBar(
           top: true,
           sigma: 0,
           child: NavigationBar(
-            selectedIndex: selectedIndex,
-            onDestinationSelected: onDestinationSelected,
+            selectedIndex: selectedPosition,
+            onDestinationSelected: select,
             destinations: [
               for (final d in destinations)
                 NavigationDestination(
@@ -100,6 +145,8 @@ class AppShell extends StatelessWidget {
 
     final extended = width >= extendedBreakpoint;
     final theme = Theme.of(context);
+    // The sidebar is at the start: on the right in right-to-left languages.
+    final rtl = Directionality.of(context) == TextDirection.rtl;
     return Scaffold(
       body: Row(
         children: [
@@ -108,10 +155,11 @@ class AppShell extends StatelessWidget {
                 theme.navigationRailTheme.backgroundColor ??
                 theme.colorScheme.surface,
             child: SafeArea(
-              right: false,
+              left: !rtl,
+              right: rtl,
               child: NavigationRail(
-                selectedIndex: selectedIndex,
-                onDestinationSelected: onDestinationSelected,
+                selectedIndex: selectedPosition,
+                onDestinationSelected: select,
                 extended: extended,
                 minExtendedWidth: 240,
                 labelType: NavigationRailLabelType.none,
@@ -139,7 +187,17 @@ class AppShell extends StatelessWidget {
             ),
           ),
           const Hairline(vertical: true),
-          Expanded(child: child),
+          Expanded(
+            // The sidebar keeps clear of its side and the app bars of the
+            // top: the tab avoids the system bars below and at the far
+            // side (the docked composers, the language bars).
+            child: MediaQuery.removePadding(
+              context: context,
+              removeLeft: !rtl,
+              removeRight: rtl,
+              child: SafeArea(top: false, child: child),
+            ),
+          ),
         ],
       ),
     );

@@ -28,6 +28,7 @@ import 'package:mozhi/settings/view/provider_editor_page.dart';
 import 'package:mozhi/settings/view/providers_page.dart';
 import 'package:mozhi/settings/view/quality_modes_page.dart';
 import 'package:mozhi/settings/view/settings_page.dart';
+import 'package:mozhi/settings/view/tab_order_page.dart';
 import 'package:mozhi/settings/view/voice_input_settings_page.dart';
 import 'package:mozhi/translate/view/translate_page.dart';
 import 'package:mozhi/usage/view/usage_summary_page.dart';
@@ -98,6 +99,52 @@ void main() {
 
     test('onboarding is outside the settings', () {
       expect(AppRoutes.onboarding, '/onboarding');
+    });
+
+    test('tab maps every tab to its location', () {
+      expect(
+        [for (final tab in AppTab.values) AppRoutes.tab(tab)],
+        [
+          AppRoutes.translate,
+          AppRoutes.dictionary,
+          AppRoutes.proofread,
+          AppRoutes.conversation,
+        ],
+      );
+      expect(AppRoutes.tabOrder, '/settings/tabs');
+    });
+  });
+
+  group('homeRedirect', () {
+    test('opens the translate tab in the default order', () {
+      expect(homeRedirect(const AppSettings(), '/'), AppRoutes.translate);
+      expect(homeRedirect(const AppSettings(), AppRoutes.translate), isNull);
+    });
+
+    test('sends a plain start to the first tab of the order', () {
+      const settings = AppSettings(
+        tabOrder: [
+          AppTab.proofread,
+          AppTab.translate,
+          AppTab.dictionary,
+          AppTab.conversation,
+        ],
+      );
+      expect(homeRedirect(settings, '/'), AppRoutes.proofread);
+      expect(homeRedirect(settings, ''), AppRoutes.proofread);
+      expect(homeRedirect(settings, AppRoutes.proofread), isNull);
+    });
+
+    test('keeps an explicit start at the translate tab', () {
+      const settings = AppSettings(
+        tabOrder: [
+          AppTab.dictionary,
+          AppTab.translate,
+          AppTab.proofread,
+          AppTab.conversation,
+        ],
+      );
+      expect(homeRedirect(settings, AppRoutes.translate), isNull);
     });
   });
 
@@ -261,7 +308,7 @@ void main() {
     tearDown(() => router.dispose());
 
     /// A router whose launch redirect sends to the onboarding.
-    GoRouter onboardingRouter({String initialLocation = AppRoutes.translate}) {
+    GoRouter onboardingRouter({String initialLocation = '/'}) {
       router.dispose();
       return router = createAppRouter(
         onTranslateLink: links.add,
@@ -342,6 +389,7 @@ void main() {
       '/settings/glossaries': GlossariesPage,
       '/settings/usage': UsageSummaryPage,
       '/settings/quality': QualityModesPage,
+      '/settings/tabs': TabOrderPage,
       AppRoutes.voiceSettings: VoiceInputSettingsPage,
     };
     for (final MapEntry(key: path, value: page) in fullScreenPages.entries) {
@@ -618,7 +666,7 @@ void main() {
 
         expect(location(), AppRoutes.onboarding);
         expect(find.byType(OnboardingPage), findsOneWidget);
-        expect(launches, [AppRoutes.translate]);
+        expect(launches, ['/']);
 
         await go(tester, AppRoutes.translate);
         expect(location(), AppRoutes.translate);
@@ -626,11 +674,14 @@ void main() {
         expect(launches, hasLength(1));
       });
 
-      testWidgets('also applies to the root', (tester) async {
-        onboardingRouter(initialLocation: '/');
+      testWidgets('also applies to an explicit translate start', (
+        tester,
+      ) async {
+        onboardingRouter(initialLocation: AppRoutes.translate);
         await pumpRouter(tester);
 
         expect(location(), AppRoutes.onboarding);
+        expect(launches, [AppRoutes.translate]);
       });
 
       testWidgets('never redirects translate links', (tester) async {
@@ -649,6 +700,127 @@ void main() {
 
         expect(location(), AppRoutes.translate);
         expect(launches, isEmpty);
+      });
+
+      const conversationFirst = AppSettings(
+        tabOrder: [
+          AppTab.conversation,
+          AppTab.translate,
+          AppTab.dictionary,
+          AppTab.proofread,
+        ],
+      );
+
+      /// A router whose launch redirect opens the first tab of
+      /// [conversationFirst].
+      GoRouter homeRouter({String? initialLocation}) {
+        router.dispose();
+        when(() => env.settingsCubit.state).thenReturn(conversationFirst);
+        String? redirect(String location) =>
+            homeRedirect(conversationFirst, location);
+        return router = initialLocation == null
+            ? createAppRouter(launchRedirect: redirect)
+            : createAppRouter(
+                launchRedirect: redirect,
+                initialLocation: initialLocation,
+              );
+      }
+
+      testWidgets('opens on the first tab of the order', (tester) async {
+        homeRouter();
+        await pumpRouter(tester);
+        await tester.pump(_transition);
+
+        expect(location(), AppRoutes.conversation);
+        expect(find.byType(ConversationPage), findsOneWidget);
+        // The tab shows first in the bar.
+        final bar = tester.widget<NavigationBar>(find.byType(NavigationBar));
+        expect(bar.selectedIndex, 0);
+      });
+
+      testWidgets('opens the root on the first tab of the order', (
+        tester,
+      ) async {
+        homeRouter(initialLocation: '/');
+        await pumpRouter(tester);
+        await tester.pump(_transition);
+
+        expect(location(), AppRoutes.conversation);
+      });
+
+      testWidgets('keeps an explicit start at the translate tab', (
+        tester,
+      ) async {
+        homeRouter(initialLocation: AppRoutes.translate);
+        await pumpRouter(tester);
+        await tester.pump(_transition);
+
+        expect(location(), AppRoutes.translate);
+        expect(find.byType(TranslatePage), findsOneWidget);
+      });
+
+      testWidgets('keeps the translate tab the platform starts at (the '
+          "widget's Type button, a web reload)", (tester) async {
+        // mozhi://translate, which MainActivity hands over as /translate.
+        tester.platformDispatcher.defaultRouteNameTestValue =
+            AppRoutes.translate;
+        addTearDown(tester.platformDispatcher.clearDefaultRouteNameTestValue);
+        homeRouter();
+        await pumpRouter(tester);
+        await tester.pump(_transition);
+
+        expect(location(), AppRoutes.translate);
+        expect(find.byType(TranslatePage), findsOneWidget);
+      });
+
+      testWidgets('opens a plain platform start on the first tab', (
+        tester,
+      ) async {
+        tester.platformDispatcher.defaultRouteNameTestValue = '/';
+        addTearDown(tester.platformDispatcher.clearDefaultRouteNameTestValue);
+        homeRouter();
+        await pumpRouter(tester);
+        await tester.pump(_transition);
+
+        expect(location(), AppRoutes.conversation);
+      });
+
+      testWidgets('the onboarding finishes on the first tab of the order', (
+        tester,
+      ) async {
+        when(() => env.settingsCubit.state).thenReturn(
+          const AppSettings(
+            tabOrder: [
+              AppTab.dictionary,
+              AppTab.translate,
+              AppTab.proofread,
+              AppTab.conversation,
+            ],
+          ),
+        );
+        await pumpRouter(tester);
+        await go(tester, AppRoutes.onboarding);
+
+        expect(
+          tester
+              .widget<OnboardingPage>(find.byType(OnboardingPage))
+              .finishLocation,
+          AppRoutes.dictionary,
+        );
+      });
+
+      testWidgets('the onboarding finishes on translate by default', (
+        tester,
+      ) async {
+        await pumpRouter(tester);
+        await go(tester, AppRoutes.onboarding);
+
+        expect(
+          tester
+              .widget<OnboardingPage>(find.byType(OnboardingPage))
+              .finishLocation,
+          AppRoutes.translate,
+        );
       });
 
       testWidgets('keeps the start location when it returns null', (

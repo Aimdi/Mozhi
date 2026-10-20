@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,11 +12,13 @@ import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/history/models/history_entry.dart';
+import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/platform/clipboard_service.dart';
 import 'package:mozhi/platform/privacy_channel.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/about_page.dart';
 import 'package:mozhi/settings/view/settings_page.dart';
+import 'package:mozhi/settings/view/widgets/choice_dialog.dart';
 import 'package:mozhi/settings/view/widgets/history_data_actions.dart';
 import 'package:mozhi/settings/view/widgets/link_launcher.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
@@ -107,6 +110,7 @@ void main() {
       await pump(tester);
       expect(find.text('Settings'), findsOneWidget);
       for (final title in [
+        'General',
         'Privacy',
         'Offline languages',
         'Online engines',
@@ -123,10 +127,11 @@ void main() {
       expect(find.text('Data'), findsNothing);
     });
 
-    testWidgets('orders the sections from privacy to about', (tester) async {
+    testWidgets('orders the sections from general to about', (tester) async {
       await pump(tester, size: const Size(600, 6000));
       final tops = [
         for (final title in [
+          'General',
           'Privacy',
           'Offline languages',
           'Online engines',
@@ -244,6 +249,10 @@ void main() {
             find.descendant(of: sectionOf(section), matching: find.text(title));
         for (final (section, rows) in [
           (
+            'General',
+            ['App language', 'Tab order', 'Haptic feedback', 'Multiline input'],
+          ),
+          (
             'Privacy',
             [
               'Privacy mode',
@@ -265,6 +274,7 @@ void main() {
               'Mozhi instances',
               'Translation services',
               'Quality modes',
+              'Remember quality selection',
               'Instant translate',
             ],
           ),
@@ -338,7 +348,189 @@ void main() {
       }
     });
 
+    group('general', () {
+      testWidgets('starts with the system language', (tester) async {
+        await pump(tester);
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('settings_app_language')),
+            matching: find.text('System default'),
+          ),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('shows the chosen app language in itself', (tester) async {
+        final handle = tester.ensureSemantics();
+        await pump(tester, state: const AppSettings(appLocale: 'ja'));
+        final name = find.descendant(
+          of: find.byKey(const Key('settings_app_language')),
+          matching: find.text('日本語'),
+        );
+        expect(name, findsOneWidget);
+        // Drawn with Japanese glyphs.
+        expect(tester.widget<Text>(name).locale, const Locale('ja'));
+        final label = tester
+            .getSemantics(find.byKey(const Key('settings_app_language')))
+            .getSemanticsData()
+            .attributedLabel;
+        expect(label.string, contains('日本語'));
+        expect(
+          label.attributes.whereType<LocaleStringAttribute>().single.locale,
+          const Locale('ja'),
+        );
+        handle.dispose();
+      });
+
+      testWidgets('an unknown stored language shows the system default', (
+        tester,
+      ) async {
+        await pump(tester, state: const AppSettings(appLocale: 'sv'));
+        expect(find.text('System default'), findsOneWidget);
+      });
+
+      testWidgets('picks an app language from every translation', (
+        tester,
+      ) async {
+        await pump(tester);
+        await tester.tap(find.text('App language'));
+        await tester.pumpAndSettle();
+
+        final dialog = find.byType(AlertDialog);
+        expect(
+          find.descendant(of: dialog, matching: find.text('System default')),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: dialog,
+            matching: find.text(
+              'The language of the menus and buttons. What you translate is '
+              'not affected.',
+            ),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: dialog,
+            matching: find.byType(RadioListTile<String>),
+          ),
+          findsNWidgets(AppLocalizations.supportedLocales.length + 1),
+        );
+        for (final name in ['English', 'Español', 'العربية', '简体中文']) {
+          expect(
+            find.descendant(of: dialog, matching: find.text(name)),
+            findsOneWidget,
+            reason: name,
+          );
+        }
+
+        await tester.tap(find.text('Deutsch'));
+        await tester.pump();
+        await tester.tap(find.byKey(ChoiceDialog.saveKey));
+        await tester.pumpAndSettle();
+        verify(() => settings.setAppLocale('de')).called(1);
+      });
+
+      testWidgets('goes back to the system language', (tester) async {
+        await pump(tester, state: const AppSettings(appLocale: 'de'));
+        await tester.tap(find.text('App language'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('System default'));
+        await tester.pump();
+        await tester.tap(find.byKey(ChoiceDialog.saveKey));
+        await tester.pumpAndSettle();
+        verify(() => settings.setAppLocale(null)).called(1);
+      });
+
+      testWidgets('keeps the app language when cancelled or unchanged', (
+        tester,
+      ) async {
+        await pump(tester, state: const AppSettings(appLocale: 'de'));
+        await tester.tap(find.text('App language'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('App language'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(ChoiceDialog.saveKey));
+        await tester.pumpAndSettle();
+        verifyNever(() => settings.setAppLocale(any()));
+      });
+
+      testWidgets('opens the tab order and names the first tab', (
+        tester,
+      ) async {
+        await pump(
+          tester,
+          state: const AppSettings(
+            tabOrder: [
+              AppTab.dictionary,
+              AppTab.translate,
+              AppTab.proofread,
+              AppTab.conversation,
+            ],
+          ),
+        );
+        expect(find.text('Opens on Dictionary'), findsOneWidget);
+        await tester.tap(find.text('Tab order'));
+        verify(
+          () => router.push<Object?>(
+            '/settings/tabs',
+            extra: any(named: 'extra'),
+          ),
+        ).called(1);
+      });
+
+      testWidgets('haptic feedback (on by default)', (tester) async {
+        await pump(tester);
+        expect(
+          find.text(
+            'Vibrate lightly when you press translate, swap, copy or '
+            'favourite',
+          ),
+          findsOneWidget,
+        );
+        await tester.tap(find.text('Haptic feedback'));
+        verify(() => settings.setHapticFeedback(enabled: false)).called(1);
+      });
+
+      testWidgets('multiline input (on by default) explains Enter', (
+        tester,
+      ) async {
+        await pump(tester);
+        expect(
+          find.text(
+            'When on, Enter adds a new line instead of starting a '
+            'translation.',
+          ),
+          findsOneWidget,
+        );
+        await tester.tap(find.text('Multiline input'));
+        verify(() => settings.setMultilineInput(enabled: false)).called(1);
+      });
+
+      testWidgets('turns multiline input back on', (tester) async {
+        await pump(tester, state: const AppSettings(multilineInput: false));
+        await tester.tap(find.text('Multiline input'));
+        verify(() => settings.setMultilineInput(enabled: true)).called(1);
+      });
+    });
+
     group('translation toggles', () {
+      testWidgets('remember quality selection (on by default)', (tester) async {
+        await pump(tester);
+        await tester.ensureVisible(find.text('Remember quality selection'));
+        expect(
+          find.textContaining('When off, the app starts in Fast'),
+          findsOneWidget,
+        );
+        await tester.tap(find.text('Remember quality selection'));
+        verify(() => settings.setRememberQuality(enabled: false)).called(1);
+      });
+
       testWidgets('instant translate', (tester) async {
         await pump(tester);
         await tester.tap(find.text('Instant translate'));
@@ -948,7 +1140,7 @@ void main() {
             ],
           ),
         );
-        tester.setScreenSize(const Size(800, 4000));
+        tester.setScreenSize(const Size(800, 5000));
         await tester.pumpView(
           RepositoryProvider<SpeechService>.value(
             value: speech,

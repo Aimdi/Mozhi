@@ -8,7 +8,9 @@
      This file governs platform networking (Java/Kotlin, plugins such as ML
      Kit model downloads), none of which needs plain http, so cleartext is
      off. Dart's HttpClient (package:http IOClient) ignores this file,
-     including cleartextTrafficPermitted and the trust anchors. For Dart
+     including cleartextTrafficPermitted and the trust anchors (checked
+     with Flutter 3.47.7: the embedding hands dart:io no cleartext policy,
+     so plain http to a Mozhi or Ollama server on the LAN works). For Dart
      traffic the control is the app's network policy
      (lib/core/network/network_policy.dart, BackendHttpClient): before
      anything is sent it refuses plain http to any host that is not this

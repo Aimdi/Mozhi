@@ -58,6 +58,24 @@ void main() {
       await tester.pump(const Duration(seconds: 2));
     });
 
+    testWidgets('copy and favourite stay still with haptic feedback off', (
+      tester,
+    ) async {
+      final clipboard = FakeClipboard(tester);
+      final harness = TranslateHarness(
+        state: translatedState(),
+        settings: const AppSettings(hapticFeedback: false),
+      );
+      await harness.pump(tester, child: const OutputCard());
+      await tester.tap(find.byTooltip('Copy'));
+      await tester.pump();
+      await tester.tap(find.byTooltip('Add to favourites'));
+      await tester.pump();
+      expect(clipboard.haptics, isEmpty);
+      expect(clipboard.copied, 'Bonjour le monde');
+      await tester.pump(const Duration(seconds: 2));
+    });
+
     testWidgets('favourite ticks lightly', (tester) async {
       final clipboard = FakeClipboard(tester);
       final harness = TranslateHarness(state: translatedState());

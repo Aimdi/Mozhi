@@ -104,6 +104,54 @@ void main() {
       expect(find.text('Bonjour le monde'), findsOneWidget);
     });
 
+    testWidgets('keeps the actions above the navigation bar', (tester) async {
+      await tester.pumpQuick(
+        host((context) => showQuickTranslate(context, text: 'Hello world')),
+      );
+      // Three-button navigation, drawn edge to edge.
+      tester.view
+        ..padding = const FakeViewPadding(bottom: 48)
+        ..viewPadding = const FakeViewPadding(bottom: 48);
+      await open(tester);
+
+      expect(find.byType(BottomSheet), findsOneWidget);
+      expect(
+        tester.getRect(find.byType(QuickActionsBar)).bottom,
+        800 - 48 - 16,
+      );
+
+      // The keyboard covers the bar: no room is kept for it on top.
+      tester.view
+        ..padding = FakeViewPadding.zero
+        ..viewInsets = const FakeViewPadding(bottom: 300);
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getRect(find.byType(QuickActionsBar)).bottom,
+        800 - 300 - 16,
+      );
+    });
+
+    testWidgets('pads the dialog only by its own margin', (tester) async {
+      await tester.pumpQuick(
+        host((context) => showQuickTranslate(context, text: 'Hello world')),
+        size: const Size(1200, 800),
+      );
+      tester.view
+        ..padding = const FakeViewPadding(bottom: 48)
+        ..viewPadding = const FakeViewPadding(bottom: 48);
+      await open(tester);
+
+      final dialog = tester.getRect(
+        find.descendant(
+          of: find.byType(Dialog),
+          matching: find.byType(QuickTranslateView),
+        ),
+      );
+      final actions = tester.getRect(find.byType(QuickActionsBar));
+      expect(dialog.bottom - actions.bottom, 16);
+    });
+
     testWidgets('ignores blank text', (tester) async {
       var completed = false;
       await tester.pumpQuick(

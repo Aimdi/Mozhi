@@ -48,8 +48,6 @@ class _DocumentPreviewTabsState extends State<DocumentPreviewTabs>
           TabBar(
             key: const Key('documents_preview_tabs'),
             controller: _tabs,
-            dividerColor: AppPalette.of(context).hairline,
-            labelStyle: const TextStyle(fontWeight: FontWeight.w700),
             tabs: [
               Tab(text: l10n.documentsTabOriginal),
               Tab(text: l10n.documentsTabTranslation),
@@ -144,17 +142,16 @@ class DocumentSideBySide extends StatelessWidget {
     final document = state.document;
     if (document == null || document.isEmpty) {
       return Center(
+        // Before a document is chosen, the controls show how to pick one.
         child: _Placeholder(
           text: document == null
-              ? l10n.documentsPickTitle
+              ? l10n.documentsPreviewEmpty
               : l10n.documentsErrorNothing,
         ),
       );
     }
     final palette = AppPalette.of(context);
-    final header = theme.textTheme.titleSmall?.copyWith(
-      fontWeight: FontWeight.w800,
-    );
+    final header = theme.textTheme.titleSmall;
 
     // A flat card: hairline outline, no fill.
     return DecoratedBox(

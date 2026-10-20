@@ -8,8 +8,8 @@
     <string name="tile_translate_description">Traduzir a área de transferência com o Mozhi</string>
     <string name="shortcut_clipboard_short">Colar</string>
     <string name="shortcut_clipboard_long">Traduzir texto copiado</string>
-    <string name="shortcut_camera_short">Câmera</string>
-    <string name="shortcut_camera_long">Traduzir com a câmera</string>
+    <string name="shortcut_dictionary_short">Dicionário</string>
+    <string name="shortcut_dictionary_long">Dicionário</string>
     <string name="shortcut_conversation_short">Conversa</string>
     <string name="shortcut_conversation_long">Conversa</string>
     <string name="shortcut_proofread_short">Revisar</string>

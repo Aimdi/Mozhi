@@ -5,20 +5,25 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/translate_link.dart'
     show TranslateLink, matchLanguage;
 import 'package:mozhi/app/view/top_level_actions.dart';
+import 'package:mozhi/core/widgets/composer_card.dart';
 import 'package:mozhi/core/widgets/tab_hero.dart';
-import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/dictionary/cubit/dictionary_cubit.dart';
+import 'package:mozhi/dictionary/view/dictionary_request.dart';
 import 'package:mozhi/dictionary/widgets/widgets.dart';
+import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
-import 'package:mozhi/translate/widgets/dictionary_card.dart'
-    show DictionaryVerbosityChips;
 import 'package:mozhi/usage/data/usage_tracker.dart';
 import 'package:translation_repository/translation_repository.dart';
 
+export 'dictionary_request.dart';
+
 /// Pass as the navigation's `extra` (`context.push(location, extra:
 /// DictionaryLaunch.lookUp)`) to look the word up right away. Links from
-/// outside the app cannot carry it.
+/// outside the app cannot carry it. See also [DictionaryLookUpRequest],
+/// which also sets the detail level and works when the dictionary already
+/// shows the location.
 enum DictionaryLaunch { lookUp }
 
 /// The AI dictionary: definitions, pronunciation, examples and
@@ -38,6 +43,15 @@ enum DictionaryLaunch { lookUp }
 /// even with `instantTranslateAi`: the user presses Look up. The detail
 /// level starts as the translate screen's dictionary card has it
 /// ([TranslateState.dictionaryVerbosity]).
+///
+/// A [DictionaryLookUpRequest] as the location's `extra`
+/// ([dictionaryRequestOf]) looks the word up right away too, with its
+/// detail level; a new request also does when the page is kept because the
+/// tab already shows the same location (History opens look-ups this way).
+///
+/// Look-ups are saved to the history of the app-wide [HistoryCubit] as
+/// [SettingsCubit]'s settings allow (see [DictionaryCubit]); without them
+/// (e.g. in tests) nothing is saved.
 class DictionaryPage extends StatelessWidget {
   const new({
     this.word,
@@ -64,6 +78,7 @@ class DictionaryPage extends StatelessWidget {
     return BlocProvider(
       create: (context) {
         final translate = context.read<TranslateCubit>().state;
+        final request = dictionaryRequestOf(context);
         final cubit = DictionaryCubit(
           repository: context.read<TranslationRepository>(),
           engine: dictionaryEngine(translate),
@@ -76,14 +91,19 @@ class DictionaryPage extends StatelessWidget {
               _fromLink(to, DictionaryLanguageBar.targetLanguages) ??
               _known(translate.target, DictionaryLanguageBar.targetLanguages) ??
               const Language(code: 'en', name: 'English'),
-          verbosity: translate.dictionaryVerbosity,
+          verbosity: request?.verbosity ?? translate.dictionaryVerbosity,
           uiLanguage: uiLanguage,
           usageTracker: _usageTracker(context),
+          history: context.read<HistoryCubit?>(),
+          settings: context.read<SettingsCubit?>(),
         );
-        if (autoLookUp) unawaited(cubit.lookUp());
+        if (autoLookUp || request != null) unawaited(cubit.lookUp());
         return cubit;
       },
-      child: DictionaryView(autofocus: word?.trim().isNotEmpty != true),
+      child: _LookUpRequests(
+        page: this,
+        child: DictionaryView(autofocus: word?.trim().isNotEmpty != true),
+      ),
     );
   }
 
@@ -103,6 +123,59 @@ class DictionaryPage extends StatelessWidget {
   /// languages that are not listed).
   static Language? _known(Language language, List<Language> available) =>
       language.isCustom ? null : LanguageMatcher.match(language, available);
+}
+
+/// Applies a new [DictionaryLookUpRequest] when the router rebuilds a page
+/// it keeps (the tab already showed the same location): the page's word
+/// and languages are looked up again with the request's detail level. The
+/// request the page was created with is applied by [DictionaryPage].
+class _LookUpRequests extends StatefulWidget {
+  const new({required this.page, required this.child});
+
+  final DictionaryPage page;
+  final Widget child;
+
+  @override
+  State<_LookUpRequests> createState() => _LookUpRequestsState();
+}
+
+class _LookUpRequestsState extends State<_LookUpRequests> {
+  /// The request applied last (the page's first one, see [DictionaryPage]).
+  DictionaryLookUpRequest? _applied;
+
+  @override
+  void initState() {
+    super.initState();
+    _applied = dictionaryRequestOf(context);
+  }
+
+  @override
+  void didUpdateWidget(_LookUpRequests oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final request = dictionaryRequestOf(context);
+    if (request == null || identical(request, _applied)) return;
+    _applied = request;
+    final page = widget.page;
+    final word = page.word?.trim() ?? '';
+    if (word.isEmpty) return;
+    unawaited(
+      context.read<DictionaryCubit>().open(
+        word,
+        source: DictionaryPage._fromLink(
+          page.from,
+          DictionaryLanguageBar.sourceLanguages,
+        ),
+        target: DictionaryPage._fromLink(
+          page.to,
+          DictionaryLanguageBar.targetLanguages,
+        ),
+        verbosity: request.verbosity,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 /// English name of the UI language: definitions and notes are written in
@@ -132,29 +205,63 @@ UsageTracker? _usageTracker(BuildContext context) {
   }
 }
 
-/// The dictionary screen: before the first look-up a big headline
-/// ([DictionaryHero]) above the search, then the search, languages and
-/// detail level, and the entry (below them on phones, beside them from
-/// [wideBreakpoint]). History and Settings are in the app bar.
-class DictionaryView extends StatelessWidget {
+/// The dictionary screen, like Kagi Translate's.
+///
+/// Without an entry (the status is idle): the greeting ([DictionaryHero])
+/// or, without an AI engine, why there is none
+/// ([DictionaryEngineMessage]), above the composer docked at the bottom
+/// ([DictionaryComposer]: the search field, the microphone and the bar
+/// [options | go | languages]). Enter or the go button looks the word up.
+///
+/// Once a word is looked up: the entry in tabs ([DictionaryResultView]),
+/// with a back arrow in the app bar (system back does the same) that
+/// returns to the search with the word kept, the options button beside
+/// History and Settings, and "New look-up", which clears the word and
+/// focuses the search.
+///
+/// On large screens the composer and the entry are centred columns.
+class DictionaryView extends StatefulWidget {
   const new({this.autofocus = false, super.key});
 
   /// Focus the search field on arrival.
   final bool autofocus;
 
-  /// Width from which the search and the entry are side by side.
-  static const wideBreakpoint = 840.0;
+  /// Width from which the composer uses the large-screen layout.
+  static const double wideBreakpoint = ComposerLayout.wideBreakpoint;
+
+  @override
+  State<DictionaryView> createState() => _DictionaryViewState();
+}
+
+class _DictionaryViewState extends State<DictionaryView> {
+  final _searchFocus = FocusNode(debugLabel: 'dictionary_search_field');
+
+  /// Whether the search field takes the focus when it shows: only on
+  /// arrival, not when back from an entry.
+  late bool _autofocus = widget.autofocus;
+
+  @override
+  void dispose() {
+    _searchFocus.dispose();
+    super.dispose();
+  }
+
+  /// Clears the word and focuses the search field once it is back.
+  void _newLookUp() {
+    context.read<DictionaryCubit>().clear();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _searchFocus.requestFocus();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final controls = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const DictionaryHero(),
-        _Controls(autofocus: autofocus),
-      ],
+    final cubit = context.read<DictionaryCubit>();
+    final showEntry = context.select<DictionaryCubit, bool>(
+      (cubit) => cubit.state.status != DictionaryStatus.idle,
     );
+    if (showEntry) _autofocus = false;
     return BlocListener<TranslateCubit, TranslateState>(
       // Engine equality ignores details such as the model, so compare
       // instances to pick up edited providers.
@@ -163,49 +270,38 @@ class DictionaryView extends StatelessWidget {
           !identical(previous.assistEngine, current.assistEngine),
       listener: (context, state) =>
           context.read<DictionaryCubit>().setEngine(dictionaryEngine(state)),
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(l10n.dictionaryTitle),
-          actions: const [TopLevelActions(), SizedBox(width: 4)],
-        ),
-        body: SafeArea(
-          top: false,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              if (constraints.maxWidth >= wideBreakpoint) {
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: 400,
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(24, 16, 12, 24),
-                        child: controls,
-                      ),
-                    ),
-                    const Expanded(
-                      child: SingleChildScrollView(
-                        padding: EdgeInsets.fromLTRB(12, 16, 24, 24),
-                        child: DictionaryResult(),
-                      ),
-                    ),
-                  ],
-                );
-              }
-              return SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 720),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      spacing: 16,
-                      children: [controls, const DictionaryResult()],
-                    ),
-                  ),
+      child: PopScope(
+        // Back from an entry returns to the search first.
+        canPop: !showEntry,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop && showEntry) cubit.closeEntry();
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            leading: showEntry
+                ? IconButton(
+                    key: const Key('dictionary_back'),
+                    tooltip: MaterialLocalizations.of(context)
+                        .backButtonTooltip,
+                    icon: const BackButtonIcon(),
+                    onPressed: cubit.closeEntry,
+                  )
+                : null,
+            title: Text(l10n.dictionaryTitle),
+            actions: [
+              if (showEntry)
+                const DictionaryOptionsButton(
+                  key: Key('dictionary_result_options'),
                 ),
-              );
-            },
+              const TopLevelActions(),
+              const SizedBox(width: 4),
+            ],
+          ),
+          body: SafeArea(
+            top: false,
+            child: showEntry
+                ? DictionaryResultView(onNewLookUp: _newLookUp)
+                : _SearchLayout(focusNode: _searchFocus, autofocus: _autofocus),
           ),
         ),
       ),
@@ -213,70 +309,74 @@ class DictionaryView extends StatelessWidget {
   }
 }
 
-/// "What does this mean?" with what the dictionary does, above the search
-/// until the first look-up (the status is idle).
+/// The dictionary without an entry: the greeting (or the engine message)
+/// above the docked composer. A window too low for both
+/// ([ComposerLayout.heroMinHeight]) shows the composer alone, at the
+/// bottom.
+class _SearchLayout extends StatelessWidget {
+  const new({required this.focusNode, required this.autofocus});
+
+  final FocusNode focusNode;
+  final bool autofocus;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasEngine = context.select<DictionaryCubit, bool>(
+      (cubit) => cubit.state.hasEngine,
+    );
+    final composer = DictionaryComposer(
+      focusNode: focusNode,
+      autofocus: autofocus,
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= DictionaryView.wideBreakpoint;
+        final textScale = MediaQuery.textScalerOf(context).scale(1);
+        if (constraints.maxHeight < ComposerLayout.heroMinHeight(textScale)) {
+          return Align(
+            alignment: Alignment.bottomCenter,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(ComposerLayout.margin),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: ComposerLayout.maxColumnWidth,
+                ),
+                child: composer,
+              ),
+            ),
+          );
+        }
+        return ComposerLayout(
+          wide: wide,
+          hero: hasEngine
+              ? const DictionaryHero()
+              : const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: DictionaryEngineMessage(),
+                ),
+          composer: composer,
+        );
+      },
+    );
+  }
+}
+
+/// "What does this mean?" with what the dictionary does, above the
+/// composer until a word is looked up.
 class DictionaryHero extends StatelessWidget {
   const new({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final idle = context.select<DictionaryCubit, bool>(
-      (cubit) => cubit.state.status == DictionaryStatus.idle,
-    );
-    if (!idle) return const SizedBox.shrink();
     final l10n = context.l10n;
     return Padding(
       key: const Key('dictionary_hero'),
-      padding: const EdgeInsets.fromLTRB(8, 16, 8, 24),
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
       child: TabHero(
         icon: Icons.menu_book_rounded,
         title: l10n.dictionaryHeroTitle,
         body: l10n.dictionaryEmptyBody,
       ),
-    );
-  }
-}
-
-/// Search field, languages, the detail level and the engine in use.
-class _Controls extends StatelessWidget {
-  const new({required this.autofocus});
-
-  final bool autofocus;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final (engine, verbosity) = context
-        .select<DictionaryCubit, (TranslationEngine?, DictionaryVerbosity)>(
-          (cubit) => (cubit.state.engine, cubit.state.verbosity),
-        );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: 8,
-      children: [
-        DictionarySearchField(autofocus: autofocus),
-        const DictionaryLanguageBar(),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: DictionaryVerbosityChips(
-            key: const Key('dictionary_verbosity'),
-            value: verbosity,
-            onChanged: (level) =>
-                unawaited(context.read<DictionaryCubit>().setVerbosity(level)),
-          ),
-        ),
-        if (engine != null)
-          Padding(
-            padding: const EdgeInsetsDirectional.only(start: 16, end: 16),
-            child: Text(
-              context.l10n.dictionaryEngine(engine.name),
-              key: const Key('dictionary_engine'),
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: AppPalette.of(context).secondaryText,
-              ),
-            ),
-          ),
-      ],
     );
   }
 }

@@ -55,8 +55,7 @@ class _UsageBudgetDialogState extends State<UsageBudgetDialog> {
     return AlertDialog(
       title: Text(
         l10n.usageBudgetDialogTitle,
-        style: Theme.of(context).textTheme.titleLarge
-            ?.copyWith(fontWeight: FontWeight.w800),
+        style: Theme.of(context).textTheme.titleLarge,
       ),
       content: Form(
         key: _formKey,
@@ -78,7 +77,6 @@ class _UsageBudgetDialogState extends State<UsageBudgetDialog> {
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: InputDecoration(
                 labelText: l10n.usageBudgetFieldLabel,
-                border: const OutlineInputBorder(),
               ),
               validator: (value) {
                 final chars = int.tryParse(value ?? '');

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/core/widgets/composer_card.dart';
 import 'package:mozhi/translate/translate.dart';
 import 'package:mozhi/translate/widgets/widgets.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -84,6 +85,24 @@ void main() {
       Finder field() => find.byKey(const Key('translate_input_field'));
       Finder toolbar() => find.byKey(const Key('translate_input_toolbar'));
       Finder composer() => find.byKey(const Key('translate_composer'));
+      Finder link() => find.byKey(const Key('translate_paste_link'));
+
+      /// The composer card's box (its outline, fill and motion).
+      AnimatedContainer cardBox(WidgetTester tester) =>
+          tester.widget<AnimatedContainer>(
+            find
+                .descendant(
+                  of: composer(),
+                  matching: find.byType(AnimatedContainer),
+                )
+                .first,
+          );
+
+      bool fieldFocused(WidgetTester tester) => tester
+          .state<EditableTextState>(find.byType(EditableText))
+          .widget
+          .focusNode
+          .hasFocus;
 
       /// Whether the input thread's avatar shows.
       bool avatarShown(WidgetTester tester) => tester
@@ -113,17 +132,18 @@ void main() {
           expect(card.contains(rect.topLeft), isTrue);
           expect(card.contains(rect.bottomRight - const Offset(1, 1)), isTrue);
         }
-        final decoration =
-            tester.widget<AnimatedContainer>(composer()).decoration!
-                as BoxDecoration;
+        expect(tester.widget<ComposerCard>(composer()).outlined, isTrue);
+        final decoration = cardBox(tester).decoration! as BoxDecoration;
         expect(decoration.border, isNotNull);
-        // No avatar and no tools row yet; paste sits at the top end.
+        // No avatar and no tools row yet; the placeholder's "paste" link
+        // pastes (no separate paste icon).
         expect(avatarShown(tester), isFalse);
         expect(toolbar(), findsNothing);
-        expect(find.byKey(const Key('translate_paste_button')), findsOneWidget);
+        expect(find.byKey(const Key('translate_paste_button')), findsNothing);
+        expect(link(), findsOneWidget);
         expect(
-          tester.getCenter(find.byKey(const Key('translate_paste_button'))).dx,
-          greaterThan(tester.getCenter(field()).dx),
+          tester.getRect(field()).contains(tester.getCenter(link())),
+          isTrue,
         );
       });
 
@@ -146,10 +166,12 @@ void main() {
         );
         expect(editable.widget.focusNode.hasFocus, isTrue);
         // The card's outline is gone; the bar docks at the bottom.
-        final decoration =
-            tester.widget<AnimatedContainer>(composer()).decoration!
-                as BoxDecoration;
+        expect(tester.widget<ComposerCard>(composer()).outlined, isFalse);
+        final decoration = cardBox(tester).decoration! as BoxDecoration;
         expect((decoration.border! as Border).top, BorderSide.none);
+        // The field's own hint replaces the placeholder with the link.
+        expect(link(), findsNothing);
+        expect(find.text('Enter text'), findsOneWidget);
         expect(
           tester.getRect(find.byType(LanguageBar)).bottom,
           closeTo(800 - 8, 1),
@@ -257,11 +279,172 @@ void main() {
           size: const Size(400, 800),
           disableAnimations: true,
         );
-        expect(
-          tester.widget<AnimatedContainer>(composer()).duration,
-          Duration.zero,
-        );
+        expect(cardBox(tester).duration, Duration.zero);
       });
+
+      testWidgets('the placeholder link pastes the clipboard', (tester) async {
+        FakeClipboard(tester, pasteText: 'Guten Tag');
+        final harness = TranslateHarness();
+        await harness.pump(tester, size: const Size(400, 800));
+        await tester.tap(link());
+        await tester.pump();
+        verify(() => harness.translate.setInput('Guten Tag')).called(1);
+        // A tap pastes without opening the keyboard.
+        expect(fieldFocused(tester), isFalse);
+      });
+
+      testWidgets('taps on the placeholder beside the link focus the field', (
+        tester,
+      ) async {
+        FakeClipboard(tester, pasteText: 'Guten Tag');
+        final harness = TranslateHarness();
+        await harness.pump(tester, size: const Size(400, 800));
+        final hint = tester.getRect(
+          find.byKey(const Key('translate_composer_hint')),
+        );
+        // On "Type", at the start of the first line.
+        await tester.tapAt(hint.topLeft + const Offset(8, 26));
+        await tester.pumpAndSettle();
+        verifyNever(() => harness.translate.setInput(any()));
+        expect(hero(), findsNothing);
+        expect(fieldFocused(tester), isTrue);
+      });
+
+      group('quality modes', () {
+        TranslateHarness qualityHarness({String input = ''}) {
+          final harness = TranslateHarness(
+            state: readyState(engine: google, input: input).copyWith(
+              qualityMode: QualityMode.fast,
+              fastEngine: () => google,
+              bestEngine: () => claude,
+            ),
+          );
+          when(() => harness.translate.setQualityMode(any()))
+              .thenAnswer((_) async {});
+          return harness;
+        }
+
+        Finder chip() => find.byKey(const Key('translate_quality_chip'));
+
+        /// The quality toggle of the app bar, in any of its layouts.
+        Finder appBarToggle() => find.descendant(
+          of: find.byType(AppBar),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget.key == const Key('translate_quality_toggle') ||
+                widget.key == const Key('translate_quality_menu'),
+          ),
+        );
+
+        setUpAll(() => registerFallbackValue(QualityMode.off));
+
+        testWidgets('the greeting holds the chip, not the app bar', (
+          tester,
+        ) async {
+          final harness = qualityHarness();
+          await harness.pump(tester, size: const Size(400, 800));
+          await tester.pump();
+          expect(chip(), findsOneWidget);
+          expect(appBarToggle(), findsNothing);
+          expect(
+            tester.getRect(chip()).bottom,
+            lessThan(tester.getRect(find.text('Good morning')).top),
+          );
+
+          // Active: the toggle is back in the app bar.
+          await tester.tap(field());
+          await tester.pumpAndSettle();
+          expect(chip(), findsNothing);
+          expect(appBarToggle(), findsOneWidget);
+
+          // Empty again: back in the greeting.
+          tester
+              .state<EditableTextState>(find.byType(EditableText))
+              .widget
+              .focusNode
+              .unfocus();
+          await tester.pumpAndSettle();
+          expect(chip(), findsOneWidget);
+          expect(appBarToggle(), findsNothing);
+        });
+
+        testWidgets('the toggle stays in the app bar with input', (
+          tester,
+        ) async {
+          final harness = qualityHarness(input: 'Hello');
+          await harness.pump(tester, size: const Size(400, 800));
+          // From the first frame on.
+          expect(appBarToggle(), findsOneWidget);
+          await tester.pumpAndSettle();
+          expect(appBarToggle(), findsOneWidget);
+          expect(chip(), findsNothing);
+        });
+
+        testWidgets('a low window keeps the toggle in the app bar', (
+          tester,
+        ) async {
+          final harness = qualityHarness();
+          await harness.pump(tester, size: const Size(891, 411));
+          await tester.pumpAndSettle();
+          expect(hero(), findsNothing);
+          expect(chip(), findsNothing);
+          expect(appBarToggle(), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        });
+
+        testWidgets('a greeting without room for the chip leaves the toggle '
+            'in the app bar', (tester) async {
+          final harness = qualityHarness();
+          await harness.pump(
+            tester,
+            size: const Size(320, 568),
+            textScale: 1.3,
+          );
+          await tester.pumpAndSettle();
+          expect(hero(), findsOneWidget);
+          expect(chip(), findsNothing);
+          expect(appBarToggle(), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        });
+
+        testWidgets('the engine choice keeps the toggle in the app bar', (
+          tester,
+        ) async {
+          final harness = TranslateHarness(
+            state: readyState().copyWith(
+              engine: () => null,
+              fastEngine: () => google,
+              bestEngine: () => claude,
+            ),
+          );
+          await harness.pump(tester, size: const Size(400, 800));
+          await tester.pumpAndSettle();
+          expect(find.byType(ChooseEngineView), findsOneWidget);
+          expect(appBarToggle(), findsOneWidget);
+        });
+
+        testWidgets('the chip switches the mode', (tester) async {
+          final harness = qualityHarness();
+          await harness.pump(tester, size: const Size(400, 800));
+          await tester.pump();
+          await tester.tap(chip());
+          await tester.pumpAndSettle();
+          await tester.tap(
+            find.byKey(const ValueKey('translate_quality_best')),
+          );
+          await tester.pumpAndSettle();
+          verify(() => harness.translate.setQualityMode(QualityMode.best))
+              .called(1);
+          // The greeting stays.
+          expect(hero(), findsOneWidget);
+        });
+      });
+    });
+
+    test('translateComposerFill is the shared composer fill', () {
+      final scheme = ColorScheme.fromSeed(seedColor: Colors.teal);
+      const quiet = Color(0xFF536471);
+      expect(translateComposerFill(scheme, quiet), composerFill(scheme, quiet));
     });
 
     testWidgets('does not overflow at 320 dp with large text', (tester) async {

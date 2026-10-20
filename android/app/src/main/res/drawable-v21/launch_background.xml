@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Modify this file to customize your launch splash screen -->
+<!-- Window background while the app starts (LaunchTheme). Android 12+
+     shows its own splash screen instead, but takes the splash colour from
+     this drawable, so the colours follow the system's dark mode
+     (values/colors.xml, values-night/colors.xml): black like the default
+     dark look (Lights out) at night, white by day. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@android:color/white" />
+    <item android:drawable="@color/launch_background" />
 
     <!-- You can insert your own image assets here -->
     <item android:gravity="center" android:drawable="@drawable/ic_launch_image" />

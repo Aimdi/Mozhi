@@ -28,12 +28,7 @@ class ImageMethodSelector extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          l10n.imageTranslateMethodLabel,
-          style: theme.textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w800,
-          ),
-        ),
+        Text(l10n.imageTranslateMethodLabel, style: theme.textTheme.titleSmall),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
@@ -44,7 +39,11 @@ class ImageMethodSelector extends StatelessWidget {
                 key: Key('image_translate_method_${method.id}'),
                 avatar: Icon(imageMethodIcon(method.kind)),
                 showCheckmark: false,
-                label: Text(imageMethodLabel(l10n, method)),
+                // Long names end in "…" on narrow screens with large text.
+                label: Text(
+                  imageMethodLabel(l10n, method),
+                  overflow: TextOverflow.ellipsis,
+                ),
                 selected: method == selected,
                 materialTapTargetSize: MaterialTapTargetSize.padded,
                 onSelected: (_) => unawaited(cubit.selectMethod(method)),

@@ -5,9 +5,10 @@ import 'fake_speech_recognizer.dart';
 /// Scriptable [OfflineSpeechRecognizerAdapter] for tests: a
 /// [FakeSpeechRecognizer] whose [initialize] behaves like Whisper's (it
 /// fails with [OfflineSpeechRecognizerAdapter.modelMissingCode] unless
-/// [ready]).
+/// [ready]), with a voice activity detection that hears what the test sets
+/// ([heardSpeech]).
 class FakeOfflineRecognizer extends FakeSpeechRecognizer
-    implements OfflineSpeechRecognizerAdapter {
+    implements OfflineSpeechRecognizerAdapter, VoiceActivitySpeechRecognizer {
   new() {
     localeList = const [
       SpeechRecognizerLocale('en', 'English'),
@@ -19,6 +20,9 @@ class FakeOfflineRecognizer extends FakeSpeechRecognizer
 
   /// Whether a model is installed.
   bool ready = true;
+
+  @override
+  bool heardSpeech = false;
   Exception? readyError;
   int readyCalls = 0;
 

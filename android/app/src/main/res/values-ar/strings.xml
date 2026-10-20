@@ -8,8 +8,8 @@
     <string name="tile_translate_description">ترجمة الحافظة باستخدام Mozhi</string>
     <string name="shortcut_clipboard_short">الحافظة</string>
     <string name="shortcut_clipboard_long">ترجمة الحافظة</string>
-    <string name="shortcut_camera_short">الكاميرا</string>
-    <string name="shortcut_camera_long">ترجمة بالكاميرا</string>
+    <string name="shortcut_dictionary_short">القاموس</string>
+    <string name="shortcut_dictionary_long">القاموس</string>
     <string name="shortcut_conversation_short">محادثة</string>
     <string name="shortcut_conversation_long">محادثة</string>
     <string name="shortcut_proofread_short">تدقيق</string>

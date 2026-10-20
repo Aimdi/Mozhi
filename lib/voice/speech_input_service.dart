@@ -75,7 +75,8 @@ enum VoiceInputEngine {
 /// explicit [initialize]) because that may show the permission prompt.
 /// [states] reports [SpeechInputUnavailable] when initialisation fails or
 /// the platform is unsupported, [SpeechInputListening] (with a normalised
-/// sound level and the partial text) while the microphone is open,
+/// sound level, the partial text and whether someone was heard speaking)
+/// while the microphone is open,
 /// [SpeechInputTranscribing] while an offline engine transcribes what was
 /// recorded, [SpeechInputError] after a failed session and
 /// [SpeechInputIdle] otherwise. Recognised text arrives on [results].
@@ -515,10 +516,18 @@ class SpeechInputService {
   /// session's states and results (see [SpeechInputState.isOwnedBy]).
   /// A session that is already running is cancelled first. Returns whether
   /// listening started; failures are reported through [states].
+  ///
+  /// With [detectLanguage], a recogniser that can detect the spoken
+  /// language ([LanguageDetectingSpeechRecognizer], e.g. Whisper) listens
+  /// without a language and reports the one it heard in the final
+  /// [SpeechInputResult.language]; [SpeechInputListening.detectsLanguage]
+  /// says whether it does. Other recognisers listen in [languageCode] as
+  /// usual.
   Future<bool> listen(
     String? languageCode, {
     bool? preferOnDevice,
     Object? owner,
+    bool detectLanguage = false,
   }) async {
     if (_disposed) return false;
     if (_activeSession != null || _finishingSession != null) await cancel();
@@ -538,14 +547,19 @@ class SpeechInputService {
       return false;
     }
     if (_state is SpeechInputUnavailable) _emit(const SpeechInputIdle());
-    final localeId = await _localeIdFor(recognizer, languageCode);
+    final detects =
+        detectLanguage &&
+        recognizer.adapter is LanguageDetectingSpeechRecognizer;
+    final localeId = detects
+        ? null
+        : await _localeIdFor(recognizer, languageCode);
     if (session != _session || _disposed) return false;
 
     _activeSession = session;
     _owner = owner;
     _minLevel = null;
     _maxLevel = null;
-    _emit(SpeechInputListening(owner: owner));
+    _emit(SpeechInputListening(owner: owner, detectsLanguage: detects));
     try {
       await recognizer.adapter.listen(
         request: SpeechListenRequest(
@@ -618,7 +632,21 @@ class SpeechInputService {
 
   void _onResult(int session, String text, {required bool isFinal}) {
     if (session != _session || _disposed) return;
-    _results.add(SpeechInputResult(text, isFinal: isFinal, owner: _owner));
+    final language = isFinal
+        ? switch (_current.adapter) {
+            final LanguageDetectingSpeechRecognizer detector =>
+              detector.detectedLanguage,
+            _ => null,
+          }
+        : null;
+    _results.add(
+      SpeechInputResult(
+        text,
+        isFinal: isFinal,
+        owner: _owner,
+        language: language,
+      ),
+    );
     final current = _state;
     if (isFinal) {
       if (_activeSession == session || _finishingSession == session) {
@@ -627,7 +655,12 @@ class SpeechInputService {
         _emit(const SpeechInputIdle());
       }
     } else if (current is SpeechInputListening) {
-      _emit(current.copyWith(partialText: text));
+      _emit(
+        current.copyWith(
+          partialText: text,
+          heardSpeech: current.heardSpeech || text.trim().isNotEmpty,
+        ),
+      );
     }
   }
 
@@ -639,7 +672,15 @@ class SpeechInputService {
     final max = _maxLevel = math.max(_maxLevel ?? raw, raw);
     final span = math.max(max - min, _minLevelSpan);
     final level = ((raw - min) / span).clamp(0.0, 1.0);
-    if (level != current.level) _emit(current.copyWith(level: level));
+    // Loudness alone is not speech (the level is relative, so background
+    // noise is loud too); a recogniser that detects voice activity says.
+    final heardSpeech =
+        current.heardSpeech ||
+        switch (_current.adapter) {
+          final VoiceActivitySpeechRecognizer detector => detector.heardSpeech,
+          _ => false,
+        };
+    _emit(current.copyWith(level: level, heardSpeech: heardSpeech));
   }
 
   /// Minimum dB range used to normalise sound levels, so near-silence does

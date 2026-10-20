@@ -1,6 +1,9 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/models/app_settings.dart';
 
 /// One row of the keyboard shortcut cheat sheet.
 typedef TranslateShortcutHelp = ({
@@ -63,10 +66,16 @@ bool showsShortcutHints(TargetPlatform platform) =>
 /// [command] (Apple platforms) the modifier is ⌘ and Alt is ⌥ (Option).
 /// In a browser ([web]) the pinned languages take Ctrl/⌘ as well (see
 /// [translatePinnedShortcut]).
+///
+/// With [multilineInput] off ([AppSettings.multilineInput]) Enter in the
+/// input translates and Shift+Enter adds a new line, so both are listed
+/// after Ctrl/⌘+Enter; with it on (the default) Enter just types a new
+/// line and is not listed.
 List<TranslateShortcutHelp> translateShortcutHelp(
   AppLocalizations l10n, {
   required bool command,
   bool web = kIsWeb,
+  bool multilineInput = true,
 }) {
   final mod = command ? '⌘' : 'Ctrl';
   final modSpoken = command ? 'Command' : 'Control';
@@ -80,6 +89,10 @@ List<TranslateShortcutHelp> translateShortcutHelp(
   const lastPin = '$translatePinnedShortcutCount';
   return [
     row(['{mod}', 'Enter'], l10n.translateShortcutTranslateNow),
+    if (!multilineInput) ...[
+      row(['Enter'], l10n.translateShortcutEnterTranslates),
+      row(['Shift', 'Enter'], l10n.translateShortcutNewLine),
+    ],
     row(['{mod}', 'Shift', 'S'], l10n.translateSwapLanguages),
     row(['{mod}', 'Shift', 'C'], l10n.translateShortcutCopyOutput),
     row(['{mod}', 'L'], l10n.translateShortcutTargetPicker),
@@ -109,9 +122,19 @@ Future<void> showTranslateShortcuts(BuildContext context) => showDialog<void>(
   builder: (_) => const TranslateShortcutsDialog(),
 );
 
-/// Dialog listing [translateShortcutHelp].
+/// Dialog listing [translateShortcutHelp], for the user's Enter key
+/// setting ([AppSettings.multilineInput], read from the [SettingsCubit];
+/// the default without one).
 class TranslateShortcutsDialog extends StatelessWidget {
   const new({super.key});
+
+  static bool _multilineInput(BuildContext context) {
+    try {
+      return context.read<SettingsCubit>().state.multilineInput;
+    } on ProviderNotFoundException {
+      return const AppSettings().multilineInput;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -120,6 +143,7 @@ class TranslateShortcutsDialog extends StatelessWidget {
     final rows = translateShortcutHelp(
       l10n,
       command: shortcutUsesCommandKey(theme.platform),
+      multilineInput: _multilineInput(context),
     );
     return AlertDialog(
       key: const Key('translate_shortcuts_dialog'),

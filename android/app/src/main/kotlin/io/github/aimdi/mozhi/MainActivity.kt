@@ -173,6 +173,9 @@ class MainActivity : FlutterActivity() {
                     }
                 }
                 "isActiveNetworkMetered" -> result.success(isActiveNetworkMetered())
+                // The API level: below 29 the app is not drawn edge to edge
+                // and needs an opaque navigation bar (system_bars.dart).
+                "sdkInt" -> result.success(Build.VERSION.SDK_INT)
                 else -> result.notImplemented()
             }
         }

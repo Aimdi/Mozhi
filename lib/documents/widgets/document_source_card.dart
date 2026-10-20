@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/privacy/ime_learning.dart';
+import 'package:mozhi/core/widgets/tab_hero.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/documents/core/core.dart';
 import 'package:mozhi/documents/cubit/document_translate_cubit.dart';
@@ -73,88 +74,70 @@ class _FileInput extends StatelessWidget {
     final theme = Theme.of(context);
     final cubit = context.read<DocumentTranslateCubit>();
     final state = context.watch<DocumentTranslateCubit>().state;
-    final palette = AppPalette.of(context);
     final loading = state.status == DocumentStatus.loading;
     final name = state.fileName;
 
     if (name == null) {
-      // X empty state: big bold headline, quiet text, one pill CTA.
+      // The empty state of the tabs: an accent icon, a bold headline, a
+      // quiet hint and one pill button.
       return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 8,
-          children: [
-            Semantics(
-              header: true,
-              child: Text(
-                l10n.documentsPickTitle,
-                style: theme.textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.6,
-                  height: 1.15,
-                ),
-              ),
-            ),
-            Text(
-              l10n.documentsPickHint(
-                documentSizeLabel(context, cubit.maxBytes),
-              ),
-              style: theme.textTheme.bodyLarge?.copyWith(
-                color: palette.secondaryText,
-              ),
-            ),
-            const SizedBox(height: 8),
-            FilledButton.icon(
-              key: const Key('documents_pick_file'),
-              style: FilledButton.styleFrom(
-                shape: const StadiumBorder(),
-                minimumSize: const Size(0, 48),
-                textStyle: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-              onPressed: loading ? null : () => unawaited(cubit.pickFile()),
-              icon: loading
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.folder_open_outlined),
-              label: Text(l10n.documentsPickButton),
-            ),
-          ],
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: TabHero(
+          icon: Icons.description_outlined,
+          title: l10n.documentsHeroTitle,
+          body: l10n.documentsPickHint(
+            documentSizeLabel(context, cubit.maxBytes),
+          ),
+          child: FilledButton.icon(
+            key: const Key('documents_pick_file'),
+            onPressed: loading ? null : () => unawaited(cubit.pickFile()),
+            icon: loading
+                ? const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.folder_open_outlined),
+            label: Text(l10n.documentsPickButton),
+          ),
         ),
       );
     }
 
-    return Row(
+    // The name and Replace share a line while they fit; otherwise (a long
+    // name, large text) Replace moves below the name.
+    return Wrap(
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
       spacing: 12,
+      runSpacing: 8,
       children: [
-        ExcludeSemantics(
-          child: CircleAvatar(
-            radius: 20,
-            backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.12),
-            foregroundColor: theme.colorScheme.primary,
-            child: Icon(documentFormatIcon(state.format), size: 20),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            name,
-            key: const Key('documents_file_name'),
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          spacing: 12,
+          children: [
+            ExcludeSemantics(
+              child: CircleAvatar(
+                radius: 20,
+                backgroundColor: theme.colorScheme.primary.withValues(
+                  alpha: 0.12,
+                ),
+                foregroundColor: theme.colorScheme.primary,
+                child: Icon(documentFormatIcon(state.format), size: 20),
+              ),
             ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
+            Flexible(
+              child: Text(
+                name,
+                key: const Key('documents_file_name'),
+                style: theme.textTheme.titleMedium,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
         OutlinedButton(
           key: const Key('documents_replace_file'),
-          style: OutlinedButton.styleFrom(
-            shape: const StadiumBorder(),
-            side: BorderSide(color: palette.hairline),
-            textStyle: const TextStyle(fontWeight: FontWeight.w700),
-          ),
           onPressed: state.isTranslating || loading
               ? null
               : () => unawaited(cubit.pickFile()),

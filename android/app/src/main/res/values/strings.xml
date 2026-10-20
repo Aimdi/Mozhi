@@ -15,8 +15,8 @@
          stay within about 10 characters, long labels within about 25. -->
     <string name="shortcut_clipboard_short">Clipboard</string>
     <string name="shortcut_clipboard_long">Translate clipboard</string>
-    <string name="shortcut_camera_short">Camera</string>
-    <string name="shortcut_camera_long">Camera translate</string>
+    <string name="shortcut_dictionary_short">Dictionary</string>
+    <string name="shortcut_dictionary_long">Dictionary</string>
     <string name="shortcut_conversation_short">Conversation</string>
     <string name="shortcut_conversation_long">Conversation</string>
     <string name="shortcut_proofread_short">Proofread</string>

@@ -79,12 +79,9 @@ class _ImageLanguagePickerSheetState extends State<ImageLanguagePickerSheet> {
         children: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text(
-              widget.title,
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.3,
-              ),
+            child: Semantics(
+              header: true,
+              child: Text(widget.title, style: theme.textTheme.titleLarge),
             ),
           ),
           Padding(
@@ -120,10 +117,7 @@ class _ImageLanguagePickerSheetState extends State<ImageLanguagePickerSheet> {
                         key: Key('image_language_${language.code}'),
                         selected: selected,
                         leading: LanguageAvatar(code: language.code),
-                        title: Text(
-                          imageLanguageLabel(l10n, language),
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
+                        title: Text(imageLanguageLabel(l10n, language)),
                         subtitle: native == null || native == language.name
                             ? null
                             : Text(

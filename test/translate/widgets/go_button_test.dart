@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/translate.dart';
 import 'package:mozhi/translate/widgets/widgets.dart';
 
@@ -58,6 +59,28 @@ void main() {
       final harness = TranslateHarness(state: readyState(input: 'Hello'));
       await harness.pump(tester, child: const TranslateGoButton());
       await tester.tap(_button);
+      verify(harness.translate.translate).called(1);
+    });
+
+    testWidgets('taps lightly when pressed', (tester) async {
+      final clipboard = FakeClipboard(tester);
+      final harness = TranslateHarness(state: readyState(input: 'Hello'));
+      await harness.pump(tester, child: const TranslateGoButton());
+      await tester.tap(_button);
+      await tester.pump();
+      expect(clipboard.haptics, ['HapticFeedbackType.lightImpact']);
+    });
+
+    testWidgets('stays still with haptic feedback off', (tester) async {
+      final clipboard = FakeClipboard(tester);
+      final harness = TranslateHarness(
+        state: readyState(input: 'Hello'),
+        settings: const AppSettings(hapticFeedback: false),
+      );
+      await harness.pump(tester, child: const TranslateGoButton());
+      await tester.tap(_button);
+      await tester.pump();
+      expect(clipboard.haptics, isEmpty);
       verify(harness.translate.translate).called(1);
     });
 

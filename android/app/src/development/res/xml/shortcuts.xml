@@ -6,6 +6,12 @@
      when it arrives through the non-exported alias TranslateClipboardActivity
      (shortcuts are started with Mozhi's own identity, so the alias works;
      other apps can't reach it).
+     The four shortcuts are Translate clipboard and the other tabs in their
+     default order (Dictionary, Proofread, Conversation; AppRoutes in
+     lib/app/router.dart). Static shortcuts can't follow the user's own tab
+     order. Launchers show at most four, so a fifth would be hidden.
+     test/platform/android_resources_test.dart checks that the copies agree
+     and that every link opens its tab.
      Keep all three copies (main, staging, development) in sync.
      development override of src/main/res/xml/shortcuts.xml: identical except
      android:targetPackage, which must be the literal applicationId
@@ -23,26 +29,14 @@
             android:targetClass="io.github.aimdi.mozhi.TranslateClipboardActivity" />
     </shortcut>
     <shortcut
-        android:shortcutId="camera_translate"
+        android:shortcutId="dictionary"
         android:enabled="true"
-        android:icon="@drawable/ic_shortcut_camera"
-        android:shortcutShortLabel="@string/shortcut_camera_short"
-        android:shortcutLongLabel="@string/shortcut_camera_long">
+        android:icon="@drawable/ic_shortcut_dictionary"
+        android:shortcutShortLabel="@string/shortcut_dictionary_short"
+        android:shortcutLongLabel="@string/shortcut_dictionary_long">
         <intent
             android:action="android.intent.action.VIEW"
-            android:data="mozhi://image"
-            android:targetPackage="io.github.aimdi.mozhi.dev"
-            android:targetClass="io.github.aimdi.mozhi.MainActivity" />
-    </shortcut>
-    <shortcut
-        android:shortcutId="conversation"
-        android:enabled="true"
-        android:icon="@drawable/ic_shortcut_conversation"
-        android:shortcutShortLabel="@string/shortcut_conversation_short"
-        android:shortcutLongLabel="@string/shortcut_conversation_long">
-        <intent
-            android:action="android.intent.action.VIEW"
-            android:data="mozhi://conversation"
+            android:data="mozhi://dictionary"
             android:targetPackage="io.github.aimdi.mozhi.dev"
             android:targetClass="io.github.aimdi.mozhi.MainActivity" />
     </shortcut>
@@ -55,6 +49,18 @@
         <intent
             android:action="android.intent.action.VIEW"
             android:data="mozhi://proofread"
+            android:targetPackage="io.github.aimdi.mozhi.dev"
+            android:targetClass="io.github.aimdi.mozhi.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="conversation"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_conversation"
+        android:shortcutShortLabel="@string/shortcut_conversation_short"
+        android:shortcutLongLabel="@string/shortcut_conversation_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="mozhi://conversation"
             android:targetPackage="io.github.aimdi.mozhi.dev"
             android:targetClass="io.github.aimdi.mozhi.MainActivity" />
     </shortcut>

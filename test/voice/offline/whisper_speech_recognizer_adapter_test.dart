@@ -209,6 +209,35 @@ void main() {
       verify(() => speech.transcribe(any())).called(1);
     });
 
+    test('reports the language of the final result', () async {
+      expect(adapter.detectedLanguage, isNull);
+      when(() => speech.transcribe(any(), language: any(named: 'language')))
+          .thenAnswer(
+            (_) async => const WhisperTranscription('ok', language: 'jw'),
+          );
+      String? seen;
+      await initialize();
+      await adapter.listen(
+        request: const SpeechListenRequest(onDevice: true),
+        onResult: (text, {required isFinal}) => seen = adapter.detectedLanguage,
+        onSoundLevel: levels.add,
+      );
+      await speak();
+      await adapter.stop();
+      await flush();
+      // The app code (Whisper's `jw` is Javanese, `jv`).
+      expect(seen, 'jv');
+      expect(adapter, isA<LanguageDetectingSpeechRecognizer>());
+
+      when(() => speech.transcribe(any(), language: any(named: 'language')))
+          .thenAnswer((_) async => const WhisperTranscription('ok'));
+      await listen();
+      await speak();
+      await adapter.stop();
+      await flush();
+      expect(adapter.detectedLanguage, isNull);
+    });
+
     test('silence is not transcribed', () async {
       await listen();
       recorder
@@ -299,6 +328,30 @@ void main() {
       recorder.emit(chunk(0.5, samples: 3000));
       await flush();
       expect(statuses, contains(SpeechRecognizerStatus.transcribing));
+    });
+
+    test('says whether it heard speech, not just noise', () async {
+      expect(adapter, isA<VoiceActivitySpeechRecognizer>());
+      expect(adapter.heardSpeech, isFalse);
+      final heard = <bool>[];
+      await initialize();
+      await adapter.listen(
+        request: const SpeechListenRequest(localeId: 'de', onDevice: true),
+        onResult: (text, {required isFinal}) {},
+        // Read while the level is reported.
+        onSoundLevel: (_) => heard.add(adapter.heardSpeech),
+      );
+      recorder
+        // Digital silence, a noisy room (-60 dBFS), then speech.
+        ..emit(chunk(0))
+        ..emit(chunk(0.001))
+        ..emit(chunk(0.5));
+      await flush();
+      expect(heard, [false, false, true]);
+      await adapter.stop();
+      await flush();
+      // Between sessions nothing is heard.
+      expect(adapter.heardSpeech, isFalse);
     });
 
     test('stops after a pause following speech', () async {

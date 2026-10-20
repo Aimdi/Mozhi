@@ -334,6 +334,30 @@ void main() {
       states.clear();
     });
 
+    test("the engine's voice activity detection says when someone "
+        'speaks, not the loudness', () async {
+      // Digital silence, then a noisy room: loud relative to the silence.
+      whisper
+        ..emitLevel(-100)
+        ..emitLevel(-60);
+      expect(service.state, SpeechInputListening(owner: owner, level: 1));
+      whisper
+        ..heardSpeech = true
+        ..emitLevel(-30);
+      expect(
+        service.state,
+        SpeechInputListening(owner: owner, level: 1, heardSpeech: true),
+      );
+      // Once heard, it stays heard.
+      whisper
+        ..heardSpeech = false
+        ..emitLevel(-100);
+      expect(
+        service.state,
+        SpeechInputListening(owner: owner, heardSpeech: true),
+      );
+    });
+
     test('stop shows transcribing until the final result', () async {
       await service.stop();
       expect(whisper.stopCalls, 1);
