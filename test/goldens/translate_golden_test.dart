@@ -110,5 +110,30 @@ void main() {
       );
       await expectScreenGolden('translate_result_hinge_light');
     });
+
+    // At 200 % text on narrow phones, names that don't fit in the language
+    // bar fall back to codes (and "Detect language" to the sparkle).
+    for (final (width, state, name) in [
+      (320.0, () => readyState(target: german), 'empty'),
+      (360.0, translatedState, 'result'),
+    ]) {
+      testWidgets('$name at ${width.toInt()} dp with 200 % text (light)', (
+        tester,
+      ) async {
+        tester.platformDispatcher.textScaleFactorTestValue = 2;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        await pumpTranslateGolden(
+          tester,
+          TranslateHarness(state: state()),
+          device: GoldenDevice.phone,
+        );
+        tester.view.physicalSize = Size(width, GoldenDevice.phone.size.height);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        await expectScreenGolden(
+          'translate_${name}_${width.toInt()}_text200_light',
+        );
+      });
+    }
   });
 }
