@@ -196,6 +196,107 @@ void main() {
     });
   });
 
+  group('QualityChip', () {
+    Finder chip() => find.byKey(const Key('translate_quality_chip'));
+
+    testWidgets('shows nothing without quality engines', (tester) async {
+      final harness = _harness(_state(fast: false, best: false));
+      await harness.pump(tester, child: const QualityChip());
+      expect(chip(), findsNothing);
+    });
+
+    testWidgets('shows the mode with its icon', (tester) async {
+      final harness = _harness(_state(mode: QualityMode.fast));
+      await harness.pump(tester, child: const QualityChip());
+      expect(
+        find.descendant(of: chip(), matching: find.text('Fast')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: chip(), matching: find.byIcon(Icons.bolt)),
+        findsOneWidget,
+      );
+      expect(find.byTooltip('Quality mode: Fast'), findsOneWidget);
+
+      harness.setState(_state(mode: QualityMode.best));
+      await harness.pump(tester, child: const QualityChip(key: Key('best')));
+      expect(find.text('Best'), findsOneWidget);
+      expect(find.byIcon(Icons.workspace_premium_outlined), findsOneWidget);
+    });
+
+    testWidgets('is a 48 dp target around a 40 dp outlined pill', (
+      tester,
+    ) async {
+      final harness = _harness(_state(mode: QualityMode.fast));
+      await harness.pump(tester, child: const QualityChip());
+      expect(tester.getSize(chip()).height, 48);
+      final button = tester.widget<IconButton>(
+        find.descendant(of: chip(), matching: find.byType(IconButton)),
+      );
+      final shape = button.style!.shape!.resolve({})! as StadiumBorder;
+      expect(shape.side, isNot(BorderSide.none));
+      expect(button.style!.minimumSize!.resolve({})!.height, 40);
+    });
+
+    testWidgets('opens the menu of the modes with their engines', (
+      tester,
+    ) async {
+      final harness = _harness(_state(mode: QualityMode.best));
+      await harness.pump(tester, child: const QualityChip());
+      await tester.tap(chip());
+      await tester.pumpAndSettle();
+      expect(find.text('Usual engine'), findsOneWidget);
+      expect(find.text('Google'), findsOneWidget);
+      expect(find.text('Claude'), findsOneWidget);
+      final best = tester.widget<CheckedPopupMenuItem<QualityMode>>(
+        find.byKey(const ValueKey('translate_quality_best')),
+      );
+      expect(best.checked, isTrue);
+      await tester.tap(find.byKey(const ValueKey('translate_quality_fast')));
+      await tester.pumpAndSettle();
+      verify(
+        () => harness.translate.setQualityMode(QualityMode.fast),
+      ).called(1);
+    });
+
+    testWidgets('choosing the current mode does nothing', (tester) async {
+      final harness = _harness(_state(mode: QualityMode.fast));
+      await harness.pump(tester, child: const QualityChip());
+      await tester.tap(chip());
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('translate_quality_fast')));
+      await tester.pumpAndSettle();
+      verifyNever(() => harness.translate.setQualityMode(any()));
+    });
+
+    testWidgets("reads like the app bar's menu button", (tester) async {
+      final handle = tester.ensureSemantics();
+      final harness = _harness(_state(mode: QualityMode.fast));
+      Future<SemanticsData> semanticsOf(Widget child, String key) async {
+        await harness.pump(tester, child: child);
+        final button = find.descendant(
+          of: find.byKey(Key(key)),
+          matching: find.byType(IconButton),
+        );
+        return tester.getSemantics(button).getSemanticsData();
+      }
+
+      final menu = await semanticsOf(
+        const QualityToggle(layout: QualityToggleLayout.menu),
+        'translate_quality_menu',
+      );
+      final chip = await semanticsOf(
+        const QualityChip(),
+        'translate_quality_chip',
+      );
+      expect(chip.tooltip, 'Quality mode: Fast');
+      expect(chip.label, menu.label);
+      expect(chip.tooltip, menu.tooltip);
+      expect(chip.flagsCollection, menu.flagsCollection);
+      handle.dispose();
+    });
+  });
+
   group('app bar', () {
     testWidgets('uses icon segments on wider phones', (tester) async {
       final harness = _harness(_state());
