@@ -69,7 +69,8 @@ history anywhere.
 
 **Everyday use**
 
-- Instant translation while typing (debounced; optional for AI engines),
+- Instant translation while typing (debounced, also for AI engines; can be
+  turned off), a Kagi-style language bar with a go button,
   detected source language with smart swap, transliteration.
 - **Also translate into…** up to four more languages at once (remembered),
   with the same engine and options, each with copy, listen and
@@ -137,7 +138,7 @@ Besides the four tabs (Translate, Proofread, History, Settings):
 | Screen | Where | What it does |
 | --- | --- | --- |
 | Onboarding | first start | Privacy mode, your languages (with offline downloads on Android) and, optionally, a public or your own Mozhi instance |
-| Image | Translate > More tools | Photos and screenshots: AI vision, Mozhi (Google Lens) or, in the Play variant, on-device text recognition |
+| Image | Translate > More tools | Photos and screenshots: on-device text recognition (Tesseract, the default on Android; ML Kit in the Play variant), AI vision, or Mozhi via Google Translate (experimental) |
 | Documents | Translate > More tools | `.txt`, Markdown, SRT/VTT subtitles and JSON/ARB string tables, saved or shared when done |
 | Web page | Translate > More tools | Reader view of a page, translated block by block |
 | Conversation | Translate > More tools | Two people, two languages, with voice input and read-aloud |

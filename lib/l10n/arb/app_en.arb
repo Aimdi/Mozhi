@@ -2861,14 +2861,6 @@
   "@imageTranslateMethodLabel": {
     "description": "imageTranslateMethodLabel"
   },
-  "imageTranslateMethodMozhi": "Mozhi (Google Lens)",
-  "@imageTranslateMethodMozhi": {
-    "description": "imageTranslateMethodMozhi"
-  },
-  "imageTranslateMethodMozhiDescription": "Replaces the text in the picture itself, via your Mozhi instance.",
-  "@imageTranslateMethodMozhiDescription": {
-    "description": "imageTranslateMethodMozhiDescription"
-  },
   "imageTranslateMethodAi": "AI vision · {name}",
   "@imageTranslateMethodAi": {
     "placeholders": {
@@ -2885,10 +2877,6 @@
   "@imageTranslateMethodOnDevice": {
     "description": "imageTranslateMethodOnDevice"
   },
-  "imageTranslateMethodOnDeviceDescription": "Reads the text on this device, then translates it with the translator's engine.",
-  "@imageTranslateMethodOnDeviceDescription": {
-    "description": "imageTranslateMethodOnDeviceDescription"
-  },
   "imageTranslateNoMethodsTitle": "No image translation method available",
   "@imageTranslateNoMethodsTitle": {
     "description": "imageTranslateNoMethodsTitle"
@@ -2904,10 +2892,6 @@
   "imageTranslatePhasePreparing": "Preparing the image…",
   "@imageTranslatePhasePreparing": {
     "description": "imageTranslatePhasePreparing"
-  },
-  "imageTranslatePhaseMozhi": "Translating with Google Lens via Mozhi. This can take up to a minute.",
-  "@imageTranslatePhaseMozhi": {
-    "description": "imageTranslatePhaseMozhi"
   },
   "imageTranslatePhaseAi": "{name} is reading and translating the image…",
   "@imageTranslatePhaseAi": {
@@ -3012,10 +2996,6 @@
   "imageTranslateErrorRecognition": "Text recognition on this device failed.",
   "@imageTranslateErrorRecognition": {
     "description": "imageTranslateErrorRecognition"
-  },
-  "imageTranslateErrorTimeout": "Image translation timed out. Google Lens can take up to a minute; try again or use a smaller image.",
-  "@imageTranslateErrorTimeout": {
-    "description": "imageTranslateErrorTimeout"
   },
   "conversationTitle": "Conversation",
   "@conversationTitle": {
@@ -7432,5 +7412,125 @@
   "offlineOcrUnavailable": "This device can’t run on-device text recognition",
   "@offlineOcrUnavailable": {
     "description": "offlineOcrUnavailable"
+  },
+  "translateErrorSourceLanguageRequired": "This engine can't detect the language of this text. Choose the language it is written in.",
+  "@translateErrorSourceLanguageRequired": {
+    "description": "translateErrorSourceLanguageRequired"
+  },
+  "translateChooseSourceLanguage": "Choose language",
+  "@translateChooseSourceLanguage": {
+    "description": "translateChooseSourceLanguage"
+  },
+  "translateUseSourceLanguage": "Translate from {language}",
+  "@translateUseSourceLanguage": {
+    "description": "Action of a translation error when the engine cannot detect the source language: translate from this language (the most recent source language)",
+    "placeholders": {
+      "language": {
+        "type": "String",
+        "example": "German"
+      }
+    }
+  },
+  "voiceInputUnavailable": "Voice input unavailable",
+  "@voiceInputUnavailable": {
+    "description": "voiceInputUnavailable"
+  },
+  "voiceInputStarting": "Starting voice input…",
+  "@voiceInputStarting": {
+    "description": "voiceInputStarting"
+  },
+  "voiceInputCancelStart": "Cancel voice input",
+  "@voiceInputCancelStart": {
+    "description": "voiceInputCancelStart"
+  },
+  "voiceErrorUnavailableOfflineModel": "There’s no speech recognition service on this device. Download the offline speech model in Settings › Voice input to use voice input.",
+  "@voiceErrorUnavailableOfflineModel": {
+    "description": "voiceErrorUnavailableOfflineModel"
+  },
+  "voiceDownloadModelAction": "Download model",
+  "@voiceDownloadModelAction": {
+    "description": "voiceDownloadModelAction"
+  },
+  "imageTranslateMethodMozhiGoogle": "Mozhi via Google Translate (experimental)",
+  "@imageTranslateMethodMozhiGoogle": {
+    "description": "imageTranslateMethodMozhiGoogle"
+  },
+  "imageTranslateMethodMozhiGoogleDescription": "Experimental. Your Mozhi instance passes the photo on to Google Translate, which often refuses such requests. When it works, the translation is drawn into the picture.",
+  "@imageTranslateMethodMozhiGoogleDescription": {
+    "description": "imageTranslateMethodMozhiGoogleDescription"
+  },
+  "imageTranslateMethodOnDeviceRecommended": "Recommended. Reads the text on this device, so the photo stays on it, then translates the text with the translator’s engine.",
+  "@imageTranslateMethodOnDeviceRecommended": {
+    "description": "imageTranslateMethodOnDeviceRecommended"
+  },
+  "imageTranslatePhaseMozhiGoogle": "Sending the image to Google Translate through your Mozhi instance. This can take up to {seconds} seconds.",
+  "@imageTranslatePhaseMozhiGoogle": {
+    "description": "Progress while Mozhi relays the image to Google Translate",
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "imageTranslateErrorServiceRefused": "Google Translate sent nothing back for this image through your Mozhi instance. It may have refused the request, or found no text in the image.",
+  "@imageTranslateErrorServiceRefused": {
+    "description": "imageTranslateErrorServiceRefused"
+  },
+  "imageTranslateErrorTimeoutMozhi": "Google Translate didn’t answer through your Mozhi instance within {seconds} seconds. Try again or use a smaller image.",
+  "@imageTranslateErrorTimeoutMozhi": {
+    "description": "Mozhi image translation ran out of time",
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "imageTranslateErrorTimeoutGeneric": "Image translation took too long. Try again or use a smaller image.",
+  "@imageTranslateErrorTimeoutGeneric": {
+    "description": "imageTranslateErrorTimeoutGeneric"
+  },
+  "imageTranslateUseOnDevice": "Use on-device text recognition",
+  "@imageTranslateUseOnDevice": {
+    "description": "imageTranslateUseOnDevice"
+  },
+  "imageTranslateChooseSourceLanguage": "Choose the language of the text",
+  "@imageTranslateChooseSourceLanguage": {
+    "description": "imageTranslateChooseSourceLanguage"
+  },
+  "imageTranslateLowConfidence": "Wrong language?",
+  "@imageTranslateLowConfidence": {
+    "description": "imageTranslateLowConfidence"
+  },
+  "translateStopTranslating": "Stop translating",
+  "@translateStopTranslating": {
+    "description": "Tooltip and accessible name of the go button at the end of the language bar while a translation is running: pressing it stops the translation (the text so far stays)."
+  },
+  "translateOptionsDone": "Done",
+  "@translateOptionsDone": {
+    "description": "Button that closes the translation options sheet (the choices are already saved)."
+  },
+  "translateOptionsNeedAi": "{engine} translates without these options. Style, formality, gender and context need an AI translator. Your choices are saved and apply when you use one.",
+  "@translateOptionsNeedAi": {
+    "description": "Note at the top of the translation options sheet when the current engine (e.g. a Mozhi engine or the offline engine) applies none of the options; {engine} is its name (e.g. Google).",
+    "placeholders": {
+      "engine": {
+        "type": "String",
+        "example": "Google"
+      }
+    }
+  },
+  "translateOptionsPartlyNeedAi": "{engine} applies only formality, context and formatting. Style, reading level, gender and the glossary need an AI translator. Your choices are saved and apply when you use one.",
+  "@translateOptionsPartlyNeedAi": {
+    "description": "Note at the top of the translation options sheet for a machine translation service that applies some options (DeepL API); {engine} is its name (e.g. DeepL).",
+    "placeholders": {
+      "engine": {
+        "type": "String",
+        "example": "DeepL"
+      }
+    }
+  },
+  "translateOptionsChooseAi": "Choose an AI translator",
+  "@translateOptionsChooseAi": {
+    "description": "Action of the note in the translation options sheet: closes the sheet and opens the engine picker to switch to an AI translator."
   }
 }

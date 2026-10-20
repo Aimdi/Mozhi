@@ -388,6 +388,333 @@ void main() {
     });
   });
 
+  group('language detection', () {
+    final offline = TranslationEngine.offline();
+    const gemma = TranslationEngine(
+      id: 'ai:gemma',
+      kind: EngineKind.ai,
+      name: 'TranslateGemma',
+      isLocal: true,
+      promptProfile: PromptProfile.translateGemma,
+    );
+    const long = 'A paragraph that is long enough to tell its language.';
+
+    /// Like the on-device engine: with an auto source, text shorter than 20
+    /// characters cannot be identified and longer text is English; with an
+    /// explicit source the text is upper-cased.
+    void stubOffline() => stub((request) {
+      if (request.source.isAuto) {
+        if (request.text.length < 20) {
+          return Stream.error(
+            const SourceLanguageRequiredException(engineId: 'offline:mlkit'),
+          );
+        }
+        return Stream.value(
+          _result(request.text.toUpperCase()).copyWith(detectedSource: 'en'),
+        );
+      }
+      return Stream.value(_result(request.text.toUpperCase()));
+    });
+
+    /// Stubs detectLanguage with [detect] (default: cannot tell).
+    void stubDetection([
+      Future<DetectedLanguage> Function(String text)? detect,
+    ]) {
+      when(() => repository.detectLanguage(any(), engine: any(named: 'engine')))
+          .thenAnswer((invocation) async {
+            final text = invocation.positionalArguments.single as String;
+            if (detect == null) throw const SourceLanguageRequiredException();
+            return await detect(text);
+          });
+    }
+
+    Future<DetectedLanguage> english(String text) async =>
+        const DetectedLanguage(code: 'en');
+
+    /// (sample, engine) of every detectLanguage call.
+    List<(String, TranslationEngine?)> detections() {
+      final captured = verify(
+        () => repository.detectLanguage(
+          captureAny(),
+          engine: captureAny(named: 'engine'),
+        ),
+      ).captured;
+      return [
+        for (var i = 0; i < captured.length; i += 2)
+          (captured[i] as String, captured[i + 1] as TranslationEngine?),
+      ];
+    }
+
+    /// Sources of the requests for [text].
+    List<String> sourcesOf(String text) => [
+      for (final request in requests)
+        if (request.text == text) request.source.code,
+    ];
+
+    setUp(() {
+      when(() => repository.hasOfflineEngine).thenReturn(true);
+      stubDetection();
+      stubOffline();
+    });
+
+    test('identifies the document language once on the device and '
+        'translates every chunk from it', () async {
+      stubDetection(english);
+      final chunks = plan(['Hi', long, 'Bye'], maxUnits: 1);
+      final last = await translator()
+          .translate(
+            chunks,
+            engine: offline,
+            source: Language.auto,
+            target: _de,
+          )
+          .last;
+
+      expect(detections(), [('Hi\n\n$long\n\nBye', offline)]);
+      expect(requests, hasLength(3));
+      expect(requests.map((r) => r.source.code).toSet(), {'en'});
+      expect(last.failures, isEmpty);
+      expect(chunks.assemble(last.results), ['HI', long.toUpperCase(), 'BYE']);
+    });
+
+    test('keeps a chunk whose language cannot be told when none is known '
+        'yet', () async {
+      final chunks = plan(['Hi', long], maxUnits: 1);
+      final last = await translator(concurrency: 1)
+          .translate(
+            chunks,
+            engine: offline,
+            source: Language.auto,
+            target: _de,
+          )
+          .last;
+
+      expect(detections(), hasLength(1));
+      expect(last.isComplete, isTrue);
+      expect(last.failures, isEmpty);
+      expect(chunks.assemble(last.results), ['Hi', long.toUpperCase()]);
+      // Not retried.
+      expect(sourcesOf('Hi'), ['auto']);
+    });
+
+    test('translates later undetectable chunks from the language detected '
+        'for earlier ones', () async {
+      final chunks = plan([long, 'Hi', 'Bye'], maxUnits: 1);
+      final last = await translator(concurrency: 1)
+          .translate(
+            chunks,
+            engine: offline,
+            source: Language.auto,
+            target: _de,
+          )
+          .last;
+
+      expect(sourcesOf(long), ['auto']);
+      expect(sourcesOf('Hi'), ['auto', 'en']);
+      expect(sourcesOf('Bye'), ['auto', 'en']);
+      expect(last.failures, isEmpty);
+      expect(chunks.assemble(last.results), [long.toUpperCase(), 'HI', 'BYE']);
+    });
+
+    test('keeps a whole batch whose language cannot be told', () async {
+      final chunks = plan(['one', 'two']);
+      final last = await translator()
+          .translate(
+            chunks,
+            engine: offline,
+            source: Language.auto,
+            target: _de,
+          )
+          .last;
+
+      expect(requests, hasLength(1));
+      expect(last.failures, isEmpty);
+      expect(chunks.assemble(last.results), ['one', 'two']);
+    });
+
+    test('keeps a unit whose language cannot be told after the alignment '
+        'is lost', () async {
+      stub((request) {
+        if (request.text.contains(BatchCodec.markerOpen)) {
+          // Markers lost, nothing detected.
+          final text = request.text.replaceAll(BatchCodec.markerPattern, '');
+          return Stream.value(_result(text.toUpperCase()));
+        }
+        if (request.text.length < 20) {
+          return Stream.error(const SourceLanguageRequiredException());
+        }
+        return Stream.value(_result(request.text.toUpperCase()));
+      });
+      final chunks = plan(['one', long]);
+      final last = await translator()
+          .translate(
+            chunks,
+            engine: offline,
+            source: Language.auto,
+            target: _de,
+          )
+          .last;
+
+      expect(requests, hasLength(3));
+      expect(chunks.assemble(last.results), ['one', long.toUpperCase()]);
+    });
+
+    test(
+      'identifies on the device for translation-specialised models',
+      () async {
+        stubDetection((text) async => const DetectedLanguage(code: 'qaa'));
+        final chunks = plan(['Hi', long], maxUnits: 1);
+        final last = await translator()
+            .translate(
+              chunks,
+              engine: gemma,
+              source: Language.auto,
+              target: _de,
+            )
+            .last;
+
+        // Asked with the offline engine: the on-device identifier answers.
+        expect(detections().single.$2, offline);
+        // A language missing from the catalogue is used by its code.
+        expect(requests.map((r) => (r.source.code, r.source.name)).toSet(), {
+          ('qaa', 'qaa'),
+        });
+        expect(last.done, 2);
+      },
+    );
+
+    test('engines that detect per request are not identified first', () async {
+      stubDetection(english);
+      stub();
+      await translator()
+          .translate(
+            plan(['Hi']),
+            engine: _mozhi,
+            source: Language.auto,
+            target: _de,
+          )
+          .drain<void>();
+
+      verifyNever(
+        () => repository.detectLanguage(any(), engine: any(named: 'engine')),
+      );
+      expect(requests.single.source, Language.auto);
+    });
+
+    test('nothing is identified without an on-device engine', () async {
+      when(() => repository.hasOfflineEngine).thenReturn(false);
+      stubDetection(english);
+      final last = await translator()
+          .translate(
+            plan([long]),
+            engine: offline,
+            source: Language.auto,
+            target: _de,
+          )
+          .last;
+
+      verifyNever(
+        () => repository.detectLanguage(any(), engine: any(named: 'engine')),
+      );
+      expect(requests.single.source, Language.auto);
+      expect(last.done, 1);
+    });
+
+    test('a blank detection is ignored', () async {
+      stubDetection((text) async => const DetectedLanguage(code: ' '));
+      await translator()
+          .translate(
+            plan([long]),
+            engine: offline,
+            source: Language.auto,
+            target: _de,
+          )
+          .drain<void>();
+
+      expect(detections(), hasLength(1));
+      expect(requests.single.source, Language.auto);
+    });
+
+    test('a document of placeholders only is not identified', () async {
+      final chunks = plan(['⟨1⟩']);
+      final last = await translator()
+          .translate(
+            chunks,
+            engine: offline,
+            source: Language.auto,
+            target: _de,
+          )
+          .last;
+
+      verifyNever(
+        () => repository.detectLanguage(any(), engine: any(named: 'engine')),
+      );
+      expect(chunks.assemble(last.results), ['⟨1⟩']);
+    });
+
+    test('an explicit source is never identified and its errors still fail '
+        'the chunk', () async {
+      stubDetection(english);
+      stub((request) => Stream.error(const SourceLanguageRequiredException()));
+      final last = await translator()
+          .translate(plan(['Hi']), engine: offline, source: _en, target: _de)
+          .last;
+
+      verifyNever(
+        () => repository.detectLanguage(any(), engine: any(named: 'engine')),
+      );
+      expect(last.failures[0], isA<SourceLanguageRequiredException>());
+      // Not retried: it cannot succeed.
+      expect(requests, hasLength(1));
+    });
+
+    test('cancelling while the language is identified sends nothing', () async {
+      final detection = Completer<DetectedLanguage>();
+      stubDetection((text) => detection.future);
+      final events = <DocumentProgress>[];
+      final subscription = translator()
+          .translate(
+            plan(['Hi']),
+            engine: offline,
+            source: Language.auto,
+            target: _de,
+          )
+          .listen(events.add);
+      await pumpEventQueue();
+      expect(detections(), hasLength(1));
+
+      await subscription.cancel();
+      detection.complete(const DetectedLanguage(code: 'en'));
+      await pumpEventQueue();
+      expect(requests, isEmpty);
+      expect(events, hasLength(1));
+    });
+
+    test('the sample skips placeholders and is capped without splitting a '
+        'surrogate pair', () async {
+      stubDetection(english);
+      final chunks = plan(['T ⟨1⟩  x', '😀' * 3000, 'More text']);
+      await translator()
+          .translate(
+            chunks,
+            engine: offline,
+            source: Language.auto,
+            target: _de,
+          )
+          .drain<void>();
+
+      final sample = detections().single.$1;
+      expect(sample, startsWith('T x\n\n😀'));
+      expect(sample, isNot(contains('More')));
+      expect(sample.length, DocumentTranslator.detectionSampleLength - 1);
+      // Ends with a whole emoji.
+      expect(
+        sample.codeUnitAt(sample.length - 1),
+        inInclusiveRange(0xDC00, 0xDFFF),
+      );
+    });
+  });
+
   group('isRetryableError', () {
     test('classifies errors', () {
       bool retry(Object error) => DocumentTranslator.isRetryableError(error);
@@ -400,6 +727,7 @@ void main() {
       expect(retry(const LlmApiException('x')), isTrue);
       expect(retry(const MozhiApiException('x')), isTrue);
       expect(retry(const MozhiApiException('x', statusCode: 400)), isFalse);
+      expect(retry(const SourceLanguageRequiredException()), isFalse);
       expect(retry(ArgumentError()), isFalse);
       expect(retry(StateError('x')), isFalse);
       expect(retry(UnsupportedError('x')), isFalse);

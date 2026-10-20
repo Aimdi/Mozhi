@@ -101,7 +101,10 @@ class _ShortcutAction<T extends Intent> extends Action<T> {
 /// Undo ([SmartSwapListener]).
 ///
 /// The screen shows one task: the languages, the input and the
-/// translation. Everything else (check meaning, insights, romanization,
+/// translation. The language bar ([LanguageBar]) also holds the
+/// translation options button and the go button, which translates right
+/// away (translation is otherwise automatic while typing, see
+/// `AppSettings.instantTranslate` / `instantTranslateAi`). Everything else (check meaning, insights, romanization,
 /// matching phrases, compare, "Refine & learn", definitions, "Also
 /// translate into…") is in the "More" area under the translation
 /// ([TranslateMoreToggle]); whether it is open is remembered for the
@@ -436,7 +439,7 @@ class _TranslateAppBar extends StatelessWidget implements PreferredSizeWidget {
           );
         },
       ),
-      actions: const [OptionsButton(), MoreToolsButton(), SizedBox(width: 4)],
+      actions: const [MoreToolsButton(), SizedBox(width: 4)],
     );
   }
 }

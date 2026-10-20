@@ -14,8 +14,11 @@ import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/history/view/widgets/history_retention_listener.dart';
+import 'package:mozhi/image_translate/data/lost_image_recovery.dart'
+    deferred as lost_image;
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/onboarding/onboarding_redirect.dart';
+import 'package:mozhi/platform/android_device.dart';
 import 'package:mozhi/platform/secure_screen_listener.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
 import 'package:mozhi/presets/view/presets_providers.dart';
@@ -115,6 +118,23 @@ class _AppState extends State<App> {
     if (!mounted) return;
     unawaited(_historyCubit.load());
     unawaited(_deps.usageTracker.load().then<void>((_) {}, onError: (_) {}));
+    unawaited(_recoverLostPhoto());
+  }
+
+  /// Android may end the app while the camera is open (it needs a lot of
+  /// memory): a photo taken then opens on the image screen.
+  Future<void> _recoverLostPhoto() async {
+    if (!runsOnAndroid) return;
+    // coverage:ignore-start
+    try {
+      await lost_image.loadLibrary();
+      if (await lost_image.LostImageRecovery.recover() && mounted) {
+        unawaited(_router.push<void>(AppRoutes.image));
+      }
+    } on Object {
+      // Nothing to continue with.
+    }
+    // coverage:ignore-end
   }
 
   @override

@@ -368,9 +368,8 @@ void main() {
       });
     });
 
-    testWidgets('does not auto-run AI translations of shared text', (
-      tester,
-    ) async {
+    testWidgets('does not auto-run AI translations of shared text while '
+        'instant AI translation is off', (tester) async {
       const provider = AiProviderConfig(
         id: 'cloud',
         name: 'Cloud',
@@ -398,6 +397,7 @@ void main() {
           instances: [testInstance],
           providers: [provider],
           engineId: 'ai:cloud',
+          instantTranslateAi: false,
           onboardingComplete: true,
         ),
       );

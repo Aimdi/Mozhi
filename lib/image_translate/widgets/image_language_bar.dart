@@ -10,35 +10,43 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:translation_repository/translation_repository.dart';
 
+/// Lets the user pick the [source] (else the target) language of the image
+/// translation (the translator's languages, else the catalogue) and applies
+/// it to the [ImageTranslateCubit] above [context], which translates again.
+/// Used by the [ImageLanguageBar], and to choose the language of the text
+/// when it could not be detected or was read poorly.
+Future<void> pickImageLanguage(
+  BuildContext context, {
+  required bool source,
+}) async {
+  final l10n = context.l10n;
+  final cubit = context.read<ImageTranslateCubit>();
+  final translate = context.read<TranslateCubit>().state;
+  final state = cubit.state;
+  final languages = source
+      ? (translate.sourceLanguages.length > 1
+            ? translate.sourceLanguages
+            : [Language.auto, ...LanguageCatalog.all])
+      : (translate.targetLanguages.isNotEmpty
+            ? translate.targetLanguages
+            : LanguageCatalog.all);
+  final current = source ? state.source : state.target;
+  final picked = await showImageLanguagePicker(
+    context,
+    languages: languages,
+    selected: current,
+    title: source
+        ? l10n.translateSourceLanguage(imageLanguageLabel(l10n, current))
+        : l10n.translateTargetLanguage(imageLanguageLabel(l10n, current)),
+  );
+  if (picked == null || cubit.isClosed) return;
+  unawaited(source ? cubit.setSource(picked) : cubit.setTarget(picked));
+}
+
 /// Source and target of the image translation. Starts from the translator's
 /// languages; changes only apply to image translation.
 class ImageLanguageBar extends StatelessWidget {
   const new({super.key});
-
-  Future<void> _pick(BuildContext context, {required bool source}) async {
-    final l10n = context.l10n;
-    final cubit = context.read<ImageTranslateCubit>();
-    final translate = context.read<TranslateCubit>().state;
-    final state = cubit.state;
-    final languages = source
-        ? (translate.sourceLanguages.length > 1
-              ? translate.sourceLanguages
-              : [Language.auto, ...LanguageCatalog.all])
-        : (translate.targetLanguages.isNotEmpty
-              ? translate.targetLanguages
-              : LanguageCatalog.all);
-    final current = source ? state.source : state.target;
-    final picked = await showImageLanguagePicker(
-      context,
-      languages: languages,
-      selected: current,
-      title: source
-          ? l10n.translateSourceLanguage(imageLanguageLabel(l10n, current))
-          : l10n.translateTargetLanguage(imageLanguageLabel(l10n, current)),
-    );
-    if (picked == null || cubit.isClosed) return;
-    unawaited(source ? cubit.setSource(picked) : cubit.setTarget(picked));
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -64,7 +72,8 @@ class ImageLanguageBar extends StatelessWidget {
             code: state.source.isAuto && detected != null
                 ? detected
                 : state.source.code,
-            onPressed: () => unawaited(_pick(context, source: true)),
+            onPressed: () =>
+                unawaited(pickImageLanguage(context, source: true)),
           ),
         ),
         const Padding(
@@ -77,7 +86,8 @@ class ImageLanguageBar extends StatelessWidget {
             label: targetLabel,
             semanticLabel: l10n.translateTargetLanguage(targetLabel),
             code: state.target.isCustom ? null : state.target.code,
-            onPressed: () => unawaited(_pick(context, source: false)),
+            onPressed: () =>
+                unawaited(pickImageLanguage(context, source: false)),
           ),
         ),
       ],

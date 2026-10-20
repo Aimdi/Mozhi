@@ -1,5 +1,8 @@
 import 'dart:async';
 
+import 'dart:math' as math;
+
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
@@ -7,7 +10,9 @@ import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/detection_chips.dart';
+import 'package:mozhi/translate/widgets/go_button.dart';
 import 'package:mozhi/translate/widgets/language_picker_sheet.dart';
+import 'package:mozhi/translate/widgets/options_sheet.dart';
 import 'package:mozhi/translate/widgets/recent_pairs_sheet.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
 
@@ -60,7 +65,16 @@ bool detectionIsUncertain(TranslateState state) {
       text.characters.length <= uncertainDetectionMaxLength;
 }
 
-/// Source button, swap button and target button.
+/// The language bar, like Kagi Translate's: one hairline-outlined pill
+/// with the options button ([OptionsButton]) at the start, the source
+/// button, the swap button and the target button, and the go button
+/// ([TranslateGoButton]) at the end; thin dividers set the options and go
+/// buttons off.
+///
+/// The source and target buttons share the space between the dividers:
+/// half each while both names fit (the swap button then sits in the
+/// middle, over the line between the panes of the wide layout); otherwise
+/// the shorter name keeps its width and the longer one gets the rest.
 ///
 /// A detection that may be wrong ([detectionLooksUncertain]: the engine
 /// says so, or a single short word) reads "Detected: Dutch?" with a help
@@ -76,6 +90,50 @@ bool detectionIsUncertain(TranslateState state) {
 /// out, like Material's shared-axis motion. No motion with reduced motion.
 class LanguageBar extends StatelessWidget {
   const new({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final hairline = AppPalette.of(context).hairline;
+    return DecoratedBox(
+      key: const Key('translate_language_bar'),
+      decoration: ShapeDecoration(
+        shape: StadiumBorder(side: BorderSide(color: hairline)),
+      ),
+      child: Padding(
+        // Inside the outline.
+        padding: const EdgeInsets.all(1),
+        child: Row(
+          children: [
+            const OptionsButton(),
+            _BarDivider(color: hairline),
+            const Expanded(child: _LanguagePair()),
+            _BarDivider(color: hairline),
+            const TranslateGoButton(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A short vertical hairline between the parts of the [LanguageBar].
+class _BarDivider extends StatelessWidget {
+  const new({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 3),
+      child: SizedBox(width: 1, height: 24, child: ColoredBox(color: color)),
+    );
+  }
+}
+
+/// Source button, swap button and target button of the [LanguageBar].
+class _LanguagePair extends StatelessWidget {
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -110,48 +168,204 @@ class LanguageBar extends StatelessWidget {
         } else {
           sourceLabel = sourceDescription = l10n.translateDetectLanguage;
         }
-        return Row(
+        return _LanguagePairRow(
           children: [
-            Expanded(
-              child: _LanguageButton(
-                key: const Key('translate_source_button'),
-                label: sourceLabel,
-                slideFrom: AxisDirection.right,
-                semanticLabel: l10n.translateSourceLanguage(sourceDescription),
-                tooltip: sourceTooltip.isEmpty
-                    ? sourceDescription
-                    : sourceTooltip,
-                icon: state.source.isCustom
-                    ? Icons.auto_awesome
-                    : !state.source.isAuto || detected == null
-                    ? null
-                    : uncertain
-                    ? Icons.help_outline
-                    : Icons.auto_awesome_outlined,
-                onPressed: () => pickTranslateLanguage(context, source: true),
-              ),
+            _LanguageButton(
+              key: const Key('translate_source_button'),
+              label: sourceLabel,
+              slideFrom: AxisDirection.right,
+              semanticLabel: l10n.translateSourceLanguage(sourceDescription),
+              tooltip: sourceTooltip.isEmpty
+                  ? sourceDescription
+                  : sourceTooltip,
+              icon: state.source.isCustom
+                  ? Icons.auto_awesome
+                  : !state.source.isAuto || detected == null
+                  ? null
+                  : uncertain
+                  ? Icons.help_outline
+                  : Icons.auto_awesome_outlined,
+              onPressed: () => pickTranslateLanguage(context, source: true),
             ),
-            SizedBox(
-              width: TranslateLayout.paneGap,
-              child: _SwapButton(enabled: state.canSwap),
-            ),
-            Expanded(
-              child: _LanguageButton(
-                key: const Key('translate_target_button'),
-                label: state.target.name,
-                slideFrom: AxisDirection.left,
-                semanticLabel: l10n.translateTargetLanguage(state.target.name),
-                tooltip: state.target.name,
-                icon: state.target.isCustom ? Icons.auto_awesome : null,
-                target: true,
-                onPressed: () => pickTranslateLanguage(context, source: false),
-              ),
+            _SwapButton(enabled: state.canSwap),
+            _LanguageButton(
+              key: const Key('translate_target_button'),
+              label: state.target.name,
+              slideFrom: AxisDirection.left,
+              semanticLabel: l10n.translateTargetLanguage(state.target.name),
+              tooltip: state.target.name,
+              icon: state.target.isCustom ? Icons.auto_awesome : null,
+              target: true,
+              onPressed: () => pickTranslateLanguage(context, source: false),
             ),
           ],
         );
       },
     );
   }
+}
+
+/// Widths of two language buttons sharing [width], whose own (maximum
+/// intrinsic) widths are [start] and [end]: half each while both fit in
+/// half; otherwise the narrower one keeps its own width (when it fits in
+/// half) and the wider one gets the rest; half each when neither fits in
+/// half.
+(double, double) languagePairSplit(double width, double start, double end) {
+  final available = math.max(0, width).toDouble();
+  final half = available / 2;
+  if (start <= half && end <= half) return (half, half);
+  if (start <= half) return (start, available - start);
+  if (end <= half) return (available - end, end);
+  return (half, half);
+}
+
+/// Lays out three children in a row, in reading order: two language
+/// buttons with a swap button between them. The swap button keeps its own
+/// width; the language buttons share the rest ([languagePairSplit]).
+/// Children are centred vertically, and the row is as tall as the tallest
+/// of them.
+class _LanguagePairRow extends MultiChildRenderObjectWidget {
+  const new({required super.children})
+    : assert(children.length == 3, 'source, swap and target');
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderLanguagePair(textDirection: Directionality.of(context));
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderLanguagePair renderObject,
+  ) {
+    renderObject.textDirection = Directionality.of(context);
+  }
+}
+
+class _PairParentData extends ContainerBoxParentData<RenderBox>;
+
+/// The render object of [_LanguagePairRow].
+class _RenderLanguagePair extends RenderBox
+    with
+        ContainerRenderObjectMixin<RenderBox, _PairParentData>,
+        RenderBoxContainerDefaultsMixin<RenderBox, _PairParentData> {
+  new({required this._textDirection});
+
+  TextDirection _textDirection;
+
+  TextDirection get textDirection => _textDirection;
+
+  set textDirection(TextDirection value) {
+    if (_textDirection == value) return;
+    _textDirection = value;
+    markNeedsLayout();
+  }
+
+  @override
+  void setupParentData(RenderBox child) {
+    if (child.parentData is! _PairParentData) {
+      child.parentData = _PairParentData();
+    }
+  }
+
+  @override
+  double computeMinIntrinsicWidth(double height) => getChildrenAsList().fold(
+    0,
+    (sum, child) => sum + child.getMinIntrinsicWidth(height),
+  );
+
+  @override
+  double computeMaxIntrinsicWidth(double height) => getChildrenAsList().fold(
+    0,
+    (sum, child) => sum + child.getMaxIntrinsicWidth(height),
+  );
+
+  @override
+  double computeMinIntrinsicHeight(double width) => getChildrenAsList().fold(
+    0,
+    (tallest, child) =>
+        math.max(tallest, child.getMinIntrinsicHeight(double.infinity)),
+  );
+
+  @override
+  double computeMaxIntrinsicHeight(double width) => getChildrenAsList().fold(
+    0,
+    (tallest, child) =>
+        math.max(tallest, child.getMaxIntrinsicHeight(double.infinity)),
+  );
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) =>
+      _layout(constraints, ChildLayoutHelper.dryLayoutChild).size;
+
+  @override
+  void performLayout() {
+    final (:size, :widths) = _layout(
+      constraints,
+      ChildLayoutHelper.layoutChild,
+    );
+    this.size = size;
+    final children = getChildrenAsList();
+    final ordered = _textDirection == TextDirection.rtl
+        ? children.reversed.toList()
+        : children;
+    final orderedWidths = _textDirection == TextDirection.rtl
+        ? widths.reversed.toList()
+        : widths;
+    var x = 0.0;
+    for (final (index, child) in ordered.indexed) {
+      (child.parentData! as _PairParentData).offset = Offset(
+        x,
+        (size.height - child.size.height) / 2,
+      );
+      x += orderedWidths[index];
+    }
+  }
+
+  /// Lays out (or dry lays out, with [layoutChild]) the children for
+  /// [constraints]: the size of the row and the widths of the children.
+  ({Size size, List<double> widths}) _layout(
+    BoxConstraints constraints,
+    ChildLayouter layoutChild,
+  ) {
+    final children = getChildrenAsList();
+    assert(children.length == 3, '_LanguagePairRow needs three children');
+    final [start, swap, end] = children;
+    final swapWidth = swap.getMaxIntrinsicWidth(double.infinity);
+    final startWidth = start.getMaxIntrinsicWidth(double.infinity);
+    final endWidth = end.getMaxIntrinsicWidth(double.infinity);
+    final (double, double) shared;
+    if (constraints.hasBoundedWidth) {
+      shared = languagePairSplit(
+        constraints.maxWidth - swapWidth,
+        startWidth,
+        endWidth,
+      );
+    } else {
+      shared = (startWidth, endWidth);
+    }
+    final widths = [shared.$1, swapWidth, shared.$2];
+    var height = 0.0;
+    for (final (index, child) in children.indexed) {
+      final size = layoutChild(
+        child,
+        BoxConstraints.tightFor(width: widths[index])
+            .copyWith(maxHeight: constraints.maxHeight),
+      );
+      height = math.max(height, size.height);
+    }
+    final size = constraints.constrain(
+      Size(widths.fold(0, (sum, width) => sum + width), height),
+    );
+    return (size: size, widths: widths);
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) =>
+      defaultPaint(context, offset);
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
+      defaultHitTestChildren(result, position: position);
 }
 
 /// Swaps the languages (a selection haptic, the icon turns half a turn); a
@@ -188,10 +402,9 @@ class _SwapButtonState extends State<_SwapButton> {
         child: Tooltip(
           message: l10n.translateSwapLanguages,
           triggerMode: TooltipTriggerMode.manual,
-          child: IconButton.outlined(
+          child: IconButton(
             key: const Key('translate_swap_button'),
             style: IconButton.styleFrom(
-              side: BorderSide(color: AppPalette.of(context).hairline),
               foregroundColor: Theme.of(context).colorScheme.primary,
             ),
             icon: AnimatedRotation(
@@ -222,8 +435,9 @@ Duration _swapMotion(BuildContext context) =>
     ? Duration.zero
     : const Duration(milliseconds: 250);
 
-/// An X-style pill language button with a hairline border (the target's
-/// a little bolder). The button keeps its own semantics (tap action,
+/// A language button of the [LanguageBar]: the name (the target's a
+/// little bolder) and a chevron, on the bar without an outline of its own.
+/// The button keeps its own semantics (tap action,
 /// enabled state, focus); only its visible content is replaced by
 /// [semanticLabel] for screen readers. A new [label] slides in from
 /// [slideFrom] (mirrored in right-to-left layouts).
@@ -260,12 +474,11 @@ class _LanguageButton extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       excludeFromSemantics: true,
-      child: OutlinedButton(
-        style: OutlinedButton.styleFrom(
+      child: TextButton(
+        style: TextButton.styleFrom(
           minimumSize: const Size(48, 48),
-          padding: const EdgeInsetsDirectional.only(start: 16, end: 10),
+          padding: const EdgeInsetsDirectional.only(start: 10, end: 4),
           shape: const StadiumBorder(),
-          side: BorderSide(color: palette.hairline),
           foregroundColor: scheme.onSurface,
           backgroundColor: Colors.transparent,
         ),
@@ -296,7 +509,7 @@ class _LanguageButton extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 2),
-              Icon(Icons.expand_more, size: 20, color: palette.secondaryText),
+              Icon(Icons.expand_more, size: 16, color: palette.secondaryText),
             ],
           ),
         ),

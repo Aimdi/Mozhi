@@ -59,8 +59,11 @@ sealed class SpeechInputState extends Equatable {
   bool isOwnedBy(Object? candidate) => false;
 }
 
-/// Speech recognition is not supported or could not be initialised. Voice
-/// input should be hidden.
+/// Speech recognition is not supported or could not be initialised.
+///
+/// Hide voice input on unsupported platforms (`failure` null); otherwise
+/// show it as off and explain [failure] when it is tapped (the next
+/// `SpeechInputService.listen` tries again, e.g. asks for the permission).
 final class SpeechInputUnavailable extends SpeechInputState {
   const new({this.failure});
 

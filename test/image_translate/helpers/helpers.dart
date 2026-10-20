@@ -143,7 +143,16 @@ class FakeImagePickerService implements ImagePickerService {
   /// Thrown by [pick] when set.
   Exception? error;
 
+  /// Returned once by [retrieveLost] (a photo Android could not deliver).
+  PickedImage? lost;
+
+  /// Thrown by [retrieveLost] when set.
+  Exception? lostError;
+
   final picks = <ImagePickSource>[];
+
+  /// How often [retrieveLost] was called.
+  int lostRetrievals = 0;
 
   @override
   Future<PickedImage?> pick(ImagePickSource source) async {
@@ -152,14 +161,31 @@ class FakeImagePickerService implements ImagePickerService {
     if (failure != null) throw failure;
     return image;
   }
+
+  @override
+  Future<PickedImage?> retrieveLost() async {
+    lostRetrievals++;
+    final failure = lostError;
+    if (failure != null) throw failure;
+    final image = lost;
+    lost = null;
+    return image;
+  }
 }
 
 class FakeImageEncoder implements ImageEncoder {
   new({Uint8List? output}) : output = output ?? encodedPng;
 
   Uint8List output;
+
+  /// Returned instead of [output] for a smaller copy (a `maxBytes` below
+  /// [defaultMaxBytes]) when set.
+  Uint8List? smallerOutput;
   Exception? error;
   final inputs = <Uint8List>[];
+
+  /// The size limits of each call.
+  final limits = <({int maxSide, int maxBytes})>[];
 
   @override
   Future<Uint8List> encodePng(
@@ -168,9 +194,10 @@ class FakeImageEncoder implements ImageEncoder {
     int maxBytes = defaultMaxBytes,
   }) async {
     inputs.add(bytes);
+    limits.add((maxSide: maxSide, maxBytes: maxBytes));
     final failure = error;
     if (failure != null) throw failure;
-    return output;
+    return maxBytes < defaultMaxBytes ? smallerOutput ?? output : output;
   }
 }
 
@@ -340,6 +367,9 @@ MockImageTranslateCubit mockImageCubit(ImageTranslateState state) {
   when(() => cubit.selectMethod(any())).thenAnswer((_) async {});
   when(() => cubit.setSource(any())).thenAnswer((_) async {});
   when(() => cubit.setTarget(any())).thenAnswer((_) async {});
+  when(cubit.useOnDevice).thenAnswer((_) async {});
+  when(cubit.recoverLostImage).thenAnswer((_) async {});
+  when(() => cubit.methodRestored).thenAnswer((_) async {});
   return cubit;
 }
 

@@ -7,6 +7,8 @@ import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/translate/widgets/language_bar.dart'
+    show pickTranslateLanguage;
 import 'package:mozhi/translate/widgets/language_text.dart';
 import 'package:mozhi/translate/widgets/listen_button.dart';
 import 'package:mozhi/translate/widgets/output_card.dart'
@@ -386,6 +388,10 @@ class ExtraTargetCard extends StatelessWidget {
           onRetry: () => unawaited(
             context.read<TranslateCubit>().retryExtraTarget(target),
           ),
+          // The engine could not detect the input's language: picking it
+          // translates every target again.
+          onChooseSourceLanguage: () =>
+              unawaited(pickTranslateLanguage(context, source: true)),
         ),
       );
     }

@@ -35,6 +35,19 @@ void main() {
       });
     }
 
+    testWidgets('options for a Mozhi engine on a phone (light)', (
+      tester,
+    ) async {
+      await pumpTranslateGolden(
+        tester,
+        TranslateHarness(state: translatedState()),
+        device: GoldenDevice.phone,
+      );
+      await tester.tap(find.byKey(const Key('translate_options_button')));
+      await tester.pumpAndSettle();
+      await expectScreenGolden('translate_options_phone_light');
+    });
+
     testWidgets('with a result on a tablet (light)', (tester) async {
       await pumpTranslateGolden(
         tester,

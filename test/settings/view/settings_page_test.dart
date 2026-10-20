@@ -341,8 +341,9 @@ void main() {
       testWidgets('instant translate with AI', (tester) async {
         await pump(tester);
         expect(find.textContaining('Uses more tokens'), findsOneWidget);
+        // On by default: the switch turns it off.
         await tester.tap(find.text('Instant translate with AI'));
-        verify(() => settings.setInstantTranslateAi(enabled: true)).called(1);
+        verify(() => settings.setInstantTranslateAi(enabled: false)).called(1);
       });
 
       testWidgets('save history', (tester) async {

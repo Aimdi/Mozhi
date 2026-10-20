@@ -8,6 +8,7 @@ export 'engine_selector.dart';
 export 'explain_sheet.dart';
 export 'extra_targets_section.dart';
 export 'extras_section.dart';
+export 'go_button.dart';
 export 'input_card.dart';
 export 'insight_sheet.dart';
 export 'instance_switcher.dart';

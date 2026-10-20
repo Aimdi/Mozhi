@@ -21,6 +21,7 @@ class FakeOfflineTranslator implements OfflineTranslator {
     this.isAvailable = true,
     this.supportedLanguages = const {'en', 'de', 'fr', 'zh', 'he'},
     this.identified,
+    this.downloaded,
   });
 
   @override
@@ -31,6 +32,9 @@ class FakeOfflineTranslator implements OfflineTranslator {
 
   /// What [identifyLanguage] returns.
   String? identified;
+
+  /// What [downloadedLanguages] returns (null: [supportedLanguages]).
+  Set<String>? downloaded;
 
   /// Thrown by [translate] when set.
   Exception? error;
@@ -56,7 +60,8 @@ class FakeOfflineTranslator implements OfflineTranslator {
   }
 
   @override
-  Future<Set<String>> downloadedLanguages() async => supportedLanguages;
+  Future<Set<String>> downloadedLanguages() async =>
+      downloaded ?? supportedLanguages;
 
   @override
   Future<void> downloadLanguage(String code, {bool wifiOnly = true}) async {}

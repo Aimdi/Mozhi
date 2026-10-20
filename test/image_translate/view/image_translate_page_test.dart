@@ -23,6 +23,17 @@ Future<void> translateNow(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+/// Selects Mozhi via Google Translate (experimental: never the default
+/// while another method is available).
+Future<void> useMozhi(WidgetTester tester) async {
+  final chip = find.byKey(Key('image_translate_method_${mozhiMethod.id}'));
+  await tester.ensureVisible(chip);
+  await tester.tap(chip);
+  await tester.pumpAndSettle();
+}
+
+const mozhiLabel = 'Mozhi via Google Translate (experimental)';
+
 void main() {
   setUpAll(registerImageTranslateFallbacks);
 
@@ -58,8 +69,13 @@ void main() {
       expect(find.text('Choose image'), findsOneWidget);
       expect(find.text('Take photo'), findsOneWidget);
       // Chip + method list entry.
-      expect(find.text('Mozhi (Google Lens)'), findsNWidgets(2));
+      expect(find.text(mozhiLabel), findsNWidgets(2));
       expect(find.text('AI vision · Claude'), findsNWidgets(2));
+      // Mozhi is experimental: offered last.
+      expect(
+        tester.getTopLeft(find.text('AI vision · Claude').last).dy,
+        lessThan(tester.getTopLeft(find.text(mozhiLabel).last).dy),
+      );
       expect(find.text('On-device text recognition'), findsNothing);
       expect(find.text('Detect language'), findsOneWidget);
       expect(find.text('French'), findsOneWidget);
@@ -109,6 +125,7 @@ void main() {
       harness.picker.image = jpegImage;
       stubImage(() async => lensResult(notes: 'A shop sign'));
       await harness.pumpPage(tester);
+      await useMozhi(tester);
 
       await tester.tap(find.byKey(const Key('image_translate_gallery_button')));
       await tester.pumpAndSettle();
@@ -196,6 +213,7 @@ void main() {
       harness.picker.image = jpegImage;
       stubImage(() => pending.future);
       await harness.pumpPage(tester);
+      await useMozhi(tester);
 
       await tester.tap(find.byKey(const Key('image_translate_gallery_button')));
       await tester.pumpAndSettle();
@@ -205,7 +223,11 @@ void main() {
       await tester.pump();
       await tester.pump();
       expect(find.byKey(const Key('image_translate_progress')), findsOne);
-      expect(find.textContaining('Google Lens via Mozhi'), findsOneWidget);
+      expect(
+        find.textContaining('Google Translate through your Mozhi instance'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('90 seconds'), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('image_translate_cancel_button')));
       await tester.pump();
@@ -357,6 +379,7 @@ void main() {
       harness.picker.image = jpegImage;
       stubImage(() async => lensResult());
       await harness.pumpPage(tester);
+      await useMozhi(tester);
       await tester.tap(find.byKey(const Key('image_translate_gallery_button')));
       await tester.pumpAndSettle();
       await translateNow(tester);
@@ -460,7 +483,7 @@ void main() {
           onClaude.copyWith(options: const TranslationOptions(context: 'Menu')),
         );
       await tester.pumpAndSettle();
-      expect(find.text('Mozhi (Google Lens)'), findsNWidgets(2));
+      expect(find.text(mozhiLabel), findsNWidgets(2));
 
       translateController.add(translateState(engines: const [deepl]));
       await tester.pumpAndSettle();
@@ -530,6 +553,7 @@ void main() {
         themeMode: ThemeMode.dark,
       );
       expect(find.byKey(const Key('image_translate_narrow')), findsOneWidget);
+      await useMozhi(tester);
       final gallery = find.byKey(const Key('image_translate_gallery_button'));
       await tester.ensureVisible(gallery);
       await tester.pumpAndSettle();

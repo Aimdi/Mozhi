@@ -2294,6 +2294,32 @@ void main() {
       expect(offline.calls, isEmpty);
     });
 
+    test('uses the only downloaded language that fits an unidentified '
+        'text', () async {
+      // English and German on the device: into German it is English...
+      offline.downloaded = {'en', 'de'};
+      final result = await repository
+          .translate(offlineEngine, autoToGerman)
+          .single;
+      expect(result.detectedSource, 'en');
+      expect(offline.calls.single.source, 'en');
+      // ...also when the identifier answered something unusable.
+      repository.clearCache();
+      offline.identified = 'und';
+      await repository.translate(offlineEngine, autoToGerman).single;
+      expect(offline.calls, hasLength(2));
+      expect(offline.calls.last.source, 'en');
+      // Two candidates (English and French into German): ask.
+      repository.clearCache();
+      offline
+        ..identified = null
+        ..downloaded = {'en', 'de', 'fr'};
+      await expectLater(
+        repository.translate(offlineEngine, autoToGerman),
+        emitsError(isA<SourceLanguageRequiredException>()),
+      );
+    });
+
     test('needs a source it cannot identify', () async {
       await expectLater(
         repository.translate(offlineEngine, autoToGerman),
@@ -3044,16 +3070,35 @@ void main() {
       );
     });
 
+    When<Future<MozhiImageTranslation>> whenImage(MockMozhiApiClient client) =>
+        when(
+          () => client.translateImage(
+            pngBytes: any(named: 'pngBytes'),
+            from: any(named: 'from'),
+            to: any(named: 'to'),
+            engine: any(named: 'engine'),
+            timeout: any(named: 'timeout'),
+          ),
+        );
+
+    Future<ImageTranslationResult> translateWithMozhi({
+      Language source = Language.auto,
+      Language target = english,
+    }) => repository.translateImage(
+      googleEngine,
+      image,
+      mimeType: 'image/png',
+      source: source,
+      target: target,
+    );
+
+    List<MozhiLanguage> googleList(List<String> ids) => [
+      for (final id in ids) MozhiLanguage(id: id, name: id),
+    ];
+
     test('Mozhi engines use /api/image with google', () async {
       configure();
-      when(
-        () => a().translateImage(
-          pngBytes: any(named: 'pngBytes'),
-          from: any(named: 'from'),
-          to: any(named: 'to'),
-          engine: any(named: 'engine'),
-        ),
-      ).thenAnswer(
+      whenImage(a()).thenAnswer(
         (_) async => MozhiImageTranslation(
           translatedImageBase64: base64.encode(translatedImage),
           sourceText: 'こんにちは',
@@ -3070,39 +3115,195 @@ void main() {
       expect(result.translatedImage, translatedImage);
       expect(result.sourceText, 'こんにちは');
       expect(result.translatedText, 'Hello');
-      verify(() => a().translateImage(pngBytes: image, from: 'auto', to: 'en'))
-          .called(1);
+      verify(
+        () => a().translateImage(
+          pngBytes: image,
+          from: 'auto',
+          to: 'en',
+          timeout: TranslationRepository.mozhiImageTimeout,
+        ),
+      ).called(1);
     });
 
     test('Mozhi image translation fails over', () async {
       configure();
-      when(
+      whenImage(a()).thenThrow(serverError());
+      whenImage(b()).thenAnswer(
+        (_) async => const MozhiImageTranslation(
+          translatedImageBase64: '',
+          translatedText: 'Hello',
+        ),
+      );
+      final result = await translateWithMozhi();
+      expect(result.translatedImage, isNull);
+      expect(result.translatedText, 'Hello');
+      expect(repository.activeInstance, instanceB);
+    });
+
+    test('Mozhi images go to at most two instances', () async {
+      configure(instances: const [instanceA, instanceB, instanceC]);
+      whenImage(a()).thenThrow(serverError('first'));
+      whenImage(b()).thenThrow(serverError('second'));
+      whenImage(c()).thenAnswer(
+        (_) async => const MozhiImageTranslation(
+          translatedImageBase64: '',
+          translatedText: 'Hello',
+        ),
+      );
+      expect(TranslationRepository.maxImageInstances, 2);
+      await expectLater(
+        translateWithMozhi(),
+        throwsA(
+          isA<MozhiApiException>().having(
+            (e) => e.message,
+            'message',
+            'second',
+          ),
+        ),
+      );
+      verifyNever(
+        () => c().translateImage(
+          pngBytes: any(named: 'pngBytes'),
+          from: any(named: 'from'),
+          to: any(named: 'to'),
+          engine: any(named: 'engine'),
+          timeout: any(named: 'timeout'),
+        ),
+      );
+    });
+
+    test('an empty Mozhi answer is a retryable "no result"', () async {
+      configure(instances: const [instanceA, instanceB, instanceC]);
+      whenImage(a()).thenAnswer(
+        (_) async => const MozhiImageTranslation(
+          translatedImageBase64: 'not base64 !',
+          sourceText: ' ',
+        ),
+      );
+      whenImage(b()).thenAnswer(
+        (_) async => const MozhiImageTranslation(translatedImageBase64: ''),
+      );
+      await expectLater(
+        translateWithMozhi(),
+        throwsA(
+          isA<MozhiApiException>()
+              .having((e) => e.statusCode, 'statusCode', 502)
+              .having((e) => e.isRetryable, 'isRetryable', isTrue)
+              .having(
+                (e) => e.message,
+                'message',
+                TranslationRepository.imageNoResultMessage,
+              ),
+        ),
+      );
+      verifyZeroInteractions(c());
+    });
+
+    test('an empty Mozhi answer tries another instance', () async {
+      configure();
+      whenImage(a()).thenAnswer(
+        (_) async => const MozhiImageTranslation(translatedImageBase64: ''),
+      );
+      whenImage(b()).thenAnswer(
+        (_) async => MozhiImageTranslation(
+          translatedImageBase64: base64.encode(translatedImage),
+        ),
+      );
+      final result = await translateWithMozhi();
+      expect(result.translatedImage, translatedImage);
+      expect(
+        result.destination,
+        const PublicInstanceDestination('b.example', engine: 'google'),
+      );
+    });
+
+    test('maps languages onto the Google lists', () async {
+      configure();
+      when(() => a().getSourceLanguages('google')).thenAnswer(
+        (_) async => googleList(['auto', 'en', 'iw', 'zh-CN', 'zh-TW']),
+      );
+      when(() => a().getTargetLanguages('google'))
+          .thenAnswer((_) async => googleList(['en', 'iw', 'zh-CN', 'zh-TW']));
+      whenImage(a()).thenAnswer(
+        (_) async => const MozhiImageTranslation(
+          translatedImageBase64: '',
+          translatedText: 'x',
+        ),
+      );
+      await translateWithMozhi(
+        source: const Language(code: 'he', name: 'Hebrew'),
+        target: const Language(code: 'zh-Hant', name: 'Chinese (Traditional)'),
+      );
+      await translateWithMozhi(
+        source: const Language(code: 'zh', name: 'Chinese'),
+        target: const Language(code: 'he', name: 'Hebrew'),
+      );
+      final sent = verify(
+        () => a().translateImage(
+          pngBytes: any(named: 'pngBytes'),
+          from: captureAny(named: 'from'),
+          to: captureAny(named: 'to'),
+          engine: any(named: 'engine'),
+          timeout: any(named: 'timeout'),
+        ),
+      ).captured;
+      expect(sent, ['iw', 'zh-TW', 'zh-CN', 'iw']);
+    });
+
+    test('does not upload for a language Google does not list', () async {
+      configure();
+      when(() => a().getSourceLanguages('google'))
+          .thenAnswer((_) async => googleList(['auto', 'en', 'de']));
+      when(() => a().getTargetLanguages('google'))
+          .thenAnswer((_) async => googleList(['en', 'de']));
+      await expectLater(
+        translateWithMozhi(
+          source: const Language(code: 'tlh', name: 'Klingon'),
+        ),
+        throwsA(isA<ArgumentError>().having((e) => e.name, 'name', 'source')),
+      );
+      await expectLater(
+        translateWithMozhi(
+          target: const Language(code: 'tlh', name: 'Klingon'),
+        ),
+        throwsA(isA<ArgumentError>().having((e) => e.name, 'name', 'target')),
+      );
+      verifyNever(
         () => a().translateImage(
           pngBytes: any(named: 'pngBytes'),
           from: any(named: 'from'),
           to: any(named: 'to'),
           engine: any(named: 'engine'),
+          timeout: any(named: 'timeout'),
         ),
-      ).thenThrow(serverError());
-      when(
-        () => b().translateImage(
+      );
+    });
+
+    test('uses Google codes when the lists cannot be loaded', () async {
+      configure();
+      for (final client in [a(), b()]) {
+        when(() => client.getSourceLanguages(any())).thenThrow(serverError());
+        when(() => client.getTargetLanguages(any())).thenThrow(serverError());
+      }
+      whenImage(a()).thenAnswer(
+        (_) async => const MozhiImageTranslation(
+          translatedImageBase64: '',
+          translatedText: 'x',
+        ),
+      );
+      await translateWithMozhi(
+        source: const Language(code: 'he', name: 'Hebrew'),
+        target: const Language(code: 'zh-Hant', name: 'Chinese (Traditional)'),
+      );
+      verify(
+        () => a().translateImage(
           pngBytes: any(named: 'pngBytes'),
-          from: any(named: 'from'),
-          to: any(named: 'to'),
+          from: 'iw',
+          to: 'zh-TW',
           engine: any(named: 'engine'),
+          timeout: any(named: 'timeout'),
         ),
-      ).thenAnswer(
-        (_) async => const MozhiImageTranslation(translatedImageBase64: ''),
-      );
-      final result = await repository.translateImage(
-        googleEngine,
-        image,
-        mimeType: 'image/png',
-        source: Language.auto,
-        target: english,
-      );
-      expect(result.translatedImage, isNull);
-      expect(repository.activeInstance, instanceB);
+      ).called(1);
     });
 
     test('Mozhi engines require PNG and real languages', () async {
@@ -3413,6 +3614,7 @@ void main() {
           pngBytes: any(named: 'pngBytes'),
           from: any(named: 'from'),
           to: any(named: 'to'),
+          timeout: any(named: 'timeout'),
         ),
       ).thenThrow(TimeoutException('slow'));
       await expectLater(

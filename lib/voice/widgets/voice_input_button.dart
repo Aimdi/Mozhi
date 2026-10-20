@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/voice/speech_input_service.dart';
@@ -16,15 +17,22 @@ typedef VoiceInputResultCallback = void Function(
 
 /// Microphone button that toggles voice input.
 ///
-/// While listening it shows a filled mic with a ring that scales with the
-/// input level, forwards recognised text to [onResult] and offers "Stop
-/// listening"; while an offline engine transcribes the recording it shows
-/// a progress ring and offers "Cancel transcription". It renders nothing
-/// ([SizedBox.shrink]) on platforms without speech recognition (Linux)
-/// and once initialising the recogniser failed
-/// (no recogniser, permission denied); after a denied permission is granted
-/// in the system settings it reappears when the app resumes. Failures are
-/// explained in a [SnackBar].
+/// While the session starts (the recogniser initialises, which may show
+/// the permission prompt) it shows a progress ring and offers "Cancel
+/// voice input". While listening it shows a filled mic with a ring that
+/// scales with the input level, forwards recognised text to [onResult]
+/// and offers "Stop listening"; while an offline engine transcribes the
+/// recording it shows a progress ring and offers "Cancel transcription".
+///
+/// It renders nothing ([SizedBox.shrink]) on platforms without speech
+/// recognition (Linux). Once initialising the recogniser failed (no
+/// recogniser, permission denied) it shows a dimmed "off" mic: tapping it
+/// tries again (Android asks for a denied permission again) and explains
+/// what is wrong; after a denied permission is granted in the system
+/// settings it is back to normal when the app resumes. Failures are
+/// explained in a [SnackBar]; when an offline speech model would help, it
+/// offers to open the voice input settings ([settingsLocation]) to
+/// download one (with a [GoRouter] above).
 ///
 /// The default constructor reads the app-wide service with
 /// `context.read<SpeechInputService>()` (provide it with a
@@ -60,6 +68,12 @@ class VoiceInputButton extends StatefulWidget {
     'voiceInputTranscribing',
   );
 
+  /// Key of the progress ring shown while a session starts.
+  static const ValueKey<String> startingKey = ValueKey('voiceInputStarting');
+
+  /// Location of the voice input settings (the offline speech models).
+  static const settingsLocation = '/settings/voice';
+
   /// Explicit service; null reads it from the context.
   final SpeechInputService? service;
 
@@ -90,6 +104,14 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
   /// An offline engine is transcribing what this button recorded.
   bool get _transcribing =>
       _state is SpeechInputTranscribing && _state.isOwnedBy(this);
+
+  /// Counts the sessions this button started.
+  int _starts = 0;
+
+  /// The session this button is starting (until it listens or fails).
+  int? _startingSession;
+
+  bool get _starting => _startingSession != null;
 
   @override
   void initState() {
@@ -123,12 +145,15 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
   void _attach(SpeechInputService service) {
     _service = service;
     _state = service.state;
+    _startingSession = null;
     _states = service.states.listen(_onState);
     _results = service.results.listen(_onResult);
   }
 
   void _detach() {
-    if (_listening || _transcribing) unawaited(_service.cancel());
+    if (_listening || _transcribing || _starting) {
+      unawaited(_service.cancel());
+    }
     unawaited(_states?.cancel());
     unawaited(_results?.cancel());
   }
@@ -136,9 +161,13 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
   void _onState(SpeechInputState state) {
     if (!mounted) return;
     final wasListening = _listening;
-    setState(() => _state = state);
+    setState(() {
+      _state = state;
+      if (_listening) _startingSession = null;
+    });
     if (wasListening != _listening) widget.onListeningChanged?.call(_listening);
-    if (state is SpeechInputError && state.isOwnedBy(this)) {
+    // Failures to start are explained once `listen` returns (_toggle).
+    if (state is SpeechInputError && state.isOwnedBy(this) && !_starting) {
       _showError(state.failure);
     }
   }
@@ -157,24 +186,55 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
       await _service.cancel();
       return;
     }
+    if (_starting) {
+      // Still starting (e.g. the recogniser does not answer): give up.
+      setState(() => _startingSession = null);
+      await _service.cancel();
+      return;
+    }
+    final session = ++_starts;
+    setState(() => _startingSession = session);
     final started = await _service.listen(
       widget.languageCode,
       preferOnDevice: widget.preferOnDevice,
       owner: this,
     );
-    if (started || !mounted) return;
-    if (_service.state case SpeechInputUnavailable(:final failure?)) {
-      _showError(failure);
-    }
+    // Cancelled, listening already, or another tap took over.
+    if (!mounted || _startingSession != session) return;
+    setState(() => _startingSession = null);
+    if (started) return;
+    // Read the state rather than wait for it: a failure that repeats the
+    // previous one is not reported again on [SpeechInputService.states].
+    // Only missing offline engines fail a start with an error (not an
+    // earlier session's error, e.g. when another button took over).
+    final failure = switch (_service.state) {
+      SpeechInputUnavailable(:final failure?) => failure,
+      SpeechInputError(
+                failure: SpeechInputFailure.offlineModelMissing ||
+                    SpeechInputFailure.offlineUnavailable,
+              ) &&
+              final error
+          when error.isOwnedBy(this) =>
+        error.failure,
+      _ => null,
+    };
+    if (failure != null) _showError(failure);
   }
 
   void _showError(SpeechInputFailure failure) {
     final messenger = ScaffoldMessenger.maybeOf(context);
     if (messenger == null) return;
+    final l10n = context.l10n;
+    final needsModel = voiceInputFailureNeedsOfflineModel(
+      failure,
+      offlineSupported: _service.isOfflineSupported,
+    );
+    final router = needsModel ? GoRouter.maybeOf(context) : null;
     final message = voiceInputErrorMessage(
-      context.l10n,
+      l10n,
       failure,
       onDevice: widget.preferOnDevice ?? _service.preferOnDevice.value,
+      offlineModelDownloadable: needsModel,
     );
     messenger
       ..hideCurrentSnackBar()
@@ -185,20 +245,28 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
           duration: failure.isPermanent
               ? const Duration(seconds: 8)
               : const Duration(seconds: 4),
+          action: router == null
+              ? null
+              : SnackBarAction(
+                  label: l10n.voiceDownloadModelAction,
+                  onPressed: () => unawaited(
+                    router.push<void>(VoiceInputButton.settingsLocation),
+                  ),
+                ),
         ),
       );
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_service.isPlatformSupported || _state is SpeechInputUnavailable) {
-      return const SizedBox.shrink();
-    }
+    if (!_service.isPlatformSupported) return const SizedBox.shrink();
     final l10n = context.l10n;
     final scheme = Theme.of(context).colorScheme;
     final listening = _listening;
     final transcribing = _transcribing;
+    final starting = _starting && !listening && !transcribing;
     final state = _state;
+    final off = state is SpeechInputUnavailable && !starting;
     final level = listening && state is SpeechInputListening
         ? state.level
         : 0.0;
@@ -220,29 +288,39 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
             Semantics(
               liveRegion: true,
               label: l10n.voiceInputTranscribing,
-              child: const IgnorePointer(
-                child: SizedBox.square(
-                  key: VoiceInputButton.transcribingKey,
-                  dimension: 44,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              ),
+              child: const _ProgressRing(key: VoiceInputButton.transcribingKey),
+            ),
+          if (starting)
+            Semantics(
+              liveRegion: true,
+              label: l10n.voiceInputStarting,
+              child: const _ProgressRing(key: VoiceInputButton.startingKey),
             ),
           IconButton(
             tooltip: listening
                 ? l10n.voiceInputStop
                 : transcribing
                 ? l10n.voiceInputCancelTranscription
+                : starting
+                ? l10n.voiceInputCancelStart
+                : off
+                ? l10n.voiceInputUnavailable
                 : l10n.voiceInputStart,
             isSelected: listening,
-            // An accent mic; a filled accent circle while listening.
+            // An accent mic; a filled accent circle while listening; a
+            // dimmed crossed-out mic while voice input is unavailable (still
+            // tappable: it explains why).
             style: listening
                 ? IconButton.styleFrom(
                     backgroundColor: scheme.primary,
                     foregroundColor: scheme.onPrimary,
                   )
-                : IconButton.styleFrom(foregroundColor: scheme.primary),
-            icon: const Icon(Icons.mic_none_outlined),
+                : IconButton.styleFrom(
+                    foregroundColor: off
+                        ? scheme.onSurfaceVariant
+                        : scheme.primary,
+                  ),
+            icon: Icon(off ? Icons.mic_off_outlined : Icons.mic_none_outlined),
             selectedIcon: const Icon(Icons.mic),
             onPressed: () => unawaited(_toggle()),
           ),
@@ -250,6 +328,19 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
       ),
     );
   }
+}
+
+/// A thin progress ring around the button (starting, transcribing).
+class _ProgressRing extends StatelessWidget {
+  const new({super.key});
+
+  @override
+  Widget build(BuildContext context) => const IgnorePointer(
+    child: SizedBox.square(
+      dimension: 44,
+      child: CircularProgressIndicator(strokeWidth: 2),
+    ),
+  );
 }
 
 /// Translucent accent circle behind the button, scaled by the input

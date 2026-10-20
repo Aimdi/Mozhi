@@ -123,7 +123,8 @@ void main() {
         final labels = _readingOrder(tester, find.byType(Scaffold).first);
         final source = _indexOf(labels, 'Source language');
         final input = _indexOf(labels, 'Text to translate');
-        final result = _indexOf(labels, 'Translation');
+        // Exactly: "Translation options" (the bar) comes first.
+        final result = labels.indexOf('Translation');
         final copy = _indexOf(labels, 'Copy');
         final more = labels.indexOf('More');
         expect(

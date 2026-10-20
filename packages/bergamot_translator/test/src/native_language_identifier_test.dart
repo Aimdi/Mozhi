@@ -132,10 +132,12 @@ void main() {
       Cld2Detection detection, {
       String? heuristic,
       Set<String> preferred = const {'de', 'es', 'fr', 'zh', 'zh-Hant', 'ja'},
+      Set<String> installed = const {},
     }) => Cld2Decision.choose(
       detection,
       heuristic: heuristic,
       preferred: preferred,
+      installed: installed,
     );
 
     test("takes CLD2's reliable answer, for any language", () {
@@ -217,6 +219,22 @@ void main() {
       expect(choose(_guess('zh-Hant')), 'zh');
       // Every language when nothing is preferred.
       expect(choose(_guess('ga', score: 1536), preferred: {}), 'ga');
+    });
+
+    test('takes any reliable guess for an installed language but '
+        'English', () {
+      const installed = {'en', 'hr', 'de'};
+      expect(
+        choose(_guess('hr', score: 120), preferred: {}, installed: installed),
+        'hr',
+      );
+      // A word or two is often guessed English: not on weak evidence.
+      expect(choose(_guess('en', score: 170), installed: installed), isNull);
+      expect(
+        choose(_guess('de', score: 100, reliable: false), installed: installed),
+        isNull,
+      );
+      expect(choose(_guess('fr', score: 100), installed: installed), isNull);
     });
 
     test('rejects weak, unreliable and unpreferred guesses', () {

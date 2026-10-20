@@ -170,9 +170,9 @@ your provider's dashboard has the real bill.
 A link (like text shared from another app) never starts a paid AI request
 on its own, so that anyone who can send you a link can't spend your credit.
 It fills in the text and languages and applies its options; with an AI model
-you then press **Translate**. Mozhi engines, the DeepL API, LibreTranslate
-and offline translation translate straight away, and so does an AI model if
-you turned on **Settings > Instant translate with AI**. Links to the
+you then press **Translate** (the go button), even with **Settings > Instant
+translate with AI** on, which covers typing only. Mozhi engines, the DeepL
+API, LibreTranslate and offline translation translate straight away. Links to the
 dictionary, Proofread and the web page translator only fill in the word,
 text or address. See [Links](features.md#links).
 

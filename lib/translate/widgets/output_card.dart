@@ -19,6 +19,8 @@ import 'package:mozhi/translate/widgets/empty_output.dart';
 import 'package:mozhi/translate/widgets/extras_section.dart';
 import 'package:mozhi/translate/widgets/insight_sheet.dart';
 import 'package:mozhi/translate/widgets/instance_switcher.dart';
+import 'package:mozhi/translate/widgets/language_bar.dart'
+    show pickTranslateLanguage;
 import 'package:mozhi/translate/widgets/language_text.dart';
 import 'package:mozhi/translate/widgets/listen_button.dart';
 import 'package:mozhi/translate/widgets/meaning_check_panel.dart';
@@ -527,12 +529,21 @@ class _OutputCardState extends State<OutputCard> {
     }
 
     if (state.status == TranslateStatus.failure && output.isEmpty) {
+      final cubit = context.read<TranslateCubit>();
       return Padding(
         padding: const EdgeInsetsDirectional.only(end: 12, bottom: 8),
         child: TranslateErrorView(
           error: state.error,
-          onRetry: () => unawaited(context.read<TranslateCubit>().translate()),
+          onRetry: () => unawaited(cubit.translate()),
           onSwitchInstance: _switchInstance(context),
+          // The engine could not detect the language (e.g. a short text on
+          // the offline engine): pick it, or take the last one used.
+          onChooseSourceLanguage: () =>
+              unawaited(pickTranslateLanguage(context, source: true)),
+          suggestedSourceLanguage: state.recentSourceSuggestion(
+            context.read<SettingsCubit>().state.recentPairs,
+          ),
+          onUseSourceLanguage: cubit.setSource,
         ),
       );
     }

@@ -569,6 +569,29 @@ class TranslateState extends Equatable {
     return languages;
   }
 
+  /// The language to offer as a one-tap source when the engine cannot
+  /// detect the input's language (`SourceLanguageRequiredException`, e.g.
+  /// a short text on the offline engine): the most recent source of
+  /// [recentPairs] (`AppSettings.recentPairs`, which records the detected
+  /// language of auto-detected translations) that [sourceLanguages] lists
+  /// (as listed there) and that is not the [target]. Null when the
+  /// [source] is not auto or there is no such language.
+  Language? recentSourceSuggestion(List<LanguagePair> recentPairs) {
+    if (!source.isAuto) return null;
+    final target = this.target.isCustom
+        ? null
+        : LanguageMatcher.normalize(this.target.code);
+    for (final pair in recentPairs) {
+      final recent = pair.source;
+      if (recent.isAuto || recent.isCustom) continue;
+      final match = LanguageMatcher.match(recent, sourceLanguages);
+      if (match == null || match.isAuto || match.isCustom) continue;
+      if (LanguageMatcher.normalize(match.code) == target) continue;
+      return match;
+    }
+    return null;
+  }
+
   // Pinned languages --------------------------------------------------------
 
   /// [language] as this engine lists it among [targetLanguages] (matched

@@ -334,12 +334,17 @@ class MozhiApiClient {
   /// `POST /api/image` (multipart). [pngBytes] must be a PNG image; only the
   /// Google engine is implemented server-side. Completing [abortTrigger]
   /// cancels the request.
+  ///
+  /// [timeout] replaces the client's [MozhiApiClient.timeout] for this
+  /// request: the upload, Google's answer and the echoed image all have to
+  /// fit in it, which takes longer than a text translation.
   Future<MozhiImageTranslation> translateImage({
     required Uint8List pngBytes,
     required String from,
     required String to,
     String engine = 'google',
     Future<void>? abortTrigger,
+    Duration? timeout,
   }) async {
     final (url, response) = await _send(
       _endpoint('image'),
@@ -360,6 +365,7 @@ class MozhiApiClient {
               ),
             ),
       abortTrigger: abortTrigger,
+      timeout: timeout,
     );
     return MozhiImageTranslation.fromJson(
       _expectObject(_decodeJson(response, url), url),
@@ -458,17 +464,20 @@ class MozhiApiClient {
   /// Sends the request built by [build] for [uri], follows redirects that
   /// the platform left to us, and returns the final URL with its response.
   ///
-  /// Everything runs under [timeout]; when it runs out the request is
-  /// aborted (for clients that support [http.Abortable]) instead of being
-  /// left running. Completing [abortTrigger] aborts it the same way and
-  /// fails with [MozhiRequestCancelledException]. Every failure, including
-  /// non-2xx responses, becomes a [MozhiApiException] whose `uri` is the
-  /// last URL requested.
+  /// Everything runs under [timeout] (or the request's own `timeout`); when
+  /// it runs out the request is aborted (for clients that support
+  /// [http.Abortable]) instead of being left running. Completing
+  /// [abortTrigger] aborts it the same way and fails with
+  /// [MozhiRequestCancelledException]. Every failure, including non-2xx
+  /// responses, becomes a [MozhiApiException] whose `uri` is the last URL
+  /// requested.
   Future<(Uri, http.Response)> _send(
     Uri uri,
     _RequestBuilder build, {
     Future<void>? abortTrigger,
+    Duration? timeout,
   }) async {
+    final limit = timeout ?? this.timeout;
     final abort = Completer<void>();
     var cancelled = false;
     void cancel(Object? _) {
@@ -504,10 +513,10 @@ class MozhiApiClient {
     final http.Response response;
     try {
       response = await exchange().timeout(
-        timeout,
+        limit,
         onTimeout: () {
           if (!abort.isCompleted) abort.complete();
-          throw TimeoutException(null, timeout);
+          throw TimeoutException(null, limit);
         },
       );
     } on TimeoutException catch (_, stackTrace) {
@@ -516,7 +525,7 @@ class MozhiApiClient {
         cancelled
             ? MozhiRequestCancelledException(uri: url)
             : MozhiApiException(
-                'No response within ${timeout.inMilliseconds} ms',
+                'No response within ${limit.inMilliseconds} ms',
                 uri: url,
               ),
         stackTrace,

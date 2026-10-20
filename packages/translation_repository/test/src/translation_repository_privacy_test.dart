@@ -508,6 +508,7 @@ void main() {
           pngBytes: any(named: 'pngBytes'),
           from: any(named: 'from'),
           to: any(named: 'to'),
+          timeout: any(named: 'timeout'),
         ),
       ).thenThrow(serverError());
       when(
@@ -515,6 +516,7 @@ void main() {
           pngBytes: any(named: 'pngBytes'),
           from: any(named: 'from'),
           to: any(named: 'to'),
+          timeout: any(named: 'timeout'),
         ),
       ).thenAnswer(
         (_) async => MozhiImageTranslation(

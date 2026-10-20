@@ -95,6 +95,32 @@ class ImageTranslateState extends Equatable {
       method?.kind == ImageTranslateMethodKind.onDevice &&
       (result?.sourceText.isNotEmpty ?? false);
 
+  /// On-device recognition, when it is one of [methods].
+  ImageTranslateMethod? get onDeviceMethod => methods
+      .where((method) => method.kind == ImageTranslateMethodKind.onDevice)
+      .firstOrNull;
+
+  /// The selected method sends the photo off the device and on-device
+  /// recognition could translate it instead (offered when it fails).
+  bool get offersOnDevice =>
+      (method?.uploadsImage ?? false) && onDeviceMethod != null;
+
+  /// On-device recognition read the text for "Detect language" with a low
+  /// confidence (below [lowRecognitionConfidence]): the text may be in a
+  /// language whose recognition data was not used.
+  bool get hasLowRecognitionConfidence {
+    final confidence = result?.recognitionConfidence;
+    return source.isAuto &&
+        method?.kind == ImageTranslateMethodKind.onDevice &&
+        confidence != null &&
+        confidence < lowRecognitionConfidence &&
+        (result?.sourceText.isNotEmpty ?? false);
+  }
+
+  /// Recognition confidence (0 to 100) below which "Detect language" asks
+  /// whether the language is right.
+  static const lowRecognitionConfidence = 50;
+
   ImageTranslateState copyWith({
     ImageTranslateStatus? status,
     ImageTranslatePhase? phase,

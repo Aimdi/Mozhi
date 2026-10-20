@@ -241,6 +241,25 @@ void main() {
   });
 
   group('recognizeWith', () {
+    test("reports Tesseract's confidence", () async {
+      await service.downloadOcrLanguage('deu', wifiOnly: false);
+      when(
+        () => engine.recognize(
+          any(),
+          dataPath: any(named: 'dataPath'),
+          languages: any(named: 'languages'),
+        ),
+      ).thenAnswer(
+        (_) async => const OcrResult(text: 'Ausgang', meanConfidence: 37),
+      );
+      expect(service, isA<TextRecognitionConfidence>());
+      expect(
+        await service.recognizeWithConfidence(pngImage, const ['deu']),
+        const TextWithConfidence('Ausgang', confidence: 37),
+      );
+      expect(await service.recognizeWith(pngImage, const ['deu']), 'Ausgang');
+    });
+
     test('turns missing data into an offer', () async {
       await expectLater(
         service.recognizeWith(pngImage, const ['deu']),
