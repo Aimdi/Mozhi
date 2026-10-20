@@ -217,7 +217,7 @@ answers whenever privacy.md changes.
 | Data | Goes to | Who decides |
 | --- | --- | --- |
 | Text to translate or proofread, translation options, glossary terms | The Mozhi instance, AI provider, DeepL API or LibreTranslate server selected | User picks and configures the service; nothing goes to the developer |
-| Images (image translation) | The selected AI model or Mozhi instance (Google Lens) | User, per image; on-device OCR (Play variant only) keeps it local |
+| Images (image translation) | The selected AI model, or the Mozhi instance (which passes it to Google Translate) | User, per image; on-device text recognition (the default on Android) keeps it local |
 | Web page URLs | The website (download), then page text to the engine | User |
 | Text for read-aloud | The OS TTS engine; the Mozhi instance (Google/Reverso TTS) only for languages without a device voice, after consent in Offline first | User |
 | Dictation audio | The operating system's speech recogniser, not the app | OS |
@@ -338,7 +338,7 @@ back or says so).
 
 | Anti-feature | Declare? | Why |
 | --- | --- | --- |
-| **NonFreeNet** | **Yes** | The built-in public Mozhi instances relay to Google, DeepL, Reverso, Yandex, Bing and MyMemory; image translation through Mozhi uses Google Lens; read-aloud through Mozhi uses Google/Reverso; the AI presets (OpenAI, Anthropic, Gemini, …) and the DeepL API are non-free services. Free alternatives exist (self-hosted Mozhi with LibreTranslate, local models), but the defaults promote non-free services. |
+| **NonFreeNet** | **Yes** | The built-in public Mozhi instances relay to Google, DeepL, Reverso, Yandex, Bing and MyMemory; image translation through Mozhi uses Google Translate; read-aloud through Mozhi uses Google/Reverso; the AI presets (OpenAI, Anthropic, Gemini, …) and the DeepL API are non-free services. Free alternatives exist (self-hosted Mozhi with LibreTranslate, local models), but the defaults promote non-free services. |
 | UpstreamNonFree | Probably not | The GitHub releases and the Play bundle are the same free build. The optional Play variant with ML Kit text recognition isn't released; it can only be built from the `tool/play/` overlay, which `fdroid_prepare.sh` removes. |
 | Tracking | No | Nothing reports usage. Offline models are downloaded on request from Mozilla's bucket on Google Cloud Storage, which sees the device's IP address and the model files fetched. |
 | NonFreeDep | No | The app doesn't require any non-free app to be installed. |

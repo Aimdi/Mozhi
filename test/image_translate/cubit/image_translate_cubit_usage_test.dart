@@ -336,7 +336,7 @@ void main() {
     });
   });
 
-  group('Mozhi (Google Lens)', () {
+  group('Mozhi (Google Translate)', () {
     test('is never counted', () async {
       stubImage(
         () async => const ImageTranslationResult(

@@ -125,6 +125,19 @@ language.
   Google code); the recording stays in memory and is dropped after
   transcription.
 
+## When the mic doesn't start
+
+- **A ring spins on the mic:** voice input is starting. Some Android
+  recognisers never tell the app which languages they support; after a
+  few seconds the app starts listening anyway and asks for the language
+  you chose (German as `de-DE`). Tap the mic again to cancel.
+- **The mic is crossed out:** voice input can't be used right now. Tap it
+  to see why: the microphone permission was denied (tap again to be asked
+  once more, or allow it in Android's app settings), or the phone has no
+  speech recognition service (common without Google apps). Then use
+  **Download model** to get the offline Whisper model
+  (**Settings > Voice input**); it works on every supported phone.
+
 ## For contributors
 
 The engine is the `packages/whisper_speech` package: whisper.cpp v1.9.5 as a

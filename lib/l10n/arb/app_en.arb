@@ -2861,14 +2861,6 @@
   "@imageTranslateMethodLabel": {
     "description": "imageTranslateMethodLabel"
   },
-  "imageTranslateMethodMozhi": "Mozhi (Google Lens)",
-  "@imageTranslateMethodMozhi": {
-    "description": "imageTranslateMethodMozhi"
-  },
-  "imageTranslateMethodMozhiDescription": "Replaces the text in the picture itself, via your Mozhi instance.",
-  "@imageTranslateMethodMozhiDescription": {
-    "description": "imageTranslateMethodMozhiDescription"
-  },
   "imageTranslateMethodAi": "AI vision · {name}",
   "@imageTranslateMethodAi": {
     "placeholders": {
@@ -2885,10 +2877,6 @@
   "@imageTranslateMethodOnDevice": {
     "description": "imageTranslateMethodOnDevice"
   },
-  "imageTranslateMethodOnDeviceDescription": "Reads the text on this device, then translates it with the translator's engine.",
-  "@imageTranslateMethodOnDeviceDescription": {
-    "description": "imageTranslateMethodOnDeviceDescription"
-  },
   "imageTranslateNoMethodsTitle": "No image translation method available",
   "@imageTranslateNoMethodsTitle": {
     "description": "imageTranslateNoMethodsTitle"
@@ -2904,10 +2892,6 @@
   "imageTranslatePhasePreparing": "Preparing the image…",
   "@imageTranslatePhasePreparing": {
     "description": "imageTranslatePhasePreparing"
-  },
-  "imageTranslatePhaseMozhi": "Translating with Google Lens via Mozhi. This can take up to a minute.",
-  "@imageTranslatePhaseMozhi": {
-    "description": "imageTranslatePhaseMozhi"
   },
   "imageTranslatePhaseAi": "{name} is reading and translating the image…",
   "@imageTranslatePhaseAi": {
@@ -3012,10 +2996,6 @@
   "imageTranslateErrorRecognition": "Text recognition on this device failed.",
   "@imageTranslateErrorRecognition": {
     "description": "imageTranslateErrorRecognition"
-  },
-  "imageTranslateErrorTimeout": "Image translation timed out. Google Lens can take up to a minute; try again or use a smaller image.",
-  "@imageTranslateErrorTimeout": {
-    "description": "imageTranslateErrorTimeout"
   },
   "conversationTitle": "Conversation",
   "@conversationTitle": {
