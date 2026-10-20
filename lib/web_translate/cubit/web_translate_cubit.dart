@@ -31,6 +31,17 @@ typedef ReadablePageExtractor = Future<ReadablePage> Function(
 /// block. Progress is emitted per batch; [cancel] stops loading or
 /// translating (keeping what is translated) and [resume] continues.
 ///
+/// With "Detect language" ([Language.auto]) and an engine that needs a
+/// source language (the offline engine, translation-specialised AI
+/// models), the language of the page is identified once on the device
+/// ([TranslationRepository.detectLanguage] with the offline engine) from
+/// its title and first blocks, and every block is translated from it; it
+/// is reported as `detectedSource`. Other engines (or when the device
+/// cannot tell) keep detecting per request. A block whose language cannot
+/// be told ([SourceLanguageRequiredException]) is translated from the
+/// language detected for earlier blocks, or else kept as it is; it never
+/// fails the page.
+///
 /// With a `usageTracker`, every answered request (each batch and each
 /// block translated on its own) to a bring-your-own-key provider (engines
 /// with a `providerId`) is counted once. Results served from the
@@ -55,6 +66,10 @@ class WebTranslateCubit extends Cubit<WebTranslateState> {
 
   /// Id of the page title among the translation items.
   static const _titleId = -1;
+
+  /// Characters of the page (title and first blocks) that are looked at to
+  /// tell its language: plenty for identification, cheap for long pages.
+  static const detectionSampleLength = 4000;
 
   final TranslationRepository _repository;
   final WebPageFetcher _fetcher;
@@ -239,7 +254,8 @@ class WebTranslateCubit extends Cubit<WebTranslateState> {
 
   Future<void> _run(WebTranslateSelection selection) async {
     final page = state.page!;
-    final job = _job = _TranslationJob();
+    final job = _job = _TranslationJob()
+      ..detectedSource = state.detectedSource;
     final items = <TranslationItem>[
       if (state.translatedTitle == null && page.title.trim().isNotEmpty)
         TranslationItem(_titleId, page.title),
@@ -247,6 +263,15 @@ class WebTranslateCubit extends Cubit<WebTranslateState> {
         if (page.blocks[i].isTranslatable && state.translationAt(i) == null)
           TranslationItem(i, page.blocks[i].text),
     ];
+    if (selection.source.isAuto && items.isNotEmpty) {
+      final detected = await _detectPageLanguage(selection.engine, page);
+      if (job.cancelled || isClosed) return;
+      if (detected != null) {
+        job
+          ..source = _languageOf(detected)
+          ..detectedSource ??= detected;
+      }
+    }
     final queue = Queue.of(_batcher.batch(items));
 
     Future<void> worker() async {
@@ -285,11 +310,12 @@ class WebTranslateCubit extends Cubit<WebTranslateState> {
     WebTranslateSelection selection,
   ) async {
     if (batch.length > 1) {
-      final result = await _translateText(
-        job,
-        BlockBatcher.join(batch),
-        selection,
-      );
+      final TranslationResult? result;
+      try {
+        result = await _translateItem(job, BlockBatcher.join(batch), selection);
+      } on _Undetectable {
+        return [for (final item in batch) item.text];
+      }
       final parts = result == null
           ? null
           : BlockBatcher.split(result.text, batch.length);
@@ -298,25 +324,109 @@ class WebTranslateCubit extends Cubit<WebTranslateState> {
     // One block, or the translator merged/split paragraphs: one by one.
     final texts = <String>[];
     for (final item in batch) {
-      final result = await _translateText(job, item.text, selection);
-      final text = result?.text.trim() ?? '';
+      var text = '';
+      try {
+        final result = await _translateItem(job, item.text, selection);
+        text = result?.text.trim() ?? '';
+      } on _Undetectable {
+        // Kept as it is.
+      }
       texts.add(text.isEmpty ? item.text : text);
     }
     return texts;
   }
 
-  /// Translates [text] and completes with the final result (null when the
-  /// stream completed without one).
+  /// [_translateText] from the run's source language. When the engine
+  /// cannot tell the language of [text] (auto source), it is translated
+  /// again from the language detected for earlier blocks; without one,
+  /// [_Undetectable] is thrown (the caller keeps the original text).
+  Future<TranslationResult?> _translateItem(
+    _TranslationJob job,
+    String text,
+    WebTranslateSelection selection,
+  ) async {
+    final source = job.source ?? selection.source;
+    try {
+      return await _translateText(job, text, selection, source);
+    } on SourceLanguageRequiredException {
+      if (!source.isAuto) rethrow;
+      final known = job.detectedSource;
+      if (known == null) throw const _Undetectable();
+      return await _translateText(job, text, selection, _languageOf(known));
+    }
+  }
+
+  /// The language of [page] identified on the device from its title and
+  /// first blocks, for an [engine] that needs a source language (the
+  /// offline engine and translation-specialised AI models, which identify
+  /// on the device first anyway). Null for other engines, without an
+  /// on-device engine, or when the device cannot tell: nothing is ever
+  /// sent over the network to detect it.
+  Future<String?> _detectPageLanguage(
+    TranslationEngine engine,
+    ReadablePage page,
+  ) async {
+    if (!engine.isOffline && !engine.usesMtProfile) return null;
+    try {
+      // Without the on-device engine, detection would ask Mozhi instead.
+      if (!_repository.hasOfflineEngine) return null;
+      final sample = _detectionSample([
+        page.title,
+        for (final block in page.blocks)
+          if (block.isTranslatable) block.text,
+      ]);
+      if (sample.isEmpty) return null;
+      final detected = await _repository.detectLanguage(
+        sample,
+        // The offline engine always answers with the on-device identifier.
+        engine: engine.isOffline ? engine : TranslationEngine.offline(),
+      );
+      final code = detected.code.trim();
+      return code.isEmpty ? null : code;
+    } on Object {
+      // Undetectable (or a repository without an on-device engine): every
+      // request detects on its own.
+      return null;
+    }
+  }
+
+  /// [texts] (the non-blank ones) joined with blank lines, up to
+  /// [detectionSampleLength] characters.
+  static String _detectionSample(Iterable<String> texts) {
+    final buffer = StringBuffer();
+    for (final text in texts) {
+      final trimmed = text.trim();
+      if (trimmed.isEmpty) continue;
+      if (buffer.isNotEmpty) buffer.write('\n\n');
+      buffer.write(trimmed);
+      if (buffer.length >= detectionSampleLength) break;
+    }
+    final sample = buffer.toString();
+    if (sample.length <= detectionSampleLength) return sample;
+    var end = detectionSampleLength;
+    // Never cut a surrogate pair in half.
+    final last = sample.codeUnitAt(end - 1);
+    if (last >= 0xD800 && last <= 0xDBFF) end--;
+    return sample.substring(0, end);
+  }
+
+  static Language _languageOf(String code) =>
+      LanguageCatalog.byCode(code) ??
+      Language(code: code, name: LanguageCatalog.nameOf(code));
+
+  /// Translates [text] from [source] and completes with the final result
+  /// (null when the stream completed without one).
   Future<TranslationResult?> _translateText(
     _TranslationJob job,
     String text,
     WebTranslateSelection selection,
+    Language source,
   ) {
     final completer = Completer<TranslationResult?>();
     TranslationResult? last;
     final request = TranslationRequest(
       text: text,
-      source: selection.source,
+      source: source,
       target: selection.target,
       options: selection.options.copyWith(preserveFormatting: true),
     );
@@ -412,9 +522,22 @@ class _Cancelled implements Exception {
   const new();
 }
 
+/// The language of a text could not be told, and none is known from
+/// earlier blocks.
+class _Undetectable implements Exception {
+  const new();
+}
+
 /// The in-flight requests of one translation run.
 class _TranslationJob {
   bool cancelled = false;
+
+  /// The source language every request of the run uses (identified for the
+  /// whole page), or null for the selection's.
+  Language? source;
+
+  /// The page's language: identified for the whole page, or the first one
+  /// an engine detected.
   String? detectedSource;
   final _active = <StreamSubscription<Object?>, Completer<Object?>>{};
 

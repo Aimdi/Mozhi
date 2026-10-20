@@ -16,7 +16,7 @@ void main() {
   late FakeTextRecognitionService recognizer;
 
   final translatedPng = Uint8List.fromList([0x89, 0x50, 0x4E, 0x47, 7]);
-  const methods = [mozhiMethod, claudeMethod, onDeviceMethod];
+  const methods = [onDeviceMethod, claudeMethod, mozhiMethod];
   const base = ImageTranslateState(
     methods: methods,
     method: mozhiMethod,
@@ -132,9 +132,25 @@ void main() {
       expect(state.translateEngine, claude);
     });
 
-    test('then Mozhi', () {
+    test('then another vision method, before Mozhi', () {
       recognizer.isSupported = false;
-      expect(build(uploadMethod: false).state.method, mozhiMethod);
+      expect(build(uploadMethod: false).state.method, claudeMethod);
+    });
+
+    test('Mozhi (experimental) only when nothing else is available', () {
+      recognizer.isSupported = false;
+      expect(
+        build(engines: const [google, deepl], uploadMethod: false).state.method,
+        mozhiMethod,
+      );
+    });
+
+    test('lists on-device recognition first and Mozhi last', () {
+      expect(build(uploadMethod: false).state.methods, [
+        onDeviceMethod,
+        claudeMethod,
+        mozhiMethod,
+      ]);
     });
 
     test('never starts from a custom source', () {
@@ -167,7 +183,7 @@ void main() {
       ),
       expect: () => [
         base.copyWith(
-          methods: [claudeMethod, onDeviceMethod],
+          methods: [onDeviceMethod, claudeMethod],
           method: () => claudeMethod,
           translateEngine: () => claude,
           options: const TranslationOptions(context: 'Menu'),
@@ -208,7 +224,7 @@ void main() {
 
   group('pickImage', () {
     blocTest<ImageTranslateCubit, ImageTranslateState>(
-      'shows the picked image; Mozhi (Google Lens) waits for Translate',
+      'shows the picked image; Mozhi waits for Translate',
       setUp: () {
         picker.image = jpegImage;
         stubImage(() async => lensResult());
@@ -238,7 +254,7 @@ void main() {
     );
 
     blocTest<ImageTranslateCubit, ImageTranslateState>(
-      'translates the image with Mozhi (Google Lens) on Translate',
+      'translates the image with Mozhi on Translate',
       setUp: () {
         picker.image = jpegImage;
         stubImage(() async => lensResult());
@@ -337,7 +353,7 @@ void main() {
     );
   });
 
-  group('Mozhi (Google Lens)', () {
+  group('Mozhi via Google Translate', () {
     blocTest<ImageTranslateCubit, ImageTranslateState>(
       'copies list results and keeps text-only results',
       setUp: () => stubImage(
@@ -374,18 +390,184 @@ void main() {
     );
 
     blocTest<ImageTranslateCubit, ImageTranslateState>(
-      'fails when nothing was translated',
-      setUp: () => stubImage(() async => const ImageTranslationResult()),
+      'an empty answer means Google refused (or found nothing)',
+      setUp: () => stubImage(
+        () async => const ImageTranslationResult(sourceText: 'Hola'),
+      ),
       build: build,
       act: (cubit) => load(cubit, jpegImage),
       verify: (cubit) {
         expect(cubit.state.status, ImageTranslateStatus.failure);
         expect(
           cubit.state.error,
-          const ImageTranslateException(ImageTranslateErrorKind.noText),
+          const ImageTranslateException(ImageTranslateErrorKind.serviceRefused),
         );
         expect(cubit.state.result, isNull);
+        expect(cubit.state.offersOnDevice, isTrue);
       },
+    );
+
+    blocTest<ImageTranslateCubit, ImageTranslateState>(
+      "maps the repository's empty answer to serviceRefused",
+      setUp: () => stubImage(
+        () async => throw const MozhiApiException(
+          TranslationRepository.imageNoResultMessage,
+          statusCode: 502,
+        ),
+      ),
+      build: build,
+      act: (cubit) => load(cubit, jpegImage),
+      verify: (cubit) {
+        final error = cubit.state.error! as ImageTranslateException;
+        expect(error.kind, ImageTranslateErrorKind.serviceRefused);
+        expect(error.cause, isA<MozhiApiException>());
+      },
+    );
+
+    blocTest<ImageTranslateCubit, ImageTranslateState>(
+      'sends a smaller copy once after HTTP 413',
+      setUp: () {
+        encoder.smallerOutput = Uint8List.fromList([0x89, 0x50]);
+        var calls = 0;
+        stubImage(() async {
+          if (calls++ == 0) {
+            throw const MozhiApiException(
+              'Request Entity Too Large',
+              statusCode: 413,
+            );
+          }
+          return lensResult();
+        });
+      },
+      build: build,
+      act: (cubit) => load(cubit, jpegImage),
+      verify: (cubit) {
+        expect(cubit.state.status, ImageTranslateStatus.success);
+        expect(encoder.limits, [
+          (maxSide: defaultMaxSide, maxBytes: defaultMaxBytes),
+          (maxSide: retryMaxSide, maxBytes: retryMaxBytes),
+        ]);
+        verifyInOrder([
+          () => repository.translateImage(
+            google,
+            encodedPng,
+            mimeType: 'image/png',
+            source: Language.auto,
+            target: french,
+          ),
+          () => repository.translateImage(
+            google,
+            encoder.smallerOutput!,
+            mimeType: 'image/png',
+            source: Language.auto,
+            target: french,
+          ),
+        ]);
+      },
+    );
+
+    blocTest<ImageTranslateCubit, ImageTranslateState>(
+      'sends a smaller copy once when the upload is dropped',
+      setUp: () {
+        encoder.smallerOutput = Uint8List.fromList([0x89, 0x50]);
+        stubImage(
+          () async => throw const MozhiApiException('Connection reset by peer'),
+        );
+      },
+      build: build,
+      act: (cubit) => load(cubit, jpegImage),
+      verify: (cubit) {
+        expect(cubit.state.status, ImageTranslateStatus.failure);
+        expect(cubit.state.error, isA<MozhiApiException>());
+        verify(
+          () => repository.translateImage(
+            any(),
+            any(),
+            mimeType: any(named: 'mimeType'),
+            source: any(named: 'source'),
+            target: any(named: 'target'),
+            options: any(named: 'options'),
+          ),
+        ).called(2);
+      },
+    );
+
+    blocTest<ImageTranslateCubit, ImageTranslateState>(
+      'does not retry when the copy would not be smaller',
+      setUp: () => stubImage(
+        () async => throw const MozhiApiException('big', statusCode: 413),
+      ),
+      build: build,
+      act: (cubit) => load(cubit, jpegImage),
+      verify: (cubit) {
+        expect(
+          cubit.state.error,
+          const ImageTranslateException(ImageTranslateErrorKind.tooLarge),
+        );
+        verify(
+          () => repository.translateImage(
+            any(),
+            any(),
+            mimeType: any(named: 'mimeType'),
+            source: any(named: 'source'),
+            target: any(named: 'target'),
+            options: any(named: 'options'),
+          ),
+        ).called(1);
+      },
+    );
+
+    blocTest<ImageTranslateCubit, ImageTranslateState>(
+      'does not retry other failures',
+      setUp: () {
+        encoder.smallerOutput = Uint8List.fromList([0x89, 0x50]);
+        stubImage(
+          () async => throw const MozhiApiException('Connection refused'),
+        );
+      },
+      build: build,
+      act: (cubit) => load(cubit, jpegImage),
+      verify: (cubit) {
+        expect(encoder.limits, hasLength(1));
+        verify(
+          () => repository.translateImage(
+            any(),
+            any(),
+            mimeType: any(named: 'mimeType'),
+            source: any(named: 'source'),
+            target: any(named: 'target'),
+            options: any(named: 'options'),
+          ),
+        ).called(1);
+      },
+    );
+
+    blocTest<ImageTranslateCubit, ImageTranslateState>(
+      'switches a failed upload to on-device recognition',
+      setUp: () {
+        stubImage(() async => const ImageTranslationResult());
+        stubText(() => Stream.value(text('Hello')));
+      },
+      build: build,
+      act: (cubit) async {
+        await load(cubit, jpegImage);
+        await cubit.useOnDevice();
+      },
+      verify: (cubit) {
+        expect(cubit.state.method, onDeviceMethod);
+        expect(cubit.state.status, ImageTranslateStatus.success);
+        expect(cubit.state.result?.sourceText, 'Hola');
+        expect(cubit.state.result?.translatedText, 'Hello');
+        expect(recognizer.sources, [Language.auto]);
+      },
+    );
+
+    blocTest<ImageTranslateCubit, ImageTranslateState>(
+      'useOnDevice does nothing without on-device recognition',
+      setUp: () => recognizer.isSupported = false,
+      build: build,
+      act: (cubit) => cubit.useOnDevice(),
+      expect: () => const <ImageTranslateState>[],
     );
 
     blocTest<ImageTranslateCubit, ImageTranslateState>(

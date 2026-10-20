@@ -10,6 +10,7 @@ import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/image_translate/image_translate.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/translate/widgets/translate_error.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 import '../helpers/helpers.dart';
@@ -62,11 +63,45 @@ void main() {
           l10n,
           const ImageTranslateException(ImageTranslateErrorKind.timeout),
         ).message,
-        l10n.imageTranslateErrorTimeout,
+        l10n.imageTranslateErrorTimeoutGeneric,
+      );
+      expect(
+        describeImageTranslateError(
+          l10n,
+          const ImageTranslateException(ImageTranslateErrorKind.timeout),
+          method: ImageTranslateMethodKind.mozhiLens,
+        ).message,
+        l10n.imageTranslateErrorTimeoutMozhi(90),
       );
       expect(
         describeImageTranslateError(l10n, StateError('x')).message,
         l10n.translateErrorGeneric,
+      );
+    });
+
+    test('a refused Mozhi image links to instances, with details', () {
+      final info = describeImageTranslateError(
+        l10n,
+        const ImageTranslateException(
+          ImageTranslateErrorKind.serviceRefused,
+          cause: MozhiApiException(
+            TranslationRepository.imageNoResultMessage,
+            statusCode: 502,
+          ),
+        ),
+      );
+      expect(info.message, l10n.imageTranslateErrorServiceRefused);
+      expect(info.fix, TranslateErrorFix.instances);
+      expect(
+        info.details,
+        'HTTP 502: ${TranslationRepository.imageNoResultMessage}',
+      );
+      expect(
+        describeImageTranslateError(
+          l10n,
+          const ImageTranslateException(ImageTranslateErrorKind.noText),
+        ).details,
+        isNull,
       );
     });
 
@@ -82,7 +117,11 @@ void main() {
       );
       expect(
         message(ImageTranslatePhase.uploading, mozhiMethod),
-        l10n.imageTranslatePhaseMozhi,
+        l10n.imageTranslatePhaseMozhiGoogle(90),
+      );
+      expect(
+        message(ImageTranslatePhase.uploading, mozhiMethod),
+        contains('90'),
       );
       expect(
         message(ImageTranslatePhase.uploading, claudeMethod),
@@ -105,7 +144,19 @@ void main() {
       );
       expect(
         imageMethodDescription(l10n, ImageTranslateMethodKind.onDevice),
-        l10n.imageTranslateMethodOnDeviceDescription,
+        l10n.imageTranslateMethodOnDeviceRecommended,
+      );
+      expect(
+        imageMethodDescription(l10n, ImageTranslateMethodKind.onDevice),
+        startsWith('Recommended'),
+      );
+      expect(
+        imageMethodLabel(l10n, mozhiMethod),
+        'Mozhi via Google Translate (experimental)',
+      );
+      expect(
+        imageMethodDescription(l10n, ImageTranslateMethodKind.mozhiLens),
+        startsWith('Experimental'),
       );
       expect(imageLanguageLabel(l10n, Language.auto), 'Detect language');
       expect(imageLanguageLabel(l10n, french), 'French');
@@ -125,7 +176,10 @@ void main() {
         cubit,
         child: const ImageTranslateProgress(),
       );
-      expect(find.text(l10n.imageTranslatePhaseMozhi), findsOneWidget);
+      expect(
+        find.text(l10n.imageTranslatePhaseMozhiGoogle(90)),
+        findsOneWidget,
+      );
       expect(find.byKey(const Key('image_translate_slow')), findsOneWidget);
       await tester.tap(find.byKey(const Key('image_translate_cancel_button')));
       verify(cubit.cancel).called(1);

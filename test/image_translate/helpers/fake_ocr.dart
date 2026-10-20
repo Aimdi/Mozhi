@@ -28,7 +28,10 @@ const chiSimOcr = OcrLanguage(
 /// English, French, Japanese and Simplified Chinese; [installed] are on the
 /// device. Downloads and imports succeed at once unless set up otherwise.
 class FakeOcrData
-    implements TextRecognitionService, TextRecognitionLanguageData {
+    implements
+        TextRecognitionService,
+        TextRecognitionLanguageData,
+        TextRecognitionConfidence {
   new({
     this.isSupported = true,
     Map<String, int>? installed,
@@ -43,6 +46,9 @@ class FakeOcrData
 
   /// What [recognizeWith] returns.
   String text;
+
+  /// The confidence [recognizeWithConfidence] reports (null: unknown).
+  int? confidence;
 
   List<OcrLanguage> languages = [chiSimOcr, deuOcr, engOcr, fraOcr, jpnOcr];
 
@@ -120,6 +126,13 @@ class FakeOcrData
     if (error != null) throw error;
     return text;
   }
+
+  @override
+  Future<RecognizedText> recognizeWithConfidence(
+    PickedImage image,
+    List<String> codes,
+  ) async =>
+      RecognizedText(await recognizeWith(image, codes), confidence: confidence);
 
   @override
   Future<void> downloadOcrLanguage(
