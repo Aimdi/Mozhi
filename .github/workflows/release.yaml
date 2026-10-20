@@ -61,11 +61,8 @@ jobs:
 
       - name: Install the NDK, CMake and ccache
         run: |
-          sdk="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
-          sdkmanager="$sdk/cmdline-tools/latest/bin/sdkmanager"
-          yes | "$sdkmanager" --licenses > /dev/null || true
-          "$sdkmanager" --install "ndk;$NDK_VERSION" "cmake;$CMAKE_VERSION" > /dev/null
-          sudo apt-get install -y -q ccache > /dev/null
+          # Retries Google's downloads, which sometimes arrive broken.
+          bash tool/install_native_toolchain.sh
 
       # Warm from the CI runs on the branches (same sources).
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

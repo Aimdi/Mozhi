@@ -91,6 +91,7 @@ jobs:
         run: |
           sh tool/variant_prepare_test.sh
           sh tool/check_no_google_test.sh
+          sh tool/install_native_toolchain_test.sh
           python3 tool/check_trackers_test.py
           python3 tool/check_keystore_test.py
           python3 tool/check_signing_test.py
@@ -148,11 +149,9 @@ jobs:
 
       - name: Install the NDK, CMake and ccache
         run: |
+          # Retries Google's downloads, which sometimes arrive broken.
+          bash tool/install_native_toolchain.sh
           sdk="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
-          sdkmanager="$sdk/cmdline-tools/latest/bin/sdkmanager"
-          yes | "$sdkmanager" --licenses > /dev/null || true
-          "$sdkmanager" --install "ndk;$NDK_VERSION" "cmake;$CMAKE_VERSION" > /dev/null
-          sudo apt-get install -y -q ccache > /dev/null
           echo "ANDROID_NDK=$sdk/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
 
       # Restores the newest cache of any Android job (the same sources).
@@ -392,11 +391,9 @@ jobs:
 
       - name: Install the NDK, CMake and ccache
         run: |
+          # Retries Google's downloads, which sometimes arrive broken.
+          bash tool/install_native_toolchain.sh
           sdk="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
-          sdkmanager="$sdk/cmdline-tools/latest/bin/sdkmanager"
-          yes | "$sdkmanager" --licenses > /dev/null || true
-          "$sdkmanager" --install "ndk;$NDK_VERSION" "cmake;$CMAKE_VERSION" > /dev/null
-          sudo apt-get install -y -q ccache > /dev/null
           echo "ANDROID_NDK=$sdk/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
 
       # Restores the newest cache of any Android job (the same sources).
@@ -676,11 +673,9 @@ jobs:
 
       - name: Install the NDK, CMake and ccache
         run: |
+          # Retries Google's downloads, which sometimes arrive broken.
+          bash tool/install_native_toolchain.sh
           sdk="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
-          sdkmanager="$sdk/cmdline-tools/latest/bin/sdkmanager"
-          yes | "$sdkmanager" --licenses > /dev/null || true
-          "$sdkmanager" --install "ndk;$NDK_VERSION" "cmake;$CMAKE_VERSION" > /dev/null
-          sudo apt-get install -y -q ccache > /dev/null
           echo "ANDROID_NDK=$sdk/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
           # The SDK's CMake package also contains ninja.
           echo "$sdk/cmake/$CMAKE_VERSION/bin" >> "$GITHUB_PATH"

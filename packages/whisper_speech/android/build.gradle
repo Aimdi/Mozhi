@@ -16,7 +16,7 @@ buildscript {
 
     dependencies {
         // Same Android Gradle Plugin as the app (android/settings.gradle.kts).
-        classpath("com.android.tools.build:gradle:8.12.0")
+        classpath("com.android.tools.build:gradle:9.4.1")
     }
 }
 
