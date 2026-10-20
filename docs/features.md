@@ -440,25 +440,43 @@ in any language.
 ## Image translation
 
 Translate text in photos and screenshots: take a picture or pick one from your
-gallery, then choose how to translate it:
+gallery, then choose how to translate it. The methods are offered in this
+order:
 
+- **On-device text recognition** (Android, recommended and selected by
+  default): the open-source Tesseract engine reads the text on the phone
+  (the photo is not sent anywhere), and the text is then translated with
+  your current engine. Each language's data (most are 1 to 4 MB) is
+  downloaded once when you ask (**Download German text recognition**) or
+  imported from files; see [Text recognition](text-recognition.md). With
+  **Detect language**, text that was hard to read gets a **Wrong language?
+  Choose the language of the text** hint. The
+  [Play variant](contributing.md#build-variants) uses Google's ML Kit
+  instead.
 - **AI vision**: an AI model with **Supports images** turned on reads and
   translates the text itself, with your translation options. One choice per
   such model.
-- **Mozhi (Google Lens)**: when your instance offers Google, Mozhi sends the
-  image to Google and returns the recognised text, its translation and a copy
-  of the image with the translation drawn in.
-- **On-device text recognition** (Android): the open-source Tesseract
-  engine reads the text on the phone (the photo is not sent anywhere), and
-  the text is then translated with your current engine. Each language's
-  data (most are 1 to 4 MB) is downloaded once when you ask (**Download
-  German text recognition**) or imported from files; see
-  [Text recognition](text-recognition.md). The
-  [Play variant](contributing.md#build-variants) uses Google's ML Kit
-  instead.
+- **Mozhi via Google Translate (experimental)**: when your instance offers
+  Google, Mozhi passes the photo on to Google Translate's image translation
+  and returns the recognised text, its translation and a copy of the image
+  with the translation drawn in. This relies on an unofficial Google
+  interface that often refuses such requests (Mozhi then answers with
+  nothing, shown as **Google Translate sent nothing back**), so it is
+  offered last. When it fails, **Use on-device text recognition** reads the
+  photo on the phone instead.
 
-Large photos are scaled down before uploading (longest side 2048 px, under
-4 MB), which keeps them within Mozhi's upload limit.
+The method you choose is remembered for next time. A photo you took just as
+Android closed the app to free memory for the camera opens on the image
+screen when you come back.
+
+Before a photo is uploaded (AI vision, Mozhi) it is re-encoded without its
+metadata and scaled down to at most 1600 px on its longest side and about
+1.5 MB. Mozhi gets up to 90 seconds to answer. A photo is sent to at most
+two of your instances (after a time-out, to no other), and when a proxy in
+front of the instance turns the upload down as too large, a smaller copy
+(about 900 KB) is sent once more. Language codes are mapped to Google's own
+(`zh-CN`, `zh-TW`, `iw`, ...), and a language Google does not offer is
+reported before anything is uploaded.
 
 ## Voice
 

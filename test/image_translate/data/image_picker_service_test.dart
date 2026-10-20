@@ -148,4 +148,145 @@ void main() {
       );
     });
   });
+
+  group('retrieveLost', () {
+    late PluginImagePickerService android;
+
+    setUp(
+      () => android = PluginImagePickerService(
+        picker: picker,
+        isWeb: false,
+        isAndroid: true,
+      ),
+    );
+
+    void stubLost(Future<LostDataResponse> Function() answer) =>
+        when(picker.retrieveLostData).thenAnswer((_) => answer());
+
+    test('only asks the plugin on Android', () async {
+      expect(
+        await PluginImagePickerService(
+          picker: picker,
+          isWeb: false,
+          isAndroid: false,
+        ).retrieveLost(),
+        isNull,
+      );
+      expect(
+        await PluginImagePickerService(
+          picker: picker,
+          isWeb: true,
+          isAndroid: true,
+        ).retrieveLost(),
+        isNull,
+      );
+      verifyNever(picker.retrieveLostData);
+    });
+
+    test('returns null when nothing was lost', () async {
+      stubLost(() async => LostDataResponse.empty());
+      expect(await android.retrieveLost(), isNull);
+    });
+
+    test('returns the photo Android could not deliver', () async {
+      stubLost(
+        () async => LostDataResponse(
+          file: XFile.fromData(
+            pngBytes,
+            name: 'camera.png',
+            path: '/cache/camera.png',
+          ),
+          type: RetrieveType.image,
+        ),
+      );
+      final image = await android.retrieveLost();
+      expect(image!.bytes, pngBytes);
+      expect(image.mimeType, 'image/png');
+      expect(image.path, '/cache/camera.png');
+    });
+
+    test('takes the last of several files', () async {
+      stubLost(
+        () async => LostDataResponse(
+          files: [
+            XFile.fromData(jpegBytes, name: 'a.jpg'),
+            XFile.fromData(pngBytes, name: 'b.png'),
+          ],
+          type: RetrieveType.image,
+        ),
+      );
+      expect((await android.retrieveLost())!.bytes, pngBytes);
+    });
+
+    test('ignores lost videos and responses without a file', () async {
+      stubLost(
+        () async => LostDataResponse(
+          file: XFile.fromData(pngBytes, name: 'clip.mp4'),
+          type: RetrieveType.video,
+        ),
+      );
+      expect(await android.retrieveLost(), isNull);
+      stubLost(() async => LostDataResponse(type: RetrieveType.image));
+      expect(await android.retrieveLost(), isNull);
+    });
+
+    test('reports the failure of the lost pick', () async {
+      stubLost(
+        () async => LostDataResponse(
+          exception: PlatformException(code: 'camera_access_denied'),
+          type: RetrieveType.image,
+        ),
+      );
+      await expectLater(
+        android.retrieveLost(),
+        throwsA(
+          const ImageTranslateException(
+            ImageTranslateErrorKind.permissionDenied,
+          ),
+        ),
+      );
+    });
+
+    test('maps plugin errors', () async {
+      stubLost(() async => throw MissingPluginException());
+      await expectLater(
+        android.retrieveLost(),
+        throwsA(
+          const ImageTranslateException(ImageTranslateErrorKind.pickFailed),
+        ),
+      );
+    });
+  });
+
+  group('LostImageRecovery', () {
+    setUp(LostImageRecovery.reset);
+    tearDown(LostImageRecovery.reset);
+
+    test('keeps a recovered photo for the image page, once', () async {
+      final fake = FakeImagePickerService()..lost = pngImage;
+      expect(await LostImageRecovery.recover(picker: fake), isTrue);
+      expect(LostImageRecovery.take(), same(pngImage));
+      expect(LostImageRecovery.take(), isNull);
+    });
+
+    test('reports nothing to recover', () async {
+      expect(
+        await LostImageRecovery.recover(picker: FakeImagePickerService()),
+        isFalse,
+      );
+      expect(LostImageRecovery.take(), isNull);
+    });
+
+    test('never throws', () async {
+      final fake = FakeImagePickerService()
+        ..lostError = const ImageTranslateException(
+          ImageTranslateErrorKind.pickFailed,
+        );
+      expect(await LostImageRecovery.recover(picker: fake), isFalse);
+    });
+
+    test('defaults to the plugin (nothing to recover off Android)', () async {
+      expect(await LostImageRecovery.recover(), isFalse);
+    });
+  });
 }

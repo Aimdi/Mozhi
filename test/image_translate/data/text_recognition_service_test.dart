@@ -5,6 +5,19 @@ import 'package:mozhi/image_translate/image_translate.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 void main() {
+  group('RecognizedText', () {
+    test('compares text and confidence', () {
+      const read = RecognizedText('Hola', confidence: 80);
+      expect(read, const RecognizedText('Hola', confidence: 80));
+      expect(read, isNot(const RecognizedText('Hola')));
+      expect(
+        read.hashCode,
+        const RecognizedText('Hola', confidence: 80).hashCode,
+      );
+      expect(read.toString(), 'RecognizedText(4 chars, 80%)');
+    });
+  });
+
   group('UnavailableTextRecognitionService', () {
     const service = UnavailableTextRecognitionService();
 

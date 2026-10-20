@@ -177,3 +177,55 @@ class FakeOcrData
     return report;
   }
 }
+
+/// [FakeOcrData] without a confidence (like a recognizer that does not
+/// report one).
+class PlainOcrData
+    implements TextRecognitionService, TextRecognitionLanguageData {
+  new(this.inner);
+
+  final FakeOcrData inner;
+
+  @override
+  bool get isSupported => inner.isSupported;
+
+  @override
+  Stream<void> get ocrLanguagesChanged => inner.ocrLanguagesChanged;
+
+  @override
+  Future<List<OcrLanguage>> ocrLanguages() => inner.ocrLanguages();
+
+  @override
+  Future<OcrLanguage?> ocrLanguageFor(String code) =>
+      inner.ocrLanguageFor(code);
+
+  @override
+  Future<Map<String, int>> installedOcrLanguages() =>
+      inner.installedOcrLanguages();
+
+  @override
+  Future<String> recognize(PickedImage image, {required Language source}) =>
+      inner.recognize(image, source: source);
+
+  @override
+  Future<String> recognizeWith(PickedImage image, List<String> codes) =>
+      inner.recognizeWith(image, codes);
+
+  @override
+  Future<void> downloadOcrLanguage(
+    String code, {
+    required bool wifiOnly,
+    void Function(double fraction)? onProgress,
+  }) => inner.downloadOcrLanguage(
+    code,
+    wifiOnly: wifiOnly,
+    onProgress: onProgress,
+  );
+
+  @override
+  Future<void> deleteOcrLanguage(String code) => inner.deleteOcrLanguage(code);
+
+  @override
+  Future<OcrImportReport> importOcrFiles(List<String> paths) =>
+      inner.importOcrFiles(paths);
+}

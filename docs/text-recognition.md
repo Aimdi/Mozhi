@@ -13,15 +13,18 @@ uses Google ML Kit instead. The web app has no on-device recognition.
 ## How it works
 
 1. You pick or take a photo. With **On-device text recognition** selected
-   (the first choice when it is available), the photo is decoded on the
-   phone, scaled to at most 2500 px on its long side and read by Tesseract
-   in a background thread.
+   (the recommended method and the first choice when it is available;
+   Mozhi's image translation through Google Translate is experimental and
+   offered last), the photo is decoded on the phone, scaled to at most
+   2500 px on its long side and read by Tesseract in a background thread.
 2. Tesseract reads with the data of the **source language** chosen above
    the image (German: `deu`). For **Detect language** it reads with the
    languages whose data is on the phone, at most three: your recent source
    languages and the app's language first, then English, then the others.
    Each extra language makes recognition slower and its mistakes likelier,
-   so pick the language when you know it.
+   so pick the language when you know it. When Tesseract is unsure of what
+   it read (a mean confidence below 50 of 100), the result asks **Wrong
+   language?** with **Choose the language of the text**.
 3. You can correct the recognised text and translate it again.
 
 Tesseract reads printed text: signs, menus, labels, documents and

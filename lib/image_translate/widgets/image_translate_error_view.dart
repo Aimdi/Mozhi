@@ -208,7 +208,7 @@ class ImageTranslateErrorView extends StatelessWidget {
                         minimumSize: const Size(0, 48),
                       ),
                       onPressed: () => push
-                          ? unawaited(context.push<void>(fixRoute))
+                          ? unawaited(context.push<Object?>(fixRoute))
                           : context.go(fixRoute),
                       child: Text(fixLabel),
                     ),
