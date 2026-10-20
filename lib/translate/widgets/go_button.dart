@@ -105,6 +105,7 @@ class _GoButtonState extends State<_GoButton> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final scheme = Theme.of(context).colorScheme;
     final stoppable = _stoppable && widget.enabled;
     final label = stoppable
         ? l10n.translateStopTranslating
@@ -118,18 +119,26 @@ class _GoButtonState extends State<_GoButton> {
           message: stoppable
               ? l10n.translateStopTranslating
               : l10n.translateShortcutTranslate,
+          // The label already says "Stop translating".
+          excludeFromSemantics: stoppable,
           child: IconButton(
             key: const Key('translate_translate_button'),
+            // Filled (accent) to go, tonal to stop.
             style: stoppable
                 ? IconButton.styleFrom(
-                    backgroundColor: Theme.of(context)
-                        .colorScheme
-                        .secondaryContainer,
-                    foregroundColor: Theme.of(context)
-                        .colorScheme
-                        .onSecondaryContainer,
+                    backgroundColor: scheme.secondaryContainer,
+                    foregroundColor: scheme.onSecondaryContainer,
                   )
-                : _filledStyle(Theme.of(context).colorScheme),
+                : IconButton.styleFrom(
+                    backgroundColor: scheme.primary,
+                    foregroundColor: scheme.onPrimary,
+                    disabledBackgroundColor: scheme.onSurface.withValues(
+                      alpha: 0.12,
+                    ),
+                    disabledForegroundColor: scheme.onSurface.withValues(
+                      alpha: 0.38,
+                    ),
+                  ),
             onPressed: !widget.enabled
                 ? null
                 : stoppable
@@ -157,12 +166,4 @@ class _GoButtonState extends State<_GoButton> {
       ],
     );
   }
-
-  /// Material 3's filled icon button.
-  static ButtonStyle _filledStyle(ColorScheme scheme) => IconButton.styleFrom(
-    backgroundColor: scheme.primary,
-    foregroundColor: scheme.onPrimary,
-    disabledBackgroundColor: scheme.onSurface.withValues(alpha: 0.12),
-    disabledForegroundColor: scheme.onSurface.withValues(alpha: 0.38),
-  );
 }

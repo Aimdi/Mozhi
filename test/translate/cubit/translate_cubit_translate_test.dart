@@ -113,8 +113,27 @@ void main() {
     );
 
     blocTest<TranslateCubit, TranslateState>(
-      'does not translate AI engines by default',
+      'translates AI engines by default (instant AI translation is on)',
       setUp: () => mocks.stubTranslate(),
+      build: () => mocks.build(),
+      seed: () => readyState(engine: claude),
+      act: (cubit) async {
+        cubit.setInput('hallo');
+        await Future<void>.delayed(afterDebounce);
+      },
+      verify: (cubit) {
+        verify(() => mocks.repository.translate(claude, any())).called(1);
+        expect(cubit.state.instantResult, isTrue);
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'does not translate AI engines when instantTranslateAi is off',
+      setUp: () {
+        mocks
+          ..stubTranslate()
+          ..stubSettings(const AppSettings(instantTranslateAi: false));
+      },
       build: () => mocks.build(),
       seed: () => readyState(engine: claude),
       act: (cubit) async {
@@ -131,7 +150,7 @@ void main() {
       setUp: () {
         mocks
           ..stubTranslate()
-          ..stubSettings(const AppSettings(instantTranslateAi: true));
+          ..stubSettings(const AppSettings());
       },
       build: () => mocks.build(),
       seed: () => readyState(engine: claude),
@@ -975,15 +994,99 @@ void main() {
     );
 
     blocTest<TranslateCubit, TranslateState>(
-      'does not re-translate Mozhi engines',
+      'saves options for Mozhi engines without re-translating',
       build: () => mocks.build(),
       seed: () => readyState(input: 'hello'),
       act: (cubit) => cubit.setOptions(formal),
       verify: (cubit) {
         expect(cubit.state.options, formal);
+        // Kept for when an AI translator is used.
+        verify(() => mocks.settings.setOptions(formal)).called(1);
         verifyNever(() => mocks.repository.translate(any(), any()));
       },
     );
+
+    blocTest<TranslateCubit, TranslateState>(
+      're-translates DeepL for a formality it applies',
+      setUp: () => mocks.stubTranslate(),
+      build: () => mocks.build(),
+      seed: () => readyState(engine: deeplApi, input: 'hello'),
+      act: (cubit) => cubit.setOptions(formal),
+      verify: (_) {
+        expect(mocks.translateRequests().single.options, formal);
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'does not re-translate DeepL for a style it does not apply',
+      build: () => mocks.build(),
+      seed: () => readyState(engine: deeplApi, input: 'hello'),
+      act: (cubit) => cubit.setOptions(
+        const TranslationOptions(style: TranslationStyle.literal),
+      ),
+      verify: (cubit) {
+        expect(cubit.state.options.style, TranslationStyle.literal);
+        verifyNever(() => mocks.repository.translate(any(), any()));
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'does not re-translate translation-only AI models',
+      build: () => mocks.build(),
+      seed: () => readyState(engine: gemma, input: 'hello'),
+      act: (cubit) => cubit.setOptions(formal),
+      verify: (_) {
+        verifyNever(() => mocks.repository.translate(any(), any()));
+      },
+    );
+
+    group('optionsChangeApplies', () {
+      const base = TranslationOptions();
+
+      test('AI engines apply every option', () {
+        expect(
+          TranslateCubit.optionsChangeApplies(
+            claude,
+            base,
+            const TranslationOptions(speakerGender: Gender.feminine),
+          ),
+          isTrue,
+        );
+        expect(
+          TranslateCubit.optionsChangeApplies(claude, base, base),
+          isFalse,
+        );
+      });
+
+      test('DeepL applies formality, context and formatting only', () {
+        bool applies(TranslationOptions next) =>
+            TranslateCubit.optionsChangeApplies(deeplApi, base, next);
+        expect(applies(formal), isTrue);
+        expect(applies(const TranslationOptions(context: 'email')), isTrue);
+        expect(
+          applies(const TranslationOptions(preserveFormatting: false)),
+          isTrue,
+        );
+        expect(applies(const TranslationOptions(context: '  ')), isFalse);
+        expect(
+          applies(const TranslationOptions(readingLevel: ReadingLevel.a2)),
+          isFalse,
+        );
+        expect(
+          applies(const TranslationOptions(glossary: {'a': 'b'})),
+          isFalse,
+        );
+      });
+
+      test('Mozhi engines and translation-only models apply none', () {
+        for (final engine in [google, gemma]) {
+          expect(
+            TranslateCubit.optionsChangeApplies(engine, base, formal),
+            isFalse,
+          );
+        }
+      });
+    });
 
     blocTest<TranslateCubit, TranslateState>(
       'does not re-translate without input',
@@ -1004,6 +1107,90 @@ void main() {
       verify: (_) {
         verifyNever(() => mocks.settings.setOptions(any()));
       },
+    );
+  });
+
+  group('stopTranslation', () {
+    late StreamController<TranslationResult> translations;
+    late StreamController<CompareEntry> comparisons;
+
+    blocTest<TranslateCubit, TranslateState>(
+      'stops the translation in flight and keeps the text so far',
+      setUp: () {
+        translations = StreamController<TranslationResult>();
+        addTearDown(translations.close);
+        when(() => mocks.repository.translate(any(), any()))
+            .thenAnswer((_) => translations.stream);
+      },
+      build: () => mocks.build(),
+      seed: () => readyState(engine: claude, input: 'hello'),
+      act: (cubit) async {
+        final done = cubit.translate();
+        translations.add(resultOf('Hal', engine: claude, isComplete: false));
+        await Future<void>.delayed(Duration.zero);
+        expect(cubit.state.status, TranslateStatus.translating);
+        cubit.stopTranslation();
+        // The translation's future completes.
+        await done;
+        // Later snapshots are ignored.
+        translations.add(resultOf('Hallo', engine: claude));
+        await Future<void>.delayed(Duration.zero);
+      },
+      verify: (cubit) {
+        expect(cubit.state.status, TranslateStatus.idle);
+        expect(cubit.state.output, 'Hal');
+        expect(cubit.state.result?.isComplete, isFalse);
+        verifyNever(() => mocks.history.add(any()));
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'cancels a pending instant translation',
+      setUp: () => mocks.stubTranslate(),
+      build: () => mocks.build(),
+      seed: readyState,
+      act: (cubit) async {
+        cubit
+          ..setInput('hallo')
+          ..stopTranslation();
+        await Future<void>.delayed(afterDebounce);
+      },
+      verify: (cubit) {
+        expect(cubit.state.input, 'hallo');
+        verifyNever(() => mocks.repository.translate(any(), any()));
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'stops a compare run and keeps its results so far',
+      setUp: () {
+        comparisons = StreamController<CompareEntry>();
+        addTearDown(comparisons.close);
+        when(() => mocks.repository.compare(any(), any()))
+            .thenAnswer((_) => comparisons.stream);
+      },
+      build: () => mocks.build(),
+      seed: () => readyState(input: 'hello').copyWith(compareMode: true),
+      act: (cubit) async {
+        final done = cubit.translate();
+        comparisons.add(CompareEntry.success(resultOf('Hallo')));
+        await Future<void>.delayed(Duration.zero);
+        expect(cubit.state.comparing, isTrue);
+        cubit.stopTranslation();
+        await done;
+      },
+      verify: (cubit) {
+        expect(cubit.state.comparing, isFalse);
+        expect(cubit.state.compareEntries, hasLength(1));
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'does nothing while nothing runs',
+      build: () => mocks.build(),
+      seed: () => readyState(input: 'hello', result: resultOf('hallo')),
+      act: (cubit) => cubit.stopTranslation(),
+      expect: () => <TranslateState>[],
     );
   });
 

@@ -294,10 +294,6 @@ class _RenderLanguagePair extends RenderBox
   );
 
   @override
-  double? computeDistanceToActualBaseline(TextBaseline baseline) =>
-      defaultComputeDistanceToHighestActualBaseline(baseline);
-
-  @override
   Size computeDryLayout(BoxConstraints constraints) =>
       _layout(constraints, ChildLayoutHelper.dryLayoutChild).size;
 

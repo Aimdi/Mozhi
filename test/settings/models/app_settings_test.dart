@@ -36,7 +36,7 @@ const _custom = AppSettings(
     glossary: {'flat': 'Wohnung'},
   ),
   instantTranslate: false,
-  instantTranslateAi: true,
+  instantTranslateAi: false,
   saveHistory: false,
   showTransliteration: false,
   recentLanguages: [_french, _pirate],
@@ -77,7 +77,8 @@ void main() {
       expect(settings.target.code, 'en');
       expect(settings.options, const TranslationOptions());
       expect(settings.instantTranslate, isTrue);
-      expect(settings.instantTranslateAi, isFalse);
+      // Automatic for every online engine, like Kagi.
+      expect(settings.instantTranslateAi, isTrue);
       expect(settings.saveHistory, isTrue);
       expect(settings.showTransliteration, isTrue);
       expect(settings.recentLanguages, isEmpty);

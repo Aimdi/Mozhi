@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/presets/presets.dart';
 import 'package:mozhi/translate/translate.dart';
 import 'package:mozhi/translate/widgets/widgets.dart';
@@ -18,8 +20,12 @@ Future<TranslateHarness> _open(
   WidgetTester tester, [
   TranslationOptions options = const TranslationOptions(),
   PresetsCubit? presets,
+  TranslateState? state,
 ]) async {
-  final harness = TranslateHarness(state: _state(options), presets: presets);
+  final harness = TranslateHarness(
+    state: state ?? _state(options),
+    presets: presets,
+  );
   await harness.pump(
     tester,
     child: const OptionsButton(),
@@ -38,10 +44,24 @@ void main() {
   setUpAll(registerTranslateFallbacks);
 
   group('OptionsButton', () {
-    testWidgets('is hidden for Mozhi engines', (tester) async {
+    testWidgets('is shown for Mozhi engines too', (tester) async {
       final harness = TranslateHarness();
       await harness.pump(tester, child: const OptionsButton());
-      expect(find.byType(IconButton), findsNothing);
+      expect(find.byType(IconButton), findsOneWidget);
+      expect(find.byTooltip('Translation options'), findsOneWidget);
+    });
+
+    testWidgets('shows a badge for options kept for an AI translator', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(
+        state: readyState().copyWith(
+          options: const TranslationOptions(style: TranslationStyle.literal),
+        ),
+      );
+      await harness.pump(tester, child: const OptionsButton());
+      expect(find.byTooltip('Translation options (modified)'), findsOneWidget);
+      expect(tester.widget<Badge>(find.byType(Badge)).isLabelVisible, isTrue);
     });
 
     testWidgets('has no badge with default options', (tester) async {
@@ -416,7 +436,7 @@ void main() {
           .called(1);
     });
 
-    testWidgets('disappear when the engine is no longer an AI engine', (
+    testWidgets('stay when the engine is no longer an AI engine', (
       tester,
     ) async {
       final states = StreamController<TranslateState>.broadcast();
@@ -434,15 +454,21 @@ void main() {
       await tester.tap(find.byKey(const Key('translate_options_button')));
       await tester.pumpAndSettle();
       expect(find.byType(PresetPicker), findsOneWidget);
+      expect(find.byKey(const Key('translate_options_ai_note')), findsNothing);
 
       final mozhi = readyState();
       harness.setState(mozhi);
       states.add(mozhi);
       await tester.pumpAndSettle();
-      expect(find.byType(PresetPicker), findsNothing);
+      expect(find.byType(PresetPicker), findsOneWidget);
+      // The note now says the options wait for an AI translator.
+      expect(
+        find.byKey(const Key('translate_options_ai_note')),
+        findsOneWidget,
+      );
     });
 
-    testWidgets('are not offered for engines other than AI', (tester) async {
+    testWidgets('are offered for engines other than AI', (tester) async {
       final harness = TranslateHarness(presets: presetsCubit());
       await harness.pump(
         tester,
@@ -457,7 +483,151 @@ void main() {
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
       expect(find.byType(TranslationOptionsSheet), findsOneWidget);
-      expect(find.byType(PresetPicker), findsNothing);
+      expect(find.byType(PresetPicker), findsOneWidget);
+    });
+  });
+
+  group('engines that do not apply every option', () {
+    Finder note() => find.byKey(const Key('translate_options_ai_note'));
+    Finder action() => find.byKey(const Key('translate_options_ai_action'));
+
+    testWidgets('AI engines get no note', (tester) async {
+      await _open(tester);
+      expect(note(), findsNothing);
+    });
+
+    testWidgets('Mozhi engines get a note and every option', (tester) async {
+      final harness = await _open(
+        tester,
+        const TranslationOptions(),
+        null,
+        readyState(),
+      );
+      expect(note(), findsOneWidget);
+      expect(
+        find.text(
+          'DeepL translates without these options. Style, formality, '
+          'gender and context need an AI translator. Your choices are '
+          'saved and apply when you use one.',
+        ),
+        findsOneWidget,
+      );
+      for (final label in ['Style', 'Formality', 'Speaker gender', 'Context']) {
+        expect(find.text(label), findsOneWidget, reason: label);
+      }
+      // The choices are still saved.
+      await tester.tap(find.text('Literal'));
+      expect(_captured(harness).style, TranslationStyle.literal);
+    });
+
+    testWidgets('DeepL API says what it applies', (tester) async {
+      const deeplApi = TranslationEngine(
+        id: 'mt:deepl',
+        kind: EngineKind.mt,
+        name: 'DeepL API',
+        providerId: 'deepl',
+        mtService: MtService.deepl,
+      );
+      await _open(
+        tester,
+        const TranslationOptions(),
+        null,
+        readyState(engine: deeplApi),
+      );
+      expect(
+        find.text(
+          'DeepL API applies only formality, context and formatting. Style, '
+          'reading level, gender and the glossary need an AI translator. '
+          'Your choices are saved and apply when you use one.',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('translation-only AI models get the note too', (tester) async {
+      const gemma = TranslationEngine(
+        id: 'ai:gemma',
+        kind: EngineKind.ai,
+        name: 'Gemma',
+        providerId: 'gemma',
+        promptProfile: PromptProfile.translateGemma,
+      );
+      await _open(
+        tester,
+        const TranslationOptions(),
+        null,
+        readyState(engine: gemma),
+      );
+      expect(note(), findsOneWidget);
+    });
+
+    testWidgets('"Choose an AI translator" opens the engine picker', (
+      tester,
+    ) async {
+      await _open(tester, const TranslationOptions(), null, readyState());
+      expect(find.text('Choose an AI translator'), findsOneWidget);
+      await tester.tap(action());
+      await tester.pumpAndSettle();
+      expect(find.byType(TranslationOptionsSheet), findsNothing);
+      expect(find.byType(EngineSheet), findsOneWidget);
+    });
+
+    testWidgets('"Add AI provider" opens the provider settings without an AI '
+        'translator', (tester) async {
+      final harness = await _open(
+        tester,
+        const TranslationOptions(),
+        null,
+        readyState().copyWith(engines: const [deepl, google]),
+      );
+      expect(find.text('Add AI provider'), findsOneWidget);
+      await tester.tap(action());
+      await tester.pumpAndSettle();
+      expect(find.byType(TranslationOptionsSheet), findsNothing);
+      verify(() => harness.router.go(translateProvidersLocation)).called(1);
+    });
+
+    testWidgets('offers no action without an AI translator or a router', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(
+        state: readyState().copyWith(engines: const [deepl, google]),
+      );
+      await tester.pumpWidget(
+        BlocProvider<TranslateCubit>.value(
+          value: harness.translate,
+          child: const MaterialApp(
+            localizationsDelegates: appLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: SizedBox(height: 900, child: TranslationOptionsSheet()),
+            ),
+          ),
+        ),
+      );
+      expect(note(), findsOneWidget);
+      expect(action(), findsNothing);
+    });
+  });
+
+  group('Done', () {
+    testWidgets('closes the sheet', (tester) async {
+      await _open(tester);
+      expect(find.text('Done'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('translate_options_done')));
+      await tester.pumpAndSettle();
+      expect(find.byType(TranslationOptionsSheet), findsNothing);
+    });
+
+    testWidgets('saves a context still being typed', (tester) async {
+      final harness = await _open(tester);
+      await tester.enterText(
+        find.byKey(const Key('translate_options_context')),
+        'Wedding speech',
+      );
+      await tester.tap(find.byKey(const Key('translate_options_done')));
+      await tester.pumpAndSettle();
+      expect(_captured(harness).context, 'Wedding speech');
     });
   });
 

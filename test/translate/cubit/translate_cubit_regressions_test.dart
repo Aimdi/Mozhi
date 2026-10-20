@@ -832,7 +832,11 @@ void main() {
 
     blocTest<TranslateCubit, TranslateState>(
       'is not auto-translated by AI engines when instantTranslateAi is off',
-      setUp: () => mocks.stubTranslate(),
+      setUp: () {
+        mocks
+          ..stubTranslate()
+          ..stubSettings(const AppSettings(instantTranslateAi: false));
+      },
       build: () => mocks.build(),
       seed: () => readyState(engine: claude),
       act: (cubit) async {
@@ -851,7 +855,7 @@ void main() {
       setUp: () {
         mocks
           ..stubTranslate()
-          ..stubSettings(const AppSettings(instantTranslateAi: true));
+          ..stubSettings(const AppSettings());
       },
       build: () => mocks.build(),
       seed: () => readyState(engine: claude),
@@ -960,6 +964,8 @@ void main() {
 
     blocTest<TranslateCubit, TranslateState>(
       'applies languages without re-translating the old input',
+      setUp: () =>
+          mocks.stubSettings(const AppSettings(instantTranslateAi: false)),
       build: () => mocks.build(),
       seed: () => readyState(engine: claude, input: 'old', target: de),
       act: (cubit) => cubit.setExternalInput('new', source: en, target: fr),
@@ -974,11 +980,14 @@ void main() {
     );
 
     blocTest<TranslateCubit, TranslateState>(
-      'arriving before engines load is not auto-translated by AI',
+      'arriving before engines load is not auto-translated by AI while '
+      'instantTranslateAi is off',
       setUp: () {
         mocks
           ..stubTranslate()
-          ..stubSettings(const AppSettings(engineId: 'ai:claude'));
+          ..stubSettings(
+            const AppSettings(engineId: 'ai:claude', instantTranslateAi: false),
+          );
       },
       build: () => mocks.build(),
       act: (cubit) async {
@@ -1049,7 +1058,7 @@ void main() {
       setUp: () {
         mocks
           ..stubTranslate()
-          ..stubSettings(const AppSettings(instantTranslateAi: true));
+          ..stubSettings(const AppSettings());
       },
       build: () => mocks.build(),
       seed: () => readyState(engine: claude),

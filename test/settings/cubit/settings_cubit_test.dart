@@ -446,8 +446,8 @@ void main() {
       );
       mutation(
         'setInstantTranslateAi',
-        act: (cubit) => cubit.setInstantTranslateAi(enabled: true),
-        expected: const AppSettings(instantTranslateAi: true),
+        act: (cubit) => cubit.setInstantTranslateAi(enabled: false),
+        expected: const AppSettings(instantTranslateAi: false),
       );
       mutation(
         'setSaveHistory',

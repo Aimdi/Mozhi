@@ -49,6 +49,15 @@ const gemma = TranslationEngine(
   promptProfile: PromptProfile.translateGemma,
 );
 
+/// A DeepL API engine (applies formality, context and formatting).
+const deeplApi = TranslationEngine(
+  id: 'mt:deepl',
+  kind: EngineKind.mt,
+  name: 'DeepL API',
+  providerId: 'deepl',
+  mtService: MtService.deepl,
+);
+
 const en = Language(code: 'en', name: 'English');
 const de = Language(code: 'de', name: 'German');
 const fr = Language(code: 'fr', name: 'French');

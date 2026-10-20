@@ -130,34 +130,18 @@ void main() {
       expect(controller.selection.baseOffset, 4);
     });
 
-    testWidgets('hides the translate button when instant translate is on', (
-      tester,
-    ) async {
-      final harness = TranslateHarness(state: readyState(input: 'Hi'));
-      await harness.pump(tester, child: const InputCard());
-      expect(find.byKey(const Key('translate_translate_button')), findsNothing);
-    });
-
-    testWidgets('translate button translates when instant is off for AI', (
-      tester,
-    ) async {
+    testWidgets('has no translate button of its own', (tester) async {
+      // The go button at the end of the language bar replaces it, also
+      // while instant translation is off.
       final harness = TranslateHarness(
         state: readyState(engine: claude, input: 'Hi'),
+        settings: const AppSettings(
+          instantTranslate: false,
+          instantTranslateAi: false,
+        ),
       );
       await harness.pump(tester, child: const InputCard());
-      await tester.tap(find.byKey(const Key('translate_translate_button')));
-      verify(harness.translate.translate).called(1);
-    });
-
-    testWidgets('translate button is disabled without input', (tester) async {
-      final harness = TranslateHarness(
-        settings: const AppSettings(instantTranslate: false),
-      );
-      await harness.pump(tester, child: const InputCard());
-      final button = tester.widget<ButtonStyleButton>(
-        find.byKey(const Key('translate_translate_button')),
-      );
-      expect(button.onPressed, isNull);
+      expect(find.byKey(const Key('translate_translate_button')), findsNothing);
     });
 
     testWidgets('listen reads the input in the detected language', (

@@ -248,8 +248,8 @@ void main() {
     testWidgets('never looks links up on its own, even with instant AI', (
       tester,
     ) async {
-      when(() => settingsCubit.state)
-          .thenReturn(const AppSettings(instantTranslateAi: true));
+      // Instant AI translation is on by default.
+      when(() => settingsCubit.state).thenReturn(const AppSettings());
       await pumpPage(tester, page: const DictionaryPage(word: 'gato'));
       await tester.pump();
 

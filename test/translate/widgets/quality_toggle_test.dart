@@ -249,15 +249,16 @@ void main() {
     testWidgets('makes room on 600-840 dp screens instead of overflowing', (
       tester,
     ) async {
+      // 600 dp: the title area is narrower than the labels need.
       final harness = _harness(_state(mode: QualityMode.best));
-      await harness.pump(tester, size: const Size(620, 900));
+      await harness.pump(tester, size: const Size(600, 900));
       expect(tester.takeException(), isNull);
       expect(_toggle, findsOneWidget);
       expect(find.text('Best'), findsNothing);
       expect(appBarTitle(), findsNothing);
       // Without a toggle the title still shows.
       final plain = _harness(_state(fast: false, best: false));
-      await plain.pump(tester, size: const Size(620, 900));
+      await plain.pump(tester, size: const Size(600, 900));
       expect(appBarTitle(), findsOneWidget);
     });
 

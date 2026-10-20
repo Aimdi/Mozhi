@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:bloc_test/bloc_test.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
@@ -198,6 +199,158 @@ void main() {
       );
       expect(swap.onPressed, isNull);
       expect(find.text('Pirate speak'), findsOneWidget);
+    });
+  });
+
+  group('LanguageBar layout', () {
+    Rect rectOf(WidgetTester tester, String key) =>
+        tester.getRect(find.byKey(Key(key)));
+
+    Future<void> pumpBar(
+      WidgetTester tester,
+      TranslateHarness harness, {
+      double width = 379,
+      double textScale = 1,
+      TextDirection direction = TextDirection.ltr,
+    }) => harness.pump(
+      tester,
+      textScale: textScale,
+      child: Directionality(
+        textDirection: direction,
+        child: Center(
+          child: SizedBox(width: width, child: const LanguageBar()),
+        ),
+      ),
+    );
+
+    testWidgets('options, source, swap, target and go in one bar', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(state: translatedState());
+      await pumpBar(tester, harness);
+      final bar = rectOf(tester, 'translate_language_bar');
+      final options = rectOf(tester, 'translate_options_button');
+      final source = rectOf(tester, 'translate_source_button');
+      final swap = rectOf(tester, 'translate_swap_button');
+      final target = rectOf(tester, 'translate_target_button');
+      final go = rectOf(tester, 'translate_translate_button');
+      expect(options.left, closeTo(bar.left + 1, 1));
+      expect(go.right, closeTo(bar.right - 1, 1));
+      expect(options.right, lessThan(source.left));
+      expect(source.right, lessThanOrEqualTo(swap.left));
+      expect(swap.right, lessThanOrEqualTo(target.left));
+      expect(target.right, lessThan(go.left));
+      // Both names fit in half: the swap button is in the middle.
+      expect(swap.center.dx, closeTo(bar.center.dx, 1));
+      expect(source.width, closeTo(target.width, 0.5));
+      // 48 dp touch targets.
+      for (final rect in [options, source, swap, target, go]) {
+        expect(rect.height, greaterThanOrEqualTo(48));
+        expect(rect.width, greaterThanOrEqualTo(48));
+      }
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a long name takes the room a short one leaves', (
+      tester,
+    ) async {
+      // (The test font is wider than Roboto: a wider bar.)
+      final harness = TranslateHarness();
+      await pumpBar(tester, harness, width: 600);
+      final source = rectOf(tester, 'translate_source_button');
+      final target = rectOf(tester, 'translate_target_button');
+      expect(source.width, greaterThan(target.width));
+      // "Detect language" is not cut.
+      final text = tester.renderObject<RenderParagraph>(
+        find.text('Detect language'),
+      );
+      expect(text.didExceedMaxLines, isFalse);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('fits a 288 dp bar at 200 % text', (tester) async {
+      final harness = TranslateHarness(
+        state: readyState(source: japanese, target: german),
+      );
+      await pumpBar(tester, harness, width: 288, textScale: 2);
+      expect(tester.takeException(), isNull);
+      expect(
+        rectOf(tester, 'translate_translate_button').right,
+        lessThanOrEqualTo(rectOf(tester, 'translate_language_bar').right),
+      );
+    });
+
+    testWidgets('runs from right to left in right-to-left layouts', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(state: translatedState());
+      await pumpBar(tester, harness, direction: TextDirection.rtl);
+      final options = rectOf(tester, 'translate_options_button');
+      final source = rectOf(tester, 'translate_source_button');
+      final target = rectOf(tester, 'translate_target_button');
+      final go = rectOf(tester, 'translate_translate_button');
+      expect(options.left, greaterThan(source.right));
+      expect(source.left, greaterThan(target.right));
+      expect(target.left, greaterThan(go.right));
+    });
+
+    testWidgets('the options button opens the options for every engine', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(state: translatedState());
+      await pumpBar(tester, harness);
+      await tester.tap(find.byKey(const Key('translate_options_button')));
+      await tester.pumpAndSettle();
+      expect(find.byType(TranslationOptionsSheet), findsOneWidget);
+    });
+
+    testWidgets('the language pair reports intrinsic and dry sizes', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(state: translatedState());
+      await pumpBar(tester, harness);
+      // The source button is a direct child of the pair's render object.
+      final pair =
+          tester
+                  .renderObject(
+                    find.byKey(const Key('translate_source_button')),
+                  )
+                  .parent!
+              as RenderBox;
+      final natural = pair.getMaxIntrinsicWidth(double.infinity);
+      expect(
+        pair.getMinIntrinsicWidth(double.infinity),
+        lessThanOrEqualTo(natural),
+      );
+      expect(pair.getMinIntrinsicHeight(double.infinity), 48);
+      expect(pair.getMaxIntrinsicHeight(double.infinity), 48);
+      expect(
+        pair.getDryLayout(const BoxConstraints.tightFor(width: 300)).width,
+        300,
+      );
+      // Without a width limit every child gets its own width.
+      expect(pair.getDryLayout(const BoxConstraints()).width, natural);
+    });
+
+    group('languagePairSplit', () {
+      test('gives half each while both fit in half', () {
+        expect(languagePairSplit(200, 80, 60), (100.0, 100.0));
+      });
+
+      test('lets the longer one take what the shorter one leaves', () {
+        expect(languagePairSplit(200, 140, 50), (150.0, 50.0));
+        expect(languagePairSplit(200, 50, 140), (50.0, 150.0));
+        // Not all of it fits: the shorter one still keeps its width.
+        expect(languagePairSplit(200, 180, 60), (140.0, 60.0));
+      });
+
+      test('gives half each when neither fits in half', () {
+        expect(languagePairSplit(200, 150, 120), (100.0, 100.0));
+      });
+
+      test('never goes below zero', () {
+        expect(languagePairSplit(-10, 50, 50), (0.0, 0.0));
+      });
     });
   });
 

@@ -195,10 +195,58 @@ void main() {
       verify(() => harness.translate.setCompareMode(enabled: false)).called(1);
     });
 
-    testWidgets('options button is hidden for Mozhi engines', (tester) async {
+    testWidgets('options and go buttons are in the language bar for every '
+        'engine', (tester) async {
       final harness = TranslateHarness(state: translatedState());
       await harness.pump(tester);
-      expect(find.byKey(const Key('translate_options_button')), findsNothing);
+      final bar = find.byKey(const Key('translate_language_bar'));
+      for (final key in [
+        'translate_options_button',
+        'translate_translate_button',
+      ]) {
+        expect(
+          find.descendant(of: bar, matching: find.byKey(Key(key))),
+          findsOneWidget,
+        );
+        // Not in the app bar any more.
+        expect(
+          find.descendant(
+            of: find.byType(AppBar),
+            matching: find.byKey(Key(key)),
+          ),
+          findsNothing,
+        );
+      }
+    });
+
+    testWidgets('the go button translates right away', (tester) async {
+      final harness = TranslateHarness(state: translatedState());
+      await harness.pump(tester);
+      await tester.tap(find.byKey(const Key('translate_translate_button')));
+      verify(harness.translate.translate).called(1);
+    });
+
+    testWidgets('the language bar spans both panes on wide screens', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(state: translatedState());
+      await harness.pump(tester, size: const Size(1200, 800));
+      final bar = tester.getRect(
+        find.byKey(const Key('translate_language_bar')),
+      );
+      final input = tester.getRect(
+        find.byKey(const Key('translate_input_pane')),
+      );
+      final output = tester.getRect(
+        find.byKey(const Key('translate_output_pane')),
+      );
+      expect(bar.left, closeTo(input.left, 1));
+      expect(bar.right, closeTo(output.right, 1));
+      // The swap button sits over the line between the panes.
+      final swap = tester.getCenter(
+        find.byKey(const Key('translate_swap_button')),
+      );
+      expect(swap.dx, closeTo((input.right + output.left) / 2, 2));
     });
 
     testWidgets('options button is shown for AI engines', (tester) async {
