@@ -588,10 +588,10 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
   /// with [OcrDataMissingException] (offered for download by the view,
   /// never downloaded here). The confidence is known when the recognizer
   /// reports it ([TextRecognitionConfidence]).
-  Future<RecognizedText> _recognize(PickedImage image) async {
+  Future<TextWithConfidence> _recognize(PickedImage image) async {
     final data = textRecognitionLanguageDataOf(_recognizer);
     if (data == null) {
-      return RecognizedText(
+      return TextWithConfidence(
         await _recognizer.recognize(image, source: state.source),
       );
     }
@@ -604,7 +604,7 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
       TextRecognitionReady(:final codes) => switch (data) {
         final TextRecognitionConfidence scored =>
           await scored.recognizeWithConfidence(image, codes),
-        _ => RecognizedText(await data.recognizeWith(image, codes)),
+        _ => TextWithConfidence(await data.recognizeWith(image, codes)),
       },
       TextRecognitionNeedsData(:final missing) => throw missing,
       TextRecognitionUnsupported() => throw const ImageTranslateException(

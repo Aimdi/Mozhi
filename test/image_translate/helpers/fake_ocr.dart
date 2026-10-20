@@ -128,11 +128,13 @@ class FakeOcrData
   }
 
   @override
-  Future<RecognizedText> recognizeWithConfidence(
+  Future<TextWithConfidence> recognizeWithConfidence(
     PickedImage image,
     List<String> codes,
-  ) async =>
-      RecognizedText(await recognizeWith(image, codes), confidence: confidence);
+  ) async => TextWithConfidence(
+    await recognizeWith(image, codes),
+    confidence: confidence,
+  );
 
   @override
   Future<void> downloadOcrLanguage(

@@ -62,7 +62,7 @@ abstract interface class TextRecognitionLanguageData {
 
 /// Text recognised in an image, with how sure the recognizer is.
 @immutable
-class RecognizedText {
+class TextWithConfidence {
   const new(this.text, {this.confidence});
 
   final String text;
@@ -72,7 +72,7 @@ class RecognizedText {
 
   @override
   bool operator ==(Object other) =>
-      other is RecognizedText &&
+      other is TextWithConfidence &&
       other.text == text &&
       other.confidence == confidence;
 
@@ -80,7 +80,7 @@ class RecognizedText {
   int get hashCode => Object.hash(text, confidence);
 
   @override
-  String toString() => 'RecognizedText(${text.length} chars, $confidence%)';
+  String toString() => 'TextWithConfidence(${text.length} chars, $confidence%)';
 }
 
 /// [TextRecognitionLanguageData] that also says how sure it is of what it
@@ -88,7 +88,7 @@ class RecognizedText {
 /// the text is in a language whose data was not used.
 abstract interface class TextRecognitionConfidence {
   /// Like [TextRecognitionLanguageData.recognizeWith], with the confidence.
-  Future<RecognizedText> recognizeWithConfidence(
+  Future<TextWithConfidence> recognizeWithConfidence(
     PickedImage image,
     List<String> codes,
   );

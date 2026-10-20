@@ -255,7 +255,7 @@ void main() {
       expect(service, isA<TextRecognitionConfidence>());
       expect(
         await service.recognizeWithConfidence(pngImage, const ['deu']),
-        const RecognizedText('Ausgang', confidence: 37),
+        const TextWithConfidence('Ausgang', confidence: 37),
       );
       expect(await service.recognizeWith(pngImage, const ['deu']), 'Ausgang');
     });

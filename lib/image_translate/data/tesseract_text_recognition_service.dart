@@ -99,7 +99,7 @@ class TesseractTextRecognitionService
       (await recognizeWithConfidence(image, codes)).text;
 
   @override
-  Future<RecognizedText> recognizeWithConfidence(
+  Future<TextWithConfidence> recognizeWithConfidence(
     PickedImage image,
     List<String> codes,
   ) async {
@@ -112,7 +112,7 @@ class TesseractTextRecognitionService
         decoded.height,
         languages: codes,
       );
-      return RecognizedText(result.text, confidence: result.meanConfidence);
+      return TextWithConfidence(result.text, confidence: result.meanConfidence);
     } on TessdataMissingException catch (error) {
       final language = ocr.catalog.byCode(error.missing.first);
       if (language == null) rethrow;

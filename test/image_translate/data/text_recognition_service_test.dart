@@ -5,16 +5,16 @@ import 'package:mozhi/image_translate/image_translate.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 void main() {
-  group('RecognizedText', () {
+  group('TextWithConfidence', () {
     test('compares text and confidence', () {
-      const read = RecognizedText('Hola', confidence: 80);
-      expect(read, const RecognizedText('Hola', confidence: 80));
-      expect(read, isNot(const RecognizedText('Hola')));
+      const read = TextWithConfidence('Hola', confidence: 80);
+      expect(read, const TextWithConfidence('Hola', confidence: 80));
+      expect(read, isNot(const TextWithConfidence('Hola')));
       expect(
         read.hashCode,
-        const RecognizedText('Hola', confidence: 80).hashCode,
+        const TextWithConfidence('Hola', confidence: 80).hashCode,
       );
-      expect(read.toString(), 'RecognizedText(4 chars, 80%)');
+      expect(read.toString(), 'TextWithConfidence(4 chars, 80%)');
     });
   });
 
