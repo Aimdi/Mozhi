@@ -14,13 +14,16 @@ import 'package:mozhi/dictionary/dictionary.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
+import 'package:mozhi/speech/speech_service.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
-import 'package:mozhi/translate/widgets/dictionary_card.dart';
 import 'package:mozhi/translate/widgets/translate_error.dart';
 import 'package:mozhi/usage/usage.dart';
+import 'package:mozhi/voice/voice.dart' show SpeechInputService;
 import 'package:translation_repository/translation_repository.dart';
 
 import '../../helpers/helpers.dart';
+import '../../translate/helpers/helpers.dart'
+    show FakeSpeechInput, MockSpeechService;
 import '../helpers/dictionary_helpers.dart';
 
 class _MockGoRouter extends Mock implements GoRouter;
@@ -94,6 +97,8 @@ void main() {
     GoRouter? router,
     bool withTracker = false,
     Size size = const Size(600, 1600),
+    SpeechService? speech,
+    SpeechInputService? speechInput,
   }) async {
     tester.view
       ..physicalSize = size
@@ -114,6 +119,18 @@ void main() {
     if (withTracker) {
       tree = RepositoryProvider<UsageTracker>.value(
         value: tracker,
+        child: tree,
+      );
+    }
+    if (speech != null) {
+      tree = RepositoryProvider<SpeechService>.value(
+        value: speech,
+        child: tree,
+      );
+    }
+    if (speechInput != null) {
+      tree = RepositoryProvider<SpeechInputService>.value(
+        value: speechInput,
         child: tree,
       );
     }
@@ -160,18 +177,59 @@ void main() {
     matching: find.byType(EditableText),
   );
 
+  /// The icon button inside [key] (the go button, the options button …).
+  Finder buttonIn(Key key) => find.descendant(
+    of: find.byKey(key),
+    matching: find.byWidgetPredicate(
+      (widget) => widget is IconButton || widget is ButtonStyleButton,
+    ),
+  );
+
+  /// The go button ("Look up").
+  IconButton goButton(WidgetTester tester) =>
+      tester.widget<IconButton>(buttonIn(const Key('dictionary_look_up')));
+
   /// The focus node of the button [button].
   FocusNode focusOf(WidgetTester tester, Finder button) => Focus.of(
     tester.element(find.descendant(of: button, matching: find.byType(Icon))),
   );
 
+  /// Opens the options sheet from the composer (or, with an entry, from
+  /// the app bar).
+  Future<void> openOptions(WidgetTester tester) async {
+    final composer = find.byKey(const Key('dictionary_options_button'));
+    await tester.tap(
+      composer.evaluate().isNotEmpty
+          ? composer
+          : find.byKey(const Key('dictionary_result_options')),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  /// Closes a bottom sheet by tapping the barrier.
+  Future<void> closeSheet(WidgetTester tester) async {
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pumpAndSettle();
+  }
+
+  MockSpeechService speechService() {
+    final speech = MockSpeechService();
+    when(() => speech.speaking).thenAnswer((_) => const Stream.empty());
+    when(() => speech.current).thenReturn(null);
+    when(
+      () => speech.toggle(
+        id: any(named: 'id'),
+        text: any(named: 'text'),
+        languageCode: any(named: 'languageCode'),
+      ),
+    ).thenAnswer((_) async {});
+    return speech;
+  }
+
   group('DictionaryPage', () {
-    testWidgets('shows the hero above the search and the engine', (
-      tester,
-    ) async {
+    testWidgets('greets above the docked composer', (tester) async {
       await pumpPage(tester);
 
-      expect(find.byKey(const Key('dictionary_empty')), findsOneWidget);
       expect(find.byKey(const Key('dictionary_hero')), findsOneWidget);
       expect(find.text('What does this mean?'), findsOneWidget);
       expect(
@@ -181,15 +239,28 @@ void main() {
         ),
         findsOneWidget,
       );
-      // The hero says it all: no second empty message below the search.
-      expect(find.text('Look up any word'), findsNothing);
+      final composer = tester.getRect(
+        find.byKey(const Key('dictionary_composer')),
+      );
       expect(
         tester.getCenter(find.text('What does this mean?')).dy,
-        lessThan(
-          tester.getCenter(find.byKey(const Key('dictionary_search_field'))).dy,
-        ),
+        lessThan(composer.top),
       );
-      expect(find.text('Dictionary entries by Claude'), findsOneWidget);
+      // Docked at the bottom.
+      expect(composer.bottom, greaterThan(1400));
+      // [options | go | languages], like Kagi's.
+      final options = tester.getCenter(
+        find.byKey(const Key('dictionary_options_button')),
+      );
+      final go = tester.getCenter(find.byKey(const Key('dictionary_look_up')));
+      final languages = tester.getCenter(
+        find.byKey(const Key('dictionary_language_pair')),
+      );
+      expect(options.dx, lessThan(go.dx));
+      expect(go.dx, lessThan(languages.dx));
+      expect(find.text('Detect language'), findsOneWidget);
+      expect(find.text('English'), findsOneWidget);
+      expect(find.byKey(const Key('dictionary_back')), findsNothing);
       final field = tester.widget<TextField>(
         find.byKey(const Key('dictionary_search_field')),
       );
@@ -198,6 +269,39 @@ void main() {
       expect(state.engine, claudeEngine);
       expect(state.source, Language.auto);
       expect(state.target, LanguageCatalog.byCode('en'));
+    });
+
+    testWidgets('names the go button "Look up"', (tester) async {
+      final semantics = tester.ensureSemantics();
+      await pumpPage(tester, page: const DictionaryPage(word: 'gato'));
+
+      expect(find.bySemanticsLabel('Look up'), findsOneWidget);
+      expect(find.byTooltip('Look up'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel('Language of the word: detected automatically'),
+        findsOneWidget,
+      );
+      expect(find.bySemanticsLabel('Translations in: English'), findsOneWidget);
+      semantics.dispose();
+    });
+
+    testWidgets('options hold the detail level, languages and engine', (
+      tester,
+    ) async {
+      await pumpPage(tester);
+
+      await openOptions(tester);
+      expect(find.byKey(const Key('dictionary_options_sheet')), findsOneWidget);
+      expect(find.text('Options'), findsOneWidget);
+      expect(find.text('Detail level'), findsOneWidget);
+      expect(find.byKey(const Key('dictionary_verbosity')), findsOneWidget);
+      expect(find.text('Languages'), findsOneWidget);
+      expect(
+        find.byKey(const Key('dictionary_source_language')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('dictionary_swap')), findsOneWidget);
+      expect(find.text('Dictionary entries by Claude'), findsOneWidget);
     });
 
     testWidgets('prefills a linked word without looking it up', (tester) async {
@@ -231,7 +335,9 @@ void main() {
           target: LanguageCatalog.byCode('fr')!,
         ),
       ).called(1);
-      expect(find.byType(DictionaryEntryView), findsOneWidget);
+      expect(find.byType(DictionaryEntryTabs), findsOneWidget);
+      expect(find.byKey(const Key('dictionary_composer')), findsNothing);
+      expect(find.byKey(const Key('dictionary_hero')), findsNothing);
       expect(
         find.textContaining('A small domesticated feline.', findRichText: true),
         findsOneWidget,
@@ -329,7 +435,10 @@ void main() {
         page: const DictionaryPage(word: 'gato', autoLookUp: true),
       );
 
+      // Above the composer, in place of the greeting.
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byKey(const Key('dictionary_hero')), findsNothing);
+      expect(goButton(tester).onPressed, isNull);
       verifyNoLookUp();
 
       states.add(_readyWithAi);
@@ -337,7 +446,7 @@ void main() {
       await tester.pump();
 
       verifyLookUps(1);
-      expect(find.byType(DictionaryEntryView), findsOneWidget);
+      expect(find.byType(DictionaryEntryTabs), findsOneWidget);
     });
 
     testWidgets('uses the first engine with AI extras', (tester) async {
@@ -358,6 +467,7 @@ void main() {
       );
 
       expect(dictionaryState(tester).engine, ollamaEngine);
+      await openOptions(tester);
       expect(find.text('Dictionary entries by Ollama'), findsOneWidget);
     });
 
@@ -371,6 +481,7 @@ void main() {
           ),
           page: const DictionaryPage(word: 'gato'),
         );
+        await openOptions(tester);
 
         expect(find.text('Concise'), findsOneWidget);
         expect(find.text('Standard'), findsOneWidget);
@@ -390,6 +501,7 @@ void main() {
         expect(isSelected(tester, DictionaryVerbosity.concise), isFalse);
         verifyNoLookUp();
 
+        await closeSheet(tester);
         await tester.tap(find.byKey(const Key('dictionary_look_up')));
         await tester.pump();
         await tester.pump();
@@ -403,6 +515,8 @@ void main() {
         );
         await tester.pump();
         verifyLookUp('gato');
+        // From the entry's app bar.
+        await openOptions(tester);
         expect(isSelected(tester, DictionaryVerbosity.standard), isTrue);
 
         // The selected level is not requested again.
@@ -415,32 +529,157 @@ void main() {
         await tester.pump();
 
         verifyLookUp('gato', verbosity: DictionaryVerbosity.concise);
+        await closeSheet(tester);
         expect(find.byKey(const Key('dictionary_entry')), findsOneWidget);
       });
     });
 
-    group('entry links', () {
-      testWidgets('related words look that word up', (tester) async {
-        stubLookUp(
-          repository,
-          () async => const DictionaryEntry(
-            word: 'gato',
-            senses: [DictionarySense(definition: 'A cat.')],
-            relatedWords: ['felino', ' ', 'gatito'],
+    group('entry', () {
+      const fullEntry = DictionaryEntry(
+        word: 'gato',
+        pronunciation: '/ˈɡato/',
+        partsOfSpeech: ['noun'],
+        senses: [
+          DictionarySense(
+            definition: 'A small domesticated feline.',
+            partOfSpeech: 'noun',
+            translations: ['cat'],
+            usage: 'common',
           ),
-        );
+          DictionarySense(
+            definition: 'A car jack.',
+            partOfSpeech: 'noun',
+            translations: ['jack'],
+          ),
+        ],
+        examples: [
+          DictionaryExample(
+            source: 'El gato duerme.',
+            translation: 'The cat sleeps.',
+          ),
+        ],
+        synonyms: ['minino', ' ', 'micho'],
+        etymology: 'From Late Latin cattus.',
+        notes: 'Feminine: gata.',
+        relatedWords: ['felino', ' ', 'gatito'],
+      );
+
+      Future<void> pumpEntry(
+        WidgetTester tester, {
+        DictionaryEntry entry = fullEntry,
+        String from = 'es',
+        SpeechService? speech,
+        Size size = const Size(600, 1600),
+      }) async {
+        stubLookUp(repository, () async => entry);
         await pumpPage(
           tester,
-          page: const DictionaryPage(word: 'gato', autoLookUp: true),
+          size: size,
+          speech: speech,
+          page: DictionaryPage(
+            word: 'gato',
+            from: from,
+            to: 'en',
+            autoLookUp: true,
+          ),
         );
         await tester.pump();
-        verifyLookUp('gato');
+        await tester.pump();
+      }
 
+      testWidgets('shows the meaning centred, in big type', (tester) async {
+        await pumpEntry(tester);
+
+        expect(find.text('Meaning'), findsOneWidget);
+        expect(find.text('More'), findsOneWidget);
+        expect(find.text('Examples'), findsOneWidget);
+        expect(find.text('noun'), findsOneWidget);
+        final headword = find.byKey(const Key('dictionary_headword'));
+        expect(headword, findsOneWidget);
+        expect(
+          tester.widget<Text>(headword).style?.fontSize,
+          greaterThanOrEqualTo(36),
+        );
+        expect(find.text('/ˈɡato/'), findsOneWidget);
+        expect(
+          find.textContaining(
+            'A small domesticated feline.',
+            findRichText: true,
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining('(common)', findRichText: true),
+          findsOneWidget,
+        );
+        expect(find.text('In English'), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('dictionary_translations')),
+            matching: find.textContaining('cat', findRichText: true),
+          ),
+          findsOneWidget,
+        );
+        // The second sense is on the "More" tab.
+        expect(
+          find.textContaining('A car jack.', findRichText: true),
+          findsNothing,
+        );
+        expect(
+          tester.getCenter(headword).dx,
+          moreOrLessEquals(300, epsilon: 1),
+        );
+        // No speech service: no listen button.
+        expect(find.byKey(const Key('dictionary_listen')), findsNothing);
+      });
+
+      testWidgets('synonyms look that word up', (tester) async {
+        final semantics = tester.ensureSemantics();
+        await pumpEntry(tester);
+
+        expect(find.bySemanticsLabel('Synonyms'), findsOneWidget);
+        final synonym = find.byKey(const ValueKey('dictionary_synonym:micho'));
+        expect(synonym, findsOneWidget);
+        expect(find.byTooltip('Look up “micho”'), findsOneWidget);
+        // Blank synonyms are left out.
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('dictionary_synonyms')),
+            matching: find.byType(TextButton),
+          ),
+          findsNWidgets(2),
+        );
+        await tester.tap(synonym);
+        await tester.pump();
+        await tester.pump();
+
+        verifyLookUp('micho');
+        expect(dictionaryState(tester).word, 'micho');
+        semantics.dispose();
+      });
+
+      testWidgets('the other senses, related words, etymology and notes '
+          'are on "More"', (tester) async {
+        await pumpEntry(tester);
+
+        await tester.tap(find.text('More'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Other meanings'), findsOneWidget);
+        expect(find.text('2.'), findsOneWidget);
+        expect(
+          find.textContaining('A car jack.', findRichText: true),
+          findsOneWidget,
+        );
+        expect(find.textContaining('jack', findRichText: true), findsWidgets);
         expect(find.text('Related words'), findsOneWidget);
         expect(find.byType(ActionChip), findsNWidgets(2));
-        final chip = find.byKey(
-          const ValueKey('translate_dictionary_related:gatito'),
-        );
+        expect(find.text('Etymology'), findsOneWidget);
+        expect(find.text('From Late Latin cattus.'), findsOneWidget);
+        expect(find.text('Notes'), findsOneWidget);
+        expect(find.text('Feminine: gata.'), findsOneWidget);
+
+        final chip = find.byKey(const ValueKey('dictionary_related:gatito'));
         await tester.ensureVisible(chip);
         await tester.tap(chip);
         await tester.pump();
@@ -450,10 +689,78 @@ void main() {
         final state = dictionaryState(tester);
         expect(state.word, 'gatito');
         expect(state.lookedUp, 'gatito');
-        final field = tester.widget<TextField>(
-          find.byKey(const Key('dictionary_search_field')),
+        // A new entry starts on its meaning.
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('dictionary_headword')), findsOneWidget);
+      });
+
+      testWidgets('the examples are on "Examples"', (tester) async {
+        await pumpEntry(tester);
+
+        await tester.tap(find.text('Examples'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('El gato duerme.'), findsOneWidget);
+        expect(find.text('The cat sleeps.'), findsOneWidget);
+      });
+
+      testWidgets('leaves the tabs out when there is only the meaning', (
+        tester,
+      ) async {
+        await pumpEntry(
+          tester,
+          entry: const DictionaryEntry(
+            word: 'gato',
+            senses: [DictionarySense(definition: 'A cat.')],
+            partsOfSpeech: ['noun', 'adjective'],
+          ),
         );
-        expect(field.controller!.text, 'gatito');
+
+        expect(find.byKey(const Key('dictionary_tabs')), findsNothing);
+        expect(find.byType(TabBar), findsNothing);
+        expect(find.text('noun · adjective'), findsOneWidget);
+        expect(find.byKey(const Key('dictionary_ipa')), findsNothing);
+        expect(find.byKey(const Key('dictionary_synonyms')), findsNothing);
+        expect(find.byKey(const Key('dictionary_translations')), findsNothing);
+      });
+
+      testWidgets('reads the word aloud in its language', (tester) async {
+        final speech = speechService();
+        await pumpEntry(tester, speech: speech);
+
+        final listen = find.byKey(const Key('dictionary_listen'));
+        expect(listen, findsOneWidget);
+        final button = find.descendant(
+          of: listen,
+          matching: find.byType(IconButton),
+        );
+        expect(tester.getSize(button).height, greaterThanOrEqualTo(72));
+        await tester.tap(button);
+        await tester.pump();
+
+        verify(
+          () => speech.toggle(
+            id: 'dictionary_word',
+            text: 'gato',
+            languageCode: 'es',
+          ),
+        ).called(1);
+      });
+
+      testWidgets('asks for the word language to listen while detecting', (
+        tester,
+      ) async {
+        await pumpEntry(tester, from: 'auto', speech: speechService());
+
+        final button = find.descendant(
+          of: find.byKey(const Key('dictionary_listen')),
+          matching: find.byType(IconButton),
+        );
+        expect(tester.widget<IconButton>(button).onPressed, isNull);
+        expect(
+          find.byTooltip('Choose the word’s language to listen to it'),
+          findsOneWidget,
+        );
       });
 
       testWidgets('"Did you mean …?" looks the suggestion up', (tester) async {
@@ -472,7 +779,7 @@ void main() {
         await tester.pump();
         verifyLookUp('gatto');
 
-        final link = find.byKey(const Key('translate_dictionary_did_you_mean'));
+        final link = find.byKey(const Key('dictionary_did_you_mean'));
         expect(link, findsOneWidget);
         expect(
           find.textContaining('Did you mean “gato”?', findRichText: true),
@@ -487,6 +794,22 @@ void main() {
         // Not offered for the word that was looked up.
         expect(link, findsNothing);
       });
+
+      testWidgets('fits a small phone at 200% text', (tester) async {
+        tester.platformDispatcher.textScaleFactorTestValue = 2;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        await pumpEntry(
+          tester,
+          size: const Size(320, 640),
+          speech: speechService(),
+        );
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        await tester.tap(find.text('More'));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      });
     });
 
     group('without an AI engine', () {
@@ -495,23 +818,29 @@ void main() {
         when(router.canPop).thenReturn(true);
         when(() => router.push<void>(any())).thenAnswer((_) async {});
         await pumpPage(tester, state: _readyWithoutAi, router: router);
-        // The hero stays above the search.
-        expect(find.text('What does this mean?'), findsOneWidget);
 
+        // In place of the greeting, above the composer.
         expect(find.byKey(const Key('dictionary_no_engine')), findsOneWidget);
+        expect(find.byKey(const Key('dictionary_hero')), findsNothing);
+        expect(find.byKey(const Key('dictionary_composer')), findsOneWidget);
         expect(
           find.text('The dictionary needs an AI provider'),
           findsOneWidget,
         );
-        expect(find.byKey(const Key('dictionary_engine')), findsNothing);
-        final lookUp = tester.widget<IconButton>(
-          find.byKey(const Key('dictionary_look_up')),
+        await tester.enterText(
+          find.byKey(const Key('dictionary_search_field')),
+          'gato',
         );
-        expect(lookUp.onPressed, isNull);
+        await tester.pump();
+        expect(goButton(tester).onPressed, isNull);
 
         await tester.tap(find.text('Add AI provider'));
         // Above the tabs: back returns to the dictionary.
         verify(() => router.push<void>('/settings/providers')).called(1);
+        expect(dictionaryProvidersRoute, '/settings/providers');
+
+        await openOptions(tester);
+        expect(find.byKey(const Key('dictionary_engine')), findsNothing);
       });
 
       testWidgets('offers a retry when the engines failed to load', (
@@ -549,12 +878,39 @@ void main() {
       await tester.pump();
 
       expect(find.byType(TranslateErrorView), findsOneWidget);
+      expect(find.byKey(const Key('dictionary_new_look_up')), findsOneWidget);
       stubLookUp(repository, () async => gatoEntry);
       await tester.tap(find.text('Retry'));
       await tester.pump();
       await tester.pump();
 
-      expect(find.byType(DictionaryEntryView), findsOneWidget);
+      expect(find.byType(DictionaryEntryTabs), findsOneWidget);
+    });
+
+    testWidgets('asks for consent before sending the word', (tester) async {
+      var calls = 0;
+      stubLookUp(repository, () async {
+        if (calls++ == 0) {
+          throw const ConsentRequiredException(
+            kind: ConsentKind.pair,
+            destination: PublicInstanceDestination(
+              'mozhi.example.org',
+              engine: 'google',
+            ),
+            engineId: 'ai:claude',
+            source: 'es',
+            target: 'en',
+          );
+        }
+        return gatoEntry;
+      });
+      await pumpPage(
+        tester,
+        page: const DictionaryPage(word: 'gato', autoLookUp: true),
+      );
+      await tester.pump();
+
+      expect(find.byKey(const Key('translate_error_consent')), findsOneWidget);
     });
 
     testWidgets('says when there is no entry', (tester) async {
@@ -565,10 +921,11 @@ void main() {
       );
       await tester.pump();
 
+      expect(find.byKey(const Key('dictionary_not_found')), findsOneWidget);
       expect(find.text('No dictionary entry found for “qwz”.'), findsOneWidget);
     });
 
-    testWidgets('shows progress while looking up', (tester) async {
+    testWidgets('shows the word and progress while looking up', (tester) async {
       final pending = Completer<DictionaryEntry>();
       stubLookUp(repository, () => pending.future);
       await pumpPage(
@@ -576,14 +933,98 @@ void main() {
         page: const DictionaryPage(word: 'gato', autoLookUp: true),
       );
 
-      expect(find.byType(LinearProgressIndicator), findsOneWidget);
+      expect(find.byKey(const Key('dictionary_loading')), findsOneWidget);
+      expect(find.bySemanticsLabel('Looking up…'), findsOneWidget);
+      expect(find.text('gato'), findsOneWidget);
       pending.complete(gatoEntry);
       await tester.pump();
-      expect(find.byType(LinearProgressIndicator), findsNothing);
+      expect(find.byKey(const Key('dictionary_loading')), findsNothing);
+    });
+
+    group('result navigation', () {
+      testWidgets('back returns to the search with the word', (tester) async {
+        await pumpPage(
+          tester,
+          page: const DictionaryPage(word: 'gato', autoLookUp: true),
+        );
+        await tester.pump();
+        expect(find.byType(DictionaryEntryTabs), findsOneWidget);
+
+        await tester.tap(find.byKey(const Key('dictionary_back')));
+        await tester.pump();
+
+        expect(find.byType(DictionaryEntryTabs), findsNothing);
+        expect(find.byKey(const Key('dictionary_hero')), findsOneWidget);
+        expect(find.byKey(const Key('dictionary_back')), findsNothing);
+        final state = dictionaryState(tester);
+        expect(state.status, DictionaryStatus.idle);
+        expect(state.word, 'gato');
+        expect(state.entry, isNull);
+        final field = tester.widget<TextField>(
+          find.byKey(const Key('dictionary_search_field')),
+        );
+        expect(field.controller!.text, 'gato');
+        // Not focused again: no keyboard pops up.
+        expect(field.autofocus, isFalse);
+      });
+
+      testWidgets('system back does the same, then leaves', (tester) async {
+        await pumpPage(
+          tester,
+          page: const DictionaryPage(word: 'gato', autoLookUp: true),
+        );
+        await tester.pump();
+
+        await tester.binding.handlePopRoute();
+        await tester.pump();
+
+        expect(dictionaryState(tester).status, DictionaryStatus.idle);
+        expect(find.byKey(const Key('dictionary_hero')), findsOneWidget);
+      });
+
+      testWidgets('back while looking up ignores the late entry', (
+        tester,
+      ) async {
+        final pending = Completer<DictionaryEntry>();
+        stubLookUp(repository, () => pending.future);
+        await pumpPage(
+          tester,
+          page: const DictionaryPage(word: 'gato', autoLookUp: true),
+        );
+
+        await tester.tap(find.byKey(const Key('dictionary_back')));
+        await tester.pump();
+        pending.complete(gatoEntry);
+        await tester.pump();
+
+        expect(dictionaryState(tester).status, DictionaryStatus.idle);
+        expect(find.byType(DictionaryEntryTabs), findsNothing);
+      });
+
+      testWidgets('"New look-up" clears the word and focuses the search', (
+        tester,
+      ) async {
+        await pumpPage(
+          tester,
+          page: const DictionaryPage(word: 'gato', autoLookUp: true),
+        );
+        await tester.pump();
+
+        await tester.tap(find.byKey(const Key('dictionary_new_look_up')));
+        await tester.pump();
+        await tester.pump();
+
+        expect(dictionaryState(tester).word, isEmpty);
+        expect(find.byKey(const Key('dictionary_hero')), findsOneWidget);
+        expect(
+          tester.widget<EditableText>(searchEditable()).focusNode,
+          same(FocusManager.instance.primaryFocus),
+        );
+      });
     });
 
     group('search field', () {
-      testWidgets('looks up on Enter and clears', (tester) async {
+      testWidgets('looks up on Enter', (tester) async {
         await pumpPage(tester);
 
         await tester.enterText(
@@ -592,24 +1033,39 @@ void main() {
         );
         await tester.pump();
         expect(dictionaryState(tester).word, 'gato');
+        expect(goButton(tester).onPressed, isNotNull);
 
         await tester.testTextInput.receiveAction(TextInputAction.search);
         await tester.pump();
         await tester.pump();
         verifyLookUps(1);
-        expect(find.byType(DictionaryEntryView), findsOneWidget);
+        expect(find.byType(DictionaryEntryTabs), findsOneWidget);
         expect(find.byKey(const Key('dictionary_hero')), findsNothing);
+      });
 
-        await tester.tap(find.byKey(const Key('dictionary_clear')));
+      testWidgets('clears and moves keyboard focus to the field', (
+        tester,
+      ) async {
+        await pumpPage(tester, page: const DictionaryPage(word: 'gato'));
+
+        focusOf(
+          tester,
+          find.byKey(const Key('dictionary_clear')),
+        ).requestFocus();
         await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+
         expect(dictionaryState(tester).word, isEmpty);
         expect(find.byKey(const Key('dictionary_clear')), findsNothing);
-        expect(find.byKey(const Key('dictionary_empty')), findsOneWidget);
-        expect(find.byKey(const Key('dictionary_hero')), findsOneWidget);
         final field = tester.widget<TextField>(
           find.byKey(const Key('dictionary_search_field')),
         );
         expect(field.controller!.text, isEmpty);
+        expect(
+          tester.widget<EditableText>(searchEditable()).focusNode,
+          same(FocusManager.instance.primaryFocus),
+        );
       });
 
       testWidgets('stays named once it holds a word', (tester) async {
@@ -627,44 +1083,39 @@ void main() {
         semantics.dispose();
       });
 
-      testWidgets('clearing moves keyboard focus to the field', (tester) async {
+      testWidgets('the entry takes keyboard focus from Look up', (
+        tester,
+      ) async {
         await pumpPage(tester, page: const DictionaryPage(word: 'gato'));
 
         focusOf(
           tester,
-          find.byKey(const Key('dictionary_clear')),
-        ).requestFocus();
-        await tester.pump();
-        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-        await tester.pump();
-
-        expect(dictionaryState(tester).word, isEmpty);
-        expect(find.byKey(const Key('dictionary_clear')), findsNothing);
-        expect(
-          tester.widget<EditableText>(searchEditable()).focusNode,
-          same(FocusManager.instance.primaryFocus),
-        );
-      });
-
-      testWidgets('Look up keeps keyboard focus on the button', (tester) async {
-        await pumpPage(tester, page: const DictionaryPage(word: 'gato'));
-
-        final lookUp = focusOf(
-          tester,
           find.byKey(const Key('dictionary_look_up')),
-        )..requestFocus();
+        ).requestFocus();
         await tester.pump();
         await tester.sendKeyEvent(LogicalKeyboardKey.enter);
         await tester.pump();
         await tester.pump();
 
         verifyLookUps(1);
-        expect(lookUp.hasPrimaryFocus, isTrue);
+        // "New look-up" has it: Enter starts the next look-up.
+        expect(
+          focusOf(
+            tester,
+            find.byKey(const Key('dictionary_new_look_up')),
+          ).hasPrimaryFocus,
+          isTrue,
+        );
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+        await tester.pump();
+        expect(
+          tester.widget<EditableText>(searchEditable()).focusNode,
+          same(FocusManager.instance.primaryFocus),
+        );
       });
 
-      testWidgets('Enter keeps focus in the field and hides the keyboard', (
-        tester,
-      ) async {
+      testWidgets('Enter looks up and hides the keyboard', (tester) async {
         await pumpPage(tester);
 
         await tester.enterText(
@@ -678,13 +1129,6 @@ void main() {
         await tester.pump();
 
         verifyLookUps(1);
-        expect(
-          tester
-              .widget<EditableText>(searchEditable())
-              .focusNode
-              .hasPrimaryFocus,
-          isTrue,
-        );
         expect(tester.testTextInput.isVisible, isFalse);
       });
 
@@ -723,6 +1167,7 @@ void main() {
         await tester.pump();
 
         verifyNoLookUp();
+        expect(goButton(tester).onPressed, isNull);
       });
 
       testWidgets('limits the length', (tester) async {
@@ -736,6 +1181,57 @@ void main() {
 
         expect(dictionaryState(tester).word, hasLength(100));
       });
+
+      testWidgets('taps on the composer focus the field', (tester) async {
+        await pumpPage(tester, page: const DictionaryPage(word: 'gato'));
+
+        final composer = tester.getRect(
+          find.byKey(const Key('dictionary_composer')),
+        );
+        await tester.tapAt(composer.topLeft + const Offset(8, 8));
+        await tester.pump();
+
+        expect(
+          tester.widget<EditableText>(searchEditable()).focusNode.hasFocus,
+          isTrue,
+        );
+      });
+    });
+
+    group('voice input', () {
+      testWidgets('is not offered without a speech service', (tester) async {
+        await pumpPage(tester);
+        expect(find.byKey(const Key('dictionary_voice_input')), findsNothing);
+      });
+
+      testWidgets('dictates the word in its language', (tester) async {
+        final speech = FakeSpeechInput();
+        await pumpPage(
+          tester,
+          page: const DictionaryPage(from: 'es'),
+          speechInput: speech.service,
+        );
+        final mic = find.descendant(
+          of: find.byKey(const Key('dictionary_voice_input')),
+          matching: find.byType(IconButton),
+        );
+        expect(mic, findsOneWidget);
+
+        await tester.tap(mic);
+        await tester.pump();
+        expect(speech.languages, ['es']);
+
+        speech.say('ga');
+        await tester.pump();
+        expect(dictionaryState(tester).word, 'ga');
+        speech.say(' gato ', isFinal: true);
+        await tester.pump();
+        expect(dictionaryState(tester).word, 'gato');
+        speech.say('  ', isFinal: true);
+        await tester.pump();
+        expect(dictionaryState(tester).word, 'gato');
+        verifyNoLookUp();
+      });
     });
 
     group('languages', () {
@@ -744,10 +1240,7 @@ void main() {
       ) async {
         await pumpPage(tester, page: const DictionaryPage(word: 'gato'));
 
-        final swap = find.byKey(const Key('dictionary_swap'));
-        expect(tester.widget<IconButton>(swap).onPressed, isNull);
-
-        await tester.tap(find.byKey(const Key('dictionary_source_language')));
+        await tester.tap(find.byKey(const Key('dictionary_bar_source')));
         await tester.pumpAndSettle();
         expect(find.text('Language of the word'), findsOneWidget);
         expect(find.byKey(const Key('dictionary_language_auto')), findsOne);
@@ -768,14 +1261,44 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(dictionaryState(tester).source.code, 'es');
-        expect(tester.widget<IconButton>(swap).onPressed, isNotNull);
+        expect(find.text('Spanish'), findsOneWidget);
         verifyNoLookUp();
+      });
 
+      testWidgets('swaps them in the options', (tester) async {
+        await pumpPage(
+          tester,
+          page: const DictionaryPage(word: 'gato', from: 'es'),
+        );
+        await openOptions(tester);
+
+        final swap = find.byKey(const Key('dictionary_swap'));
+        expect(tester.widget<IconButton>(swap).onPressed, isNotNull);
         await tester.tap(swap);
         await tester.pump();
+
         final state = dictionaryState(tester);
         expect(state.source.code, 'en');
         expect(state.target.code, 'es');
+      });
+
+      testWidgets('cannot swap while detecting the word language', (
+        tester,
+      ) async {
+        await pumpPage(tester);
+        await openOptions(tester);
+
+        expect(
+          tester
+              .widget<IconButton>(find.byKey(const Key('dictionary_swap')))
+              .onPressed,
+          isNull,
+        );
+        await tester.tap(find.byKey(const Key('dictionary_source_language')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('dictionary_language_fr')));
+        await tester.pumpAndSettle();
+        expect(dictionaryState(tester).source.code, 'fr');
       });
 
       testWidgets('names a detected word language for screen readers', (
@@ -791,7 +1314,7 @@ void main() {
         );
         expect(find.bySemanticsLabel(RegExp('Detect language')), findsNothing);
 
-        await tester.tap(find.byKey(const Key('dictionary_source_language')));
+        await tester.tap(find.byKey(const Key('dictionary_bar_source')));
         await tester.pumpAndSettle();
         await tester.enterText(
           find.byKey(const Key('dictionary_language_search')),
@@ -813,7 +1336,7 @@ void main() {
         final semantics = tester.ensureSemantics();
         await pumpPage(tester);
 
-        await tester.tap(find.byKey(const Key('dictionary_source_language')));
+        await tester.tap(find.byKey(const Key('dictionary_bar_source')));
         await tester.pumpAndSettle();
         await tester.enterText(
           find.byKey(const Key('dictionary_language_search')),
@@ -841,7 +1364,7 @@ void main() {
       testWidgets('picks the first match on Enter', (tester) async {
         await pumpPage(tester);
 
-        await tester.tap(find.byKey(const Key('dictionary_target_language')));
+        await tester.tap(find.byKey(const Key('dictionary_bar_target')));
         await tester.pumpAndSettle();
         expect(find.text('Translations in'), findsOneWidget);
         expect(find.byKey(const Key('dictionary_language_auto')), findsNothing);
@@ -861,7 +1384,7 @@ void main() {
       ) async {
         await pumpPage(tester);
 
-        await tester.tap(find.byKey(const Key('dictionary_target_language')));
+        await tester.tap(find.byKey(const Key('dictionary_bar_target')));
         await tester.pumpAndSettle();
         await tester.enterText(
           find.byKey(const Key('dictionary_language_search')),
@@ -879,8 +1402,7 @@ void main() {
         expect(find.text('No languages found'), findsNothing);
 
         // Dismissing keeps the language.
-        await tester.tapAt(const Offset(10, 10));
-        await tester.pumpAndSettle();
+        await closeSheet(tester);
         expect(dictionaryState(tester).target.code, 'en');
       });
 
@@ -894,6 +1416,7 @@ void main() {
         await tester.pump();
         verifyLookUps(1);
 
+        await openOptions(tester);
         await tester.tap(find.byKey(const Key('dictionary_target_language')));
         await tester.pumpAndSettle();
         await tester.enterText(
@@ -906,6 +1429,14 @@ void main() {
 
         verifyLookUps(1);
         expect(dictionaryState(tester).target.code, 'fr');
+      });
+
+      testWidgets('share the bar by their names', (tester) async {
+        expect(dictionaryPairSplit(200, 50, 60), (100, 100));
+        expect(dictionaryPairSplit(200, 150, 60), (140, 60));
+        expect(dictionaryPairSplit(200, 50, 160), (50, 150));
+        expect(dictionaryPairSplit(200, 150, 160), (100, 100));
+        expect(dictionaryPairSplit(-10, 50, 60), (0, 0));
       });
     });
 
@@ -961,22 +1492,80 @@ void main() {
       });
     });
 
-    testWidgets('shows search and entry side by side on wide screens', (
-      tester,
-    ) async {
-      await pumpPage(
+    group('layout', () {
+      testWidgets('centres the composer and the entry on wide screens', (
         tester,
-        size: const Size(1200, 900),
-        page: const DictionaryPage(word: 'gato', autoLookUp: true),
-      );
-      await tester.pump();
+      ) async {
+        await pumpPage(
+          tester,
+          size: const Size(1200, 900),
+          page: const DictionaryPage(word: 'gato'),
+        );
 
-      final field = tester.getRect(
-        find.byKey(const Key('dictionary_search_field')),
-      );
-      final entry = tester.getRect(find.byKey(const Key('dictionary_entry')));
-      expect(entry.left, greaterThan(field.right));
-      expect(tester.takeException(), isNull);
+        final composer = tester.getRect(
+          find.byKey(const Key('dictionary_composer')),
+        );
+        expect(composer.center.dx, moreOrLessEquals(600, epsilon: 1));
+        expect(composer.width, lessThanOrEqualTo(760));
+        // The greeting sits right above the card.
+        expect(
+          composer.top - tester.getRect(find.byType(DictionaryHero)).bottom,
+          lessThan(40),
+        );
+
+        await tester.tap(find.byKey(const Key('dictionary_look_up')));
+        await tester.pump();
+        await tester.pump();
+        final entry = tester.getRect(find.byKey(const Key('dictionary_entry')));
+        expect(entry.width, lessThanOrEqualTo(720));
+        expect(entry.center.dx, moreOrLessEquals(600, epsilon: 1));
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('fits a small phone at 200% text', (tester) async {
+        tester.platformDispatcher.textScaleFactorTestValue = 2;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        await pumpPage(
+          tester,
+          size: const Size(320, 900),
+          page: const DictionaryPage(word: 'Donaudampfschiff', from: 'de'),
+          speechInput: FakeSpeechInput().service,
+        );
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(find.byKey(const Key('dictionary_hero')), findsOneWidget);
+        final bar = tester.getRect(find.byKey(const Key('dictionary_bar')));
+        expect(bar.right, lessThanOrEqualTo(320));
+        expect(
+          tester.getSize(buttonIn(const Key('dictionary_bar_source'))).height,
+          greaterThanOrEqualTo(48),
+        );
+      });
+
+      testWidgets('shows only the composer in a low window', (tester) async {
+        await pumpPage(tester, size: const Size(600, 300));
+
+        expect(find.byKey(const Key('dictionary_hero')), findsNothing);
+        expect(find.byKey(const Key('dictionary_composer')), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('mirrors in right-to-left languages', (tester) async {
+        await tester.binding.setLocale('ar', '');
+        addTearDown(() => tester.binding.setLocale('en', ''));
+        await pumpPage(tester, page: const DictionaryPage(word: 'gato'));
+        await tester.pumpAndSettle();
+
+        final options = tester.getCenter(
+          find.byKey(const Key('dictionary_options_button')),
+        );
+        final go = tester.getCenter(
+          find.byKey(const Key('dictionary_look_up')),
+        );
+        expect(options.dx, greaterThan(go.dx));
+        expect(tester.takeException(), isNull);
+      });
     });
 
     testWidgets('picks up edited engines', (tester) async {

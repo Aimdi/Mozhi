@@ -8,8 +8,8 @@
     <string name="tile_translate_description">Mozhi로 클립보드 번역</string>
     <string name="shortcut_clipboard_short">클립보드</string>
     <string name="shortcut_clipboard_long">클립보드 번역</string>
-    <string name="shortcut_camera_short">카메라</string>
-    <string name="shortcut_camera_long">카메라 번역</string>
+    <string name="shortcut_dictionary_short">사전</string>
+    <string name="shortcut_dictionary_long">사전</string>
     <string name="shortcut_conversation_short">대화</string>
     <string name="shortcut_conversation_long">대화</string>
     <string name="shortcut_proofread_short">교정</string>

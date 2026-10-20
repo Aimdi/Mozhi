@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Launch screen (drawable/launch_background.xml): white by day,
+         black at night (values-night/colors.xml). -->
+    <color name="launch_background">#FFFFFFFF</color>
+    <color name="launch_image">#FF000000</color>
+
     <!-- Launcher shortcut icons: the app's default seed colour (indigo) behind
          a white glyph. -->
     <color name="shortcut_icon_background">#FF3F51B5</color>

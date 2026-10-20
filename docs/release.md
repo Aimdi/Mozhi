@@ -45,13 +45,26 @@ Status as of 18 October 2026.
       `pubspec.yaml`).
 - [x] **Dependency metadata block**: turned off in
       `android/app/build.gradle.kts` (`dependenciesInfo`).
-- [ ] **A device test.** No build has run on a real phone yet (CI only
-      builds). Install a release candidate on at least one arm64 and,
-      ideally, one armeabi-v7a device. Check offline translation (download
-      a language), both text-selection actions ("Translate with Mozhi" and
-      "Translate offline"), text recognition in a photo (download one
-      language's data) and offline voice input (download the Fast model,
-      dictate a sentence).
+- [ ] **A device test.** CI only builds; so far one release candidate
+      (`v0.1.0-rc.1`) ran on a phone, where voice input, image translation
+      and "Detect language" failed (fixed in #16). Install each release
+      candidate on at least one arm64 and, ideally, one armeabi-v7a device.
+      Check offline translation (download a language), both text-selection
+      actions ("Translate with Mozhi" and "Translate offline"), text
+      recognition in a photo (download one language's data) and offline
+      voice input (download the Fast model, dictate a sentence). Then the
+      Android integration:
+      - long-press the app icon: the shortcuts Clipboard, Dictionary,
+        Proofread and Conversation open the right screen, also while the
+        app is already open;
+      - with themed icons on (Android 13+), the icon is monochrome;
+      - **Settings > Apps > Mozhi > Language** lists the app's languages
+        and switches the app without restarting it;
+      - status and navigation bar icons are dark in the light theme and
+        light in the dark one, on the tabs and on full-screen pages, with
+        gesture and three-button navigation;
+      - a Mozhi instance or Ollama on the LAN over `http://` works, a
+        public `http://` server is refused.
 
 ## What the release workflow does
 
@@ -60,7 +73,7 @@ Status as of 18 October 2026.
 
 | Job | Builds | Checks |
 | --- | --- | --- |
-| *Build Android APKs and app bundle* | the default (Google-free) build: one APK per ABI, a universal APK and the `.aab`, all obfuscated | `tool/check_no_google.sh` on every APK and the bundle; `tool/check_signing.py` (the release certificate; a release tag fails without the signing secrets); the universal APK has `libmozhi_bergamot.so` for all three ABIs and no `libc++_shared.so`; warns when the tag doesn't match the `pubspec.yaml` version |
+| *Build Android APKs and app bundle* | the default (Google-free) build: one APK per ABI, a universal APK and the `.aab`, all obfuscated | `tool/check_no_google.sh` on every APK and the bundle; `tool/check_signing.py` (the release certificate; a release tag fails without the signing secrets); the universal APK has the three engines (`libmozhi_bergamot.so`, `libmozhi_tesseract.so`, `libmozhi_whisper.so`) for all three ABIs and no `libc++_shared.so`; `tool/check_page_size.py`: every 64-bit native library loads on 16 KB page phones ([Building](building.md#check-an-apk-for-16-kb-pages)); warns when the tag doesn't match the `pubspec.yaml` version |
 | *Build web* | the static web build, zipped | |
 | *Publish GitHub release* | `SHA256SUMS.txt` over every file | publishes the release; it's marked as a **pre-release** when the tag contains `-` |
 

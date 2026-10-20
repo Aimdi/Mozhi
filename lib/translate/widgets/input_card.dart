@@ -251,9 +251,47 @@ class _InputCardState extends State<InputCard> {
     _cubit.setInput(combined);
   }
 
+  /// Whether a submit ([_submit]) happened in this event loop turn: a
+  /// hardware Enter may also arrive as the keyboard's action.
+  bool _submitted = false;
+
+  /// Enter with multiline input off (`AppSettings.multilineInput`):
+  /// translates like the go button.
+  void _submit() {
+    if (_submitted || _cubit.state.input.trim().isEmpty) return;
+    _submitted = true;
+    Timer.run(() => _submitted = false);
+    unawaited(_cubit.translate());
+  }
+
+  /// With multiline input off, Enter without Shift (or another modifier:
+  /// Ctrl/Cmd+Enter is the screen's shortcut) translates instead of adding
+  /// a new line, except while an input method composes text.
+  KeyEventResult _onEnter(KeyEvent event) {
+    final key = event.logicalKey;
+    final keyboard = HardwareKeyboard.instance;
+    if (event is KeyUpEvent ||
+        (key != LogicalKeyboardKey.enter &&
+            key != LogicalKeyboardKey.numpadEnter) ||
+        context.read<SettingsCubit>().state.multilineInput ||
+        keyboard.isShiftPressed ||
+        keyboard.isControlPressed ||
+        keyboard.isMetaPressed ||
+        keyboard.isAltPressed ||
+        (_controller.value.composing.isValid &&
+            !_controller.value.composing.isCollapsed)) {
+      return KeyEventResult.ignored;
+    }
+    if (event is KeyDownEvent) _submit();
+    return KeyEventResult.handled;
+  }
+
   /// Esc clears a non-empty field; otherwise the key keeps bubbling (e.g.
-  /// to dismiss a route).
+  /// to dismiss a route). Enter: see [_onEnter].
   KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
+    if (_onEnter(event) == KeyEventResult.handled) {
+      return KeyEventResult.handled;
+    }
     if (event is! KeyDownEvent ||
         event.logicalKey != LogicalKeyboardKey.escape ||
         _controller.text.isEmpty ||
@@ -338,7 +376,12 @@ class _InputCardState extends State<InputCard> {
                               required maxLength,
                             }) => null,
                             keyboardType: TextInputType.multiline,
-                            textInputAction: TextInputAction.newline,
+                            textInputAction: settings.multilineInput
+                                ? TextInputAction.newline
+                                : TextInputAction.go,
+                            onSubmitted: settings.multilineInput
+                                ? null
+                                : (_) => _submit(),
                             textDirection: inputTextDirection(state),
                             minLines: widget.minLines,
                             maxLines: null,

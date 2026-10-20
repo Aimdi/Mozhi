@@ -8,8 +8,8 @@
     <string name="tile_translate_description">Klembord vertalen met Mozhi</string>
     <string name="shortcut_clipboard_short">Klembord</string>
     <string name="shortcut_clipboard_long">Klembord vertalen</string>
-    <string name="shortcut_camera_short">Camera</string>
-    <string name="shortcut_camera_long">Vertalen met camera</string>
+    <string name="shortcut_dictionary_short">Woordenboek</string>
+    <string name="shortcut_dictionary_long">Woordenboek</string>
     <string name="shortcut_conversation_short">Gesprek</string>
     <string name="shortcut_conversation_long">Gesprek</string>
     <string name="shortcut_proofread_short">Nakijken</string>

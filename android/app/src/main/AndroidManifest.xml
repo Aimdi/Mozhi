@@ -189,10 +189,18 @@
     <!-- Package visibility (Android 11+), see
          https://developer.android.com/training/package-visibility -->
     <queries>
-        <!-- Opening links in a browser (url_launcher). -->
+        <!-- Browsers, for links (url_launcher: canLaunchUrl and
+             supportsLaunchMode need these; launchUrl itself starts the
+             browser without them). http too: the web page translator opens
+             pages on the local network ("Open original"). One <intent> per
+             scheme: in <queries>, an <intent> may name only one scheme. -->
         <intent>
             <action android:name="android.intent.action.VIEW"/>
             <data android:scheme="https"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="http"/>
         </intent>
         <!-- Used by the Flutter engine (io.flutter.plugin.text.ProcessTextPlugin)
              to list apps that can process selected text. -->

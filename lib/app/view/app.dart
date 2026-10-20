@@ -25,6 +25,7 @@ import 'package:mozhi/presets/view/presets_providers.dart';
 import 'package:mozhi/quick_translate/view/quick_translate_sheet.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
+import 'package:mozhi/settings/models/app_languages.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/speech/speech_service.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -63,7 +64,9 @@ class _AppState extends State<App> {
     super.initState();
     _settingsCubit = SettingsCubit(
       repository: _deps.settingsRepository,
-      initial: _deps.settings,
+      // Without "Remember quality selection" each start begins in the
+      // default quality mode.
+      initial: _deps.settings.atLaunch(),
     );
     _historyCubit = HistoryCubit(
       repository: _deps.historyRepository,
@@ -89,10 +92,12 @@ class _AppState extends State<App> {
     _router = createAppRouter(
       navigatorKey: _navigatorKey,
       onTranslateLink: _openLink,
-      // A link must open what it links to, not the onboarding.
+      // A link must open what it links to, not the onboarding (nor the
+      // first tab of the user's order).
       launchRedirect: (location) => webLink != null
           ? null
-          : onboardingRedirect(_settingsCubit.state, location),
+          : onboardingRedirect(_settingsCubit.state, location) ??
+                homeRedirect(_settingsCubit.state, location),
     );
     if (webLink != null) _openLink(webLink); // coverage:ignore-line
 
@@ -303,8 +308,12 @@ class _AppState extends State<App> {
                         theme: themes.light,
                         darkTheme: themes.dark,
                         themeMode: settings.themeMode,
+                        // Null follows the device ("System default").
+                        locale: AppLanguages.resolve(settings.appLocale),
+                        localeListResolutionCallback:
+                            AppLanguages.resolveDeviceLocales,
                         localizationsDelegates: appLocalizationsDelegates,
-                        supportedLocales: AppLocalizations.supportedLocales,
+                        supportedLocales: AppLanguages.supported,
                         routerConfig: _router,
                         builder: (context, child) => UsageWarningListener(
                           tracker: _deps.usageTracker,
@@ -353,8 +362,10 @@ bool privacyChanged(AppSettings previous, AppSettings current) =>
     !listEquals(previous.networkPairs, current.networkPairs) ||
     !listEquals(previous.consentedProviders, current.consentedProviders);
 
-/// Whether [current] changes how the app looks.
+/// Whether [current] changes how the app looks (including the language of
+/// its texts).
 bool appearanceChanged(AppSettings previous, AppSettings current) =>
+    previous.appLocale != current.appLocale ||
     previous.themeMode != current.themeMode ||
     previous.dynamicColor != current.dynamicColor ||
     previous.pureBlack != current.pureBlack ||

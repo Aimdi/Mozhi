@@ -8,8 +8,8 @@
     <string name="tile_translate_description">Traduci gli appunti con Mozhi</string>
     <string name="shortcut_clipboard_short">Appunti</string>
     <string name="shortcut_clipboard_long">Traduci gli appunti</string>
-    <string name="shortcut_camera_short">Fotocamera</string>
-    <string name="shortcut_camera_long">Traduci con la fotocamera</string>
+    <string name="shortcut_dictionary_short">Dizionario</string>
+    <string name="shortcut_dictionary_long">Dizionario</string>
     <string name="shortcut_conversation_short">Conversazione</string>
     <string name="shortcut_conversation_long">Conversazione</string>
     <string name="shortcut_proofread_short">Correggi</string>

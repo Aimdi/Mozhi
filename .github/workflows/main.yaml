@@ -94,6 +94,7 @@ jobs:
           python3 tool/check_trackers_test.py
           python3 tool/check_keystore_test.py
           python3 tool/check_signing_test.py
+          python3 tool/check_page_size_test.py
 
       - name: Test app
         run: flutter test --coverage
@@ -283,8 +284,8 @@ jobs:
 
       # The engine as shipped (stripped by Gradle): every ABI is in the
       # universal APK and libc++ is linked statically (no libc++_shared.so).
-      # Exports, dependencies and 16 KB alignment are checked by the job
-      # "Build Bergamot native (Android)".
+      # Exports and dependencies are checked by the job "Build Bergamot
+      # native (Android)", 16 KB alignment there and in the next step.
       - name: Check the on-device engines are in the APK
         run: |
           set -euo pipefail
@@ -304,6 +305,14 @@ jobs:
             failed=1
           fi
           [ "$failed" = 0 ]
+
+      # Android 15+ phones with 16 KB memory pages only load a native
+      # library whose LOAD segments are 16 KB aligned and, stored
+      # uncompressed, starts on a 16 KB boundary in the APK. Every
+      # 64-bit library as packaged: the engines, Flutter's and the
+      # plugins'.
+      - name: Check the native libraries for 16 KB pages
+        run: python3 tool/check_page_size.py dist/*.apk
 
       - name: Size report
         run: |

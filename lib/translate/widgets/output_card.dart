@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/haptics.dart';
 import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
@@ -195,7 +195,7 @@ class _OutputCardState extends State<OutputCard> {
   }
 
   Future<void> _copy(String text) async {
-    unawaited(HapticFeedback.lightImpact());
+    Haptics.light(context);
     await copyToClipboard(context, text);
     if (!mounted) return;
     _copiedTimer?.cancel();
@@ -284,7 +284,7 @@ class _OutputCardState extends State<OutputCard> {
           state.romanizationStatus == ExtraStatus.failure);
 
   void _toggleFavorite(TranslateState state, HistoryEntry? entry) {
-    unawaited(HapticFeedback.lightImpact());
+    Haptics.light(context);
     final history = context.read<HistoryCubit>();
     if (entry != null) {
       unawaited(history.toggleFavorite(entry.id));

@@ -58,6 +58,16 @@ const _custom = AppSettings(
   incognito: true,
   secureScreen: true,
   httpProxy: '127.0.0.1:8118',
+  appLocale: 'de',
+  hapticFeedback: false,
+  tabOrder: [
+    AppTab.dictionary,
+    AppTab.translate,
+    AppTab.conversation,
+    AppTab.proofread,
+  ],
+  rememberQuality: false,
+  multilineInput: false,
 );
 
 void main() {
@@ -98,6 +108,15 @@ void main() {
       expect(settings.incognito, isFalse);
       expect(settings.secureScreen, isFalse);
       expect(settings.httpProxy, isNull);
+      // System default, like the app before the setting existed.
+      expect(settings.appLocale, isNull);
+      expect(settings.hapticFeedback, isTrue);
+      expect(settings.tabOrder, AppTab.values);
+      expect(settings.tabOrder.first, AppTab.translate);
+      // On: the quality mode was always remembered before.
+      expect(settings.rememberQuality, isTrue);
+      // Enter adds a new line, as before.
+      expect(settings.multilineInput, isTrue);
     });
 
     test('supports value equality', () {
@@ -116,6 +135,117 @@ void main() {
         labelled,
         isNot(equals(const AppSettings(instances: [_instance]))),
       );
+    });
+
+    group(AppTab, () {
+      test('reads a tab by its id', () {
+        for (final tab in AppTab.values) {
+          expect(AppTab.fromId(tab.name), tab);
+        }
+        expect(AppTab.fromId('history'), isNull);
+        expect(AppTab.fromId(0), isNull);
+        expect(AppTab.fromId(null), isNull);
+      });
+
+      test('keeps the branch order of the router', () {
+        expect(AppTab.values.map((tab) => tab.name), [
+          'translate',
+          'dictionary',
+          'proofread',
+          'conversation',
+        ]);
+      });
+    });
+
+    group('normalizeTabOrder', () {
+      test('keeps a complete order', () {
+        const order = [
+          AppTab.conversation,
+          AppTab.proofread,
+          AppTab.dictionary,
+          AppTab.translate,
+        ];
+        expect(AppSettings.normalizeTabOrder(order), order);
+      });
+
+      test('drops duplicates and adds the missing tabs in default order', () {
+        expect(
+          AppSettings.normalizeTabOrder(const [
+            AppTab.proofread,
+            AppTab.proofread,
+            AppTab.conversation,
+          ]),
+          [
+            AppTab.proofread,
+            AppTab.conversation,
+            AppTab.translate,
+            AppTab.dictionary,
+          ],
+        );
+        expect(AppSettings.normalizeTabOrder(const []), AppTab.values);
+      });
+
+      test('is unmodifiable', () {
+        expect(
+          () =>
+              AppSettings.normalizeTabOrder(AppTab.values)
+                  .add(AppTab.translate),
+          throwsUnsupportedError,
+        );
+      });
+    });
+
+    group('atLaunch', () {
+      test('keeps the quality mode when it is remembered', () {
+        const settings = AppSettings(
+          fastEngineId: 'mozhi:google',
+          bestEngineId: 'ai:p1',
+          qualityMode: QualityMode.best,
+        );
+
+        expect(settings.atLaunch(), same(settings));
+      });
+
+      test('starts in Fast when it is set up and not remembered', () {
+        const settings = AppSettings(
+          fastEngineId: 'mozhi:google',
+          bestEngineId: 'ai:p1',
+          qualityMode: QualityMode.best,
+          rememberQuality: false,
+        );
+
+        expect(settings.launchQualityMode, QualityMode.fast);
+        expect(
+          settings.atLaunch(),
+          settings.copyWith(qualityMode: QualityMode.fast),
+        );
+        // Also after the usual engine was used.
+        expect(
+          settings
+              .copyWith(qualityMode: QualityMode.off)
+              .atLaunch()
+              .qualityMode,
+          QualityMode.fast,
+        );
+      });
+
+      test('starts with the usual engine without a Fast engine', () {
+        const settings = AppSettings(
+          bestEngineId: 'ai:p1',
+          qualityMode: QualityMode.best,
+          rememberQuality: false,
+        );
+
+        expect(settings.launchQualityMode, QualityMode.off);
+        expect(settings.atLaunch().qualityMode, QualityMode.off);
+        expect(settings.atLaunch().bestEngineId, 'ai:p1');
+      });
+
+      test('changes nothing when already in the launch mode', () {
+        const settings = AppSettings(rememberQuality: false);
+
+        expect(settings.atLaunch(), same(settings));
+      });
     });
 
     group('normalizeExtraTargets', () {
@@ -198,6 +328,11 @@ void main() {
           incognito: _custom.incognito,
           secureScreen: _custom.secureScreen,
           httpProxy: () => _custom.httpProxy,
+          appLocale: () => _custom.appLocale,
+          hapticFeedback: _custom.hapticFeedback,
+          tabOrder: _custom.tabOrder,
+          rememberQuality: _custom.rememberQuality,
+          multilineInput: _custom.multilineInput,
         );
 
         expect(copy, equals(_custom));
@@ -216,6 +351,7 @@ void main() {
         expect(copy.fastEngineId, isNull);
         expect(copy.bestEngineId, isNull);
         expect(_custom.copyWith(httpProxy: () => null).httpProxy, isNull);
+        expect(_custom.copyWith(appLocale: () => null).appLocale, isNull);
       });
 
       test('keeps the quality engine ids when not given', () {
@@ -291,6 +427,29 @@ void main() {
         expect(json['qualityMode'], 'best');
         expect(json['fastEngineId'], 'mozhi:google');
         expect(json['bestEngineId'], 'ai:p1');
+      });
+
+      test('stores the general settings', () {
+        final json = _custom.toJson();
+
+        expect(json['appLocale'], 'de');
+        expect(json['hapticFeedback'], false);
+        expect(json['tabOrder'], [
+          'dictionary',
+          'translate',
+          'conversation',
+          'proofread',
+        ]);
+        expect(json['rememberQuality'], false);
+        expect(json['multilineInput'], false);
+        final defaults = const AppSettings().toJson();
+        expect(defaults['appLocale'], isNull);
+        expect(defaults['tabOrder'], [
+          'translate',
+          'dictionary',
+          'proofread',
+          'conversation',
+        ]);
       });
 
       test('stores the extra targets in order', () {
@@ -379,6 +538,11 @@ void main() {
           'incognito': 'yes',
           'secureScreen': 1,
           'httpProxy': '',
+          'appLocale': 7,
+          'hapticFeedback': 'off',
+          'tabOrder': 'translate',
+          'rememberQuality': 0,
+          'multilineInput': 'no',
         });
 
         expect(settings, equals(const AppSettings()));
@@ -403,6 +567,68 @@ void main() {
         expect(settings.recentPairs, isEmpty);
         expect(settings.extraTargets, isEmpty);
         expect(settings.engineId, 'ai:p1');
+      });
+
+      test('loads settings stored before the general settings existed', () {
+        final json = _custom.toJson()
+          ..remove('appLocale')
+          ..remove('hapticFeedback')
+          ..remove('tabOrder')
+          ..remove('rememberQuality')
+          ..remove('multilineInput');
+
+        final settings = AppSettings.fromJson(json);
+
+        expect(settings.appLocale, isNull);
+        expect(settings.hapticFeedback, isTrue);
+        expect(settings.tabOrder, AppTab.values);
+        expect(settings.rememberQuality, isTrue);
+        expect(settings.multilineInput, isTrue);
+        // Everything else as stored.
+        expect(
+          settings,
+          _custom.copyWith(
+            providers: [_provider.copyWith(clearApiKey: true)],
+            appLocale: () => null,
+            hapticFeedback: true,
+            tabOrder: AppTab.values,
+            rememberQuality: true,
+            multilineInput: true,
+          ),
+        );
+      });
+
+      test('reads a tab order, completing it and skipping unknown ids', () {
+        final settings = AppSettings.fromJson(const {
+          'tabOrder': [
+            'proofread',
+            'history',
+            3,
+            null,
+            'proofread',
+            'dictionary',
+          ],
+        });
+
+        expect(settings.tabOrder, [
+          AppTab.proofread,
+          AppTab.dictionary,
+          AppTab.translate,
+          AppTab.conversation,
+        ]);
+        expect(
+          () => settings.tabOrder.add(AppTab.translate),
+          throwsUnsupportedError,
+        );
+        expect(
+          AppSettings.fromJson(const {'tabOrder': <Object>[]}).tabOrder,
+          AppTab.values,
+        );
+      });
+
+      test('keeps an app language the app may not know (yet)', () {
+        expect(AppSettings.fromJson(const {'appLocale': 'sv'}).appLocale, 'sv');
+        expect(AppSettings.fromJson(const {'appLocale': ''}).appLocale, isNull);
       });
 
       test('reads the privacy fields, skipping invalid and duplicate '

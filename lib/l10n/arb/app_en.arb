@@ -7562,5 +7562,183 @@
   "settingsColorLavender": "Lavender",
   "@settingsColorLavender": {
     "description": "settingsColorLavender"
+  },
+  "settingsSectionGeneral": "General",
+  "@settingsSectionGeneral": {
+    "description": "settingsSectionGeneral"
+  },
+  "settingsAppLanguage": "App language",
+  "@settingsAppLanguage": {
+    "description": "settingsAppLanguage"
+  },
+  "settingsAppLanguageSystem": "System default",
+  "@settingsAppLanguageSystem": {
+    "description": "settingsAppLanguageSystem"
+  },
+  "settingsAppLanguageDialogBody": "The language of the menus and buttons. What you translate is not affected.",
+  "@settingsAppLanguageDialogBody": {
+    "description": "settingsAppLanguageDialogBody"
+  },
+  "settingsHapticFeedback": "Haptic feedback",
+  "@settingsHapticFeedback": {
+    "description": "settingsHapticFeedback"
+  },
+  "settingsHapticFeedbackSubtitle": "Vibrate lightly when you press translate, swap, copy or favourite",
+  "@settingsHapticFeedbackSubtitle": {
+    "description": "settingsHapticFeedbackSubtitle"
+  },
+  "settingsTabOrder": "Tab order",
+  "@settingsTabOrder": {
+    "description": "settingsTabOrder"
+  },
+  "settingsTabOrderSubtitle": "Opens on {tab}",
+  "@settingsTabOrderSubtitle": {
+    "description": "Subtitle of the tab order setting: the tab the app opens on.",
+    "placeholders": {
+      "tab": {
+        "type": "String",
+        "example": "Translate"
+      }
+    }
+  },
+  "settingsTabOrderHint": "The app opens on the first tab. Drag a tab by its handle or use the arrows to move it.",
+  "@settingsTabOrderHint": {
+    "description": "settingsTabOrderHint"
+  },
+  "settingsTabOrderFirst": "Opens when the app starts",
+  "@settingsTabOrderFirst": {
+    "description": "settingsTabOrderFirst"
+  },
+  "settingsTabOrderDragHandle": "Drag to reorder",
+  "@settingsTabOrderDragHandle": {
+    "description": "settingsTabOrderDragHandle"
+  },
+  "settingsTabOrderMoveUp": "Move {tab} up",
+  "@settingsTabOrderMoveUp": {
+    "description": "Tooltip and label of the button that moves a tab one place up.",
+    "placeholders": {
+      "tab": {
+        "type": "String",
+        "example": "Dictionary"
+      }
+    }
+  },
+  "settingsTabOrderMoveDown": "Move {tab} down",
+  "@settingsTabOrderMoveDown": {
+    "description": "Tooltip and label of the button that moves a tab one place down.",
+    "placeholders": {
+      "tab": {
+        "type": "String",
+        "example": "Dictionary"
+      }
+    }
+  },
+  "settingsTabOrderReset": "Reset to the default order",
+  "@settingsTabOrderReset": {
+    "description": "settingsTabOrderReset"
+  },
+  "settingsTabOrderResetDone": "Default tab order restored",
+  "@settingsTabOrderResetDone": {
+    "description": "settingsTabOrderResetDone"
+  },
+  "settingsRememberQuality": "Remember quality selection",
+  "@settingsRememberQuality": {
+    "description": "settingsRememberQuality"
+  },
+  "settingsRememberQualitySubtitle": "Start with the Fast or Best mode you used last. When off, the app starts in Fast if it is set up, otherwise with your usual engine.",
+  "@settingsRememberQualitySubtitle": {
+    "description": "settingsRememberQualitySubtitle"
+  },
+  "settingsMultilineInput": "Multiline input",
+  "@settingsMultilineInput": {
+    "description": "settingsMultilineInput"
+  },
+  "settingsMultilineInputSubtitle": "When on, Enter adds a new line instead of starting a translation.",
+  "@settingsMultilineInputSubtitle": {
+    "description": "settingsMultilineInputSubtitle"
+  },
+  "dictionaryOptionsTooltip": "Dictionary options",
+  "@dictionaryOptionsTooltip": {
+    "description": "dictionaryOptionsTooltip"
+  },
+  "dictionaryOptionsTitle": "Options",
+  "@dictionaryOptionsTitle": {
+    "description": "dictionaryOptionsTitle"
+  },
+  "dictionaryLanguagesTitle": "Languages",
+  "@dictionaryLanguagesTitle": {
+    "description": "dictionaryLanguagesTitle"
+  },
+  "dictionaryTabMeaning": "Meaning",
+  "@dictionaryTabMeaning": {
+    "description": "dictionaryTabMeaning"
+  },
+  "dictionaryTabMore": "More",
+  "@dictionaryTabMore": {
+    "description": "dictionaryTabMore"
+  },
+  "dictionaryTabExamples": "Examples",
+  "@dictionaryTabExamples": {
+    "description": "dictionaryTabExamples"
+  },
+  "dictionaryOtherMeanings": "Other meanings",
+  "@dictionaryOtherMeanings": {
+    "description": "dictionaryOtherMeanings"
+  },
+  "dictionaryNotes": "Notes",
+  "@dictionaryNotes": {
+    "description": "dictionaryNotes"
+  },
+  "dictionaryTranslationsIn": "In {language}",
+  "@dictionaryTranslationsIn": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "dictionaryNewLookUp": "New look-up",
+  "@dictionaryNewLookUp": {
+    "description": "dictionaryNewLookUp"
+  },
+  "dictionaryListenNeedsLanguage": "Choose the word’s language to listen to it",
+  "@dictionaryListenNeedsLanguage": {
+    "description": "dictionaryListenNeedsLanguage"
+  },
+  "proofreadOptionsTooltip": "Proofreading options",
+  "@proofreadOptionsTooltip": {
+    "description": "proofreadOptionsTooltip"
+  },
+  "proofreadOptionsModifiedTooltip": "Proofreading options (modified)",
+  "@proofreadOptionsModifiedTooltip": {
+    "description": "proofreadOptionsModifiedTooltip"
+  },
+  "proofreadShortcutTooltip": "Proofread (Ctrl+Enter)",
+  "@proofreadShortcutTooltip": {
+    "description": "proofreadShortcutTooltip"
+  },
+  "proofreadLanguageTitle": "Language",
+  "@proofreadLanguageTitle": {
+    "description": "proofreadLanguageTitle"
+  },
+  "proofreadLanguageAuto": "Detect language",
+  "@proofreadLanguageAuto": {
+    "description": "proofreadLanguageAuto"
+  },
+  "proofreadLanguageButton": "Language: {language}",
+  "@proofreadLanguageButton": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "proofreadLanguageDetected": "Detected: {language}",
+  "@proofreadLanguageDetected": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
   }
 }

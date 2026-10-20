@@ -171,6 +171,60 @@ void main() {
         },
       );
 
+      test('loads settings saved before the general settings existed '
+          'unchanged, without rewriting them', () async {
+        const old = AppSettings(
+          themeMode: ThemeMode.dark,
+          engineId: 'mozhi:deepl',
+          fastEngineId: 'mozhi:google',
+          bestEngineId: 'ai:p1',
+          qualityMode: QualityMode.best,
+          onboardingComplete: true,
+          privacyMode: PrivacyMode.online,
+        );
+        final json = old.toJson()
+          ..remove('appLocale')
+          ..remove('hapticFeedback')
+          ..remove('tabOrder')
+          ..remove('rememberQuality')
+          ..remove('multilineInput');
+        final stored = jsonEncode(json);
+        final prefs = _FlakyStore({SettingsRepository.settingsKey: stored});
+        final repository = SettingsRepository(prefs: prefs, secrets: secrets);
+
+        final loaded = await repository.load();
+
+        expect(loaded, equals(old));
+        // The quality mode is still remembered, Enter still adds a line.
+        expect(loaded.rememberQuality, isTrue);
+        expect(loaded.atLaunch().qualityMode, QualityMode.best);
+        expect(loaded.multilineInput, isTrue);
+        expect(loaded.hapticFeedback, isTrue);
+        expect(loaded.tabOrder, AppTab.values);
+        expect(loaded.appLocale, isNull);
+        expect(prefs.writes, 0);
+        expect(prefs.values[SettingsRepository.settingsKey], stored);
+      });
+
+      test('round-trips the general settings', () async {
+        const settings = AppSettings(
+          appLocale: 'ja',
+          hapticFeedback: false,
+          tabOrder: [
+            AppTab.proofread,
+            AppTab.translate,
+            AppTab.dictionary,
+            AppTab.conversation,
+          ],
+          rememberQuality: false,
+          multilineInput: false,
+        );
+
+        await repository.save(settings);
+
+        expect(await repository.load(), equals(settings));
+      });
+
       test('reads a stored privacy mode as is', () async {
         prefs.values[SettingsRepository.settingsKey] = jsonEncode(
           const AppSettings(privacyMode: PrivacyMode.offlineOnly).toJson(),

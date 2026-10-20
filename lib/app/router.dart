@@ -33,12 +33,14 @@ import 'package:mozhi/presets/view/glossaries_page.dart'
 import 'package:mozhi/presets/view/presets_page.dart' deferred as presets_page;
 import 'package:mozhi/proofread/view/proofread_page.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/about_page.dart';
 import 'package:mozhi/settings/view/instances_page.dart';
 import 'package:mozhi/settings/view/provider_editor_page.dart';
 import 'package:mozhi/settings/view/providers_page.dart';
 import 'package:mozhi/settings/view/quality_modes_page.dart';
 import 'package:mozhi/settings/view/settings_page.dart';
+import 'package:mozhi/settings/view/tab_order_page.dart';
 import 'package:mozhi/settings/view/voice_input_settings_page.dart';
 import 'package:mozhi/translate/view/translate_page.dart';
 import 'package:mozhi/usage/view/usage_summary_page.dart'
@@ -53,11 +55,20 @@ import 'package:translation_repository/translation_repository.dart';
 
 /// Every location the app can show.
 abstract final class AppRoutes {
-  /// The four tabs (in this order).
+  /// The four tabs (in their default order; the user can reorder them,
+  /// see [tab]).
   static const translate = '/translate';
   static const dictionary = '/dictionary';
   static const proofread = '/proofread';
   static const conversation = '/conversation';
+
+  /// The location of [tab].
+  static String tab(AppTab tab) => switch (tab) {
+    AppTab.translate => translate,
+    AppTab.dictionary => dictionary,
+    AppTab.proofread => proofread,
+    AppTab.conversation => conversation,
+  };
 
   /// Full pages above the tabs, opened from every tab's app bar
   /// ([TopLevelActions]); the settings sub-pages stack above the settings.
@@ -80,6 +91,9 @@ abstract final class AppRoutes {
   /// AI provider usage this and last month.
   static const usage = '/settings/usage';
   static const quality = '/settings/quality';
+
+  /// The order of the tabs.
+  static const tabOrder = '/settings/tabs';
 
   /// Voice input settings (the offline speech models).
   static const String voiceSettings = VoiceInputButton.settingsLocation;
@@ -197,8 +211,9 @@ typedef LaunchRedirect = String? Function(String location);
 ///
 /// Four tabs (Translate, Dictionary, Proofread, Conversation) are kept
 /// alive in a [StatefulShellRoute.indexedStack] with an adaptive
-/// [AppShell]; the Dictionary and Conversation tabs are deferred (loaded
-/// when first opened). History and Settings (with the settings sub-pages
+/// [AppShell] (which shows them in the user's order, `AppSettings.tabOrder`;
+/// the branches and their locations never move); the Dictionary and
+/// Conversation tabs are deferred (loaded when first opened). History and Settings (with the settings sub-pages
 /// nested below it), the onboarding and the image, document and web page
 /// translators are full-screen routes on the root navigator
 /// ([navigatorKey]) outside the tabs: pushed (see [TopLevelActions]) they
@@ -220,7 +235,9 @@ typedef LaunchRedirect = String? Function(String location);
 /// [launchRedirect] is consulted once, for the location the app starts at,
 /// and only when that is a plain start location (`/` or `/translate`
 /// without a query, see [isLaunchLocation]): deep links and shared text
-/// are never redirected.
+/// are never redirected. The app uses it for the onboarding and to open on
+/// the first tab of the user's order ([homeRedirect]); the onboarding
+/// finishes on that tab too.
 GoRouter createAppRouter({
   TranslateLinkCallback? onTranslateLink,
   LaunchRedirect? launchRedirect,
@@ -270,7 +287,9 @@ GoRouter createAppRouter({
       fullScreenDeferred(
         AppRoutes.onboarding,
         DeferredFeatures.onboarding,
-        (context, state) => onboarding_page.OnboardingPage(),
+        (context, state) => onboarding_page.OnboardingPage(
+          finishLocation: _homeLocation(context),
+        ),
       ),
       fullScreenDeferred(
         AppRoutes.image,
@@ -349,6 +368,10 @@ GoRouter createAppRouter({
           GoRoute(
             path: 'quality',
             builder: (context, state) => const QualityModesPage(),
+          ),
+          GoRoute(
+            path: 'tabs',
+            builder: (context, state) => const TabOrderPage(),
           ),
           GoRoute(
             path: 'voice',
@@ -479,6 +502,24 @@ String? deepLinkLocation(Uri uri) {
     path: '/${path.path}',
     query: uri.hasQuery && uri.query.isNotEmpty ? uri.query : null,
   ).toString();
+}
+
+/// [LaunchRedirect] to the first tab of the user's order
+/// ([AppSettings.tabOrder]): its location, or null when that is [location]
+/// already (the translate tab, by default).
+String? homeRedirect(AppSettings settings, String location) {
+  final home = AppRoutes.tab(settings.tabOrder.first);
+  return home == location ? null : home;
+}
+
+/// The location of the first tab of the user's order (the translate tab
+/// without a [SettingsCubit]).
+String _homeLocation(BuildContext context) {
+  try {
+    return AppRoutes.tab(context.read<SettingsCubit>().state.tabOrder.first);
+  } on ProviderNotFoundException {
+    return AppRoutes.translate;
+  }
 }
 
 /// Whether the app-wide [SpeechInputService] can recognise speech on this

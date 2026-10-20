@@ -3,9 +3,9 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/haptics.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -384,7 +384,7 @@ class _SwapButtonState extends State<_SwapButton> {
   double _turns = 0;
 
   void _swap() {
-    unawaited(HapticFeedback.selectionClick());
+    Haptics.selection(context);
     setState(() => _turns += 0.5);
     context.read<TranslateCubit>().swap();
   }

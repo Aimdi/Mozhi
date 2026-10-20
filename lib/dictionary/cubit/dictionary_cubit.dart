@@ -159,6 +159,22 @@ class DictionaryCubit extends Cubit<DictionaryState> {
     );
   }
 
+  /// Leaves the entry (or the look-up in progress, or its error) for the
+  /// search, keeping the word: the status is idle again and a pending
+  /// response is ignored.
+  void closeEntry() {
+    _pending = false;
+    _request++;
+    emit(
+      state.copyWith(
+        status: DictionaryStatus.idle,
+        entry: () => null,
+        lookedUp: '',
+        error: () => null,
+      ),
+    );
+  }
+
   /// Looks the current word up with the current [DictionaryState.verbosity].
   /// Without an engine the look-up waits for [setEngine].
   Future<void> lookUp() async {

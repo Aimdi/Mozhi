@@ -10,12 +10,14 @@ import 'package:mozhi/app/fallback_key_value_store.dart';
 import 'package:mozhi/app/view/top_level_actions.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/history/models/history_entry.dart';
+import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/onboarding/view/onboarding_page.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
 import 'package:mozhi/presets/cubit/glossary_cubit.dart';
 import 'package:mozhi/presets/cubit/presets_cubit.dart';
 import 'package:mozhi/quick_translate/view/quick_translate_sheet.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/models/app_languages.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/view/translate_page.dart';
@@ -512,6 +514,146 @@ void main() {
       );
     });
 
+    group('general settings', () {
+      setUpAll(DeferredFeatures.dictionary.load);
+
+      String location(WidgetTester tester) =>
+          GoRouter.of(shellContext(tester))
+              .routerDelegate
+              .currentConfiguration
+              .uri
+              .toString();
+
+      testWidgets('shows the app in the chosen language', (tester) async {
+        await pumpApp(
+          tester,
+          settings: const AppSettings(
+            instances: [testInstance],
+            onboardingComplete: true,
+            appLocale: 'de',
+          ),
+        );
+
+        final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
+        expect(app.locale, const Locale('de'));
+        expect(app.localizationsDelegates, appLocalizationsDelegates);
+        expect(tester.takeException(), isNull);
+        final context = shellContext(tester);
+        expect(Localizations.localeOf(context), const Locale('de'));
+        expect(context.l10n.navTranslate, 'Übersetzen');
+        // material_ui's own texts are German too (no crash in the
+        // navigation bar).
+        expect(MaterialLocalizations.of(context).backButtonTooltip, 'Zurück');
+        expect(find.byTooltip('Übersetzen'), findsOneWidget);
+      });
+
+      testWidgets('switches the app language at once', (tester) async {
+        await pumpApp(tester);
+        expect(shellContext(tester).l10n.navDictionary, 'Dictionary');
+
+        shellContext(tester).read<SettingsCubit>().setAppLocale('ja');
+        await tester.pump();
+        await tester.pump();
+        expect(shellContext(tester).l10n.navDictionary, '辞書');
+
+        shellContext(tester).read<SettingsCubit>().setAppLocale(null);
+        await tester.pump();
+        await tester.pump();
+        expect(shellContext(tester).l10n.navDictionary, 'Dictionary');
+      });
+
+      testWidgets('follows the device for an unknown stored language', (
+        tester,
+      ) async {
+        await pumpApp(
+          tester,
+          settings: const AppSettings(
+            instances: [testInstance],
+            onboardingComplete: true,
+            appLocale: 'sv',
+          ),
+        );
+
+        final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
+        expect(app.locale, isNull);
+        expect(
+          app.localeListResolutionCallback,
+          AppLanguages.resolveDeviceLocales,
+        );
+        expect(Localizations.localeOf(shellContext(tester)).languageCode, 'en');
+      });
+
+      testWidgets('opens on the first tab of the order', (tester) async {
+        await pumpApp(
+          tester,
+          settings: const AppSettings(
+            instances: [testInstance],
+            onboardingComplete: true,
+            tabOrder: [
+              AppTab.dictionary,
+              AppTab.translate,
+              AppTab.proofread,
+              AppTab.conversation,
+            ],
+          ),
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+
+        expect(location(tester), AppRoutes.dictionary);
+        final bar = tester.widget<NavigationBar>(find.byType(NavigationBar));
+        expect(bar.selectedIndex, 0);
+        expect(
+          (bar.destinations.first as NavigationDestination).label,
+          'Dictionary',
+        );
+      });
+
+      testWidgets('opens on the translate tab by default', (tester) async {
+        await pumpApp(tester);
+        expect(location(tester), AppRoutes.translate);
+      });
+
+      testWidgets('starts in the default quality mode unless remembered', (
+        tester,
+      ) async {
+        await pumpApp(
+          tester,
+          settings: const AppSettings(
+            instances: [testInstance],
+            onboardingComplete: true,
+            fastEngineId: 'mozhi:google',
+            bestEngineId: 'ai:p1',
+            qualityMode: QualityMode.best,
+            rememberQuality: false,
+          ),
+        );
+
+        final settings = shellContext(tester).read<SettingsCubit>().state;
+        expect(settings.qualityMode, QualityMode.fast);
+        expect(settings.bestEngineId, 'ai:p1');
+      });
+
+      testWidgets('keeps the last quality mode when remembered', (
+        tester,
+      ) async {
+        await pumpApp(
+          tester,
+          settings: const AppSettings(
+            instances: [testInstance],
+            onboardingComplete: true,
+            fastEngineId: 'mozhi:google',
+            bestEngineId: 'ai:p1',
+            qualityMode: QualityMode.best,
+          ),
+        );
+
+        expect(
+          shellContext(tester).read<SettingsCubit>().state.qualityMode,
+          QualityMode.best,
+        );
+      });
+    });
+
     testWidgets('closes its cubits when removed', (tester) async {
       await pumpApp(tester);
       final translate = shellContext(tester).read<TranslateCubit>();
@@ -649,6 +791,10 @@ void main() {
         isTrue,
       );
       expect(appearanceChanged(base, const AppSettings(seedColor: 1)), isTrue);
+      expect(
+        appearanceChanged(base, const AppSettings(appLocale: 'de')),
+        isTrue,
+      );
     });
   });
 }

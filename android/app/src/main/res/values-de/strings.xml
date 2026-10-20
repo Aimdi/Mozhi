@@ -8,8 +8,8 @@
     <string name="tile_translate_description">Zwischenablage mit Mozhi übersetzen</string>
     <string name="shortcut_clipboard_short">Einfügen</string>
     <string name="shortcut_clipboard_long">Zwischenablage übersetzen</string>
-    <string name="shortcut_camera_short">Kamera</string>
-    <string name="shortcut_camera_long">Mit der Kamera übersetzen</string>
+    <string name="shortcut_dictionary_short">Wörterbuch</string>
+    <string name="shortcut_dictionary_long">Wörterbuch</string>
     <string name="shortcut_conversation_short">Gespräch</string>
     <string name="shortcut_conversation_long">Gespräch</string>
     <string name="shortcut_proofread_short">Korrektur</string>

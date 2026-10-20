@@ -49,6 +49,48 @@ class SettingsCubit extends Cubit<AppSettings> {
 
   void setSeedColor(int argb) => _apply(state.copyWith(seedColor: argb));
 
+  // General
+
+  /// Sets the language of the app's texts ([AppSettings.appLocale]) as a
+  /// language tag; null or blank follows the device.
+  void setAppLocale(String? tag) {
+    final value = tag?.trim();
+    _apply(
+      state.copyWith(
+        appLocale: () => (value == null || value.isEmpty) ? null : value,
+      ),
+    );
+  }
+
+  void setHapticFeedback({required bool enabled}) =>
+      _apply(state.copyWith(hapticFeedback: enabled));
+
+  /// Sets the order of the tabs; missing tabs are added after the given
+  /// ones and duplicates dropped ([AppSettings.normalizeTabOrder]).
+  void setTabOrder(List<AppTab> order) =>
+      _apply(state.copyWith(tabOrder: AppSettings.normalizeTabOrder(order)));
+
+  /// Moves the tab at [oldIndex] of [AppSettings.tabOrder] so that it ends
+  /// up at [newIndex] (`ReorderableListView.onReorderItem` semantics).
+  /// Out-of-range indices are ignored/clamped.
+  void moveTab(int oldIndex, int newIndex) {
+    final order = [...state.tabOrder];
+    if (oldIndex < 0 || oldIndex >= order.length) return;
+    final target = newIndex.clamp(0, order.length - 1);
+    if (target == oldIndex) return;
+    order.insert(target, order.removeAt(oldIndex));
+    setTabOrder(order);
+  }
+
+  /// Puts the tabs back in their default order.
+  void resetTabOrder() => setTabOrder(AppTab.values);
+
+  void setRememberQuality({required bool enabled}) =>
+      _apply(state.copyWith(rememberQuality: enabled));
+
+  void setMultilineInput({required bool enabled}) =>
+      _apply(state.copyWith(multilineInput: enabled));
+
   // Mozhi instances (ordered by preference)
 
   /// Appends [instance]; an existing entry with the same url is replaced in

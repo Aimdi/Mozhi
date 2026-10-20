@@ -8,8 +8,8 @@
     <string name="tile_translate_description">クリップボードを Mozhi で翻訳</string>
     <string name="shortcut_clipboard_short">クリップボード</string>
     <string name="shortcut_clipboard_long">クリップボードを翻訳</string>
-    <string name="shortcut_camera_short">カメラ</string>
-    <string name="shortcut_camera_long">カメラで翻訳</string>
+    <string name="shortcut_dictionary_short">辞書</string>
+    <string name="shortcut_dictionary_long">辞書</string>
     <string name="shortcut_conversation_short">会話</string>
     <string name="shortcut_conversation_long">会話</string>
     <string name="shortcut_proofread_short">校正</string>

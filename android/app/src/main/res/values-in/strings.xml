@@ -8,8 +8,8 @@
     <string name="tile_translate_description">Terjemahkan papan klip dengan Mozhi</string>
     <string name="shortcut_clipboard_short">Papan klip</string>
     <string name="shortcut_clipboard_long">Terjemahkan papan klip</string>
-    <string name="shortcut_camera_short">Kamera</string>
-    <string name="shortcut_camera_long">Terjemahkan dengan kamera</string>
+    <string name="shortcut_dictionary_short">Kamus</string>
+    <string name="shortcut_dictionary_long">Kamus</string>
     <string name="shortcut_conversation_short">Percakapan</string>
     <string name="shortcut_conversation_long">Percakapan</string>
     <string name="shortcut_proofread_short">Koreksi</string>
