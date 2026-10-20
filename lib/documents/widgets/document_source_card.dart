@@ -103,25 +103,38 @@ class _FileInput extends StatelessWidget {
       );
     }
 
-    return Row(
+    // The name and Replace share a line while they fit; otherwise (a long
+    // name, large text) Replace moves below the name.
+    return Wrap(
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
       spacing: 12,
+      runSpacing: 8,
       children: [
-        ExcludeSemantics(
-          child: CircleAvatar(
-            radius: 20,
-            backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.12),
-            foregroundColor: theme.colorScheme.primary,
-            child: Icon(documentFormatIcon(state.format), size: 20),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            name,
-            key: const Key('documents_file_name'),
-            style: theme.textTheme.titleMedium,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          spacing: 12,
+          children: [
+            ExcludeSemantics(
+              child: CircleAvatar(
+                radius: 20,
+                backgroundColor: theme.colorScheme.primary.withValues(
+                  alpha: 0.12,
+                ),
+                foregroundColor: theme.colorScheme.primary,
+                child: Icon(documentFormatIcon(state.format), size: 20),
+              ),
+            ),
+            Flexible(
+              child: Text(
+                name,
+                key: const Key('documents_file_name'),
+                style: theme.textTheme.titleMedium,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
         OutlinedButton(
           key: const Key('documents_replace_file'),

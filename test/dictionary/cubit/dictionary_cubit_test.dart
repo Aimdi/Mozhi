@@ -4,6 +4,9 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/dictionary/cubit/dictionary_cubit.dart';
+import 'package:mozhi/history/history.dart'
+    show HistoryEntry, HistoryEntryKind, HistoryState, HistoryStatus;
+import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/usage/usage.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -823,6 +826,319 @@ void main() {
         ).thenAnswer((_) async => throw StateError('async'));
         await cubit.lookUp();
         expect(cubit.state.status, DictionaryStatus.success);
+      });
+    });
+  });
+
+  group('DictionaryCubit history', () {
+    late MockHistoryCubit history;
+    late MockSettingsCubit settings;
+    final now = DateTime(2026, 10, 20, 9, 30);
+
+    setUp(() {
+      history = createDictionaryHistory();
+      settings = MockSettingsCubit();
+      when(() => settings.state).thenReturn(const AppSettings());
+    });
+
+    DictionaryCubit build({
+      String word = 'gato',
+      Language source = spanish,
+      DictionaryVerbosity verbosity = DictionaryVerbosity.standard,
+      bool withSettings = true,
+    }) => DictionaryCubit(
+      repository: repository,
+      engine: claudeEngine,
+      word: word,
+      source: source,
+      verbosity: verbosity,
+      uiLanguage: 'German',
+      history: history,
+      settings: withSettings ? settings : null,
+      clock: () => now,
+    );
+
+    /// The entry given to [MockHistoryCubit.add] (once).
+    HistoryEntry added() =>
+        verify(() => history.add(captureAny())).captured.single as HistoryEntry;
+
+    void verifyNothingSaved() {
+      verifyNever(() => history.add(any()));
+      verifyNever(() => history.toggleFavorite(any()));
+    }
+
+    group('saves look-ups', () {
+      test('that found an entry, with the word, languages, engine, '
+          'detail level and a summary', () async {
+        await build(verbosity: DictionaryVerbosity.concise).lookUp();
+
+        expect(
+          added(),
+          HistoryEntry(
+            id: 'dictionary:${now.microsecondsSinceEpoch}',
+            kind: HistoryEntryKind.dictionary,
+            text: 'gato',
+            translation: 'noun · A small domesticated feline.',
+            source: spanish,
+            target: english,
+            engineId: 'ai:claude',
+            engineName: 'Claude',
+            createdAt: now,
+            verbosity: DictionaryVerbosity.concise,
+          ),
+        );
+      });
+
+      test('of the word looked up, with the languages it was looked up '
+          'in', () async {
+        final cubit = build(source: Language.auto);
+        await cubit.lookUpWord('  minino ');
+
+        final entry = added();
+        expect(entry.text, 'minino');
+        expect(entry.source, Language.auto);
+        expect(entry.isFavorite, isFalse);
+      });
+
+      test('not while history is off', () async {
+        when(() => settings.state)
+            .thenReturn(const AppSettings(saveHistory: false));
+        await build().lookUp();
+        verifyNothingSaved();
+      });
+
+      test('not in incognito', () async {
+        when(() => settings.state)
+            .thenReturn(const AppSettings(incognito: true));
+        await build().lookUp();
+        verifyNothingSaved();
+      });
+
+      test('not without the settings', () async {
+        await build(withSettings: false).lookUp();
+        verifyNothingSaved();
+      });
+
+      test('not for an empty entry or a failure', () async {
+        stubLookUp(repository, () async => const DictionaryEntry(word: 'xq'));
+        final cubit = build(word: 'xq');
+        await cubit.lookUp();
+        expect(cubit.state.isEmptyEntry, isTrue);
+
+        stubLookUp(repository, () async => throw StateError('offline'));
+        await cubit.lookUp();
+        expect(cubit.state.status, DictionaryStatus.failure);
+        verifyNothingSaved();
+      });
+
+      test('without failing the look-up when history fails', () async {
+        when(() => history.add(any())).thenThrow(StateError('sync'));
+        final cubit = build();
+        await cubit.lookUp();
+        expect(cubit.state.status, DictionaryStatus.success);
+
+        when(() => history.add(any()))
+            .thenAnswer((_) async => throw StateError('async'));
+        await cubit.lookUp();
+        await Future<void>.delayed(Duration.zero);
+        expect(cubit.state.status, DictionaryStatus.success);
+      });
+    });
+
+    group('toggleFavorite', () {
+      test('toggles the favourite of the saved look-up', () async {
+        when(() => history.state).thenReturn(
+          HistoryState(status: HistoryStatus.ready, entries: [gatoLookUp()]),
+        );
+        final cubit = build();
+        await cubit.lookUp();
+
+        await cubit.toggleFavorite();
+
+        verify(() => history.toggleFavorite('dictionary:1')).called(1);
+        // Only the recording of the look-up was added.
+        verify(() => history.add(any())).called(1);
+      });
+
+      test('saves the look-up as a favourite when the history does not '
+          'have it, even with history off', () async {
+        when(() => settings.state)
+            .thenReturn(const AppSettings(saveHistory: false));
+        final cubit = build(verbosity: DictionaryVerbosity.comprehensive);
+        await cubit.lookUp();
+
+        await cubit.toggleFavorite();
+
+        final entry = added();
+        expect(entry.isFavorite, isTrue);
+        expect(entry.isDictionary, isTrue);
+        expect(entry.text, 'gato');
+        expect(entry.verbosity, DictionaryVerbosity.comprehensive);
+        verifyNever(() => history.toggleFavorite(any()));
+      });
+
+      test('does nothing without a shown entry', () async {
+        final cubit = build();
+        await cubit.toggleFavorite();
+
+        stubLookUp(repository, () async => const DictionaryEntry(word: 'xq'));
+        await cubit.lookUp();
+        await cubit.toggleFavorite();
+
+        stubLookUp(repository, () async => throw StateError('offline'));
+        await cubit.lookUp();
+        await cubit.toggleFavorite();
+        verifyNothingSaved();
+      });
+
+      test('does nothing without a history', () async {
+        final cubit = DictionaryCubit(
+          repository: repository,
+          engine: claudeEngine,
+          word: 'gato',
+        );
+        await cubit.lookUp();
+        await cubit.toggleFavorite();
+        expect(cubit.state.status, DictionaryStatus.success);
+      });
+
+      blocTest<DictionaryCubit, DictionaryState>(
+        'reports history errors',
+        build: () {
+          when(() => history.add(any()))
+              .thenAnswer((_) async => throw StateError('full'));
+          when(() => settings.state)
+              .thenReturn(const AppSettings(saveHistory: false));
+          return build();
+        },
+        act: (cubit) async {
+          await cubit.lookUp();
+          await cubit.toggleFavorite();
+        },
+        skip: 2,
+        expect: () => <DictionaryState>[],
+        errors: () => [isA<StateError>()],
+      );
+    });
+
+    group('open', () {
+      blocTest<DictionaryCubit, DictionaryState>(
+        'looks a word up once with new languages and detail level',
+        build: () => build(word: ''),
+        act: (cubit) => cubit.open(
+          ' perro ',
+          source: french,
+          target: spanish,
+          verbosity: DictionaryVerbosity.comprehensive,
+        ),
+        expect: () => [
+          isA<DictionaryState>()
+              .having((s) => s.word, 'word', 'perro')
+              .having((s) => s.source, 'source', french)
+              .having((s) => s.target, 'target', spanish)
+              .having(
+                (s) => s.verbosity,
+                'verbosity',
+                DictionaryVerbosity.comprehensive,
+              )
+              .having((s) => s.status, 'status', DictionaryStatus.idle),
+          isA<DictionaryState>().having(
+            (s) => s.status,
+            'status',
+            DictionaryStatus.loading,
+          ),
+          isA<DictionaryState>().having(
+            (s) => s.status,
+            'status',
+            DictionaryStatus.success,
+          ),
+        ],
+        verify: (_) => verify(
+          () => repository.lookUp(
+            claudeEngine,
+            'perro',
+            source: french,
+            target: spanish,
+            uiLanguage: 'German',
+            verbosity: DictionaryVerbosity.comprehensive,
+          ),
+        ).called(1),
+      );
+
+      blocTest<DictionaryCubit, DictionaryState>(
+        'keeps the languages and level it cannot use or is not given',
+        build: build,
+        act: (cubit) => cubit.open(
+          'perro',
+          source: const Language.custom('Pirate'),
+          target: Language.auto,
+        ),
+        verify: (cubit) {
+          expect(cubit.state.source, spanish);
+          expect(cubit.state.target, english);
+          expect(cubit.state.verbosity, DictionaryVerbosity.standard);
+          expect(cubit.state.lookedUp, 'perro');
+        },
+      );
+    });
+
+    group('historySummary', () {
+      test('is the part of speech and the first definition', () {
+        expect(
+          DictionaryCubit.historySummary(gatoEntry),
+          'noun · A small domesticated feline.',
+        );
+      });
+
+      test("takes the entry's part of speech when the sense has none", () {
+        const entry = DictionaryEntry(
+          word: 'hola',
+          partsOfSpeech: ['interjection'],
+          senses: [
+            DictionarySense(definition: '  '),
+            DictionarySense(definition: 'A\ngreeting.\u202E'),
+          ],
+        );
+        expect(
+          DictionaryCubit.historySummary(entry),
+          'interjection · A greeting.',
+        );
+      });
+
+      test('is the definition alone without a part of speech', () {
+        const entry = DictionaryEntry(
+          word: 'hola',
+          senses: [DictionarySense(definition: 'A greeting.')],
+        );
+        expect(DictionaryCubit.historySummary(entry), 'A greeting.');
+      });
+
+      test('is the first translation without definitions', () {
+        const entry = DictionaryEntry(
+          word: 'hola',
+          senses: [
+            DictionarySense(definition: '', translations: [' ']),
+            DictionarySense(definition: '', translations: ['hello', 'hi']),
+          ],
+        );
+        expect(DictionaryCubit.historySummary(entry), 'hello');
+      });
+
+      test('is empty without definitions or translations', () {
+        expect(
+          DictionaryCubit.historySummary(const DictionaryEntry(word: 'x')),
+          isEmpty,
+        );
+      });
+
+      test('is cut to maxSummaryLength', () {
+        final entry = DictionaryEntry(
+          word: 'x',
+          senses: [DictionarySense(definition: 'word ' * 100)],
+        );
+        final summary = DictionaryCubit.historySummary(entry);
+        expect(summary.length, lessThanOrEqualTo(300));
+        expect(summary, endsWith('word…'));
       });
     });
   });

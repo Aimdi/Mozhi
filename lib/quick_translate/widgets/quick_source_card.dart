@@ -60,30 +60,33 @@ class _QuickSourceCardState extends State<QuickSourceCard> {
             padding: const EdgeInsetsDirectional.fromSTEB(4, 0, 0, 0),
             child: Row(
               children: [
-                Flexible(
-                  child: Text(
-                    l10n.quickTranslateOriginal,
-                    style: theme.textTheme.labelLarge,
+                // The detected language moves below "Original" when they
+                // do not fit side by side (large text), instead of breaking
+                // the label mid-word.
+                Expanded(
+                  child: Wrap(
+                    spacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        l10n.quickTranslateOriginal,
+                        style: theme.textTheme.labelLarge,
+                      ),
+                      if (detected != null)
+                        Text(
+                          l10n.translateDetectedLanguage(
+                            LanguageCatalog.nameOf(detected),
+                          ),
+                          key: const Key('quick_translate_detected'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: scheme.primary,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-                if (detected != null) ...[
-                  const SizedBox(width: 8),
-                  Flexible(
-                    flex: 2,
-                    child: Text(
-                      l10n.translateDetectedLanguage(
-                        LanguageCatalog.nameOf(detected),
-                      ),
-                      key: const Key('quick_translate_detected'),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: scheme.primary,
-                      ),
-                    ),
-                  ),
-                ],
-                const Spacer(),
                 if (overflows || _expanded)
                   IconButton(
                     key: const Key('quick_translate_source_toggle'),

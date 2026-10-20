@@ -184,10 +184,7 @@ class _Label extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Semantics(
     header: true,
-    child: Text(
-      text,
-      style: Theme.of(context).textTheme.titleSmall,
-    ),
+    child: Text(text, style: Theme.of(context).textTheme.titleSmall),
   );
 }
 

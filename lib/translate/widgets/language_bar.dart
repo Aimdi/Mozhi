@@ -16,6 +16,7 @@ import 'package:mozhi/translate/widgets/language_picker_sheet.dart';
 import 'package:mozhi/translate/widgets/options_sheet.dart';
 import 'package:mozhi/translate/widgets/recent_pairs_sheet.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
+import 'package:translation_repository/translation_repository.dart';
 
 /// Opens the language picker for the source ([source]) or target language
 /// and applies the choice. [autofocusSearch] focuses the search field
@@ -125,51 +126,56 @@ class _LanguagePair extends StatelessWidget {
       builder: (context, state) {
         final detected = state.result?.detectedSource;
         final uncertain = detectionLooksUncertain(state);
-        final String sourceLabel;
         final String sourceDescription;
+        final List<LanguageLabelForm> sourceForms;
         var sourceTooltip = '';
         if (!state.source.isAuto) {
-          sourceLabel = sourceDescription = state.source.name;
+          sourceDescription = state.source.name;
+          sourceForms = languageLabelForms(state.source);
         } else if (detected != null) {
           // The sparkle icon marks it as detected; keep the label short.
-          sourceLabel = languageNameFor(detected, state.sourceLanguages);
+          final name = languageNameFor(detected, state.sourceLanguages);
           sourceDescription = uncertain
-              ? l10n.translateDetectedLanguageUncertain(sourceLabel)
-              : l10n.translateDetectedLanguage(sourceLabel);
+              ? l10n.translateDetectedLanguageUncertain(name)
+              : l10n.translateDetectedLanguage(name);
           if (uncertain) {
             sourceTooltip =
                 '$sourceDescription\n${l10n.translateDetectionUncertainHint}';
           }
+          sourceForms = languageLabelForms(
+            Language(code: detected, name: name),
+            icon: uncertain ? Icons.help_outline : Icons.auto_awesome_outlined,
+          );
         } else {
-          sourceLabel = sourceDescription = l10n.translateDetectLanguage;
+          sourceDescription = l10n.translateDetectLanguage;
+          sourceForms = [
+            (icon: null, text: sourceDescription),
+            (
+              icon: Icons.auto_awesome_outlined,
+              text: l10n.translateDetectLanguageShort,
+            ),
+            (icon: Icons.auto_awesome_outlined, text: null),
+          ];
         }
         return _LanguagePairRow(
           children: [
             _LanguageButton(
               key: const Key('translate_source_button'),
-              label: sourceLabel,
+              forms: sourceForms,
               slideFrom: AxisDirection.right,
               semanticLabel: l10n.translateSourceLanguage(sourceDescription),
               tooltip: sourceTooltip.isEmpty
                   ? sourceDescription
                   : sourceTooltip,
-              icon: state.source.isCustom
-                  ? Icons.auto_awesome
-                  : !state.source.isAuto || detected == null
-                  ? null
-                  : uncertain
-                  ? Icons.help_outline
-                  : Icons.auto_awesome_outlined,
               onPressed: () => pickTranslateLanguage(context, source: true),
             ),
             _SwapButton(enabled: state.canSwap),
             _LanguageButton(
               key: const Key('translate_target_button'),
-              label: state.target.name,
+              forms: languageLabelForms(state.target),
               slideFrom: AxisDirection.left,
               semanticLabel: l10n.translateTargetLanguage(state.target.name),
               tooltip: state.target.name,
-              icon: state.target.isCustom ? Icons.auto_awesome : null,
               target: true,
               onPressed: () => pickTranslateLanguage(context, source: false),
             ),
@@ -178,6 +184,46 @@ class _LanguagePair extends StatelessWidget {
       },
     );
   }
+}
+
+/// What a language button of the [LanguageBar] may show: an `icon` and/or
+/// a `text` (both null: only the chevron).
+typedef LanguageLabelForm = ({IconData? icon, String? text});
+
+/// Short forms of the language [code] for a narrow [LanguageBar], longest
+/// first: the code in upper case ("PT-BR") and, for a code with a region
+/// or script, its language subtag ("PT"). Unlike the avatars' two letters
+/// ([LanguageAvatar.initials]), three-letter codes stay whole ("FIL", not
+/// "FI", which reads as Finnish).
+List<String> languageShortNames(String code) {
+  final upper = code.trim().toUpperCase();
+  if (upper.isEmpty) return const [];
+  final base = upper.split(RegExp('[-_ ]')).first;
+  return [upper, if (base.isNotEmpty && base != upper) base];
+}
+
+/// What the [LanguageBar] shows for [language], in order of preference:
+/// the name, then its short forms ([languageShortNames]; none for custom
+/// languages), then only [icon] (custom languages: the sparkle) or nothing
+/// but the chevron. With an [icon] (a detection), the short forms are also
+/// tried without it before the icon alone: the language tells more than
+/// the marker. Each form also goes without the chevron before the next one
+/// is tried (see [_LanguageButton]).
+List<LanguageLabelForm> languageLabelForms(
+  Language language, {
+  IconData? icon,
+}) {
+  final marker = icon ?? (language.isCustom ? Icons.auto_awesome : null);
+  final shorts = language.isCustom
+      ? const <String>[]
+      : languageShortNames(language.code);
+  return [
+    (icon: marker, text: language.name),
+    for (final short in shorts) (icon: marker, text: short),
+    if (marker != null)
+      for (final short in shorts) (icon: null, text: short),
+    (icon: marker, text: null),
+  ];
 }
 
 /// Widths of two language buttons sharing [width], whose own (maximum
@@ -410,20 +456,26 @@ Duration _swapMotion(BuildContext context) =>
     ? Duration.zero
     : const Duration(milliseconds: 250);
 
-/// A language button of the [LanguageBar]: the name (the target's a
-/// little bolder) and a chevron, on the bar without an outline of its own.
-/// The button keeps its own semantics (tap action,
-/// enabled state, focus); only its visible content is replaced by
-/// [semanticLabel] for screen readers. A new [label] slides in from
-/// [slideFrom] (mirrored in right-to-left layouts).
+/// A language button of the [LanguageBar]: an optional icon, the name (the
+/// target's a little bolder) and a chevron, on the bar without an outline
+/// of its own.
+///
+/// It shows the first of [forms] that fits whole, never a cut name: the
+/// name, then the short forms ("DE", or the sparkle and "Auto" for "Detect
+/// language"), each first with the chevron and then without it (the
+/// chevron only decorates; the whole button opens the picker); the text
+/// is left out only when no form fits. The full name stays in [tooltip]
+/// and, for screen readers, in [semanticLabel], which replaces the visible
+/// content (the button keeps its own semantics: tap action, enabled state,
+/// focus). A new name slides in from [slideFrom] (mirrored in right-to-left
+/// layouts).
 class _LanguageButton extends StatelessWidget {
   const new({
-    required this.label,
+    required this.forms,
     required this.semanticLabel,
     required this.tooltip,
     required this.onPressed,
     required this.slideFrom,
-    this.icon,
     this.target = false,
     super.key,
   });
@@ -435,10 +487,10 @@ class _LanguageButton extends StatelessWidget {
   /// header).
   final bool target;
 
-  final String label;
+  /// What the button may show, in order of preference.
+  final List<LanguageLabelForm> forms;
   final String semanticLabel;
   final String tooltip;
-  final IconData? icon;
   final VoidCallback onPressed;
 
   @override
@@ -446,6 +498,36 @@ class _LanguageButton extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final palette = AppPalette.of(context);
+    final style = theme.textTheme.titleSmall?.copyWith(
+      fontWeight: target ? FontWeight.w800 : FontWeight.w700,
+    );
+
+    Widget content(LanguageLabelForm form, {required bool chevron}) {
+      final (:icon, :text) = form;
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) Icon(icon, size: 18, color: scheme.primary),
+          if (icon != null && text != null) const SizedBox(width: 6),
+          if (text != null)
+            _SharedAxisSwitcher(
+              slideFrom: slideFrom,
+              child: Text(
+                text,
+                key: ValueKey(text),
+                maxLines: 1,
+                softWrap: false,
+                style: style,
+              ),
+            ),
+          if (chevron) ...[
+            if (icon != null || text != null) const SizedBox(width: 2),
+            Icon(Icons.expand_more, size: 16, color: palette.secondaryText),
+          ],
+        ],
+      );
+    }
+
     return Tooltip(
       message: tooltip,
       excludeFromSemantics: true,
@@ -460,36 +542,188 @@ class _LanguageButton extends StatelessWidget {
         onPressed: onPressed,
         child: Semantics(
           label: semanticLabel,
-          // Hides only the visible Row text, not the button's actions.
+          // Hides only the visible content, not the button's actions.
           excludeSemantics: true,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          child: _FirstThatFits(
             children: [
-              if (icon != null) ...[
-                Icon(icon, size: 18, color: scheme.primary),
-                const SizedBox(width: 6),
+              for (final form in forms) ...[
+                content(form, chevron: true),
+                // Without anything else, the chevron is all there is.
+                if (form.icon != null || form.text != null)
+                  content(form, chevron: false),
               ],
-              Flexible(
-                child: _SharedAxisSwitcher(
-                  slideFrom: slideFrom,
-                  child: Text(
-                    label,
-                    key: ValueKey(label),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: target ? FontWeight.w800 : FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 2),
-              Icon(Icons.expand_more, size: 16, color: palette.secondaryText),
             ],
           ),
         ),
       ),
     );
+  }
+}
+
+/// Shows the first of its children that fits the available width whole
+/// (by its maximum intrinsic width), or none of them when none fits. As
+/// wide as its first child would like to be (its maximum intrinsic width),
+/// so that a parent sharing out space (like [languagePairSplit]) plans for
+/// the preferred form.
+///
+/// The other children are laid out at their own width but neither painted,
+/// hit-tested, nor visible to semantics or (onstage) test finders.
+class _FirstThatFits extends MultiChildRenderObjectWidget {
+  const new({required super.children});
+
+  @override
+  MultiChildRenderObjectElement createElement() => _FirstThatFitsElement(this);
+
+  @override
+  _RenderFirstThatFits createRenderObject(BuildContext context) =>
+      _RenderFirstThatFits();
+}
+
+class _FirstThatFitsElement extends MultiChildRenderObjectElement {
+  new(_FirstThatFits super.widget);
+
+  @override
+  void debugVisitOnstageChildren(ElementVisitor visitor) {
+    // Only the child shown is onstage (like IndexedStack's).
+    final shown = (renderObject as _RenderFirstThatFits).shown;
+    if (shown != null && shown < children.length) {
+      visitor(children.elementAt(shown));
+    }
+  }
+}
+
+class _FirstThatFitsParentData extends ContainerBoxParentData<RenderBox>;
+
+/// The render object of [_FirstThatFits].
+class _RenderFirstThatFits extends RenderBox
+    with
+        ContainerRenderObjectMixin<RenderBox, _FirstThatFitsParentData>,
+        RenderBoxContainerDefaultsMixin<RenderBox, _FirstThatFitsParentData> {
+  /// Rounding slack when comparing widths.
+  static const _tolerance = 1e-6;
+
+  /// Index of the child shown by the last layout (null: none).
+  int? get shown => _shown;
+  int? _shown;
+
+  @override
+  void setupParentData(RenderBox child) {
+    if (child.parentData is! _FirstThatFitsParentData) {
+      child.parentData = _FirstThatFitsParentData();
+    }
+  }
+
+  /// The index of the first child that fits [maxWidth] whole (the first
+  /// one when the width is unbounded), or null.
+  int? _pick(double maxWidth) {
+    final children = getChildrenAsList();
+    if (children.isEmpty) return null;
+    if (maxWidth.isInfinite) return 0;
+    for (final (index, child) in children.indexed) {
+      final width = child.getMaxIntrinsicWidth(double.infinity);
+      if (width <= maxWidth + _tolerance) return index;
+    }
+    return null;
+  }
+
+  RenderBox? _child(int? index) =>
+      index == null ? null : getChildrenAsList()[index];
+
+  /// Children get their own width (a form is only shown when it fits).
+  static BoxConstraints _childConstraints(BoxConstraints constraints) =>
+      BoxConstraints(maxHeight: constraints.maxHeight);
+
+  @override
+  double computeMinIntrinsicWidth(double height) => 0;
+
+  @override
+  double computeMaxIntrinsicWidth(double height) =>
+      firstChild?.getMaxIntrinsicWidth(height) ?? 0;
+
+  @override
+  double computeMinIntrinsicHeight(double width) =>
+      _child(_pick(width))?.getMinIntrinsicHeight(double.infinity) ?? 0;
+
+  @override
+  double computeMaxIntrinsicHeight(double width) =>
+      _child(_pick(width))?.getMaxIntrinsicHeight(double.infinity) ?? 0;
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) {
+    final child = _child(_pick(constraints.maxWidth));
+    return constraints.constrain(
+      child?.getDryLayout(_childConstraints(constraints)) ?? Size.zero,
+    );
+  }
+
+  @override
+  double? computeDryBaseline(
+    BoxConstraints constraints,
+    TextBaseline baseline,
+  ) {
+    final child = _child(_pick(constraints.maxWidth));
+    if (child == null) return null;
+    final inner = _childConstraints(constraints);
+    final size = constraints.constrain(child.getDryLayout(inner));
+    final offset = _centered(size, child.getDryLayout(inner));
+    final distance = child.getDryBaseline(inner, baseline);
+    return distance == null ? null : distance + offset.dy;
+  }
+
+  static Offset _centered(Size size, Size child) =>
+      Offset((size.width - child.width) / 2, (size.height - child.height) / 2);
+
+  @override
+  void performLayout() {
+    final inner = _childConstraints(constraints);
+    for (final child in getChildrenAsList()) {
+      child.layout(inner, parentUsesSize: true);
+    }
+    _shown = _pick(constraints.maxWidth);
+    final shown = _child(_shown);
+    size = constraints.constrain(shown?.size ?? Size.zero);
+    for (final child in getChildrenAsList()) {
+      (child.parentData! as _FirstThatFitsParentData).offset = _centered(
+        size,
+        child.size,
+      );
+    }
+  }
+
+  @override
+  double? computeDistanceToActualBaseline(TextBaseline baseline) {
+    final shown = _child(_shown);
+    if (shown == null) return null;
+    final distance = shown.getDistanceToActualBaseline(baseline);
+    final offset = (shown.parentData! as _FirstThatFitsParentData).offset;
+    return distance == null ? null : distance + offset.dy;
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    final shown = _child(_shown);
+    if (shown == null) return;
+    final childOffset = (shown.parentData! as _FirstThatFitsParentData).offset;
+    context.paintChild(shown, offset + childOffset);
+  }
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) {
+    final shown = _child(_shown);
+    if (shown == null) return false;
+    final offset = (shown.parentData! as _FirstThatFitsParentData).offset;
+    return result.addWithPaintOffset(
+      offset: offset,
+      position: position,
+      hitTest: (result, transformed) =>
+          shown.hitTest(result, position: transformed),
+    );
+  }
+
+  @override
+  void visitChildrenForSemantics(RenderObjectVisitor visitor) {
+    final shown = _child(_shown);
+    if (shown != null) visitor(shown);
   }
 }
 

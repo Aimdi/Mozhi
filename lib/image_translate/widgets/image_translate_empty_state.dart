@@ -55,9 +55,8 @@ class ImageTranslateEmptyState extends StatelessWidget {
                 FilledButton.icon(
                   key: const Key('image_translate_gallery_button'),
                   onPressed: canPick
-                      ? () => unawaited(
-                          cubit.pickImage(ImagePickSource.gallery),
-                        )
+                      ? () =>
+                            unawaited(cubit.pickImage(ImagePickSource.gallery))
                       : null,
                   icon: const Icon(Icons.photo_library_outlined),
                   label: Text(l10n.imageTranslatePickGallery),
@@ -66,9 +65,8 @@ class ImageTranslateEmptyState extends StatelessWidget {
                   OutlinedButton.icon(
                     key: const Key('image_translate_camera_button'),
                     onPressed: canPick
-                        ? () => unawaited(
-                            cubit.pickImage(ImagePickSource.camera),
-                          )
+                        ? () =>
+                              unawaited(cubit.pickImage(ImagePickSource.camera))
                         : null,
                     icon: const Icon(Icons.photo_camera_outlined),
                     label: Text(l10n.imageTranslateTakePhoto),

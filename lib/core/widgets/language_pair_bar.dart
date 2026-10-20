@@ -41,7 +41,10 @@ class LanguagePairSide {
 ///
 /// The two buttons share the width: half each while both names fit
 /// ([languagePairWidths]), otherwise the shorter one keeps its width and
-/// the longer one gets the rest.
+/// the longer one gets the rest. When the bar is too narrow for a few
+/// letters of each name (small windows, large text), the languages get
+/// the pill to themselves and [leading] and [trailing] sit in a row
+/// below it, at its start and end.
 class LanguagePairBar extends StatelessWidget {
   const new({
     required this.source,
@@ -63,16 +66,53 @@ class LanguagePairBar extends StatelessWidget {
   /// Width of the slot of [middle] (an icon button's).
   static const double middleWidth = 48;
 
+  /// Width a [leading] or [trailing] control takes on the bar: an icon
+  /// button and the divider before or after it.
+  static const double _controlWidth = 48 + 7;
+
+  /// Whether the pair fits on one bar with [controls] other controls in
+  /// [width]: each name keeps room for about three letters.
+  static bool fitsOneBar(
+    BuildContext context, {
+    required double width,
+    required int controls,
+  }) {
+    if (controls == 0) return true;
+    final fontSize =
+        _LanguageButton.labelStyle(context, target: true)?.fontSize ?? 14;
+    final letters = MediaQuery.textScalerOf(context).scale(fontSize) * 3;
+    final pair = width - 2 - controls * _controlWidth - middleWidth;
+    return pair / 2 >= _LanguagePair._chrome + letters;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return ComposerBar(
-      children: [
-        ...leading,
-        Expanded(
-          child: _LanguagePair(source: source, target: target, middle: middle),
-        ),
-        ...trailing,
-      ],
+    final pair = _LanguagePair(source: source, target: target, middle: middle);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (fitsOneBar(
+          context,
+          width: constraints.maxWidth,
+          controls: leading.length + trailing.length,
+        )) {
+          return ComposerBar(
+            children: [
+              ...leading,
+              Expanded(child: pair),
+              ...trailing,
+            ],
+          );
+        }
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: 8,
+          children: [
+            ComposerBar(children: [Expanded(child: pair)]),
+            Row(children: [...leading, const Spacer(), ...trailing]),
+          ],
+        );
+      },
     );
   }
 }

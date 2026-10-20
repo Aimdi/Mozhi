@@ -41,9 +41,7 @@ class OcrImportSummaryDialog extends StatelessWidget {
         report.installed.isEmpty
             ? l10n.offlineImportTitleNothing
             : l10n.offlineOcrImportTitleDone,
-        style: theme.textTheme.titleLarge?.copyWith(
-          fontWeight: FontWeight.w800,
-        ),
+        style: theme.textTheme.titleLarge,
       ),
       content: SingleChildScrollView(
         child: Column(

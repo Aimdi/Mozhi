@@ -1564,5 +1564,17 @@
   "translateShortcutNewLine": "Neue Zeile einfügen (beim Tippen)",
   "translateComposerHint": "Text tippen oder {paste}",
   "translateComposerHintPaste": "einfügen",
-  "translatePasteFailed": "Die Zwischenablage konnte nicht gelesen werden. Füge den Text direkt ins Textfeld ein."
+  "translatePasteFailed": "Die Zwischenablage konnte nicht gelesen werden. Füge den Text direkt ins Textfeld ein.",
+  "documentsHeroTitle": "Dokument auswählen",
+  "imageTranslateHeroTitle": "Foto aufnehmen oder auswählen",
+  "webTranslateHeroTitle": "Adresse eingeben",
+  "webTranslateHeroBody": "Füge einen Link zu einem Artikel oder Blogbeitrag ein. Mozhi lädt die Seite herunter, behält nur den lesbaren Text und übersetzt ihn mit der Engine und den Sprachen oben.",
+  "historyDictionaryMarker": "Wörterbuch",
+  "historyOpenDictionaryHint": "Im Wörterbuch nachschlagen",
+  "historyLookUpDeleted": "Suche gelöscht",
+  "historyFilterPairEntries": "{count, plural, =1{1 Eintrag} other{{count} Einträge}}",
+  "translateDetectLanguageShort": "Auto",
+  "translateOfflineOnlyNoLanguagePacks": "Noch keine Sprachpakete auf diesem Gerät. Lade eines herunter, um offline zu übersetzen.",
+  "translateOfflineOnlyWebUnavailable": "Offline-Übersetzung ist in der Web-App nicht verfügbar. Wechsle unter Einstellungen › Datenschutz zu „Offline bevorzugt“ oder „Online“.",
+  "translateOfflineOnlyDeviceUnsupported": "Dieses Gerät kann nicht offline übersetzen. Wechsle unter Einstellungen › Datenschutz zu „Offline bevorzugt“ oder „Online“."
 }

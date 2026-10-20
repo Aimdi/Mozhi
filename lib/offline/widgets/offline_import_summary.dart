@@ -46,9 +46,7 @@ class OfflineImportSummaryDialog extends StatelessWidget {
             : outcome.installedAny
             ? l10n.offlineImportTitleDone
             : l10n.offlineImportTitleNothing,
-        style: theme.textTheme.titleLarge?.copyWith(
-          fontWeight: FontWeight.w800,
-        ),
+        style: theme.textTheme.titleLarge,
       ),
       content: failed
           ? null

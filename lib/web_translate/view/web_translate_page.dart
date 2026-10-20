@@ -109,6 +109,9 @@ class WebTranslateView extends StatefulWidget {
   /// From this width the side-by-side reader is available.
   static const wideBreakpoint = 840.0;
 
+  /// Max width of the address field and the language bar.
+  static const controlsMaxWidth = 760.0;
+
   @override
   State<WebTranslateView> createState() => _WebTranslateViewState();
 }
@@ -205,11 +208,21 @@ class _WebTranslateViewState extends State<WebTranslateView> {
                   slivers: [
                     SliverPadding(
                       padding: EdgeInsets.fromLTRB(gutter, 16, gutter, 0),
+                      // The address and the bar keep the translate
+                      // composer's width; the reader below may be wider.
                       sliver: SliverToBoxAdapter(
-                        child: _Controls(
-                          controller: _url,
-                          isWeb: widget.isWeb,
-                          onLoad: _load,
+                        child: Align(
+                          alignment: Alignment.topCenter,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(
+                              maxWidth: WebTranslateView.controlsMaxWidth,
+                            ),
+                            child: _Controls(
+                              controller: _url,
+                              isWeb: widget.isWeb,
+                              onLoad: _load,
+                            ),
+                          ),
                         ),
                       ),
                     ),

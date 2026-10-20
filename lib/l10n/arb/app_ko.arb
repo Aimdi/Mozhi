@@ -1564,5 +1564,17 @@
   "translateShortcutNewLine": "새 줄 삽입(입력 중)",
   "translateComposerHint": "텍스트를 입력하거나 {paste}",
   "translateComposerHintPaste": "붙여넣기",
-  "translatePasteFailed": "클립보드를 읽을 수 없습니다. 텍스트 필드에 직접 붙여넣으세요."
+  "translatePasteFailed": "클립보드를 읽을 수 없습니다. 텍스트 필드에 직접 붙여넣으세요.",
+  "documentsHeroTitle": "문서 선택",
+  "imageTranslateHeroTitle": "사진 찍기 또는 선택",
+  "webTranslateHeroTitle": "주소 입력",
+  "webTranslateHeroBody": "기사나 블로그 글의 링크를 붙여넣으세요. Mozhi가 페이지를 내려받아 읽을 수 있는 텍스트만 남기고 위의 엔진과 언어로 번역합니다.",
+  "historyDictionaryMarker": "사전",
+  "historyOpenDictionaryHint": "사전에서 찾기",
+  "historyLookUpDeleted": "검색 기록 삭제됨",
+  "historyFilterPairEntries": "{count, plural, =1{항목 1개} other{항목 {count}개}}",
+  "translateDetectLanguageShort": "자동",
+  "translateOfflineOnlyNoLanguagePacks": "이 기기에 아직 언어 팩이 없습니다. 오프라인으로 번역하려면 하나를 다운로드하세요.",
+  "translateOfflineOnlyWebUnavailable": "웹 앱에서는 오프라인 번역을 사용할 수 없습니다. 설정 › 개인정보 보호에서 오프라인 우선 또는 온라인으로 바꾸세요.",
+  "translateOfflineOnlyDeviceUnsupported": "이 기기에서는 오프라인 번역을 할 수 없습니다. 설정 › 개인정보 보호에서 오프라인 우선 또는 온라인으로 바꾸세요."
 }

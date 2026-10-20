@@ -1564,5 +1564,17 @@
   "translateShortcutNewLine": "Новая строка (при наборе)",
   "translateComposerHint": "Введите или {paste} текст",
   "translateComposerHintPaste": "вставьте",
-  "translatePasteFailed": "Не удалось прочитать буфер обмена. Вставьте текст прямо в поле."
+  "translatePasteFailed": "Не удалось прочитать буфер обмена. Вставьте текст прямо в поле.",
+  "documentsHeroTitle": "Выберите документ",
+  "imageTranslateHeroTitle": "Сделайте или выберите фото",
+  "webTranslateHeroTitle": "Введите адрес",
+  "webTranslateHeroBody": "Вставьте ссылку на статью или запись в блоге. Mozhi загрузит страницу, оставит только читаемый текст и переведёт его выбранным выше движком на выбранные языки.",
+  "historyDictionaryMarker": "Словарь",
+  "historyOpenDictionaryHint": "Найти в словаре",
+  "historyLookUpDeleted": "Поиск удалён",
+  "historyFilterPairEntries": "{count, plural, one{{count} запись} few{{count} записи} many{{count} записей} other{{count} записи}}",
+  "translateDetectLanguageShort": "Авто",
+  "translateOfflineOnlyNoLanguagePacks": "На этом устройстве пока нет языковых пакетов. Скачайте пакет, чтобы переводить офлайн.",
+  "translateOfflineOnlyWebUnavailable": "Офлайн-перевод недоступен в веб-приложении. Выберите «Сначала офлайн» или «Онлайн» в разделе «Настройки › Конфиденциальность».",
+  "translateOfflineOnlyDeviceUnsupported": "Это устройство не поддерживает офлайн-перевод. Выберите «Сначала офлайн» или «Онлайн» в разделе «Настройки › Конфиденциальность»."
 }

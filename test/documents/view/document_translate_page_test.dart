@@ -136,6 +136,25 @@ void main() {
       expect(cubitOf(tester).state.format, DocumentFormat.vtt);
     });
 
+    testWidgets('large text moves Replace below the file name', (tester) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await pumpPage(
+        tester,
+        size: const Size(320, 3000),
+        initialFile: PickedFile(name: 'movie.en.srt', bytes: bytesOf(srtText)),
+      );
+      expect(tester.takeException(), isNull);
+      final name = find.byKey(const Key('documents_file_name'));
+      final replace = find.byKey(const Key('documents_replace_file'));
+      expect(
+        tester.getTopLeft(replace).dy,
+        greaterThan(tester.getBottomLeft(name).dy),
+      );
+      // The name keeps its line instead of breaking letter by letter.
+      expect(tester.getSize(name).height, lessThan(2 * 2 * 17 * 1.5));
+    });
+
     testWidgets('opens initial text in text mode', (tester) async {
       await pumpPage(tester, initialText: 'Some long text');
       expect(cubitOf(tester).state.mode, DocumentInputMode.text);

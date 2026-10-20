@@ -1564,5 +1564,17 @@
   "translateShortcutNewLine": "Chèn dòng mới (khi đang gõ)",
   "translateComposerHint": "Nhập hoặc {paste} văn bản",
   "translateComposerHintPaste": "dán",
-  "translatePasteFailed": "Không đọc được bảng nhớ tạm. Hãy dán trực tiếp vào ô văn bản."
+  "translatePasteFailed": "Không đọc được bảng nhớ tạm. Hãy dán trực tiếp vào ô văn bản.",
+  "documentsHeroTitle": "Chọn tài liệu",
+  "imageTranslateHeroTitle": "Chụp hoặc chọn ảnh",
+  "webTranslateHeroTitle": "Nhập địa chỉ",
+  "webTranslateHeroBody": "Dán liên kết tới một bài báo hoặc bài blog. Mozhi tải trang xuống, chỉ giữ lại phần văn bản đọc được rồi dịch bằng công cụ và ngôn ngữ ở trên.",
+  "historyDictionaryMarker": "Từ điển",
+  "historyOpenDictionaryHint": "Tra trong từ điển",
+  "historyLookUpDeleted": "Đã xóa lượt tra",
+  "historyFilterPairEntries": "{count, plural, =1{1 mục} other{{count} mục}}",
+  "translateDetectLanguageShort": "Tự động",
+  "translateOfflineOnlyNoLanguagePacks": "Thiết bị chưa có gói ngôn ngữ nào. Hãy tải một gói để dịch ngoại tuyến.",
+  "translateOfflineOnlyWebUnavailable": "Dịch ngoại tuyến không có trong ứng dụng web. Chuyển sang Ưu tiên ngoại tuyến hoặc Trực tuyến trong Cài đặt › Quyền riêng tư.",
+  "translateOfflineOnlyDeviceUnsupported": "Thiết bị này không dịch ngoại tuyến được. Chuyển sang Ưu tiên ngoại tuyến hoặc Trực tuyến trong Cài đặt › Quyền riêng tư."
 }

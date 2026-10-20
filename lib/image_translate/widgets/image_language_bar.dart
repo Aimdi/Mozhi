@@ -58,9 +58,7 @@ class ImageLanguageBar extends StatelessWidget {
     final languages = context.select<TranslateCubit, List<Language>>(
       (cubit) => cubit.state.sourceLanguages,
     );
-    final detected = state.source.isAuto
-        ? state.result?.detectedSource
-        : null;
+    final detected = state.source.isAuto ? state.result?.detectedSource : null;
     final detectedName = detected == null
         ? null
         : imageLanguageNameFor(detected, languages);

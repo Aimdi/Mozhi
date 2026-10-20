@@ -1564,5 +1564,17 @@
   "translateShortcutNewLine": "Новий рядок (під час набору)",
   "translateComposerHint": "Введіть або {paste} текст",
   "translateComposerHintPaste": "вставте",
-  "translatePasteFailed": "Не вдалося прочитати буфер обміну. Вставте текст прямо в поле."
+  "translatePasteFailed": "Не вдалося прочитати буфер обміну. Вставте текст прямо в поле.",
+  "documentsHeroTitle": "Виберіть документ",
+  "imageTranslateHeroTitle": "Зробіть або виберіть фото",
+  "webTranslateHeroTitle": "Введіть адресу",
+  "webTranslateHeroBody": "Вставте посилання на статтю чи допис у блозі. Mozhi завантажить сторінку, залишить лише читабельний текст і перекладе його вибраним вище рушієм вибраними мовами.",
+  "historyDictionaryMarker": "Словник",
+  "historyOpenDictionaryHint": "Знайти в словнику",
+  "historyLookUpDeleted": "Пошук видалено",
+  "historyFilterPairEntries": "{count, plural, one{{count} запис} few{{count} записи} many{{count} записів} other{{count} запису}}",
+  "translateDetectLanguageShort": "Авто",
+  "translateOfflineOnlyNoLanguagePacks": "На цьому пристрої ще немає мовних пакетів. Завантажте пакет, щоб перекладати офлайн.",
+  "translateOfflineOnlyWebUnavailable": "Офлайн-переклад недоступний у вебзастосунку. Виберіть «Спершу офлайн» або «Онлайн» у розділі «Налаштування › Приватність».",
+  "translateOfflineOnlyDeviceUnsupported": "Цей пристрій не підтримує офлайн-переклад. Виберіть «Спершу офлайн» або «Онлайн» у розділі «Налаштування › Приватність»."
 }

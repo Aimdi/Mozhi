@@ -1564,5 +1564,17 @@
   "translateShortcutNewLine": "नई लाइन जोड़ें (टाइप करते समय)",
   "translateComposerHint": "टेक्स्ट लिखें या {paste}",
   "translateComposerHintPaste": "पेस्ट करें",
-  "translatePasteFailed": "क्लिपबोर्ड नहीं पढ़ा जा सका। सीधे टेक्स्ट फ़ील्ड में पेस्ट करें।"
+  "translatePasteFailed": "क्लिपबोर्ड नहीं पढ़ा जा सका। सीधे टेक्स्ट फ़ील्ड में पेस्ट करें।",
+  "documentsHeroTitle": "दस्तावेज़ चुनें",
+  "imageTranslateHeroTitle": "फ़ोटो लें या चुनें",
+  "webTranslateHeroTitle": "पता डालें",
+  "webTranslateHeroBody": "किसी लेख या ब्लॉग पोस्ट का लिंक पेस्ट करें। Mozhi पेज डाउनलोड करता है, सिर्फ़ पढ़ने लायक टेक्स्ट रखता है और ऊपर चुने इंजन और भाषाओं से उसका अनुवाद करता है।",
+  "historyDictionaryMarker": "शब्दकोश",
+  "historyOpenDictionaryHint": "शब्दकोश में खोजें",
+  "historyLookUpDeleted": "खोज मिटाई गई",
+  "historyFilterPairEntries": "{count, plural, =1{1 एंट्री} other{{count} एंट्री}}",
+  "translateDetectLanguageShort": "ऑटो",
+  "translateOfflineOnlyNoLanguagePacks": "इस डिवाइस पर अभी कोई भाषा पैक नहीं है। ऑफ़लाइन अनुवाद के लिए एक डाउनलोड करें।",
+  "translateOfflineOnlyWebUnavailable": "वेब ऐप में ऑफ़लाइन अनुवाद उपलब्ध नहीं है। सेटिंग › निजता में 'ऑफ़लाइन को प्राथमिकता' या 'ऑनलाइन' चुनें।",
+  "translateOfflineOnlyDeviceUnsupported": "यह डिवाइस ऑफ़लाइन अनुवाद नहीं कर सकता। सेटिंग › निजता में 'ऑफ़लाइन को प्राथमिकता' या 'ऑनलाइन' चुनें।"
 }

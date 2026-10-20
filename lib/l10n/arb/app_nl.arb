@@ -1564,5 +1564,17 @@
   "translateShortcutNewLine": "Nieuwe regel invoegen (tijdens het typen)",
   "translateComposerHint": "Typ of {paste} tekst",
   "translateComposerHintPaste": "plak",
-  "translatePasteFailed": "Kan het klembord niet lezen. Plak in plaats daarvan in het tekstveld."
+  "translatePasteFailed": "Kan het klembord niet lezen. Plak in plaats daarvan in het tekstveld.",
+  "documentsHeroTitle": "Kies een document",
+  "imageTranslateHeroTitle": "Maak of kies een foto",
+  "webTranslateHeroTitle": "Voer een adres in",
+  "webTranslateHeroBody": "Plak een link naar een artikel of blogbericht. Mozhi downloadt de pagina, houdt alleen de leesbare tekst over en vertaalt die met de engine en talen hierboven.",
+  "historyDictionaryMarker": "Woordenboek",
+  "historyOpenDictionaryHint": "Opzoeken in het woordenboek",
+  "historyLookUpDeleted": "Zoekopdracht verwijderd",
+  "historyFilterPairEntries": "{count, plural, =1{1 item} other{{count} items}}",
+  "translateDetectLanguageShort": "Auto",
+  "translateOfflineOnlyNoLanguagePacks": "Nog geen taalpakketten op dit apparaat. Download er een om offline te vertalen.",
+  "translateOfflineOnlyWebUnavailable": "Offline vertalen is niet beschikbaar in de web-app. Kies Eerst offline of Online bij Instellingen › Privacy.",
+  "translateOfflineOnlyDeviceUnsupported": "Dit apparaat kan niet offline vertalen. Kies Eerst offline of Online bij Instellingen › Privacy."
 }

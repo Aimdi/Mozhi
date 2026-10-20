@@ -1564,5 +1564,17 @@
   "translateShortcutNewLine": "Insérer une nouvelle ligne (pendant la saisie)",
   "translateComposerHint": "Saisissez ou {paste} du texte",
   "translateComposerHintPaste": "collez",
-  "translatePasteFailed": "Impossible de lire le presse-papiers. Collez plutôt dans le champ de texte."
+  "translatePasteFailed": "Impossible de lire le presse-papiers. Collez plutôt dans le champ de texte.",
+  "documentsHeroTitle": "Choisissez un document",
+  "imageTranslateHeroTitle": "Prenez ou choisissez une photo",
+  "webTranslateHeroTitle": "Saisissez une adresse",
+  "webTranslateHeroBody": "Collez le lien d’un article ou d’un billet de blog. Mozhi télécharge la page, ne garde que le texte lisible et le traduit avec le moteur et les langues ci-dessus.",
+  "historyDictionaryMarker": "Dictionnaire",
+  "historyOpenDictionaryHint": "Rechercher dans le dictionnaire",
+  "historyLookUpDeleted": "Recherche supprimée",
+  "historyFilterPairEntries": "{count, plural, one{{count} entrée} other{{count} entrées}}",
+  "translateDetectLanguageShort": "Auto",
+  "translateOfflineOnlyNoLanguagePacks": "Aucun pack de langue sur cet appareil pour le moment. Téléchargez-en un pour traduire hors ligne.",
+  "translateOfflineOnlyWebUnavailable": "La traduction hors ligne n’est pas disponible dans l’application web. Passez à « Hors ligne en priorité » ou « En ligne » dans Paramètres › Confidentialité.",
+  "translateOfflineOnlyDeviceUnsupported": "Cet appareil ne peut pas traduire hors ligne. Passez à « Hors ligne en priorité » ou « En ligne » dans Paramètres › Confidentialité."
 }

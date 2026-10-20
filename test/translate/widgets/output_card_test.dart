@@ -460,6 +460,67 @@ void main() {
         verify(() => harness.history.toggleFavorite('new')).called(1);
         verifyNever(() => harness.history.add(any()));
       });
+
+      HistoryEntry lookUp({String text = 'Hello world'}) => HistoryEntry(
+        id: 'look-up',
+        text: text,
+        // A summary that happens to equal the translation.
+        translation: 'Bonjour le monde',
+        source: english,
+        target: french,
+        engineId: 'mozhi:deepl',
+        engineName: 'DeepL',
+        createdAt: DateTime(2026, 2),
+        isFavorite: true,
+        kind: HistoryEntryKind.dictionary,
+      );
+
+      test('never matches a dictionary look-up', () {
+        final translation = HistoryEntry(
+          id: 'translation',
+          text: 'Hello world ',
+          translation: 'Bonjour le monde',
+          source: Language.auto,
+          target: french,
+          engineId: 'mozhi:deepl',
+          engineName: 'DeepL',
+          createdAt: DateTime(2026),
+        );
+        expect(
+          findHistoryEntry(
+            [lookUp(), translation],
+            'Hello world',
+            'Bonjour le monde',
+          ),
+          translation,
+        );
+        expect(
+          findHistoryEntry([lookUp()], 'Hello world', 'Bonjour le monde'),
+          isNull,
+        );
+      });
+
+      testWidgets('a favourite look-up does not fill the heart', (
+        tester,
+      ) async {
+        final harness = TranslateHarness(
+          state: translatedState(),
+          history: HistoryState(
+            status: HistoryStatus.ready,
+            entries: [lookUp()],
+          ),
+        );
+        await harness.pump(tester, child: const OutputCard(), more: true);
+        expect(find.byTooltip('Remove from favourites'), findsNothing);
+        await tester.tap(find.byTooltip('Add to favourites'));
+        // A new translation entry; the look-up is left alone.
+        final added =
+            verify(() => harness.history.add(captureAny())).captured.single
+                as HistoryEntry;
+        expect(added.isDictionary, isFalse);
+        expect(added.isFavorite, isTrue);
+        verifyNever(() => harness.history.toggleFavorite(any()));
+      });
     });
 
     group('insights', () {

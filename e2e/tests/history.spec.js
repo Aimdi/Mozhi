@@ -7,6 +7,7 @@ const {
   fillField,
   openApp,
   openHistory,
+  recordAiRequests,
   seedSettings,
   sourceInput,
   test,
@@ -186,4 +187,45 @@ test('a link opens History on the Favorites tab', async ({ page }) => {
 
   await page.getByRole('tab', { name: 'All' }).click();
   await expect(entry(page, FIRST)).toBeVisible();
+});
+
+test('a dictionary look-up is saved to History, hearted and opened again', async ({
+  page,
+}) => {
+  const errors = collectPageErrors(page);
+  const requests = recordAiRequests(page);
+  // As the other link tests here: reload, then open the link.
+  await page.reload();
+  await openApp(page, '/dictionary?word=hello&from=en&to=fr');
+  await page.getByRole('button', { name: 'Look up' }).click();
+
+  // The heart beside "New look-up" works once the entry is shown.
+  const heart = page.getByRole('button', { name: 'Add to favorites' });
+  await expect(heart).toBeEnabled();
+  await expect.poll(() => requests.length).toBe(1);
+  await heart.click();
+  await expect(
+    page.getByRole('button', { name: 'Remove from favorites' }),
+  ).toBeVisible();
+
+  // History lists it as a look-up: the marker, the word and the mock
+  // entry's summary.
+  await openHistory(page);
+  const item = page.getByRole('group', { name: /Dictionary.*hello/ });
+  await expect(item).toBeVisible();
+  await expect(item).toHaveAccessibleName(
+    /English.* → .*French.*Dictionary.*hello.*interjection · used as a greeting/,
+  );
+  await page.getByRole('tab', { name: 'Favorites' }).click();
+  await expect(item).toBeVisible();
+
+  // Opening it looks the word up again on the Dictionary tab.
+  await item.click();
+  await expect(page.getByRole('tab', { name: 'Dictionary' }))
+    .toHaveAttribute('aria-selected', 'true');
+  await expect.poll(() => requests.length).toBe(2);
+  await expect(
+    page.getByRole('button', { name: 'Remove from favorites' }),
+  ).toBeEnabled();
+  expect(errors).toEqual([]);
 });

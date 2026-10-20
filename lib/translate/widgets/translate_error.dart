@@ -10,6 +10,7 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/data/bergamot_model_details.dart'
     show offlineModelDetailsOf;
 import 'package:mozhi/translate/widgets/offline_offer.dart';
+import 'package:mozhi/translate/widgets/offline_only_notice.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Where the user can go to fix an error.
@@ -252,7 +253,10 @@ String _redactUrl(String url) {
 /// Error message with a retry button and, when useful, a shortcut to the
 /// relevant settings page and an expandable "Details" section. A
 /// [ConsentRequiredException] is shown as a [ConsentInlinePrompt] instead
-/// (its actions record the consent, then `onRetry` runs).
+/// (its actions record the consent, then `onRetry` runs); one of
+/// [ConsentKind.offlineOnly] as an [OfflineOnlyNotice] when the device has
+/// nothing to translate with either (no on-device engine, no language
+/// pack).
 ///
 /// Missing offline models are offered as "Download German (25 MB)" (the
 /// size when the device's offline engine knows it), which opens the
@@ -314,11 +318,16 @@ class TranslateErrorView extends StatelessWidget {
     final consent = error;
     if (consent is ConsentRequiredException) {
       // Nothing failed: the user decides (Retry runs once consent is given).
-      return ConsentInlinePrompt(
+      final prompt = ConsentInlinePrompt(
         key: const Key('translate_error_consent'),
         consent: consent,
         onGranted: onRetry ?? () {},
       );
+      // "Offline only" with nothing on the device to translate with: say
+      // that instead of "this engine needs the network".
+      return consent.kind == ConsentKind.offlineOnly
+          ? OfflineOnlyNotice(consent: consent, fallback: prompt)
+          : prompt;
     }
     final l10n = context.l10n;
     final theme = Theme.of(context);

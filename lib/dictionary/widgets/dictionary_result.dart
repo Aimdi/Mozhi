@@ -156,15 +156,18 @@ class DictionaryResultView extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const DictionaryFavoriteButton(),
-                    FilledButton.icon(
-                      key: const Key('dictionary_new_look_up'),
-                      autofocus: true,
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size(160, 52),
+                    // Shrinks with large text on a narrow screen.
+                    Flexible(
+                      child: FilledButton.icon(
+                        key: const Key('dictionary_new_look_up'),
+                        autofocus: true,
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size(160, 52),
+                        ),
+                        onPressed: onNewLookUp,
+                        icon: const Icon(Icons.search),
+                        label: Text(l10n.dictionaryNewLookUp),
                       ),
-                      onPressed: onNewLookUp,
-                      icon: const Icon(Icons.search),
-                      label: Text(l10n.dictionaryNewLookUp),
                     ),
                   ],
                 ),

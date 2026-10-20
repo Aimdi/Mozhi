@@ -1564,5 +1564,17 @@
   "translateShortcutNewLine": "插入新行（输入时）",
   "translateComposerHint": "输入或{paste}文本",
   "translateComposerHintPaste": "粘贴",
-  "translatePasteFailed": "无法读取剪贴板。请直接粘贴到文本框中。"
+  "translatePasteFailed": "无法读取剪贴板。请直接粘贴到文本框中。",
+  "documentsHeroTitle": "选择文档",
+  "imageTranslateHeroTitle": "拍摄或选择照片",
+  "webTranslateHeroTitle": "输入网址",
+  "webTranslateHeroBody": "粘贴文章或博客的链接。Mozhi 会下载页面，只保留可读正文，并用上方的引擎和语言进行翻译。",
+  "historyDictionaryMarker": "词典",
+  "historyOpenDictionaryHint": "在词典中查询",
+  "historyLookUpDeleted": "已删除查询",
+  "historyFilterPairEntries": "{count, plural, =1{1 项} other{{count} 项}}",
+  "translateDetectLanguageShort": "自动",
+  "translateOfflineOnlyNoLanguagePacks": "此设备上还没有语言包。下载一个即可离线翻译。",
+  "translateOfflineOnlyWebUnavailable": "网页版无法离线翻译。请在“设置 › 隐私”中切换为“离线优先”或“在线”。",
+  "translateOfflineOnlyDeviceUnsupported": "此设备无法离线翻译。请在“设置 › 隐私”中切换为“离线优先”或“在线”。"
 }

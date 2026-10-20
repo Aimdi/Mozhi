@@ -238,12 +238,7 @@ class MeteredDownloadDialog extends StatelessWidget {
     final size = this.size;
     return AlertDialog(
       icon: const Icon(Icons.signal_cellular_alt),
-      title: Text(
-        l10n.offlineMeteredTitle,
-        style: theme.textTheme.titleLarge?.copyWith(
-          fontWeight: FontWeight.w800,
-        ),
-      ),
+      title: Text(l10n.offlineMeteredTitle, style: theme.textTheme.titleLarge),
       content: Text(
         size == null || size == 0
             ? l10n.offlineMeteredBodyUnknownSize(language.name)
@@ -399,11 +394,7 @@ class _SectionHeading extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
       child: Semantics(
         header: true,
-        child: Text(
-          title,
-          style: Theme.of(context).textTheme.titleLarge
-              ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.3),
-        ),
+        child: Text(title, style: Theme.of(context).textTheme.titleLarge),
       ),
     );
   }
@@ -471,10 +462,7 @@ class _Overview extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
           child: Text(
             l10n.offlineDownloadedCount(state.downloadedCount),
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.4,
-            ),
+            style: theme.textTheme.headlineSmall,
           ),
         ),
         if (storage != null && storage.totalBytes > 0)
@@ -486,7 +474,6 @@ class _Overview extends StatelessWidget {
               ),
               style: theme.textTheme.titleSmall?.copyWith(
                 color: theme.colorScheme.primary,
-                fontWeight: FontWeight.w700,
               ),
             ),
           ),

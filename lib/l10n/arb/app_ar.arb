@@ -1564,5 +1564,17 @@
   "translateShortcutNewLine": "إدراج سطر جديد (أثناء الكتابة)",
   "translateComposerHint": "اكتب نصًا أو {paste}",
   "translateComposerHintPaste": "الصقه",
-  "translatePasteFailed": "تعذّرت قراءة الحافظة. الصق النص مباشرة في حقل النص."
+  "translatePasteFailed": "تعذّرت قراءة الحافظة. الصق النص مباشرة في حقل النص.",
+  "documentsHeroTitle": "اختر مستندًا",
+  "imageTranslateHeroTitle": "التقط صورة أو اخترها",
+  "webTranslateHeroTitle": "أدخل عنوانًا",
+  "webTranslateHeroBody": "الصق رابط مقال أو تدوينة. ينزّل Mozhi الصفحة ويحتفظ بالنص المقروء فقط ويترجمه بالمحرّك واللغات أعلاه.",
+  "historyDictionaryMarker": "القاموس",
+  "historyOpenDictionaryHint": "البحث في القاموس",
+  "historyLookUpDeleted": "تم حذف البحث",
+  "historyFilterPairEntries": "{count, plural, zero{لا إدخالات} one{إدخال واحد} two{إدخالان} few{{count} إدخالات} many{{count} إدخالًا} other{{count} إدخال}}",
+  "translateDetectLanguageShort": "تلقائي",
+  "translateOfflineOnlyNoLanguagePacks": "لا توجد حزم لغات على هذا الجهاز بعد. نزّل حزمة للترجمة دون اتصال.",
+  "translateOfflineOnlyWebUnavailable": "الترجمة دون اتصال غير متاحة في تطبيق الويب. انتقل إلى «بلا اتصال أولًا» أو «عبر الإنترنت» من الإعدادات › الخصوصية.",
+  "translateOfflineOnlyDeviceUnsupported": "لا يمكن لهذا الجهاز الترجمة دون اتصال. انتقل إلى «بلا اتصال أولًا» أو «عبر الإنترنت» من الإعدادات › الخصوصية."
 }

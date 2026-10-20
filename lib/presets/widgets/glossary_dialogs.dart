@@ -254,9 +254,7 @@ class _GlossaryTermDialogState extends State<GlossaryTermDialog> {
                 controller: _note,
                 enableIMEPersonalizedLearning: imeLearningAllowed(context),
                 textCapitalization: TextCapitalization.sentences,
-                decoration: InputDecoration(
-                  labelText: l10n.glossaryEditorNote,
-                ),
+                decoration: InputDecoration(labelText: l10n.glossaryEditorNote),
                 onFieldSubmitted: (_) => _submit(),
               ),
               const SizedBox(height: 4),

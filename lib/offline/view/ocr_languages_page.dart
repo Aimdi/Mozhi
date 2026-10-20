@@ -282,10 +282,7 @@ class _Overview extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
           child: Text(
             l10n.offlineDownloadedCount(state.installed.length),
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.4,
-            ),
+            style: theme.textTheme.headlineSmall,
           ),
         ),
         if (state.totalBytes > 0)
@@ -295,7 +292,6 @@ class _Overview extends StatelessWidget {
               l10n.offlineStorageUsed(formatStoredSize(l10n, state.totalBytes)),
               style: theme.textTheme.titleSmall?.copyWith(
                 color: theme.colorScheme.primary,
-                fontWeight: FontWeight.w700,
               ),
             ),
           ),
@@ -424,11 +420,7 @@ class _SectionHeading extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
       child: Semantics(
         header: true,
-        child: Text(
-          title,
-          style: Theme.of(context).textTheme.titleLarge
-              ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.3),
-        ),
+        child: Text(title, style: Theme.of(context).textTheme.titleLarge),
       ),
     );
   }

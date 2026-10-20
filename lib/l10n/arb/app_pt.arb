@@ -1564,5 +1564,17 @@
   "translateShortcutNewLine": "Inserir uma nova linha (ao digitar)",
   "translateComposerHint": "Digite ou {paste} um texto",
   "translateComposerHintPaste": "cole",
-  "translatePasteFailed": "Não foi possível ler a área de transferência. Cole direto no campo de texto."
+  "translatePasteFailed": "Não foi possível ler a área de transferência. Cole direto no campo de texto.",
+  "documentsHeroTitle": "Escolha um documento",
+  "imageTranslateHeroTitle": "Tire ou escolha uma foto",
+  "webTranslateHeroTitle": "Digite um endereço",
+  "webTranslateHeroBody": "Cole o link de um artigo ou post de blog. O Mozhi baixa a página, mantém só o texto legível e o traduz com o mecanismo e os idiomas acima.",
+  "historyDictionaryMarker": "Dicionário",
+  "historyOpenDictionaryHint": "Consultar no dicionário",
+  "historyLookUpDeleted": "Consulta excluída",
+  "historyFilterPairEntries": "{count, plural, =1{1 item} other{{count} itens}}",
+  "translateDetectLanguageShort": "Auto",
+  "translateOfflineOnlyNoLanguagePacks": "Ainda não há pacotes de idioma neste dispositivo. Baixe um para traduzir off-line.",
+  "translateOfflineOnlyWebUnavailable": "A tradução off-line não está disponível no app da web. Mude para “Preferir off-line” ou “On-line” em Configurações › Privacidade.",
+  "translateOfflineOnlyDeviceUnsupported": "Este dispositivo não consegue traduzir off-line. Mude para “Preferir off-line” ou “On-line” em Configurações › Privacidade."
 }

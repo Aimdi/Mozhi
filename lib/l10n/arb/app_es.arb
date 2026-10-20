@@ -1564,5 +1564,17 @@
   "translateShortcutNewLine": "Insertar una línea nueva (al escribir)",
   "translateComposerHint": "Escribe o {paste} texto",
   "translateComposerHintPaste": "pega",
-  "translatePasteFailed": "No se pudo leer el portapapeles. Pega directamente en el campo de texto."
+  "translatePasteFailed": "No se pudo leer el portapapeles. Pega directamente en el campo de texto.",
+  "documentsHeroTitle": "Elige un documento",
+  "imageTranslateHeroTitle": "Haz o elige una foto",
+  "webTranslateHeroTitle": "Introduce una dirección",
+  "webTranslateHeroBody": "Pega el enlace de un artículo o una entrada de blog. Mozhi descarga la página, conserva solo el texto legible y lo traduce con el motor y los idiomas de arriba.",
+  "historyDictionaryMarker": "Diccionario",
+  "historyOpenDictionaryHint": "Buscar en el diccionario",
+  "historyLookUpDeleted": "Búsqueda eliminada",
+  "historyFilterPairEntries": "{count, plural, =1{1 entrada} other{{count} entradas}}",
+  "translateDetectLanguageShort": "Auto",
+  "translateOfflineOnlyNoLanguagePacks": "Todavía no hay paquetes de idioma en este dispositivo. Descarga uno para traducir sin conexión.",
+  "translateOfflineOnlyWebUnavailable": "La traducción sin conexión no está disponible en la aplicación web. Cambia a «Primero sin conexión» o «En línea» en Ajustes › Privacidad.",
+  "translateOfflineOnlyDeviceUnsupported": "Este dispositivo no puede traducir sin conexión. Cambia a «Primero sin conexión» o «En línea» en Ajustes › Privacidad."
 }

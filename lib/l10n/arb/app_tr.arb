@@ -1564,5 +1564,17 @@
   "translateShortcutNewLine": "Yeni satır ekle (yazarken)",
   "translateComposerHint": "Metin yazın veya {paste}",
   "translateComposerHintPaste": "yapıştırın",
-  "translatePasteFailed": "Pano okunamadı. Bunun yerine metin alanına yapıştırın."
+  "translatePasteFailed": "Pano okunamadı. Bunun yerine metin alanına yapıştırın.",
+  "documentsHeroTitle": "Bir belge seçin",
+  "imageTranslateHeroTitle": "Fotoğraf çekin veya seçin",
+  "webTranslateHeroTitle": "Bir adres girin",
+  "webTranslateHeroBody": "Bir makalenin veya blog yazısının bağlantısını yapıştırın. Mozhi sayfayı indirir, yalnızca okunabilir metni tutar ve yukarıdaki motor ve dillerle çevirir.",
+  "historyDictionaryMarker": "Sözlük",
+  "historyOpenDictionaryHint": "Sözlükte ara",
+  "historyLookUpDeleted": "Arama silindi",
+  "historyFilterPairEntries": "{count, plural, =1{1 kayıt} other{{count} kayıt}}",
+  "translateDetectLanguageShort": "Otomatik",
+  "translateOfflineOnlyNoLanguagePacks": "Bu cihazda henüz dil paketi yok. Çevrimdışı çevirmek için bir paket indirin.",
+  "translateOfflineOnlyWebUnavailable": "Çevrimdışı çeviri web uygulamasında kullanılamaz. Ayarlar › Gizlilik bölümünden Önce çevrimdışı veya Çevrimiçi seçeneğine geçin.",
+  "translateOfflineOnlyDeviceUnsupported": "Bu cihaz çevrimdışı çeviri yapamaz. Ayarlar › Gizlilik bölümünden Önce çevrimdışı veya Çevrimiçi seçeneğine geçin."
 }

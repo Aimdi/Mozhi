@@ -99,10 +99,7 @@ class UsageCardView extends StatelessWidget {
                     header: true,
                     child: Text(
                       l10n.usageTitle,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.3,
-                      ),
+                      style: theme.textTheme.titleLarge,
                     ),
                   ),
                 ),
@@ -124,9 +121,7 @@ class UsageCardView extends StatelessWidget {
                 context.usageCharacters(stats.totalChars),
                 context.usageTokens(stats.estimatedTokens),
               ].join(' · '),
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+              style: theme.textTheme.titleMedium,
             ),
             Text(
               l10n.usageInputOutput(
@@ -154,12 +149,7 @@ class UsageCardView extends StatelessWidget {
             const SizedBox(height: 12),
             const Hairline(),
             const SizedBox(height: 12),
-            Text(
-              l10n.usageBudgetTitle,
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
-            ),
+            Text(l10n.usageBudgetTitle, style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             if (status == null)
               Text(l10n.usageBudgetNone, style: secondary)

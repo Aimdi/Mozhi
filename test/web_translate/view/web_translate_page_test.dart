@@ -115,6 +115,19 @@ void main() {
       expect(find.byKey(const Key('web_translate_web_notice')), findsOneWidget);
     });
 
+    testWidgets('keeps the controls narrow on wide windows', (tester) async {
+      await pumpPage(tester, page(), size: const Size(1280, 800));
+      for (final key in const [
+        Key('web_translate_url_field'),
+        Key('web_translate_language_bar'),
+      ]) {
+        expect(
+          tester.getSize(find.byKey(key)).width,
+          WebTranslateView.controlsMaxWidth,
+        );
+      }
+    });
+
     testWidgets('shows the language detected for the page', (tester) async {
       // The translate screen detected another language for its own text.
       when(() => translateCubit.state).thenReturn(

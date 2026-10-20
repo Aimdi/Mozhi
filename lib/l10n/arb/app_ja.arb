@@ -1564,5 +1564,17 @@
   "translateShortcutNewLine": "改行を挿入（入力中）",
   "translateComposerHint": "テキストを入力または{paste}",
   "translateComposerHintPaste": "貼り付け",
-  "translatePasteFailed": "クリップボードを読み取れませんでした。テキスト欄に直接貼り付けてください。"
+  "translatePasteFailed": "クリップボードを読み取れませんでした。テキスト欄に直接貼り付けてください。",
+  "documentsHeroTitle": "ドキュメントを選択",
+  "imageTranslateHeroTitle": "写真を撮影または選択",
+  "webTranslateHeroTitle": "アドレスを入力",
+  "webTranslateHeroBody": "記事やブログ投稿のリンクを貼り付けてください。Mozhi がページをダウンロードし、読める本文だけを残して、上のエンジンと言語で翻訳します。",
+  "historyDictionaryMarker": "辞書",
+  "historyOpenDictionaryHint": "辞書で調べる",
+  "historyLookUpDeleted": "検索を削除しました",
+  "historyFilterPairEntries": "{count, plural, =1{1 件} other{{count} 件}}",
+  "translateDetectLanguageShort": "自動",
+  "translateOfflineOnlyNoLanguagePacks": "このデバイスにはまだ言語パックがありません。オフラインで翻訳するにはダウンロードしてください。",
+  "translateOfflineOnlyWebUnavailable": "ウェブアプリではオフライン翻訳を使えません。［設定］›［プライバシー］で「オフライン優先」または「オンライン」に切り替えてください。",
+  "translateOfflineOnlyDeviceUnsupported": "このデバイスではオフライン翻訳を使えません。［設定］›［プライバシー］で「オフライン優先」または「オンライン」に切り替えてください。"
 }

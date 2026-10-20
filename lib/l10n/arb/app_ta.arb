@@ -1564,5 +1564,17 @@
   "translateShortcutNewLine": "புதிய வரியைச் செருகு (தட்டச்சு செய்யும்போது)",
   "translateComposerHint": "உரையைத் தட்டச்சிடவும் அல்லது {paste}",
   "translateComposerHintPaste": "ஒட்டவும்",
-  "translatePasteFailed": "கிளிப்போர்டைப் படிக்க முடியவில்லை. உரைப் புலத்தில் நேரடியாக ஒட்டவும்."
+  "translatePasteFailed": "கிளிப்போர்டைப் படிக்க முடியவில்லை. உரைப் புலத்தில் நேரடியாக ஒட்டவும்.",
+  "documentsHeroTitle": "ஆவணத்தைத் தேர்ந்தெடுக்கவும்",
+  "imageTranslateHeroTitle": "படம் எடுக்கவும் அல்லது தேர்ந்தெடுக்கவும்",
+  "webTranslateHeroTitle": "முகவரியை உள்ளிடவும்",
+  "webTranslateHeroBody": "ஒரு கட்டுரை அல்லது வலைப்பதிவு இடுகையின் இணைப்பை ஒட்டவும். Mozhi பக்கத்தைப் பதிவிறக்கி, படிக்கக்கூடிய உரையை மட்டும் வைத்து, மேலே உள்ள இன்ஜின், மொழிகளில் மொழிபெயர்க்கும்.",
+  "historyDictionaryMarker": "அகராதி",
+  "historyOpenDictionaryHint": "அகராதியில் தேடு",
+  "historyLookUpDeleted": "தேடல் நீக்கப்பட்டது",
+  "historyFilterPairEntries": "{count, plural, =1{1 பதிவு} other{{count} பதிவுகள்}}",
+  "translateDetectLanguageShort": "தானியங்கு",
+  "translateOfflineOnlyNoLanguagePacks": "இந்தச் சாதனத்தில் இன்னும் மொழித் தொகுப்புகள் இல்லை. ஆஃப்லைனில் மொழிபெயர்க்க ஒன்றைப் பதிவிறக்கவும்.",
+  "translateOfflineOnlyWebUnavailable": "இணைய ஆப்ஸில் ஆஃப்லைன் மொழிபெயர்ப்பு இல்லை. அமைப்புகள் › தனியுரிமையில் 'ஆஃப்லைனுக்கு முன்னுரிமை' அல்லது 'ஆன்லைன்' என்பதற்கு மாறவும்.",
+  "translateOfflineOnlyDeviceUnsupported": "இந்தச் சாதனத்தால் ஆஃப்லைனில் மொழிபெயர்க்க முடியாது. அமைப்புகள் › தனியுரிமையில் 'ஆஃப்லைனுக்கு முன்னுரிமை' அல்லது 'ஆன்லைன்' என்பதற்கு மாறவும்."
 }

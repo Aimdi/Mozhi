@@ -24,6 +24,7 @@ import 'package:mozhi/translate/widgets/language_text.dart';
 import 'package:mozhi/translate/widgets/listen_button.dart';
 import 'package:mozhi/translate/widgets/meaning_check_panel.dart';
 import 'package:mozhi/translate/widgets/offline_offer.dart';
+import 'package:mozhi/translate/widgets/offline_only_notice.dart';
 import 'package:mozhi/translate/widgets/romanization_line.dart';
 import 'package:mozhi/translate/widgets/skeleton.dart';
 import 'package:mozhi/translate/widgets/status_announcer.dart';
@@ -53,7 +54,9 @@ Future<void> copyToClipboard(BuildContext context, String text) async {
 }
 
 /// Newest history entry for this exact text + translation (entries are
-/// newest first).
+/// newest first). Dictionary look-ups ([HistoryEntry.isDictionary]) never
+/// match: their `translation` is a summary of the entry, which may happen
+/// to equal a translation.
 HistoryEntry? findHistoryEntry(
   List<HistoryEntry> entries,
   String text,
@@ -61,7 +64,9 @@ HistoryEntry? findHistoryEntry(
 ) {
   final wanted = text.trim();
   for (final entry in entries) {
-    if (entry.text.trim() == wanted && entry.translation == translation) {
+    if (!entry.isDictionary &&
+        entry.text.trim() == wanted &&
+        entry.translation == translation) {
       return entry;
     }
   }
@@ -125,7 +130,9 @@ bool translateOutputIsEmpty(TranslateState state) =>
 /// While the privacy settings hold a translation back
 /// (`TranslateState.consent`), the inline prompt is followed by the
 /// on-device alternative when the offline engine supports the pair
-/// ([OfflinePairOffer]: "Download German (25 MB)"). A Mozhi instance error
+/// ([OfflinePairOffer]: "Download German (25 MB)"); when "Offline only"
+/// held it back and the device has nothing to translate with either, an
+/// [OfflineOnlyNotice] says so instead. A Mozhi instance error
 /// offers "Switch instance" ([switchInstanceAndRetry]) when several
 /// instances are configured.
 ///
@@ -505,20 +512,25 @@ class _OutputCardState extends State<OutputCard> {
     if (consent != null && output.isEmpty) {
       // Never a dialog by itself: an instant translation shows this inline
       // prompt (a translation the user asked for also opens the dialog).
+      final prompt = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ConsentInlinePrompt(
+            key: const Key('translate_consent_prompt'),
+            consent: consent.exception,
+            onGranted: () =>
+                unawaited(context.read<TranslateCubit>().retryAfterConsent()),
+          ),
+          OfflinePairOffer(consent: consent.exception),
+        ],
+      );
       return Padding(
         padding: const EdgeInsetsDirectional.only(top: 8, end: 12, bottom: 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            ConsentInlinePrompt(
-              key: const Key('translate_consent_prompt'),
-              consent: consent.exception,
-              onGranted: () =>
-                  unawaited(context.read<TranslateCubit>().retryAfterConsent()),
-            ),
-            OfflinePairOffer(consent: consent.exception),
-          ],
-        ),
+        // "Offline only" with nothing on the device to translate with: say
+        // that instead of "this engine needs the network".
+        child: consent.exception.kind == ConsentKind.offlineOnly
+            ? OfflineOnlyNotice(consent: consent.exception, fallback: prompt)
+            : prompt,
       );
     }
 

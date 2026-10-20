@@ -7,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/dictionary/dictionary.dart';
+import 'package:mozhi/history/history.dart'
+    show HistoryCubit, HistoryEntry, HistoryEntryKind, HistoryState;
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/speech/speech_service.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -57,11 +59,12 @@ const _readyTranslate = TranslateState(
 );
 
 /// Pumps [DictionaryView] on a phone with [state], the app's theme, and
-/// speech output and voice input available.
+/// speech output and voice input available. The history has [saved].
 Future<void> _pumpDictionary(
   WidgetTester tester, {
   required DictionaryState state,
   Brightness brightness = Brightness.light,
+  List<HistoryEntry> saved = const [],
 }) async {
   useGoldenDevice(tester, GoldenDevice.phone);
   final dictionary = MockDictionaryCubit();
@@ -80,6 +83,12 @@ Future<void> _pumpDictionary(
   when(() => speech.speaking).thenAnswer((_) => const Stream.empty());
   when(() => speech.current).thenReturn(null);
   final speechInput = FakeSpeechInput();
+  final history = MockHistoryCubit();
+  whenListen(
+    history,
+    const Stream<HistoryState>.empty(),
+    initialState: HistoryState(entries: saved),
+  );
   await tester.pumpWidget(
     MultiRepositoryProvider(
       providers: [
@@ -92,6 +101,7 @@ Future<void> _pumpDictionary(
         providers: [
           BlocProvider<TranslateCubit>.value(value: translate),
           BlocProvider<DictionaryCubit>.value(value: dictionary),
+          BlocProvider<HistoryCubit>.value(value: history),
         ],
         child: MaterialApp(
           debugShowCheckedModeBanner: false,
@@ -118,10 +128,26 @@ void main() {
 
     for (final brightness in [Brightness.light, Brightness.dark]) {
       final look = brightness.name;
+      // Dark: a favourite (filled heart); light: not saved as one.
+      final favorite = brightness == Brightness.dark;
       testWidgets('with an entry on a phone ($look)', (tester) async {
         await _pumpDictionary(
           tester,
           brightness: brightness,
+          saved: [
+            HistoryEntry(
+              id: 'dictionary:1',
+              kind: HistoryEntryKind.dictionary,
+              text: 'hola',
+              translation: 'interjection · A greeting.',
+              source: spanish,
+              target: english,
+              engineId: claudeEngine.id,
+              engineName: claudeEngine.name,
+              createdAt: DateTime(2026, 10, 20),
+              isFavorite: favorite,
+            ),
+          ],
           state: const DictionaryState(
             word: 'hola',
             source: spanish,

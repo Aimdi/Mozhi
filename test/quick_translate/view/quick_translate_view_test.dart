@@ -110,6 +110,23 @@ void main() {
       expect(text.textDirection, isNull);
     });
 
+    testWidgets('large text puts the detected language below the label', (
+      tester,
+    ) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      stub(readyState(translation: result('Bonjour')));
+      await tester.pumpQuick(quickView(cubit), size: const Size(320, 1400));
+      expect(tester.takeException(), isNull);
+      final original = find.text('Original');
+      // "Original" stays on one line; the detected language wraps below.
+      expect(tester.getSize(original).height, lessThan(2 * 14 * 2));
+      expect(
+        tester.getTopLeft(byKey('quick_translate_detected')).dy,
+        greaterThanOrEqualTo(tester.getBottomLeft(original).dy),
+      );
+    });
+
     testWidgets('shows short translations large, not as a heading', (
       tester,
     ) async {

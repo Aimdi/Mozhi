@@ -274,6 +274,27 @@ void main() {
       expect(retranslate.onPressed, isNull);
     });
 
+    testWidgets('shows the translation as body text, not a heading', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        successState(
+          result: const ImageTranslation(translatedText: 'Bonjour'),
+        ),
+      );
+      final text = tester.widget<SelectableText>(
+        find.descendant(
+          of: find.byKey(const Key('image_translate_translation')),
+          matching: find.byType(SelectableText),
+        ),
+      );
+      // The translate screen's output style (the theme's title styles are
+      // bold headings).
+      expect(text.style?.fontWeight, FontWeight.w400);
+      expect(text.style?.fontSize, 20);
+    });
+
     testWidgets('copies the translation', (tester) async {
       final clipboard = FakeClipboard(tester);
       await pump(tester, successState());

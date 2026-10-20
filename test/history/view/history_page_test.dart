@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
+import 'package:mozhi/dictionary/view/dictionary_request.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/history/models/history_entry.dart';
@@ -62,6 +63,21 @@ final _older = HistoryEntry(
   engineId: 'mozhi:deepl',
   engineName: 'DeepL',
   createdAt: _daysAgo(10),
+);
+
+const _spanish = Language(code: 'es', name: 'Spanish');
+
+final _lookUp = HistoryEntry(
+  id: 'dictionary:1',
+  kind: HistoryEntryKind.dictionary,
+  text: 'hola',
+  translation: 'interjection · A greeting.',
+  source: _spanish,
+  target: _english,
+  engineId: 'ai:p1',
+  engineName: 'Claude',
+  createdAt: _daysAgo(0, hour: 10),
+  verbosity: DictionaryVerbosity.comprehensive,
 );
 
 class _MockHistoryRepository extends Mock implements HistoryRepository;
@@ -1699,6 +1715,214 @@ void main() {
         await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
         await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
         handle.dispose();
+      });
+    });
+
+    group('dictionary look-ups', () {
+      final withLookUp = HistoryState(
+        status: HistoryStatus.ready,
+        entries: [_lookUp, _today, _yesterday, _older],
+      );
+
+      testWidgets('show the Dictionary marker, the word and its summary', (
+        tester,
+      ) async {
+        await pump(tester, state: withLookUp);
+
+        final marker = find.byKey(const Key('history_dictionary_marker'));
+        expect(marker, findsOneWidget);
+        expect(
+          find.descendant(of: marker, matching: find.text('Dictionary')),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: marker,
+            matching: find.byIcon(Icons.menu_book_rounded),
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('hola'), findsOneWidget);
+        expect(find.text('interjection · A greeting.'), findsOneWidget);
+        expect(find.text(_pair('Spanish', 'English')), findsOneWidget);
+        // Translations have no marker.
+        expect(find.text('Dictionary'), findsOneWidget);
+        // The word is the body, in its own language; the summary below it.
+        final word = tester.widget<Text>(find.text('hola'));
+        expect(word._locale, const Locale('es'));
+        expect(
+          tester.getTopLeft(find.text('hola')).dy,
+          lessThan(
+            tester.getTopLeft(find.text('interjection · A greeting.')).dy,
+          ),
+        );
+      });
+
+      testWidgets('open the Dictionary tab and look the word up again', (
+        tester,
+      ) async {
+        await pump(tester, state: withLookUp);
+
+        await tester.tap(find.text('hola'));
+
+        final extra =
+            verify(
+                  () => router.go(
+                    '/dictionary?word=hola&from=es&to=en',
+                    extra: captureAny(named: 'extra'),
+                  ),
+                ).captured.single
+                as DictionaryLookUpRequest;
+        expect(extra.verbosity, DictionaryVerbosity.comprehensive);
+        verifyNever(() => translate.setInputAndTranslate(any()));
+      });
+
+      testWidgets('detected words open with the language detected', (
+        tester,
+      ) async {
+        final auto = HistoryEntry(
+          id: 'dictionary:2',
+          kind: HistoryEntryKind.dictionary,
+          text: 'gato',
+          translation: '',
+          source: Language.auto,
+          target: const Language.custom('Pirate speak'),
+          engineId: 'ai:p1',
+          engineName: 'Claude',
+          createdAt: _daysAgo(0),
+        );
+        await pump(
+          tester,
+          state: HistoryState(status: HistoryStatus.ready, entries: [auto]),
+        );
+
+        await tester.tap(find.text('gato'));
+
+        final extra =
+            verify(
+                  () => router.go(
+                    '/dictionary?word=gato&from=auto',
+                    extra: captureAny(named: 'extra'),
+                  ),
+                ).captured.single
+                as DictionaryLookUpRequest;
+        expect(extra.verbosity, isNull);
+      });
+
+      testWidgets('delete with "Look-up deleted" and undo', (tester) async {
+        await pump(tester, state: withLookUp);
+
+        await tester.drag(find.text('hola'), const Offset(-600, 0));
+        await tester.pumpAndSettle();
+
+        verify(() => history.delete('dictionary:1')).called(1);
+        expect(find.text('Look-up deleted'), findsOneWidget);
+        await tester.tap(find.text('Undo'));
+        await tester.pumpAndSettle();
+        verify(() => history.restore(_lookUp)).called(1);
+        expect(find.text('hola'), findsOneWidget);
+      });
+
+      testWidgets('swipe to the favourites', (tester) async {
+        await pump(tester, state: withLookUp);
+
+        await tester.drag(find.text('hola'), const Offset(600, 0));
+        await tester.pumpAndSettle();
+
+        verify(() => history.toggleFavorite('dictionary:1')).called(1);
+      });
+
+      testWidgets('tell screen readers what tapping does', (tester) async {
+        final handle = tester.ensureSemantics();
+        await pump(tester, state: withLookUp);
+
+        expect(
+          tester.getSemantics(find.text('hola')),
+          isSemantics(
+            customActions: [
+              const CustomSemanticsAction(label: 'Delete'),
+              const CustomSemanticsAction(label: 'Add to favorites'),
+              const CustomSemanticsAction.overridingAction(
+                hint: 'Look up in the dictionary',
+                action: SemanticsAction.tap,
+              ),
+            ],
+            hasTapAction: true,
+            hasLongPressAction: true,
+          ),
+        );
+        handle.dispose();
+      });
+
+      group('actions', () {
+        late List<MethodCall> calls;
+
+        setUp(() {
+          calls = [];
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+              .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+                calls.add(call);
+                return null;
+              });
+        });
+
+        tearDown(() {
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+              .setMockMethodCallHandler(SystemChannels.platform, null);
+        });
+
+        testWidgets('copy copies the word', (tester) async {
+          await pump(tester, state: withLookUp);
+          await tester.tap(find.byTooltip('Copy').first);
+          await tester.pump();
+          expect(
+            calls
+                .where((c) => c.method == 'Clipboard.setData')
+                .map((c) => (c.arguments as Map)['text']),
+            ['hola'],
+          );
+          await tester.pumpAndSettle(HistoryEntryTile.copiedDuration);
+        });
+
+        testWidgets('share shares the word and the summary', (tester) async {
+          final shared = <String?>[];
+          final previous = HistoryShare.share;
+          HistoryShare.share = (params) async => shared.add(params.text);
+          addTearDown(() => HistoryShare.share = previous);
+          final noSummary = HistoryEntry(
+            id: 'dictionary:2',
+            kind: HistoryEntryKind.dictionary,
+            text: 'gato',
+            translation: ' ',
+            source: _spanish,
+            target: _english,
+            engineId: 'ai:p1',
+            engineName: 'Claude',
+            createdAt: _daysAgo(0, hour: 8),
+          );
+          await pump(
+            tester,
+            state: HistoryState(
+              status: HistoryStatus.ready,
+              entries: [_lookUp, noSummary],
+            ),
+          );
+
+          await tester.tap(find.byTooltip('Share').first);
+          await tester.tap(find.byTooltip('Share').last);
+
+          expect(shared, ['hola\ninterjection · A greeting.', 'gato']);
+        });
+      });
+
+      testWidgets('the pairs count entries, not translations', (tester) async {
+        await pump(tester, state: withLookUp);
+        await tester.tap(find.byKey(HistoryView.pairFilterKey));
+        await tester.pumpAndSettle();
+
+        expect(find.text('2 entries'), findsOneWidget);
+        expect(find.text('1 entry'), findsNWidgets(2));
+        expect(find.textContaining('translation'), findsNothing);
       });
     });
 

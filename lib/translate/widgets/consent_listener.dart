@@ -7,6 +7,8 @@ import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/engine_selector.dart';
+import 'package:mozhi/translate/widgets/offline_offer.dart';
+import 'package:mozhi/translate/widgets/offline_only_notice.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Opens the consent prompt ([askConsent]) when a translation the user
@@ -17,6 +19,11 @@ import 'package:translation_repository/translation_repository.dart';
 /// Instant translations (`ConsentRequest.automatic`) never open it: the
 /// output shows an inline prompt instead, so typing is never interrupted.
 /// After Cancel the inline prompt stays.
+///
+/// Nor does a request "Offline only" stopped while the device has nothing
+/// to translate with either ([offlineOnlyGap]): the prompt would offer the
+/// on-device engine, and the output's [OfflineOnlyNotice] already says
+/// what to do.
 class TranslateConsentListener extends StatelessWidget {
   const new({required this.child, super.key});
 
@@ -42,6 +49,10 @@ class TranslateConsentListener extends StatelessWidget {
     ConsentRequiredException consent,
   ) async {
     final cubit = context.read<TranslateCubit>();
+    if (consent.kind == ConsentKind.offlineOnly) {
+      final gap = await offlineOnlyGap(maybeOfflineTranslator(context));
+      if (gap != null || !context.mounted) return;
+    }
     if (await askConsent(context, consent)) {
       await cubit.retryAfterConsent();
     }

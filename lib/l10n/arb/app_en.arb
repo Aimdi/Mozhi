@@ -7919,5 +7919,21 @@
         "type": "int"
       }
     }
+  },
+  "translateDetectLanguageShort": "Auto",
+  "@translateDetectLanguageShort": {
+    "description": "Short form of “Detect language” after the sparkle icon, when the language bar is too narrow for the full name"
+  },
+  "translateOfflineOnlyNoLanguagePacks": "No language packs on this device yet. Download one to translate offline.",
+  "@translateOfflineOnlyNoLanguagePacks": {
+    "description": "Privacy mode is Offline only and no offline language pack is downloaded (Android)"
+  },
+  "translateOfflineOnlyWebUnavailable": "Offline translation isn’t available in the web app. Switch to Offline first or Online in Settings › Privacy.",
+  "@translateOfflineOnlyWebUnavailable": {
+    "description": "Privacy mode is Offline only in the web app, which has no on-device engine"
+  },
+  "translateOfflineOnlyDeviceUnsupported": "This device can’t run offline translation. Switch to Offline first or Online in Settings › Privacy.",
+  "@translateOfflineOnlyDeviceUnsupported": {
+    "description": "Privacy mode is Offline only on an Android device whose processor cannot run the offline engine"
   }
 }

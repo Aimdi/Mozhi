@@ -1564,5 +1564,17 @@
   "translateShortcutNewLine": "Sisipkan baris baru (saat mengetik)",
   "translateComposerHint": "Ketik atau {paste} teks",
   "translateComposerHintPaste": "tempel",
-  "translatePasteFailed": "Tidak dapat membaca papan klip. Tempel langsung ke kolom teks."
+  "translatePasteFailed": "Tidak dapat membaca papan klip. Tempel langsung ke kolom teks.",
+  "documentsHeroTitle": "Pilih dokumen",
+  "imageTranslateHeroTitle": "Ambil atau pilih foto",
+  "webTranslateHeroTitle": "Masukkan alamat",
+  "webTranslateHeroBody": "Tempel tautan ke artikel atau postingan blog. Mozhi mengunduh halaman, hanya menyimpan teks yang dapat dibaca, lalu menerjemahkannya dengan mesin dan bahasa di atas.",
+  "historyDictionaryMarker": "Kamus",
+  "historyOpenDictionaryHint": "Cari di kamus",
+  "historyLookUpDeleted": "Pencarian dihapus",
+  "historyFilterPairEntries": "{count, plural, =1{1 entri} other{{count} entri}}",
+  "translateDetectLanguageShort": "Otomatis",
+  "translateOfflineOnlyNoLanguagePacks": "Belum ada paket bahasa di perangkat ini. Unduh satu untuk menerjemahkan secara offline.",
+  "translateOfflineOnlyWebUnavailable": "Terjemahan offline tidak tersedia di aplikasi web. Beralih ke Utamakan offline atau Online di Setelan › Privasi.",
+  "translateOfflineOnlyDeviceUnsupported": "Perangkat ini tidak dapat menerjemahkan secara offline. Beralih ke Utamakan offline atau Online di Setelan › Privasi."
 }

@@ -55,8 +55,7 @@ class _UsageBudgetDialogState extends State<UsageBudgetDialog> {
     return AlertDialog(
       title: Text(
         l10n.usageBudgetDialogTitle,
-        style: Theme.of(context).textTheme.titleLarge
-            ?.copyWith(fontWeight: FontWeight.w800),
+        style: Theme.of(context).textTheme.titleLarge,
       ),
       content: Form(
         key: _formKey,

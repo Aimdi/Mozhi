@@ -1564,5 +1564,17 @@
   "translateShortcutNewLine": "Inserisci una nuova riga (durante la digitazione)",
   "translateComposerHint": "Scrivi o {paste} il testo",
   "translateComposerHintPaste": "incolla",
-  "translatePasteFailed": "Impossibile leggere gli appunti. Incolla direttamente nel campo di testo."
+  "translatePasteFailed": "Impossibile leggere gli appunti. Incolla direttamente nel campo di testo.",
+  "documentsHeroTitle": "Scegli un documento",
+  "imageTranslateHeroTitle": "Scatta o scegli una foto",
+  "webTranslateHeroTitle": "Inserisci un indirizzo",
+  "webTranslateHeroBody": "Incolla il link a un articolo o a un post. Mozhi scarica la pagina, tiene solo il testo leggibile e lo traduce con il motore e le lingue qui sopra.",
+  "historyDictionaryMarker": "Dizionario",
+  "historyOpenDictionaryHint": "Cerca nel dizionario",
+  "historyLookUpDeleted": "Ricerca eliminata",
+  "historyFilterPairEntries": "{count, plural, =1{1 voce} other{{count} voci}}",
+  "translateDetectLanguageShort": "Auto",
+  "translateOfflineOnlyNoLanguagePacks": "Non ci sono ancora pacchetti lingua su questo dispositivo. Scaricane uno per tradurre offline.",
+  "translateOfflineOnlyWebUnavailable": "La traduzione offline non è disponibile nell’app web. Passa a «Offline se possibile» o «Online» in Impostazioni › Privacy.",
+  "translateOfflineOnlyDeviceUnsupported": "Questo dispositivo non può tradurre offline. Passa a «Offline se possibile» o «Online» in Impostazioni › Privacy."
 }

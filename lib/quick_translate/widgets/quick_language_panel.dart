@@ -219,10 +219,7 @@ class _ChipSection extends StatelessWidget {
             padding: const EdgeInsetsDirectional.only(start: 4, bottom: 8),
             child: Semantics(
               header: true,
-              child: Text(
-                title,
-                style: theme.textTheme.titleSmall,
-              ),
+              child: Text(title, style: theme.textTheme.titleSmall),
             ),
           ),
           Wrap(

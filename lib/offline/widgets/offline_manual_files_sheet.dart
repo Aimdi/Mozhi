@@ -67,9 +67,7 @@ class _OfflineManualFilesSheetState extends State<OfflineManualFilesSheet> {
             header: true,
             child: Text(
               l10n.offlineManualTitle(name),
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
+              style: theme.textTheme.titleLarge,
             ),
           ),
         ),
@@ -85,9 +83,7 @@ class _OfflineManualFilesSheetState extends State<OfflineManualFilesSheet> {
             padding: const EdgeInsets.fromLTRB(24, 16, 24, 4),
             child: Text(
               offlineDirectionLabel(l10n, direction.source, direction.target),
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+              style: theme.textTheme.titleSmall,
             ),
           ),
           for (final file in direction.files) _fileTile(l10n, file),

@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/core/key_value_store.dart';
+import 'package:mozhi/core/widgets/tab_hero.dart';
 import 'package:mozhi/usage/usage.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -54,7 +55,14 @@ void main() {
 
   testWidgets('shows an empty state', (tester) async {
     await pumpPage(tester);
-    expect(find.text('No AI usage yet'), findsOneWidget);
+    // The tabs' empty state: an accent icon over a bold headline.
+    expect(
+      find.descendant(
+        of: find.byType(TabHero),
+        matching: find.text('No AI usage yet'),
+      ),
+      findsOneWidget,
+    );
     expect(find.byTooltip('Reset usage'), findsNothing);
     expect(find.textContaining('Counted on this device only'), findsOneWidget);
   });

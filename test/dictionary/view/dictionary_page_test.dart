@@ -11,6 +11,8 @@ import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/app/view/top_level_actions.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/dictionary/dictionary.dart';
+import 'package:mozhi/history/history.dart'
+    show HistoryCubit, HistoryEntry, HistoryState, HistoryStatus;
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
@@ -26,7 +28,16 @@ import '../../translate/helpers/helpers.dart'
     show FakeSpeechInput, MockSpeechService;
 import '../helpers/dictionary_helpers.dart';
 
-class _MockGoRouter extends Mock implements GoRouter;
+class _MockGoRouter extends Mock implements GoRouter {
+  new() {
+    // Opened without an `extra` (no DictionaryLookUpRequest).
+    final state = _MockGoRouterState();
+    when(() => state.extra).thenReturn(null);
+    when(() => this.state).thenReturn(state);
+  }
+}
+
+class _MockGoRouterState extends Mock implements GoRouterState;
 
 const _readyWithAi = TranslateState(
   enginesStatus: EnginesStatus.ready,
@@ -100,6 +111,7 @@ void main() {
     SpeechService? speech,
     SpeechInputService? speechInput,
     TextDirection? direction,
+    HistoryCubit? history,
   }) async {
     tester.view
       ..physicalSize = size
@@ -114,6 +126,7 @@ void main() {
       providers: [
         BlocProvider<TranslateCubit>.value(value: translateCubit),
         BlocProvider<SettingsCubit>.value(value: settingsCubit),
+        if (history != null) BlocProvider<HistoryCubit>.value(value: history),
       ],
       child: direction == null
           ? page
@@ -580,12 +593,14 @@ void main() {
         String from = 'es',
         SpeechService? speech,
         Size size = const Size(600, 1600),
+        HistoryCubit? history,
       }) async {
         stubLookUp(repository, () async => entry);
         await pumpPage(
           tester,
           size: size,
           speech: speech,
+          history: history,
           page: DictionaryPage(
             word: 'gato',
             from: from,
@@ -847,10 +862,13 @@ void main() {
           tester,
           size: const Size(320, 640),
           speech: speechService(),
+          // With the favourite heart beside "New look-up".
+          history: createDictionaryHistory(),
         );
         await tester.pumpAndSettle();
 
         expect(tester.takeException(), isNull);
+        expect(find.byKey(const Key('dictionary_favorite')), findsOneWidget);
         // The tabs scroll: "More" is past the edge.
         await tester.ensureVisible(find.text('More'));
         await tester.pumpAndSettle();
@@ -1523,6 +1541,296 @@ void main() {
         expect(dictionaryPairSplit(200, 50, 160), (50, 150));
         expect(dictionaryPairSplit(200, 150, 160), (100, 100));
         expect(dictionaryPairSplit(-10, 50, 60), (0, 0));
+      });
+    });
+
+    group('favourite', () {
+      late MockHistoryCubit history;
+
+      setUp(() => history = createDictionaryHistory());
+
+      Finder heart() => find.byKey(const Key('dictionary_favorite'));
+
+      IconButton heartButton(WidgetTester tester) =>
+          tester.widget<IconButton>(heart());
+
+      Future<void> pumpGato(WidgetTester tester, {bool withHistory = true}) =>
+          pumpPage(
+            tester,
+            page: const DictionaryPage(
+              word: 'gato',
+              from: 'es',
+              to: 'en',
+              autoLookUp: true,
+            ),
+            history: withHistory ? history : null,
+          );
+
+      testWidgets('the look-up is saved and the heart sits before New '
+          'look-up', (tester) async {
+        await pumpGato(tester);
+        await tester.pump();
+
+        final saved =
+            verify(() => history.add(captureAny())).captured.single
+                as HistoryEntry;
+        expect(saved.isDictionary, isTrue);
+        expect(saved.text, 'gato');
+        expect(saved.source.code, 'es');
+        expect(saved.target.code, 'en');
+        expect(saved.isFavorite, isFalse);
+
+        expect(heart(), findsOneWidget);
+        expect(heartButton(tester).tooltip, 'Add to favorites');
+        expect(
+          find.descendant(
+            of: heart(),
+            matching: find.byIcon(Icons.favorite_border_rounded),
+          ),
+          findsOneWidget,
+        );
+        final heartRect = tester.getRect(heart());
+        final newLookUp = tester.getRect(
+          find.byKey(const Key('dictionary_new_look_up')),
+        );
+        expect(heartRect.right, lessThan(newLookUp.left));
+        expect(heartRect.center.dy, closeTo(newLookUp.center.dy, 1));
+        expect(tester.getSize(heart()), const Size.square(52));
+      });
+
+      testWidgets('adds the look-up as a favourite', (tester) async {
+        await pumpGato(tester);
+        await tester.pump();
+        clearInteractions(history);
+
+        await tester.tap(heart());
+        await tester.pump();
+
+        final favorite =
+            verify(() => history.add(captureAny())).captured.single
+                as HistoryEntry;
+        expect(favorite.isFavorite, isTrue);
+        expect(favorite.text, 'gato');
+      });
+
+      testWidgets('is filled for a favourite and takes it out', (tester) async {
+        whenListen(
+          history,
+          Stream.fromIterable([
+            HistoryState(
+              status: HistoryStatus.ready,
+              entries: [gatoLookUp(isFavorite: true)],
+            ),
+          ]),
+          initialState: const HistoryState(status: HistoryStatus.ready),
+        );
+        await pumpGato(tester);
+        await tester.pump();
+
+        expect(heartButton(tester).tooltip, 'Remove from favorites');
+        expect(
+          find.descendant(
+            of: heart(),
+            matching: find.byIcon(Icons.favorite_rounded),
+          ),
+          findsOneWidget,
+        );
+
+        await tester.tap(heart());
+        verify(() => history.toggleFavorite('dictionary:1')).called(1);
+      });
+
+      testWidgets('is disabled while loading and left out after an error', (
+        tester,
+      ) async {
+        final answer = Completer<DictionaryEntry>();
+        stubLookUp(repository, () => answer.future);
+        await pumpGato(tester);
+
+        expect(heartButton(tester).onPressed, isNull);
+
+        answer.completeError(StateError('offline'));
+        await tester.pump();
+        await tester.pump();
+        expect(find.byType(TranslateErrorView), findsOneWidget);
+        expect(heart(), findsNothing);
+      });
+
+      testWidgets('is left out for an empty entry', (tester) async {
+        stubLookUp(repository, () async => const DictionaryEntry(word: 'xq'));
+        await pumpGato(tester);
+        await tester.pump();
+
+        expect(find.byKey(const Key('dictionary_not_found')), findsOneWidget);
+        expect(heart(), findsNothing);
+        verifyNever(() => history.add(any()));
+      });
+
+      testWidgets('is left out without a history', (tester) async {
+        await pumpGato(tester, withHistory: false);
+        await tester.pump();
+
+        expect(find.byKey(const Key('dictionary_entry')), findsOneWidget);
+        expect(heart(), findsNothing);
+        expect(find.byKey(const Key('dictionary_new_look_up')), findsOneWidget);
+      });
+    });
+
+    group('look-up requests', () {
+      late MockHistoryCubit history;
+
+      setUp(() => history = createDictionaryHistory());
+
+      /// The app's dictionary route above a History stand-in, starting
+      /// there.
+      Future<GoRouter> pumpRouter(WidgetTester tester) async {
+        tester.view
+          ..physicalSize = const Size(600, 1600)
+          ..devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        whenListen(
+          translateCubit,
+          const Stream<TranslateState>.empty(),
+          initialState: _readyWithAi,
+        );
+        final router = GoRouter(
+          initialLocation: '/history',
+          routes: [
+            GoRoute(
+              path: '/dictionary',
+              builder: (context, state) {
+                final query = state.uri.queryParameters;
+                return DictionaryPage(
+                  key: ValueKey(state.uri.query),
+                  word: query['word'],
+                  from: query['from'],
+                  to: query['to'],
+                  autoLookUp: state.extra == DictionaryLaunch.lookUp,
+                );
+              },
+            ),
+            GoRoute(
+              path: '/history',
+              builder: (_, _) => const Scaffold(body: Text('History page')),
+            ),
+          ],
+        );
+        addTearDown(router.dispose);
+        await tester.pumpWidget(
+          RepositoryProvider<TranslationRepository>.value(
+            value: repository,
+            child: MultiBlocProvider(
+              providers: [
+                BlocProvider<TranslateCubit>.value(value: translateCubit),
+                BlocProvider<SettingsCubit>.value(value: settingsCubit),
+                BlocProvider<HistoryCubit>.value(value: history),
+              ],
+              child: MaterialApp.router(
+                routerConfig: router,
+                localizationsDelegates: appLocalizationsDelegates,
+                supportedLocales: AppLocalizations.supportedLocales,
+              ),
+            ),
+          ),
+        );
+        return router;
+      }
+
+      void verifyGato(DictionaryVerbosity verbosity) => verify(
+        () => repository.lookUp(
+          claudeEngine,
+          'gato',
+          source: spanish,
+          target: english,
+          uiLanguage: any(named: 'uiLanguage'),
+          verbosity: verbosity,
+        ),
+      ).called(1);
+
+      testWidgets('look the word up with their detail level', (tester) async {
+        final router = await pumpRouter(tester);
+
+        router.go(
+          '/dictionary?word=gato&from=es&to=en',
+          extra: DictionaryLookUpRequest(
+            verbosity: DictionaryVerbosity.comprehensive,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        verifyGato(DictionaryVerbosity.comprehensive);
+        expect(find.byKey(const Key('dictionary_entry')), findsOneWidget);
+        expect(
+          dictionaryState(tester).verbosity,
+          DictionaryVerbosity.comprehensive,
+        );
+      });
+
+      testWidgets("without a detail level keep the dictionary's", (
+        tester,
+      ) async {
+        final router = await pumpRouter(tester);
+
+        router.go(
+          '/dictionary?word=gato&from=es&to=en',
+          extra: DictionaryLookUpRequest(),
+        );
+        await tester.pumpAndSettle();
+
+        verifyGato(DictionaryVerbosity.standard);
+      });
+
+      testWidgets('look up again on a kept page, once each', (tester) async {
+        final router = await pumpRouter(tester);
+        const location = '/dictionary?word=gato&from=es&to=en';
+        router.go(location, extra: DictionaryLookUpRequest());
+        await tester.pumpAndSettle();
+        verifyGato(DictionaryVerbosity.standard);
+
+        // The user moves on, then opens History and comes back.
+        await tester.tap(find.byKey(const Key('dictionary_new_look_up')));
+        await tester.pumpAndSettle();
+        expect(dictionaryState(tester).status, DictionaryStatus.idle);
+        unawaited(router.push<void>('/history'));
+        await tester.pumpAndSettle();
+        router.pop();
+        await tester.pumpAndSettle();
+        // The request the page already applied is not applied again.
+        verifyNoLookUp();
+        expect(dictionaryState(tester).status, DictionaryStatus.idle);
+
+        // History opens the same look-up again: the page is kept.
+        unawaited(router.push<void>('/history'));
+        await tester.pumpAndSettle();
+        router.go(
+          location,
+          extra: DictionaryLookUpRequest(
+            verbosity: DictionaryVerbosity.concise,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        verifyGato(DictionaryVerbosity.concise);
+        final state = dictionaryState(tester);
+        expect(state.status, DictionaryStatus.success);
+        expect(state.word, 'gato');
+        expect(state.lookedUp, 'gato');
+        expect(find.byKey(const Key('dictionary_entry')), findsOneWidget);
+      });
+
+      testWidgets('other navigation extras are no requests', (tester) async {
+        final router = await pumpRouter(tester);
+
+        router.go('/dictionary?word=gato', extra: 'something else');
+        await tester.pumpAndSettle();
+
+        verifyNoLookUp();
+        expect(DictionaryLookUpRequest().toString(), contains('null'));
+        expect(
+          DictionaryLookUpRequest(verbosity: DictionaryVerbosity.concise)
+              .toString(),
+          contains('concise'),
+        );
       });
     });
 

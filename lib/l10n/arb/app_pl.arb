@@ -1564,5 +1564,17 @@
   "translateShortcutNewLine": "Wstaw nowy wiersz (podczas pisania)",
   "translateComposerHint": "Wpisz lub {paste} tekst",
   "translateComposerHintPaste": "wklej",
-  "translatePasteFailed": "Nie udało się odczytać schowka. Wklej tekst bezpośrednio w polu tekstowym."
+  "translatePasteFailed": "Nie udało się odczytać schowka. Wklej tekst bezpośrednio w polu tekstowym.",
+  "documentsHeroTitle": "Wybierz dokument",
+  "imageTranslateHeroTitle": "Zrób lub wybierz zdjęcie",
+  "webTranslateHeroTitle": "Wpisz adres",
+  "webTranslateHeroBody": "Wklej link do artykułu lub wpisu na blogu. Mozhi pobiera stronę, zostawia tylko czytelny tekst i tłumaczy go silnikiem i na języki wybrane powyżej.",
+  "historyDictionaryMarker": "Słownik",
+  "historyOpenDictionaryHint": "Sprawdź w słowniku",
+  "historyLookUpDeleted": "Usunięto wyszukiwanie",
+  "historyFilterPairEntries": "{count, plural, one{{count} wpis} few{{count} wpisy} many{{count} wpisów} other{{count} wpisu}}",
+  "translateDetectLanguageShort": "Auto",
+  "translateOfflineOnlyNoLanguagePacks": "Na tym urządzeniu nie ma jeszcze pakietów językowych. Pobierz jeden, aby tłumaczyć offline.",
+  "translateOfflineOnlyWebUnavailable": "Tłumaczenie offline nie jest dostępne w aplikacji internetowej. Przełącz na „Najpierw offline” lub „Online” w Ustawieniach › Prywatność.",
+  "translateOfflineOnlyDeviceUnsupported": "To urządzenie nie obsługuje tłumaczenia offline. Przełącz na „Najpierw offline” lub „Online” w Ustawieniach › Prywatność."
 }
