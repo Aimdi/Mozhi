@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/offline.dart' show OfflineEngineBadge;
@@ -119,7 +120,7 @@ Future<void> showEngineSheet(BuildContext context) {
 }
 
 /// Location of the quality modes settings (Fast / Best engines).
-const translateQualityLocation = '/settings/quality';
+const translateQualityLocation = AppRoutes.quality;
 
 /// Engines grouped by kind: "On this device" (offline engines, with the
 /// offline badge), "Mozhi engines (via host)", "Machine translation"
@@ -151,10 +152,11 @@ class EngineSheet extends StatelessWidget {
       if (engine.id != state.engine?.id) unawaited(cubit.selectEngine(engine));
     }
 
+    // Pushed above the tabs, so back returns to the translate screen.
     void open(String location) {
       final router = GoRouter.of(context);
       Navigator.of(context).pop();
-      router.go(location);
+      unawaited(router.push<void>(location));
     }
 
     return DraggableScrollableSheet(
@@ -223,12 +225,12 @@ class EngineSheet extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.add),
             title: Text(l10n.translateAddAiProvider),
-            onTap: () => open('/settings/providers'),
+            onTap: () => open(AppRoutes.providers),
           ),
           ListTile(
             leading: const Icon(Icons.dns_outlined),
             title: Text(l10n.translateManageInstances),
-            onTap: () => open('/settings/instances'),
+            onTap: () => open(AppRoutes.instances),
           ),
           ListTile(
             key: const Key('translate_quality_settings'),

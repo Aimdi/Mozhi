@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/translate_error.dart';
@@ -78,12 +79,14 @@ class NoEnginesView extends StatelessWidget {
                 runSpacing: 12,
                 children: [
                   FilledButton.icon(
-                    onPressed: () => context.go('/settings/providers'),
+                    onPressed: () =>
+                        unawaited(context.push<void>(AppRoutes.providers)),
                     icon: const Icon(Icons.auto_awesome),
                     label: Text(l10n.translateAddAiProvider),
                   ),
                   OutlinedButton.icon(
-                    onPressed: () => context.go('/settings/instances'),
+                    onPressed: () =>
+                        unawaited(context.push<void>(AppRoutes.instances)),
                     icon: const Icon(Icons.dns_outlined),
                     label: Text(l10n.translateManageInstances),
                   ),

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/presets/presets.dart' show PresetPicker, PresetsCubit;
@@ -77,11 +78,11 @@ class OptionsButton extends StatelessWidget {
 }
 
 /// Location of the presets page ("Manage presets" in the preset picker).
-const translatePresetsLocation = '/settings/presets';
+const translatePresetsLocation = AppRoutes.presets;
 
 /// Location of the AI provider settings ("Add AI provider" in the note of
 /// the options sheet, like the engine picker's).
-const translateProvidersLocation = '/settings/providers';
+const translateProvidersLocation = AppRoutes.providers;
 
 /// What the options sheet asks [showOptionsSheet] to do once it is closed.
 enum OptionsSheetAction {
@@ -269,7 +270,7 @@ class _TranslationOptionsSheetState extends State<TranslationOptionsSheet> {
 
   void _addAiProvider(GoRouter router) {
     Navigator.of(context).pop();
-    router.go(translateProvidersLocation);
+    unawaited(router.push<void>(translateProvidersLocation));
   }
 
   /// Saves what is still being typed and closes the sheet.

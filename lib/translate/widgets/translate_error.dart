@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/core/network/network.dart'
     show describeNetworkPolicyError;
 import 'package:mozhi/core/widgets/consent_prompt.dart';
@@ -457,9 +458,8 @@ class TranslateErrorView extends StatelessWidget {
               if (showFix)
                 TextButton(
                   key: const Key('translate_error_fix'),
-                  onPressed: () => push
-                      ? unawaited(context.push<void>(fixRoute))
-                      : context.go(fixRoute),
+                  onPressed: () =>
+                      unawaited(context.push<void>(fixRoute)),
                   child: Text(fixLabel),
                 ),
             ],
