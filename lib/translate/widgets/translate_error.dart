@@ -322,23 +322,21 @@ class TranslateErrorView extends StatelessWidget {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final info = describeTranslateError(l10n, error);
-    final (fixLabel, fixRoute, push) = switch (info.fix) {
+    // Every fix is pushed above the tabs, so back returns here.
+    final (fixLabel, fixRoute) = switch (info.fix) {
       _ when info.offlineModels => (
         _offlineFixLabel(context, l10n) ?? l10n.translateOfflineModelsAction,
         offlineModelsRoute,
-        true,
       ),
       TranslateErrorFix.instances => (
         l10n.translateManageInstances,
-        '/settings/instances',
-        false,
+        AppRoutes.instances,
       ),
       TranslateErrorFix.providers => (
         l10n.translateProvidersAction,
-        '/settings/providers',
-        false,
+        AppRoutes.providers,
       ),
-      TranslateErrorFix.none => (null, null, false),
+      TranslateErrorFix.none => (null, null),
     };
     final switchInstance = info.fix == TranslateErrorFix.instances && !dense
         ? onSwitchInstance

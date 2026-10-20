@@ -1496,5 +1496,17 @@
   "translateOptionsDone": "Klaar",
   "translateOptionsNeedAi": "{engine} vertaalt zonder deze opties. Stijl, formaliteit, geslacht en context vereisen een AI-vertaler. Je keuzes worden bewaard en gelden zodra je er een gebruikt.",
   "translateOptionsPartlyNeedAi": "{engine} past alleen formaliteit, context en opmaak toe. Stijl, leesniveau, geslacht en de woordenlijst vereisen een AI-vertaler. Je keuzes worden bewaard en gelden zodra je er een gebruikt.",
-  "translateOptionsChooseAi": "Kies een AI-vertaler"
+  "translateOptionsChooseAi": "Kies een AI-vertaler",
+  "translateGreetingMorning": "Goedemorgen",
+  "translateGreetingAfternoon": "Goedemiddag",
+  "translateGreetingEvening": "Goedenavond",
+  "translateHeroCamera": "Camera",
+  "translateHeroDocument": "Document",
+  "navDictionary": "Woordenboek",
+  "navConversation": "Gesprek",
+  "conversationHeroTitle": "Laten we praten!",
+  "conversationHeroHint": "Tik op de microfoon om te starten of te stoppen",
+  "conversationHeroMicLanguage": "Spreek {language}",
+  "dictionaryHeroTitle": "Wat betekent dit?",
+  "proofreadHeroTitle": "Klopt dit?"
 }

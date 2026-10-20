@@ -1496,5 +1496,17 @@
   "translateOptionsDone": "完了",
   "translateOptionsNeedAi": "{engine}はこれらのオプションを使わずに翻訳します。スタイル、丁寧さ、性別、文脈には AI 翻訳が必要です。選んだ内容は保存され、AI 翻訳を使うときに適用されます。",
   "translateOptionsPartlyNeedAi": "{engine}が反映するのは丁寧さ、文脈、書式だけです。スタイル、読解レベル、性別、用語集には AI 翻訳が必要です。選んだ内容は保存され、AI 翻訳を使うときに適用されます。",
-  "translateOptionsChooseAi": "AI 翻訳を選ぶ"
+  "translateOptionsChooseAi": "AI 翻訳を選ぶ",
+  "translateGreetingMorning": "おはようございます",
+  "translateGreetingAfternoon": "こんにちは",
+  "translateGreetingEvening": "こんばんは",
+  "translateHeroCamera": "カメラ",
+  "translateHeroDocument": "ドキュメント",
+  "navDictionary": "辞書",
+  "navConversation": "会話",
+  "conversationHeroTitle": "話してみましょう！",
+  "conversationHeroHint": "マイクをタップして開始・停止",
+  "conversationHeroMicLanguage": "{language}で話す",
+  "dictionaryHeroTitle": "これはどういう意味？",
+  "proofreadHeroTitle": "これで合っていますか？"
 }

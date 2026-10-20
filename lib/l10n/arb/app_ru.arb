@@ -1496,5 +1496,17 @@
   "translateOptionsDone": "Готово",
   "translateOptionsNeedAi": "{engine} переводит без этих параметров. Для стиля, уровня формальности, рода и контекста нужен ИИ-переводчик. Ваш выбор сохранится и начнёт действовать, когда вы его используете.",
   "translateOptionsPartlyNeedAi": "{engine} учитывает только уровень формальности, контекст и форматирование. Для стиля, уровня сложности, рода и глоссария нужен ИИ-переводчик. Ваш выбор сохранится и начнёт действовать, когда вы его используете.",
-  "translateOptionsChooseAi": "Выбрать ИИ-переводчик"
+  "translateOptionsChooseAi": "Выбрать ИИ-переводчик",
+  "translateGreetingMorning": "Доброе утро",
+  "translateGreetingAfternoon": "Добрый день",
+  "translateGreetingEvening": "Добрый вечер",
+  "translateHeroCamera": "Камера",
+  "translateHeroDocument": "Документ",
+  "navDictionary": "Словарь",
+  "navConversation": "Разговор",
+  "conversationHeroTitle": "Давайте поговорим!",
+  "conversationHeroHint": "Нажмите на микрофон, чтобы начать или остановить",
+  "conversationHeroMicLanguage": "Говорите: {language}",
+  "dictionaryHeroTitle": "Что это значит?",
+  "proofreadHeroTitle": "Всё ли здесь правильно?"
 }

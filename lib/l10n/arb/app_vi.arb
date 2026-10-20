@@ -1496,5 +1496,17 @@
   "translateOptionsDone": "Xong",
   "translateOptionsNeedAi": "{engine} dịch mà không dùng các tùy chọn này. Văn phong, mức độ trang trọng, giới tính và ngữ cảnh cần một trình dịch AI. Lựa chọn của bạn được lưu lại và sẽ áp dụng khi bạn dùng trình dịch AI.",
   "translateOptionsPartlyNeedAi": "{engine} chỉ áp dụng mức độ trang trọng, ngữ cảnh và định dạng. Văn phong, trình độ đọc, giới tính và bảng thuật ngữ cần một trình dịch AI. Lựa chọn của bạn được lưu lại và sẽ áp dụng khi bạn dùng trình dịch AI.",
-  "translateOptionsChooseAi": "Chọn trình dịch AI"
+  "translateOptionsChooseAi": "Chọn trình dịch AI",
+  "translateGreetingMorning": "Chào buổi sáng",
+  "translateGreetingAfternoon": "Chào buổi chiều",
+  "translateGreetingEvening": "Chào buổi tối",
+  "translateHeroCamera": "Máy ảnh",
+  "translateHeroDocument": "Tài liệu",
+  "navDictionary": "Từ điển",
+  "navConversation": "Hội thoại",
+  "conversationHeroTitle": "Cùng trò chuyện nào!",
+  "conversationHeroHint": "Nhấn vào micrô để bắt đầu hoặc dừng",
+  "conversationHeroMicLanguage": "Nói {language}",
+  "dictionaryHeroTitle": "Điều này nghĩa là gì?",
+  "proofreadHeroTitle": "Như thế này đã đúng chưa?"
 }

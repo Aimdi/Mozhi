@@ -1496,5 +1496,17 @@
   "translateOptionsDone": "تم",
   "translateOptionsNeedAi": "يترجم {engine} دون هذه الخيارات. يحتاج الأسلوب ودرجة الرسمية والجنس والسياق إلى مترجم بالذكاء الاصطناعي. تُحفظ اختياراتك وتُطبَّق عند استخدامك واحدًا.",
   "translateOptionsPartlyNeedAi": "لا يطبّق {engine} إلا درجة الرسمية والسياق والتنسيق. يحتاج الأسلوب ومستوى القراءة والجنس والمسرد إلى مترجم بالذكاء الاصطناعي. تُحفظ اختياراتك وتُطبَّق عند استخدامك واحدًا.",
-  "translateOptionsChooseAi": "اختيار مترجم بالذكاء الاصطناعي"
+  "translateOptionsChooseAi": "اختيار مترجم بالذكاء الاصطناعي",
+  "translateGreetingMorning": "صباح الخير",
+  "translateGreetingAfternoon": "مساء الخير",
+  "translateGreetingEvening": "مساء الخير",
+  "translateHeroCamera": "الكاميرا",
+  "translateHeroDocument": "مستند",
+  "navDictionary": "القاموس",
+  "navConversation": "محادثة",
+  "conversationHeroTitle": "لنتحدث!",
+  "conversationHeroHint": "انقر على الميكروفون للبدء أو الإيقاف",
+  "conversationHeroMicLanguage": "تحدّث بـ{language}",
+  "dictionaryHeroTitle": "ماذا يعني هذا؟",
+  "proofreadHeroTitle": "هل يبدو هذا صحيحًا؟"
 }

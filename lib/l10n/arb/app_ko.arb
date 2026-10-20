@@ -1496,5 +1496,17 @@
   "translateOptionsDone": "완료",
   "translateOptionsNeedAi": "{engine}은(는) 이 옵션 없이 번역합니다. 문체, 격식, 성별, 문맥은 AI 번역기가 있어야 적용됩니다. 선택한 내용은 저장되며 AI 번역기를 사용할 때 적용됩니다.",
   "translateOptionsPartlyNeedAi": "{engine}은(는) 격식, 문맥, 서식만 적용합니다. 문체, 읽기 수준, 성별, 용어집은 AI 번역기가 있어야 적용됩니다. 선택한 내용은 저장되며 AI 번역기를 사용할 때 적용됩니다.",
-  "translateOptionsChooseAi": "AI 번역기 선택"
+  "translateOptionsChooseAi": "AI 번역기 선택",
+  "translateGreetingMorning": "좋은 아침이에요",
+  "translateGreetingAfternoon": "좋은 오후예요",
+  "translateGreetingEvening": "좋은 저녁이에요",
+  "translateHeroCamera": "카메라",
+  "translateHeroDocument": "문서",
+  "navDictionary": "사전",
+  "navConversation": "대화",
+  "conversationHeroTitle": "이야기해요!",
+  "conversationHeroHint": "마이크를 탭하여 시작하거나 중지하세요",
+  "conversationHeroMicLanguage": "{language}로 말하기",
+  "dictionaryHeroTitle": "이게 무슨 뜻일까요?",
+  "proofreadHeroTitle": "이렇게 쓰는 게 맞을까요?"
 }

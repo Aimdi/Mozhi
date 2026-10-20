@@ -1496,5 +1496,17 @@
   "translateOptionsDone": "Bitti",
   "translateOptionsNeedAi": "{engine} bu seçenekler olmadan çevirir. Üslup, resmiyet, cinsiyet ve bağlam için bir yapay zekâ çevirmeni gerekir. Seçimleriniz kaydedilir ve bir yapay zekâ çevirmeni kullandığınızda uygulanır.",
   "translateOptionsPartlyNeedAi": "{engine} yalnızca resmiyet, bağlam ve biçimlendirmeyi uygular. Üslup, okuma düzeyi, cinsiyet ve sözlük için bir yapay zekâ çevirmeni gerekir. Seçimleriniz kaydedilir ve bir yapay zekâ çevirmeni kullandığınızda uygulanır.",
-  "translateOptionsChooseAi": "Yapay zekâ çevirmeni seç"
+  "translateOptionsChooseAi": "Yapay zekâ çevirmeni seç",
+  "translateGreetingMorning": "Günaydın",
+  "translateGreetingAfternoon": "Tünaydın",
+  "translateGreetingEvening": "İyi akşamlar",
+  "translateHeroCamera": "Kamera",
+  "translateHeroDocument": "Belge",
+  "navDictionary": "Sözlük",
+  "navConversation": "Sohbet",
+  "conversationHeroTitle": "Hadi konuşalım!",
+  "conversationHeroHint": "Başlatmak veya durdurmak için mikrofona dokunun",
+  "conversationHeroMicLanguage": "{language} konuşun",
+  "dictionaryHeroTitle": "Bu ne demek?",
+  "proofreadHeroTitle": "Bu doğru görünüyor mu?"
 }

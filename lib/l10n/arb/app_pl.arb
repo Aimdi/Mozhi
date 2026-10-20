@@ -1496,5 +1496,17 @@
   "translateOptionsDone": "Gotowe",
   "translateOptionsNeedAi": "{engine} tłumaczy bez tych opcji. Styl, poziom formalności, płeć i kontekst wymagają tłumacza AI. Twoje wybory zostaną zapisane i zadziałają, gdy go użyjesz.",
   "translateOptionsPartlyNeedAi": "{engine} uwzględnia tylko poziom formalności, kontekst i formatowanie. Styl, poziom tekstu, płeć i glosariusz wymagają tłumacza AI. Twoje wybory zostaną zapisane i zadziałają, gdy go użyjesz.",
-  "translateOptionsChooseAi": "Wybierz tłumacza AI"
+  "translateOptionsChooseAi": "Wybierz tłumacza AI",
+  "translateGreetingMorning": "Dzień dobry",
+  "translateGreetingAfternoon": "Dzień dobry",
+  "translateGreetingEvening": "Dobry wieczór",
+  "translateHeroCamera": "Aparat",
+  "translateHeroDocument": "Dokument",
+  "navDictionary": "Słownik",
+  "navConversation": "Rozmowa",
+  "conversationHeroTitle": "Porozmawiajmy!",
+  "conversationHeroHint": "Dotknij mikrofonu, aby zacząć lub zakończyć",
+  "conversationHeroMicLanguage": "Mów: {language}",
+  "dictionaryHeroTitle": "Co to znaczy?",
+  "proofreadHeroTitle": "Czy to wygląda dobrze?"
 }

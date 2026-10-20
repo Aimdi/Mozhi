@@ -1496,5 +1496,17 @@
   "translateOptionsDone": "完成",
   "translateOptionsNeedAi": "{engine}翻译时不使用这些选项。风格、正式程度、性别和上下文需要 AI 翻译。你的选择会保存下来，在使用 AI 翻译时生效。",
   "translateOptionsPartlyNeedAi": "{engine}只应用正式程度、上下文和格式。风格、阅读难度、性别和术语表需要 AI 翻译。你的选择会保存下来，在使用 AI 翻译时生效。",
-  "translateOptionsChooseAi": "选择 AI 翻译"
+  "translateOptionsChooseAi": "选择 AI 翻译",
+  "translateGreetingMorning": "早上好",
+  "translateGreetingAfternoon": "下午好",
+  "translateGreetingEvening": "晚上好",
+  "translateHeroCamera": "相机",
+  "translateHeroDocument": "文档",
+  "navDictionary": "词典",
+  "navConversation": "对话",
+  "conversationHeroTitle": "来聊聊吧！",
+  "conversationHeroHint": "点按麦克风开始或停止",
+  "conversationHeroMicLanguage": "说{language}",
+  "dictionaryHeroTitle": "这是什么意思？",
+  "proofreadHeroTitle": "这样写对吗？"
 }

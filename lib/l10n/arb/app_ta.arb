@@ -1496,5 +1496,17 @@
   "translateOptionsDone": "முடிந்தது",
   "translateOptionsNeedAi": "{engine} இந்த விருப்பங்கள் இல்லாமல் மொழிபெயர்க்கிறது. நடை, முறைசார்பு, பாலினம், சூழல் ஆகியவற்றுக்கு AI மொழிபெயர்ப்பாளர் தேவை. உங்கள் தேர்வுகள் சேமிக்கப்படும்; AI மொழிபெயர்ப்பாளரைப் பயன்படுத்தும்போது அவை பொருந்தும்.",
   "translateOptionsPartlyNeedAi": "{engine} முறைசார்பு, சூழல், வடிவமைப்பு ஆகியவற்றை மட்டுமே பயன்படுத்துகிறது. நடை, வாசிப்பு நிலை, பாலினம், சொற்களஞ்சியம் ஆகியவற்றுக்கு AI மொழிபெயர்ப்பாளர் தேவை. உங்கள் தேர்வுகள் சேமிக்கப்படும்; AI மொழிபெயர்ப்பாளரைப் பயன்படுத்தும்போது அவை பொருந்தும்.",
-  "translateOptionsChooseAi": "AI மொழிபெயர்ப்பாளரைத் தேர்ந்தெடு"
+  "translateOptionsChooseAi": "AI மொழிபெயர்ப்பாளரைத் தேர்ந்தெடு",
+  "translateGreetingMorning": "காலை வணக்கம்",
+  "translateGreetingAfternoon": "மதிய வணக்கம்",
+  "translateGreetingEvening": "மாலை வணக்கம்",
+  "translateHeroCamera": "கேமரா",
+  "translateHeroDocument": "ஆவணம்",
+  "navDictionary": "அகராதி",
+  "navConversation": "உரையாடல்",
+  "conversationHeroTitle": "பேசலாம்!",
+  "conversationHeroHint": "தொடங்க அல்லது நிறுத்த மைக்ரோஃபோனைத் தட்டவும்",
+  "conversationHeroMicLanguage": "{language} மொழியில் பேசுங்கள்",
+  "dictionaryHeroTitle": "இதன் அர்த்தம் என்ன?",
+  "proofreadHeroTitle": "இது சரியாக இருக்கிறதா?"
 }

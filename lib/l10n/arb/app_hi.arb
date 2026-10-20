@@ -1496,5 +1496,17 @@
   "translateOptionsDone": "हो गया",
   "translateOptionsNeedAi": "{engine} इन विकल्पों के बिना अनुवाद करता है। शैली, औपचारिकता, लिंग और संदर्भ के लिए AI अनुवादक चाहिए। आपकी पसंद सहेज ली जाती है और AI अनुवादक इस्तेमाल करने पर लागू होती है।",
   "translateOptionsPartlyNeedAi": "{engine} केवल औपचारिकता, संदर्भ और फ़ॉर्मैटिंग लागू करता है। शैली, पढ़ने का स्तर, लिंग और शब्दावली के लिए AI अनुवादक चाहिए। आपकी पसंद सहेज ली जाती है और AI अनुवादक इस्तेमाल करने पर लागू होती है।",
-  "translateOptionsChooseAi": "AI अनुवादक चुनें"
+  "translateOptionsChooseAi": "AI अनुवादक चुनें",
+  "translateGreetingMorning": "सुप्रभात",
+  "translateGreetingAfternoon": "नमस्कार",
+  "translateGreetingEvening": "शुभ संध्या",
+  "translateHeroCamera": "कैमरा",
+  "translateHeroDocument": "दस्तावेज़",
+  "navDictionary": "शब्दकोश",
+  "navConversation": "बातचीत",
+  "conversationHeroTitle": "चलिए बात करते हैं!",
+  "conversationHeroHint": "शुरू करने या रोकने के लिए माइक्रोफ़ोन पर टैप करें",
+  "conversationHeroMicLanguage": "{language} में बोलें",
+  "dictionaryHeroTitle": "इसका क्या मतलब है?",
+  "proofreadHeroTitle": "क्या यह सही लग रहा है?"
 }

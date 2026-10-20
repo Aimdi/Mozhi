@@ -1496,5 +1496,17 @@
   "translateOptionsDone": "Selesai",
   "translateOptionsNeedAi": "{engine} menerjemahkan tanpa opsi ini. Gaya, tingkat formalitas, gender, dan konteks memerlukan penerjemah AI. Pilihan Anda disimpan dan berlaku saat Anda menggunakannya.",
   "translateOptionsPartlyNeedAi": "{engine} hanya menerapkan tingkat formalitas, konteks, dan format. Gaya, tingkat bacaan, gender, dan glosarium memerlukan penerjemah AI. Pilihan Anda disimpan dan berlaku saat Anda menggunakannya.",
-  "translateOptionsChooseAi": "Pilih penerjemah AI"
+  "translateOptionsChooseAi": "Pilih penerjemah AI",
+  "translateGreetingMorning": "Selamat pagi",
+  "translateGreetingAfternoon": "Selamat siang",
+  "translateGreetingEvening": "Selamat malam",
+  "translateHeroCamera": "Kamera",
+  "translateHeroDocument": "Dokumen",
+  "navDictionary": "Kamus",
+  "navConversation": "Percakapan",
+  "conversationHeroTitle": "Ayo bicara!",
+  "conversationHeroHint": "Ketuk mikrofon untuk memulai atau berhenti",
+  "conversationHeroMicLanguage": "Bicara dalam {language}",
+  "dictionaryHeroTitle": "Apa artinya ini?",
+  "proofreadHeroTitle": "Apakah ini sudah benar?"
 }

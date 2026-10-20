@@ -1496,5 +1496,17 @@
   "translateOptionsDone": "Fertig",
   "translateOptionsNeedAi": "{engine} übersetzt ohne diese Optionen. Stil, Förmlichkeit, Geschlecht und Kontext brauchen einen KI-Übersetzer. Deine Auswahl wird gespeichert und gilt, sobald du einen verwendest.",
   "translateOptionsPartlyNeedAi": "{engine} berücksichtigt nur Förmlichkeit, Kontext und Formatierung. Stil, Sprachniveau, Geschlecht und das Glossar brauchen einen KI-Übersetzer. Deine Auswahl wird gespeichert und gilt, sobald du einen verwendest.",
-  "translateOptionsChooseAi": "KI-Übersetzer wählen"
+  "translateOptionsChooseAi": "KI-Übersetzer wählen",
+  "translateGreetingMorning": "Guten Morgen",
+  "translateGreetingAfternoon": "Guten Tag",
+  "translateGreetingEvening": "Guten Abend",
+  "translateHeroCamera": "Kamera",
+  "translateHeroDocument": "Dokument",
+  "navDictionary": "Wörterbuch",
+  "navConversation": "Gespräch",
+  "conversationHeroTitle": "Lass uns reden!",
+  "conversationHeroHint": "Tippe auf das Mikrofon, um zu starten oder zu stoppen",
+  "conversationHeroMicLanguage": "{language} sprechen",
+  "dictionaryHeroTitle": "Was bedeutet das?",
+  "proofreadHeroTitle": "Sieht das richtig aus?"
 }

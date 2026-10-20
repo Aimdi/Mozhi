@@ -1496,5 +1496,17 @@
   "translateOptionsDone": "Готово",
   "translateOptionsNeedAi": "{engine} перекладає без цих параметрів. Для стилю, рівня формальності, роду й контексту потрібен ШІ-перекладач. Ваш вибір збережеться й почне діяти, коли ви ним скористаєтеся.",
   "translateOptionsPartlyNeedAi": "{engine} враховує лише рівень формальності, контекст і форматування. Для стилю, рівня складності, роду та глосарію потрібен ШІ-перекладач. Ваш вибір збережеться й почне діяти, коли ви ним скористаєтеся.",
-  "translateOptionsChooseAi": "Вибрати ШІ-перекладач"
+  "translateOptionsChooseAi": "Вибрати ШІ-перекладач",
+  "translateGreetingMorning": "Доброго ранку",
+  "translateGreetingAfternoon": "Добрий день",
+  "translateGreetingEvening": "Добрий вечір",
+  "translateHeroCamera": "Камера",
+  "translateHeroDocument": "Документ",
+  "navDictionary": "Словник",
+  "navConversation": "Розмова",
+  "conversationHeroTitle": "Поговорімо!",
+  "conversationHeroHint": "Торкніться мікрофона, щоб почати або зупинити",
+  "conversationHeroMicLanguage": "Говоріть: {language}",
+  "dictionaryHeroTitle": "Що це означає?",
+  "proofreadHeroTitle": "Чи все тут правильно?"
 }

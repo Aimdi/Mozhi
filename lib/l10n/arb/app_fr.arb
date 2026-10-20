@@ -1496,5 +1496,17 @@
   "translateOptionsDone": "OK",
   "translateOptionsNeedAi": "{engine} traduit sans ces options. Le style, le registre, le genre et le contexte nécessitent un traducteur IA. Vos choix sont enregistrés et s’appliqueront lorsque vous en utiliserez un.",
   "translateOptionsPartlyNeedAi": "{engine} applique seulement le registre, le contexte et la mise en forme. Le style, le niveau de langue, le genre et le glossaire nécessitent un traducteur IA. Vos choix sont enregistrés et s’appliqueront lorsque vous en utiliserez un.",
-  "translateOptionsChooseAi": "Choisir un traducteur IA"
+  "translateOptionsChooseAi": "Choisir un traducteur IA",
+  "translateGreetingMorning": "Bonjour",
+  "translateGreetingAfternoon": "Bon après-midi",
+  "translateGreetingEvening": "Bonsoir",
+  "translateHeroCamera": "Appareil photo",
+  "translateHeroDocument": "Document",
+  "navDictionary": "Dictionnaire",
+  "navConversation": "Conversation",
+  "conversationHeroTitle": "Discutons !",
+  "conversationHeroHint": "Touchez le micro pour commencer ou arrêter",
+  "conversationHeroMicLanguage": "Parlez {language}",
+  "dictionaryHeroTitle": "Qu’est-ce que ça veut dire ?",
+  "proofreadHeroTitle": "Est-ce que c’est correct ?"
 }
