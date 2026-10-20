@@ -78,7 +78,7 @@ class _PresetOptionsFormState extends State<PresetOptionsForm> {
           key: const Key('preset_form_reading_level'),
           initialValue: options.readingLevel,
           isExpanded: true,
-          decoration: const InputDecoration(border: OutlineInputBorder()),
+          decoration: const InputDecoration(),
           items: [
             for (final level in ReadingLevel.values)
               DropdownMenuItem(
@@ -120,7 +120,6 @@ class _PresetOptionsFormState extends State<PresetOptionsForm> {
           onChanged: (value) => _set(options.copyWith(context: value)),
           decoration: InputDecoration(
             hintText: l10n.translateOptionsContextHint,
-            border: const OutlineInputBorder(),
           ),
         ),
         const SizedBox(height: 8),

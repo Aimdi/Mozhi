@@ -35,10 +35,29 @@ alone.
 
 ## Translate
 
-- **Instant translate.** With Mozhi engines the translation updates shortly
-  after you stop typing. For AI engines this is off by default because each
-  request costs tokens; turn on **Settings > Instant translate with AI** if you
-  want it. Otherwise press **Translate**.
+- **Start screen.** With no text, the tab greets you (**Good morning**,
+  **Good afternoon** or **Good evening**) with chips for **Camera** (image
+  translation) and **Document**, and your recent language pairs. The
+  composer waits at the bottom, as on Kagi Translate: a card with the text
+  box (the microphone, and paste, at its top right) and the language bar.
+  Tap it to type: the screen turns into the usual thread, your text with
+  its language at the top and the translation under it, and the language
+  bar stays docked at the bottom of the screen, right above the keyboard
+  while it is open. Leave the empty text box to get the start screen back.
+  On wide screens the composer sits under the greeting, and your text and
+  the translation open side by side.
+- **Language bar.** At the bottom of the screen, as on Kagi Translate:
+  **Translation options** (the tune icon) on the left, the source and
+  target languages with the swap button in the middle, and the go button
+  (the rocket, **Translate**) on the right. The go button translates right
+  away, or again; in compare mode it runs the comparison. While a
+  translation is running it turns into **Stop translating**.
+- **Instant translate.** The translation updates shortly after you stop
+  typing, with Mozhi engines and AI engines alike. Each pause sends an AI
+  model a request, which costs tokens with a paid provider; turn off
+  **Settings > Instant translate with AI** to translate only when you press
+  the go button. Text shared from other apps and links wait for the go
+  button with an AI model either way (see [Links](#links)).
 - **Output actions:** copy, share, listen, add to favourites,
   [**Check meaning**](#meaning-check), and the elapsed time per engine. With
   an AI model available, the output also offers **Insights**, **Show
@@ -127,10 +146,9 @@ main one.
   chose) and offers **Undo**. A language that failed has its own **Retry**.
 - **Same engine, same rules.** The extra languages are translated with the
   same engine and translation options as the main translation, one request
-  per language. They follow the main translation: instantly while you type
-  only where that is free (Mozhi engines, the DeepL API, LibreTranslate,
-  offline) or with **Instant translate with AI** on, otherwise when you press
-  **Translate**. A language you add while a translation is shown is
+  per language. They follow the main translation: while you type when
+  instant translation is on for the engine (**Instant translate**, or
+  **Instant translate with AI**), otherwise when you press **Translate**. A language you add while a translation is shown is
   translated right away. Translations of text you have since edited are
   dimmed until the new ones arrive.
 - **Skipped languages.** The main target language, your source language (the
@@ -149,8 +167,7 @@ main one.
 - **Shared text and links too.** Text shared into the app or opened from a
   [link](#links) is translated into your extra languages as well whenever
   it is translated straight away: with Mozhi engines, the DeepL API,
-  LibreTranslate and offline (or an AI model with **Instant translate with
-  AI** on), also right after the app starts. With a paid DeepL API or
+  LibreTranslate and offline, also right after the app starts. With a paid DeepL API or
   LibreTranslate plan, each shared text is then billed once per language;
   remove the extra languages you don't need, or use **Remove all**.
 - Screen readers hear which languages arrived (**Also translated into
@@ -204,11 +221,12 @@ mode for that text with `quality=fast`, `quality=best` or `quality=standard`
 
 ## AI translation options
 
-Open **Translation options** (the tune icon) to shape AI translations. The
-icon changes when any option differs from the defaults, and **Reset to
-defaults** clears them. Options are remembered, and the ones in use are shown
-as chips above the input; remove one with its chip, or all of them with
-**Reset options**.
+Open **Translation options** (the tune icon at the left of the language
+bar) to shape AI translations. The icon changes when any option differs
+from the defaults. **Done**, at the top right, closes the sheet, and
+**Reset to defaults**, at the bottom, clears them. Options are remembered,
+and the ones in use are shown as chips right above the language bar;
+remove one with its chip, or all of them with **Reset options**.
 
 | Option | Choices |
 | --- | --- |
@@ -223,6 +241,10 @@ as chips above the input; remove one with its chip, or all of them with
 
 Mozhi engines ignore these options. The DeepL API applies the formality and
 the context; translation-only models (TranslateGemma, Hy-MT) ignore them.
+With such an engine the sheet says so at the top and offers **Choose an AI
+translator** (or **Add AI provider** when you have none). Your choices are
+kept for when you use an AI model, and changing them doesn't translate
+again with an engine that ignores them.
 
 ## Presets
 
@@ -298,7 +320,7 @@ extras.
   Tap one to read why, and to swap in one of the **Other ways to say it**.
   Once switched on, insights load for each translation you start; after an
   instant translation with a cloud model they switch off instead, so typing
-  never starts paid requests.
+  never starts paid insight requests.
 - **Explain**: a plain-language explanation of the translation, its grammar
   and its word choices. Ask follow-up questions in the same sheet.
 - **Dictionary**: for inputs of one to three words; see
@@ -393,10 +415,10 @@ Screen readers hear the verdict and the number of differences (or
   **Look up "…"** shows the entry. Choose the **Detail level** (**Concise**,
   **Standard** or **Detailed**) before or after looking up. **Open
   dictionary** shows the word on the full dictionary page.
-- **The dictionary page** (**More tools > Dictionary**): type a word or
-  phrase, choose its language (or **Detect language**) and the language of
-  the translations, and press **Look up**. Opened from the translator with a
-  short input, it looks that word up straight away.
+- **The Dictionary tab** (*What does this mean?*): type a word or phrase,
+  choose its language (or **Detect language**) and the language of the
+  translations, and press **Look up**. Opened from a translation's
+  dictionary card, it looks that word up straight away.
 
 Entries have the pronunciation (IPA), parts of speech, senses with
 translations, examples, synonyms, etymology, usage notes and **Related
@@ -405,13 +427,24 @@ words** (tap one to look it up). For a misspelled word the entry offers
 AI model (the one under **Settings > AI assistant for insights** when you
 translate with a Mozhi engine) and are marked **AI-generated**.
 
-A link such as `/dictionary?word=gato&from=es&to=en` opens the page with the
-word filled in, but never looks it up on its own: press **Look up**.
+A link such as `/dictionary?word=gato&from=es&to=en` opens the Dictionary tab
+with the word filled in, but never looks it up on its own: press **Look up**.
+
+**Bookmarks.** Every look-up on the Dictionary tab that finds an entry is
+saved to [History](#history-and-favourites), under the same rules as
+translations (not with **Save history** off or in incognito). History keeps
+the word, its languages, the AI model, the detail level and a one-line
+summary (the part of speech and first definition, or else the first
+translation), not the whole entry; looking the same word up again with the
+same languages updates that one entry instead of adding another. The
+**heart** beside **New look-up** adds the word to your favourites (or takes
+it out), as on History; it saves the look-up even when history is off or in
+incognito, like the heart of a translation.
 
 ## Proofread
 
-**AI.** The **Proofread** tab checks grammar, spelling, punctuation and style
-in any language.
+**AI.** The **Proofread** tab (*Does this look right?*) checks grammar,
+spelling, punctuation and style in any language.
 
 - Choose the **Style** (General, Academic, Business, Casual, Creative, Email),
   the **Correction level** (*Light*: clear mistakes only; *Standard*: also
@@ -440,25 +473,43 @@ in any language.
 ## Image translation
 
 Translate text in photos and screenshots: take a picture or pick one from your
-gallery, then choose how to translate it:
+gallery, then choose how to translate it. The methods are offered in this
+order:
 
+- **On-device text recognition** (Android, recommended and selected by
+  default): the open-source Tesseract engine reads the text on the phone
+  (the photo is not sent anywhere), and the text is then translated with
+  your current engine. Each language's data (most are 1 to 4 MB) is
+  downloaded once when you ask (**Download German text recognition**) or
+  imported from files; see [Text recognition](text-recognition.md). With
+  **Detect language**, text that was hard to read gets a **Wrong language?
+  Choose the language of the text** hint. The
+  [Play variant](contributing.md#build-variants) uses Google's ML Kit
+  instead.
 - **AI vision**: an AI model with **Supports images** turned on reads and
   translates the text itself, with your translation options. One choice per
   such model.
-- **Mozhi (Google Lens)**: when your instance offers Google, Mozhi sends the
-  image to Google and returns the recognised text, its translation and a copy
-  of the image with the translation drawn in.
-- **On-device text recognition** (Android): the open-source Tesseract
-  engine reads the text on the phone (the photo is not sent anywhere), and
-  the text is then translated with your current engine. Each language's
-  data (most are 1 to 4 MB) is downloaded once when you ask (**Download
-  German text recognition**) or imported from files; see
-  [Text recognition](text-recognition.md). The
-  [Play variant](contributing.md#build-variants) uses Google's ML Kit
-  instead.
+- **Mozhi via Google Translate (experimental)**: when your instance offers
+  Google, Mozhi passes the photo on to Google Translate's image translation
+  and returns the recognised text, its translation and a copy of the image
+  with the translation drawn in. This relies on an unofficial Google
+  interface that often refuses such requests (Mozhi then answers with
+  nothing, shown as **Google Translate sent nothing back**), so it is
+  offered last. When it fails, **Use on-device text recognition** reads the
+  photo on the phone instead.
 
-Large photos are scaled down before uploading (longest side 2048 px, under
-4 MB), which keeps them within Mozhi's upload limit.
+The method you choose is remembered for next time. A photo you took just as
+Android closed the app to free memory for the camera opens on the image
+screen when you come back.
+
+Before a photo is uploaded (AI vision, Mozhi) it is re-encoded without its
+metadata and scaled down to at most 1600 px on its longest side and about
+1.5 MB. Mozhi gets up to 90 seconds to answer. A photo is sent to at most
+two of your instances (after a time-out, to no other), and when a proxy in
+front of the instance turns the upload down as too large, a smaller copy
+(about 900 KB) is sent once more. Language codes are mapped to Google's own
+(`zh-CN`, `zh-TW`, `iw`, ...), and a language Google does not offer is
+reported before anything is uploaded.
 
 ## Voice
 
@@ -471,8 +522,14 @@ Large photos are scaled down before uploading (longest side 2048 px, under
   imported from a file) recognises 99 languages on the phone, so your voice
   never leaves it. **Offline only** always uses Whisper (see
   [Voice input](voice-input.md)).
-- **Conversation**: two people, two languages. Each person speaks in turn and
-  hears or reads the other's words in their own language.
+- **Conversation** (a tab of its own): two people, two languages. Each
+  person speaks or types in turn and hears or reads the other's words in
+  their own language. While the conversation is empty, a large microphone
+  (*Let's talk!*) dictates in the first language of the pair; the pair sits
+  in one pill above the two input fields (tap a language to change it, the
+  arrows to swap). **Face to face** (the two-people button) turns the screen
+  into two halves, the far one upside down, and covers the tabs; back
+  returns to the tab.
 - **Device voices**: besides your Mozhi instance's voices, the app can read
   text aloud with the device's built-in text-to-speech voices, with a speech
   rate and a voice per language of your choice (see
@@ -537,27 +594,45 @@ the device. Offline translation is not available on the web.
   after picking an alternative, the newest entry is updated instead of
   duplicated. Only the main translation is saved, not the translations into
   [extra target languages](#extra-target-languages).
-- **History** groups entries by day, with search across the text, the
-  translation and the language names, and an **All / Favorites** filter.
+- [Dictionary](#dictionary) look-ups are saved too, as entries marked
+  **Dictionary** (a book icon): the word, its languages and a one-line
+  summary of the entry. Looking a word up again with the same languages
+  updates its entry and moves it to the top. Look-ups never count as
+  earlier translations ("From your history").
+- **History** (the clock button at the top of every tab) groups entries by
+  day, with search across the text, the
+  translation and the language names (for look-ups: the word and its
+  summary), and an **All / Favorites** filter.
   Below the search, **All language pairs** narrows the list to one pair
-  (each with its number of translations; a detected source counts as the
+  (each with its number of entries; a detected source counts as the
   language it was detected as), and the **On device**, **Self-hosted**, **Public server**
   and **Cloud** chips to where the text was translated (only those that occur
   in your history are shown). Mozhi entries are classed by your current
-  preferred instance, since an entry doesn't record which instance answered.
-  **Clear filters** shows everything again. Tap an entry to open it in the
-  translator; swipe it away to delete it (with undo).
-- Star a translation to make it a **favourite**. Favourites are never removed
-  automatically; the newest 1,000 other entries are kept.
-- **Settings > Delete history automatically** removes translations older
-  than 1, 7 or 30 days (**Never** by default); starred translations are
-  always kept. If older translations already exist, Mozhi asks first
-  (**Delete older translations now?**). While it is on, the History tab says
+  preferred instance, since an entry doesn't record which instance answered;
+  look-ups by the AI model that wrote them (a local model is **Self-hosted**,
+  other providers **Cloud**).
+  **Clear filters** shows everything again. Tap a translation to open it in
+  the translator, or a look-up to open the Dictionary tab, which looks the
+  word up again with the detail level it was saved with (the entry itself is
+  not stored, so this is a new request to the AI model). Swipe an entry
+  towards the start to delete it, or towards the end to add it to (or
+  remove it from) your favourites; both offer **Undo**, and screen readers
+  get the same actions on each entry.
+- Tap the heart on a translation or a dictionary entry to make it a
+  **favourite**. Long-press the History button to open **Favorites**
+  directly. Favourites are never removed automatically; the newest 1,000
+  other entries (translations and look-ups together) are kept.
+- **Settings > Delete history automatically** removes translations and
+  look-ups older than 1, 7 or 30 days (**Never** by default); favourites
+  are always kept. If older entries already exist, Mozhi asks first
+  (**Delete older translations now?**). While it is on, the History page says
   so, and **Import history** skips entries older than the setting.
-- **Clear history** can keep your favourites.
-- **Settings > Export history** copies your history as JSON or shares it as a
-  file (plain, unencrypted JSON); **Import history** merges such JSON into
-  your history, for example on a new phone.
+- **Clear history** removes look-ups too, and can keep your favourites.
+- **Settings > Export history** copies your history, look-ups included, as
+  JSON or shares it as a file (plain, unencrypted JSON); **Import history**
+  merges such JSON into your history, for example on a new phone. Exports
+  from older versions import as before; a look-up of a word you already
+  have keeps your entry (and becomes a favourite if the imported one was).
 - On the device the history is encrypted (AES-256-GCM, with the key in
   secure storage), and it is never part of a backup or a device transfer.
 
@@ -573,8 +648,8 @@ stays behind (details in [Privacy](privacy.md)):
   once each). A prompt shows the destination before anything is sent and
   offers **Once**, **Always for** the pair, downloading the pair for
   offline use, or changing the mode.
-- **Incognito**: new translations aren't saved, and keyboards are asked
-  not to learn what you type.
+- **Incognito**: new translations and dictionary look-ups aren't saved,
+  and keyboards are asked not to learn what you type.
 - **Hide content in recents & block screenshots** (Android): also blocks
   screen recording and screen sharing.
 - **HTTP proxy** (Android): every request goes through it, for example
@@ -733,8 +808,9 @@ Links come from outside the app, so they are limited:
   either.
 - **A link never starts a paid AI request on its own.** The text is
   translated straight away only with engines that are not AI models (Mozhi,
-  the DeepL API, LibreTranslate, offline), or with an AI model when you
-  turned on **Instant translate with AI**; otherwise press **Translate**.
+  the DeepL API, LibreTranslate, offline); with an AI model press
+  **Translate**, even with **Instant translate with AI** on (it covers
+  typing only).
   When it is translated straight away, it is also translated into your
   [extra target languages](#extra-target-languages), one request each.
   Changing the quality mode or the options for a link doesn't translate
@@ -750,7 +826,9 @@ Other screens can be linked too, and never send anything until you ask:
 
 As `mozhi://` links: `mozhi://proofread?text=...`,
 `mozhi://dictionary?word=...` and `mozhi://web?url=...`; `mozhi://image`,
-`mozhi://documents` and `mozhi://conversation` open those screens. In the web
+`mozhi://documents` and `mozhi://conversation` (the Conversation tab) open
+those screens; `/history` and `/settings` (and `/settings/...`) open those
+pages. In the web
 app, put the path after `#`, for example
 `https://<host>/#/dictionary?word=gato`.
 
@@ -771,10 +849,21 @@ The same list is under **More tools > Keyboard shortcuts**.
 
 ## Appearance and layout
 
-- Light, dark or system theme; **Pure black** for OLED screens; Dynamic color
-  or one of ten accent colours.
-- Phones use a bottom navigation bar. From 840 dp wide (tablets, foldables,
-  wide browser windows) the app switches to a navigation rail with input and
+- Light, dark or system theme. The dark theme is **Lights out** (true
+  black, easy on OLED screens) by default, or **Dim** (dark blue-grey);
+  pick it under **Settings > Appearance > Dark theme**.
+- Dynamic color or one of ten accent colours, including a soft
+  **Lavender**.
+- Rounded, outlined controls: pill-shaped chips and buttons, rounded
+  cards, sheets and text fields, and big bold headings.
+- Four tabs: **Translate**, **Dictionary**, **Proofread** and
+  **Conversation**. **History** and **Settings** are the clock and gear
+  buttons at the top of every tab; they open as full pages above the tabs,
+  and their back arrow returns to the tab (or to Translate when a link or
+  shortcut opened them).
+- Phones use a bottom navigation bar (icons; each names itself to screen
+  readers and in a tooltip). From 840 dp wide (tablets, foldables, wide
+  browser windows) the app switches to a navigation rail with input and
   output side by side.
 - Large touch targets and screen-reader labels throughout.
 

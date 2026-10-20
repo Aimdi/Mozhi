@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/core/network/network.dart'
     show describeNetworkPolicyError;
 import 'package:mozhi/core/widgets/consent_prompt.dart';
@@ -9,6 +10,7 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/data/bergamot_model_details.dart'
     show offlineModelDetailsOf;
 import 'package:mozhi/translate/widgets/offline_offer.dart';
+import 'package:mozhi/translate/widgets/offline_only_notice.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Where the user can go to fix an error.
@@ -21,6 +23,7 @@ class TranslateErrorInfo {
     this.fix = TranslateErrorFix.none,
     this.details,
     this.offlineModels = false,
+    this.chooseSourceLanguage = false,
     this.consent,
   });
 
@@ -37,10 +40,15 @@ class TranslateErrorInfo {
 
   /// The on-device models must be downloaded first (Settings → Offline).
   final bool offlineModels;
+
+  /// The engine can't detect the source language ("Detect language" with
+  /// the offline engine and text too short to detect): let the user pick it
+  /// instead of retrying.
+  final bool chooseSourceLanguage;
 }
 
 /// Route of the offline language models page.
-const offlineModelsRoute = '/settings/offline';
+const String offlineModelsRoute = AppRoutes.offline;
 
 /// Maps `MozhiApiException` / `LlmApiException` / `LlmRefusalException`,
 /// offline engine failures and other errors to friendly text.
@@ -70,6 +78,10 @@ TranslateErrorInfo describeTranslateError(
     OfflineLanguageUnsupportedException() => TranslateErrorInfo(
       l10n.translateErrorOfflineUnsupported,
     ),
+    SourceLanguageRequiredException() => TranslateErrorInfo(
+      l10n.translateErrorSourceLanguageRequired,
+      chooseSourceLanguage: true,
+    ),
     LlmRefusalException() => TranslateErrorInfo(l10n.translateErrorRefused),
     LlmApiException(isAuthError: true) => TranslateErrorInfo(
       l10n.translateErrorAuth,
@@ -92,6 +104,11 @@ TranslateErrorInfo describeTranslateError(
     final MozhiApiException mozhi => _describeMozhi(l10n, mozhi),
     TimeoutException() => TranslateErrorInfo(l10n.translateErrorTimeout),
     // The offline engine may wrap the exception (e.g. in a platform error).
+    _ when '$error'.contains('SourceLanguageRequiredException') =>
+      TranslateErrorInfo(
+        l10n.translateErrorSourceLanguageRequired,
+        chooseSourceLanguage: true,
+      ),
     _ when '$error'.contains('OfflineModelMissingException') =>
       TranslateErrorInfo(
         l10n.translateErrorOfflineModelMissing,
@@ -104,6 +121,7 @@ TranslateErrorInfo describeTranslateError(
     info.message,
     fix: info.fix,
     offlineModels: info.offlineModels,
+    chooseSourceLanguage: info.chooseSourceLanguage,
     details: details == null || details == info.message ? null : details,
   );
 }
@@ -235,12 +253,22 @@ String _redactUrl(String url) {
 /// Error message with a retry button and, when useful, a shortcut to the
 /// relevant settings page and an expandable "Details" section. A
 /// [ConsentRequiredException] is shown as a [ConsentInlinePrompt] instead
-/// (its actions record the consent, then `onRetry` runs).
+/// (its actions record the consent, then `onRetry` runs); one of
+/// [ConsentKind.offlineOnly] as an [OfflineOnlyNotice] when the device has
+/// nothing to translate with either (no on-device engine, no language
+/// pack).
 ///
 /// Missing offline models are offered as "Download German (25 MB)" (the
 /// size when the device's offline engine knows it), which opens the
 /// offline languages. A Mozhi instance error offers "Switch instance"
 /// instead of "Manage instances" when [onSwitchInstance] is given.
+///
+/// When the engine cannot detect the source language
+/// ([TranslateErrorInfo.chooseSourceLanguage]) and [onChooseSourceLanguage]
+/// is given, the main action is "Translate from German"
+/// ([suggestedSourceLanguage] with [onUseSourceLanguage]) or else "Choose
+/// language"; Retry becomes a secondary action, and is left out when the
+/// detection had nothing to go on (it would fail the same way again).
 ///
 /// The message is a live region, so screen readers announce it when it
 /// appears.
@@ -251,6 +279,9 @@ class TranslateErrorView extends StatelessWidget {
     this.dense = false,
     this.retrySemanticsLabel,
     this.onSwitchInstance,
+    this.onChooseSourceLanguage,
+    this.suggestedSourceLanguage,
+    this.onUseSourceLanguage,
     super.key,
   });
 
@@ -260,6 +291,20 @@ class TranslateErrorView extends StatelessWidget {
   /// Lets the user pick another Mozhi instance (e.g. with
   /// `showInstanceSwitcher`); shown for instance errors only.
   final VoidCallback? onSwitchInstance;
+
+  /// Opens the source language picker (e.g. with `pickTranslateLanguage`);
+  /// shown as "Choose language" when the engine needs the source language
+  /// ([TranslateErrorInfo.chooseSourceLanguage]) only.
+  final VoidCallback? onChooseSourceLanguage;
+
+  /// A likely source language (e.g. `TranslateState.recentSourceSuggestion`)
+  /// offered as "Translate from German" next to "Choose language"; needs
+  /// [onChooseSourceLanguage] and [onUseSourceLanguage].
+  final Language? suggestedSourceLanguage;
+
+  /// Translates from [suggestedSourceLanguage] (e.g.
+  /// `TranslateCubit.setSource`).
+  final ValueChanged<Language>? onUseSourceLanguage;
 
   /// What screen readers call the Retry button (it shows "Retry"), e.g.
   /// "Retry German" when several can fail on one screen.
@@ -273,32 +318,35 @@ class TranslateErrorView extends StatelessWidget {
     final consent = error;
     if (consent is ConsentRequiredException) {
       // Nothing failed: the user decides (Retry runs once consent is given).
-      return ConsentInlinePrompt(
+      final prompt = ConsentInlinePrompt(
         key: const Key('translate_error_consent'),
         consent: consent,
         onGranted: onRetry ?? () {},
       );
+      // "Offline only" with nothing on the device to translate with: say
+      // that instead of "this engine needs the network".
+      return consent.kind == ConsentKind.offlineOnly
+          ? OfflineOnlyNotice(consent: consent, fallback: prompt)
+          : prompt;
     }
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final info = describeTranslateError(l10n, error);
-    final (fixLabel, fixRoute, push) = switch (info.fix) {
+    // Every fix is pushed above the tabs, so back returns here.
+    final (fixLabel, fixRoute) = switch (info.fix) {
       _ when info.offlineModels => (
         _offlineFixLabel(context, l10n) ?? l10n.translateOfflineModelsAction,
         offlineModelsRoute,
-        true,
       ),
       TranslateErrorFix.instances => (
         l10n.translateManageInstances,
-        '/settings/instances',
-        false,
+        AppRoutes.instances,
       ),
       TranslateErrorFix.providers => (
         l10n.translateProvidersAction,
-        '/settings/providers',
-        false,
+        AppRoutes.providers,
       ),
-      TranslateErrorFix.none => (null, null, false),
+      TranslateErrorFix.none => (null, null),
     };
     final switchInstance = info.fix == TranslateErrorFix.instances && !dense
         ? onSwitchInstance
@@ -308,6 +356,27 @@ class TranslateErrorView extends StatelessWidget {
         fixLabel != null &&
         !dense &&
         switchInstance == null;
+    final chooseSource = info.chooseSourceLanguage
+        ? onChooseSourceLanguage
+        : null;
+    // "Translate from German": one tap instead of the language picker.
+    final useSuggested = switch ((
+      suggestedSourceLanguage,
+      onUseSourceLanguage,
+    )) {
+      (final language?, final use?) when chooseSource != null => (
+        label: l10n.translateUseSourceLanguage(language.name),
+        onPressed: () => use(language),
+      ),
+      _ => null,
+    };
+    // Retrying a detection that found nothing to go on (no failed request
+    // behind it) fails the same way: choosing the language is the way out.
+    final retry = switch (error) {
+      SourceLanguageRequiredException(cause: null) when chooseSource != null =>
+        null,
+      _ => onRetry,
+    };
     final details = info.details;
     return Column(
       key: const Key('translate_error_view'),
@@ -335,7 +404,8 @@ class TranslateErrorView extends StatelessWidget {
             ),
           ],
         ),
-        if (onRetry != null ||
+        if (retry != null ||
+            chooseSource != null ||
             showFix ||
             switchInstance != null ||
             details != null) ...[
@@ -345,9 +415,42 @@ class TranslateErrorView extends StatelessWidget {
             runSpacing: 4,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              if (onRetry != null)
+              if (chooseSource != null) ...[
+                if (useSuggested != null)
+                  FilledButton.tonalIcon(
+                    key: const Key('translate_error_use_source'),
+                    onPressed: useSuggested.onPressed,
+                    icon: const Icon(Icons.translate),
+                    label: Text(useSuggested.label),
+                  ),
+                if (useSuggested == null)
+                  FilledButton.tonalIcon(
+                    key: const Key('translate_error_choose_source'),
+                    onPressed: chooseSource,
+                    icon: const Icon(Icons.language),
+                    label: Text(l10n.translateChooseSourceLanguage),
+                  )
+                else
+                  TextButton.icon(
+                    key: const Key('translate_error_choose_source'),
+                    onPressed: chooseSource,
+                    icon: const Icon(Icons.language),
+                    label: Text(l10n.translateChooseSourceLanguage),
+                  ),
+                if (retry != null)
+                  TextButton.icon(
+                    key: const Key('translate_error_retry'),
+                    onPressed: retry,
+                    icon: const Icon(Icons.refresh),
+                    label: Text(
+                      l10n.commonRetry,
+                      semanticsLabel: retrySemanticsLabel,
+                    ),
+                  ),
+              ] else if (retry != null)
                 FilledButton.tonalIcon(
-                  onPressed: onRetry,
+                  key: const Key('translate_error_retry'),
+                  onPressed: retry,
                   icon: const Icon(Icons.refresh),
                   label: Text(
                     l10n.commonRetry,
@@ -364,9 +467,7 @@ class TranslateErrorView extends StatelessWidget {
               if (showFix)
                 TextButton(
                   key: const Key('translate_error_fix'),
-                  onPressed: () => push
-                      ? unawaited(context.push<void>(fixRoute))
-                      : context.go(fixRoute),
+                  onPressed: () => unawaited(context.push<void>(fixRoute)),
                   child: Text(fixLabel),
                 ),
             ],

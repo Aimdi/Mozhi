@@ -1,12 +1,17 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/semantics.dart'
+    show AttributedString, LocaleStringAttribute;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/view/app_shell.dart' show AppDestination;
+import 'package:mozhi/app/view/top_level_actions.dart';
 import 'package:mozhi/core/on_device_ml.dart';
 import 'package:mozhi/core/widgets/fold_aware_split.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/models/app_languages.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/about_page.dart' show AboutView;
 import 'package:mozhi/settings/view/widgets/accent_color_picker.dart';
@@ -21,10 +26,15 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 export 'widgets/privacy_settings_section.dart' show historyRetentionLabel;
 
-/// App settings, in sections: Privacy, Offline languages, Online engines,
-/// AI providers (advanced), Appearance, Read aloud, Voice input and About.
+/// App settings, in sections: General, Privacy, Offline languages, Online
+/// engines, AI providers (advanced), Appearance, Read aloud, Voice input
+/// and About.
 /// Reads [SettingsCubit] (and `HistoryCubit` for the history rows) from the
 /// app-wide providers.
+///
+/// A full page above the tabs, opened from their app bars
+/// ([TopLevelActions]): its back arrow returns to the tab
+/// ([topLevelBackButton]).
 class SettingsPage extends StatelessWidget {
   const new({super.key});
 
@@ -47,6 +57,7 @@ class SettingsView extends StatelessWidget {
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsCubit>().state;
     final primary = [
+      _GeneralSection(settings: settings),
       PrivacySettingsSection(settings: settings),
       const _OfflineSection(),
       _OnlineSection(settings: settings),
@@ -74,7 +85,10 @@ class SettingsView extends StatelessWidget {
       child: FocusTraversalGroup(child: Column(children: children)),
     );
     return Scaffold(
-      appBar: AppBar(title: Text(context.l10n.settingsTitle)),
+      appBar: AppBar(
+        leading: topLevelBackButton(context),
+        title: Text(context.l10n.settingsTitle),
+      ),
       body: LayoutBuilder(
         builder: (context, constraints) {
           final width = constraints.maxWidth;
@@ -115,6 +129,132 @@ bool _hasSpeechService(BuildContext context) {
   }
 }
 
+/// App language, tab order, haptic feedback and multiline input.
+class _GeneralSection extends StatelessWidget {
+  const new({required this.settings});
+
+  final AppSettings settings;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final cubit = context.read<SettingsCubit>();
+    final home = AppDestination.of(settings.tabOrder.first).label(l10n);
+    return SettingsSection(
+      title: l10n.settingsSectionGeneral,
+      children: [
+        _AppLanguageTile(appLocale: settings.appLocale),
+        ListTile(
+          key: const Key('settings_tab_order'),
+          leading: const SettingsIcon(Icons.swap_vert),
+          title: Text(l10n.settingsTabOrder),
+          subtitle: Text(l10n.settingsTabOrderSubtitle(home)),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => context.push('/settings/tabs'),
+        ),
+        // Browsers cannot vibrate.
+        if (!kIsWeb)
+          SwitchListTile(
+            key: const Key('settings_haptic_feedback'),
+            secondary: const SettingsIcon(Icons.vibration),
+            title: Text(l10n.settingsHapticFeedback),
+            subtitle: Text(l10n.settingsHapticFeedbackSubtitle),
+            value: settings.hapticFeedback,
+            onChanged: (value) => cubit.setHapticFeedback(enabled: value),
+          ),
+        SwitchListTile(
+          key: const Key('settings_multiline_input'),
+          secondary: const SettingsIcon(Icons.keyboard_return),
+          title: Text(l10n.settingsMultilineInput),
+          subtitle: Text(l10n.settingsMultilineInputSubtitle),
+          value: settings.multilineInput,
+          onChanged: (value) => cubit.setMultilineInput(enabled: value),
+        ),
+      ],
+    );
+  }
+}
+
+/// The language of the app's texts: "System default" or one of
+/// [AppLanguages.supported], each named in itself.
+class _AppLanguageTile extends StatelessWidget {
+  const new({required this.appLocale});
+
+  final String? appLocale;
+
+  /// The choice value of "System default".
+  static const _system = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final locale = AppLanguages.resolve(appLocale);
+    return ListTile(
+      key: const Key('settings_app_language'),
+      leading: const SettingsIcon(Icons.language),
+      title: Text(l10n.settingsAppLanguage),
+      subtitle: locale == null
+          ? Text(l10n.settingsAppLanguageSystem)
+          : _NativeLanguageName(locale),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => _pick(context, locale),
+    );
+  }
+
+  Future<void> _pick(BuildContext context, Locale? current) async {
+    final l10n = context.l10n;
+    final cubit = context.read<SettingsCubit>();
+    final initial = current?.toLanguageTag() ?? _system;
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (context) => ChoiceDialog<String>(
+        title: l10n.settingsAppLanguage,
+        body: l10n.settingsAppLanguageDialogBody,
+        initialValue: initial,
+        options: [
+          ChoiceDialogOption(
+            value: _system,
+            title: Text(l10n.settingsAppLanguageSystem),
+          ),
+          for (final locale in AppLanguages.byName)
+            ChoiceDialogOption(
+              value: locale.toLanguageTag(),
+              title: _NativeLanguageName(locale),
+            ),
+        ],
+      ),
+    );
+    if (choice == null || choice == initial) return;
+    cubit.setAppLocale(choice == _system ? null : choice);
+  }
+}
+
+/// The name of [locale]'s language in itself ("Deutsch", "日本語"), drawn
+/// with that language's glyphs and read by screen readers in it.
+class _NativeLanguageName extends StatelessWidget {
+  const new(this.locale);
+
+  final Locale locale;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = AppLanguages.nativeName(locale);
+    return Semantics(
+      attributedLabel: AttributedString(
+        name,
+        attributes: [
+          LocaleStringAttribute(
+            range: TextRange(start: 0, end: name.length),
+            locale: locale,
+          ),
+        ],
+      ),
+      excludeSemantics: true,
+      child: Text(name, locale: locale),
+    );
+  }
+}
+
 /// The on-device models (where the platform runs them).
 class _OfflineSection extends StatelessWidget {
   const new();
@@ -147,7 +287,8 @@ class _OfflineSection extends StatelessWidget {
 }
 
 /// Mozhi instances, machine translation services (DeepL, LibreTranslate),
-/// the quality modes and instant translation.
+/// the quality modes (and whether the last one is remembered) and instant
+/// translation.
 class _OnlineSection extends StatelessWidget {
   const new({required this.settings});
 
@@ -195,6 +336,14 @@ class _OnlineSection extends StatelessWidget {
           subtitle: Text(l10n.settingsQualitySubtitle),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => context.push('/settings/quality'),
+        ),
+        SwitchListTile(
+          key: const Key('settings_remember_quality'),
+          secondary: const SettingsIcon(Icons.bookmark_added_outlined),
+          title: Text(l10n.settingsRememberQuality),
+          subtitle: Text(l10n.settingsRememberQualitySubtitle),
+          value: settings.rememberQuality,
+          onChanged: (value) => cubit.setRememberQuality(enabled: value),
         ),
         SwitchListTile(
           secondary: const SettingsIcon(Icons.bolt_outlined),
@@ -510,9 +659,9 @@ class _ThemeModePicker extends StatelessWidget {
   }
 }
 
-/// The dark look: "Dim" (dark blue-grey) or "Lights out" (true black),
-/// stored as [AppSettings.pureBlack]. Disabled while the light theme is
-/// forced.
+/// The dark look: "Dim" (dark blue-grey) or "Lights out" (true black, the
+/// default), stored as [AppSettings.pureBlack]. Disabled while the light
+/// theme is forced.
 class _DarkLookPicker extends StatelessWidget {
   const new({
     required this.lightsOut,

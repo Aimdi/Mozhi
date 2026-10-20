@@ -8,8 +8,8 @@
     <string name="tile_translate_description">Traduire le presse-papiers avec Mozhi</string>
     <string name="shortcut_clipboard_short">Coller</string>
     <string name="shortcut_clipboard_long">Traduire le presse-papiers</string>
-    <string name="shortcut_camera_short">Photo</string>
-    <string name="shortcut_camera_long">Traduire une photo</string>
+    <string name="shortcut_dictionary_short">Dictionnaire</string>
+    <string name="shortcut_dictionary_long">Dictionnaire</string>
     <string name="shortcut_conversation_short">Conversation</string>
     <string name="shortcut_conversation_long">Conversation</string>
     <string name="shortcut_proofread_short">Corriger</string>

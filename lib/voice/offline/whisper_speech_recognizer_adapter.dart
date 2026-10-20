@@ -24,13 +24,20 @@ import 'package:whisper_speech/whisper_speech.dart';
 ///   of silence after speech ([VoiceActivityDetector]) or until
 ///   [maxDuration] (Whisper's 30 s window; at most
 ///   [SpeechListenRequest.listenFor]), reporting the loudness of every
-///   chunk (dBFS) as the sound level. Then it reports
+///   chunk (dBFS) as the sound level and whether the detector heard
+///   speech yet as [heardSpeech]. Then it reports
 ///   [SpeechRecognizerStatus.transcribing], transcribes and delivers one
 ///   final result, followed by [SpeechRecognizerStatus.done]. A recording
 ///   without speech is not transcribed: it fails with `error_no_match`,
 ///   like an empty transcription.
+/// * [detectedLanguage] is the language Whisper transcribed the final
+///   result in (the detected one when no locale id was given).
 /// * [cancel] drops the recording or stops the transcription.
-class WhisperSpeechRecognizerAdapter implements OfflineSpeechRecognizerAdapter {
+class WhisperSpeechRecognizerAdapter
+    implements
+        OfflineSpeechRecognizerAdapter,
+        LanguageDetectingSpeechRecognizer,
+        VoiceActivitySpeechRecognizer {
   new({
     required this._speech,
     PcmRecorder? recorder,
@@ -46,6 +53,13 @@ class WhisperSpeechRecognizerAdapter implements OfflineSpeechRecognizerAdapter {
   void Function(SpeechRecognizerError error)? _onError;
   void Function(SpeechRecognizerStatus status)? _onStatus;
   _Session? _session;
+  String? _detectedLanguage;
+
+  @override
+  String? get detectedLanguage => _detectedLanguage;
+
+  @override
+  bool get heardSpeech => _session?.voice.heardSpeech ?? false;
 
   @override
   Future<bool> isReady() async {
@@ -195,6 +209,7 @@ class WhisperSpeechRecognizerAdapter implements OfflineSpeechRecognizerAdapter {
 
   Future<void> _transcribe(_Session session) async {
     String? failure;
+    String? language;
     var text = '';
     if (!session.voice.heardSpeech) {
       failure = 'error_no_match';
@@ -205,6 +220,7 @@ class WhisperSpeechRecognizerAdapter implements OfflineSpeechRecognizerAdapter {
           language: session.language,
         );
         text = result.text;
+        language = languageForWhisper(result.language);
         if (text.isEmpty) failure = 'error_no_match';
       } on WhisperCancelledException {
         return;
@@ -219,6 +235,7 @@ class WhisperSpeechRecognizerAdapter implements OfflineSpeechRecognizerAdapter {
     if (failure != null) {
       _error(failure);
     } else {
+      _detectedLanguage = language;
       session.onResult(text, isFinal: true);
     }
     _onStatus?.call(SpeechRecognizerStatus.done);

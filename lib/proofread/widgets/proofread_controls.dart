@@ -1,24 +1,20 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/privacy/ime_learning.dart';
-import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/proofread/cubit/proofread_cubit.dart';
 import 'package:mozhi/proofread/widgets/proofread_labels.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Correction level, writing style, formality, reading level, regional
-/// variety, engine and context controls.
+/// variety, engine and context controls: the content of the proofreading
+/// options sheet (`showProofreadOptions`).
 ///
-/// The options sit in a flat collapsible "Options" section between
-/// hairlines whose subtitle sums up the current choices; menus are laid out
-/// as a grid of equal outlined pills.
+/// The correction level is a segmented button while its labels fit (else
+/// a menu); the other menus are laid out as a grid of equal outlined
+/// pills.
 class ProofreadControls extends StatefulWidget {
-  const new({this.initiallyExpanded = false, super.key});
-
-  /// Whether the options start expanded (they always do while a context is
-  /// set).
-  final bool initiallyExpanded;
+  const new({super.key});
 
   @override
   State<ProofreadControls> createState() => _ProofreadControlsState();
@@ -68,28 +64,9 @@ class _ProofreadControlsState extends State<ProofreadControls> {
     return (widest + segmentChrome) * CorrectionLevel.values.length <= width;
   }
 
-  /// One line naming the current choices: the correction level and style,
-  /// plus every option that differs from its default.
-  String _summary(BuildContext context, ProofreadState state) {
-    final l10n = context.l10n;
-    return [
-      l10n.proofreadCorrectionLevel(state.correctionLevel),
-      l10n.proofreadWritingStyle(state.writingStyle),
-      if (state.formality != Formality.automatic)
-        l10n.proofreadFormality(state.formality),
-      if (state.readingLevel != ReadingLevel.standard)
-        l10n.proofreadReadingLevel(state.readingLevel),
-      if (state.variety != null) l10n.proofreadVariety(state.variety),
-      if (state.context.trim().isNotEmpty) l10n.proofreadContextLabel,
-    ].join(' · ');
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    final palette = AppPalette.of(context);
     final cubit = context.read<ProofreadCubit>();
 
     return BlocBuilder<ProofreadCubit, ProofreadState>(
@@ -104,88 +81,50 @@ class _ProofreadControlsState extends State<ProofreadControls> {
           !identical(previous.engine, current.engine) ||
           !identical(previous.availableEngines, current.availableEngines),
       builder: (context, state) => Semantics(
+        key: const Key('proofread_options'),
         container: true,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            border: Border(
-              top: BorderSide(color: palette.hairline),
-              bottom: BorderSide(color: palette.hairline),
-            ),
-          ),
-          child: ExpansionTile(
-            key: const Key('proofread_options'),
-            initiallyExpanded: widget.initiallyExpanded || _showContext,
-            maintainState: true,
-            shape: const Border(),
-            collapsedShape: const Border(),
-            tilePadding: const EdgeInsetsDirectional.fromSTEB(4, 4, 4, 4),
-            leading: Icon(Icons.tune, color: colors.primary),
-            title: Text(
-              l10n.proofreadOptionsTitle,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            subtitle: Text(
-              _summary(context, state),
-              key: const Key('proofread_options_summary'),
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: palette.secondaryText,
-              ),
-            ),
-            expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
-            childrenPadding: const EdgeInsetsDirectional.fromSTEB(4, 0, 4, 16),
-            children: [
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  // Narrow screens or large text: a menu instead of truncated
-                  // segment labels.
-                  final segmented = _levelLabelsFit(
-                    context,
-                    constraints.maxWidth,
-                  );
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    spacing: 12,
-                    children: [
-                      if (segmented)
-                        Semantics(
-                          label: l10n.proofreadLevelLabel,
-                          container: true,
-                          child: SegmentedButton<CorrectionLevel>(
-                            showSelectedIcon: false,
-                            segments: [
-                              for (final level in CorrectionLevel.values)
-                                ButtonSegment(
-                                  value: level,
-                                  tooltip: l10n.proofreadLevelDescription(
-                                    level,
-                                  ),
-                                  label: Text(
-                                    l10n.proofreadCorrectionLevel(level),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                            ],
-                            selected: {state.correctionLevel},
-                            onSelectionChanged: (selection) =>
-                                cubit.setLevel(selection.first),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // Narrow screens or large text: a menu instead of truncated
+            // segment labels.
+            final segmented = _levelLabelsFit(context, constraints.maxWidth);
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: 12,
+              children: [
+                if (segmented)
+                  Semantics(
+                    label: l10n.proofreadLevelLabel,
+                    container: true,
+                    child: SegmentedButton<CorrectionLevel>(
+                      showSelectedIcon: false,
+                      segments: [
+                        for (final level in CorrectionLevel.values)
+                          ButtonSegment(
+                            value: level,
+                            tooltip: l10n.proofreadLevelDescription(level),
+                            label: Text(
+                              l10n.proofreadCorrectionLevel(level),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                        ),
-                      _buildMenus(
-                        context,
-                        state,
-                        showLevel: !segmented,
-                        width: constraints.maxWidth,
-                      ),
-                      if (_showContext) _buildContextField(context),
-                    ],
-                  );
-                },
-              ),
-            ],
-          ),
+                      ],
+                      selected: {state.correctionLevel},
+                      onSelectionChanged: (selection) =>
+                          cubit.setLevel(selection.first),
+                    ),
+                  ),
+                _buildMenus(
+                  context,
+                  state,
+                  showLevel: !segmented,
+                  width: constraints.maxWidth,
+                ),
+                if (_showContext) _buildContextField(context),
+              ],
+            );
+          },
         ),
       ),
     );

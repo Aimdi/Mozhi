@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/haptics.dart';
 import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
@@ -15,14 +15,16 @@ import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/aligned_text.dart';
 import 'package:mozhi/translate/widgets/detection_chips.dart';
-import 'package:mozhi/translate/widgets/empty_output.dart';
 import 'package:mozhi/translate/widgets/extras_section.dart';
 import 'package:mozhi/translate/widgets/insight_sheet.dart';
 import 'package:mozhi/translate/widgets/instance_switcher.dart';
+import 'package:mozhi/translate/widgets/language_bar.dart'
+    show pickTranslateLanguage;
 import 'package:mozhi/translate/widgets/language_text.dart';
 import 'package:mozhi/translate/widgets/listen_button.dart';
 import 'package:mozhi/translate/widgets/meaning_check_panel.dart';
 import 'package:mozhi/translate/widgets/offline_offer.dart';
+import 'package:mozhi/translate/widgets/offline_only_notice.dart';
 import 'package:mozhi/translate/widgets/romanization_line.dart';
 import 'package:mozhi/translate/widgets/skeleton.dart';
 import 'package:mozhi/translate/widgets/status_announcer.dart';
@@ -37,7 +39,6 @@ import 'package:translation_repository/translation_repository.dart';
 
 export 'package:mozhi/translate/widgets/aligned_text.dart';
 export 'package:mozhi/translate/widgets/detection_chips.dart';
-export 'package:mozhi/translate/widgets/empty_output.dart';
 export 'package:mozhi/translate/widgets/romanization_line.dart';
 
 /// Copies [text] (marked as sensitive, see [copyText]) and confirms with a
@@ -53,7 +54,9 @@ Future<void> copyToClipboard(BuildContext context, String text) async {
 }
 
 /// Newest history entry for this exact text + translation (entries are
-/// newest first).
+/// newest first). Dictionary look-ups ([HistoryEntry.isDictionary]) never
+/// match: their `translation` is a summary of the entry, which may happen
+/// to equal a translation.
 HistoryEntry? findHistoryEntry(
   List<HistoryEntry> entries,
   String text,
@@ -61,7 +64,9 @@ HistoryEntry? findHistoryEntry(
 ) {
   final wanted = text.trim();
   for (final entry in entries) {
-    if (entry.text.trim() == wanted && entry.translation == translation) {
+    if (!entry.isDictionary &&
+        entry.text.trim() == wanted &&
+        entry.translation == translation) {
       return entry;
     }
   }
@@ -87,6 +92,24 @@ TextDirection? outputTextDirection(TranslateState state) =>
     textDirectionForLanguage(state.target) ??
     textDirectionForText(state.output);
 
+/// Whether the engine's languages could not be loaded (e.g. offline first
+/// has not loaded the lists of this server yet): the output shows the
+/// error with Retry.
+bool showsTranslateEngineError(TranslateState state) =>
+    state.enginesStatus == EnginesStatus.failure &&
+    state.error != null &&
+    state.status == TranslateStatus.idle &&
+    state.output.isEmpty;
+
+/// Whether the output has nothing to show for [state]: no translation (nor
+/// one in progress), no consent prompt and no error.
+bool translateOutputIsEmpty(TranslateState state) =>
+    state.output.isEmpty &&
+    state.status != TranslateStatus.translating &&
+    state.status != TranslateStatus.failure &&
+    state.consent == null &&
+    !showsTranslateEngineError(state);
+
 /// The translation: streaming text, progress, errors, romanization,
 /// detected language (with other likely languages when uncertain),
 /// engine/latency footer, the everyday actions (copy, listen, favourite;
@@ -95,7 +118,8 @@ TextDirection? outputTextDirection(TranslateState state) =>
 /// romanization, matching phrases, compare engines). The toggle's state is
 /// the [TranslateMoreScope]'s above (shared with the sections under the
 /// card), else the card's own; it starts closed. Without a translation it
-/// shows [EmptyOutput].
+/// shows nothing ([translateOutputIsEmpty]; the empty screen shows the
+/// greeting instead, `TranslateHero`).
 ///
 /// Progress (the bar and placeholder lines) appears only once a
 /// translation has taken [loadingRevealDelay]; a new result, the empty
@@ -106,7 +130,9 @@ TextDirection? outputTextDirection(TranslateState state) =>
 /// While the privacy settings hold a translation back
 /// (`TranslateState.consent`), the inline prompt is followed by the
 /// on-device alternative when the offline engine supports the pair
-/// ([OfflinePairOffer]: "Download German (25 MB)"). A Mozhi instance error
+/// ([OfflinePairOffer]: "Download German (25 MB)"); when "Offline only"
+/// held it back and the device has nothing to translate with either, an
+/// [OfflineOnlyNotice] says so instead. A Mozhi instance error
 /// offers "Switch instance" ([switchInstanceAndRetry]) when several
 /// instances are configured.
 ///
@@ -176,7 +202,7 @@ class _OutputCardState extends State<OutputCard> {
   }
 
   Future<void> _copy(String text) async {
-    unawaited(HapticFeedback.lightImpact());
+    Haptics.light(context);
     await copyToClipboard(context, text);
     if (!mounted) return;
     _copiedTimer?.cancel();
@@ -265,7 +291,7 @@ class _OutputCardState extends State<OutputCard> {
           state.romanizationStatus == ExtraStatus.failure);
 
   void _toggleFavorite(TranslateState state, HistoryEntry? entry) {
-    unawaited(HapticFeedback.lightImpact());
+    Haptics.light(context);
     final history = context.read<HistoryCubit>();
     if (entry != null) {
       unawaited(history.toggleFavorite(entry.id));
@@ -450,7 +476,7 @@ class _OutputCardState extends State<OutputCard> {
     if (state.consent != null && output.isEmpty) {
       return const ValueKey('translate_phase_consent');
     }
-    if (_showsEngineError(state)) {
+    if (showsTranslateEngineError(state)) {
       return const ValueKey('translate_phase_engine_error');
     }
     if (state.status == TranslateStatus.failure && output.isEmpty) {
@@ -469,14 +495,6 @@ class _OutputCardState extends State<OutputCard> {
     ));
   }
 
-  /// The engine's languages could not be loaded (e.g. offline first has
-  /// not loaded the lists of this server yet).
-  static bool _showsEngineError(TranslateState state) =>
-      state.enginesStatus == EnginesStatus.failure &&
-      state.error != null &&
-      state.status == TranslateStatus.idle &&
-      state.output.isEmpty;
-
   /// "Switch instance" for Mozhi errors when there is another instance.
   VoidCallback? _switchInstance(BuildContext context) {
     final instances = context.read<SettingsCubit>().state.instances;
@@ -494,24 +512,29 @@ class _OutputCardState extends State<OutputCard> {
     if (consent != null && output.isEmpty) {
       // Never a dialog by itself: an instant translation shows this inline
       // prompt (a translation the user asked for also opens the dialog).
+      final prompt = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ConsentInlinePrompt(
+            key: const Key('translate_consent_prompt'),
+            consent: consent.exception,
+            onGranted: () =>
+                unawaited(context.read<TranslateCubit>().retryAfterConsent()),
+          ),
+          OfflinePairOffer(consent: consent.exception),
+        ],
+      );
       return Padding(
         padding: const EdgeInsetsDirectional.only(top: 8, end: 12, bottom: 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            ConsentInlinePrompt(
-              key: const Key('translate_consent_prompt'),
-              consent: consent.exception,
-              onGranted: () =>
-                  unawaited(context.read<TranslateCubit>().retryAfterConsent()),
-            ),
-            OfflinePairOffer(consent: consent.exception),
-          ],
-        ),
+        // "Offline only" with nothing on the device to translate with: say
+        // that instead of "this engine needs the network".
+        child: consent.exception.kind == ConsentKind.offlineOnly
+            ? OfflineOnlyNotice(consent: consent.exception, fallback: prompt)
+            : prompt,
       );
     }
 
-    if (_showsEngineError(state)) {
+    if (showsTranslateEngineError(state)) {
       // The engine's languages could not be loaded (e.g. offline first has
       // not loaded the lists of this server yet).
       return Padding(
@@ -527,19 +550,31 @@ class _OutputCardState extends State<OutputCard> {
     }
 
     if (state.status == TranslateStatus.failure && output.isEmpty) {
+      final cubit = context.read<TranslateCubit>();
       return Padding(
         padding: const EdgeInsetsDirectional.only(end: 12, bottom: 8),
         child: TranslateErrorView(
           error: state.error,
-          onRetry: () => unawaited(context.read<TranslateCubit>().translate()),
+          onRetry: () => unawaited(cubit.translate()),
           onSwitchInstance: _switchInstance(context),
+          // The engine could not detect the language (e.g. a short text on
+          // the offline engine): pick it, or take the last one used.
+          onChooseSourceLanguage: () =>
+              unawaited(pickTranslateLanguage(context, source: true)),
+          suggestedSourceLanguage: state.recentSourceSuggestion(
+            context.read<SettingsCubit>().state.recentPairs,
+          ),
+          onUseSourceLanguage: cubit.setSource,
         ),
       );
     }
 
     if (output.isEmpty) {
       if (state.status != TranslateStatus.translating) {
-        return EmptyOutput(state: state);
+        return const SizedBox(
+          key: Key('translate_empty_output'),
+          width: double.infinity,
+        );
       }
       // Placeholder lines once it takes a while (the bar above says
       // "Translating…" to screen readers).

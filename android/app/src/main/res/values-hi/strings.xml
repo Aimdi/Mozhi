@@ -8,8 +8,8 @@
     <string name="tile_translate_description">Mozhi से क्लिपबोर्ड का अनुवाद करें</string>
     <string name="shortcut_clipboard_short">क्लिपबोर्ड</string>
     <string name="shortcut_clipboard_long">क्लिपबोर्ड का अनुवाद</string>
-    <string name="shortcut_camera_short">कैमरा</string>
-    <string name="shortcut_camera_long">कैमरे से अनुवाद</string>
+    <string name="shortcut_dictionary_short">शब्दकोश</string>
+    <string name="shortcut_dictionary_long">शब्दकोश</string>
     <string name="shortcut_conversation_short">बातचीत</string>
     <string name="shortcut_conversation_long">बातचीत</string>
     <string name="shortcut_proofread_short">प्रूफ़रीड</string>

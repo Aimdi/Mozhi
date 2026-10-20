@@ -8,8 +8,8 @@
     <string name="tile_translate_description">Panoyu Mozhi ile çevir</string>
     <string name="shortcut_clipboard_short">Pano</string>
     <string name="shortcut_clipboard_long">Panoyu çevir</string>
-    <string name="shortcut_camera_short">Kamera</string>
-    <string name="shortcut_camera_long">Kamerayla çevir</string>
+    <string name="shortcut_dictionary_short">Sözlük</string>
+    <string name="shortcut_dictionary_long">Sözlük</string>
     <string name="shortcut_conversation_short">Sohbet</string>
     <string name="shortcut_conversation_long">Sohbet</string>
     <string name="shortcut_proofread_short">Düzeltme</string>

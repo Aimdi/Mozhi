@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Whether [uri] is plain `http://` to a host outside this device and the
@@ -27,7 +28,9 @@ class InsecureHttpWarning extends StatelessWidget {
     return Card.filled(
       margin: EdgeInsets.zero,
       color: colors.errorContainer,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: const RoundedRectangleBorder(
+        borderRadius: AppRadius.cardBorderRadius,
+      ),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Row(

@@ -557,6 +557,43 @@ void main() {
       handle.dispose();
     });
 
+    testWidgets('an undetectable source language offers the source picker', (
+      tester,
+    ) async {
+      final harness = _harness(
+        _state(
+          translations: [
+            _german(
+              status: TranslateStatus.failure,
+              text: '',
+              error: const SourceLanguageRequiredException(),
+            ),
+          ],
+        ),
+      );
+      await harness.pump(tester, child: const ExtraTargetsSection());
+      expect(
+        _inCard(german, find.textContaining("can't detect the language")),
+        findsOneWidget,
+      );
+      // Retrying would fail the same way.
+      expect(_inCard(german, find.text('Retry')), findsNothing);
+      await tester.tap(_inCard(german, find.text('Choose language')));
+      await tester.pumpAndSettle();
+      expect(find.byType(LanguagePickerSheet), findsOneWidget);
+      await tester.tap(
+        find
+            .descendant(
+              of: find.byType(LanguagePickerSheet),
+              matching: find.text('Japanese'),
+            )
+            .last,
+      );
+      await tester.pumpAndSettle();
+      verify(() => harness.translate.setSource(japanese)).called(1);
+      verifyNever(() => harness.translate.retryExtraTarget(any()));
+    });
+
     testWidgets('announces the translations once none is in flight', (
       tester,
     ) async {

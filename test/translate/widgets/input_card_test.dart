@@ -1,10 +1,14 @@
 import 'dart:async';
 
 import 'package:bloc_test/bloc_test.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/image_translate/view/image_translate_page.dart';
+import 'package:mozhi/l10n/gen/app_localizations_en.dart';
+import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/translate.dart';
 import 'package:mozhi/translate/widgets/widgets.dart';
@@ -130,34 +134,18 @@ void main() {
       expect(controller.selection.baseOffset, 4);
     });
 
-    testWidgets('hides the translate button when instant translate is on', (
-      tester,
-    ) async {
-      final harness = TranslateHarness(state: readyState(input: 'Hi'));
-      await harness.pump(tester, child: const InputCard());
-      expect(find.byKey(const Key('translate_translate_button')), findsNothing);
-    });
-
-    testWidgets('translate button translates when instant is off for AI', (
-      tester,
-    ) async {
+    testWidgets('has no translate button of its own', (tester) async {
+      // The go button at the end of the language bar replaces it, also
+      // while instant translation is off.
       final harness = TranslateHarness(
         state: readyState(engine: claude, input: 'Hi'),
+        settings: const AppSettings(
+          instantTranslate: false,
+          instantTranslateAi: false,
+        ),
       );
       await harness.pump(tester, child: const InputCard());
-      await tester.tap(find.byKey(const Key('translate_translate_button')));
-      verify(harness.translate.translate).called(1);
-    });
-
-    testWidgets('translate button is disabled without input', (tester) async {
-      final harness = TranslateHarness(
-        settings: const AppSettings(instantTranslate: false),
-      );
-      await harness.pump(tester, child: const InputCard());
-      final button = tester.widget<ButtonStyleButton>(
-        find.byKey(const Key('translate_translate_button')),
-      );
-      expect(button.onPressed, isNull);
+      expect(find.byKey(const Key('translate_translate_button')), findsNothing);
     });
 
     testWidgets('listen reads the input in the detected language', (
@@ -438,6 +426,437 @@ void main() {
       });
     });
 
+    group('multiline input', () {
+      Finder field() => find.byKey(const Key('translate_input_field'));
+
+      TextField textField(WidgetTester tester) =>
+          tester.widget<TextField>(field());
+
+      Future<TranslateHarness> pump(
+        WidgetTester tester, {
+        bool multiline = true,
+        String input = 'Hello',
+      }) async {
+        final harness = TranslateHarness(
+          state: readyState(input: input),
+          settings: AppSettings(multilineInput: multiline),
+        );
+        await harness.pump(tester, child: const InputCard());
+        await tester.showKeyboard(field());
+        await tester.pump();
+        return harness;
+      }
+
+      testWidgets('on (the default): Enter adds a new line', (tester) async {
+        final harness = await pump(tester);
+
+        expect(textField(tester).textInputAction, TextInputAction.newline);
+        expect(textField(tester).keyboardType, TextInputType.multiline);
+        expect(textField(tester).onSubmitted, isNull);
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+
+        verifyNever(harness.translate.translate);
+      });
+
+      testWidgets('off: the keyboard shows a go key that translates', (
+        tester,
+      ) async {
+        final harness = await pump(tester, multiline: false);
+
+        expect(textField(tester).textInputAction, TextInputAction.go);
+        // Still multiline: pasted text keeps its lines, Shift+Enter adds one.
+        expect(textField(tester).keyboardType, TextInputType.multiline);
+        await tester.testTextInput.receiveAction(TextInputAction.go);
+        await tester.pump();
+
+        verify(harness.translate.translate).called(1);
+      });
+
+      testWidgets('off: a hardware Enter translates', (tester) async {
+        final harness = await pump(tester, multiline: false);
+
+        final handled = await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+        verify(harness.translate.translate).called(1);
+        expect(handled, isTrue);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.numpadEnter);
+        await tester.pump();
+        verify(harness.translate.translate).called(1);
+      });
+
+      testWidgets('off: a held Enter translates once and adds no lines', (
+        tester,
+      ) async {
+        final harness = await pump(tester, multiline: false);
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.enter);
+        final repeat = await tester.sendKeyRepeatEvent(
+          LogicalKeyboardKey.enter,
+        );
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+
+        expect(repeat, isTrue);
+        verify(harness.translate.translate).called(1);
+      });
+
+      testWidgets('off: the go key keeps the keyboard open', (tester) async {
+        await pump(tester, multiline: false);
+
+        await tester.testTextInput.receiveAction(TextInputAction.go);
+        await tester.pump();
+
+        expect(textField(tester).focusNode?.hasFocus, isTrue);
+      });
+
+      testWidgets('off: Shift with the keyboard action adds a new line '
+          '(browsers report every Enter as the action)', (tester) async {
+        final harness = await pump(tester, multiline: false);
+        await tester.tap(field());
+        tester.testTextInput.updateEditingValue(
+          const TextEditingValue(
+            text: 'Hello',
+            selection: TextSelection.collapsed(offset: 5),
+          ),
+        );
+        await tester.pump();
+        clearInteractions(harness.translate);
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.testTextInput.receiveAction(TextInputAction.go);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.pump();
+
+        verifyNever(harness.translate.translate);
+        verify(() => harness.translate.setInput('Hello\n')).called(1);
+        final controller = textField(tester).controller!;
+        expect(controller.text, 'Hello\n');
+        expect(controller.selection, const TextSelection.collapsed(offset: 6));
+      });
+
+      testWidgets('off: Ctrl with the keyboard action is left to the '
+          'screen shortcut', (tester) async {
+        final harness = await pump(tester, multiline: false);
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+        await tester.testTextInput.receiveAction(TextInputAction.go);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+        await tester.pump();
+
+        verifyNever(harness.translate.translate);
+      });
+
+      testWidgets('off: Shift+Enter is left to the field (a new line)', (
+        tester,
+      ) async {
+        final harness = await pump(tester, multiline: false);
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        final handled = await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.pump();
+
+        expect(handled, isFalse);
+        verifyNever(harness.translate.translate);
+      });
+
+      testWidgets('off: Ctrl+Enter is left to the screen shortcut', (
+        tester,
+      ) async {
+        final harness = await pump(tester, multiline: false);
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+        final handled = await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+        await tester.pump();
+
+        expect(handled, isFalse);
+        verifyNever(harness.translate.translate);
+      });
+
+      testWidgets('off: Enter confirms what an input method composes', (
+        tester,
+      ) async {
+        final harness = await pump(tester, multiline: false, input: '');
+        tester.testTextInput.updateEditingValue(
+          const TextEditingValue(
+            text: 'にほ',
+            selection: TextSelection.collapsed(offset: 2),
+            composing: TextRange(start: 0, end: 2),
+          ),
+        );
+        await tester.pump();
+
+        final handled = await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+
+        expect(handled, isFalse);
+        verifyNever(harness.translate.translate);
+      });
+
+      testWidgets('off: Enter does nothing without input', (tester) async {
+        final harness = await pump(tester, multiline: false, input: '  ');
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.testTextInput.receiveAction(TextInputAction.go);
+        await tester.pump();
+
+        verifyNever(harness.translate.translate);
+      });
+
+      testWidgets('Esc still clears the field', (tester) async {
+        final harness = await pump(tester, multiline: false);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pump();
+
+        verify(harness.translate.clear).called(1);
+      });
+    });
+
+    group('empty composer (compact)', () {
+      Finder link() => find.byKey(const Key('translate_paste_link'));
+      Finder hint() => find.byKey(const Key('translate_composer_hint'));
+      Finder field() => find.byKey(const Key('translate_input_field'));
+
+      RenderParagraph sentence(WidgetTester tester) =>
+          tester.renderObject<RenderParagraph>(
+            find.descendant(of: hint(), matching: find.byType(RichText)),
+          );
+
+      /// The centre of the drawn word "paste" (characters 8 to 13).
+      Offset wordCentre(WidgetTester tester) {
+        final paragraph = sentence(tester);
+        final box = paragraph
+            .getBoxesForSelection(
+              const TextSelection(baseOffset: 8, extentOffset: 13),
+            )
+            .single;
+        return paragraph.localToGlobal(box.toRect().center);
+      }
+
+      bool fieldFocused(WidgetTester tester) =>
+          tester.widget<TextField>(field()).focusNode!.hasFocus;
+
+      testWidgets('reads "Type or paste text" with "paste" as the link', (
+        tester,
+      ) async {
+        final harness = TranslateHarness();
+        await harness.pump(tester, child: const InputCard(compact: true));
+        expect(
+          find.text('Type or paste text', findRichText: true),
+          findsOneWidget,
+        );
+        expect(find.text('Enter text'), findsNothing);
+        // The link replaces the paste icon; no tools row.
+        expect(find.byKey(const Key('translate_paste_button')), findsNothing);
+        expect(find.byKey(const Key('translate_input_toolbar')), findsNothing);
+        // Only "paste" is in the accent colour.
+        final span = sentence(tester).text as TextSpan;
+        final parts = span.children!.cast<TextSpan>();
+        final accent = Theme.of(tester.element(hint())).colorScheme.primary;
+        expect(parts.map((part) => part.text), ['Type or ', 'paste', ' text']);
+        expect(parts[1].style?.color, accent);
+        expect(span.style?.color, isNot(accent));
+        // A 48 dp target on the word.
+        final target = tester.getRect(link());
+        expect(target.height, greaterThanOrEqualTo(48));
+        expect(target.width, greaterThanOrEqualTo(48));
+        expect(target.center.dx, closeTo(wordCentre(tester).dx, 0.5));
+        expect(target.center.dy, closeTo(wordCentre(tester).dy, 0.5));
+        // Where the field's own hint would be.
+        expect(
+          tester.getTopLeft(hint()),
+          tester.getTopLeft(find.byType(EditableText)) - const Offset(0, 14),
+        );
+      });
+
+      testWidgets('the link pastes the clipboard', (tester) async {
+        final clipboard = FakeClipboard(tester, pasteText: 'Guten Tag');
+        final harness = TranslateHarness();
+        await harness.pump(tester, child: const InputCard(compact: true));
+        await tester.tap(link());
+        await tester.pump();
+        verify(() => harness.translate.setInput('Guten Tag')).called(1);
+        expect(
+          tester.widget<TextField>(field()).controller!.text,
+          clipboard.pasteText,
+        );
+        // The text replaces the placeholder; a tap does not focus the
+        // field (no keyboard).
+        expect(hint(), findsNothing);
+        expect(fieldFocused(tester), isFalse);
+      });
+
+      testWidgets('from the keyboard the field takes the focus after '
+          'pasting', (tester) async {
+        FakeClipboard(tester, pasteText: 'Guten Tag');
+        final harness = TranslateHarness();
+        await harness.pump(tester, child: const InputCard(compact: true));
+        tester
+            .widget<InkWell>(
+              find.descendant(of: link(), matching: find.byType(InkWell)),
+            )
+            .focusNode!
+            .requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+        verify(() => harness.translate.setInput('Guten Tag')).called(1);
+        expect(fieldFocused(tester), isTrue);
+      });
+
+      testWidgets('an empty clipboard changes nothing', (tester) async {
+        FakeClipboard(tester);
+        final harness = TranslateHarness();
+        await harness.pump(tester, child: const InputCard(compact: true));
+        await tester.tap(link());
+        await tester.pump();
+        verifyNever(() => harness.translate.setInput(any()));
+        expect(hint(), findsOneWidget);
+      });
+
+      testWidgets('taps beside the link reach the field', (tester) async {
+        FakeClipboard(tester, pasteText: 'Guten Tag');
+        final harness = TranslateHarness();
+        await harness.pump(tester, child: const InputCard(compact: true));
+        // On "Type" and far after "text".
+        for (final offset in [const Offset(8, 26), const Offset(300, 26)]) {
+          await tester.tapAt(tester.getTopLeft(hint()) + offset);
+          await tester.pump();
+          expect(fieldFocused(tester), isTrue, reason: '$offset');
+          FocusManager.instance.primaryFocus?.unfocus();
+          await tester.pump();
+        }
+        verifyNever(() => harness.translate.setInput(any()));
+      });
+
+      testWidgets('hides the placeholder while there is text or a '
+          'composition', (tester) async {
+        final harness = TranslateHarness();
+        await harness.pump(tester, child: const InputCard(compact: true));
+        Future<void> show(TextEditingValue value) async {
+          tester.widget<TextField>(field()).controller!.value = value;
+          await tester.pump();
+        }
+
+        await show(const TextEditingValue(text: 'Hi'));
+        expect(hint(), findsNothing);
+        await show(TextEditingValue.empty);
+        expect(hint(), findsOneWidget);
+        // An input method starting a composition.
+        await show(const TextEditingValue(composing: TextRange.collapsed(0)));
+        expect(hint(), findsNothing);
+      });
+
+      testWidgets('is not shown outside the empty composer', (tester) async {
+        final harness = TranslateHarness();
+        await harness.pump(tester, child: const InputCard());
+        expect(hint(), findsNothing);
+        expect(find.text('Enter text'), findsOneWidget);
+      });
+
+      testWidgets('screen readers get the field name and a Paste button', (
+        tester,
+      ) async {
+        final handle = tester.ensureSemantics();
+        final harness = TranslateHarness();
+        await harness.pump(tester, child: const InputCard(compact: true));
+        expect(find.bySemanticsLabel('Text to translate'), findsOneWidget);
+        expect(find.bySemanticsLabel(RegExp('Type or')), findsNothing);
+        expect(
+          tester.getSemantics(link()),
+          isSemantics(
+            label: 'Paste',
+            isButton: true,
+            isFocusable: true,
+            hasTapAction: true,
+          ),
+        );
+        handle.dispose();
+      });
+
+      testWidgets('lies on the word in a right-to-left UI', (tester) async {
+        FakeClipboard(tester, pasteText: 'Guten Tag');
+        final harness = TranslateHarness();
+        await harness.pump(
+          tester,
+          child: const InputCard(compact: true),
+          locale: const Locale('ar'),
+        );
+        final paragraph = sentence(tester);
+        expect(paragraph.textDirection, TextDirection.rtl);
+        final parts = (paragraph.text as TextSpan).children!.cast<TextSpan>();
+        final start = parts[0].text!.length;
+        final box = paragraph
+            .getBoxesForSelection(
+              TextSelection(
+                baseOffset: start,
+                extentOffset: start + parts[1].text!.length,
+              ),
+            )
+            .single;
+        final centre = paragraph.localToGlobal(box.toRect().center);
+        expect(tester.getCenter(link()).dx, closeTo(centre.dx, 0.5));
+        await tester.tap(link());
+        await tester.pump();
+        verify(() => harness.translate.setInput('Guten Tag')).called(1);
+      });
+    });
+
+    group('an unreadable clipboard', () {
+      void failClipboard(WidgetTester tester, Exception error) {
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          (call) async {
+            if (call.method == 'Clipboard.getData') throw error;
+            return null;
+          },
+        );
+        addTearDown(
+          () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SystemChannels.platform,
+            null,
+          ),
+        );
+      }
+
+      const message =
+          "Couldn't read the clipboard. Paste into the text field instead.";
+
+      testWidgets('(a browser refusing it) is reported and the field takes '
+          'the focus', (tester) async {
+        failClipboard(tester, PlatformException(code: 'paste_fail'));
+        final harness = TranslateHarness();
+        await harness.pump(tester, child: const InputCard());
+        await tester.tap(find.byTooltip('Paste'));
+        await tester.pump();
+        expect(find.text(message), findsOneWidget);
+        expect(
+          tester
+              .widget<TextField>(find.byKey(const Key('translate_input_field')))
+              .focusNode!
+              .hasFocus,
+          isTrue,
+        );
+        verifyNever(() => harness.translate.setInput(any()));
+      });
+
+      testWidgets('the placeholder link reports it the same way', (
+        tester,
+      ) async {
+        failClipboard(tester, PlatformException(code: 'paste_fail'));
+        final harness = TranslateHarness();
+        await harness.pump(tester, child: const InputCard(compact: true));
+        await tester.tap(find.byKey(const Key('translate_paste_link')));
+        await tester.pump();
+        expect(find.text(message), findsOneWidget);
+        verifyNever(() => harness.translate.setInput(any()));
+      });
+    });
+
     group('image translation', () {
       testWidgets('opens the image translator', (tester) async {
         final harness = TranslateHarness();
@@ -466,4 +885,42 @@ void main() {
       });
     });
   });
+
+  group('translateComposerHintParts', () {
+    test('splits the sentence around the link', () async {
+      final l10n = await AppLocalizations.delegate.load(const Locale('en'));
+      final parts = translateComposerHintParts(l10n);
+      expect(parts.before, 'Type or ');
+      expect(parts.link, 'paste');
+      expect(parts.after, ' text');
+    });
+
+    test("follows the translation's word order", () {
+      final parts = translateComposerHintParts(
+        _ComposerHint('Text tippen oder {paste}'),
+      );
+      expect(parts.before, 'Text tippen oder ');
+      expect(parts.link, 'paste');
+      expect(parts.after, '');
+    });
+
+    test('puts the link last when a translation lost it', () {
+      final parts = translateComposerHintParts(_ComposerHint('Type text'));
+      expect(parts.before, 'Type text ');
+      expect(parts.link, 'paste');
+      expect(parts.after, '');
+    });
+  });
+}
+
+/// English strings with [pattern] as the composer's placeholder (`{paste}`
+/// marks the link).
+class _ComposerHint extends AppLocalizationsEn {
+  new(this.pattern);
+
+  final String pattern;
+
+  @override
+  String translateComposerHint(String paste) =>
+      pattern.replaceAll('{paste}', paste);
 }

@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:mozhi/history/cubit/history_filters.dart';
 import 'package:mozhi/history/models/history_entry.dart';
+import 'package:translation_repository/translation_repository.dart';
 
 export 'history_filters.dart';
 
@@ -26,6 +27,7 @@ class HistoryState extends Equatable {
     this.query = '',
     this.favoritesOnly = false,
     this.incognito = false,
+    this.saveHistory = true,
     this.pair,
     this.destination,
   });
@@ -41,6 +43,16 @@ class HistoryState extends Equatable {
   /// (`HistoryCubit.setIncognito`).
   final bool incognito;
 
+  /// Whether history is saved ("Save history",
+  /// `HistoryCubit.setSaveHistory`): when off, as in [incognito], only
+  /// favourites are.
+  final bool saveHistory;
+
+  /// Whether history is paused ([incognito], or [saveHistory] off): only
+  /// favourites are saved, and kept only as long as they are favourites
+  /// ([HistoryEntry.favoriteOnly]).
+  bool get paused => incognito || !saveHistory;
+
   /// Only entries of this language pair (null: all).
   final HistoryPair? pair;
 
@@ -52,7 +64,8 @@ class HistoryState extends Equatable {
 
   /// [entries] filtered by [favoritesOnly], [pair], [destination] (with the
   /// default [historyDestinationOf]) and case-insensitive [query] over
-  /// text, translation and language names.
+  /// text, translation and language names (for dictionary look-ups: the
+  /// word and its summary).
   List<HistoryEntry> get visible => visibleWith(historyDestinationOf);
 
   /// Like [visible], classifying entries for the [destination] filter with
@@ -73,6 +86,19 @@ class HistoryState extends Equatable {
           entry,
     ];
   }
+
+  /// The dictionary look-up of [word] from [source] into [target] in
+  /// [entries] ([HistoryEntry.isLookUpOf]), or null.
+  HistoryEntry? lookUpOf(
+    String word, {
+    required Language source,
+    required Language target,
+  }) => entries
+      .where((entry) => entry.isLookUpOf(word, source: source, target: target))
+      .firstOrNull;
+
+  /// Whether [entries] holds dictionary look-ups.
+  bool get hasLookUps => entries.any((entry) => entry.isDictionary);
 
   /// The language pairs of [entries] with how many entries each has, most
   /// used first.
@@ -125,6 +151,7 @@ class HistoryState extends Equatable {
     String? query,
     bool? favoritesOnly,
     bool? incognito,
+    bool? saveHistory,
     HistoryPair? Function()? pair,
     HistoryDestination? Function()? destination,
   }) => HistoryState(
@@ -133,6 +160,7 @@ class HistoryState extends Equatable {
     query: query ?? this.query,
     favoritesOnly: favoritesOnly ?? this.favoritesOnly,
     incognito: incognito ?? this.incognito,
+    saveHistory: saveHistory ?? this.saveHistory,
     pair: pair != null ? pair() : this.pair,
     destination: destination != null ? destination() : this.destination,
   );
@@ -144,6 +172,7 @@ class HistoryState extends Equatable {
     query,
     favoritesOnly,
     incognito,
+    saveHistory,
     pair,
     destination,
   ];

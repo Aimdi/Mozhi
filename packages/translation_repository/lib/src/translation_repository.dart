@@ -1471,6 +1471,23 @@ class TranslationRepository {
   /// The Mozhi engine that translates images.
   static const _imageEngine = 'google';
 
+  /// How long a Mozhi image translation may take ([translateImage]): the
+  /// upload, Google's answer and the image Mozhi sends back all have to fit
+  /// in it, so it is longer than the instance's request timeout.
+  static const mozhiImageTimeout = Duration(seconds: 90);
+
+  /// Most Mozhi instances one image is sent to ([translateImage]): the
+  /// preferred instance and one failover. Every attempt uploads the whole
+  /// photo again, to another operator.
+  static const maxImageInstances = 2;
+
+  /// What [translateImage] reports (as a retryable `MozhiApiException`,
+  /// status 502) when Mozhi answered without an image and without text: it
+  /// passes Google's answer on without checking it, so a refusal looks
+  /// like this (and so does a photo Google found no text in).
+  static const imageNoResultMessage =
+      'Google returned no result for the image.';
+
   /// Most words of input that gets a second language detection.
   static const _hintMaxWords = 3;
 
@@ -2303,6 +2320,20 @@ class TranslationRepository {
   /// PNG; Google only, so the Google engine is used whichever Mozhi engine
   /// is passed). Other engines throw an [ArgumentError]: an image picked for
   /// the offline or a machine translation engine is never sent to Mozhi.
+  ///
+  /// Mozhi (`/api/image` relays to Google Translate's image translation):
+  ///
+  /// * [source] and [target] are mapped onto the Google engine's language
+  ///   lists first (`zh` -> `zh-CN`, `zh-Hant` -> `zh-TW`, `he` -> `iw`); a
+  ///   language Google does not list throws an [ArgumentError] (`source` or
+  ///   `target`) before anything is uploaded.
+  /// * The request may take [mozhiImageTimeout].
+  /// * An answer without an image and without text (Google refused the
+  ///   request, or found no text) is a retryable `MozhiApiException` (502,
+  ///   [imageNoResultMessage]).
+  /// * Retryable failures move on to another instance, but the photo is
+  ///   sent to at most [maxImageInstances] instances, and never again after
+  ///   a timeout.
   Future<ImageTranslationResult> translateImage(
     TranslationEngine engine,
     Uint8List imageBytes, {
@@ -2373,24 +2404,88 @@ class TranslationRepository {
       target: target.code,
     );
     if (denied != null) throw denied;
-    final (translation, instance) = await _mozhi.run(
-      (client, instance) async => (
-        await client.translateImage(
+    final from = source.isAuto
+        ? source.code
+        : await _mozhiImageLanguage(source, source: true);
+    final to = await _mozhiImageLanguage(target, source: false);
+    // Every attempt uploads the photo again: one failover at most.
+    var attempts = 0;
+    final (translation, image, instance) = await _mozhi.run(
+      (client, instance) async {
+        final translation = await client.translateImage(
           pngBytes: imageBytes,
-          from: source.code,
-          to: target.code,
-        ),
-        instance,
-      ),
+          from: from,
+          to: to,
+          timeout: mozhiImageTimeout,
+        );
+        final image = decodeBase64Image(translation.translatedImageBase64);
+        if (image == null &&
+            translation.sourceText.trim().isEmpty &&
+            translation.translatedText.trim().isEmpty) {
+          // Google's answer, unchecked by Mozhi: refused (often per
+          // instance address) or nothing found. Another instance may get
+          // an answer.
+          throw const MozhiApiException(imageNoResultMessage, statusCode: 502);
+        }
+        return (translation, image, instance);
+      },
       failOverOnTimeout: false,
-      allow: _mozhiFailoverAllowed,
+      allow: (instance) =>
+          _mozhiFailoverAllowed(instance) && attempts++ < maxImageInstances,
     );
     return ImageTranslationResult(
-      translatedImage: decodeBase64Image(translation.translatedImageBase64),
+      translatedImage: image,
       sourceText: translation.sourceText,
       translatedText: translation.translatedText,
       destination: _mozhiDestination(_imageEngine, instance),
     );
+  }
+
+  /// The engine whose language lists [translateImage] maps codes with.
+  static final _imageLanguageEngine = TranslationEngine.mozhi(
+    _imageEngine,
+    'Google',
+  );
+
+  /// Google's legacy codes for catalogue codes (used without a list).
+  static const _googleLegacyCodes = {'he': 'iw', 'jv': 'jw'};
+
+  /// The code Mozhi's Google engine knows [language] by (`zh` -> `zh-CN`,
+  /// `zh-Hant` -> `zh-TW`, `he` -> `iw`): the closest entry of its
+  /// [source] or target language list ([LanguageMatcher]). Without a list
+  /// (no instance answered, or metadata may not be loaded now), the
+  /// catalogue code with Google's legacy codes.
+  ///
+  /// Throws an [ArgumentError] (named `source` or `target`) when the list
+  /// has no such language, before the photo is uploaded for a request
+  /// Google would reject.
+  Future<String> _mozhiImageLanguage(
+    Language language, {
+    required bool source,
+  }) async {
+    List<Language> available;
+    try {
+      available = await _mozhiLanguages(_imageLanguageEngine, source: source);
+    } on Object {
+      available = const [];
+    }
+    final listed = [
+      for (final entry in available)
+        if (!entry.isAuto) entry,
+    ];
+    if (listed.isEmpty) {
+      final code = LanguageMatcher.normalize(language.code);
+      return _googleLegacyCodes[code] ?? code;
+    }
+    final match = LanguageMatcher.match(language, listed);
+    if (match == null) {
+      throw ArgumentError.value(
+        language.code,
+        source ? 'source' : 'target',
+        'Google (Mozhi) does not translate images in this language',
+      );
+    }
+    return match.code;
   }
 
   /// Latency of `/api/version` on [instance]; throws on failure.

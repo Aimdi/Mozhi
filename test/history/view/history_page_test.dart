@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' show SemanticsInputType;
 
 import 'package:bloc_test/bloc_test.dart';
@@ -8,7 +9,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
+import 'package:mozhi/dictionary/view/dictionary_request.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
+import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/history/view/history_page.dart';
 import 'package:mozhi/history/view/widgets/history_entry_tile.dart';
@@ -62,6 +65,23 @@ final _older = HistoryEntry(
   createdAt: _daysAgo(10),
 );
 
+const _spanish = Language(code: 'es', name: 'Spanish');
+
+final _lookUp = HistoryEntry(
+  id: 'dictionary:1',
+  kind: HistoryEntryKind.dictionary,
+  text: 'hola',
+  translation: 'interjection · A greeting.',
+  source: _spanish,
+  target: _english,
+  engineId: 'ai:p1',
+  engineName: 'Claude',
+  createdAt: _daysAgo(0, hour: 10),
+  verbosity: DictionaryVerbosity.comprehensive,
+);
+
+class _MockHistoryRepository extends Mock implements HistoryRepository;
+
 /// A history language-pair label: both names are bidi-isolated.
 String _pair(String source, String target) =>
     '\u2068$source\u2069 → \u2068$target\u2069';
@@ -85,6 +105,7 @@ void main() {
       history = createHistoryCubit(
         HistoryState(status: HistoryStatus.ready, entries: entries),
       );
+      when(() => history.restoreFavorite(any())).thenAnswer((_) async {});
       settings = createSettingsCubit();
       translate = MockTranslateCubit();
       when(() => translate.state).thenReturn(const TranslateState());
@@ -97,6 +118,7 @@ void main() {
       AppSettings? appSettings,
       Size size = const Size(800, 1600),
       double textScale = 1,
+      Widget page = const HistoryPage(),
     }) async {
       if (state != null) when(() => history.state).thenReturn(state);
       if (appSettings != null) {
@@ -104,7 +126,7 @@ void main() {
       }
       tester.setScreenSize(size);
       await tester.pumpView(
-        const HistoryPage(),
+        page,
         settings: settings,
         history: history,
         translate: translate,
@@ -112,6 +134,13 @@ void main() {
         textScale: textScale,
       );
     }
+
+    testWidgets('is a page with a back arrow to the tabs', (tester) async {
+      await pump(tester);
+      // Opened on its own (the only page): the arrow goes to Translate.
+      await tester.tap(find.byKey(const Key('top_level_back')));
+      verify(() => router.go('/translate')).called(1);
+    });
 
     testWidgets('groups entries by day', (tester) async {
       await pump(tester);
@@ -204,6 +233,86 @@ void main() {
       expect(tester.widget<TabBar>(find.byType(TabBar)).controller!.index, 1);
     });
 
+    group('initial tab', () {
+      testWidgets('opens on Favorites when asked', (tester) async {
+        await pump(
+          tester,
+          page: const HistoryPage(initialTab: HistoryTab.favorites),
+        );
+        verify(() => history.setFavoritesOnly(enabled: true)).called(1);
+      });
+
+      testWidgets('opens on All when asked', (tester) async {
+        await pump(
+          tester,
+          state: HistoryState(
+            status: HistoryStatus.ready,
+            entries: [_yesterday],
+            favoritesOnly: true,
+          ),
+          page: const HistoryPage(initialTab: HistoryTab.all),
+        );
+        verify(() => history.setFavoritesOnly(enabled: false)).called(1);
+      });
+
+      testWidgets('keeps the tab shown last otherwise', (tester) async {
+        await pump(tester);
+        await pump(
+          tester,
+          state: HistoryState(
+            status: HistoryStatus.ready,
+            entries: [_yesterday],
+            favoritesOnly: true,
+          ),
+          page: const HistoryPage(initialTab: HistoryTab.favorites),
+        );
+        verifyNever(
+          () => history.setFavoritesOnly(enabled: any(named: 'enabled')),
+        );
+      });
+
+      testWidgets('follows a new location of the open page', (tester) async {
+        await pump(tester);
+        await pump(
+          tester,
+          page: const HistoryPage(initialTab: HistoryTab.favorites),
+        );
+        verify(() => history.setFavoritesOnly(enabled: true)).called(1);
+      });
+
+      testWidgets('shows the Favorites tab with the cubit', (tester) async {
+        final cubit = HistoryCubit(repository: _MockHistoryRepository());
+        addTearDown(cubit.close);
+        tester.setScreenSize(const Size(800, 1600));
+        await tester.pumpView(
+          const HistoryPage(initialTab: HistoryTab.favorites),
+          settings: settings,
+          history: cubit,
+          translate: translate,
+          router: router,
+        );
+        await tester.pump();
+        expect(cubit.state.favoritesOnly, isTrue);
+        expect(tester.widget<TabBar>(find.byType(TabBar)).controller!.index, 1);
+      });
+
+      test('HistoryTab.tryParse', () {
+        expect(HistoryTab.tryParse('favorites'), HistoryTab.favorites);
+        expect(HistoryTab.tryParse('all'), HistoryTab.all);
+        expect(HistoryTab.tryParse('starred'), isNull);
+        expect(HistoryTab.tryParse(null), isNull);
+      });
+
+      test('HistoryPage.location', () {
+        expect(HistoryPage.location(), '/history');
+        expect(
+          HistoryPage.location(tab: HistoryTab.favorites),
+          '/history?tab=favorites',
+        );
+        expect(HistoryPage.location(tab: HistoryTab.all), '/history?tab=all');
+      });
+    });
+
     testWidgets('the tabs stay pinned while the timeline scrolls', (
       tester,
     ) async {
@@ -261,23 +370,410 @@ void main() {
       verify(() => history.toggleFavorite('1')).called(1);
     });
 
-    testWidgets('swipe deletes with undo', (tester) async {
-      await pump(tester);
-      await tester.drag(find.text('Good morning'), const Offset(-600, 0));
-      await tester.pumpAndSettle();
-      verify(() => history.delete('1')).called(1);
-      expect(find.text('Good morning'), findsNothing);
-      expect(find.text('Translation deleted'), findsOneWidget);
-      // Closable without a pointer and without undoing.
-      expect(
-        tester.widget<SnackBar>(find.byType(SnackBar)).showCloseIcon,
-        isTrue,
+    group('swipe actions', () {
+      /// Drags [text]'s entry by [dx] (positive: to the right).
+      Future<void> swipe(WidgetTester tester, String text, double dx) async {
+        await tester.drag(find.text(text), Offset(dx, 0));
+        await tester.pumpAndSettle();
+      }
+
+      final favorites = HistoryState(
+        status: HistoryStatus.ready,
+        entries: [_today, _yesterday, _older],
+        favoritesOnly: true,
       );
 
-      await tester.tap(find.text('Undo'));
-      await tester.pumpAndSettle();
-      verify(() => history.restore(_today)).called(1);
-      expect(find.text('Good morning'), findsOneWidget);
+      testWidgets('towards the start deletes with undo', (tester) async {
+        await pump(tester);
+        await swipe(tester, 'Good morning', -600);
+        verify(() => history.delete('1')).called(1);
+        expect(find.text('Good morning'), findsNothing);
+        expect(find.text('Translation deleted'), findsOneWidget);
+        // Closable without a pointer and without undoing.
+        expect(
+          tester.widget<SnackBar>(find.byType(SnackBar)).showCloseIcon,
+          isTrue,
+        );
+
+        await tester.tap(find.text('Undo'));
+        await tester.pumpAndSettle();
+        verify(() => history.restore(_today)).called(1);
+        expect(find.text('Good morning'), findsOneWidget);
+      });
+
+      testWidgets('undo restores a favourite as it was', (tester) async {
+        await pump(tester);
+        await swipe(tester, 'Bonjour', -600);
+        verify(() => history.delete('2')).called(1);
+        await tester.tap(find.text('Undo'));
+        await tester.pumpAndSettle();
+        // The same entry: its favourite, its time and so its place.
+        final restored =
+            verify(() => history.restore(captureAny())).captured.single
+                as HistoryEntry;
+        expect(restored, _yesterday);
+        expect(restored.isFavorite, isTrue);
+        expect(restored.createdAt, _yesterday.createdAt);
+        expect(
+          tester.getTopLeft(find.text('Bonjour')).dy,
+          lessThan(tester.getTopLeft(find.text('Thank you')).dy),
+        );
+      });
+
+      testWidgets('towards the end toggles the favourite and springs back', (
+        tester,
+      ) async {
+        await pump(tester);
+        final before = tester.getTopLeft(find.text('Good morning'));
+        await swipe(tester, 'Good morning', 600);
+        verify(() => history.toggleFavorite('1')).called(1);
+        verifyNever(() => history.delete(any()));
+        expect(find.text('Good morning'), findsOneWidget);
+        expect(tester.getTopLeft(find.text('Good morning')), before);
+        expect(find.byType(SnackBar), findsNothing);
+      });
+
+      testWidgets('show what they do behind the entry', (tester) async {
+        await pump(tester);
+        final row = tester.getRect(find.byType(HistoryEntryTile).first);
+        final dismissible = find.byType(Dismissible).first;
+        Finder behind(Finder finder) =>
+            find.descendant(of: dismissible, matching: finder);
+        double contrast(Color a, Color b) {
+          final (la, lb) = (a.computeLuminance(), b.computeLuminance());
+          return (math.max(la, lb) + 0.05) / (math.min(la, lb) + 0.05);
+        }
+
+        var gesture = await tester.startGesture(
+          tester.getCenter(find.text('Good morning')),
+        );
+        // Past the touch slop first: a drag starts where that is.
+        await gesture.moveBy(const Offset(-20, 0));
+        await gesture.moveBy(const Offset(-200, 0));
+        await tester.pump();
+        // Red, with a trash icon and its label at the end.
+        expect(find.text('Delete'), findsOneWidget);
+        expect(behind(find.byIcon(Icons.delete_outline)), findsOneWidget);
+        expect(
+          tester.getCenter(find.text('Delete')).dx,
+          greaterThan(row.center.dx),
+        );
+        final red = tester
+            .widget<ColoredBox>(
+              find
+                  .ancestor(
+                    of: find.text('Delete'),
+                    matching: find.byType(ColoredBox),
+                  )
+                  .first,
+            )
+            .color;
+        final scheme = Theme.of(tester.element(find.text('Delete')))
+            .colorScheme;
+        expect(red, scheme.error);
+        expect(contrast(red, Colors.white), greaterThanOrEqualTo(4.5));
+        await gesture.moveBy(const Offset(220, 0));
+        await gesture.up();
+        await tester.pumpAndSettle();
+        verifyNever(() => history.delete(any()));
+
+        gesture = await tester.startGesture(
+          tester.getCenter(find.text('Good morning')),
+        );
+        await gesture.moveBy(const Offset(20, 0));
+        await gesture.moveBy(const Offset(200, 0));
+        await tester.pump();
+        // The heart it gets, at the start, in the favourite colour.
+        final heart = behind(find.byIcon(Icons.favorite_rounded));
+        expect(heart, findsOneWidget);
+        expect(tester.getCenter(heart).dx, lessThan(row.center.dx));
+        final pink = tester
+            .widget<ColoredBox>(
+              find.ancestor(of: heart, matching: find.byType(ColoredBox)).first,
+            )
+            .color;
+        expect(pink.r, greaterThan(pink.g));
+        expect(contrast(pink, Colors.white), greaterThanOrEqualTo(4.5));
+        await gesture.moveBy(const Offset(-220, 0));
+        await gesture.up();
+        await tester.pumpAndSettle();
+        verifyNever(() => history.toggleFavorite(any()));
+      });
+
+      testWidgets('a favourite shows a broken heart', (tester) async {
+        await pump(tester);
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.text('Bonjour')),
+        );
+        await gesture.moveBy(const Offset(20, 0));
+        await gesture.moveBy(const Offset(200, 0));
+        await tester.pump();
+        expect(
+          find.descendant(
+            of: find.ancestor(
+              of: find.text('Bonjour'),
+              matching: find.byType(Dismissible),
+            ),
+            matching: find.byIcon(Icons.heart_broken_rounded),
+          ),
+          findsOneWidget,
+        );
+        await gesture.moveBy(const Offset(-220, 0));
+        await gesture.up();
+        await tester.pumpAndSettle();
+      });
+
+      testWidgets('delete in white on red in the dark theme too', (
+        tester,
+      ) async {
+        tester.setScreenSize(const Size(800, 1600));
+        await tester.pumpView(
+          const HistoryPage(),
+          settings: settings,
+          history: history,
+          translate: translate,
+          router: router,
+          theme: ThemeData(useMaterial3: true, brightness: Brightness.dark),
+        );
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.text('Good morning')),
+        );
+        await gesture.moveBy(const Offset(-20, 0));
+        await gesture.moveBy(const Offset(-200, 0));
+        await tester.pump();
+        final box = tester.widget<ColoredBox>(
+          find
+              .ancestor(
+                of: find.text('Delete'),
+                matching: find.byType(ColoredBox),
+              )
+              .first,
+        );
+        final scheme = Theme.of(tester.element(find.text('Delete')))
+            .colorScheme;
+        // The dark error colour is a light pink; the background is a red
+        // of its hue that white text reads on.
+        expect(box.color, isNot(scheme.error));
+        expect(
+          HSLColor.fromColor(box.color).hue,
+          closeTo(HSLColor.fromColor(scheme.error).hue, 1),
+        );
+        expect(
+          tester.widget<Text>(find.text('Delete')).style?.color,
+          Colors.white,
+        );
+        await gesture.moveBy(const Offset(220, 0));
+        await gesture.up();
+        await tester.pumpAndSettle();
+      });
+
+      testWidgets('are mirrored right to left', (tester) async {
+        await pump(
+          tester,
+          page: const Directionality(
+            textDirection: TextDirection.rtl,
+            child: HistoryPage(),
+          ),
+        );
+        await swipe(tester, 'Good morning', -600);
+        verify(() => history.toggleFavorite('1')).called(1);
+        verifyNever(() => history.delete(any()));
+        expect(find.text('Good morning'), findsOneWidget);
+
+        await swipe(tester, 'Good morning', 600);
+        verify(() => history.delete('1')).called(1);
+        expect(find.text('Good morning'), findsNothing);
+      });
+
+      testWidgets('tick once when letting go would act', (tester) async {
+        final haptics = <Object?>[];
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+              if (call.method == 'HapticFeedback.vibrate') {
+                haptics.add(call.arguments);
+              }
+              return null;
+            });
+        addTearDown(
+          () => TestDefaultBinaryMessengerBinding
+              .instance
+              .defaultBinaryMessenger
+              .setMockMethodCallHandler(SystemChannels.platform, null),
+        );
+        await pump(tester);
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.text('Good morning')),
+        );
+        for (var i = 0; i < 10; i++) {
+          await gesture.moveBy(const Offset(-50, 0));
+          await tester.pump();
+        }
+        expect(haptics, ['HapticFeedbackType.selectionClick']);
+        await gesture.moveBy(const Offset(500, 0));
+        await gesture.up();
+        await tester.pumpAndSettle();
+      });
+
+      testWidgets('jump instead of sliding with reduced motion', (
+        tester,
+      ) async {
+        await pump(
+          tester,
+          page: Builder(
+            builder: (context) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(disableAnimations: true),
+              child: const HistoryPage(),
+            ),
+          ),
+        );
+        final dismissible = tester.widget<Dismissible>(
+          find.byType(Dismissible).first,
+        );
+        expect(dismissible.movementDuration, Duration.zero);
+        expect(dismissible.resizeDuration, isNull);
+
+        await swipe(tester, 'Good morning', -600);
+        verify(() => history.delete('1')).called(1);
+        expect(find.text('Good morning'), findsNothing);
+      });
+
+      testWidgets('slide by default', (tester) async {
+        await pump(tester);
+        final dismissible = tester.widget<Dismissible>(
+          find.byType(Dismissible).first,
+        );
+        expect(dismissible.movementDuration, greaterThan(Duration.zero));
+        expect(dismissible.resizeDuration, greaterThan(Duration.zero));
+      });
+
+      testWidgets('in Favorites take the favourite out with undo', (
+        tester,
+      ) async {
+        await pump(tester, state: favorites);
+        expect(find.text('Bonjour'), findsOneWidget);
+        await swipe(tester, 'Bonjour', 600);
+        verify(() => history.toggleFavorite('2')).called(1);
+        expect(find.text('Bonjour'), findsNothing);
+        expect(find.text('Removed from favorites'), findsOneWidget);
+        expect(find.text('No favorites yet'), findsOneWidget);
+
+        await tester.tap(find.text('Undo'));
+        await tester.pumpAndSettle();
+        // Stars the entry as it is now, rather than putting back the copy
+        // the page had (a new look-up may have updated it meanwhile).
+        verify(() => history.restoreFavorite(_yesterday)).called(1);
+        verifyNever(() => history.restore(any()));
+        expect(find.text('Bonjour'), findsOneWidget);
+        expect(find.text('No favorites yet'), findsNothing);
+      });
+
+      testWidgets('in Favorites delete towards the start', (tester) async {
+        await pump(tester, state: favorites);
+        await swipe(tester, 'Bonjour', -600);
+        verify(() => history.delete('2')).called(1);
+        verifyNever(() => history.toggleFavorite(any()));
+        expect(find.text('Translation deleted'), findsOneWidget);
+      });
+
+      testWidgets('in Favorites the heart takes the entry out too', (
+        tester,
+      ) async {
+        await pump(tester, state: favorites);
+        await tester.tap(find.byTooltip('Remove from favorites'));
+        await tester.pumpAndSettle();
+        verify(() => history.toggleFavorite('2')).called(1);
+        expect(find.text('Bonjour'), findsNothing);
+        expect(find.text('Removed from favorites'), findsOneWidget);
+      });
+
+      testWidgets('an entry taken out of Favorites comes back once it is a '
+          'favourite again', (tester) async {
+        final controller = StreamController<HistoryState>();
+        addTearDown(controller.close);
+        final initial = HistoryState(
+          status: HistoryStatus.ready,
+          entries: [_today, _yesterday],
+          favoritesOnly: true,
+        );
+        whenListen(history, controller.stream, initialState: initial);
+        await pump(tester);
+        await swipe(tester, 'Bonjour', 600);
+        expect(find.text('Bonjour'), findsNothing);
+
+        final unstarred = _yesterday.copyWith(isFavorite: false);
+        controller.add(initial.copyWith(entries: [_today, unstarred]));
+        await tester.pump();
+        expect(find.text('Bonjour'), findsNothing);
+        // Starred again (e.g. from the translator): shown again.
+        controller.add(initial);
+        await tester.pump();
+        expect(find.text('Bonjour'), findsOneWidget);
+        // Shown in All all along.
+        controller.add(initial.copyWith(favoritesOnly: false));
+        await tester.pumpAndSettle();
+        expect(find.text('Bonjour'), findsOneWidget);
+      });
+
+      testWidgets('in All the heart only toggles', (tester) async {
+        await pump(tester);
+        await tester.tap(find.byTooltip('Remove from favorites'));
+        await tester.pumpAndSettle();
+        verify(() => history.toggleFavorite('2')).called(1);
+        expect(find.text('Bonjour'), findsOneWidget);
+        expect(find.byType(SnackBar), findsNothing);
+      });
+
+      testWidgets('work on search results', (tester) async {
+        await pump(
+          tester,
+          state: HistoryState(
+            status: HistoryStatus.ready,
+            entries: [_today, _yesterday, _older],
+            query: 'morgen',
+          ),
+        );
+        expect(find.text('Good morning'), findsOneWidget);
+        expect(find.text('Bonjour'), findsNothing);
+
+        await swipe(tester, 'Good morning', 600);
+        verify(() => history.toggleFavorite('1')).called(1);
+        expect(find.text('Good morning'), findsOneWidget);
+
+        await swipe(tester, 'Good morning', -600);
+        verify(() => history.delete('1')).called(1);
+        expect(find.text('No matches'), findsOneWidget);
+        expect(find.text('Nothing matches “morgen”.'), findsOneWidget);
+
+        await tester.tap(find.text('Undo'));
+        await tester.pumpAndSettle();
+        expect(find.text('Good morning'), findsOneWidget);
+        // Still only the matches.
+        expect(find.text('Bonjour'), findsNothing);
+        expect(
+          tester
+              .widget<TextField>(find.byKey(HistoryView.searchFieldKey))
+              .controller!
+              .text,
+          'morgen',
+        );
+      });
+
+      testWidgets('deleting the last entry of a day removes its heading', (
+        tester,
+      ) async {
+        await pump(tester);
+        expect(find.text('Yesterday'), findsOneWidget);
+        await swipe(tester, 'Bonjour', -600);
+        expect(find.text('Yesterday'), findsNothing);
+        expect(find.text('Today'), findsOneWidget);
+        // Today's and the older entry keep their places.
+        expect(find.text('Good morning'), findsOneWidget);
+        expect(find.text('Thank you'), findsOneWidget);
+
+        await tester.tap(find.text('Undo'));
+        await tester.pumpAndSettle();
+        expect(find.text('Yesterday'), findsOneWidget);
+      });
     });
 
     group('delete without swiping', () {
@@ -322,7 +818,9 @@ void main() {
         verify(() => history.delete('3')).called(1);
       });
 
-      testWidgets('screen readers get a delete action', (tester) async {
+      testWidgets('screen readers get delete and favourite actions', (
+        tester,
+      ) async {
         final handle = tester.ensureSemantics();
         await pump(tester);
         final node = find.semantics.byLabel(RegExp('Good morning'));
@@ -333,6 +831,7 @@ void main() {
           isSemantics(
             customActions: [
               const CustomSemanticsAction(label: 'Delete'),
+              const CustomSemanticsAction(label: 'Add to favorites'),
               const CustomSemanticsAction.overridingAction(
                 hint: 'Open in translator',
                 action: SemanticsAction.tap,
@@ -352,10 +851,53 @@ void main() {
         );
         tester.semantics.customAction(
           node,
+          const CustomSemanticsAction(label: 'Add to favorites'),
+        );
+        await tester.pumpAndSettle();
+        verify(() => history.toggleFavorite('1')).called(1);
+        tester.semantics.customAction(
+          node,
           const CustomSemanticsAction(label: 'Delete'),
         );
         await tester.pumpAndSettle();
         verify(() => history.delete('1')).called(1);
+        handle.dispose();
+      });
+
+      testWidgets('a favourite offers Remove from favorites', (tester) async {
+        final handle = tester.ensureSemantics();
+        await pump(
+          tester,
+          state: HistoryState(
+            status: HistoryStatus.ready,
+            entries: [_yesterday],
+            favoritesOnly: true,
+          ),
+        );
+        final node = find.semantics.byLabel(RegExp('Bonjour'));
+        expect(
+          tester.getSemantics(find.text('Bonjour')),
+          isSemantics(
+            customActions: [
+              const CustomSemanticsAction(label: 'Delete'),
+              const CustomSemanticsAction(label: 'Remove from favorites'),
+              const CustomSemanticsAction.overridingAction(
+                hint: 'Open in translator',
+                action: SemanticsAction.tap,
+              ),
+            ],
+            hasTapAction: true,
+            hasLongPressAction: true,
+          ),
+        );
+        tester.semantics.customAction(
+          node,
+          const CustomSemanticsAction(label: 'Remove from favorites'),
+        );
+        await tester.pumpAndSettle();
+        verify(() => history.toggleFavorite('2')).called(1);
+        // It leaves the Favorites tab, with Undo.
+        expect(find.text('Removed from favorites'), findsOneWidget);
         handle.dispose();
       });
     });
@@ -759,6 +1301,34 @@ void main() {
             .called(1);
       });
 
+      testWidgets('sit a third of the way down and fit large text', (
+        tester,
+      ) async {
+        const empty = HistoryState(status: HistoryStatus.ready);
+        await pump(tester, state: empty, size: const Size(400, 900));
+        final top = tester.getBottomLeft(find.byType(TabBar)).dy;
+        final middle = top + (900 - top) / 2;
+        final icon = tester.getTopLeft(find.byIcon(Icons.history_rounded)).dy;
+        final button = tester.getBottomLeft(find.text('Start translating')).dy;
+        // Above the middle, with room above it.
+        expect((icon + button) / 2, lessThan(middle));
+        expect(icon, greaterThan(top + 24));
+
+        await pump(
+          tester,
+          state: empty,
+          size: const Size(320, 480),
+          textScale: 2,
+        );
+        expect(tester.takeException(), isNull);
+        await tester.dragUntilVisible(
+          find.text('Start translating'),
+          find.byType(CustomScrollView),
+          const Offset(0, -200),
+        );
+        expect(tester.takeException(), isNull);
+      });
+
       testWidgets('no matches', (tester) async {
         await pump(
           tester,
@@ -788,6 +1358,17 @@ void main() {
           ),
         );
         expect(find.text('No favorites yet'), findsOneWidget);
+        expect(
+          find.text('Tap the heart on a translation to keep it here.'),
+          findsOneWidget,
+        );
+        // The heart of the favourite buttons.
+        expect(find.byIcon(Icons.favorite_border_rounded), findsOneWidget);
+        expect(find.byIcon(Icons.star_outline_rounded), findsNothing);
+        expect(
+          tester.getSemantics(find.text('No favorites yet')),
+          isSemantics(isHeader: true),
+        );
         await tester.tap(find.text('Show all translations'));
         verify(() => history.setFavoritesOnly(enabled: false)).called(1);
       });
@@ -1138,6 +1719,214 @@ void main() {
         await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
         await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
         handle.dispose();
+      });
+    });
+
+    group('dictionary look-ups', () {
+      final withLookUp = HistoryState(
+        status: HistoryStatus.ready,
+        entries: [_lookUp, _today, _yesterday, _older],
+      );
+
+      testWidgets('show the Dictionary marker, the word and its summary', (
+        tester,
+      ) async {
+        await pump(tester, state: withLookUp);
+
+        final marker = find.byKey(const Key('history_dictionary_marker'));
+        expect(marker, findsOneWidget);
+        expect(
+          find.descendant(of: marker, matching: find.text('Dictionary')),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: marker,
+            matching: find.byIcon(Icons.menu_book_rounded),
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('hola'), findsOneWidget);
+        expect(find.text('interjection · A greeting.'), findsOneWidget);
+        expect(find.text(_pair('Spanish', 'English')), findsOneWidget);
+        // Translations have no marker.
+        expect(find.text('Dictionary'), findsOneWidget);
+        // The word is the body, in its own language; the summary below it.
+        final word = tester.widget<Text>(find.text('hola'));
+        expect(word._locale, const Locale('es'));
+        expect(
+          tester.getTopLeft(find.text('hola')).dy,
+          lessThan(
+            tester.getTopLeft(find.text('interjection · A greeting.')).dy,
+          ),
+        );
+      });
+
+      testWidgets('open the Dictionary tab and look the word up again', (
+        tester,
+      ) async {
+        await pump(tester, state: withLookUp);
+
+        await tester.tap(find.text('hola'));
+
+        final extra =
+            verify(
+                  () => router.go(
+                    '/dictionary?word=hola&from=es&to=en',
+                    extra: captureAny(named: 'extra'),
+                  ),
+                ).captured.single
+                as DictionaryLookUpRequest;
+        expect(extra.verbosity, DictionaryVerbosity.comprehensive);
+        verifyNever(() => translate.setInputAndTranslate(any()));
+      });
+
+      testWidgets('detected words open with the language detected', (
+        tester,
+      ) async {
+        final auto = HistoryEntry(
+          id: 'dictionary:2',
+          kind: HistoryEntryKind.dictionary,
+          text: 'gato',
+          translation: '',
+          source: Language.auto,
+          target: const Language.custom('Pirate speak'),
+          engineId: 'ai:p1',
+          engineName: 'Claude',
+          createdAt: _daysAgo(0),
+        );
+        await pump(
+          tester,
+          state: HistoryState(status: HistoryStatus.ready, entries: [auto]),
+        );
+
+        await tester.tap(find.text('gato'));
+
+        final extra =
+            verify(
+                  () => router.go(
+                    '/dictionary?word=gato&from=auto',
+                    extra: captureAny(named: 'extra'),
+                  ),
+                ).captured.single
+                as DictionaryLookUpRequest;
+        expect(extra.verbosity, isNull);
+      });
+
+      testWidgets('delete with "Look-up deleted" and undo', (tester) async {
+        await pump(tester, state: withLookUp);
+
+        await tester.drag(find.text('hola'), const Offset(-600, 0));
+        await tester.pumpAndSettle();
+
+        verify(() => history.delete('dictionary:1')).called(1);
+        expect(find.text('Look-up deleted'), findsOneWidget);
+        await tester.tap(find.text('Undo'));
+        await tester.pumpAndSettle();
+        verify(() => history.restore(_lookUp)).called(1);
+        expect(find.text('hola'), findsOneWidget);
+      });
+
+      testWidgets('swipe to the favourites', (tester) async {
+        await pump(tester, state: withLookUp);
+
+        await tester.drag(find.text('hola'), const Offset(600, 0));
+        await tester.pumpAndSettle();
+
+        verify(() => history.toggleFavorite('dictionary:1')).called(1);
+      });
+
+      testWidgets('tell screen readers what tapping does', (tester) async {
+        final handle = tester.ensureSemantics();
+        await pump(tester, state: withLookUp);
+
+        expect(
+          tester.getSemantics(find.text('hola')),
+          isSemantics(
+            customActions: [
+              const CustomSemanticsAction(label: 'Delete'),
+              const CustomSemanticsAction(label: 'Add to favorites'),
+              const CustomSemanticsAction.overridingAction(
+                hint: 'Look up in the dictionary',
+                action: SemanticsAction.tap,
+              ),
+            ],
+            hasTapAction: true,
+            hasLongPressAction: true,
+          ),
+        );
+        handle.dispose();
+      });
+
+      group('actions', () {
+        late List<MethodCall> calls;
+
+        setUp(() {
+          calls = [];
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+              .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+                calls.add(call);
+                return null;
+              });
+        });
+
+        tearDown(() {
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+              .setMockMethodCallHandler(SystemChannels.platform, null);
+        });
+
+        testWidgets('copy copies the word', (tester) async {
+          await pump(tester, state: withLookUp);
+          await tester.tap(find.byTooltip('Copy').first);
+          await tester.pump();
+          expect(
+            calls
+                .where((c) => c.method == 'Clipboard.setData')
+                .map((c) => (c.arguments as Map)['text']),
+            ['hola'],
+          );
+          await tester.pumpAndSettle(HistoryEntryTile.copiedDuration);
+        });
+
+        testWidgets('share shares the word and the summary', (tester) async {
+          final shared = <String?>[];
+          final previous = HistoryShare.share;
+          HistoryShare.share = (params) async => shared.add(params.text);
+          addTearDown(() => HistoryShare.share = previous);
+          final noSummary = HistoryEntry(
+            id: 'dictionary:2',
+            kind: HistoryEntryKind.dictionary,
+            text: 'gato',
+            translation: ' ',
+            source: _spanish,
+            target: _english,
+            engineId: 'ai:p1',
+            engineName: 'Claude',
+            createdAt: _daysAgo(0, hour: 8),
+          );
+          await pump(
+            tester,
+            state: HistoryState(
+              status: HistoryStatus.ready,
+              entries: [_lookUp, noSummary],
+            ),
+          );
+
+          await tester.tap(find.byTooltip('Share').first);
+          await tester.tap(find.byTooltip('Share').last);
+
+          expect(shared, ['hola\ninterjection · A greeting.', 'gato']);
+        });
+      });
+
+      testWidgets('the pairs count entries, not translations', (tester) async {
+        await pump(tester, state: withLookUp);
+        await tester.tap(find.byKey(HistoryView.pairFilterKey));
+        await tester.pumpAndSettle();
+
+        expect(find.text('2 entries'), findsOneWidget);
+        expect(find.text('1 entry'), findsNWidgets(2));
+        expect(find.textContaining('translation'), findsNothing);
       });
     });
 

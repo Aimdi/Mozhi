@@ -73,7 +73,7 @@ void main() {
 
     testWidgets('is empty when idle or translated', (tester) async {
       await pumpPanel(tester, const WebTranslateState());
-      expect(find.byType(Card), findsNothing);
+      expect(tester.getSize(find.byType(WebTranslateStatusPanel)), Size.zero);
       expect(find.byType(LinearProgressIndicator), findsNothing);
     });
 
@@ -151,7 +151,7 @@ void main() {
           selection: googleToSpanish,
         ),
       );
-      expect(find.byType(Card), findsNothing);
+      expect(tester.getSize(find.byType(WebTranslateStatusPanel)), Size.zero);
     });
 
     testWidgets('a translation failure resumes on retry', (tester) async {

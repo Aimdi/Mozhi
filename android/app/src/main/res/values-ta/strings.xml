@@ -8,8 +8,8 @@
     <string name="tile_translate_description">Mozhi மூலம் கிளிப்போர்டை மொழிபெயர்</string>
     <string name="shortcut_clipboard_short">கிளிப்போர்டு</string>
     <string name="shortcut_clipboard_long">கிளிப்போர்டை மொழிபெயர்</string>
-    <string name="shortcut_camera_short">கேமரா</string>
-    <string name="shortcut_camera_long">கேமரா மூலம் மொழிபெயர்</string>
+    <string name="shortcut_dictionary_short">அகராதி</string>
+    <string name="shortcut_dictionary_long">அகராதி</string>
     <string name="shortcut_conversation_short">உரையாடல்</string>
     <string name="shortcut_conversation_long">உரையாடல்</string>
     <string name="shortcut_proofread_short">பிழைதிருத்தம்</string>

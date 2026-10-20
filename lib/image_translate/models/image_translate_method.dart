@@ -1,17 +1,22 @@
 import 'package:equatable/equatable.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-/// The ways an image can be translated.
+/// The ways an image can be translated, in the order they are offered
+/// (the recommended one first).
 enum ImageTranslateMethodKind {
-  /// Mozhi `/api/image` (Google Lens): returns a re-rendered image.
-  mozhiLens,
+  /// Text recognition on the device (Tesseract in the default build, ML
+  /// Kit in the Play variant), then a text translation with the
+  /// translator's engine. Recommended: the photo stays on the device and
+  /// nothing depends on Google.
+  onDevice,
 
   /// A vision-capable AI model reads and translates the image.
   aiVision,
 
-  /// Text recognition on the device (Tesseract in the default build, ML
-  /// Kit in the Play variant), then a text translation.
-  onDevice,
+  /// Mozhi `/api/image`, experimental: the instance passes the photo on to
+  /// Google Translate's image translation (an unofficial interface that
+  /// often refuses such requests) and returns a re-rendered image.
+  mozhiLens,
 }
 
 /// One selectable image translation method.
@@ -27,7 +32,8 @@ class ImageTranslateMethod extends Equatable {
     : kind = ImageTranslateMethodKind.onDevice,
       engine = null;
 
-  /// Id of the Mozhi engine that powers [ImageTranslateMethodKind.mozhiLens].
+  /// Id of the Mozhi engine that powers [ImageTranslateMethodKind.mozhiLens]
+  /// (Mozhi relays images to Google Translate whatever engine is used).
   static const mozhiGoogleEngineId = 'mozhi:google';
 
   final ImageTranslateMethodKind kind;
@@ -41,18 +47,19 @@ class ImageTranslateMethod extends Equatable {
   /// Whether the result can contain a re-rendered image.
   bool get rendersImage => kind == ImageTranslateMethodKind.mozhiLens;
 
-  /// Whether the photo itself is sent off the device (Mozhi / Google Lens,
-  /// AI vision): only on the user's explicit Translate.
+  /// Whether the photo itself is sent off the device (Mozhi via Google
+  /// Translate, AI vision): only on the user's explicit Translate.
   bool get uploadsImage => kind != ImageTranslateMethodKind.onDevice;
 
-  /// The methods available for [engines]:
+  /// The methods available for [engines], recommended first:
   ///
-  /// * Mozhi (Google Lens) when an engine with id `mozhi:google` exists.
+  /// * On-device recognition when [onDeviceSupported] and a
+  ///   [translateEngine] can translate the recognised text.
   /// * One AI vision method per AI engine whose provider (matched by
   ///   [TranslationEngine.providerId]) has
   ///   [AiProviderConfig.supportsVision].
-  /// * On-device recognition when [onDeviceSupported] and a
-  ///   [translateEngine] can translate the recognised text.
+  /// * Mozhi via Google Translate (experimental) when an engine with id
+  ///   `mozhi:google` exists.
   static List<ImageTranslateMethod> available({
     required List<TranslationEngine> engines,
     required List<AiProviderConfig> providers,
@@ -72,20 +79,20 @@ class ImageTranslateMethod extends Equatable {
     }
 
     return List.unmodifiable([
-      if (google != null) ImageTranslateMethod.mozhiLens(google),
+      if (onDeviceSupported && translateEngine != null)
+        const ImageTranslateMethod.onDevice(),
       for (final engine in engines)
         if (engine.isAi && hasVision(engine))
           ImageTranslateMethod.aiVision(engine),
-      if (onDeviceSupported && translateEngine != null)
-        const ImageTranslateMethod.onDevice(),
+      if (google != null) ImageTranslateMethod.mozhiLens(google),
     ]);
   }
 
   /// The method to start with: on-device recognition when available (the
   /// photo never leaves the device; only the recognised text is translated,
   /// with the translator's engine), else the AI vision method of
-  /// [translateEngine] when it has one, else Mozhi (Google Lens), else the
-  /// first one.
+  /// [translateEngine] when it has one, else another AI vision method, else
+  /// Mozhi via Google Translate (experimental).
   static ImageTranslateMethod? preferred(
     List<ImageTranslateMethod> methods, {
     TranslationEngine? translateEngine,
@@ -101,9 +108,17 @@ class ImageTranslateMethod extends Equatable {
           )
           .firstOrNull ??
       methods
-          .where((method) => method.kind == ImageTranslateMethodKind.mozhiLens)
+          .where((method) => method.kind == ImageTranslateMethodKind.aiVision)
           .firstOrNull ??
       methods.firstOrNull;
+
+  /// The method of [methods] whose [id] is [id], or null.
+  static ImageTranslateMethod? withId(
+    List<ImageTranslateMethod> methods,
+    String? id,
+  ) => id == null
+      ? null
+      : methods.where((method) => method.id == id).firstOrNull;
 
   @override
   List<Object?> get props => [kind, engine];

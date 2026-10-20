@@ -71,6 +71,16 @@ typedef TranslatedCallback = void Function(
 ///   and the run continues.
 /// * Cancelling the subscription of [translate] stops scheduling and
 ///   cancels in-flight requests.
+/// * With "Detect language" ([Language.auto]) and an engine that needs a
+///   source language (the offline engine, translation-specialised AI
+///   models), the language of the document is identified once on the
+///   device ([TranslationRepository.detectLanguage] with the offline
+///   engine) from its first chunks, and every chunk is translated from it.
+///   Other engines (or when the device cannot tell) keep detecting per
+///   request. A chunk whose language cannot be told
+///   ([SourceLanguageRequiredException]) is translated from the language
+///   detected for earlier chunks, or else kept as it is (it is not
+///   retried and does not fail).
 class DocumentTranslator {
   new({
     required this._repository,
@@ -92,6 +102,10 @@ class DocumentTranslator {
   /// See [TranslatedCallback]. Its errors are ignored.
   final TranslatedCallback? onTranslated;
 
+  /// Characters of the document (its first chunks) that are looked at to
+  /// tell its language: plenty for identification, cheap for long files.
+  static const detectionSampleLength = 4000;
+
   /// Instruction added for AI engines so that batch markers and
   /// placeholders survive.
   static const markerInstruction =
@@ -103,6 +117,7 @@ class DocumentTranslator {
   /// and server errors; not refusals, auth/not-found errors, bad requests
   /// or programming errors.
   static bool isRetryableError(Object error) => switch (error) {
+    SourceLanguageRequiredException() => false,
     LlmRefusalException() => false,
     LlmApiException(:final statusCode?) =>
       statusCode == 429 || statusCode == 408 || statusCode >= 500,
@@ -136,6 +151,7 @@ class DocumentTranslator {
           index,
     ]);
     final cancel = _CancelToken();
+    final language = _RunLanguage(source);
     late final StreamController<DocumentProgress> controller;
 
     DocumentProgress snapshot({bool complete = false}) => DocumentProgress(
@@ -152,7 +168,7 @@ class DocumentTranslator {
           final translations = await _translateChunk(
             plan.chunks[index],
             engine: engine,
-            source: source,
+            language: language,
             target: target,
             options: options,
             cancel: cancel,
@@ -172,6 +188,15 @@ class DocumentTranslator {
     Future<void> run() async {
       controller.add(snapshot(complete: queue.isEmpty));
       if (queue.isNotEmpty) {
+        if (source.isAuto) {
+          final detected = await _detectLanguage(plan, engine);
+          if (cancel.isCancelled) return;
+          if (detected != null) {
+            language
+              ..source = _languageOf(detected)
+              ..detected = detected;
+          }
+        }
         final workers = concurrency < queue.length ? concurrency : queue.length;
         await Future.wait([for (var i = 0; i < workers; i++) worker()]);
         if (cancel.isCancelled) return;
@@ -187,10 +212,72 @@ class DocumentTranslator {
     return controller.stream;
   }
 
+  /// The language of [plan] identified on the device from its first
+  /// chunks, for an [engine] that needs a source language (the offline
+  /// engine and translation-specialised AI models, which identify on the
+  /// device first anyway). Null for other engines, without an on-device
+  /// engine, or when the device cannot tell: nothing is ever sent over the
+  /// network to detect it.
+  Future<String?> _detectLanguage(
+    ChunkPlan plan,
+    TranslationEngine engine,
+  ) async {
+    if (!engine.isOffline && !engine.usesMtProfile) return null;
+    try {
+      // Without the on-device engine, detection would ask Mozhi instead.
+      if (!_repository.hasOfflineEngine) return null;
+      final sample = _detectionSample(plan);
+      if (sample.isEmpty) return null;
+      final detected = await _repository.detectLanguage(
+        sample,
+        // The offline engine always answers with the on-device identifier.
+        engine: engine.isOffline ? engine : TranslationEngine.offline(),
+      );
+      final code = detected.code.trim();
+      return code.isEmpty ? null : code;
+    } on Object {
+      // Undetectable (or a repository without an on-device engine): every
+      // request detects on its own.
+      return null;
+    }
+  }
+
+  /// The texts of the first chunks of [plan] (without placeholders) joined
+  /// with blank lines, up to [detectionSampleLength] characters.
+  static String _detectionSample(ChunkPlan plan) {
+    final buffer = StringBuffer();
+    outer:
+    for (final chunk in plan.chunks) {
+      for (final unit in chunk.units) {
+        final text = unit.text
+            .replaceAll(placeholderPattern, ' ')
+            .replaceAll(_spaces, ' ')
+            .trim();
+        if (text.isEmpty) continue;
+        if (buffer.isNotEmpty) buffer.write('\n\n');
+        buffer.write(text);
+        if (buffer.length >= detectionSampleLength) break outer;
+      }
+    }
+    final sample = buffer.toString();
+    if (sample.length <= detectionSampleLength) return sample;
+    var end = detectionSampleLength;
+    // Never cut a surrogate pair in half.
+    final last = sample.codeUnitAt(end - 1);
+    if (last >= 0xD800 && last <= 0xDBFF) end--;
+    return sample.substring(0, end);
+  }
+
+  static final _spaces = RegExp(r'[ \t]{2,}');
+
+  static Language _languageOf(String code) =>
+      LanguageCatalog.byCode(code) ??
+      Language(code: code, name: LanguageCatalog.nameOf(code));
+
   Future<List<String>> _translateChunk(
     Chunk chunk, {
     required TranslationEngine engine,
-    required Language source,
+    required _RunLanguage language,
     required Language target,
     required TranslationOptions options,
     required _CancelToken cancel,
@@ -200,7 +287,7 @@ class DocumentTranslator {
         return await _attempt(
           chunk,
           engine: engine,
-          source: source,
+          language: language,
           target: target,
           options: options,
           cancel: cancel,
@@ -217,27 +304,48 @@ class DocumentTranslator {
   Future<List<String>> _attempt(
     Chunk chunk, {
     required TranslationEngine engine,
-    required Language source,
+    required _RunLanguage language,
     required Language target,
     required TranslationOptions options,
     required _CancelToken cancel,
   }) async {
-    Future<String> translate(String text) => _translateText(
-      engine,
-      TranslationRequest(
-        text: text,
-        source: source,
-        target: target,
-        options: _options(engine, options, text),
-      ),
-      cancel,
-    );
+    Future<String> translateFrom(Language source, String text) =>
+        _translateText(
+          engine,
+          TranslationRequest(
+            text: text,
+            source: source,
+            target: target,
+            options: _options(engine, options, text),
+          ),
+          cancel,
+          language,
+        );
 
-    if (chunk.units.length == 1) return [await translate(chunk.payload)];
-    final split = chunk.split(await translate(chunk.payload));
+    /// The translation of [text]; null when its language cannot be told
+    /// and none is known from earlier chunks (it is kept as it is).
+    Future<String?> translate(String text) async {
+      final source = language.source;
+      try {
+        return await translateFrom(source, text);
+      } on SourceLanguageRequiredException {
+        if (!source.isAuto) rethrow;
+        final known = language.detected;
+        if (known == null) return null;
+        return await translateFrom(_languageOf(known), text);
+      }
+    }
+
+    final originals = [for (final unit in chunk.units) unit.text];
+    final batch = await translate(chunk.payload);
+    if (batch == null) return originals;
+    if (chunk.units.length == 1) return [batch];
+    final split = chunk.split(batch);
     if (split != null) return split;
     // Alignment lost: translate unit by unit.
-    return [for (final unit in chunk.units) await translate(unit.text)];
+    return [
+      for (final unit in chunk.units) await translate(unit.text) ?? unit.text,
+    ];
   }
 
   static TranslationOptions _options(
@@ -265,6 +373,7 @@ class DocumentTranslator {
     TranslationEngine engine,
     TranslationRequest request,
     _CancelToken cancel,
+    _RunLanguage language,
   ) {
     if (cancel.isCancelled) return Future.error(const _Cancelled());
     final completer = Completer<String>();
@@ -292,6 +401,10 @@ class DocumentTranslator {
               completer.completeError(const EmptyTranslationException());
               return;
             }
+            if (result.detectedSource case final detected?
+                when detected.trim().isNotEmpty) {
+              language.detected ??= detected;
+            }
             if (!result.fromCache) {
               try {
                 onTranslated?.call(engine, request, result);
@@ -310,6 +423,19 @@ class DocumentTranslator {
 
 class _Cancelled implements Exception {
   const new();
+}
+
+/// The source language of one [DocumentTranslator.translate] run.
+class _RunLanguage {
+  new(this.source);
+
+  /// The language every request uses: the requested one, or the one
+  /// identified for the whole document.
+  Language source;
+
+  /// The document's language: identified for the whole document, or the
+  /// first one an engine detected.
+  String? detected;
 }
 
 class _CancelToken {

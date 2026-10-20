@@ -7,6 +7,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/quick_translate/quick_translate.dart';
+import 'package:mozhi/translate/widgets/translate_layout.dart'
+    show TranslateLayout;
 import 'package:translation_repository/translation_repository.dart';
 
 import '../helpers/helpers.dart';
@@ -103,12 +105,40 @@ void main() {
         byKey('quick_translate_translation'),
       );
       final context = tester.element(byKey('quick_translate_translation'));
-      expect(
-        text.style,
-        Theme.of(context).textTheme.bodyLarge
-            ?.copyWith(fontSize: 18, height: 1.4),
-      );
+      expect(text.style, TranslateLayout.outputTextStyle(context, long.length));
+      expect(text.style?.fontSize, 17);
       expect(text.textDirection, isNull);
+    });
+
+    testWidgets('large text puts the detected language below the label', (
+      tester,
+    ) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      stub(readyState(translation: result('Bonjour')));
+      await tester.pumpQuick(quickView(cubit), size: const Size(320, 1400));
+      expect(tester.takeException(), isNull);
+      final original = find.text('Original');
+      // "Original" stays on one line; the detected language wraps below.
+      expect(tester.getSize(original).height, lessThan(2 * 14 * 2));
+      expect(
+        tester.getTopLeft(byKey('quick_translate_detected')).dy,
+        greaterThanOrEqualTo(tester.getBottomLeft(original).dy),
+      );
+    });
+
+    testWidgets('shows short translations large, not as a heading', (
+      tester,
+    ) async {
+      stub(readyState(translation: result('Bonjour')));
+      await tester.pumpQuick(quickView(cubit));
+      final text = tester.widget<SelectableText>(
+        byKey('quick_translate_translation'),
+      );
+      // The translate screen's text style (the bold headline styles of the
+      // theme are for headings).
+      expect(text.style?.fontSize, 20);
+      expect(text.style?.fontWeight, FontWeight.w400);
     });
 
     group('progress', () {

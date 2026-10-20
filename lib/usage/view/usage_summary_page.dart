@@ -3,9 +3,9 @@ import 'dart:math' as math;
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/tab_hero.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
-import 'package:mozhi/settings/view/widgets/empty_state_view.dart';
 import 'package:mozhi/usage/cubit/usage_cubit.dart';
 import 'package:mozhi/usage/data/usage_tracker.dart';
 import 'package:mozhi/usage/models/models.dart';
@@ -65,8 +65,7 @@ class UsageSummaryView extends StatelessWidget {
       builder: (context) => AlertDialog(
         title: Text(
           l10n.usageResetTitle,
-          style: Theme.of(context).textTheme.titleLarge
-              ?.copyWith(fontWeight: FontWeight.w800),
+          style: Theme.of(context).textTheme.titleLarge,
         ),
         content: Text(
           l10n.usageResetBody,
@@ -193,6 +192,7 @@ class UsageSummaryView extends StatelessWidget {
   }
 }
 
+/// Nothing counted yet: the tabs' empty state ([TabHero]).
 class _EmptyUsage extends StatelessWidget {
   const new();
 
@@ -200,8 +200,8 @@ class _EmptyUsage extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 24),
-      child: EmptyStateView(
+      padding: const EdgeInsets.fromLTRB(32, 48, 32, 32),
+      child: TabHero(
         icon: Icons.data_usage_outlined,
         title: l10n.usageEmptyTitle,
         body: l10n.usageEmptyBody,
@@ -233,10 +233,7 @@ class _MonthTotals extends StatelessWidget {
             header: true,
             child: Text(
               context.usageMonthYear(snapshot.currentMonth),
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.3,
-              ),
+              style: theme.textTheme.titleLarge,
             ),
           ),
           const SizedBox(height: 12),
@@ -294,11 +291,7 @@ class UsageStat extends StatelessWidget {
         children: [
           Text(
             value,
-            style: theme.textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.6,
-              height: 1.1,
-            ),
+            style: theme.textTheme.headlineMedium?.copyWith(height: 1.1),
           ),
           Text(
             label,
@@ -374,9 +367,7 @@ class ProviderUsageTile extends StatelessWidget {
                       Expanded(
                         child: Text(
                           name,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
+                          style: theme.textTheme.titleMedium,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),

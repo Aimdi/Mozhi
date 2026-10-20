@@ -1,5 +1,5 @@
-/// Image translation: Mozhi (Google Lens), AI vision and on-device text
-/// recognition.
+/// Image translation: on-device text recognition (recommended), AI vision
+/// and, experimental, Mozhi passing the photo on to Google Translate.
 library;
 
 export 'cubit/image_translate_cubit.dart';

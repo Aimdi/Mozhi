@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/image_translate/data/text_recognition_service.dart';
@@ -165,7 +166,6 @@ class _LoadFailure extends StatelessWidget {
       title: l10n.offlineLoadFailed,
       announce: true,
       action: FilledButton.icon(
-        style: FilledButton.styleFrom(shape: const StadiumBorder()),
         onPressed: () => unawaited(context.read<OcrLanguagesCubit>().load()),
         icon: const Icon(Icons.refresh),
         label: Text(l10n.commonRetry),
@@ -282,10 +282,7 @@ class _Overview extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
           child: Text(
             l10n.offlineDownloadedCount(state.installed.length),
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.4,
-            ),
+            style: theme.textTheme.headlineSmall,
           ),
         ),
         if (state.totalBytes > 0)
@@ -295,7 +292,6 @@ class _Overview extends StatelessWidget {
               l10n.offlineStorageUsed(formatStoredSize(l10n, state.totalBytes)),
               style: theme.textTheme.titleSmall?.copyWith(
                 color: theme.colorScheme.primary,
-                fontWeight: FontWeight.w700,
               ),
             ),
           ),
@@ -389,7 +385,7 @@ class _UnavailableBanner extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           border: Border.all(color: palette.hairline),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: AppRadius.cardBorderRadius,
         ),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -424,11 +420,7 @@ class _SectionHeading extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
       child: Semantics(
         header: true,
-        child: Text(
-          title,
-          style: Theme.of(context).textTheme.titleLarge
-              ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.3),
-        ),
+        child: Text(title, style: Theme.of(context).textTheme.titleLarge),
       ),
     );
   }

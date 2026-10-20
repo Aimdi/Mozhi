@@ -6,6 +6,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/translate/widgets/language_bar.dart'
+    show pickTranslateLanguage;
 import 'package:mozhi/translate/widgets/language_text.dart';
 import 'package:mozhi/translate/widgets/output_card.dart';
 import 'package:mozhi/translate/widgets/skeleton.dart';
@@ -217,6 +219,11 @@ class CompareEntryCard extends StatelessWidget {
                               context.read<TranslateCubit>().runCompare(),
                             )
                           : null,
+                      // The engine could not detect the input's language:
+                      // picking it compares again.
+                      onChooseSourceLanguage: () => unawaited(
+                        pickTranslateLanguage(context, source: true),
+                      ),
                     ),
             ),
             if (result != null)

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/haptics.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/speech/speech_service.dart';
 import 'package:translation_repository/translation_repository.dart'
@@ -175,6 +176,8 @@ class _QuickListenButtonState extends State<QuickListenButton> {
       excludeFromSemantics: true,
       triggerMode: TooltipTriggerMode.longPress,
       onTriggered: enabled ? _listenSlowly : null,
+      // The long press vibrates only with haptic feedback on.
+      enableFeedback: Haptics.enabled(context),
       child: IconButton(
         key: const Key('quick_translate_listen'),
         // An accent toolbar icon, like the compose sheet's.

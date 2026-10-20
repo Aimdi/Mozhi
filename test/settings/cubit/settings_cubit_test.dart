@@ -85,8 +85,8 @@ void main() {
         equals(const AppSettings()),
       );
       expect(
-        buildCubit(const AppSettings(pureBlack: true)).state.pureBlack,
-        isTrue,
+        buildCubit(const AppSettings(pureBlack: false)).state.pureBlack,
+        isFalse,
       );
     });
 
@@ -139,8 +139,8 @@ void main() {
         setUp: () =>
             when(() => repository.save(any())).thenThrow(StateError('disk')),
         build: buildCubit,
-        act: (cubit) => cubit.setPureBlack(enabled: true),
-        expect: () => [const AppSettings(pureBlack: true)],
+        act: (cubit) => cubit.setPureBlack(enabled: false),
+        expect: () => [const AppSettings(pureBlack: false)],
         errors: () => [isA<StateError>()],
       );
 
@@ -150,8 +150,8 @@ void main() {
             when(() => repository.save(any()))
                 .thenAnswer((_) => Future.error(StateError('disk'))),
         build: buildCubit,
-        act: (cubit) => cubit.setPureBlack(enabled: true),
-        expect: () => [const AppSettings(pureBlack: true)],
+        act: (cubit) => cubit.setPureBlack(enabled: false),
+        expect: () => [const AppSettings(pureBlack: false)],
         errors: () => [isA<StateError>()],
       );
 
@@ -165,7 +165,7 @@ void main() {
         build: buildCubit,
         act: (cubit) async {
           await cubit.close();
-          cubit.setPureBlack(enabled: true);
+          cubit.setPureBlack(enabled: false);
         },
         expect: () => <AppSettings>[],
         verify: (_) => verifyNever(() => repository.save(any())),
@@ -190,14 +190,127 @@ void main() {
         expected: const AppSettings(dynamicColor: false),
       );
       mutation(
-        'setPureBlack',
-        act: (cubit) => cubit.setPureBlack(enabled: true),
-        expected: const AppSettings(pureBlack: true),
+        'setPureBlack (Dim)',
+        act: (cubit) => cubit.setPureBlack(enabled: false),
+        expected: const AppSettings(pureBlack: false),
       );
       mutation(
         'setSeedColor',
         act: (cubit) => cubit.setSeedColor(0xFF00FF00),
         expected: const AppSettings(seedColor: 0xFF00FF00),
+      );
+    });
+
+    group('general', () {
+      mutation(
+        'setAppLocale',
+        act: (cubit) => cubit.setAppLocale(' de '),
+        expected: const AppSettings(appLocale: 'de'),
+      );
+      mutation(
+        'setAppLocale(null) follows the device again',
+        initial: const AppSettings(appLocale: 'ja'),
+        act: (cubit) => cubit.setAppLocale(null),
+        expected: const AppSettings(),
+      );
+      mutation(
+        'setAppLocale with a blank tag follows the device again',
+        initial: const AppSettings(appLocale: 'ja'),
+        act: (cubit) => cubit.setAppLocale('  '),
+        expected: const AppSettings(),
+      );
+      mutation(
+        'setHapticFeedback',
+        act: (cubit) => cubit.setHapticFeedback(enabled: false),
+        expected: const AppSettings(hapticFeedback: false),
+      );
+      mutation(
+        'setRememberQuality',
+        act: (cubit) => cubit.setRememberQuality(enabled: false),
+        expected: const AppSettings(rememberQuality: false),
+      );
+      mutation(
+        'setMultilineInput',
+        act: (cubit) => cubit.setMultilineInput(enabled: false),
+        expected: const AppSettings(multilineInput: false),
+      );
+      mutation(
+        'setTabOrder completes and dedupes the order',
+        act: (cubit) => cubit.setTabOrder(const [
+          AppTab.proofread,
+          AppTab.dictionary,
+          AppTab.proofread,
+        ]),
+        expected: const AppSettings(
+          tabOrder: [
+            AppTab.proofread,
+            AppTab.dictionary,
+            AppTab.translate,
+            AppTab.conversation,
+          ],
+        ),
+      );
+      mutation(
+        'moveTab moves a tab down to its final position',
+        act: (cubit) => cubit.moveTab(0, 2),
+        expected: const AppSettings(
+          tabOrder: [
+            AppTab.dictionary,
+            AppTab.proofread,
+            AppTab.translate,
+            AppTab.conversation,
+          ],
+        ),
+      );
+      mutation(
+        'moveTab moves a tab up',
+        act: (cubit) => cubit.moveTab(3, 0),
+        expected: const AppSettings(
+          tabOrder: [
+            AppTab.conversation,
+            AppTab.translate,
+            AppTab.dictionary,
+            AppTab.proofread,
+          ],
+        ),
+      );
+      mutation(
+        'moveTab clamps the target',
+        act: (cubit) => cubit.moveTab(1, 9),
+        expected: const AppSettings(
+          tabOrder: [
+            AppTab.translate,
+            AppTab.proofread,
+            AppTab.conversation,
+            AppTab.dictionary,
+          ],
+        ),
+      );
+      noOp(
+        'moveTab ignores an invalid index',
+        act: (cubit) {
+          cubit
+            ..moveTab(-1, 0)
+            ..moveTab(4, 0);
+        },
+      );
+      noOp('moveTab to the same place', act: (cubit) => cubit.moveTab(2, 2));
+      mutation(
+        'resetTabOrder',
+        initial: const AppSettings(
+          tabOrder: [
+            AppTab.conversation,
+            AppTab.translate,
+            AppTab.dictionary,
+            AppTab.proofread,
+          ],
+        ),
+        act: (cubit) => cubit.resetTabOrder(),
+        expected: const AppSettings(),
+      );
+      noOp(
+        'resetTabOrder in the default order',
+        act: (cubit) => cubit.resetTabOrder(),
       );
     });
 
@@ -446,8 +559,8 @@ void main() {
       );
       mutation(
         'setInstantTranslateAi',
-        act: (cubit) => cubit.setInstantTranslateAi(enabled: true),
-        expected: const AppSettings(instantTranslateAi: true),
+        act: (cubit) => cubit.setInstantTranslateAi(enabled: false),
+        expected: const AppSettings(instantTranslateAi: false),
       );
       mutation(
         'setSaveHistory',

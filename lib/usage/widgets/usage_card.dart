@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/usage/cubit/usage_cubit.dart';
@@ -84,7 +85,7 @@ class UsageCardView extends StatelessWidget {
       key: const Key('usage_card'),
       decoration: BoxDecoration(
         border: Border.all(color: palette.hairline),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: AppRadius.cardBorderRadius,
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -98,10 +99,7 @@ class UsageCardView extends StatelessWidget {
                     header: true,
                     child: Text(
                       l10n.usageTitle,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.3,
-                      ),
+                      style: theme.textTheme.titleLarge,
                     ),
                   ),
                 ),
@@ -123,9 +121,7 @@ class UsageCardView extends StatelessWidget {
                 context.usageCharacters(stats.totalChars),
                 context.usageTokens(stats.estimatedTokens),
               ].join(' · '),
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+              style: theme.textTheme.titleMedium,
             ),
             Text(
               l10n.usageInputOutput(
@@ -153,12 +149,7 @@ class UsageCardView extends StatelessWidget {
             const SizedBox(height: 12),
             const Hairline(),
             const SizedBox(height: 12),
-            Text(
-              l10n.usageBudgetTitle,
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
-            ),
+            Text(l10n.usageBudgetTitle, style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             if (status == null)
               Text(l10n.usageBudgetNone, style: secondary)
@@ -178,11 +169,6 @@ class UsageCardView extends StatelessWidget {
                   ),
                 OutlinedButton.icon(
                   key: const Key('usage_budget_button'),
-                  style: OutlinedButton.styleFrom(
-                    shape: const StadiumBorder(),
-                    side: BorderSide(color: palette.hairline),
-                    textStyle: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
                   onPressed: () => _editBudget(context, budget),
                   icon: const Icon(Icons.savings_outlined),
                   label: Text(
@@ -263,7 +249,7 @@ class UsageLevelBadge extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: const BorderRadius.all(Radius.circular(AppRadius.badge)),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),

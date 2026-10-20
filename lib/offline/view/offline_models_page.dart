@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/network/network_policy.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
@@ -237,12 +238,7 @@ class MeteredDownloadDialog extends StatelessWidget {
     final size = this.size;
     return AlertDialog(
       icon: const Icon(Icons.signal_cellular_alt),
-      title: Text(
-        l10n.offlineMeteredTitle,
-        style: theme.textTheme.titleLarge?.copyWith(
-          fontWeight: FontWeight.w800,
-        ),
-      ),
+      title: Text(l10n.offlineMeteredTitle, style: theme.textTheme.titleLarge),
       content: Text(
         size == null || size == 0
             ? l10n.offlineMeteredBodyUnknownSize(language.name)
@@ -261,10 +257,6 @@ class MeteredDownloadDialog extends StatelessWidget {
           child: Text(l10n.commonCancel),
         ),
         FilledButton(
-          style: FilledButton.styleFrom(
-            shape: const StadiumBorder(),
-            textStyle: const TextStyle(fontWeight: FontWeight.w700),
-          ),
           onPressed: () => Navigator.of(context).pop(true),
           child: Text(l10n.offlineMeteredDownloadAnyway),
         ),
@@ -285,7 +277,6 @@ class _LoadFailure extends StatelessWidget {
       title: l10n.offlineLoadFailed,
       announce: true,
       action: FilledButton.icon(
-        style: FilledButton.styleFrom(shape: const StadiumBorder()),
         onPressed: () => unawaited(context.read<OfflineModelsCubit>().load()),
         icon: const Icon(Icons.refresh),
         label: Text(l10n.commonRetry),
@@ -403,11 +394,7 @@ class _SectionHeading extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
       child: Semantics(
         header: true,
-        child: Text(
-          title,
-          style: Theme.of(context).textTheme.titleLarge
-              ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.3),
-        ),
+        child: Text(title, style: Theme.of(context).textTheme.titleLarge),
       ),
     );
   }
@@ -428,7 +415,7 @@ class _UnavailableBanner extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           border: Border.all(color: palette.hairline),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: AppRadius.cardBorderRadius,
         ),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -475,10 +462,7 @@ class _Overview extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
           child: Text(
             l10n.offlineDownloadedCount(state.downloadedCount),
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.4,
-            ),
+            style: theme.textTheme.headlineSmall,
           ),
         ),
         if (storage != null && storage.totalBytes > 0)
@@ -490,7 +474,6 @@ class _Overview extends StatelessWidget {
               ),
               style: theme.textTheme.titleSmall?.copyWith(
                 color: theme.colorScheme.primary,
-                fontWeight: FontWeight.w700,
               ),
             ),
           ),

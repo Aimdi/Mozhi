@@ -104,12 +104,7 @@ class OfflineLanguageTile extends StatelessWidget {
       contentPadding: const EdgeInsetsDirectional.only(start: 16, end: 12),
       minVerticalPadding: 12,
       leading: _Avatar(code: language.code, downloaded: downloaded),
-      title: Text(
-        language.name,
-        style: theme.textTheme.titleSmall?.copyWith(
-          fontWeight: FontWeight.w700,
-        ),
-      ),
+      title: Text(language.name, style: theme.textTheme.titleSmall),
       subtitle: subtitle == null
           ? null
           : Text(
@@ -186,16 +181,11 @@ class _InversePill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     return Tooltip(
       message: tooltip,
       child: FilledButton(
-        style: _pillStyle(
-          FilledButton.styleFrom(
-            backgroundColor: colors.onSurface,
-            foregroundColor: colors.surface,
-          ),
-        ),
+        // The theme's filled button is the inverse pill.
+        style: _pillStyle(const ButtonStyle()),
         onPressed: onPressed,
         child: Text(label),
       ),
@@ -203,14 +193,12 @@ class _InversePill extends StatelessWidget {
   }
 }
 
+/// The theme's pill buttons, compact for a list row (the touch target
+/// stays 48 dp).
 ButtonStyle _pillStyle(ButtonStyle base) => base.copyWith(
-  shape: const WidgetStatePropertyAll(StadiumBorder()),
   minimumSize: const WidgetStatePropertyAll(Size(88, 36)),
   tapTargetSize: MaterialTapTargetSize.padded,
   padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 16)),
-  textStyle: const WidgetStatePropertyAll(
-    TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-  ),
 );
 
 /// The language avatar with a small "offline pin" badge once downloaded.
@@ -274,7 +262,6 @@ class _DownloadedPillState extends State<_DownloadedPill> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    final palette = AppPalette.of(context);
     final danger = widget.onPressed != null && (_hovered || _focused);
     final error = theme.colorScheme.error;
     return Tooltip(
@@ -288,7 +275,9 @@ class _DownloadedPillState extends State<_DownloadedPill> {
             foregroundColor: danger ? error : theme.colorScheme.onSurface,
             backgroundColor: danger ? error.withValues(alpha: 0.08) : null,
             side: BorderSide(
-              color: danger ? error.withValues(alpha: 0.5) : palette.hairline,
+              color: danger
+                  ? error.withValues(alpha: 0.5)
+                  : theme.colorScheme.outline,
             ),
           ),
         ),
@@ -329,9 +318,7 @@ class DeleteOfflineLanguageDialog extends StatelessWidget {
     return AlertDialog(
       title: Text(
         l10n.offlineDeleteTitle(language.name),
-        style: theme.textTheme.titleLarge?.copyWith(
-          fontWeight: FontWeight.w800,
-        ),
+        style: theme.textTheme.titleLarge,
       ),
       content: Text(
         body ?? l10n.offlineDeleteBody(language.name),
@@ -349,8 +336,6 @@ class DeleteOfflineLanguageDialog extends StatelessWidget {
           style: TextButton.styleFrom(
             foregroundColor: colors.onError,
             backgroundColor: colors.error,
-            shape: const StadiumBorder(),
-            textStyle: const TextStyle(fontWeight: FontWeight.w700),
           ),
           onPressed: () => Navigator.of(context).pop(true),
           child: Text(l10n.commonDelete),

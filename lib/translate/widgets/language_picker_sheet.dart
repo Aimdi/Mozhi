@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/widgets/offline_engine_badge.dart';
@@ -215,11 +216,6 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
                             setState(() => _query = '');
                           },
                         ),
-                  filled: true,
-                  border: const OutlineInputBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(28)),
-                    borderSide: BorderSide.none,
-                  ),
                 ),
               ),
             ),
@@ -530,7 +526,7 @@ class _DetectedChip extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: scheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: const BorderRadius.all(Radius.circular(AppRadius.badge)),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),

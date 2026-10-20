@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/documents/cubit/document_translate_cubit.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -47,8 +48,6 @@ class _DocumentPreviewTabsState extends State<DocumentPreviewTabs>
           TabBar(
             key: const Key('documents_preview_tabs'),
             controller: _tabs,
-            dividerColor: AppPalette.of(context).hairline,
-            labelStyle: const TextStyle(fontWeight: FontWeight.w700),
             tabs: [
               Tab(text: l10n.documentsTabOriginal),
               Tab(text: l10n.documentsTabTranslation),
@@ -143,23 +142,22 @@ class DocumentSideBySide extends StatelessWidget {
     final document = state.document;
     if (document == null || document.isEmpty) {
       return Center(
+        // Before a document is chosen, the controls show how to pick one.
         child: _Placeholder(
           text: document == null
-              ? l10n.documentsPickTitle
+              ? l10n.documentsPreviewEmpty
               : l10n.documentsErrorNothing,
         ),
       );
     }
     final palette = AppPalette.of(context);
-    final header = theme.textTheme.titleSmall?.copyWith(
-      fontWeight: FontWeight.w800,
-    );
+    final header = theme.textTheme.titleSmall;
 
     // A flat card: hairline outline, no fill.
     return DecoratedBox(
       decoration: BoxDecoration(
         border: Border.all(color: palette.hairline),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: AppRadius.cardBorderRadius,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

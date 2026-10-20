@@ -245,7 +245,8 @@ class BergamotTranslator implements OfflineTranslator {
   /// Looks at the first [identificationSampleLength] characters. Where the
   /// engine runs ([isAvailable]) CLD2 identifies them in a background
   /// isolate and [Cld2Decision.choose] decides, preferring the languages
-  /// this engine translates from on weak evidence. Elsewhere (web, CPUs
+  /// this engine translates from on weak evidence, and those whose models
+  /// are installed ([downloadedLanguages]) on weaker. Elsewhere (web, CPUs
   /// the engine does not support), or when the native identifier is
   /// missing or fails, the [LanguageIdentifier] heuristic answers alone.
   @override
@@ -261,10 +262,17 @@ class BergamotTranslator implements OfflineTranslator {
       return heuristic;
     }
     if (detection == null) return heuristic;
+    Set<String> installed;
+    try {
+      installed = await downloadedLanguages();
+    } on Object {
+      installed = const {};
+    }
     return Cld2Decision.choose(
       detection,
       heuristic: heuristic,
       preferred: sourceLanguages,
+      installed: installed,
     );
   }
 

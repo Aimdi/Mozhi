@@ -211,6 +211,11 @@ jobs:
           fi
           [ "$failed" = 0 ]
 
+      # 16 KB memory pages (Android 15+): every 64-bit native library of
+      # the APKs and the bundle (see the CI workflow).
+      - name: Check the native libraries for 16 KB pages
+        run: python3 tool/check_page_size.py dist/*.apk dist/*.aab
+
       - name: Summarize native build errors
         if: failure()
         run: |

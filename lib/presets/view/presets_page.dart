@@ -379,12 +379,7 @@ class _PresetTile extends StatelessWidget {
                 runSpacing: 4,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  Text(
-                    name,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
+                  Text(name, style: theme.textTheme.titleMedium),
                   if (isDefault) _DefaultBadge(label: l10n.presetsDefaultBadge),
                 ],
               ),
@@ -392,7 +387,6 @@ class _PresetTile extends StatelessWidget {
                 l10n.presetSummary(preset.options),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: AppPalette.of(context).secondaryText),
               ),
               trailing: PopupMenuButton<_PresetAction>(
                 tooltip: l10n.presetsActionsTooltip(name),
@@ -464,29 +458,11 @@ class _DefaultBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    return Container(
+    return StatusBadge(
       key: const Key('presets_default_badge'),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-      decoration: ShapeDecoration(
-        color: colors.primaryContainer,
-        shape: const StadiumBorder(),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.star_rounded, size: 14, color: colors.onPrimaryContainer),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: colors.onPrimaryContainer,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
+      label: label,
+      icon: Icons.star_rounded,
+      color: Theme.of(context).colorScheme.primary,
     );
   }
 }

@@ -135,7 +135,6 @@ class _PresetEditorSheetState extends State<PresetEditorSheet> {
                       decoration: InputDecoration(
                         labelText: l10n.presetsEditorName,
                         hintText: l10n.presetsEditorNameHint,
-                        border: const OutlineInputBorder(),
                       ),
                       validator: (value) => (value ?? '').trim().isEmpty
                           ? l10n.presetsEditorNameRequired

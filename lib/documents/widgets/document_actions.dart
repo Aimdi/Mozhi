@@ -26,12 +26,6 @@ class DocumentActions extends StatelessWidget {
     if (!state.hasTranslation) return const SizedBox.shrink();
     final enabled = !state.isTranslating;
     final palette = AppPalette.of(context);
-    const pillText = TextStyle(fontWeight: FontWeight.w700);
-    final outlined = OutlinedButton.styleFrom(
-      shape: const StadiumBorder(),
-      side: BorderSide(color: palette.hairline),
-      textStyle: pillText,
-    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -41,14 +35,8 @@ class DocumentActions extends StatelessWidget {
           SwitchListTile(
             key: const Key('documents_bilingual'),
             contentPadding: EdgeInsets.zero,
-            title: Text(
-              l10n.documentsBilingual,
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-            subtitle: Text(
-              l10n.documentsBilingualHint,
-              style: TextStyle(color: palette.secondaryText),
-            ),
+            title: Text(l10n.documentsBilingual),
+            subtitle: Text(l10n.documentsBilingualHint),
             value: state.bilingual,
             onChanged: (value) => cubit.setBilingual(enabled: value),
           ),
@@ -58,10 +46,6 @@ class DocumentActions extends StatelessWidget {
           children: [
             FilledButton.icon(
               key: const Key('documents_save'),
-              style: FilledButton.styleFrom(
-                shape: const StadiumBorder(),
-                textStyle: pillText,
-              ),
               onPressed: enabled ? () => unawaited(cubit.save()) : null,
               icon: const Icon(Icons.save_alt),
               label: Text(l10n.documentsSave),
@@ -70,7 +54,6 @@ class DocumentActions extends StatelessWidget {
               Builder(
                 builder: (context) => OutlinedButton.icon(
                   key: const Key('documents_share'),
-                  style: outlined,
                   onPressed: enabled
                       ? () => unawaited(cubit.share(origin: _origin(context)))
                       : null,
@@ -80,7 +63,6 @@ class DocumentActions extends StatelessWidget {
               ),
             OutlinedButton.icon(
               key: const Key('documents_copy'),
-              style: outlined,
               onPressed: enabled ? () => unawaited(cubit.copy()) : null,
               icon: const Icon(Icons.copy_outlined),
               label: Text(l10n.documentsCopyText),

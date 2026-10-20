@@ -90,6 +90,30 @@ void main() {
       verifyNever(() => history.setIncognito(enabled: any(named: 'enabled')));
     });
 
+    testWidgets('hands Save history to the history', (tester) async {
+      await pump(tester);
+      verify(() => history.setSaveHistory(enabled: true)).called(1);
+
+      changes.add(
+        const AppSettings(
+          historyRetention: HistoryRetention.week,
+          saveHistory: false,
+        ),
+      );
+      await tester.pump();
+      verify(() => history.setSaveHistory(enabled: false)).called(1);
+
+      changes.add(
+        const AppSettings(
+          historyRetention: HistoryRetention.week,
+          saveHistory: false,
+          incognito: true,
+        ),
+      );
+      await tester.pump();
+      verifyNever(() => history.setSaveHistory(enabled: any(named: 'enabled')));
+    });
+
     testWidgets('ignores other setting changes', (tester) async {
       await pump(tester);
       clearInteractions(history);

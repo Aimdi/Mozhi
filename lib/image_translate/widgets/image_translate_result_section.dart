@@ -8,14 +8,19 @@ import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/image_translate/cubit/image_translate_cubit.dart';
 import 'package:mozhi/image_translate/models/models.dart';
+import 'package:mozhi/image_translate/widgets/image_language_bar.dart';
 import 'package:mozhi/image_translate/widgets/image_translate_links.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/translate/widgets/translate_layout.dart'
+    show TranslateLayout;
 import 'package:share_plus/share_plus.dart';
 
 /// Recognised text (editable for on-device recognition), the translation,
 /// notes from vision models and the copy/share/"Open in translator"
-/// actions.
+/// actions. Text read poorly for "Detect language"
+/// ([ImageTranslateState.hasLowRecognitionConfidence]) gets a "Wrong
+/// language? Choose the language of the text" hint.
 class ImageTranslateResultSection extends StatelessWidget {
   const new({super.key});
 
@@ -36,6 +41,7 @@ class ImageTranslateResultSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (state.hasLowRecognitionConfidence) const _LowConfidenceHint(),
         if (result.sourceText.isNotEmpty)
           _SourceTextCard(
             text: result.sourceText,
@@ -80,6 +86,47 @@ class ImageTranslateResultSection extends StatelessWidget {
   }
 }
 
+/// "Wrong language? Choose the language of the text": on-device
+/// recognition read with the installed languages and was unsure.
+class _LowConfidenceHint extends StatelessWidget {
+  const new();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final palette = AppPalette.of(context);
+    return Padding(
+      key: const Key('image_translate_low_confidence'),
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        children: [
+          Icon(Icons.help_outline, size: 20, color: palette.secondaryText),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              l10n.imageTranslateLowConfidence,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: palette.secondaryText,
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Flexible(
+            flex: 2,
+            child: TextButton(
+              key: const Key('image_translate_low_confidence_choose'),
+              onPressed: () =>
+                  unawaited(pickImageLanguage(context, source: true)),
+              child: Text(l10n.imageTranslateChooseSourceLanguage),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// A flat result section: a bold label over the text (no card).
 class _TextCard extends StatelessWidget {
   const new({
@@ -108,16 +155,17 @@ class _TextCard extends StatelessWidget {
           _Label(label),
           const SizedBox(height: 8),
           if (streaming) ...[
-            LinearProgressIndicator(
-              borderRadius: BorderRadius.circular(2),
-              backgroundColor: palette.hairline,
+            const LinearProgressIndicator(
+              borderRadius: BorderRadius.all(Radius.circular(2)),
             ),
             const SizedBox(height: 8),
           ],
           SelectableText(
             text,
+            // The translation reads like the translate screen's (body text,
+            // not the bold heading style).
             style: emphasized
-                ? theme.textTheme.titleLarge?.copyWith(height: 1.35)
+                ? TranslateLayout.outputTextStyle(context, text.length)
                 : theme.textTheme.bodyMedium?.copyWith(
                     color: palette.secondaryText,
                   ),
@@ -136,11 +184,7 @@ class _Label extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Semantics(
     header: true,
-    child: Text(
-      text,
-      style: Theme.of(context).textTheme.titleSmall
-          ?.copyWith(fontWeight: FontWeight.w800),
-    ),
+    child: Text(text, style: Theme.of(context).textTheme.titleSmall),
   );
 }
 
@@ -195,9 +239,6 @@ class _SourceTextCardState extends State<_SourceTextCard> {
               maxLines: 8,
               keyboardType: TextInputType.multiline,
               decoration: InputDecoration(
-                border: const OutlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(16)),
-                ),
                 helperText: l10n.imageTranslateEditHint,
                 helperMaxLines: 2,
               ),
@@ -214,11 +255,6 @@ class _SourceTextCardState extends State<_SourceTextCard> {
                           _controller.text,
                         ),
                       ),
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(0, 48),
-                  shape: const StadiumBorder(),
-                  textStyle: const TextStyle(fontWeight: FontWeight.w700),
-                ),
                 icon: const Icon(Icons.translate),
                 label: Text(l10n.imageTranslateRetranslate),
               ),
@@ -347,9 +383,6 @@ class _ResultActionsState extends State<_ResultActions> {
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(0, 40),
                 tapTargetSize: MaterialTapTargetSize.padded,
-                shape: const StadiumBorder(),
-                side: BorderSide(color: palette.hairline),
-                textStyle: const TextStyle(fontWeight: FontWeight.w700),
               ),
               icon: const Icon(Icons.open_in_new),
               label: Text(l10n.imageTranslateOpenInTranslator),

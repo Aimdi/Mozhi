@@ -14,12 +14,14 @@ class ImageTranslation {
     this.detectedSource,
     this.isComplete = true,
     this.destination,
+    this.recognitionConfidence,
   });
 
   /// Where the image (or its recognised text) was sent, when known.
   final DataDestination? destination;
 
-  /// Re-rendered image with the text replaced (Mozhi / Google Lens only).
+  /// Re-rendered image with the text replaced (Mozhi via Google Translate
+  /// only).
   final Uint8List? translatedImage;
 
   /// Text found in the image (Mozhi and on-device recognition).
@@ -34,6 +36,11 @@ class ImageTranslation {
 
   /// False while the translation of the recognised text is streaming.
   final bool isComplete;
+
+  /// How sure on-device recognition is of [sourceText], 0 to 100
+  /// (Tesseract's mean word confidence); null when unknown (other methods,
+  /// ML Kit, edited text).
+  final int? recognitionConfidence;
 
   bool get hasImage => translatedImage != null;
 
@@ -51,6 +58,7 @@ class ImageTranslation {
     detectedSource: detectedSource ?? this.detectedSource,
     isComplete: isComplete ?? this.isComplete,
     destination: destination ?? this.destination,
+    recognitionConfidence: recognitionConfidence,
   );
 
   /// The image bytes are compared by identity (they never change in
@@ -65,7 +73,8 @@ class ImageTranslation {
           other.notes == notes &&
           other.detectedSource == detectedSource &&
           other.isComplete == isComplete &&
-          other.destination == destination;
+          other.destination == destination &&
+          other.recognitionConfidence == recognitionConfidence;
 
   @override
   int get hashCode => Object.hash(
@@ -76,6 +85,7 @@ class ImageTranslation {
     detectedSource,
     isComplete,
     destination,
+    recognitionConfidence,
   );
 
   @override

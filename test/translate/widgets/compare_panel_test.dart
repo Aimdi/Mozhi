@@ -165,6 +165,41 @@ void main() {
       expect(find.byTooltip('Copy'), findsOneWidget);
     });
 
+    testWidgets('an undetectable source language offers the source picker', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(
+        state: _compareState(
+          entries: const [
+            _googleEntry,
+            CompareEntry.failure(
+              engineId: 'offline:bergamot',
+              engineName: 'On this device',
+              error: SourceLanguageRequiredException(
+                engineId: 'offline:bergamot',
+              ),
+            ),
+          ],
+        ),
+      );
+      await harness.pump(tester, child: const ComparePanel());
+      expect(find.textContaining("can't detect the language"), findsOneWidget);
+      expect(find.text('Something went wrong. Try again.'), findsNothing);
+      await tester.tap(find.text('Choose language'));
+      await tester.pumpAndSettle();
+      expect(find.byType(LanguagePickerSheet), findsOneWidget);
+      await tester.tap(
+        find
+            .descendant(
+              of: find.byType(LanguagePickerSheet),
+              matching: find.text('German'),
+            )
+            .last,
+      );
+      await tester.pumpAndSettle();
+      verify(() => harness.translate.setSource(german)).called(1);
+    });
+
     testWidgets('"Use this" selects the entry', (tester) async {
       final harness = TranslateHarness(
         state: _compareState(entries: const [_googleEntry]),

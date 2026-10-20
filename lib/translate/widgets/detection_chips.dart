@@ -95,20 +95,19 @@ class _DetectedChip extends StatelessWidget {
     final label = uncertain
         ? l10n.translateDetectedLanguageUncertain(language)
         : l10n.translateDetectedLanguage(language);
+    // The theme's outlined pill (no fill), like the app's other chips.
     return ActionChip(
       key: const Key('translate_detected_chip'),
       avatar: Icon(
         uncertain ? Icons.help_outline : Icons.auto_awesome_outlined,
-        color: scheme.onSecondaryContainer,
+        color: scheme.primary,
       ),
       label: Text(label),
       tooltip: uncertain
           ? l10n.translateDetectionUncertainHint
           : l10n.translateChangeSourceLanguage,
-      backgroundColor: scheme.secondaryContainer,
       labelStyle: Theme.of(context).textTheme.labelMedium
-          ?.copyWith(color: scheme.onSecondaryContainer),
-      side: BorderSide.none,
+          ?.copyWith(color: scheme.onSurface),
       visualDensity: VisualDensity.compact,
       onPressed: () => unawaited(pickTranslateLanguage(context, source: true)),
     );

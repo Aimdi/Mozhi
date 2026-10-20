@@ -254,7 +254,7 @@ void main() {
       );
     });
 
-    test('a fallback that fails keeps the system failure', () async {
+    test('an installed fallback that fails reports its own failure', () async {
       system.initResult = false;
       whisper.initResultWhenReady = false;
       expect(await service.initialize(), isFalse);
@@ -264,6 +264,28 @@ void main() {
           failure: SpeechInputFailure.recognizerUnavailable,
         ),
       );
+    });
+
+    test('a microphone denied to the installed fallback is explained as '
+        'such, and offered again once granted', () async {
+      system.initResult = false;
+      whisper
+        ..initResultWhenReady = false
+        ..permission = false;
+      expect(await service.listen('en', owner: owner), isFalse);
+      expect(
+        service.state,
+        const SpeechInputUnavailable(
+          failure: SpeechInputFailure.permissionDenied,
+        ),
+      );
+
+      whisper.permission = true;
+      await service.refreshAvailability();
+      expect(service.state, const SpeechInputIdle());
+      whisper.initResultWhenReady = true;
+      expect(await service.listen('en', owner: owner), isTrue);
+      expect(whisper.requests, hasLength(1));
     });
 
     test('Whisper is checked again for every session', () async {
@@ -310,6 +332,30 @@ void main() {
       await service.listen('en', owner: owner);
       await flush();
       states.clear();
+    });
+
+    test("the engine's voice activity detection says when someone "
+        'speaks, not the loudness', () async {
+      // Digital silence, then a noisy room: loud relative to the silence.
+      whisper
+        ..emitLevel(-100)
+        ..emitLevel(-60);
+      expect(service.state, SpeechInputListening(owner: owner, level: 1));
+      whisper
+        ..heardSpeech = true
+        ..emitLevel(-30);
+      expect(
+        service.state,
+        SpeechInputListening(owner: owner, level: 1, heardSpeech: true),
+      );
+      // Once heard, it stays heard.
+      whisper
+        ..heardSpeech = false
+        ..emitLevel(-100);
+      expect(
+        service.state,
+        SpeechInputListening(owner: owner, heardSpeech: true),
+      );
     });
 
     test('stop shows transcribing until the final result', () async {

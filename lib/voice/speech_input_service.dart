@@ -75,7 +75,8 @@ enum VoiceInputEngine {
 /// explicit [initialize]) because that may show the permission prompt.
 /// [states] reports [SpeechInputUnavailable] when initialisation fails or
 /// the platform is unsupported, [SpeechInputListening] (with a normalised
-/// sound level and the partial text) while the microphone is open,
+/// sound level, the partial text and whether someone was heard speaking)
+/// while the microphone is open,
 /// [SpeechInputTranscribing] while an offline engine transcribes what was
 /// recorded, [SpeechInputError] after a failed session and
 /// [SpeechInputIdle] otherwise. Recognised text arrives on [results].
@@ -95,10 +96,20 @@ enum VoiceInputEngine {
 ///   session fails with [SpeechInputFailure.offlineModelMissing], without
 ///   an offline engine with [SpeechInputFailure.offlineUnavailable];
 /// * otherwise the platform's, or the offline one when the device has no
-///   speech recogniser (de-Googled phones) and a model is installed.
+///   speech recogniser (de-Googled phones) and a model is installed
+///   (without a model the session fails with
+///   [SpeechInputFailure.recognizerUnavailable]; [isOfflineSupported] says
+///   whether downloading one would help).
 ///
 /// The "Prefer on-device speech recognition" flag and [engine] are stored
 /// in the given `store` under [preferOnDeviceKey] and [engineKey].
+///
+/// Platform queries that need no user interaction (locales, the system
+/// locale, the permission check) give up after [queryTimeout], so a
+/// recogniser that never answers them cannot keep a session from starting:
+/// it then listens in the recogniser's default language. Initialising may
+/// wait for the permission prompt, so it only gives up after
+/// [initializeTimeout] (reported as [SpeechInputFailure.unknown]).
 class SpeechInputService {
   new({
     required this._store,
@@ -107,6 +118,8 @@ class SpeechInputService {
     this._privacyMode,
     bool? platformSupported,
     bool? onDeviceSupported,
+    this.queryTimeout = defaultQueryTimeout,
+    this.initializeTimeout = defaultInitializeTimeout,
   }) : _system = _Recognizer(adapter ?? SpeechToTextAdapter()),
        _offline = offlineAdapter == null
            ? null
@@ -127,6 +140,18 @@ class SpeechInputService {
 
   /// [KeyValueStore] key of the [engine] ([VoiceInputEngine.key]).
   static const engineKey = 'voice.engine';
+
+  /// Default of [queryTimeout].
+  static const defaultQueryTimeout = Duration(seconds: 3);
+
+  /// Default of [initializeTimeout]: long enough for the permission prompt.
+  static const defaultInitializeTimeout = Duration(seconds: 60);
+
+  /// How long locale and permission queries may take (see the class docs).
+  final Duration queryTimeout;
+
+  /// How long initialising a recogniser may take (see the class docs).
+  final Duration initializeTimeout;
 
   final KeyValueStore _store;
   final _Recognizer _system;
@@ -270,8 +295,10 @@ class SpeechInputService {
   }
 
   /// Initialises [route]'s recogniser, or its fallback when the device has
-  /// no platform recogniser. Returns the recogniser and why it failed (null
-  /// when it is ready).
+  /// no platform recogniser and the fallback's model is installed. Returns
+  /// the recogniser and why it failed (null when it is ready): with an
+  /// installed fallback, why that one failed (e.g. a denied microphone),
+  /// since that is what the user can fix.
   Future<(_Recognizer, SpeechInputFailure?)> _prepare(_Route route) async {
     final recognizer = route.recognizer!;
     final failure = await _initializeRecognizer(recognizer);
@@ -279,8 +306,7 @@ class SpeechInputService {
     if (failure == SpeechInputFailure.recognizerUnavailable &&
         fallback != null &&
         await _isReady(fallback)) {
-      final fallbackFailure = await _initializeRecognizer(fallback);
-      if (fallbackFailure == null) return (fallback, null);
+      return (fallback, await _initializeRecognizer(fallback));
     }
     return (recognizer, failure);
   }
@@ -301,11 +327,18 @@ class SpeechInputService {
       ..initFailure = null
       ..initInProgress = true;
     bool ok;
+    var timedOut = false;
     try {
-      ok = await recognizer.adapter.initialize(
-        onError: (error) => _onError(recognizer, error),
-        onStatus: (status) => _onStatus(recognizer, status),
-      );
+      ok = await recognizer.adapter
+          .initialize(
+            onError: (error) => _onError(recognizer, error),
+            onStatus: (status) => _onStatus(recognizer, status),
+          )
+          .timeout(initializeTimeout);
+    } on TimeoutException {
+      // The platform never answered (e.g. it lost the permission result).
+      ok = false;
+      timedOut = true;
     } on Object {
       ok = false;
     } finally {
@@ -314,10 +347,11 @@ class SpeechInputService {
     if (_disposed) return SpeechInputFailure.unknown;
     recognizer.available = ok;
     if (ok) return null;
-    return recognizer.initFailure ??
-        (await _hasPermission(recognizer)
-            ? SpeechInputFailure.recognizerUnavailable
-            : SpeechInputFailure.permissionDenied);
+    if (recognizer.initFailure case final failure?) return failure;
+    if (timedOut) return SpeechInputFailure.unknown;
+    return await _hasPermission(recognizer)
+        ? SpeechInputFailure.recognizerUnavailable
+        : SpeechInputFailure.permissionDenied;
   }
 
   Future<bool> _isReady(_Recognizer recognizer) async {
@@ -328,9 +362,11 @@ class SpeechInputService {
     }
   }
 
+  /// Whether [recognizer] may use the microphone; true when the platform
+  /// cannot tell (it fails or does not answer within [queryTimeout]).
   Future<bool> _hasPermission(_Recognizer recognizer) async {
     try {
-      return await recognizer.adapter.hasPermission();
+      return await recognizer.adapter.hasPermission().timeout(queryTimeout);
     } on Object {
       return true;
     }
@@ -356,8 +392,9 @@ class SpeechInputService {
     return _Route(_system);
   }
 
-  /// [SpeechInputUnavailable] hides voice input; a missing offline model is
-  /// explained on every attempt instead (it can be downloaded).
+  /// [SpeechInputUnavailable] shows voice input as off; a missing offline
+  /// model is reported as an error of the attempt instead (it can be
+  /// downloaded).
   void _reportUnavailable(SpeechInputFailure failure, {Object? owner}) {
     if (_isOfflineFailure(failure)) {
       _emit(
@@ -405,7 +442,8 @@ class SpeechInputService {
   }
 
   /// Recogniser locales of the recogniser the next session would use
-  /// (cached after the first successful call). Empty when unavailable.
+  /// (cached after the first successful call). Empty when unavailable, and
+  /// for good when the recogniser does not answer within [queryTimeout].
   Future<List<SpeechRecognizerLocale>> locales() async {
     if (!await initialize()) return const [];
     return await _localesOf(_current);
@@ -416,9 +454,13 @@ class SpeechInputService {
   ) async {
     if (recognizer.locales case final cached?) return cached;
     try {
-      final locales = await recognizer.adapter.locales();
+      final locales = await recognizer.adapter.locales().timeout(queryTimeout);
       recognizer.systemLocaleId = await _systemLocale(recognizer);
       return recognizer.locales = List.unmodifiable(locales);
+    } on TimeoutException {
+      // Not answered: later sessions use the default language right away
+      // instead of waiting again.
+      return recognizer.locales = const [];
     } on Object {
       return const [];
     }
@@ -426,7 +468,7 @@ class SpeechInputService {
 
   Future<String?> _systemLocale(_Recognizer recognizer) async {
     try {
-      return await recognizer.adapter.systemLocaleId();
+      return await recognizer.adapter.systemLocaleId().timeout(queryTimeout);
     } on Object {
       return null;
     }
@@ -446,6 +488,15 @@ class SpeechInputService {
   ) async {
     if (languageCode == null) return null;
     final available = await _localesOf(recognizer);
+    // Without the recogniser's list (it may never answer), the chosen
+    // language is still asked for: listening in the system language would
+    // turn German speech into English nonsense.
+    if (available.isEmpty && recognizer.offline == null) {
+      return SpeechLocaleMatcher.guess(
+        languageCode,
+        systemLocaleId: recognizer.systemLocaleId,
+      );
+    }
     return SpeechLocaleMatcher.match(
       languageCode,
       available.map((locale) => locale.id),
@@ -465,10 +516,18 @@ class SpeechInputService {
   /// session's states and results (see [SpeechInputState.isOwnedBy]).
   /// A session that is already running is cancelled first. Returns whether
   /// listening started; failures are reported through [states].
+  ///
+  /// With [detectLanguage], a recogniser that can detect the spoken
+  /// language ([LanguageDetectingSpeechRecognizer], e.g. Whisper) listens
+  /// without a language and reports the one it heard in the final
+  /// [SpeechInputResult.language]; [SpeechInputListening.detectsLanguage]
+  /// says whether it does. Other recognisers listen in [languageCode] as
+  /// usual.
   Future<bool> listen(
     String? languageCode, {
     bool? preferOnDevice,
     Object? owner,
+    bool detectLanguage = false,
   }) async {
     if (_disposed) return false;
     if (_activeSession != null || _finishingSession != null) await cancel();
@@ -488,14 +547,19 @@ class SpeechInputService {
       return false;
     }
     if (_state is SpeechInputUnavailable) _emit(const SpeechInputIdle());
-    final localeId = await _localeIdFor(recognizer, languageCode);
+    final detects =
+        detectLanguage &&
+        recognizer.adapter is LanguageDetectingSpeechRecognizer;
+    final localeId = detects
+        ? null
+        : await _localeIdFor(recognizer, languageCode);
     if (session != _session || _disposed) return false;
 
     _activeSession = session;
     _owner = owner;
     _minLevel = null;
     _maxLevel = null;
-    _emit(SpeechInputListening(owner: owner));
+    _emit(SpeechInputListening(owner: owner, detectsLanguage: detects));
     try {
       await recognizer.adapter.listen(
         request: SpeechListenRequest(
@@ -568,7 +632,21 @@ class SpeechInputService {
 
   void _onResult(int session, String text, {required bool isFinal}) {
     if (session != _session || _disposed) return;
-    _results.add(SpeechInputResult(text, isFinal: isFinal, owner: _owner));
+    final language = isFinal
+        ? switch (_current.adapter) {
+            final LanguageDetectingSpeechRecognizer detector =>
+              detector.detectedLanguage,
+            _ => null,
+          }
+        : null;
+    _results.add(
+      SpeechInputResult(
+        text,
+        isFinal: isFinal,
+        owner: _owner,
+        language: language,
+      ),
+    );
     final current = _state;
     if (isFinal) {
       if (_activeSession == session || _finishingSession == session) {
@@ -577,7 +655,12 @@ class SpeechInputService {
         _emit(const SpeechInputIdle());
       }
     } else if (current is SpeechInputListening) {
-      _emit(current.copyWith(partialText: text));
+      _emit(
+        current.copyWith(
+          partialText: text,
+          heardSpeech: current.heardSpeech || text.trim().isNotEmpty,
+        ),
+      );
     }
   }
 
@@ -589,7 +672,15 @@ class SpeechInputService {
     final max = _maxLevel = math.max(_maxLevel ?? raw, raw);
     final span = math.max(max - min, _minLevelSpan);
     final level = ((raw - min) / span).clamp(0.0, 1.0);
-    if (level != current.level) _emit(current.copyWith(level: level));
+    // Loudness alone is not speech (the level is relative, so background
+    // noise is loud too); a recogniser that detects voice activity says.
+    final heardSpeech =
+        current.heardSpeech ||
+        switch (_current.adapter) {
+          final VoiceActivitySpeechRecognizer detector => detector.heardSpeech,
+          _ => false,
+        };
+    _emit(current.copyWith(level: level, heardSpeech: heardSpeech));
   }
 
   /// Minimum dB range used to normalise sound levels, so near-silence does

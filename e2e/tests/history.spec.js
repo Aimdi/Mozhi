@@ -6,6 +6,8 @@ const {
   copiedTranslation,
   fillField,
   openApp,
+  openHistory,
+  recordAiRequests,
   seedSettings,
   sourceInput,
   test,
@@ -40,7 +42,7 @@ test('a translation appears in History and can be starred', async ({
 }) => {
   const errors = collectPageErrors(page);
   await translate(page, FIRST);
-  await page.getByRole('tab', { name: 'History' }).click();
+  await openHistory(page);
 
   const item = entry(page, FIRST);
   await expect(item).toBeVisible();
@@ -90,7 +92,7 @@ test('search filters the history', async ({ page }) => {
   await page.getByRole('button', { name: 'Clear' }).click();
   await expect(sourceInput(page)).toBeVisible();
   await translate(page, SECOND);
-  await page.getByRole('tab', { name: 'History' }).click();
+  await openHistory(page);
 
   await expect(entry(page, FIRST)).toBeVisible();
   await expect(entry(page, SECOND)).toBeVisible();
@@ -112,7 +114,7 @@ test('search filters the history', async ({ page }) => {
 
 test('a deleted entry comes back with Undo', async ({ page }) => {
   await translate(page, FIRST);
-  await page.getByRole('tab', { name: 'History' }).click();
+  await openHistory(page);
   const item = entry(page, FIRST);
   await expect(item).toBeVisible();
 
@@ -143,7 +145,7 @@ test('the language pair filter narrows the history', async ({ page }) => {
     page.getByRole('button', { name: 'Target language: English' }),
   ).toBeVisible();
   await expect.poll(() => copiedTranslation(page)).toMatch(/^\[AI→English/);
-  await page.getByRole('tab', { name: 'History' }).click();
+  await openHistory(page);
 
   const english = page.getByRole('group', {
     name: /English \(detected\).*→.*French/,
@@ -166,4 +168,64 @@ test('the language pair filter narrows the history', async ({ page }) => {
   await page.getByRole('button', { name: 'Clear filters' }).click();
   await expect(english).toBeVisible();
   await expect(pairs).toBeVisible();
+});
+
+test('a link opens History on the Favorites tab', async ({ page }) => {
+  await translate(page, FIRST);
+  await openHistory(page);
+  await expect(entry(page, FIRST)).toBeVisible();
+
+  // What a long press on the History button opens.
+  await page.reload();
+  await openApp(page, '/history?tab=favorites');
+
+  const favourites = page.getByRole('tab', { name: 'Favorites' });
+  await expect(favourites).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('heading', { name: /^No favorites yet/ }))
+    .toBeVisible();
+  await expect(entry(page, FIRST)).toBeHidden();
+
+  await page.getByRole('tab', { name: 'All' }).click();
+  await expect(entry(page, FIRST)).toBeVisible();
+});
+
+test('a dictionary look-up is saved to History, hearted and opened again', async ({
+  page,
+}) => {
+  const errors = collectPageErrors(page);
+  const requests = recordAiRequests(page);
+  // As the other link tests here: reload, then open the link.
+  await page.reload();
+  await openApp(page, '/dictionary?word=hello&from=en&to=fr');
+  await page.getByRole('button', { name: 'Look up' }).click();
+
+  // The heart beside "New look-up" works once the entry is shown.
+  const heart = page.getByRole('button', { name: 'Add to favorites' });
+  await expect(heart).toBeEnabled();
+  await expect.poll(() => requests.length).toBe(1);
+  await heart.click();
+  await expect(
+    page.getByRole('button', { name: 'Remove from favorites' }),
+  ).toBeVisible();
+
+  // History lists it as a look-up: the marker, the word and the mock
+  // entry's summary.
+  await openHistory(page);
+  const item = page.getByRole('group', { name: /Dictionary.*hello/ });
+  await expect(item).toBeVisible();
+  await expect(item).toHaveAccessibleName(
+    /English.* → .*French.*Dictionary.*hello.*interjection · used as a greeting/,
+  );
+  await page.getByRole('tab', { name: 'Favorites' }).click();
+  await expect(item).toBeVisible();
+
+  // Opening it looks the word up again on the Dictionary tab.
+  await item.click();
+  await expect(page.getByRole('tab', { name: 'Dictionary' }))
+    .toHaveAttribute('aria-selected', 'true');
+  await expect.poll(() => requests.length).toBe(2);
+  await expect(
+    page.getByRole('button', { name: 'Remove from favorites' }),
+  ).toBeEnabled();
+  expect(errors).toEqual([]);
 });

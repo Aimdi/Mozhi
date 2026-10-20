@@ -6,10 +6,13 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
+import 'package:mozhi/app/theme.dart';
+import 'package:mozhi/app/view/top_level_actions.dart';
 import 'package:mozhi/core/bidi.dart';
 import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/core/undo_snack_bar.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
+import 'package:mozhi/dictionary/view/dictionary_request.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/history/view/widgets/clear_history_dialog.dart';
@@ -21,18 +24,60 @@ import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-/// On-device translation history with search, favorites, filters by
-/// language pair and by where the text went, and swipe to delete. Reads
-/// the app-wide [HistoryCubit], [SettingsCubit] and [TranslateCubit].
+/// The tabs of the History page.
+enum HistoryTab {
+  /// Every entry: translations and dictionary look-ups.
+  all,
+
+  /// Only the favourites.
+  favorites;
+
+  /// The tab named [name] (`all`, `favorites`), or null for anything else.
+  static HistoryTab? tryParse(String? name) =>
+      values.where((tab) => tab.name == name).firstOrNull;
+}
+
+/// On-device history of translations and dictionary look-ups with search,
+/// favorites, filters by language pair and by where the text went, and
+/// swipe actions (delete, favourite; see [HistoryEntryTile]). Reads the
+/// app-wide [HistoryCubit], [SettingsCubit] and [TranslateCubit].
+///
+/// A full page above the tabs, opened from their app bars
+/// ([TopLevelActions]; a long press on the History button opens it on the
+/// Favorites tab): its back arrow returns to the tab
+/// ([topLevelBackButton]); opening a translation goes to the translate
+/// tab, opening a look-up to the Dictionary tab, which looks the word up
+/// again (with the detail level it was saved with).
+///
+/// Look-ups go to the destination filters by the AI engine that wrote them
+/// ([historyDestinationOf]: a local model is self-hosted, other providers
+/// are in the cloud).
 class HistoryPage extends StatelessWidget {
-  const new({super.key});
+  const new({this.initialTab, super.key});
+
+  /// Query parameter of the page's location naming the tab to open on
+  /// (the name of a [HistoryTab]), e.g. `/history?tab=favorites`.
+  static const tabParameter = 'tab';
+
+  /// The page's location, opening on [tab] (null: the tab shown last).
+  static String location({HistoryTab? tab}) => Uri(
+    path: AppRoutes.history,
+    queryParameters: tab == null ? null : {tabParameter: tab.name},
+  ).toString();
+
+  /// The tab to show when the page opens; null keeps the one shown last
+  /// ([HistoryState.favoritesOnly]).
+  final HistoryTab? initialTab;
 
   @override
-  Widget build(BuildContext context) => const HistoryView();
+  Widget build(BuildContext context) => HistoryView(initialTab: initialTab);
 }
 
 class HistoryView extends StatefulWidget {
-  const new({super.key});
+  const new({this.initialTab, super.key});
+
+  /// See [HistoryPage.initialTab].
+  final HistoryTab? initialTab;
 
   /// Key of the search field.
   static const searchFieldKey = Key('history_search');
@@ -50,8 +95,12 @@ class _HistoryViewState extends State<HistoryView>
     text: context.read<HistoryCubit>().state.query,
   );
 
-  /// Entries swiped away but possibly not yet removed from the state.
+  /// Entries deleted but possibly not yet removed from the state.
   final Set<String> _dismissed = {};
+
+  /// Favourites taken out of the Favorites tab, hidden there until the
+  /// state no longer has them as favourites (or Undo puts them back).
+  final Set<String> _unfavorited = {};
 
   /// Tiles by entry id (see [_tile]).
   final Map<String, HistoryEntryTile> _tiles = {};
@@ -64,6 +113,30 @@ class _HistoryViewState extends State<HistoryView>
   );
 
   @override
+  void initState() {
+    super.initState();
+    _showTab(widget.initialTab);
+  }
+
+  @override
+  void didUpdateWidget(HistoryView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialTab != oldWidget.initialTab) {
+      _showTab(widget.initialTab);
+    }
+  }
+
+  /// Switches the cubit's filter to [tab] (the tab bar follows it).
+  void _showTab(HistoryTab? tab) {
+    if (tab == null) return;
+    final cubit = context.read<HistoryCubit>();
+    final favorites = tab == HistoryTab.favorites;
+    if (cubit.state.favoritesOnly != favorites) {
+      cubit.setFavoritesOnly(enabled: favorites);
+    }
+  }
+
+  @override
   void dispose() {
     _tabs.dispose();
     _search.dispose();
@@ -71,6 +144,10 @@ class _HistoryViewState extends State<HistoryView>
   }
 
   void _open(HistoryEntry entry) {
+    if (entry.isDictionary) {
+      _openLookUp(entry);
+      return;
+    }
     context.read<TranslateCubit>()
       ..setSource(entry.source)
       ..setTarget(entry.target)
@@ -78,6 +155,24 @@ class _HistoryViewState extends State<HistoryView>
     context.go(AppRoutes.translate);
   }
 
+  /// Opens the Dictionary tab on [entry]'s word and languages and looks it
+  /// up with its detail level (also when the tab already shows that word,
+  /// see [DictionaryLookUpRequest]).
+  void _openLookUp(HistoryEntry entry) {
+    final source = entry.source;
+    final target = entry.target;
+    context.go(
+      AppRoutes.dictionaryWord(
+        word: entry.text,
+        from: source.isCustom ? null : source.code,
+        to: target.isCustom || target.isAuto ? null : target.code,
+      ),
+      extra: DictionaryLookUpRequest(verbosity: entry.verbosity),
+    );
+  }
+
+  /// Deletes [entry]; Undo puts it back as it was (its place, favourite
+  /// and time: [HistoryCubit.restore]).
   void _delete(HistoryEntry entry) {
     final l10n = context.l10n;
     final cubit = context.read<HistoryCubit>();
@@ -85,10 +180,34 @@ class _HistoryViewState extends State<HistoryView>
     unawaited(cubit.delete(entry.id));
     showUndoSnackBar(
       context,
-      message: l10n.historyDeleted,
+      message: entry.isDictionary
+          ? l10n.historyLookUpDeleted
+          : l10n.historyDeleted,
       onUndo: () {
         unawaited(cubit.restore(entry));
         if (mounted) setState(() => _dismissed.remove(entry.id));
+      },
+    );
+  }
+
+  /// Toggles [entry]'s favourite. In the Favorites tab that takes a
+  /// favourite out of the list, so it goes at once and Undo puts it back.
+  void _toggleFavorite(HistoryEntry entry) {
+    final cubit = context.read<HistoryCubit>();
+    if (!cubit.state.favoritesOnly || !entry.isFavorite) {
+      unawaited(cubit.toggleFavorite(entry.id));
+      return;
+    }
+    final l10n = context.l10n;
+    setState(() => _unfavorited.add(entry.id));
+    unawaited(cubit.toggleFavorite(entry.id));
+    showUndoSnackBar(
+      context,
+      message: l10n.historyUnfavorited,
+      onUndo: () {
+        // Stars the entry as it is now: a new look-up may have updated it.
+        unawaited(cubit.restoreFavorite(entry));
+        if (mounted) setState(() => _unfavorited.remove(entry.id));
       },
     );
   }
@@ -111,7 +230,11 @@ class _HistoryViewState extends State<HistoryView>
       isScrollControlled: true,
       useSafeArea: true,
       showDragHandle: true,
-      builder: (_) => _PairSheet(pairs: state.pairs, selected: state.pair),
+      builder: (_) => _PairSheet(
+        pairs: state.pairs,
+        selected: state.pair,
+        lookUps: state.hasLookUps,
+      ),
     );
     if (choice == null) return;
     cubit.filterByPair(choice.$1);
@@ -141,11 +264,11 @@ class _HistoryViewState extends State<HistoryView>
       providers: providers,
       instances: instances,
     );
+    bool hidden(HistoryEntry entry) =>
+        _dismissed.contains(entry.id) ||
+        (state.favoritesOnly && _unfavorited.contains(entry.id));
     final visible =
-        state
-            .visibleWith(destinationOf)
-            .where((e) => !_dismissed.contains(e.id))
-            .toList()
+        state.visibleWith(destinationOf).where((e) => !hidden(e)).toList()
           ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     final hasEntries = state.entries.any((e) => !_dismissed.contains(e.id));
 
@@ -155,7 +278,7 @@ class _HistoryViewState extends State<HistoryView>
         BlocListener<HistoryCubit, HistoryState>(
           listenWhen: (previous, current) =>
               previous.entries != current.entries,
-          listener: _forgetDeleted,
+          listener: _forgetHidden,
         ),
         BlocListener<HistoryCubit, HistoryState>(
           listenWhen: (previous, current) =>
@@ -166,6 +289,7 @@ class _HistoryViewState extends State<HistoryView>
       ],
       child: Scaffold(
         appBar: AppBar(
+          leading: topLevelBackButton(context),
           title: Text(l10n.historyTitle),
           actions: [
             if (hasEntries)
@@ -248,12 +372,15 @@ class _HistoryViewState extends State<HistoryView>
     );
   }
 
-  /// Once the cubit no longer has a swiped entry, stop hiding its id so a
-  /// later re-import shows it again.
-  void _forgetDeleted(BuildContext context, HistoryState state) {
-    final ids = {for (final entry in state.entries) entry.id};
-    _dismissed.removeWhere((id) => !ids.contains(id));
-    _tiles.removeWhere((id, _) => !ids.contains(id));
+  /// Once the cubit no longer has a deleted entry (or no longer has an
+  /// entry taken out of the Favorites tab as a favourite), stop hiding its
+  /// id: the state hides it now, and a later re-import or favourite shows
+  /// it again.
+  void _forgetHidden(BuildContext context, HistoryState state) {
+    final byId = {for (final entry in state.entries) entry.id: entry};
+    _dismissed.removeWhere((id) => !byId.containsKey(id));
+    _unfavorited.removeWhere((id) => !(byId[id]?.isFavorite ?? false));
+    _tiles.removeWhere((id, _) => !byId.containsKey(id));
   }
 
   List<Widget> _content(
@@ -280,8 +407,7 @@ class _HistoryViewState extends State<HistoryView>
     }
     if (state.status == HistoryStatus.unreadable) {
       return [
-        SliverFillRemaining(
-          hasScrollBody: false,
+        _EmptyStateSliver(
           child: EmptyStateView(
             icon: Icons.lock_outline,
             tone: EmptyStateTone.error,
@@ -309,8 +435,7 @@ class _HistoryViewState extends State<HistoryView>
     }
     if (!hasEntries && state.status == HistoryStatus.failure) {
       return [
-        SliverFillRemaining(
-          hasScrollBody: false,
+        _EmptyStateSliver(
           child: EmptyStateView(
             icon: Icons.cloud_off_outlined,
             tone: EmptyStateTone.error,
@@ -362,9 +487,10 @@ class _HistoryViewState extends State<HistoryView>
             )
           : state.favoritesOnly
           ? (
-              Icons.star_outline_rounded,
+              // The heart of the favourite buttons.
+              Icons.favorite_border_rounded,
               l10n.historyNoFavoritesTitle,
-              l10n.historyNoFavoritesBody,
+              l10n.historyNoFavoritesHeartBody,
               FilledButton.tonal(
                 onPressed: () => cubit.setFavoritesOnly(enabled: false),
                 child: Text(l10n.historyShowAll),
@@ -377,8 +503,7 @@ class _HistoryViewState extends State<HistoryView>
               null,
             );
       return [
-        SliverFillRemaining(
-          hasScrollBody: false,
+        _EmptyStateSliver(
           child: EmptyStateView(
             icon: icon,
             title: title,
@@ -400,9 +525,9 @@ class _HistoryViewState extends State<HistoryView>
       rows.add(entry);
     }
     final theme = Theme.of(context);
-    final headerStyle = theme.textTheme.labelLarge?.copyWith(
-      color: AppPalette.of(context).secondaryText,
-      fontWeight: FontWeight.w700,
+    // The days are section headings, like the settings sections.
+    final headerStyle = theme.textTheme.titleLarge?.copyWith(
+      color: theme.colorScheme.onSurface,
     );
     return [
       SliverPadding(
@@ -420,7 +545,10 @@ class _HistoryViewState extends State<HistoryView>
             return index < 0 ? null : index;
           },
           itemBuilder: (context, index) => switch (rows[index]) {
-            final HistoryEntry entry => _tile(entry),
+            final HistoryEntry entry => _tile(
+              entry,
+              unfavoriteRemoves: state.favoritesOnly,
+            ),
             final DateTime day => Padding(
               key: ValueKey(day),
               padding: const EdgeInsetsDirectional.fromSTEB(4, 16, 4, 4),
@@ -462,18 +590,25 @@ class _HistoryViewState extends State<HistoryView>
     if (confirmed ?? false) await cubit.discardUnreadable();
   }
 
-  /// The tile for [entry], reused while the entry is unchanged so that a
-  /// state change (a favorite toggled, an entry added, a search) only
-  /// rebuilds the tiles whose entries changed.
-  HistoryEntryTile _tile(HistoryEntry entry) {
+  /// The tile for [entry], reused while the entry (and the tab) is
+  /// unchanged so that a state change (a favorite toggled, an entry added,
+  /// a search) only rebuilds the tiles whose entries changed.
+  HistoryEntryTile _tile(
+    HistoryEntry entry, {
+    required bool unfavoriteRemoves,
+  }) {
     final cached = _tiles[entry.id];
-    if (cached != null && cached.entry == entry) return cached;
+    if (cached != null &&
+        cached.entry == entry &&
+        cached.unfavoriteRemoves == unfavoriteRemoves) {
+      return cached;
+    }
     return _tiles[entry.id] = HistoryEntryTile(
       key: ValueKey(entry.id),
       entry: entry,
+      unfavoriteRemoves: unfavoriteRemoves,
       onTap: () => _open(entry),
-      onToggleFavorite: () =>
-          context.read<HistoryCubit>().toggleFavorite(entry.id),
+      onToggleFavorite: () => _toggleFavorite(entry),
       onDelete: () => _delete(entry),
     );
   }
@@ -494,6 +629,22 @@ class _HistoryViewState extends State<HistoryView>
         : DateFormat.yMMMMEEEEd(l10n.localeName);
     return format.format(day);
   }
+}
+
+/// An empty or error state ([child], an [EmptyStateView]) in the space
+/// below the tabs, a third of the way down: the optical centre, close to
+/// the search and the tabs it answers rather than low on a tall screen. It
+/// scrolls when it does not fit (large text).
+class _EmptyStateSliver extends StatelessWidget {
+  const new({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => SliverFillRemaining(
+    hasScrollBody: false,
+    child: Column(children: [const Spacer(), child, const Spacer(flex: 2)]),
+  );
 }
 
 /// The label of [destination] (as in the translator's destination badges).
@@ -576,9 +727,7 @@ class _HistoryFilterBar extends StatelessWidget {
                   minimumSize: const Size(0, 32),
                   tapTargetSize: MaterialTapTargetSize.padded,
                   padding: const EdgeInsetsDirectional.only(start: 8, end: 4),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+                  shape: const StadiumBorder(),
                   backgroundColor: pair == null
                       ? null
                       : colors.secondaryContainer,
@@ -635,10 +784,18 @@ class _HistoryFilterBar extends StatelessWidget {
 /// The language pairs of the history (with their number of entries) and
 /// "All language pairs"; pops the choice as a record (null pair: all).
 class _PairSheet extends StatelessWidget {
-  const new({required this.pairs, required this.selected});
+  const new({
+    required this.pairs,
+    required this.selected,
+    required this.lookUps,
+  });
 
   final List<(HistoryPair, int)> pairs;
   final HistoryPair? selected;
+
+  /// Whether the history has dictionary look-ups: the counts are then
+  /// "entries" rather than "translations".
+  final bool lookUps;
 
   @override
   Widget build(BuildContext context) {
@@ -678,7 +835,11 @@ class _PairSheet extends StatelessWidget {
                   ? const Icon(Icons.auto_awesome_outlined)
                   : LanguageAvatar(code: pair.source.code),
               title: Text(historyPairLabel(l10n, pair)),
-              subtitle: Text(l10n.historyFilterPairCount(count)),
+              subtitle: Text(
+                lookUps
+                    ? l10n.historyFilterPairEntries(count)
+                    : l10n.historyFilterPairCount(count),
+              ),
               trailing: selected == pair ? check : null,
               onTap: () => Navigator.of(context).pop((pair,)),
             ),
@@ -717,9 +878,9 @@ class _RetentionNote extends StatelessWidget {
   }
 }
 
-/// The history search field: a pill like [SearchBar], with keyboard
-/// learning off while incognito ([imeLearningAllowed]), which [SearchBar]
-/// cannot do.
+/// The history search field: outlined and rounded like the app's other
+/// search fields, with keyboard learning off while incognito
+/// ([imeLearningAllowed]), which [SearchBar] cannot do.
 class _HistorySearchField extends StatelessWidget {
   const new({
     required this.controller,
@@ -737,9 +898,16 @@ class _HistorySearchField extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     const none = InputBorder.none;
+    // The outline of the theme's text fields.
+    final outline =
+        theme.inputDecorationTheme.enabledBorder?.borderSide.color ??
+        colors.outline;
     return Material(
-      color: colors.surfaceContainerHigh,
-      shape: const StadiumBorder(),
+      color: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: AppRadius.fieldBorderRadius,
+        side: BorderSide(color: outline),
+      ),
       clipBehavior: Clip.antiAlias,
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 56),
@@ -825,7 +993,7 @@ class _HistoryPausedBanner extends StatelessWidget {
         child: DecoratedBox(
           decoration: BoxDecoration(
             border: Border.all(color: palette.hairline),
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: AppRadius.cardBorderRadius,
           ),
           child: Padding(
             padding: const EdgeInsetsDirectional.fromSTEB(16, 14, 12, 12),

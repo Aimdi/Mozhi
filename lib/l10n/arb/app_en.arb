@@ -2833,10 +2833,6 @@
   "@imageTranslateButtonTooltip": {
     "description": "imageTranslateButtonTooltip"
   },
-  "imageTranslateEmptyTitle": "Translate text in photos",
-  "@imageTranslateEmptyTitle": {
-    "description": "imageTranslateEmptyTitle"
-  },
   "imageTranslateEmptyBody": "Choose a photo or take a picture of a sign, menu or document. The text in it is found and translated.",
   "@imageTranslateEmptyBody": {
     "description": "imageTranslateEmptyBody"
@@ -2861,14 +2857,6 @@
   "@imageTranslateMethodLabel": {
     "description": "imageTranslateMethodLabel"
   },
-  "imageTranslateMethodMozhi": "Mozhi (Google Lens)",
-  "@imageTranslateMethodMozhi": {
-    "description": "imageTranslateMethodMozhi"
-  },
-  "imageTranslateMethodMozhiDescription": "Replaces the text in the picture itself, via your Mozhi instance.",
-  "@imageTranslateMethodMozhiDescription": {
-    "description": "imageTranslateMethodMozhiDescription"
-  },
   "imageTranslateMethodAi": "AI vision · {name}",
   "@imageTranslateMethodAi": {
     "placeholders": {
@@ -2885,10 +2873,6 @@
   "@imageTranslateMethodOnDevice": {
     "description": "imageTranslateMethodOnDevice"
   },
-  "imageTranslateMethodOnDeviceDescription": "Reads the text on this device, then translates it with the translator's engine.",
-  "@imageTranslateMethodOnDeviceDescription": {
-    "description": "imageTranslateMethodOnDeviceDescription"
-  },
   "imageTranslateNoMethodsTitle": "No image translation method available",
   "@imageTranslateNoMethodsTitle": {
     "description": "imageTranslateNoMethodsTitle"
@@ -2904,10 +2888,6 @@
   "imageTranslatePhasePreparing": "Preparing the image…",
   "@imageTranslatePhasePreparing": {
     "description": "imageTranslatePhasePreparing"
-  },
-  "imageTranslatePhaseMozhi": "Translating with Google Lens via Mozhi. This can take up to a minute.",
-  "@imageTranslatePhaseMozhi": {
-    "description": "imageTranslatePhaseMozhi"
   },
   "imageTranslatePhaseAi": "{name} is reading and translating the image…",
   "@imageTranslatePhaseAi": {
@@ -3013,17 +2993,9 @@
   "@imageTranslateErrorRecognition": {
     "description": "imageTranslateErrorRecognition"
   },
-  "imageTranslateErrorTimeout": "Image translation timed out. Google Lens can take up to a minute; try again or use a smaller image.",
-  "@imageTranslateErrorTimeout": {
-    "description": "imageTranslateErrorTimeout"
-  },
   "conversationTitle": "Conversation",
   "@conversationTitle": {
     "description": "conversationTitle"
-  },
-  "conversationOpen": "Conversation mode",
-  "@conversationOpen": {
-    "description": "conversationOpen"
   },
   "conversationFaceToFaceEnter": "Face-to-face mode",
   "@conversationFaceToFaceEnter": {
@@ -3193,14 +3165,6 @@
   "@webTranslateInvalidUrl": {
     "description": "webTranslateInvalidUrl"
   },
-  "webTranslateEmptyTitle": "Read any web page in your language",
-  "@webTranslateEmptyTitle": {
-    "description": "webTranslateEmptyTitle"
-  },
-  "webTranslateEmptyBody": "Paste a link to an article or blog post. Mozhi downloads the page, keeps only the readable text and translates it with the engine and languages selected below.",
-  "@webTranslateEmptyBody": {
-    "description": "webTranslateEmptyBody"
-  },
   "webTranslateWebNotice": "In the browser version, Mozhi can only open pages from sites that allow cross-origin requests (CORS), and most sites do not. Use the Android, iOS or desktop app to translate any page.",
   "@webTranslateWebNotice": {
     "description": "webTranslateWebNotice"
@@ -3338,10 +3302,6 @@
   "documentsModeText": "Text",
   "@documentsModeText": {
     "description": "documentsModeText"
-  },
-  "documentsPickTitle": "Choose a document",
-  "@documentsPickTitle": {
-    "description": "documentsPickTitle"
   },
   "documentsPickHint": "Text, Markdown, SRT and VTT subtitles, JSON and ARB files up to {size}. Code, links and timings stay untouched.",
   "@documentsPickHint": {
@@ -4109,10 +4069,6 @@
   "@translateToolWebPage": {
     "description": "translateToolWebPage"
   },
-  "translateToolConversation": "Conversation",
-  "@translateToolConversation": {
-    "description": "translateToolConversation"
-  },
   "appSecureStorageUnavailable": "API keys can't be stored securely on this device; they will be kept only for this session.",
   "@appSecureStorageUnavailable": {
     "description": "Shown once on start when the platform secure storage is unavailable and API keys are kept in memory only"
@@ -4413,10 +4369,6 @@
   "@dictionaryPickerNoMatches": {
     "description": "dictionaryPickerNoMatches"
   },
-  "dictionaryEmptyTitle": "Look up any word",
-  "@dictionaryEmptyTitle": {
-    "description": "dictionaryEmptyTitle"
-  },
   "dictionaryEmptyBody": "See definitions, pronunciation, examples and translations, written by your AI provider.",
   "@dictionaryEmptyBody": {
     "description": "dictionaryEmptyBody"
@@ -4465,10 +4417,6 @@
   "dictionaryReady": "Dictionary entry ready",
   "@dictionaryReady": {
     "description": "dictionaryReady"
-  },
-  "dictionaryBack": "Back to Translate",
-  "@dictionaryBack": {
-    "description": "dictionaryBack"
   },
   "settingsHistoryRetentionConfirmTitle": "Delete older translations now?",
   "@settingsHistoryRetentionConfirmTitle": {
@@ -4640,10 +4588,6 @@
         "type": "String"
       }
     }
-  },
-  "translateToolDictionary": "Dictionary",
-  "@translateToolDictionary": {
-    "description": "More tools menu entry that opens the dictionary"
   },
   "translateRefineMoreFormal": "More formal",
   "@translateRefineMoreFormal": {
@@ -5593,14 +5537,6 @@
   "translateToolAlignment": "Matching phrases",
   "@translateToolAlignment": {
     "description": "Chip label: highlight which phrases of the input and the translation match"
-  },
-  "translateEmptyTitle": "Your translation appears here",
-  "@translateEmptyTitle": {
-    "description": "Title of the empty output card"
-  },
-  "translateEmptyHint": "Type or paste text, speak, or translate a photo.",
-  "@translateEmptyHint": {
-    "description": "Hint in the empty output card"
   },
   "translateEmptyRecentPairs": "Recent pairs",
   "@translateEmptyRecentPairs": {
@@ -7432,5 +7368,572 @@
   "offlineOcrUnavailable": "This device can’t run on-device text recognition",
   "@offlineOcrUnavailable": {
     "description": "offlineOcrUnavailable"
+  },
+  "translateErrorSourceLanguageRequired": "This engine can't detect the language of this text. Choose the language it is written in.",
+  "@translateErrorSourceLanguageRequired": {
+    "description": "translateErrorSourceLanguageRequired"
+  },
+  "translateChooseSourceLanguage": "Choose language",
+  "@translateChooseSourceLanguage": {
+    "description": "translateChooseSourceLanguage"
+  },
+  "translateUseSourceLanguage": "Translate from {language}",
+  "@translateUseSourceLanguage": {
+    "description": "Action of a translation error when the engine cannot detect the source language: translate from this language (the most recent source language)",
+    "placeholders": {
+      "language": {
+        "type": "String",
+        "example": "German"
+      }
+    }
+  },
+  "voiceInputUnavailable": "Voice input unavailable",
+  "@voiceInputUnavailable": {
+    "description": "voiceInputUnavailable"
+  },
+  "voiceInputStarting": "Starting voice input…",
+  "@voiceInputStarting": {
+    "description": "voiceInputStarting"
+  },
+  "voiceInputCancelStart": "Cancel voice input",
+  "@voiceInputCancelStart": {
+    "description": "voiceInputCancelStart"
+  },
+  "voiceErrorUnavailableOfflineModel": "There’s no speech recognition service on this device. Download the offline speech model in Settings › Voice input to use voice input.",
+  "@voiceErrorUnavailableOfflineModel": {
+    "description": "voiceErrorUnavailableOfflineModel"
+  },
+  "voiceDownloadModelAction": "Download model",
+  "@voiceDownloadModelAction": {
+    "description": "voiceDownloadModelAction"
+  },
+  "imageTranslateMethodMozhiGoogle": "Mozhi via Google Translate (experimental)",
+  "@imageTranslateMethodMozhiGoogle": {
+    "description": "imageTranslateMethodMozhiGoogle"
+  },
+  "imageTranslateMethodMozhiGoogleDescription": "Experimental. Your Mozhi instance passes the photo on to Google Translate, which often refuses such requests. When it works, the translation is drawn into the picture.",
+  "@imageTranslateMethodMozhiGoogleDescription": {
+    "description": "imageTranslateMethodMozhiGoogleDescription"
+  },
+  "imageTranslateMethodOnDeviceRecommended": "Recommended. Reads the text on this device, so the photo stays on it, then translates the text with the translator’s engine.",
+  "@imageTranslateMethodOnDeviceRecommended": {
+    "description": "imageTranslateMethodOnDeviceRecommended"
+  },
+  "imageTranslatePhaseMozhiGoogle": "Sending the image to Google Translate through your Mozhi instance. This can take up to {seconds} seconds.",
+  "@imageTranslatePhaseMozhiGoogle": {
+    "description": "Progress while Mozhi relays the image to Google Translate",
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "imageTranslateErrorServiceRefused": "Google Translate sent nothing back for this image through your Mozhi instance. It may have refused the request, or found no text in the image.",
+  "@imageTranslateErrorServiceRefused": {
+    "description": "imageTranslateErrorServiceRefused"
+  },
+  "imageTranslateErrorTimeoutMozhi": "Google Translate didn’t answer through your Mozhi instance within {seconds} seconds. Try again or use a smaller image.",
+  "@imageTranslateErrorTimeoutMozhi": {
+    "description": "Mozhi image translation ran out of time",
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "imageTranslateErrorTimeoutGeneric": "Image translation took too long. Try again or use a smaller image.",
+  "@imageTranslateErrorTimeoutGeneric": {
+    "description": "imageTranslateErrorTimeoutGeneric"
+  },
+  "imageTranslateUseOnDevice": "Use on-device text recognition",
+  "@imageTranslateUseOnDevice": {
+    "description": "imageTranslateUseOnDevice"
+  },
+  "imageTranslateChooseSourceLanguage": "Choose the language of the text",
+  "@imageTranslateChooseSourceLanguage": {
+    "description": "imageTranslateChooseSourceLanguage"
+  },
+  "imageTranslateLowConfidence": "Wrong language?",
+  "@imageTranslateLowConfidence": {
+    "description": "imageTranslateLowConfidence"
+  },
+  "translateStopTranslating": "Stop translating",
+  "@translateStopTranslating": {
+    "description": "Tooltip and accessible name of the go button at the end of the language bar while a translation is running: pressing it stops the translation (the text so far stays)."
+  },
+  "translateOptionsDone": "Done",
+  "@translateOptionsDone": {
+    "description": "Button that closes the translation options sheet (the choices are already saved)."
+  },
+  "translateOptionsNeedAi": "{engine} translates without these options. Style, formality, gender and context need an AI translator. Your choices are saved and apply when you use one.",
+  "@translateOptionsNeedAi": {
+    "description": "Note at the top of the translation options sheet when the current engine (e.g. a Mozhi engine or the offline engine) applies none of the options; {engine} is its name (e.g. Google).",
+    "placeholders": {
+      "engine": {
+        "type": "String",
+        "example": "Google"
+      }
+    }
+  },
+  "translateOptionsPartlyNeedAi": "{engine} applies only formality, context and formatting. Style, reading level, gender and the glossary need an AI translator. Your choices are saved and apply when you use one.",
+  "@translateOptionsPartlyNeedAi": {
+    "description": "Note at the top of the translation options sheet for a machine translation service that applies some options (DeepL API); {engine} is its name (e.g. DeepL).",
+    "placeholders": {
+      "engine": {
+        "type": "String",
+        "example": "DeepL"
+      }
+    }
+  },
+  "translateOptionsChooseAi": "Choose an AI translator",
+  "@translateOptionsChooseAi": {
+    "description": "Action of the note in the translation options sheet: closes the sheet and opens the engine picker to switch to an AI translator."
+  },
+  "translateGreetingMorning": "Good morning",
+  "@translateGreetingMorning": {
+    "description": "Greeting in the middle of the empty translate screen, from 5:00 to 11:59."
+  },
+  "translateGreetingAfternoon": "Good afternoon",
+  "@translateGreetingAfternoon": {
+    "description": "Greeting in the middle of the empty translate screen, from 12:00 to 17:59."
+  },
+  "translateGreetingEvening": "Good evening",
+  "@translateGreetingEvening": {
+    "description": "Greeting in the middle of the empty translate screen, from 18:00 to 4:59."
+  },
+  "translateHeroCamera": "Camera",
+  "@translateHeroCamera": {
+    "description": "Short label of the chip under the greeting of the empty translate screen that opens image translation (take or pick a photo)."
+  },
+  "translateHeroDocument": "Document",
+  "@translateHeroDocument": {
+    "description": "Short label of the chip under the greeting of the empty translate screen that opens document translation."
+  },
+  "navDictionary": "Dictionary",
+  "@navDictionary": {
+    "description": "Bottom bar / sidebar destination: the AI dictionary tab"
+  },
+  "navConversation": "Conversation",
+  "@navConversation": {
+    "description": "Bottom bar / sidebar destination: the conversation tab"
+  },
+  "conversationHeroTitle": "Let's talk!",
+  "@conversationHeroTitle": {
+    "description": "Big headline of the conversation tab while the conversation is empty"
+  },
+  "conversationHeroHint": "Tap the microphone to start or stop",
+  "@conversationHeroHint": {
+    "description": "Hint under conversationHeroTitle, above the large microphone button"
+  },
+  "conversationHeroMicLanguage": "Speak {language}",
+  "@conversationHeroMicLanguage": {
+    "description": "Caption under the large microphone of the empty conversation: the language it listens for (the first language of the pair)",
+    "placeholders": {
+      "language": {
+        "type": "String",
+        "example": "English"
+      }
+    }
+  },
+  "dictionaryHeroTitle": "What does this mean?",
+  "@dictionaryHeroTitle": {
+    "description": "Big headline above the dictionary search before the first look-up"
+  },
+  "proofreadHeroTitle": "Does this look right?",
+  "@proofreadHeroTitle": {
+    "description": "Big headline above the proofreading input before the first check"
+  },
+  "settingsColorLavender": "Lavender",
+  "@settingsColorLavender": {
+    "description": "settingsColorLavender"
+  },
+  "settingsSectionGeneral": "General",
+  "@settingsSectionGeneral": {
+    "description": "settingsSectionGeneral"
+  },
+  "settingsAppLanguage": "App language",
+  "@settingsAppLanguage": {
+    "description": "settingsAppLanguage"
+  },
+  "settingsAppLanguageSystem": "System default",
+  "@settingsAppLanguageSystem": {
+    "description": "settingsAppLanguageSystem"
+  },
+  "settingsAppLanguageDialogBody": "The language of the menus and buttons. What you translate is not affected.",
+  "@settingsAppLanguageDialogBody": {
+    "description": "settingsAppLanguageDialogBody"
+  },
+  "settingsHapticFeedback": "Haptic feedback",
+  "@settingsHapticFeedback": {
+    "description": "settingsHapticFeedback"
+  },
+  "settingsHapticFeedbackSubtitle": "Vibrate lightly when you press translate, swap, copy or favourite",
+  "@settingsHapticFeedbackSubtitle": {
+    "description": "settingsHapticFeedbackSubtitle"
+  },
+  "settingsTabOrder": "Tab order",
+  "@settingsTabOrder": {
+    "description": "settingsTabOrder"
+  },
+  "settingsTabOrderSubtitle": "Opens on {tab}",
+  "@settingsTabOrderSubtitle": {
+    "description": "Subtitle of the tab order setting: the tab the app opens on.",
+    "placeholders": {
+      "tab": {
+        "type": "String",
+        "example": "Translate"
+      }
+    }
+  },
+  "settingsTabOrderHint": "The app opens on the first tab. Drag a tab by its handle or use the arrows to move it.",
+  "@settingsTabOrderHint": {
+    "description": "settingsTabOrderHint"
+  },
+  "settingsTabOrderFirst": "Opens when the app starts",
+  "@settingsTabOrderFirst": {
+    "description": "settingsTabOrderFirst"
+  },
+  "settingsTabOrderDragHandle": "Drag to reorder",
+  "@settingsTabOrderDragHandle": {
+    "description": "settingsTabOrderDragHandle"
+  },
+  "settingsTabOrderMoveUp": "Move {tab} up",
+  "@settingsTabOrderMoveUp": {
+    "description": "Tooltip and label of the button that moves a tab one place up.",
+    "placeholders": {
+      "tab": {
+        "type": "String",
+        "example": "Dictionary"
+      }
+    }
+  },
+  "settingsTabOrderMoveDown": "Move {tab} down",
+  "@settingsTabOrderMoveDown": {
+    "description": "Tooltip and label of the button that moves a tab one place down.",
+    "placeholders": {
+      "tab": {
+        "type": "String",
+        "example": "Dictionary"
+      }
+    }
+  },
+  "settingsTabOrderReset": "Reset to the default order",
+  "@settingsTabOrderReset": {
+    "description": "settingsTabOrderReset"
+  },
+  "settingsTabOrderResetDone": "Default tab order restored",
+  "@settingsTabOrderResetDone": {
+    "description": "settingsTabOrderResetDone"
+  },
+  "settingsRememberQuality": "Remember quality selection",
+  "@settingsRememberQuality": {
+    "description": "settingsRememberQuality"
+  },
+  "settingsRememberQualitySubtitle": "Start with the Fast or Best mode you used last. When off, the app starts in Fast if it is set up, otherwise with your usual engine.",
+  "@settingsRememberQualitySubtitle": {
+    "description": "settingsRememberQualitySubtitle"
+  },
+  "settingsMultilineInput": "Multiline input",
+  "@settingsMultilineInput": {
+    "description": "settingsMultilineInput"
+  },
+  "settingsMultilineInputSubtitle": "When on, Enter adds a new line instead of starting a translation.",
+  "@settingsMultilineInputSubtitle": {
+    "description": "settingsMultilineInputSubtitle"
+  },
+  "dictionaryOptionsTooltip": "Dictionary options",
+  "@dictionaryOptionsTooltip": {
+    "description": "dictionaryOptionsTooltip"
+  },
+  "dictionaryOptionsTitle": "Options",
+  "@dictionaryOptionsTitle": {
+    "description": "dictionaryOptionsTitle"
+  },
+  "dictionaryLanguagesTitle": "Languages",
+  "@dictionaryLanguagesTitle": {
+    "description": "dictionaryLanguagesTitle"
+  },
+  "dictionaryTabMeaning": "Meaning",
+  "@dictionaryTabMeaning": {
+    "description": "dictionaryTabMeaning"
+  },
+  "dictionaryTabMore": "More",
+  "@dictionaryTabMore": {
+    "description": "dictionaryTabMore"
+  },
+  "dictionaryTabExamples": "Examples",
+  "@dictionaryTabExamples": {
+    "description": "dictionaryTabExamples"
+  },
+  "dictionaryOtherMeanings": "Other meanings",
+  "@dictionaryOtherMeanings": {
+    "description": "dictionaryOtherMeanings"
+  },
+  "dictionaryNotes": "Notes",
+  "@dictionaryNotes": {
+    "description": "dictionaryNotes"
+  },
+  "dictionaryTranslationsIn": "In {language}",
+  "@dictionaryTranslationsIn": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "dictionaryNewLookUp": "New look-up",
+  "@dictionaryNewLookUp": {
+    "description": "dictionaryNewLookUp"
+  },
+  "dictionaryListenNeedsLanguage": "Choose the word’s language to listen to it",
+  "@dictionaryListenNeedsLanguage": {
+    "description": "dictionaryListenNeedsLanguage"
+  },
+  "proofreadOptionsTooltip": "Proofreading options",
+  "@proofreadOptionsTooltip": {
+    "description": "proofreadOptionsTooltip"
+  },
+  "proofreadOptionsModifiedTooltip": "Proofreading options (modified)",
+  "@proofreadOptionsModifiedTooltip": {
+    "description": "proofreadOptionsModifiedTooltip"
+  },
+  "proofreadShortcutTooltip": "Proofread (Ctrl+Enter)",
+  "@proofreadShortcutTooltip": {
+    "description": "proofreadShortcutTooltip"
+  },
+  "proofreadLanguageTitle": "Language",
+  "@proofreadLanguageTitle": {
+    "description": "proofreadLanguageTitle"
+  },
+  "proofreadLanguageAuto": "Detect language",
+  "@proofreadLanguageAuto": {
+    "description": "proofreadLanguageAuto"
+  },
+  "proofreadLanguageButton": "Language: {language}",
+  "@proofreadLanguageButton": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "proofreadLanguageDetected": "Detected: {language}",
+  "@proofreadLanguageDetected": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "conversationBeta": "Beta",
+  "@conversationBeta": {
+    "description": "Small badge next to the conversation title: the hands-free conversation is new."
+  },
+  "conversationSessionStart": "Start conversation",
+  "@conversationSessionStart": {
+    "description": "Label of the large microphone that starts a hands-free conversation."
+  },
+  "conversationSessionStop": "Stop conversation",
+  "@conversationSessionStop": {
+    "description": "Label of the large microphone while a hands-free conversation runs (tapping stops it)."
+  },
+  "conversationSessionContinue": "Continue conversation",
+  "@conversationSessionContinue": {
+    "description": "Label of the large microphone while a hands-free conversation is paused."
+  },
+  "conversationSessionListening": "Listening in {language}…",
+  "@conversationSessionListening": {
+    "description": "Status while the hands-free conversation listens for one side.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "conversationSessionListeningEither": "Listening in {first} or {second}…",
+  "@conversationSessionListeningEither": {
+    "description": "Status while the hands-free conversation listens and the recogniser detects which of the two languages is spoken; {first} is the side whose turn it is.",
+    "placeholders": {
+      "first": {
+        "type": "String"
+      },
+      "second": {
+        "type": "String"
+      }
+    }
+  },
+  "conversationSessionTranscribing": "Transcribing what was said…",
+  "@conversationSessionTranscribing": {
+    "description": "Status while an on-device recogniser transcribes the recording."
+  },
+  "conversationSessionSpeaking": "Reading aloud in {language}…",
+  "@conversationSessionSpeaking": {
+    "description": "Status while the translation is read aloud.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "conversationSessionPausedSilence": "Didn't hear anything. Tap the microphone to continue.",
+  "@conversationSessionPausedSilence": {
+    "description": "Status when the hands-free conversation paused because nobody spoke."
+  },
+  "conversationSessionPaused": "Paused. Tap the microphone to continue.",
+  "@conversationSessionPaused": {
+    "description": "Status when the hands-free conversation paused because the microphone was taken over."
+  },
+  "conversationSessionPausedConsent": "Allow the translation above, or tap the microphone to continue.",
+  "@conversationSessionPausedConsent": {
+    "description": "Status when the hands-free conversation waits for permission to send a message to a translation service."
+  },
+  "conversationSessionPausedSpeechConsent": "Allow reading aloud, or tap the microphone to continue.",
+  "@conversationSessionPausedSpeechConsent": {
+    "description": "Status when the hands-free conversation waits for permission to read a translation aloud online."
+  },
+  "conversationSessionPausedFailed": "The translation failed. Retry it, or tap the microphone to continue.",
+  "@conversationSessionPausedFailed": {
+    "description": "Status when the hands-free conversation paused because a translation failed."
+  },
+  "conversationSessionFailed": "{error} Tap the microphone to try again.",
+  "@conversationSessionFailed": {
+    "description": "Status when the hands-free conversation stopped because voice input failed; {error} explains why.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "conversationSessionSpeakNext": "{language} speaks next",
+  "@conversationSessionSpeakNext": {
+    "description": "Tooltip and label of a language in the language pill during a hands-free conversation: tapping it lets that side speak next.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "conversationShowKeyboard": "Type a message",
+  "@conversationShowKeyboard": {
+    "description": "Button that shows the text fields of a hands-free conversation."
+  },
+  "conversationHideKeyboard": "Hide text fields",
+  "@conversationHideKeyboard": {
+    "description": "Button that hides the text fields of a hands-free conversation."
+  },
+  "conversationTranslationStopped": "Translation stopped",
+  "@conversationTranslationStopped": {
+    "description": "A message whose translation was stopped together with the hands-free conversation."
+  },
+  "conversationTranslationAnnouncement": "{language}: {translation}",
+  "@conversationTranslationAnnouncement": {
+    "description": "Screen reader announcement of a new translation.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      },
+      "translation": {
+        "type": "String"
+      }
+    }
+  },
+  "proofreadLanguageAutoSemantics": "Language: detected automatically",
+  "@proofreadLanguageAutoSemantics": {
+    "description": "proofreadLanguageAutoSemantics"
+  },
+  "historyUnfavorited": "Removed from favorites",
+  "@historyUnfavorited": {
+    "description": "Snack bar after a translation is taken out of the Favorites tab (swiped, or its heart tapped); it offers Undo"
+  },
+  "historyNoFavoritesHeartBody": "Tap the heart on a translation to keep it here.",
+  "@historyNoFavoritesHeartBody": {
+    "description": "Body of the empty Favorites tab of History: favourites are marked with a heart button"
+  },
+  "historyButtonTooltip": "History\nLong-press to open favorites",
+  "@historyButtonTooltip": {
+    "description": "Tooltip of the History button in the app bar of every tab (shown when pointing at it): its name and that a long press opens the Favorites tab"
+  },
+  "historyOpenFavorites": "Open favorites",
+  "@historyOpenFavorites": {
+    "description": "What a long press on the History button does, announced by TalkBack as \"double-tap and hold to open favorites\""
+  },
+  "translateShortcutEnterTranslates": "Translate (while typing)",
+  "@translateShortcutEnterTranslates": {
+    "description": "Keyboard shortcut cheat sheet, shown for Enter when Settings > Multiline input is off"
+  },
+  "translateShortcutNewLine": "Insert a new line (while typing)",
+  "@translateShortcutNewLine": {
+    "description": "Keyboard shortcut cheat sheet, shown for Shift+Enter when Settings > Multiline input is off"
+  },
+  "translateComposerHint": "Type or {paste} text",
+  "@translateComposerHint": {
+    "description": "Placeholder of the empty translate composer. {paste} is translateComposerHintPaste, shown as a link that pastes the clipboard.",
+    "placeholders": {
+      "paste": {
+        "type": "String",
+        "example": "paste"
+      }
+    }
+  },
+  "translateComposerHintPaste": "paste",
+  "@translateComposerHintPaste": {
+    "description": "The link word inside translateComposerHint that pastes the clipboard into the field."
+  },
+  "translatePasteFailed": "Couldn't read the clipboard. Paste into the text field instead.",
+  "@translatePasteFailed": {
+    "description": "Snack bar when the paste button or link cannot read the clipboard (e.g. a browser without clipboard access)."
+  },
+  "documentsHeroTitle": "Pick a document",
+  "@documentsHeroTitle": {
+    "description": "documentsHeroTitle"
+  },
+  "imageTranslateHeroTitle": "Take or pick a photo",
+  "@imageTranslateHeroTitle": {
+    "description": "imageTranslateHeroTitle"
+  },
+  "webTranslateHeroTitle": "Enter an address",
+  "@webTranslateHeroTitle": {
+    "description": "webTranslateHeroTitle"
+  },
+  "webTranslateHeroBody": "Paste a link to an article or blog post. Mozhi downloads the page, keeps only the readable text and translates it with the engine and languages above.",
+  "@webTranslateHeroBody": {
+    "description": "webTranslateHeroBody"
+  },
+  "historyDictionaryMarker": "Dictionary",
+  "@historyDictionaryMarker": {
+    "description": "Small label on a History entry that is a dictionary look-up (not a translation)."
+  },
+  "historyOpenDictionaryHint": "Look up in the dictionary",
+  "@historyOpenDictionaryHint": {
+    "description": "Screen reader hint: what tapping a dictionary look-up in History does."
+  },
+  "historyLookUpDeleted": "Look-up deleted",
+  "@historyLookUpDeleted": {
+    "description": "Snack bar after deleting a dictionary look-up from History (with Undo)."
+  },
+  "historyFilterPairEntries": "{count, plural, =1{1 entry} other{{count} entries}}",
+  "@historyFilterPairEntries": {
+    "description": "Number of History entries (translations and dictionary look-ups) of a language pair.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "translateDetectLanguageShort": "Auto",
+  "@translateDetectLanguageShort": {
+    "description": "Short form of “Detect language” after the sparkle icon, when the language bar is too narrow for the full name"
+  },
+  "translateOfflineOnlyNoLanguagePacks": "No language packs on this device yet. Download one to translate offline.",
+  "@translateOfflineOnlyNoLanguagePacks": {
+    "description": "Privacy mode is Offline only and no offline language pack is downloaded (Android)"
+  },
+  "translateOfflineOnlyWebUnavailable": "Offline translation isn’t available in the web app. Switch to Offline first or Online in Settings › Privacy.",
+  "@translateOfflineOnlyWebUnavailable": {
+    "description": "Privacy mode is Offline only in the web app, which has no on-device engine"
+  },
+  "translateOfflineOnlyDeviceUnsupported": "This device can’t run offline translation. Switch to Offline first or Online in Settings › Privacy.",
+  "@translateOfflineOnlyDeviceUnsupported": {
+    "description": "Privacy mode is Offline only on an Android device whose processor cannot run the offline engine"
   }
 }

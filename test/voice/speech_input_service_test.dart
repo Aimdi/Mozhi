@@ -33,12 +33,16 @@ void main() {
     bool platformSupported = true,
     bool onDeviceSupported = true,
     KeyValueStore? keyValueStore,
+    Duration queryTimeout = SpeechInputService.defaultQueryTimeout,
+    Duration initializeTimeout = SpeechInputService.defaultInitializeTimeout,
   }) {
     final created = SpeechInputService(
       store: keyValueStore ?? store,
       adapter: recognizer,
       platformSupported: platformSupported,
       onDeviceSupported: onDeviceSupported,
+      queryTimeout: queryTimeout,
+      initializeTimeout: initializeTimeout,
     );
     created.states.listen(states.add);
     created.results.listen(results.add);
@@ -258,6 +262,113 @@ void main() {
     });
   });
 
+  group('unanswered platform queries', () {
+    const timeout = Duration(milliseconds: 30);
+
+    test('have short defaults; initialising may take a minute', () {
+      expect(
+        SpeechInputService.defaultQueryTimeout,
+        const Duration(seconds: 3),
+      );
+      expect(
+        SpeechInputService.defaultInitializeTimeout,
+        const Duration(minutes: 1),
+      );
+      expect(service.queryTimeout, SpeechInputService.defaultQueryTimeout);
+      expect(
+        service.initializeTimeout,
+        SpeechInputService.defaultInitializeTimeout,
+      );
+    });
+
+    test('unanswered locales: listening starts in the chosen language, '
+        'and later sessions do not wait again', () async {
+      recognizer.localesGate = Completer<void>();
+      service = build(queryTimeout: timeout);
+      final owner = Object();
+
+      final elapsed = Stopwatch()..start();
+      expect(await service.listen('fr', owner: owner), isTrue);
+      expect(elapsed.elapsed, lessThan(const Duration(seconds: 1)));
+      expect(recognizer.lastRequest.localeId, 'fr-FR');
+      expect(service.state, SpeechInputListening(owner: owner));
+
+      await service.cancel();
+      expect(await service.listen('pt'), isTrue);
+      expect(recognizer.lastRequest.localeId, 'pt-BR');
+      expect(await service.locales(), isEmpty);
+      expect(await service.localeIdFor('fr'), 'fr-FR');
+      await service.listen('auto');
+      expect(recognizer.lastRequest.localeId, isNull);
+      expect(recognizer.localeCalls, 1);
+    });
+
+    test('an unanswered system locale is left out', () async {
+      recognizer
+        ..systemLocale = 'en_GB'
+        ..systemLocaleGate = Completer<void>();
+      service = build(queryTimeout: timeout);
+      expect(await service.listen('en'), isTrue);
+      // en_GB would have won as the system locale.
+      expect(recognizer.lastRequest.localeId, 'en_US');
+      await service.cancel();
+      expect(await service.listen('fr'), isTrue);
+      expect(recognizer.lastRequest.localeId, 'fr_FR');
+      expect(recognizer.systemLocaleCalls, 1);
+    });
+
+    test('an unanswered permission check counts as granted', () async {
+      recognizer
+        ..initResult = false
+        ..permissionGate = Completer<void>();
+      service = build(queryTimeout: timeout);
+      expect(await service.initialize(), isFalse);
+      expect(
+        service.state,
+        const SpeechInputUnavailable(
+          failure: SpeechInputFailure.recognizerUnavailable,
+        ),
+      );
+    });
+
+    test('an initialisation that never ends fails after '
+        'initializeTimeout, and the next session tries again', () async {
+      recognizer.initGate = Completer<void>();
+      service = build(initializeTimeout: timeout);
+      final owner = Object();
+
+      expect(await service.listen('en', owner: owner), isFalse);
+      expect(
+        service.state,
+        const SpeechInputUnavailable(failure: SpeechInputFailure.unknown),
+      );
+      expect(recognizer.requests, isEmpty);
+
+      recognizer.initGate = null;
+      expect(await service.listen('en', owner: owner), isTrue);
+      expect(recognizer.initCalls, 2);
+      expect(service.state, SpeechInputListening(owner: owner));
+    });
+
+    test('an error reported before the initialisation timed out explains '
+        'it', () async {
+      recognizer
+        ..initGate = Completer<void>()
+        ..initResult = false;
+      service = build(initializeTimeout: timeout);
+      final pending = service.initialize();
+      await flush();
+      recognizer.emitError('error_permission');
+      expect(await pending, isFalse);
+      expect(
+        service.state,
+        const SpeechInputUnavailable(
+          failure: SpeechInputFailure.permissionDenied,
+        ),
+      );
+    });
+  });
+
   group('listen', () {
     test('starts a dictation session with the mapped locale', () async {
       final owner = Object();
@@ -300,7 +411,11 @@ void main() {
       await flush();
       expect(
         service.state,
-        SpeechInputListening(partialText: 'hello world', owner: owner),
+        SpeechInputListening(
+          partialText: 'hello world',
+          owner: owner,
+          heardSpeech: true,
+        ),
       );
 
       recognizer.emitResult('Hello world.', isFinal: true);
@@ -312,6 +427,27 @@ void main() {
       ]);
       expect(service.state, const SpeechInputIdle());
       expect(service.isListening, isFalse);
+    });
+
+    test('words are speech, loudness alone is not', () async {
+      final owner = Object();
+      await service.listen('en', owner: owner);
+      recognizer
+        ..emitLevel(-2)
+        ..emitLevel(10)
+        ..emitResult(' ');
+      await flush();
+      expect(
+        service.state,
+        SpeechInputListening(level: 1, partialText: ' ', owner: owner),
+      );
+      recognizer.emitResult('hi');
+      await flush();
+      expect((service.state as SpeechInputListening).heardSpeech, isTrue);
+      // Once heard, it stays heard.
+      recognizer.emitResult('');
+      await flush();
+      expect((service.state as SpeechInputListening).heardSpeech, isTrue);
     });
 
     test('normalises sound levels to 0..1', () async {
@@ -571,6 +707,21 @@ void main() {
       expect(
         SpeechInputError('x', permanent: false, owner: owner).isOwnedBy(owner),
         isTrue,
+      );
+    });
+
+    test('a listening state keeps what it heard when copied', () {
+      const heard = SpeechInputListening(
+        heardSpeech: true,
+        detectsLanguage: true,
+      );
+      expect(
+        heard.copyWith(level: 0.5),
+        const SpeechInputListening(
+          level: 0.5,
+          heardSpeech: true,
+          detectsLanguage: true,
+        ),
       );
     });
 

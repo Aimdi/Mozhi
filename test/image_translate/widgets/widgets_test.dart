@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
@@ -10,6 +11,7 @@ import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/image_translate/image_translate.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/translate/widgets/translate_error.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 import '../helpers/helpers.dart';
@@ -62,11 +64,45 @@ void main() {
           l10n,
           const ImageTranslateException(ImageTranslateErrorKind.timeout),
         ).message,
-        l10n.imageTranslateErrorTimeout,
+        l10n.imageTranslateErrorTimeoutGeneric,
+      );
+      expect(
+        describeImageTranslateError(
+          l10n,
+          const ImageTranslateException(ImageTranslateErrorKind.timeout),
+          method: ImageTranslateMethodKind.mozhiLens,
+        ).message,
+        l10n.imageTranslateErrorTimeoutMozhi(90),
       );
       expect(
         describeImageTranslateError(l10n, StateError('x')).message,
         l10n.translateErrorGeneric,
+      );
+    });
+
+    test('a refused Mozhi image links to instances, with details', () {
+      final info = describeImageTranslateError(
+        l10n,
+        const ImageTranslateException(
+          ImageTranslateErrorKind.serviceRefused,
+          cause: MozhiApiException(
+            TranslationRepository.imageNoResultMessage,
+            statusCode: 502,
+          ),
+        ),
+      );
+      expect(info.message, l10n.imageTranslateErrorServiceRefused);
+      expect(info.fix, TranslateErrorFix.instances);
+      expect(
+        info.details,
+        'HTTP 502: ${TranslationRepository.imageNoResultMessage}',
+      );
+      expect(
+        describeImageTranslateError(
+          l10n,
+          const ImageTranslateException(ImageTranslateErrorKind.noText),
+        ).details,
+        isNull,
       );
     });
 
@@ -82,7 +118,11 @@ void main() {
       );
       expect(
         message(ImageTranslatePhase.uploading, mozhiMethod),
-        l10n.imageTranslatePhaseMozhi,
+        l10n.imageTranslatePhaseMozhiGoogle(90),
+      );
+      expect(
+        message(ImageTranslatePhase.uploading, mozhiMethod),
+        contains('90'),
       );
       expect(
         message(ImageTranslatePhase.uploading, claudeMethod),
@@ -105,7 +145,19 @@ void main() {
       );
       expect(
         imageMethodDescription(l10n, ImageTranslateMethodKind.onDevice),
-        l10n.imageTranslateMethodOnDeviceDescription,
+        l10n.imageTranslateMethodOnDeviceRecommended,
+      );
+      expect(
+        imageMethodDescription(l10n, ImageTranslateMethodKind.onDevice),
+        startsWith('Recommended'),
+      );
+      expect(
+        imageMethodLabel(l10n, mozhiMethod),
+        'Mozhi via Google Translate (experimental)',
+      );
+      expect(
+        imageMethodDescription(l10n, ImageTranslateMethodKind.mozhiLens),
+        startsWith('Experimental'),
       );
       expect(imageLanguageLabel(l10n, Language.auto), 'Detect language');
       expect(imageLanguageLabel(l10n, french), 'French');
@@ -125,7 +177,10 @@ void main() {
         cubit,
         child: const ImageTranslateProgress(),
       );
-      expect(find.text(l10n.imageTranslatePhaseMozhi), findsOneWidget);
+      expect(
+        find.text(l10n.imageTranslatePhaseMozhiGoogle(90)),
+        findsOneWidget,
+      );
       expect(find.byKey(const Key('image_translate_slow')), findsOneWidget);
       await tester.tap(find.byKey(const Key('image_translate_cancel_button')));
       verify(cubit.cancel).called(1);
@@ -217,6 +272,25 @@ void main() {
         find.byKey(const Key('image_translate_retranslate_button')),
       );
       expect(retranslate.onPressed, isNull);
+    });
+
+    testWidgets('shows the translation as body text, not a heading', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        successState(result: const ImageTranslation(translatedText: 'Bonjour')),
+      );
+      final text = tester.widget<SelectableText>(
+        find.descendant(
+          of: find.byKey(const Key('image_translate_translation')),
+          matching: find.byType(SelectableText),
+        ),
+      );
+      // The translate screen's output style (the theme's title styles are
+      // bold headings).
+      expect(text.style?.fontWeight, FontWeight.w400);
+      expect(text.style?.fontSize, 20);
     });
 
     testWidgets('copies the translation', (tester) async {
@@ -390,7 +464,8 @@ void main() {
       await tester.tap(find.byKey(const Key('image_translate_retry_button')));
       expect(retried, 1);
       await tester.tap(find.text(l10n.translateProvidersAction));
-      verify(() => harness.router.go('/settings/providers')).called(1);
+      verify(() => harness.router.push<Object?>('/settings/providers'))
+          .called(1);
     });
 
     testWidgets('links to instances for unreachable instances', (tester) async {
@@ -405,7 +480,8 @@ void main() {
         findsNothing,
       );
       await tester.tap(find.text(l10n.translateManageInstances));
-      verify(() => harness.router.go('/settings/instances')).called(1);
+      verify(() => harness.router.push<Object?>('/settings/instances'))
+          .called(1);
     });
 
     testWidgets('shows image errors without a shortcut', (tester) async {
@@ -419,6 +495,224 @@ void main() {
       );
       expect(find.text(l10n.imageTranslateErrorNoText), findsOneWidget);
       expect(find.byType(TextButton), findsNothing);
+    });
+
+    testWidgets('offers on-device recognition after a refused upload', (
+      tester,
+    ) async {
+      var onDevice = 0;
+      var retried = 0;
+      await harness.pump(
+        tester,
+        Scaffold(
+          body: ImageTranslateErrorView(
+            error: const ImageTranslateException(
+              ImageTranslateErrorKind.serviceRefused,
+              cause: MozhiApiException(
+                TranslationRepository.imageNoResultMessage,
+                statusCode: 502,
+              ),
+            ),
+            method: ImageTranslateMethodKind.mozhiLens,
+            onRetry: () => retried++,
+            onUseOnDevice: () => onDevice++,
+          ),
+        ),
+      );
+      expect(find.text(l10n.imageTranslateErrorServiceRefused), findsOne);
+      await tester.tap(find.byKey(const Key('image_translate_use_on_device')));
+      expect(onDevice, 1);
+      // Retry is the second choice then.
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('image_translate_retry_button')),
+          matching: find.text(l10n.commonRetry),
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const Key('image_translate_retry_button')));
+      expect(retried, 1);
+      await tester.tap(find.text(l10n.translateManageInstances));
+      verify(() => harness.router.push<Object?>('/settings/instances'))
+          .called(1);
+
+      // The technical message, on request.
+      expect(
+        find.byKey(const Key('translate_error_details_text')),
+        findsNothing,
+      );
+      await tester.tap(find.byKey(const Key('translate_error_details')));
+      await tester.pump();
+      expect(
+        find.text('HTTP 502: ${TranslationRepository.imageNoResultMessage}'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('names the Mozhi timeout', (tester) async {
+      await harness.pump(
+        tester,
+        const Scaffold(
+          body: ImageTranslateErrorView(
+            error: ImageTranslateException(ImageTranslateErrorKind.timeout),
+            method: ImageTranslateMethodKind.mozhiLens,
+          ),
+        ),
+      );
+      expect(find.text(l10n.imageTranslateErrorTimeoutMozhi(90)), findsOne);
+    });
+
+    testWidgets('lets the user choose the language of the text', (
+      tester,
+    ) async {
+      var chosen = 0;
+      await harness.pump(
+        tester,
+        Scaffold(
+          body: ImageTranslateErrorView(
+            error: const SourceLanguageRequiredException(),
+            onRetry: () {},
+            onChooseSourceLanguage: () => chosen++,
+          ),
+        ),
+      );
+      expect(
+        find.text(l10n.translateErrorSourceLanguageRequired),
+        findsOneWidget,
+      );
+      // Retrying cannot detect it either.
+      expect(
+        find.byKey(const Key('image_translate_retry_button')),
+        findsNothing,
+      );
+      await tester.tap(find.byKey(const Key('image_translate_choose_source')));
+      expect(chosen, 1);
+    });
+
+    testWidgets('keeps Retry without a language picker', (tester) async {
+      await harness.pump(
+        tester,
+        Scaffold(
+          body: ImageTranslateErrorView(
+            error: const SourceLanguageRequiredException(),
+            onRetry: () {},
+          ),
+        ),
+      );
+      expect(
+        find.byKey(const Key('image_translate_choose_source')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const Key('image_translate_retry_button')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('opens the offline languages for missing models', (
+      tester,
+    ) async {
+      await harness.pump(
+        tester,
+        const Scaffold(
+          body: ImageTranslateErrorView(
+            error: OfflineModelMissingException(['de', 'en']),
+          ),
+        ),
+      );
+      await tester.tap(
+        find.text(l10n.translateOfflineDownloadLanguage('German')),
+      );
+      verify(
+        () => harness.router.push<Object?>(
+          offlineModelsRoute,
+          extra: any(named: 'extra'),
+        ),
+      ).called(1);
+    });
+
+    testWidgets('asks the offline engine for the download size', (
+      tester,
+    ) async {
+      await harness.pump(
+        tester,
+        RepositoryProvider<OfflineTranslator>.value(
+          value: _MockOfflineTranslator(),
+          child: const Scaffold(
+            body: ImageTranslateErrorView(
+              error: OfflineModelMissingException(['fr']),
+            ),
+          ),
+        ),
+      );
+      // Only the Bergamot engine knows sizes.
+      expect(
+        find.text(l10n.translateOfflineDownloadLanguage('French')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('names no language when the models are unknown', (
+      tester,
+    ) async {
+      await harness.pump(
+        tester,
+        const Scaffold(
+          body: ImageTranslateErrorView(
+            error: OfflineModelMissingException(['en']),
+          ),
+        ),
+      );
+      expect(find.text(l10n.translateOfflineModelsAction), findsOneWidget);
+    });
+  });
+
+  group('low recognition confidence', () {
+    testWidgets('asks for the language of the text', (tester) async {
+      final cubit = mockImageCubit(
+        successState(
+          method: onDeviceMethod,
+          result: const ImageTranslation(
+            sourceText: 'Hola',
+            translatedText: 'Bonjour',
+            recognitionConfidence: 22,
+          ),
+        ).copyWith(source: Language.auto),
+      );
+      await harness.pumpWithCubit(
+        tester,
+        cubit,
+        child: const ImageTranslateResultSection(),
+      );
+      expect(find.text(l10n.imageTranslateLowConfidence), findsOneWidget);
+      await tester.tap(
+        find.byKey(const Key('image_translate_low_confidence_choose')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('image_language_de')));
+      await tester.pumpAndSettle();
+      verify(() => cubit.setSource(german)).called(1);
+    });
+
+    testWidgets('is not shown for confident readings', (tester) async {
+      await harness.pumpWithCubit(
+        tester,
+        mockImageCubit(
+          successState(
+            method: onDeviceMethod,
+            result: const ImageTranslation(
+              sourceText: 'Hola',
+              translatedText: 'Bonjour',
+              recognitionConfidence: 90,
+            ),
+          ).copyWith(source: Language.auto),
+        ),
+        child: const ImageTranslateResultSection(),
+      );
+      expect(
+        find.byKey(const Key('image_translate_low_confidence')),
+        findsNothing,
+      );
     });
   });
 
@@ -436,7 +730,13 @@ void main() {
         ),
         child: const ImageLanguageBar(),
       );
-      expect(find.text('Detected: Japanese'), findsOneWidget);
+      // The name with a sparkle, like the translate screen's language bar.
+      expect(find.text('Japanese'), findsOneWidget);
+      expect(find.byIcon(Icons.auto_awesome_outlined), findsOneWidget);
+      expect(
+        find.bySemanticsLabel('Source language: Detected: Japanese'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('falls back to the catalogue', (tester) async {
@@ -518,3 +818,5 @@ void main() {
     });
   });
 }
+
+class _MockOfflineTranslator extends Mock implements OfflineTranslator;

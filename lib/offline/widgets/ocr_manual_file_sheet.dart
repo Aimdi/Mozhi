@@ -59,9 +59,7 @@ class _OcrManualFileSheetState extends State<OcrManualFileSheet> {
             header: true,
             child: Text(
               l10n.offlineManualTitle(name),
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
+              style: theme.textTheme.titleLarge,
             ),
           ),
         ),

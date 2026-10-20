@@ -2,15 +2,18 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/language_pair_bar.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/documents/cubit/document_translate_cubit.dart';
 import 'package:mozhi/documents/widgets/document_labels.dart';
 import 'package:mozhi/documents/widgets/document_pickers.dart';
+import 'package:mozhi/documents/widgets/document_progress_section.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/widgets/engine_selector.dart';
-import 'package:translation_repository/translation_repository.dart';
 
-/// Engine and language selection for the document.
+/// Engine and language selection for the document, and the go button
+/// ([DocumentTranslateButton]) at the end of the language bar, like the
+/// translate screen's.
 class DocumentSettingsCard extends StatelessWidget {
   const new({super.key});
 
@@ -63,7 +66,9 @@ class DocumentSettingsCard extends StatelessWidget {
       );
     }
 
-    final palette = AppPalette.of(context);
+    final sourceLabel = documentLanguageLabel(l10n, state.source);
+    final targetLabel = documentLanguageLabel(l10n, state.target);
+    final pickable = !locked && !state.languagesLoading;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: 8,
@@ -75,121 +80,50 @@ class DocumentSettingsCard extends StatelessWidget {
           leading: engine == null
               ? const Icon(Icons.translate)
               : EngineIcon(engine: engine),
-          title: Text(
-            l10n.documentsEngineLabel,
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
+          title: Text(l10n.documentsEngineLabel),
           subtitle: Text(
             engine == null ? '—' : [engine.name, ?engine.subtitle].join(' · '),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: palette.secondaryText),
           ),
-          trailing: Icon(Icons.expand_more, color: palette.secondaryText),
+          trailing: Icon(
+            Icons.expand_more,
+            color: AppPalette.of(context).secondaryText,
+          ),
           onTap: () => unawaited(_pickEngine(context)),
         ),
-        Row(
-          children: [
-            Expanded(
-              child: _LanguageButton(
-                key: const Key('documents_source_language'),
-                language: state.source,
-                label: documentLanguageLabel(l10n, state.source),
-                semanticLabel: l10n.documentsSourceLanguage(
-                  documentLanguageLabel(l10n, state.source),
+        LanguagePairBar(
+          key: const Key('documents_language_bar'),
+          source: LanguagePairSide(
+            key: const Key('documents_source_language'),
+            label: sourceLabel,
+            semanticLabel: l10n.documentsSourceLanguage(sourceLabel),
+            icon: state.source.isCustom ? Icons.auto_awesome_outlined : null,
+            onPressed: pickable
+                ? () => unawaited(_pickLanguage(context, source: true))
+                : null,
+          ),
+          target: LanguagePairSide(
+            key: const Key('documents_target_language'),
+            label: targetLabel,
+            semanticLabel: l10n.documentsTargetLanguage(targetLabel),
+            icon: state.target.isCustom ? Icons.auto_awesome_outlined : null,
+            onPressed: pickable
+                ? () => unawaited(_pickLanguage(context, source: false))
+                : null,
+          ),
+          middle: state.languagesLoading
+              ? const LanguagePairProgress()
+              : LanguageSwapButton(
+                  key: const Key('documents_swap'),
+                  tooltip: l10n.documentsSwap,
+                  onPressed: locked || !state.canSwap
+                      ? null
+                      : cubit.swapLanguages,
                 ),
-                onPressed: locked || state.languagesLoading
-                    ? null
-                    : () => unawaited(_pickLanguage(context, source: true)),
-              ),
-            ),
-            if (state.languagesLoading)
-              Padding(
-                padding: const EdgeInsets.all(14),
-                child: SizedBox.square(
-                  dimension: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    backgroundColor: palette.hairline,
-                  ),
-                ),
-              )
-            else
-              IconButton(
-                key: const Key('documents_swap'),
-                tooltip: l10n.documentsSwap,
-                color: Theme.of(context).colorScheme.primary,
-                onPressed: locked || !state.canSwap
-                    ? null
-                    : cubit.swapLanguages,
-                icon: const Icon(Icons.swap_horiz),
-              ),
-            Expanded(
-              child: _LanguageButton(
-                key: const Key('documents_target_language'),
-                language: state.target,
-                label: documentLanguageLabel(l10n, state.target),
-                semanticLabel: l10n.documentsTargetLanguage(
-                  documentLanguageLabel(l10n, state.target),
-                ),
-                onPressed: locked || state.languagesLoading
-                    ? null
-                    : () => unawaited(_pickLanguage(context, source: false)),
-              ),
-            ),
-          ],
+          trailing: const [DocumentTranslateButton()],
         ),
       ],
-    );
-  }
-}
-
-/// An outlined hairline pill with the language's avatar.
-class _LanguageButton extends StatelessWidget {
-  const new({
-    required this.language,
-    required this.label,
-    required this.semanticLabel,
-    required this.onPressed,
-    super.key,
-  });
-
-  final Language language;
-  final String label;
-  final String semanticLabel;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = AppPalette.of(context);
-    return Semantics(
-      label: semanticLabel,
-      button: true,
-      excludeSemantics: true,
-      child: OutlinedButton(
-        style: OutlinedButton.styleFrom(
-          minimumSize: const Size(48, 48),
-          foregroundColor: Theme.of(context).colorScheme.onSurface,
-          side: BorderSide(color: palette.hairline),
-          shape: const StadiumBorder(),
-          padding: const EdgeInsetsDirectional.fromSTEB(6, 6, 12, 6),
-          textStyle: const TextStyle(fontWeight: FontWeight.w700),
-        ),
-        onPressed: onPressed,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          spacing: 8,
-          children: [
-            if (language.isCustom)
-              const Icon(Icons.auto_awesome_outlined, size: 20)
-            else
-              LanguageAvatar(code: language.code, size: 28),
-            Flexible(
-              child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

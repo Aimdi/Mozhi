@@ -8,8 +8,8 @@
     <string name="tile_translate_description">Dịch bảng nhớ tạm bằng Mozhi</string>
     <string name="shortcut_clipboard_short">Bảng nhớ tạm</string>
     <string name="shortcut_clipboard_long">Dịch bảng nhớ tạm</string>
-    <string name="shortcut_camera_short">Máy ảnh</string>
-    <string name="shortcut_camera_long">Dịch bằng máy ảnh</string>
+    <string name="shortcut_dictionary_short">Từ điển</string>
+    <string name="shortcut_dictionary_long">Từ điển</string>
     <string name="shortcut_conversation_short">Hội thoại</string>
     <string name="shortcut_conversation_long">Hội thoại</string>
     <string name="shortcut_proofread_short">Soát lỗi</string>

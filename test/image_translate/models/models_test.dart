@@ -103,7 +103,7 @@ void main() {
     });
 
     group('available', () {
-      test('lists Mozhi, vision engines and on-device recognition', () {
+      test('lists on-device recognition, vision engines, then Mozhi', () {
         expect(
           ImageTranslateMethod.available(
             engines: allEngines,
@@ -111,8 +111,16 @@ void main() {
             onDeviceSupported: true,
             translateEngine: deepl,
           ),
-          [mozhiMethod, claudeMethod, onDeviceMethod],
+          [onDeviceMethod, claudeMethod, mozhiMethod],
         );
+      });
+
+      test('orders the kinds the same way (recommended first)', () {
+        expect(ImageTranslateMethodKind.values, [
+          ImageTranslateMethodKind.onDevice,
+          ImageTranslateMethodKind.aiVision,
+          ImageTranslateMethodKind.mozhiLens,
+        ]);
       });
 
       test('requires mozhi:google for Mozhi', () {
@@ -163,7 +171,7 @@ void main() {
     });
 
     group('preferred', () {
-      const methods = [mozhiMethod, claudeMethod, onDeviceMethod];
+      const methods = [onDeviceMethod, claudeMethod, mozhiMethod];
 
       test('prefers on-device recognition (the photo stays here)', () {
         expect(
@@ -182,12 +190,19 @@ void main() {
         );
       });
 
-      test('then Mozhi', () {
+      test('then another vision method, before Mozhi', () {
         expect(
           ImageTranslateMethod.preferred(const [
-            claudeMethod,
             mozhiMethod,
+            claudeMethod,
           ], translateEngine: deepl),
+          claudeMethod,
+        );
+      });
+
+      test('then Mozhi', () {
+        expect(
+          ImageTranslateMethod.preferred(const [mozhiMethod]),
           mozhiMethod,
         );
       });
@@ -208,7 +223,33 @@ void main() {
     });
   });
 
+  group('ImageTranslateMethod.withId', () {
+    test('finds a method by its id', () {
+      const methods = [onDeviceMethod, claudeMethod, mozhiMethod];
+      expect(
+        ImageTranslateMethod.withId(methods, 'aiVision:ai:claude'),
+        claudeMethod,
+      );
+      expect(ImageTranslateMethod.withId(methods, 'onDevice'), onDeviceMethod);
+      expect(ImageTranslateMethod.withId(methods, 'aiVision:ai:x'), isNull);
+      expect(ImageTranslateMethod.withId(methods, null), isNull);
+    });
+  });
+
   group('ImageTranslation', () {
+    test('keeps and compares the recognition confidence', () {
+      const read = ImageTranslation(
+        sourceText: 'Hola',
+        recognitionConfidence: 42,
+      );
+      expect(read, isNot(const ImageTranslation(sourceText: 'Hola')));
+      expect(read.copyWith(translatedText: 'Hi').recognitionConfidence, 42);
+      expect(
+        read.hashCode,
+        isNot(const ImageTranslation(sourceText: 'Hola').hashCode),
+      );
+    });
+
     test('compares destinations', () {
       const sent = ImageTranslation(
         translatedText: 'a',

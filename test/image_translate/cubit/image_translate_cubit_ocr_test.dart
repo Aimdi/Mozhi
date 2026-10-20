@@ -108,6 +108,87 @@ void main() {
     },
   );
 
+  group('recognition confidence', () {
+    test('is kept with the recognised text', () async {
+      data
+        ..installed = {'eng': 1}
+        ..confidence = 31;
+      final cubit = build(source: Language.auto);
+      addTearDown(cubit.close);
+      await cubit.setImage(jpegImage);
+      expect(cubit.state.result?.recognitionConfidence, 31);
+      expect(cubit.state.hasLowRecognitionConfidence, isTrue);
+
+      // Another target translates the same text: still read poorly.
+      await cubit.setTarget(german);
+      expect(cubit.state.result?.translatedText, 'Exit');
+      expect(cubit.state.result?.recognitionConfidence, 31);
+
+      // Edited text is the user's.
+      await cubit.translateText('Ausgang links');
+      expect(cubit.state.result?.recognitionConfidence, isNull);
+      expect(cubit.state.hasLowRecognitionConfidence, isFalse);
+    });
+
+    test('is kept when the translation fails', () async {
+      data
+        ..installed = {'eng': 1}
+        ..confidence = 20;
+      when(() => repository.translate(any(), any())).thenAnswer(
+        (_) => Stream.error(const SourceLanguageRequiredException()),
+      );
+      final cubit = build(source: Language.auto);
+      addTearDown(cubit.close);
+      await cubit.setImage(jpegImage);
+      expect(cubit.state.status, ImageTranslateStatus.failure);
+      expect(cubit.state.error, isA<SourceLanguageRequiredException>());
+      expect(cubit.state.result?.recognitionConfidence, 20);
+    });
+
+    test('is unknown when the recognizer does not report it', () async {
+      data
+        ..installed = {'eng': 1}
+        ..confidence = 10;
+      final cubit = ImageTranslateCubit(
+        repository: repository,
+        picker: FakeImagePickerService(),
+        encoder: FakeImageEncoder(),
+        recognizer: PlainOcrData(data),
+        engines: allEngines,
+        providers: allProviders,
+        translateEngine: deepl,
+        target: english,
+      );
+      addTearDown(cubit.close);
+      await cubit.setImage(jpegImage);
+      expect(cubit.state.result?.sourceText, 'Ausgang');
+      expect(cubit.state.result?.recognitionConfidence, isNull);
+      expect(cubit.state.hasLowRecognitionConfidence, isFalse);
+    });
+
+    test('a confident reading is no hint', () async {
+      data
+        ..installed = {'eng': 1}
+        ..confidence = 88;
+      final cubit = build(source: Language.auto);
+      addTearDown(cubit.close);
+      await cubit.setImage(jpegImage);
+      expect(cubit.state.hasLowRecognitionConfidence, isFalse);
+    });
+
+    test('choosing the language reads again with its data', () async {
+      data
+        ..installed = {'eng': 1, 'deu': 1}
+        ..confidence = 25;
+      final cubit = build(source: Language.auto);
+      addTearDown(cubit.close);
+      await cubit.setImage(jpegImage);
+      await cubit.setSource(german);
+      expect(data.recognized.last, ['deu']);
+      expect(cubit.state.hasLowRecognitionConfidence, isFalse);
+    });
+  });
+
   test('Detect language without data offers a guess', () async {
     final cubit = build(source: Language.auto, preferred: const ['fr']);
     addTearDown(cubit.close);

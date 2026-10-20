@@ -35,13 +35,29 @@ enum QualityMode {
   best,
 }
 
+/// The four tabs of the app, in their default order.
+///
+/// [name] is the tab's stable id, stored in [AppSettings.tabOrder]; [index]
+/// is its branch in the router's shell, which never changes when the user
+/// reorders the tabs (so routes and deep links stay the same).
+enum AppTab {
+  translate,
+  dictionary,
+  proofread,
+  conversation;
+
+  /// The tab whose id ([name]) is [id], or null for anything else.
+  static AppTab? fromId(Object? id) =>
+      id is String ? values.asNameMap()[id] : null;
+}
+
 /// Everything the user can configure. Persisted as JSON by
 /// `SettingsRepository` (API keys are stored separately, see there).
 class AppSettings extends Equatable {
   const new({
     this.themeMode = ThemeMode.system,
     this.dynamicColor = true,
-    this.pureBlack = false,
+    this.pureBlack = true,
     this.seedColor = 0xFF1D9BF0,
     this.instances = MozhiInstance.publicInstances,
     this.providers = const [],
@@ -51,7 +67,7 @@ class AppSettings extends Equatable {
     this.target = const Language(code: 'en', name: 'English'),
     this.options = const TranslationOptions(),
     this.instantTranslate = true,
-    this.instantTranslateAi = false,
+    this.instantTranslateAi = true,
     this.saveHistory = true,
     this.showTransliteration = true,
     this.recentLanguages = const [],
@@ -70,6 +86,11 @@ class AppSettings extends Equatable {
     this.incognito = false,
     this.secureScreen = false,
     this.httpProxy,
+    this.appLocale,
+    this.hapticFeedback = true,
+    this.tabOrder = AppTab.values,
+    this.rememberQuality = true,
+    this.multilineInput = true,
   });
 
   /// Tolerant counterpart of [toJson]: missing or invalid fields fall back to
@@ -138,6 +159,17 @@ class AppSettings extends Equatable {
       incognito: _bool(json['incognito']) ?? defaults.incognito,
       secureScreen: _bool(json['secureScreen']) ?? defaults.secureScreen,
       httpProxy: _string(json['httpProxy']),
+      appLocale: _string(json['appLocale']),
+      hapticFeedback: _bool(json['hapticFeedback']) ?? defaults.hapticFeedback,
+      tabOrder: switch (json['tabOrder']) {
+        final List<dynamic> ids => normalizeTabOrder(
+          ids.map(AppTab.fromId).nonNulls,
+        ),
+        _ => defaults.tabOrder,
+      },
+      rememberQuality:
+          _bool(json['rememberQuality']) ?? defaults.rememberQuality,
+      multilineInput: _bool(json['multilineInput']) ?? defaults.multilineInput,
     );
   }
 
@@ -164,14 +196,21 @@ class AppSettings extends Equatable {
     return List.unmodifiable(targets);
   }
 
+  /// [tabs] as a valid [tabOrder]: every [AppTab] exactly once, the given
+  /// ones first (in that order, the first of duplicates kept), then the
+  /// missing ones in their default order.
+  static List<AppTab> normalizeTabOrder(Iterable<AppTab> tabs) =>
+      List.unmodifiable({...tabs, ...AppTab.values});
+
   final ThemeMode themeMode;
 
   /// Take the accent from the platform (Material You) palette when
   /// available; surfaces stay neutral either way.
   final bool dynamicColor;
 
-  /// The dark look: "Lights out" (true black, AMOLED-friendly) when true,
-  /// "Dim" (dark blue-grey) when false.
+  /// The dark look: "Lights out" (true black, AMOLED-friendly; the
+  /// default) when true, "Dim" (dark blue-grey) when false. Saved settings
+  /// always store it, so a stored choice is kept.
   final bool pureBlack;
 
   /// ARGB accent colour when [dynamicColor] is off/unavailable.
@@ -199,7 +238,8 @@ class AppSettings extends Equatable {
   final bool instantTranslate;
 
   /// Translate while typing for AI engines (debounced ~1200 ms; costs
-  /// tokens, off by default).
+  /// tokens). On by default, like Kagi: translation is automatic for every
+  /// online engine, and the go button translates at once.
   final bool instantTranslateAi;
   final bool saveHistory;
   final bool showTransliteration;
@@ -263,10 +303,47 @@ class AppSettings extends Equatable {
   /// request the app makes; null = direct connections.
   final String? httpProxy;
 
+  /// Language of the app's own texts as a language tag (`de`, `ja`), or
+  /// null to follow the device ("System default"). A tag the app has no
+  /// translation for counts as null (see `AppLanguages.resolve`).
+  final String? appLocale;
+
+  /// Light vibrations when buttons such as translate, swap, copy and
+  /// favourite are pressed (see `Haptics`).
+  final bool hapticFeedback;
+
+  /// The order of the tabs in the navigation bar or rail, every [AppTab]
+  /// exactly once (see [normalizeTabOrder]). The app opens on the first
+  /// one.
+  final List<AppTab> tabOrder;
+
+  /// Whether the translate screen starts in the quality mode used last
+  /// ([qualityMode]). When false, each start of the app begins in
+  /// [launchQualityMode] (see [atLaunch]). On by default: that is how the
+  /// app behaved before the setting existed.
+  final bool rememberQuality;
+
+  /// Whether Enter in the translate input adds a new line (true, the
+  /// default) or starts the translation (false; Shift+Enter then adds a
+  /// new line).
+  final bool multilineInput;
+
+  /// The quality mode a start of the app begins in when [rememberQuality]
+  /// is off: [QualityMode.fast] when a fast engine is chosen, else
+  /// [QualityMode.off] (the usual engine).
+  QualityMode get launchQualityMode =>
+      fastEngineId != null ? QualityMode.fast : QualityMode.off;
+
+  /// These settings as a start of the app uses them: unless
+  /// [rememberQuality], [qualityMode] goes back to [launchQualityMode].
+  AppSettings atLaunch() => rememberQuality || qualityMode == launchQualityMode
+      ? this
+      : copyWith(qualityMode: launchQualityMode);
+
   /// Returns a copy with the given fields replaced. The nullable
   /// [engineId] / [assistEngineId] / [fastEngineId] / [bestEngineId] take
   /// closures so they can be reset to null: `copyWith(engineId: () => null)`;
-  /// so does [httpProxy].
+  /// so do [httpProxy] and [appLocale].
   AppSettings copyWith({
     ThemeMode? themeMode,
     bool? dynamicColor,
@@ -299,6 +376,11 @@ class AppSettings extends Equatable {
     bool? incognito,
     bool? secureScreen,
     String? Function()? httpProxy,
+    String? Function()? appLocale,
+    bool? hapticFeedback,
+    List<AppTab>? tabOrder,
+    bool? rememberQuality,
+    bool? multilineInput,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
@@ -334,6 +416,11 @@ class AppSettings extends Equatable {
       incognito: incognito ?? this.incognito,
       secureScreen: secureScreen ?? this.secureScreen,
       httpProxy: httpProxy != null ? httpProxy() : this.httpProxy,
+      appLocale: appLocale != null ? appLocale() : this.appLocale,
+      hapticFeedback: hapticFeedback ?? this.hapticFeedback,
+      tabOrder: tabOrder ?? this.tabOrder,
+      rememberQuality: rememberQuality ?? this.rememberQuality,
+      multilineInput: multilineInput ?? this.multilineInput,
     );
   }
 
@@ -389,6 +476,11 @@ class AppSettings extends Equatable {
       'incognito': incognito,
       'secureScreen': secureScreen,
       'httpProxy': httpProxy,
+      'appLocale': appLocale,
+      'hapticFeedback': hapticFeedback,
+      'tabOrder': [for (final tab in tabOrder) tab.name],
+      'rememberQuality': rememberQuality,
+      'multilineInput': multilineInput,
     };
   }
 
@@ -426,6 +518,11 @@ class AppSettings extends Equatable {
     incognito,
     secureScreen,
     httpProxy,
+    appLocale,
+    hapticFeedback,
+    tabOrder,
+    rememberQuality,
+    multilineInput,
   ];
 }
 

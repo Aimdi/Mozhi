@@ -8,8 +8,8 @@
     <string name="tile_translate_description">Перекласти буфер обміну за допомогою Mozhi</string>
     <string name="shortcut_clipboard_short">Буфер обміну</string>
     <string name="shortcut_clipboard_long">Перекласти буфер обміну</string>
-    <string name="shortcut_camera_short">Камера</string>
-    <string name="shortcut_camera_long">Переклад з камери</string>
+    <string name="shortcut_dictionary_short">Словник</string>
+    <string name="shortcut_dictionary_long">Словник</string>
     <string name="shortcut_conversation_short">Розмова</string>
     <string name="shortcut_conversation_long">Розмова</string>
     <string name="shortcut_proofread_short">Перевірка</string>

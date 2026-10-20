@@ -137,10 +137,13 @@ abstract interface class NativeLanguageIdentifier {
 ///    decides it (Hangul, kana, Han without kana: `zh`, Greek, Hebrew,
 ///    Thai and the Indic scripts other than Devanagari);
 /// 4. CLD2's reliable best-effort guess when the heuristic agrees, or when
-///    its score is at least [minGuessScore] and it is one of the
+///    it is one of the `installed` languages other than English (the user
+///    downloaded its models, so it is the likely language of their text),
+///    or when its score is at least [minGuessScore] and it is one of the
 ///    `preferred` languages (those the offline engine translates from).
 ///
-/// Otherwise null (the app then asks for the source language). On 238
+/// Otherwise null (the offline engine then tries the only installed
+/// language that fits, else the app asks for the source language). On 238
 /// phrases of one to six words in the 55 offline languages
 /// (`test/fixtures/language_id_phrases.tsv`) this answered 82% correctly
 /// and 10% wrongly, mostly with a close language (id/ms, cs/sk, da/no/sv),
@@ -155,11 +158,14 @@ abstract final class Cld2Decision {
   /// The app's code for the language of the text CLD2 saw in [detection],
   /// or null when undetermined. [heuristic] is
   /// `LanguageIdentifier.identify` of the same text; [preferred] languages
-  /// may be answered on weaker evidence (empty: every language).
+  /// may be answered on weaker evidence (empty: every language), and
+  /// [installed] ones (other than English, the usual weak guess for a word
+  /// or two) on any reliable guess.
   static String? choose(
     Cld2Detection detection, {
     required String? heuristic,
     Set<String> preferred = const {},
+    Set<String> installed = const {},
   }) {
     if (heuristic == 'ug') return heuristic;
     final precise = detection.precise;
@@ -171,6 +177,7 @@ abstract final class Cld2Decision {
     final code = _guessCode(guess.language);
     if (code == null) return null;
     if (code == heuristic) return code;
+    if (code != 'en' && installed.contains(code)) return code;
     if (guess.score < minGuessScore) return null;
     return preferred.isEmpty || preferred.contains(code) ? code : null;
   }

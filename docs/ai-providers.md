@@ -35,10 +35,10 @@ running on your own computer.
   chips and suggestions, romanization, alignment, meaning checks) are
   separate requests, made only when you ask for them (a romanization also
   loads by itself when the model runs locally, since that is free).
-  **Instant translate with AI** is off by default because every pause in
-  typing would cost a request; turn it on under **Settings** if you like.
-  Links and text shared from other apps never start an AI request on their
-  own unless it is on.
+  **Instant translate with AI** is on by default: every pause in typing
+  sends a request. Turn it off under **Settings** to translate only when you
+  press the go button. Links and text shared from other apps never start an
+  AI request on their own.
 - Texts longer than 6,000 characters (2,500 for providers on your device or
   network) are translated in parts, split at paragraph boundaries, each with
   the end of the part before it as context.

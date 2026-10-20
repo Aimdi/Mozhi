@@ -754,6 +754,93 @@ void main() {
 
         expect(entries.map((e) => e.id), ['n3', 'n2']);
       });
+
+      group('of an entry kept only as a favourite', () {
+        HistoryEntry starred(String id, {int minute = 0}) => _entry(
+          id,
+          minute: minute,
+          isFavorite: true,
+        ).copyWith(favoriteOnly: true);
+
+        test('deletes it when un-starred', () async {
+          await repository.add(_entry('1'));
+          await repository.add(starred('2', minute: 1));
+
+          final entries = await repository.toggleFavorite('2');
+
+          expect(entries, [_entry('1')]);
+          expect(await storedIds(), ['1']);
+        });
+
+        test('keeps an ordinary favourite as an ordinary entry', () async {
+          await repository.add(_entry('1', isFavorite: true));
+
+          expect(await repository.toggleFavorite('1'), [_entry('1')]);
+        });
+
+        test('is ordinary once a translation saved with history on '
+            'replaces it', () async {
+          await repository.add(starred('1'));
+          // The same text translated again, with history on.
+          final entries = await repository.add(
+            _entry('2', text: 'text 1', translation: 'translation 1'),
+          );
+
+          expect(entries.single.id, '2');
+          expect(entries.single.isFavorite, isTrue);
+          expect(entries.single.favoriteOnly, isFalse);
+          expect(await repository.toggleFavorite('2'), [
+            _entry('2', text: 'text 1', translation: 'translation 1'),
+          ]);
+        });
+
+        test('replacing an ordinary entry stays ordinary', () async {
+          await repository.add(_entry('1'));
+          final entries = await repository.add(
+            starred('2').copyWith(text: 'text 1', translation: 'translation 1'),
+          );
+
+          expect(entries.single.favoriteOnly, isFalse);
+        });
+
+        test('is stored with its flag', () async {
+          await repository.add(starred('1'));
+
+          expect(await _repo(store: store).load(), [starred('1')]);
+        });
+      });
+    });
+
+    group('restoreFavorite', () {
+      test('stars the entry as it is now', () async {
+        final old = _entry('1', isFavorite: true);
+        await repository.add(old);
+        await repository.toggleFavorite('1');
+        final updated = _entry('1', translation: 'updated');
+        await repository.add(updated);
+
+        final entries = await repository.restoreFavorite(old);
+
+        expect(entries, [updated.copyWith(isFavorite: true)]);
+      });
+
+      test('puts the entry back when it is gone', () async {
+        final starred = _entry(
+          '2',
+          minute: 2,
+          isFavorite: true,
+        ).copyWith(favoriteOnly: true);
+        await repository.add(_entry('1', minute: 1));
+        await repository.add(_entry('3', minute: 3));
+        await repository.add(starred);
+        // Kept only as a favourite: un-starring deletes it.
+        await repository.toggleFavorite('2');
+
+        final entries = await repository.restoreFavorite(starred);
+
+        expect(entries.map((e) => e.id), ['3', '2', '1']);
+        expect(entries[1], starred);
+      });
     });
 
     group('delete', () {

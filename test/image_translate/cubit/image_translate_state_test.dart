@@ -45,6 +45,69 @@ void main() {
       );
     });
 
+    test('offers on-device recognition after an upload', () {
+      const state = ImageTranslateState(
+        methods: [onDeviceMethod, claudeMethod, mozhiMethod],
+        method: mozhiMethod,
+      );
+      expect(state.onDeviceMethod, onDeviceMethod);
+      expect(state.offersOnDevice, isTrue);
+      expect(state.copyWith(method: () => claudeMethod).offersOnDevice, isTrue);
+      expect(
+        state.copyWith(method: () => onDeviceMethod).offersOnDevice,
+        isFalse,
+      );
+      expect(state.copyWith(method: () => null).offersOnDevice, isFalse);
+      final withoutOnDevice = state.copyWith(
+        methods: const [claudeMethod, mozhiMethod],
+      );
+      expect(withoutOnDevice.onDeviceMethod, isNull);
+      expect(withoutOnDevice.offersOnDevice, isFalse);
+    });
+
+    test('flags text read poorly for "Detect language"', () {
+      const state = ImageTranslateState(
+        methods: [onDeviceMethod],
+        method: onDeviceMethod,
+        result: ImageTranslation(sourceText: 'Hola', recognitionConfidence: 31),
+      );
+      expect(state.hasLowRecognitionConfidence, isTrue);
+      expect(
+        state.copyWith(source: german).hasLowRecognitionConfidence,
+        isFalse,
+      );
+      expect(
+        state
+            .copyWith(
+              result: () => const ImageTranslation(
+                sourceText: 'Hola',
+                recognitionConfidence:
+                    ImageTranslateState.lowRecognitionConfidence,
+              ),
+            )
+            .hasLowRecognitionConfidence,
+        isFalse,
+      );
+      expect(
+        state
+            .copyWith(result: () => const ImageTranslation(sourceText: 'Hola'))
+            .hasLowRecognitionConfidence,
+        isFalse,
+      );
+      expect(
+        state
+            .copyWith(
+              result: () => const ImageTranslation(recognitionConfidence: 3),
+            )
+            .hasLowRecognitionConfidence,
+        isFalse,
+      );
+      expect(
+        state.copyWith(method: () => mozhiMethod).hasLowRecognitionConfidence,
+        isFalse,
+      );
+    });
+
     test('copyWith replaces every field', () {
       const error = ImageTranslateException(ImageTranslateErrorKind.noText);
       final state = const ImageTranslateState().copyWith(

@@ -58,7 +58,6 @@ class WebUrlField extends StatelessWidget {
             hintText: l10n.webTranslateUrlHint,
             errorText: invalid ? l10n.webTranslateInvalidUrl : null,
             prefixIcon: const Icon(Icons.link),
-            border: const OutlineInputBorder(),
             suffixIcon: value.text.isEmpty
                 ? IconButton(
                     key: const Key('web_translate_paste_button'),

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Launch screen in the system's dark mode: black, like the app's
+         default dark look (Lights out), so a cold start doesn't flash white
+         (Android 12+ takes the splash colour from launch_background). -->
+    <color name="launch_background">#FF000000</color>
+    <color name="launch_image">#FFFFFFFF</color>
+</resources>

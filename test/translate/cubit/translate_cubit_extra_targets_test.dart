@@ -579,6 +579,8 @@ void main() {
 
     blocTest<TranslateCubit, TranslateState>(
       'never start on their own on AI engines without the opt-in',
+      setUp: () =>
+          mocks.stubSettings(const AppSettings(instantTranslateAi: false)),
       build: () => mocks.build(),
       seed: () => ready(engine: claude).copyWith(input: ''),
       act: (cubit) async {
@@ -593,7 +595,7 @@ void main() {
       'follow instant translation on AI engines with the opt-in',
       setUp: () {
         mocks
-          ..stubSettings(const AppSettings(instantTranslateAi: true))
+          ..stubSettings(const AppSettings())
           ..stubTranslate();
       },
       build: () => mocks.build(),
@@ -936,7 +938,10 @@ void main() {
 
     blocTest<TranslateCubit, TranslateState>(
       'puts the translation into the input and makes its language the '
-      'source, without translating it on its own',
+      'source, without translating it on its own (instant AI '
+      'translation off)',
+      setUp: () =>
+          mocks.stubSettings(const AppSettings(instantTranslateAi: false)),
       build: () => mocks.build(),
       seed: withFrench,
       act: (cubit) async {
@@ -1308,7 +1313,7 @@ void main() {
           // Other settings changes leave them alone.
           await change(const AppSettings(extraTargets: [ja, es, de]));
           await change(
-            const AppSettings(extraTargets: [ja, es, de], pureBlack: true),
+            const AppSettings(extraTargets: [ja, es, de], pureBlack: false),
           );
         },
         verify: (cubit) {
@@ -1382,14 +1387,6 @@ void main() {
     });
 
     group('text shared at start', () {
-      /// The user's own DeepL API service (not an AI model).
-      const deeplApi = TranslationEngine(
-        id: 'mt:deepl',
-        kind: EngineKind.mt,
-        name: 'DeepL API',
-        providerId: 'deepl',
-      );
-
       Future<TranslateCubit> share(TranslationEngine engine) async {
         mocks
           ..stubSettings(
@@ -1397,6 +1394,7 @@ void main() {
               extraTargets: const [fr, es],
               target: de,
               engineId: engine.id,
+              instantTranslateAi: false,
             ),
           )
           ..stubTranslate();
@@ -1416,7 +1414,8 @@ void main() {
         expect(requestedTargets(), ['de', 'fr', 'es']);
       });
 
-      test('waits for Translate with an AI model', () async {
+      test('waits for Translate with an AI model while instant AI '
+          'translation is off', () async {
         await share(claude);
         verifyNever(() => mocks.repository.translate(any(), any()));
       });

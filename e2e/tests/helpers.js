@@ -213,15 +213,48 @@ async function takeMockDown(page) {
   );
 }
 
+/**
+ * Opens History or Settings with its button in the current tab's app bar
+ * (they are pages above the tabs, not tabs) and waits for its heading.
+ */
+async function openPage(page, name) {
+  await page.getByRole('button', { name, exact: true }).first().click();
+  await expect(
+    page.getByRole('heading', { name, exact: true }).first(),
+  ).toBeVisible();
+}
+
+/** Opens History from the app bar (see [openPage]). */
+function openHistory(page) {
+  return openPage(page, 'History');
+}
+
+/** Opens Settings from the app bar (see [openPage]). */
+function openSettings(page) {
+  return openPage(page, 'Settings');
+}
+
+/**
+ * Leaves History or Settings with the app bar's back arrow: back to the
+ * tab it was opened from, or the translate tab when it was opened on its
+ * own (e.g. `openApp(page, '/settings')`).
+ */
+async function goBack(page) {
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
+}
+
 module.exports = {
   MOCK_PORT,
   collectPageErrors,
   copiedTranslation,
   enableSemantics,
   fillField,
+  goBack,
   loadSettings,
   meanLuminance,
   openApp,
+  openHistory,
+  openSettings,
   recordAiRequests,
   scrollTo,
   seedSettings,

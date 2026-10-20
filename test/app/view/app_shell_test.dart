@@ -1,10 +1,16 @@
+import 'package:bloc_test/bloc_test.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/app/view/app_shell.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
+import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/models/app_settings.dart';
 
 import '../../helpers/helpers.dart';
+
+class MockSettingsCubit extends MockCubit<AppSettings> implements SettingsCubit;
 
 void main() {
   group('AppShell', () {
@@ -16,21 +22,34 @@ void main() {
       WidgetTester tester, {
       required double width,
       int selectedIndex = 0,
+      List<AppTab>? order,
+      SettingsCubit? settings,
     }) async {
       tester.view.physicalSize = Size(width, 900);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       final selected = <int>[];
+      final shell = AppShell(
+        selectedIndex: selectedIndex,
+        onDestinationSelected: selected.add,
+        order: order,
+        child: const Text('body'),
+      );
       await tester.pumpApp(
-        AppShell(
-          selectedIndex: selectedIndex,
-          onDestinationSelected: selected.add,
-          child: const Text('body'),
-        ),
+        settings == null
+            ? shell
+            : BlocProvider<SettingsCubit>.value(value: settings, child: shell),
         theme: theme,
       );
       return selected;
     }
+
+    List<String> barLabels(WidgetTester tester) => tester
+        .widget<NavigationBar>(find.byType(NavigationBar))
+        .destinations
+        .cast<NavigationDestination>()
+        .map((d) => d.label)
+        .toList();
 
     Finder navIcon(IconData icon) => find.byIcon(icon);
 
@@ -57,9 +76,16 @@ void main() {
         NavigationDestinationLabelBehavior.alwaysHide,
       );
       // Labels are hidden visually but still name each destination.
-      for (final label in ['Translate', 'Proofread', 'History', 'Settings']) {
+      for (final label in [
+        'Translate',
+        'Dictionary',
+        'Proofread',
+        'Conversation',
+      ]) {
         expect(find.bySemanticsLabel(RegExp(label)), findsOneWidget);
       }
+      // History and Settings are app bar actions, not destinations.
+      expect(find.bySemanticsLabel(RegExp('History|Settings')), findsNothing);
       handle.dispose();
     });
 
@@ -97,30 +123,172 @@ void main() {
       expect(AppShell.extendedBreakpoint, 1200);
     });
 
+    testWidgets('lists Translate, Dictionary, Proofread, Conversation', (
+      tester,
+    ) async {
+      expect(AppDestination.all.map((d) => d.icon), [
+        Icons.translate_outlined,
+        Icons.menu_book_outlined,
+        Icons.spellcheck_outlined,
+        Icons.forum_outlined,
+      ]);
+      expect(AppDestination.all.map((d) => d.selectedIcon), [
+        Icons.translate,
+        Icons.menu_book,
+        Icons.spellcheck,
+        Icons.forum,
+      ]);
+      await pumpShell(tester, width: 400);
+      final bar = tester.widget<NavigationBar>(find.byType(NavigationBar));
+      expect(
+        bar.destinations
+            .cast<NavigationDestination>()
+            .map((d) => d.label)
+            .toList(),
+        ['Translate', 'Dictionary', 'Proofread', 'Conversation'],
+      );
+      // Each destination names itself in a tooltip as well.
+      for (final label in bar.destinations.cast<NavigationDestination>().map(
+        (d) => d.label,
+      )) {
+        expect(
+          find.byWidgetPredicate((w) => w is Tooltip && w.message == label),
+          findsOneWidget,
+        );
+      }
+    });
+
     testWidgets('reports the tapped destination (bar)', (tester) async {
       final selected = await pumpShell(tester, width: 400);
 
-      await tester.tap(navIcon(Icons.history_outlined));
-      await tester.tap(navIcon(Icons.settings_outlined));
+      await tester.tap(navIcon(Icons.menu_book_outlined));
+      await tester.tap(navIcon(Icons.spellcheck_outlined));
+      await tester.tap(navIcon(Icons.forum_outlined));
 
-      expect(selected, [2, 3]);
+      expect(selected, [1, 2, 3]);
     });
 
     testWidgets('reports the tapped destination (rail)', (tester) async {
-      final selected = await pumpShell(tester, width: 1000, selectedIndex: 2);
+      final selected = await pumpShell(tester, width: 1000, selectedIndex: 3);
 
       final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
-      expect(rail.selectedIndex, 2);
+      expect(rail.selectedIndex, 3);
       await tester.tap(navIcon(Icons.spellcheck_outlined));
+      await tester.tap(navIcon(Icons.menu_book_outlined));
 
-      expect(selected, [1]);
+      expect(selected, [2, 1]);
+    });
+
+    group('tab order', () {
+      const order = [
+        AppTab.proofread,
+        AppTab.translate,
+        AppTab.conversation,
+        AppTab.dictionary,
+      ];
+
+      testWidgets('shows the destinations in the given order', (tester) async {
+        await pumpShell(tester, width: 400, order: order);
+
+        expect(barLabels(tester), [
+          'Proofread',
+          'Translate',
+          'Conversation',
+          'Dictionary',
+        ]);
+      });
+
+      testWidgets('maps the bar to the branch indexes', (tester) async {
+        // Branch 2 (Proofread) is shown first.
+        final selected = await pumpShell(
+          tester,
+          width: 400,
+          order: order,
+          selectedIndex: 2,
+        );
+
+        final bar = tester.widget<NavigationBar>(find.byType(NavigationBar));
+        expect(bar.selectedIndex, 0);
+        await tester.tap(navIcon(Icons.menu_book_outlined));
+        await tester.tap(navIcon(Icons.translate_outlined));
+        await tester.tap(navIcon(Icons.forum_outlined));
+        expect(selected, [1, 0, 3]);
+      });
+
+      testWidgets('maps the rail to the branch indexes', (tester) async {
+        final selected = await pumpShell(
+          tester,
+          width: 1000,
+          order: order,
+          selectedIndex: 1,
+        );
+
+        final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
+        expect(rail.selectedIndex, 3);
+        await tester.tap(navIcon(Icons.spellcheck_outlined));
+        expect(selected, [2]);
+      });
+
+      testWidgets("follows the user's order from the settings", (tester) async {
+        final settings = MockSettingsCubit();
+        whenListen(
+          settings,
+          Stream.fromIterable(const [
+            AppSettings(
+              tabOrder: [
+                AppTab.conversation,
+                AppTab.translate,
+                AppTab.dictionary,
+                AppTab.proofread,
+              ],
+            ),
+          ]),
+          initialState: const AppSettings(tabOrder: order),
+        );
+        await pumpShell(tester, width: 400, settings: settings);
+        expect(barLabels(tester).first, 'Proofread');
+
+        await tester.pump();
+        expect(barLabels(tester), [
+          'Conversation',
+          'Translate',
+          'Dictionary',
+          'Proofread',
+        ]);
+      });
+
+      testWidgets('uses the default order without settings', (tester) async {
+        await pumpShell(tester, width: 400);
+        expect(barLabels(tester), [
+          'Translate',
+          'Dictionary',
+          'Proofread',
+          'Conversation',
+        ]);
+      });
+
+      testWidgets('completes an incomplete order', (tester) async {
+        await pumpShell(tester, width: 400, order: const [AppTab.conversation]);
+        expect(barLabels(tester), [
+          'Conversation',
+          'Translate',
+          'Dictionary',
+          'Proofread',
+        ]);
+      });
+
+      test('maps every tab to its destination', () {
+        for (final tab in AppTab.values) {
+          expect(AppDestination.of(tab), AppDestination.all[tab.index]);
+        }
+      });
     });
 
     testWidgets('marks the selected destination', (tester) async {
-      await pumpShell(tester, width: 400, selectedIndex: 1);
+      await pumpShell(tester, width: 400, selectedIndex: 2);
 
       final bar = tester.widget<NavigationBar>(find.byType(NavigationBar));
-      expect(bar.selectedIndex, 1);
+      expect(bar.selectedIndex, 2);
       expect(find.byIcon(Icons.spellcheck), findsOneWidget);
       expect(find.byIcon(Icons.translate_outlined), findsOneWidget);
       final marker = find.byKey(const Key('nav_icon_marker'));
@@ -137,6 +305,85 @@ void main() {
             .icon,
         Icons.spellcheck,
       );
+    });
+
+    group('edge to edge', () {
+      // A cutout at the left, three-button navigation at the right and a
+      // gesture bar below, as drawn behind the system bars.
+      const padding = FakeViewPadding(left: 24, top: 30, right: 48, bottom: 20);
+      const tab = Key('tab');
+
+      Future<void> pumpPadded(
+        WidgetTester tester, {
+        required double width,
+        TextDirection direction = TextDirection.ltr,
+      }) async {
+        tester.view
+          ..physicalSize = Size(width, 900)
+          ..devicePixelRatio = 1
+          ..padding = padding
+          ..viewPadding = padding;
+        addTearDown(tester.view.reset);
+        await tester.pumpApp(
+          Directionality(
+            textDirection: direction,
+            child: AppShell(
+              selectedIndex: 0,
+              onDestinationSelected: (_) {},
+              child: const SizedBox.expand(key: tab),
+            ),
+          ),
+          theme: theme,
+        );
+      }
+
+      EdgeInsets tabPadding(WidgetTester tester) =>
+          MediaQuery.paddingOf(tester.element(find.byKey(tab)));
+
+      testWidgets('keeps the tab and the rail clear of the system bars', (
+        tester,
+      ) async {
+        await pumpPadded(tester, width: 1000);
+
+        final rail = tester.getRect(find.byType(NavigationRail));
+        expect(rail.left, 24);
+        expect(rail.bottom, 900 - 20);
+        final body = tester.getRect(find.byKey(tab));
+        // The app bar covers the top.
+        expect(body.top, 0);
+        expect(body.left, greaterThan(rail.right));
+        expect(body.right, 1000 - 48);
+        expect(body.bottom, 900 - 20);
+        // Nothing inside pads again, but for the app bar.
+        expect(tabPadding(tester), const EdgeInsets.only(top: 30));
+      });
+
+      testWidgets('puts the rail on the right in right-to-left languages', (
+        tester,
+      ) async {
+        await pumpPadded(tester, width: 1000, direction: TextDirection.rtl);
+
+        final rail = tester.getRect(find.byType(NavigationRail));
+        expect(rail.right, 1000 - 48);
+        final body = tester.getRect(find.byKey(tab));
+        expect(body.left, 24);
+        expect(body.right, lessThan(rail.left));
+        expect(body.bottom, 900 - 20);
+        expect(tabPadding(tester), const EdgeInsets.only(top: 30));
+      });
+
+      testWidgets('keeps the tab clear of the sides above the bottom bar', (
+        tester,
+      ) async {
+        await pumpPadded(tester, width: 400);
+
+        final body = tester.getRect(find.byKey(tab));
+        expect(body.left, 24);
+        expect(body.right, 400 - 48);
+        expect(body.bottom, tester.getRect(find.byType(BlurBar)).top);
+        // The bar pads itself below; nothing in the tab pads again.
+        expect(tabPadding(tester), const EdgeInsets.only(top: 30));
+      });
     });
   });
 

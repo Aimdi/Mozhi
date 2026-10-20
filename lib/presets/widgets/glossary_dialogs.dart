@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/presets/models/glossary.dart';
@@ -86,7 +87,6 @@ class _GlossaryDetailsDialogState extends State<GlossaryDetailsDialog> {
                 decoration: InputDecoration(
                   labelText: l10n.glossariesName,
                   hintText: l10n.glossariesNameHint,
-                  border: const OutlineInputBorder(),
                 ),
                 validator: (value) => (value ?? '').trim().isEmpty
                     ? l10n.glossariesNameRequired
@@ -146,11 +146,11 @@ class _LanguageField extends StatelessWidget {
       button: true,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(4),
+        // The shape of the field it looks like.
+        borderRadius: AppRadius.fieldBorderRadius,
         child: InputDecorator(
           decoration: InputDecoration(
             labelText: label,
-            border: const OutlineInputBorder(),
             suffixIcon: const Icon(Icons.arrow_drop_down),
           ),
           child: Text(value, overflow: TextOverflow.ellipsis),
@@ -234,7 +234,6 @@ class _GlossaryTermDialogState extends State<GlossaryTermDialog> {
                 textInputAction: TextInputAction.next,
                 decoration: InputDecoration(
                   labelText: l10n.glossaryEditorSource,
-                  border: const OutlineInputBorder(),
                 ),
                 validator: required,
               ),
@@ -246,7 +245,6 @@ class _GlossaryTermDialogState extends State<GlossaryTermDialog> {
                 textInputAction: TextInputAction.next,
                 decoration: InputDecoration(
                   labelText: l10n.glossaryEditorTarget,
-                  border: const OutlineInputBorder(),
                 ),
                 validator: required,
               ),
@@ -256,10 +254,7 @@ class _GlossaryTermDialogState extends State<GlossaryTermDialog> {
                 controller: _note,
                 enableIMEPersonalizedLearning: imeLearningAllowed(context),
                 textCapitalization: TextCapitalization.sentences,
-                decoration: InputDecoration(
-                  labelText: l10n.glossaryEditorNote,
-                  border: const OutlineInputBorder(),
-                ),
+                decoration: InputDecoration(labelText: l10n.glossaryEditorNote),
                 onFieldSubmitted: (_) => _submit(),
               ),
               const SizedBox(height: 4),

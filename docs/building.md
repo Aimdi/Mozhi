@@ -11,6 +11,7 @@ builds. For day-to-day development (flavors, tests, localisation) see
 - [Variants](#variants)
 - [Build like the release workflow](#build-like-the-release-workflow)
 - [Check an APK for Google code](#check-an-apk-for-google-code)
+- [Check an APK for 16 KB pages](#check-an-apk-for-16-kb-pages)
 - [Compare two builds](#compare-two-builds)
 - [ccache and build paths](#ccache-and-build-paths)
 - [Golden tests](#golden-tests)
@@ -162,6 +163,36 @@ apk`, which writes `gradlew`):
   echo "no Google artifacts"
 ```
 
+## Check an APK for 16 KB pages
+
+Android 15 and later run on some phones with 16 KB memory pages. There, a
+native library only loads when its LOAD segments are aligned to 16 KB
+and, stored uncompressed in the APK, it starts on a 16 KB boundary.
+Otherwise the engine that needs it (offline translation, text
+recognition, voice input) fails on those phones only.
+
+```sh
+python3 tool/check_page_size.py path/to/app.apk      # or an .aab, or a .so
+```
+
+- **What it checks**: every `lib/<abi>/*.so` of the 64-bit ABIs
+  (arm64-v8a, x86_64): the three engines and also Flutter's and the
+  plugins' libraries. More than 16 KB is fine (`libflutter.so` is aligned
+  to 64 KB). 32-bit libraries are listed but never fail, since 16 KB
+  phones are 64-bit. In an app bundle only the ELF alignment counts:
+  bundletool and Google Play align the APKs they make.
+- **Exit status**: 0 when everything passes, 1 when a library doesn't,
+  2 when the input isn't an APK, bundle or library. Only `python3` is
+  needed.
+- **When it runs**: CI on every APK, the release workflow on the APKs and
+  the bundle. The job *Build Bergamot native (Android)* also checks each
+  engine right after linking.
+- **Where the alignment comes from**: the engines link with
+  `-Wl,-z,max-page-size=16384` (their `native/CMakeLists.txt`) and pass
+  `ANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON`; NDK r28 aligns to 16 KB by
+  default anyway, and the Android Gradle Plugin (8.5.1 and later) stores
+  uncompressed libraries 16 KB aligned.
+
 ## Compare two builds
 
 1. Build both from the same commit, with the toolchain above, the same
@@ -247,9 +278,10 @@ needs it before its APK can match the release.
 
 Screenshot (golden) tests in `test/goldens/` cover the translate screen
 (empty, with a result, on a tablet, and split at the hinge of a
-two-screen device), history, settings, and the onboarding privacy and
-languages steps. They run on a 411 × 891 phone in light and dark, and
-translate and settings also at 1280 × 800. The PNGs are in
+two-screen device), the translation options sheet, history, settings, and the onboarding privacy and
+languages steps. They run on a 411 × 891 phone in light and dark (the
+default Lights out look), and translate and settings also at 1280 × 800.
+The PNGs are in
 `test/goldens/images/`. The tests are tagged `golden` (declared in
 `dart_test.yaml`), and CI runs them with the rest (`flutter test` on
 `ubuntu-latest`).

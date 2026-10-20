@@ -59,7 +59,7 @@ history anywhere.
 - Uncertain language detection for short input offers the likely
   alternatives; a free-form *source* style (e.g. *LinkedIn speak*) can be
   decoded into plain language.
-- **Dictionary** page and card: senses, pronunciation, examples, related
+- **Dictionary** tab and card: senses, pronunciation, examples, related
   words, *Did you mean ...?*, three levels of detail.
 - AI engines can still assist while a Mozhi engine translates.
 - **Proofread** tab: corrections with explanations, writing style,
@@ -69,7 +69,9 @@ history anywhere.
 
 **Everyday use**
 
-- Instant translation while typing (debounced; optional for AI engines),
+- Instant translation while typing (debounced, also for AI engines; can be
+  turned off), a Kagi-style start screen and a language bar docked at the
+  bottom with a go button,
   detected source language with smart swap, transliteration.
 - **Also translate into…** up to four more languages at once (remembered),
   with the same engine and options, each with copy, listen and
@@ -93,8 +95,9 @@ history anywhere.
   is ignored), plus
   `/proofread?text=...`, `/dictionary?word=...` and `mozhi://` deep links.
 - Material 3 with Material You colours, dark mode and pure-black mode;
-  bottom navigation on phones and a navigation rail on tablets and wide
-  browser windows.
+  four tabs (Translate, Dictionary, Proofread, Conversation) in a bottom
+  bar on phones and a navigation rail on tablets and wide browser windows,
+  with **History** and **Settings** as buttons in every tab's top bar.
 
 **Privacy**
 
@@ -132,15 +135,16 @@ history anywhere.
 
 ## Screens & features
 
-Besides the four tabs (Translate, Proofread, History, Settings):
+Besides the four tabs (Translate, Dictionary, Proofread, Conversation) and
+the **History** and **Settings** pages (the clock and gear buttons at the top
+of every tab):
 
 | Screen | Where | What it does |
 | --- | --- | --- |
 | Onboarding | first start | Privacy mode, your languages (with offline downloads on Android) and, optionally, a public or your own Mozhi instance |
-| Image | Translate > More tools | Photos and screenshots: AI vision, Mozhi (Google Lens) or, in the Play variant, on-device text recognition |
+| Image | Translate > More tools | Photos and screenshots: on-device text recognition (Tesseract, the default on Android; ML Kit in the Play variant), AI vision, or Mozhi via Google Translate (experimental) |
 | Documents | Translate > More tools | `.txt`, Markdown, SRT/VTT subtitles and JSON/ARB string tables, saved or shared when done |
 | Web page | Translate > More tools | Reader view of a page, translated block by block |
-| Conversation | Translate > More tools | Two people, two languages, with voice input and read-aloud |
 | Voice input | microphone buttons | Dictation, optionally on-device only |
 | Offline languages | Settings | Firefox Translations models for translating without a network (Android) |
 | Presets and glossaries | Settings | Named option sets and term lists for AI translation |
@@ -305,8 +309,8 @@ A layered Flutter app with pure Dart packages:
 | `packages/mlkit_translator` | ML Kit translation, kept for reference; no build uses it. |
 | `packages/mozhi_cli` | Command-line client. |
 | `lib/app` | Bootstrap wiring, router (`go_router`), adaptive shell, theme, shared-text and link handling. |
-| `lib/translate`, `lib/proofread`, `lib/history`, `lib/settings` | Features: Cubits (`flutter_bloc`) and views. |
-| `lib/image_translate`, `lib/documents`, `lib/web_translate`, `lib/conversation`, `lib/quick_translate` | Other translators (full-screen routes and the quick-translate sheet). |
+| `lib/translate`, `lib/dictionary`, `lib/proofread`, `lib/conversation`, `lib/history`, `lib/settings` | Features (the four tabs, History and Settings): Cubits (`flutter_bloc`) and views. |
+| `lib/image_translate`, `lib/documents`, `lib/web_translate`, `lib/quick_translate` | Other translators (full-screen routes and the quick-translate sheet). |
 | `lib/onboarding`, `lib/presets`, `lib/offline`, `lib/usage`, `lib/voice` | First run, presets and glossaries, offline models, usage tracking, voice input. |
 | `lib/speech`, `lib/platform` | Text-to-speech and the Android share / text-selection bridge. |
 

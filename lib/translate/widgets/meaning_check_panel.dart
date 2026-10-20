@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/bidi.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -514,7 +515,9 @@ class _IssueTile extends StatelessWidget {
               ? Colors.transparent
               : scheme.surfaceContainerHigh,
           shape: RoundedRectangleBorder(
-            borderRadius: const BorderRadius.all(Radius.circular(12)),
+            borderRadius: const BorderRadius.all(
+              Radius.circular(AppRadius.menu),
+            ),
             side: located
                 ? BorderSide(
                     color: focused ? scheme.secondary : scheme.outlineVariant,

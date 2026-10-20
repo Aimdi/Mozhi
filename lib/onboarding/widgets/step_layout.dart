@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 
 /// Maximum width of the onboarding content on large screens.
@@ -58,7 +59,6 @@ class OnboardingStepLayout extends StatelessWidget {
                   child: Text(
                     title,
                     style: theme.textTheme.headlineMedium?.copyWith(
-                      fontSize: 30,
                       height: 1.15,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.5,
@@ -198,7 +198,7 @@ class OnboardingNote extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: background ?? colors.surface,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: AppRadius.cardBorderRadius,
           border: background == null
               ? Border.all(color: AppPalette.of(context).hairline)
               : null,

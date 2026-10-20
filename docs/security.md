@@ -141,9 +141,9 @@ Settings tile, launcher shortcuts and widget, and links (`mozhi://…`,
 
 - Text is capped at 5,000 characters, and the same text arriving again
   within two seconds is ignored.
-- It never starts a **paid AI request** on its own unless you turned on
-  **Instant translate with AI**. Free engines (Mozhi, offline) may translate
-  it right away.
+- It never starts a **paid AI request** on its own, even with **Instant
+  translate with AI** on (that setting covers typing only). Free engines
+  (Mozhi, offline) may translate it right away.
 - Links may set only the fixed translation options (style, formality,
   reading level, genders, formatting) and languages from the catalogue.
   Free-text options (context, glossary, instructions) and unknown target

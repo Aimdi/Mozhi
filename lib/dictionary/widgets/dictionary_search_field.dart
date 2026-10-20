@@ -5,15 +5,43 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/privacy/ime_learning.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/dictionary/cubit/dictionary_cubit.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/translate/widgets/translate_layout.dart';
 
-/// The word to look up; Enter (or the arrow button) looks it up.
+/// Looks the word of [context]'s [DictionaryCubit] up (nothing for a
+/// blank word). Only the on-screen keyboard is put away so the entry
+/// shows; keyboard focus is left to the screen (the entry's "New look-up"
+/// button takes it, WCAG 2.4.3).
+void lookUpDictionaryWord(BuildContext context) {
+  final cubit = context.read<DictionaryCubit>();
+  if (cubit.state.word.trim().isEmpty) return;
+  if (_hasSoftKeyboard) {
+    unawaited(SystemChannels.textInput.invokeMethod<void>('TextInput.hide'));
+  }
+  unawaited(cubit.lookUp());
+}
+
+/// Touch platforms, where a text field brings up an on-screen keyboard.
+bool get _hasSoftKeyboard =>
+    defaultTargetPlatform == TargetPlatform.android ||
+    defaultTargetPlatform == TargetPlatform.iOS;
+
+/// The word to look up, the text field of the dictionary's composer: no
+/// box of its own (the composer card is the box) and the compose-like
+/// text size of the translate screen. Enter looks the word up
+/// ([lookUpDictionaryWord]); the go button is on the composer's bar and
+/// Clear at its top end (`DictionaryClearButton`).
 class DictionarySearchField extends StatefulWidget {
-  const new({this.autofocus = false, super.key});
+  const new({this.autofocus = false, this.focusNode, super.key});
 
   /// Focus the field when it first shows (no word given).
   final bool autofocus;
+
+  /// The field's focus node (the screen focuses it for a new look-up, and
+  /// Clear hands the focus to it); null: the field's own.
+  final FocusNode? focusNode;
 
   @override
   State<DictionarySearchField> createState() => _DictionarySearchFieldState();
@@ -21,7 +49,11 @@ class DictionarySearchField extends StatefulWidget {
 
 class _DictionarySearchFieldState extends State<DictionarySearchField> {
   late final TextEditingController _controller;
-  final _focusNode = FocusNode(debugLabel: 'dictionary_search_field');
+  FocusNode? _ownFocusNode;
+
+  FocusNode get _focusNode =>
+      widget.focusNode ??
+      (_ownFocusNode ??= FocusNode(debugLabel: 'dictionary_search_field'));
 
   @override
   void initState() {
@@ -34,42 +66,15 @@ class _DictionarySearchFieldState extends State<DictionarySearchField> {
   @override
   void dispose() {
     _controller.dispose();
-    _focusNode.dispose();
+    _ownFocusNode?.dispose();
     super.dispose();
   }
-
-  /// Looks the word up. Keyboard focus stays where it is (the field or the
-  /// Look up button) instead of leaving the page (WCAG 2.4.3); only the
-  /// on-screen keyboard is put away so the entry shows.
-  void _lookUp() {
-    final cubit = context.read<DictionaryCubit>();
-    if (cubit.state.word.trim().isEmpty) return;
-    if (_hasSoftKeyboard) {
-      unawaited(SystemChannels.textInput.invokeMethod<void>('TextInput.hide'));
-    }
-    unawaited(cubit.lookUp());
-  }
-
-  /// Clears the word and moves focus to the field, as the Clear button
-  /// that had it goes away.
-  void _clear() {
-    context.read<DictionaryCubit>().clear();
-    _focusNode.requestFocus();
-  }
-
-  /// Touch platforms, where the field brings up an on-screen keyboard.
-  static bool get _hasSoftKeyboard =>
-      defaultTargetPlatform == TargetPlatform.android ||
-      defaultTargetPlatform == TargetPlatform.iOS;
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final theme = Theme.of(context);
+    final palette = AppPalette.of(context);
     final cubit = context.read<DictionaryCubit>();
-    final (word, hasEngine) = context.select<DictionaryCubit, (String, bool)>(
-      (cubit) => (cubit.state.word, cubit.state.hasEngine),
-    );
     return BlocListener<DictionaryCubit, DictionaryState>(
       listenWhen: (previous, current) => previous.word != current.word,
       listener: (context, state) {
@@ -79,56 +84,40 @@ class _DictionarySearchFieldState extends State<DictionarySearchField> {
           selection: TextSelection.collapsed(offset: state.word.length),
         );
       },
-      child: TextField(
-        key: const Key('dictionary_search_field'),
-        controller: _controller,
-        focusNode: _focusNode,
-        enableIMEPersonalizedLearning: imeLearningAllowed(context),
-        autofocus: widget.autofocus,
-        onChanged: cubit.setWord,
-        // Enter looks up. Not via onSubmitted: without onEditingComplete
-        // the field drops focus on Enter, and with onSubmitted it restarts
-        // the input connection, bringing the on-screen keyboard back.
-        onEditingComplete: _lookUp,
-        textInputAction: TextInputAction.search,
-        inputFormatters: [
-          LengthLimitingTextInputFormatter(DictionaryCubit.maxWordLength),
-        ],
-        decoration: InputDecoration(
-          // A label, unlike a hint, still names the field once it holds a
-          // word (WCAG 4.1.2, 3.3.2).
-          labelText: l10n.dictionarySearchHint,
-          prefixIcon: const Icon(Icons.search),
-          suffixIcon: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (word.isNotEmpty)
-                IconButton(
-                  key: const Key('dictionary_clear'),
-                  tooltip: l10n.commonClear,
-                  icon: const Icon(Icons.close),
-                  onPressed: _clear,
-                ),
-              IconButton.filled(
-                key: const Key('dictionary_look_up'),
-                // X's inverse pill: black on light, white on dark.
-                style: IconButton.styleFrom(
-                  backgroundColor: theme.colorScheme.onSurface,
-                  foregroundColor: theme.colorScheme.surface,
-                ),
-                tooltip: l10n.dictionaryLookUp,
-                icon: const Icon(Icons.arrow_forward),
-                onPressed: word.trim().isEmpty || !hasEngine ? null : _lookUp,
-              ),
-              const SizedBox(width: 4),
-            ],
-          ),
-          filled: true,
-          // A filled pill: the label floats inside it (an outline border
-          // would put the label across its top edge).
-          border: const UnderlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(28)),
-            borderSide: BorderSide.none,
+      // The hint disappears once there is a word, so the field is named
+      // explicitly (WCAG 4.1.2, 3.3.2).
+      child: Semantics(
+        label: l10n.dictionarySearchHint,
+        child: TextField(
+          key: const Key('dictionary_search_field'),
+          controller: _controller,
+          focusNode: _focusNode,
+          enableIMEPersonalizedLearning: imeLearningAllowed(context),
+          autofocus: widget.autofocus,
+          onChanged: cubit.setWord,
+          // Enter looks up. Not via onSubmitted: without onEditingComplete
+          // the field drops focus on Enter, and with onSubmitted it
+          // restarts the input connection, bringing the on-screen keyboard
+          // back.
+          onEditingComplete: () => lookUpDictionaryWord(context),
+          textInputAction: TextInputAction.search,
+          inputFormatters: [
+            LengthLimitingTextInputFormatter(DictionaryCubit.maxWordLength),
+          ],
+          style: TranslateLayout.textStyle(context, 0),
+          decoration: InputDecoration(
+            hintText: l10n.dictionarySearchHint,
+            hintStyle: TranslateLayout.textStyle(
+              context,
+              0,
+            )?.copyWith(color: palette.secondaryText),
+            hintMaxLines: 2,
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            filled: false,
+            isDense: true,
+            contentPadding: const EdgeInsetsDirectional.fromSTEB(10, 14, 4, 14),
           ),
         ),
       ),

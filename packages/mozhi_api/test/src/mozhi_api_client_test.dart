@@ -629,6 +629,56 @@ void main() {
           ),
         );
       });
+
+      group('timeout', () {
+        MozhiApiClient slowClient(Duration delay) => MozhiApiClient(
+          baseUrl: _baseUrl,
+          timeout: const Duration(milliseconds: 20),
+          httpClient: MockClient(
+            (request) => Future.delayed(
+              delay,
+              () => http.Response(imageTranslationJson, 200),
+            ),
+          ),
+        );
+
+        test('can be longer than the client timeout', () async {
+          final result = await slowClient(const Duration(milliseconds: 60))
+              .translateImage(
+                pngBytes: png,
+                from: 'fr',
+                to: 'en',
+                timeout: const Duration(seconds: 5),
+              );
+          expect(result.translatedText, 'Emergency exit');
+        });
+
+        test('replaces the client timeout in the error', () async {
+          await expectLater(
+            slowClient(const Duration(milliseconds: 300)).translateImage(
+              pngBytes: png,
+              from: 'fr',
+              to: 'en',
+              timeout: const Duration(milliseconds: 30),
+            ),
+            _throwsMozhiError(
+              statusCode: null,
+              message: 'No response within 30 ms',
+            ),
+          );
+        });
+
+        test('defaults to the client timeout', () async {
+          await expectLater(
+            slowClient(const Duration(milliseconds: 300))
+                .translateImage(pngBytes: png, from: 'fr', to: 'en'),
+            _throwsMozhiError(
+              statusCode: null,
+              message: 'No response within 20 ms',
+            ),
+          );
+        });
+      });
     });
 
     group('getVersion', () {

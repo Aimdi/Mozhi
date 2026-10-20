@@ -14,13 +14,19 @@ bool historyRetentionChanged(AppSettings previous, AppSettings current) =>
 bool historyIncognitoChanged(AppSettings previous, AppSettings current) =>
     previous.incognito != current.incognito;
 
+/// Whether [current] turns "Save history" on or off.
+bool historySavingChanged(AppSettings previous, AppSettings current) =>
+    previous.saveHistory != current.saveHistory;
+
 /// Keeps the [HistoryCubit] in sync with [AppSettings.historyRetention]
 /// (history auto-delete): applies the current setting when inserted and
 /// every change after that, so expired entries are deleted right away.
 ///
-/// It also hands [AppSettings.incognito] to the cubit
-/// ([HistoryCubit.setIncognito]), so no automatic history is written while
-/// incognito is on, whichever screen translates.
+/// It also hands [AppSettings.incognito] and [AppSettings.saveHistory] to
+/// the cubit ([HistoryCubit.setIncognito], [HistoryCubit.setSaveHistory]),
+/// so no automatic history is written while either pauses it, whichever
+/// screen translates, and favourites starred meanwhile are kept only as
+/// favourites.
 ///
 /// Entries also expire while the app keeps running, so with a retention
 /// set it is applied again whenever the app is resumed and every
@@ -51,6 +57,7 @@ class _HistoryRetentionListenerState extends State<HistoryRetentionListener> {
     final settings = context.read<SettingsCubit>().state;
     _apply(settings);
     _applyIncognito(settings);
+    _applySaving(settings);
   }
 
   @override
@@ -75,6 +82,10 @@ class _HistoryRetentionListenerState extends State<HistoryRetentionListener> {
   void _applyIncognito(AppSettings settings) =>
       context.read<HistoryCubit>().setIncognito(enabled: settings.incognito);
 
+  void _applySaving(AppSettings settings) => context
+      .read<HistoryCubit>()
+      .setSaveHistory(enabled: settings.saveHistory);
+
   /// Deletes the entries that expired since the retention was last applied.
   void _prune() {
     if (!mounted) return;
@@ -94,6 +105,10 @@ class _HistoryRetentionListenerState extends State<HistoryRetentionListener> {
         BlocListener<SettingsCubit, AppSettings>(
           listenWhen: historyIncognitoChanged,
           listener: (context, settings) => _applyIncognito(settings),
+        ),
+        BlocListener<SettingsCubit, AppSettings>(
+          listenWhen: historySavingChanged,
+          listener: (context, settings) => _applySaving(settings),
         ),
       ],
       child: widget.child,

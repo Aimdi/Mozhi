@@ -208,10 +208,16 @@ void main() {
     );
 
     blocTest<TranslateCubit, TranslateState>(
-      'does not send the input to a paid AI engine on its own',
+      'does not send the input to a paid AI engine on its own while '
+      'instant AI translation is off',
       setUp: () {
         mocks
-          ..stubSettings(configured.copyWith(qualityMode: QualityMode.best))
+          ..stubSettings(
+            configured.copyWith(
+              qualityMode: QualityMode.best,
+              instantTranslateAi: false,
+            ),
+          )
           ..stubTranslate();
       },
       build: () => mocks.build(),

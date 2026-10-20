@@ -150,7 +150,9 @@ class SkeletonCard extends StatelessWidget {
   }
 }
 
-/// Shown while the engine list loads for the first time.
+/// Shown while the engine list loads for the first time: the empty
+/// screen's outline, a greeting in the middle and the composer card at
+/// the bottom (with the language bar).
 class TranslateSkeleton extends StatelessWidget {
   const new({super.key});
 
@@ -160,69 +162,37 @@ class TranslateSkeleton extends StatelessWidget {
       label: context.l10n.translateLoadingEngines,
       liveRegion: true,
       child: ExcludeSemantics(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(TranslateLayout.gutter),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: TranslateLayout.maxColumnWidth,
-              ),
-              child: const Column(
-                children: [
-                  Row(
-                    children: [
-                      Expanded(child: SkeletonBox(height: 40, radius: 20)),
-                      SizedBox(width: 56),
-                      Expanded(child: SkeletonBox(height: 40, radius: 20)),
-                    ],
-                  ),
-                  SizedBox(height: 20),
-                  _SkeletonPost(lines: 3),
-                  SizedBox(height: 20),
-                  _SkeletonPost(lines: 2),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// A placeholder post of the thread layout: an avatar and a few lines.
-class _SkeletonPost extends StatelessWidget {
-  const new({required this.lines});
-
-  final int lines;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SkeletonBox(
-          height: TranslateLayout.avatarSize,
-          width: TranslateLayout.avatarSize,
-          radius: TranslateLayout.avatarSize / 2,
-        ),
-        const SizedBox(width: TranslateLayout.avatarGap),
-        Expanded(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SkeletonBox(height: 14, width: 96),
-              for (var line = 0; line < lines; line++) ...[
-                const SizedBox(height: 10),
-                FractionallySizedBox(
-                  widthFactor: line == lines - 1 ? 0.6 : 1,
-                  child: const SkeletonBox(height: 18),
+              const Expanded(
+                child: Center(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SkeletonBox(height: 52, width: 52, radius: 26),
+                        SizedBox(height: 16),
+                        SkeletonBox(height: 30, width: 220, radius: 15),
+                        SizedBox(height: 20),
+                        SkeletonBox(height: 40, width: 240, radius: 20),
+                      ],
+                    ),
+                  ),
                 ),
-              ],
+              ),
+              // The composer card.
+              ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: TranslateLayout.maxColumnWidth,
+                ),
+                child: const SkeletonBox(height: 150, radius: 28),
+              ),
             ],
           ),
         ),
-      ],
+      ),
     );
   }
 }

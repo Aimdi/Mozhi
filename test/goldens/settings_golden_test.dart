@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/settings_page.dart';
+import 'package:mozhi/settings/view/tab_order_page.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -71,5 +72,29 @@ void main() {
       await pumpSettings(tester, device: GoldenDevice.tablet);
       await expectScreenGolden('settings_tablet_light');
     });
+  });
+
+  goldenGroup('Tab order screen', () {
+    for (final brightness in [Brightness.light, Brightness.dark]) {
+      testWidgets('on a phone (${brightness.name})', (tester) async {
+        useGoldenDevice(tester, GoldenDevice.phone);
+        await tester.pumpView(
+          const TabOrderPage(),
+          settings: createSettingsCubit(
+            const AppSettings(
+              tabOrder: [
+                AppTab.dictionary,
+                AppTab.translate,
+                AppTab.proofread,
+                AppTab.conversation,
+              ],
+            ),
+          ),
+          theme: goldenTheme(brightness),
+        );
+        await tester.pumpAndSettle();
+        await expectScreenGolden('settings_tab_order_phone_${brightness.name}');
+      });
+    }
   });
 }

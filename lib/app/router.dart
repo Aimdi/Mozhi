@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/translate_link.dart';
 import 'package:mozhi/app/view/app_shell.dart';
 import 'package:mozhi/app/view/deferred_page.dart';
+import 'package:mozhi/app/view/top_level_actions.dart';
 import 'package:mozhi/conversation/view/conversation_page.dart'
     deferred as conversation_page;
 import 'package:mozhi/conversation/widgets/conversation_voice_mic.dart'
@@ -32,15 +33,21 @@ import 'package:mozhi/presets/view/glossaries_page.dart'
 import 'package:mozhi/presets/view/presets_page.dart' deferred as presets_page;
 import 'package:mozhi/proofread/view/proofread_page.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/about_page.dart';
 import 'package:mozhi/settings/view/instances_page.dart';
 import 'package:mozhi/settings/view/provider_editor_page.dart';
 import 'package:mozhi/settings/view/providers_page.dart';
 import 'package:mozhi/settings/view/quality_modes_page.dart';
 import 'package:mozhi/settings/view/settings_page.dart';
+import 'package:mozhi/settings/view/tab_order_page.dart';
+import 'package:mozhi/settings/view/voice_input_settings_page.dart';
 import 'package:mozhi/translate/view/translate_page.dart';
 import 'package:mozhi/usage/view/usage_summary_page.dart'
     deferred as usage_page;
+import 'package:mozhi/voice/speech_input_service.dart';
+import 'package:mozhi/voice/widgets/voice_input_button.dart'
+    show VoiceInputButton;
 import 'package:mozhi/web_translate/view/web_translate_page.dart'
     deferred as web_page;
 import 'package:mozhi/web_translate/view/web_translate_route.dart';
@@ -48,8 +55,23 @@ import 'package:translation_repository/translation_repository.dart';
 
 /// Every location the app can show.
 abstract final class AppRoutes {
+  /// The four tabs (in their default order; the user can reorder them,
+  /// see [tab]).
   static const translate = '/translate';
+  static const dictionary = '/dictionary';
   static const proofread = '/proofread';
+  static const conversation = '/conversation';
+
+  /// The location of [tab].
+  static String tab(AppTab tab) => switch (tab) {
+    AppTab.translate => translate,
+    AppTab.dictionary => dictionary,
+    AppTab.proofread => proofread,
+    AppTab.conversation => conversation,
+  };
+
+  /// Full pages above the tabs, opened from every tab's app bar
+  /// ([TopLevelActions]); the settings sub-pages stack above the settings.
   static const history = '/history';
   static const settings = '/settings';
   static const instances = '/settings/instances';
@@ -70,6 +92,12 @@ abstract final class AppRoutes {
   static const usage = '/settings/usage';
   static const quality = '/settings/quality';
 
+  /// The order of the tabs.
+  static const tabOrder = '/settings/tabs';
+
+  /// Voice input settings (the offline speech models).
+  static const String voiceSettings = VoiceInputButton.settingsLocation;
+
   /// First-run flow (full screen, outside the tabs).
   static const String onboarding = onboardingLocation;
 
@@ -77,10 +105,6 @@ abstract final class AppRoutes {
   static const image = '/image';
   static const documents = '/documents';
   static const web = '/web';
-  static const conversation = '/conversation';
-
-  /// The AI dictionary (full screen).
-  static const dictionary = '/dictionary';
 
   /// Scheme of the app's deep links, `mozhi://<screen>[/<path>][?<query>]`
   /// (see [deepLinkLocation]).
@@ -181,15 +205,27 @@ typedef TranslateLinkCallback = void Function(TranslateLink link);
 
 /// Decides where the app goes instead of the plain start location it was
 /// launched at (e.g. the first-run onboarding); null keeps it.
+///
+/// `location` is `/` for a plain launch (the launcher icon, a fresh visit
+/// of the web app) and [AppRoutes.translate] when the translate tab was
+/// asked for explicitly (the home-screen widget's Type button,
+/// `mozhi://translate`, a reload of the web app at `#/translate`).
 typedef LaunchRedirect = String? Function(String location);
 
 /// Builds the app's router.
 ///
-/// Four tabs are kept alive in a [StatefulShellRoute.indexedStack] with an
-/// adaptive [AppShell]. The settings sub-pages stay inside the settings
-/// tab; the onboarding, the image, document, web page and conversation
-/// translators and the dictionary are full-screen routes on the root
-/// navigator ([navigatorKey]) above the tabs.
+/// Four tabs (Translate, Dictionary, Proofread, Conversation) are kept
+/// alive in a [StatefulShellRoute.indexedStack] with an adaptive
+/// [AppShell] (which shows them in the user's order, `AppSettings.tabOrder`;
+/// the branches and their locations never move); the Dictionary and
+/// Conversation tabs are deferred (loaded when first opened). History and
+/// Settings (with the settings sub-pages nested below it), the onboarding
+/// and the image, document and web page
+/// translators are full-screen routes on the root navigator
+/// ([navigatorKey]) outside the tabs: pushed (see [TopLevelActions]) they
+/// sit above the tabs and go back to them. Opened on their own (a link, an
+/// app shortcut or a `go`), History and Settings go back to the first tab
+/// of the user's order ([TopLevelPageScope], `topLevelBackButton`).
 ///
 /// Translate links (`/translate?text=…&from=…&to=…` or the same query on
 /// `/`, including Kagi's option parameters, see [TranslateLink.fromUri])
@@ -205,11 +241,19 @@ typedef LaunchRedirect = String? Function(String location);
 /// [launchRedirect] is consulted once, for the location the app starts at,
 /// and only when that is a plain start location (`/` or `/translate`
 /// without a query, see [isLaunchLocation]): deep links and shared text
-/// are never redirected.
+/// are never redirected. The app uses it for the onboarding and to open on
+/// the first tab of the user's order ([homeRedirect]); the onboarding
+/// finishes on that tab too.
+///
+/// [initialLocation] is where a plain launch starts: `/` (which shows the
+/// translate tab). The platform's own start location wins over it (the
+/// route of a deep link, the address of a reloaded web page), so `/` is
+/// only seen for a plain launch and an explicit `/translate` (the
+/// home-screen widget's Type button) can be told apart from it.
 GoRouter createAppRouter({
   TranslateLinkCallback? onTranslateLink,
   LaunchRedirect? launchRedirect,
-  String initialLocation = AppRoutes.translate,
+  String initialLocation = '/',
   GlobalKey<NavigatorState>? navigatorKey,
 }) {
   final rootKey = navigatorKey ?? GlobalKey<NavigatorState>();
@@ -244,7 +288,7 @@ GoRouter createAppRouter({
       if (!launched) {
         launched = true;
         if (launchRedirect != null && isLaunchLocation(uri)) {
-          final target = launchRedirect(AppRoutes.translate);
+          final target = launchRedirect(uri.path.isEmpty ? '/' : uri.path);
           if (target != null) return target;
         }
       }
@@ -255,7 +299,9 @@ GoRouter createAppRouter({
       fullScreenDeferred(
         AppRoutes.onboarding,
         DeferredFeatures.onboarding,
-        (context, state) => onboarding_page.OnboardingPage(),
+        (context, state) => onboarding_page.OnboardingPage(
+          finishLocation: _homeLocation(context),
+        ),
       ),
       fullScreenDeferred(
         AppRoutes.image,
@@ -286,27 +332,79 @@ GoRouter createAppRouter({
           autoLoad: false,
         );
       }),
-      fullScreenDeferred(
-        AppRoutes.conversation,
-        DeferredFeatures.conversation,
-        (context, state) => conversation_page.ConversationPage(
-          micBuilder: conversation_mic.conversationVoiceMicBuilder,
+      GoRoute(
+        path: AppRoutes.history,
+        builder: (context, state) => TopLevelPageScope(
+          child: HistoryPage(
+            initialTab: HistoryTab.tryParse(
+              state.uri.queryParameters[HistoryPage.tabParameter],
+            ),
+          ),
         ),
       ),
-      fullScreenDeferred(AppRoutes.dictionary, DeferredFeatures.dictionary, (
-        context,
-        state,
-      ) {
-        final query = state.uri.queryParameters;
-        return dictionary_page.DictionaryPage(
-          // A new word (another link while the page is open) starts afresh.
-          key: ValueKey(state.uri.query),
-          word: query['word'],
-          from: query['from'],
-          to: query['to'],
-          autoLookUp: state.extra == DictionaryLaunch.lookUp,
-        );
-      }),
+      GoRoute(
+        path: AppRoutes.settings,
+        builder: (context, state) =>
+            const TopLevelPageScope(child: SettingsPage()),
+        routes: [
+          GoRoute(
+            path: 'instances',
+            builder: (context, state) => const InstancesPage(),
+          ),
+          GoRoute(
+            path: 'providers',
+            builder: (context, state) => const ProvidersPage(),
+            routes: [
+              GoRoute(
+                path: 'edit',
+                builder: (context, state) => ProviderEditorPage(
+                  providerId: state.uri.queryParameters['id'],
+                  presetId: state.uri.queryParameters['preset'],
+                ),
+              ),
+            ],
+          ),
+          deferredRoute(
+            'offline',
+            DeferredFeatures.offline,
+            (context, state) => offline_page.OfflineModelsPage(),
+          ),
+          deferredRoute(
+            'presets',
+            DeferredFeatures.presets,
+            (context, state) => presets_page.PresetsPage(
+              onOpenGlossaries: () =>
+                  unawaited(context.push<void>(AppRoutes.glossaries)),
+            ),
+          ),
+          deferredRoute(
+            'glossaries',
+            DeferredFeatures.glossaries,
+            (context, state) => glossaries_page.GlossariesPage(),
+          ),
+          GoRoute(
+            path: 'quality',
+            builder: (context, state) => const QualityModesPage(),
+          ),
+          GoRoute(
+            path: 'tabs',
+            builder: (context, state) => const TabOrderPage(),
+          ),
+          GoRoute(
+            path: 'voice',
+            builder: (context, state) => const VoiceInputSettingsPage(),
+          ),
+          deferredRoute(
+            'usage',
+            DeferredFeatures.usage,
+            (context, state) => const _UsageRoute(),
+          ),
+          GoRoute(
+            path: 'about',
+            builder: (context, state) => const AboutPage(),
+          ),
+        ],
+      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) => AppShell(
           selectedIndex: navigationShell.currentIndex,
@@ -328,6 +426,25 @@ GoRouter createAppRouter({
           ),
           StatefulShellBranch(
             routes: [
+              deferredRoute(AppRoutes.dictionary, DeferredFeatures.dictionary, (
+                context,
+                state,
+              ) {
+                final query = state.uri.queryParameters;
+                return dictionary_page.DictionaryPage(
+                  // A new word (another link while the tab is open) starts
+                  // afresh.
+                  key: ValueKey(state.uri.query),
+                  word: query['word'],
+                  from: query['from'],
+                  to: query['to'],
+                  autoLookUp: state.extra == DictionaryLaunch.lookUp,
+                );
+              }),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
               GoRoute(
                 path: AppRoutes.proofread,
                 builder: (context, state) => ProofreadPage(
@@ -338,67 +455,15 @@ GoRouter createAppRouter({
           ),
           StatefulShellBranch(
             routes: [
-              GoRoute(
-                path: AppRoutes.history,
-                builder: (context, state) => const HistoryPage(),
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: AppRoutes.settings,
-                builder: (context, state) => const SettingsPage(),
-                routes: [
-                  GoRoute(
-                    path: 'instances',
-                    builder: (context, state) => const InstancesPage(),
-                  ),
-                  GoRoute(
-                    path: 'providers',
-                    builder: (context, state) => const ProvidersPage(),
-                    routes: [
-                      GoRoute(
-                        path: 'edit',
-                        builder: (context, state) => ProviderEditorPage(
-                          providerId: state.uri.queryParameters['id'],
-                          presetId: state.uri.queryParameters['preset'],
-                        ),
-                      ),
-                    ],
-                  ),
-                  deferredRoute(
-                    'offline',
-                    DeferredFeatures.offline,
-                    (context, state) => offline_page.OfflineModelsPage(),
-                  ),
-                  deferredRoute(
-                    'presets',
-                    DeferredFeatures.presets,
-                    (context, state) => presets_page.PresetsPage(
-                      onOpenGlossaries: () =>
-                          unawaited(context.push<void>(AppRoutes.glossaries)),
-                    ),
-                  ),
-                  deferredRoute(
-                    'glossaries',
-                    DeferredFeatures.glossaries,
-                    (context, state) => glossaries_page.GlossariesPage(),
-                  ),
-                  GoRoute(
-                    path: 'quality',
-                    builder: (context, state) => const QualityModesPage(),
-                  ),
-                  deferredRoute(
-                    'usage',
-                    DeferredFeatures.usage,
-                    (context, state) => const _UsageRoute(),
-                  ),
-                  GoRoute(
-                    path: 'about',
-                    builder: (context, state) => const AboutPage(),
-                  ),
-                ],
+              deferredRoute(
+                AppRoutes.conversation,
+                DeferredFeatures.conversation,
+                (context, state) => conversation_page.ConversationPage(
+                  // No microphones where speech recognition is unavailable.
+                  micBuilder: _speechInputSupported(context)
+                      ? conversation_mic.conversationVoiceMicBuilder
+                      : null,
+                ),
               ),
             ],
           ),
@@ -454,6 +519,31 @@ String? deepLinkLocation(Uri uri) {
     path: '/${path.path}',
     query: uri.hasQuery && uri.query.isNotEmpty ? uri.query : null,
   ).toString();
+}
+
+/// [LaunchRedirect] to the first tab of the user's order
+/// ([AppSettings.tabOrder]) for a plain launch ([location] `/`): that
+/// tab's location. Null for any other location: a start at `/translate`
+/// asked for it explicitly (the home-screen widget's Type button, a reload
+/// of the web app at `#/translate`) and stays there.
+String? homeRedirect(AppSettings settings, String location) {
+  if (location.isNotEmpty && location != '/') return null;
+  return AppRoutes.tab(settings.tabOrder.first);
+}
+
+/// The location of the first tab of the user's order (read from the
+/// [SettingsCubit], which the onboarding needs anyway).
+String _homeLocation(BuildContext context) =>
+    AppRoutes.tab(context.read<SettingsCubit>().state.tabOrder.first);
+
+/// Whether the app-wide [SpeechInputService] can recognise speech on this
+/// platform (false without one).
+bool _speechInputSupported(BuildContext context) {
+  try {
+    return context.read<SpeechInputService>().isPlatformSupported;
+  } on ProviderNotFoundException {
+    return false;
+  }
 }
 
 /// [usage_page.UsageSummaryPage] for the configured providers; tapping a

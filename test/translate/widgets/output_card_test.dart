@@ -76,10 +76,12 @@ void main() {
   setUpAll(registerTranslateFallbacks);
 
   group('OutputCard', () {
-    testWidgets('shows a hint when idle', (tester) async {
+    testWidgets('shows nothing when idle', (tester) async {
+      // The empty screen greets instead (TranslateHero).
       final harness = TranslateHarness();
       await harness.pump(tester, child: const OutputCard(), more: true);
-      expect(find.text('Your translation appears here'), findsOneWidget);
+      expect(find.byKey(const Key('translate_empty_output')), findsOneWidget);
+      expect(find.text('Your translation appears here'), findsNothing);
       expect(find.byKey(const Key('translate_output_progress')), findsNothing);
       expect(find.byTooltip('Copy'), findsNothing);
     });
@@ -253,7 +255,7 @@ void main() {
       verify(harness.translate.translate).called(1);
       // A single instance: nothing to switch to.
       await tester.tap(find.text('Manage instances'));
-      verify(() => harness.router.go('/settings/instances')).called(1);
+      verify(() => harness.router.push<void>('/settings/instances')).called(1);
     });
 
     testWidgets('auth errors point to the API key', (tester) async {
@@ -266,7 +268,79 @@ void main() {
       await harness.pump(tester, child: const OutputCard(), more: true);
       expect(find.textContaining('Check the API key'), findsOneWidget);
       await tester.tap(find.text('AI providers'));
-      verify(() => harness.router.go('/settings/providers')).called(1);
+      verify(() => harness.router.push<void>('/settings/providers')).called(1);
+    });
+
+    group('an undetectable source language', () {
+      TranslateState undetected({Language target = french}) =>
+          readyState(input: 'Hi', target: target).copyWith(
+            status: TranslateStatus.failure,
+            error: () => const SourceLanguageRequiredException(
+              engineId: 'offline:bergamot',
+            ),
+          );
+
+      Finder inPicker(Finder finder) => find.descendant(
+        of: find.byType(LanguagePickerSheet),
+        matching: finder,
+      );
+
+      testWidgets('"Choose language" opens the source language picker', (
+        tester,
+      ) async {
+        final harness = TranslateHarness(state: undetected());
+        await harness.pump(tester, child: const OutputCard(), more: true);
+        expect(
+          find.textContaining("can't detect the language"),
+          findsOneWidget,
+        );
+        expect(find.text('Something went wrong. Try again.'), findsNothing);
+        // Retrying would fail the same way.
+        expect(find.text('Retry'), findsNothing);
+        expect(find.text('Translate from German'), findsNothing);
+        await tester.tap(find.text('Choose language'));
+        await tester.pumpAndSettle();
+        expect(inPicker(find.text('Translate from')), findsOneWidget);
+        await tester.tap(inPicker(find.text('German')).last);
+        await tester.pumpAndSettle();
+        verify(() => harness.translate.setSource(german)).called(1);
+        verifyNever(harness.translate.translate);
+      });
+
+      testWidgets('offers the last source language in one tap', (tester) async {
+        final harness = TranslateHarness(
+          state: undetected(),
+          settings: const AppSettings(
+            recentPairs: [
+              LanguagePair(source: Language.auto, target: french),
+              LanguagePair(source: german, target: french),
+              LanguagePair(source: english, target: french),
+            ],
+          ),
+        );
+        await harness.pump(tester, child: const OutputCard(), more: true);
+        expect(find.text('Choose language'), findsOneWidget);
+        await tester.tap(find.text('Translate from German'));
+        verify(() => harness.translate.setSource(german)).called(1);
+      });
+
+      testWidgets('never suggests the target language', (tester) async {
+        final harness = TranslateHarness(
+          state: undetected(target: german),
+          settings: const AppSettings(
+            recentPairs: [LanguagePair(source: german, target: french)],
+          ),
+        );
+        await harness.pump(tester, child: const OutputCard(), more: true);
+        expect(
+          find.byKey(const Key('translate_error_use_source')),
+          findsNothing,
+        );
+        expect(
+          find.byKey(const Key('translate_error_choose_source')),
+          findsOneWidget,
+        );
+      });
     });
 
     testWidgets('copy copies the translation', (tester) async {
@@ -385,6 +459,67 @@ void main() {
         await tester.tap(find.byTooltip('Remove from favourites'));
         verify(() => harness.history.toggleFavorite('new')).called(1);
         verifyNever(() => harness.history.add(any()));
+      });
+
+      HistoryEntry lookUp({String text = 'Hello world'}) => HistoryEntry(
+        id: 'look-up',
+        text: text,
+        // A summary that happens to equal the translation.
+        translation: 'Bonjour le monde',
+        source: english,
+        target: french,
+        engineId: 'mozhi:deepl',
+        engineName: 'DeepL',
+        createdAt: DateTime(2026, 2),
+        isFavorite: true,
+        kind: HistoryEntryKind.dictionary,
+      );
+
+      test('never matches a dictionary look-up', () {
+        final translation = HistoryEntry(
+          id: 'translation',
+          text: 'Hello world ',
+          translation: 'Bonjour le monde',
+          source: Language.auto,
+          target: french,
+          engineId: 'mozhi:deepl',
+          engineName: 'DeepL',
+          createdAt: DateTime(2026),
+        );
+        expect(
+          findHistoryEntry(
+            [lookUp(), translation],
+            'Hello world',
+            'Bonjour le monde',
+          ),
+          translation,
+        );
+        expect(
+          findHistoryEntry([lookUp()], 'Hello world', 'Bonjour le monde'),
+          isNull,
+        );
+      });
+
+      testWidgets('a favourite look-up does not fill the heart', (
+        tester,
+      ) async {
+        final harness = TranslateHarness(
+          state: translatedState(),
+          history: HistoryState(
+            status: HistoryStatus.ready,
+            entries: [lookUp()],
+          ),
+        );
+        await harness.pump(tester, child: const OutputCard(), more: true);
+        expect(find.byTooltip('Remove from favourites'), findsNothing);
+        await tester.tap(find.byTooltip('Add to favourites'));
+        // A new translation entry; the look-up is left alone.
+        final added =
+            verify(() => harness.history.add(captureAny())).captured.single
+                as HistoryEntry;
+        expect(added.isDictionary, isFalse);
+        expect(added.isFavorite, isTrue);
+        verifyNever(() => harness.history.toggleFavorite(any()));
       });
     });
 

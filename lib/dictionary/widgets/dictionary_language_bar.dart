@@ -8,7 +8,38 @@ import 'package:mozhi/dictionary/widgets/dictionary_language_picker.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-/// The word's language, a swap button and the translations' language.
+/// Opens the searchable list of the word's languages ([source]) or of the
+/// translations' languages and applies the choice to the
+/// [DictionaryCubit] of [context].
+Future<void> pickDictionaryLanguage(
+  BuildContext context, {
+  required bool source,
+}) async {
+  final l10n = context.l10n;
+  final cubit = context.read<DictionaryCubit>();
+  final state = cubit.state;
+  final picked = await showDictionaryLanguagePicker(
+    context,
+    title: source
+        ? l10n.dictionaryPickSourceTitle
+        : l10n.dictionaryPickTargetTitle,
+    languages: source
+        ? DictionaryLanguageBar.sourceLanguages
+        : DictionaryLanguageBar.targetLanguages,
+    selected: source ? state.source : state.target,
+  );
+  if (picked == null || cubit.isClosed) return;
+  if (source) {
+    cubit.setSource(picked);
+  } else {
+    cubit.setTarget(picked);
+  }
+}
+
+/// The word's language, a swap button and the translations' language, as
+/// outlined pills with the language avatars: the languages section of the
+/// options sheet (`DictionaryOptionsSheet`). The composer's bar shows them
+/// compactly (`DictionaryLanguagePair`).
 class DictionaryLanguageBar extends StatelessWidget {
   const new({super.key});
 
@@ -20,26 +51,6 @@ class DictionaryLanguageBar extends StatelessWidget {
 
   /// Languages translations can be in.
   static List<Language> get targetLanguages => LanguageCatalog.all;
-
-  Future<void> _pick(BuildContext context, {required bool source}) async {
-    final l10n = context.l10n;
-    final cubit = context.read<DictionaryCubit>();
-    final state = cubit.state;
-    final picked = await showDictionaryLanguagePicker(
-      context,
-      title: source
-          ? l10n.dictionaryPickSourceTitle
-          : l10n.dictionaryPickTargetTitle,
-      languages: source ? sourceLanguages : targetLanguages,
-      selected: source ? state.source : state.target,
-    );
-    if (picked == null || cubit.isClosed) return;
-    if (source) {
-      cubit.setSource(picked);
-    } else {
-      cubit.setTarget(picked);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -61,7 +72,8 @@ class DictionaryLanguageBar extends StatelessWidget {
             semanticsLabel: source.isAuto
                 ? l10n.dictionarySourceLanguageAuto
                 : l10n.dictionarySourceLanguage(sourceName),
-            onPressed: () => unawaited(_pick(context, source: true)),
+            onPressed: () =>
+                unawaited(pickDictionaryLanguage(context, source: true)),
           ),
         ),
         IconButton(
@@ -76,7 +88,8 @@ class DictionaryLanguageBar extends StatelessWidget {
             code: target.code,
             label: targetName,
             semanticsLabel: l10n.dictionaryTargetLanguage(targetName),
-            onPressed: () => unawaited(_pick(context, source: false)),
+            onPressed: () =>
+                unawaited(pickDictionaryLanguage(context, source: false)),
           ),
         ),
       ],
@@ -110,7 +123,8 @@ class _LanguageButton extends StatelessWidget {
         side: BorderSide(color: palette.hairline),
         shape: const StadiumBorder(),
         padding: const EdgeInsetsDirectional.fromSTEB(6, 6, 8, 6),
-        textStyle: const TextStyle(fontWeight: FontWeight.w700),
+        textStyle: Theme.of(context).textTheme.labelLarge
+            ?.copyWith(fontWeight: FontWeight.w700),
       ),
       onPressed: onPressed,
       // The button reads "Language of the word: Spanish", not just

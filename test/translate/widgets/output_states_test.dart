@@ -58,6 +58,24 @@ void main() {
       await tester.pump(const Duration(seconds: 2));
     });
 
+    testWidgets('copy and favourite stay still with haptic feedback off', (
+      tester,
+    ) async {
+      final clipboard = FakeClipboard(tester);
+      final harness = TranslateHarness(
+        state: translatedState(),
+        settings: const AppSettings(hapticFeedback: false),
+      );
+      await harness.pump(tester, child: const OutputCard());
+      await tester.tap(find.byTooltip('Copy'));
+      await tester.pump();
+      await tester.tap(find.byTooltip('Add to favourites'));
+      await tester.pump();
+      expect(clipboard.haptics, isEmpty);
+      expect(clipboard.copied, 'Bonjour le monde');
+      await tester.pump(const Duration(seconds: 2));
+    });
+
     testWidgets('favourite ticks lightly', (tester) async {
       final clipboard = FakeClipboard(tester);
       final harness = TranslateHarness(state: translatedState());
@@ -317,7 +335,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('translate_instance_manage')));
       await tester.pumpAndSettle();
-      verify(() => harness.router.go('/settings/instances')).called(1);
+      verify(() => harness.router.push<void>('/settings/instances')).called(1);
     });
 
     testWidgets('dismissing changes nothing', (tester) async {

@@ -19,11 +19,20 @@ abstract interface class ImageEncoder {
   });
 }
 
-/// Long side cap for uploads.
-const int defaultMaxSide = 2048;
+/// Long side cap for uploads: enough for the print of a sign or a menu
+/// (and the largest size vision models look at without scaling down).
+const int defaultMaxSide = 1600;
 
-/// Keeps uploads under typical 4 MB proxy/body limits.
-const int defaultMaxBytes = 3800 * 1024;
+/// Keeps uploads well under the 1 to 4 MB body limits of the reverse
+/// proxies in front of many Mozhi instances, and quick on mobile data.
+const int defaultMaxBytes = 1500 * 1024;
+
+/// Long side of the smaller copy sent once after the upload was turned down
+/// (HTTP 413, or the connection dropped while sending it).
+const int retryMaxSide = 1280;
+
+/// Size of the smaller copy sent once after the upload was turned down.
+const int retryMaxBytes = 900 * 1024;
 
 /// [ImageEncoder] using the engine's codecs (`dart:ui`), so it works on
 /// every platform including web.

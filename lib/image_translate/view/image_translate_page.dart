@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/image_translate/cubit/image_translate_cubit.dart';
@@ -17,13 +18,19 @@ import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/usage/data/usage_tracker.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-/// Image translation (Kagi-style context-aware image translation and a
-/// Google Lens-lite via Mozhi).
+/// Image translation: on-device text recognition (recommended), Kagi-style
+/// context-aware translation by AI vision models, and (experimental) Mozhi
+/// passing the photo on to Google Translate.
 ///
 /// Needs `TranslationRepository` (RepositoryProvider), `TranslateCubit` and
 /// `SettingsCubit` above it; a `UsageTracker` above it (optional) counts AI
-/// requests. The platform services default to the plugin implementations
-/// and can be injected (tests, other platforms).
+/// requests and a `KeyValueStore` (optional) remembers the chosen method.
+/// The platform services default to the plugin implementations and can be
+/// injected (tests, other platforms).
+///
+/// A photo recovered after Android ended the app while the camera was open
+/// ([LostImageRecovery], or the picker's own lost data) is shown right
+/// away.
 class ImageTranslatePage extends StatelessWidget {
   const new({
     this.initialSource,
@@ -91,8 +98,9 @@ class ImageTranslatePage extends StatelessWidget {
             source: translate.source,
             target: translate.target,
             options: translate.options,
-            usageTracker: _usageTracker(context),
+            usageTracker: _maybeRead<UsageTracker>(context),
             preferredLanguages: ocrPreferredLanguages(settings, locale),
+            store: _maybeRead<KeyValueStore>(context),
           );
         },
         child: ImageTranslateView(initialSource: initialSource),
@@ -117,13 +125,26 @@ class _ImageTranslateViewState extends State<ImageTranslateView> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_start(context.read<ImageTranslateCubit>()));
+    });
+  }
+
+  /// Continues with a recovered photo, else opens the requested picker,
+  /// else asks the picker for a photo Android could not deliver.
+  Future<void> _start(ImageTranslateCubit cubit) async {
+    final recovered = LostImageRecovery.take();
+    if (recovered != null) {
+      // With the remembered method: an uploading one waits for Translate.
+      await cubit.methodRestored;
+      if (!cubit.isClosed) await cubit.setImage(recovered);
+      return;
+    }
     final source = widget.initialSource;
     if (source != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          unawaited(context.read<ImageTranslateCubit>().pickImage(source));
-        }
-      });
+      await cubit.pickImage(source);
+    } else {
+      await cubit.recoverLostImage();
     }
   }
 
@@ -259,15 +280,6 @@ class _Status extends StatelessWidget {
               onPressed: state.canTranslate
                   ? () => unawaited(cubit.translate())
                   : null,
-              style: FilledButton.styleFrom(
-                minimumSize: const Size(0, 52),
-                shape: const StadiumBorder(),
-                padding: const EdgeInsets.symmetric(horizontal: 28),
-                textStyle: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 16,
-                ),
-              ),
               icon: const Icon(Icons.translate),
               label: Text(l10n.imageTranslateTranslateAction),
             ),
@@ -277,9 +289,15 @@ class _Status extends StatelessWidget {
         if (state.status == ImageTranslateStatus.failure) ...[
           ImageTranslateErrorView(
             error: state.error,
+            method: state.method?.kind,
             onRetry: state.canTranslate
                 ? () => unawaited(cubit.translate())
                 : null,
+            onUseOnDevice: state.offersOnDevice
+                ? () => unawaited(cubit.useOnDevice())
+                : null,
+            onChooseSourceLanguage: () =>
+                unawaited(pickImageLanguage(context, source: true)),
             textRecognitionData: _textRecognitionData(context),
           ),
           const SizedBox(height: 16),
@@ -409,10 +427,11 @@ TextRecognitionLanguageData? _textRecognitionData(BuildContext context) {
   }
 }
 
-/// The app's usage tracker, or null when none is provided (e.g. in tests).
-UsageTracker? _usageTracker(BuildContext context) {
+/// The app's [T] (usage tracker, preferences), or null when none is
+/// provided (e.g. in tests).
+T? _maybeRead<T>(BuildContext context) {
   try {
-    return context.read<UsageTracker>();
+    return context.read<T>();
   } on ProviderNotFoundException {
     return null;
   }

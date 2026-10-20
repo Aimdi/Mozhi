@@ -1,5 +1,9 @@
+import 'dart:async';
+
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/voice/voice.dart';
 import 'package:speech_to_text/speech_recognition_error.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
@@ -158,6 +162,112 @@ void main() {
       await adapter.cancel();
       verify(() => speech.stop()).called(1);
       verify(() => speech.cancel()).called(1);
+    });
+  });
+
+  group('unanswered locale queries', () {
+    const timeout = Duration(milliseconds: 20);
+
+    /// What `speech_to_text` 7.5 does on Android 13+ without an on-device
+    /// recogniser: the locale query is never answered.
+    void neverAnswerLocales() {
+      when(() => speech.locales())
+          .thenAnswer((_) => Completer<List<LocaleName>>().future);
+      when(() => speech.systemLocale())
+          .thenAnswer((_) => Completer<LocaleName?>().future);
+    }
+
+    setUp(() {
+      adapter = SpeechToTextAdapter(
+        create: () => speech,
+        localeQueryTimeout: timeout,
+      );
+    });
+
+    test('wait two seconds by default', () {
+      expect(
+        SpeechToTextAdapter.defaultLocaleQueryTimeout,
+        const Duration(seconds: 2),
+      );
+      expect(
+        SpeechToTextAdapter().localeQueryTimeout,
+        SpeechToTextAdapter.defaultLocaleQueryTimeout,
+      );
+    });
+
+    test('give no locales and no system locale, and are not '
+        'repeated', () async {
+      neverAnswerLocales();
+      expect(await adapter.locales(), isEmpty);
+      expect(await adapter.systemLocaleId(), isNull);
+      expect(await adapter.locales(), isEmpty);
+      verify(() => speech.locales()).called(1);
+      verifyNever(() => speech.systemLocale());
+    });
+
+    test('an unanswered system locale stops locale queries too', () async {
+      neverAnswerLocales();
+      expect(await adapter.systemLocaleId(), isNull);
+      expect(await adapter.locales(), isEmpty);
+      verifyNever(() => speech.locales());
+    });
+
+    test('errors still reach the caller, and later queries are '
+        'tried', () async {
+      when(() => speech.locales())
+          .thenAnswer((_) async => throw PlatformException(code: 'failed'));
+      await expectLater(adapter.locales(), throwsA(isA<PlatformException>()));
+
+      when(() => speech.locales())
+          .thenAnswer((_) async => [LocaleName('fr_FR', 'French')]);
+      expect(await adapter.locales(), const [
+        SpeechRecognizerLocale('fr_FR', 'French'),
+      ]);
+    });
+
+    test('a session still starts, in the chosen language, without '
+        'waiting again', () async {
+      neverAnswerLocales();
+      when(
+        () => speech.initialize(
+          onError: any(named: 'onError'),
+          onStatus: any(named: 'onStatus'),
+          options: any(named: 'options'),
+        ),
+      ).thenAnswer((_) async => true);
+      when(
+        () => speech.listen(
+          onResult: any(named: 'onResult'),
+          onSoundLevelChange: any(named: 'onSoundLevelChange'),
+          listenOptions: any(named: 'listenOptions'),
+        ),
+      ).thenAnswer((_) async {});
+      when(() => speech.cancel()).thenAnswer((_) async {});
+      final service = SpeechInputService(
+        store: MemoryStore(),
+        adapter: adapter,
+        platformSupported: true,
+        onDeviceSupported: true,
+      );
+      addTearDown(service.dispose);
+      final owner = Object();
+
+      final elapsed = Stopwatch()..start();
+      expect(await service.listen('fr', owner: owner), isTrue);
+      expect(elapsed.elapsed, lessThan(const Duration(seconds: 1)));
+      expect(service.state, SpeechInputListening(owner: owner));
+      await service.cancel();
+      expect(await service.listen('de'), isTrue);
+
+      final requests = verify(
+        () => speech.listen(
+          onResult: any(named: 'onResult'),
+          onSoundLevelChange: any(named: 'onSoundLevelChange'),
+          listenOptions: captureAny(named: 'listenOptions'),
+        ),
+      ).captured.cast<SpeechListenOptions>();
+      expect(requests.map((options) => options.localeId), ['fr-FR', 'de-DE']);
+      verify(() => speech.locales()).called(1);
     });
   });
 }

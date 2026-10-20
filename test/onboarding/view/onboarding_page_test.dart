@@ -348,9 +348,14 @@ void main() {
         ),
         findsOneWidget,
       );
+      when(() => router.push<void>(any())).thenAnswer((_) async {});
       await tapVisible(tester, find.text('Open AI provider settings'));
       expect(settings.state.onboardingComplete, isTrue);
-      verify(() => router.go('/settings/providers')).called(1);
+      // The settings are a page above the tabs: back returns to them.
+      verifyInOrder([
+        () => router.go('/translate'),
+        () => router.push<void>('/settings/providers'),
+      ]);
     });
 
     testWidgets('keeps form input when moving between steps', (tester) async {

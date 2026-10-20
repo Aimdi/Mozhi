@@ -8,8 +8,8 @@
     <string name="tile_translate_description">使用 Mozhi 翻译剪贴板</string>
     <string name="shortcut_clipboard_short">剪贴板</string>
     <string name="shortcut_clipboard_long">翻译剪贴板</string>
-    <string name="shortcut_camera_short">相机</string>
-    <string name="shortcut_camera_long">相机翻译</string>
+    <string name="shortcut_dictionary_short">词典</string>
+    <string name="shortcut_dictionary_long">词典</string>
     <string name="shortcut_conversation_short">对话</string>
     <string name="shortcut_conversation_long">对话</string>
     <string name="shortcut_proofread_short">校对</string>

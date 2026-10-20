@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/web_translate/core/readable_extractor.dart';
 import 'package:mozhi/web_translate/widgets/web_translate_messages.dart';
@@ -80,7 +81,9 @@ class ReadableBlockView extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: colors.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: const BorderRadius.all(
+              Radius.circular(AppRadius.menu),
+            ),
           ),
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -101,7 +104,9 @@ class ReadableBlockView extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             border: Border.all(color: colors.outlineVariant),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: const BorderRadius.all(
+              Radius.circular(AppRadius.menu),
+            ),
           ),
           child: Row(
             children: [
