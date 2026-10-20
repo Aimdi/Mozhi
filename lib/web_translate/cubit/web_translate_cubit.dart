@@ -254,8 +254,7 @@ class WebTranslateCubit extends Cubit<WebTranslateState> {
 
   Future<void> _run(WebTranslateSelection selection) async {
     final page = state.page!;
-    final job = _job = _TranslationJob()
-      ..detectedSource = state.detectedSource;
+    final job = _job = _TranslationJob()..detectedSource = state.detectedSource;
     final items = <TranslationItem>[
       if (state.translatedTitle == null && page.title.trim().isNotEmpty)
         TranslationItem(_titleId, page.title),
@@ -375,7 +374,6 @@ class WebTranslateCubit extends Cubit<WebTranslateState> {
         for (final block in page.blocks)
           if (block.isTranslatable) block.text,
       ]);
-      if (sample.isEmpty) return null;
       final detected = await _repository.detectLanguage(
         sample,
         // The offline engine always answers with the on-device identifier.

@@ -79,6 +79,32 @@ class FakeTranslationRepository extends Fake implements TranslationRepository {
 
   final requests = <TranslationRequest>[];
 
+  /// What [hasOfflineEngine] answers.
+  bool offlineEngine = false;
+
+  /// Answers [detectLanguage]; without one it cannot tell the language.
+  Future<DetectedLanguage> Function(String text, TranslationEngine? engine)?
+  detector;
+
+  /// (text, engine) of every [detectLanguage] call.
+  final detections = <(String, TranslationEngine?)>[];
+
+  @override
+  bool get hasOfflineEngine => offlineEngine;
+
+  @override
+  Future<DetectedLanguage> detectLanguage(
+    String text, {
+    TranslationEngine? engine,
+  }) async {
+    detections.add((text, engine));
+    final detect = detector;
+    if (detect == null) {
+      throw SourceLanguageRequiredException(engineId: engine?.id);
+    }
+    return await detect(text, engine);
+  }
+
   @override
   Stream<TranslationResult> translate(
     TranslationEngine engine,

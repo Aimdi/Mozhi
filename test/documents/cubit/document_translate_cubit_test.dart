@@ -314,6 +314,59 @@ void main() {
         expect(cubit.state.output, isNot(contains('Hello there.')));
       });
 
+      group('on the offline engine with "Detect language"', () {
+        const long = 'A paragraph that is long enough to tell its language.';
+
+        setUp(() {
+          when(() => repository.hasOfflineEngine).thenReturn(true);
+          // Like the device: short text with an auto source cannot be told.
+          stubTranslate(
+            repository,
+            requests: requests,
+            respond: (request) =>
+                request.source.isAuto && request.text.length < 20
+                ? Stream.error(const SourceLanguageRequiredException())
+                : Stream.value(result(request.text.toUpperCase())),
+          );
+        });
+
+        DocumentTranslateCubit buildOffline() => build(
+          engine: TranslationEngine.offline(),
+          chunker: const Chunker(maxUnits: 1),
+        )..loadFile('notes.txt', bytesOf('Hi\n\n$long'));
+
+        test('translates every chunk from the language identified for the '
+            'document', () async {
+          when(
+            () =>
+                repository.detectLanguage(any(), engine: any(named: 'engine')),
+          ).thenAnswer((_) async => const DetectedLanguage(code: 'en'));
+          final cubit = buildOffline();
+          addTearDown(cubit.close);
+          await cubit.translate();
+
+          expect(cubit.state.status, DocumentStatus.translated);
+          expect(cubit.state.failures, isEmpty);
+          expect(cubit.state.output, 'HI\n\n${long.toUpperCase()}');
+          expect(requests.map((r) => r.source.code).toSet(), {'en'});
+        });
+
+        test('keeps a chunk whose language cannot be told', () async {
+          when(
+            () =>
+                repository.detectLanguage(any(), engine: any(named: 'engine')),
+          ).thenThrow(const SourceLanguageRequiredException());
+          final cubit = buildOffline();
+          addTearDown(cubit.close);
+          await cubit.translate();
+
+          expect(cubit.state.status, DocumentStatus.translated);
+          expect(cubit.state.failures, isEmpty);
+          expect(cubit.state.isComplete, isTrue);
+          expect(cubit.state.output, 'Hi\n\n${long.toUpperCase()}');
+        });
+      });
+
       test('failed chunks can be retried one by one or all at once', () async {
         var failing = true;
         stubTranslate(
