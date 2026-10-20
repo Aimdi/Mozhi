@@ -826,31 +826,23 @@ void main() {
       const message =
           "Couldn't read the clipboard. Paste into the text field instead.";
 
-      for (final (name, error) in <(String, Exception)>[
-        ('a browser refusing it', PlatformException(code: 'paste_fail')),
-        ('no clipboard at all', MissingPluginException()),
-      ]) {
-        testWidgets('($name) is reported and the field takes the focus', (
-          tester,
-        ) async {
-          failClipboard(tester, error);
-          final harness = TranslateHarness();
-          await harness.pump(tester, child: const InputCard());
-          await tester.tap(find.byTooltip('Paste'));
-          await tester.pump();
-          expect(find.text(message), findsOneWidget);
-          expect(
-            tester
-                .widget<TextField>(
-                  find.byKey(const Key('translate_input_field')),
-                )
-                .focusNode!
-                .hasFocus,
-            isTrue,
-          );
-          verifyNever(() => harness.translate.setInput(any()));
-        });
-      }
+      testWidgets('(a browser refusing it) is reported and the field takes '
+          'the focus', (tester) async {
+        failClipboard(tester, PlatformException(code: 'paste_fail'));
+        final harness = TranslateHarness();
+        await harness.pump(tester, child: const InputCard());
+        await tester.tap(find.byTooltip('Paste'));
+        await tester.pump();
+        expect(find.text(message), findsOneWidget);
+        expect(
+          tester
+              .widget<TextField>(find.byKey(const Key('translate_input_field')))
+              .focusNode!
+              .hasFocus,
+          isTrue,
+        );
+        verifyNever(() => harness.translate.setInput(any()));
+      });
 
       testWidgets('the placeholder link reports it the same way', (
         tester,

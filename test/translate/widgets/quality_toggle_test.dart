@@ -1,3 +1,4 @@
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
@@ -254,9 +255,8 @@ void main() {
       expect(best.checked, isTrue);
       await tester.tap(find.byKey(const ValueKey('translate_quality_fast')));
       await tester.pumpAndSettle();
-      verify(
-        () => harness.translate.setQualityMode(QualityMode.fast),
-      ).called(1);
+      verify(() => harness.translate.setQualityMode(QualityMode.fast))
+          .called(1);
     });
 
     testWidgets('choosing the current mode does nothing', (tester) async {

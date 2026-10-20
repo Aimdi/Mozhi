@@ -242,9 +242,10 @@ class _InputCardState extends State<InputCard> {
   /// [focusField]: the field takes the focus afterwards (the link had the
   /// keyboard focus and goes away with the text).
   ///
-  /// When the clipboard cannot be read (a browser that does not allow it,
-  /// a platform without one), a snack bar says so and the field takes the
-  /// focus: the keyboard's and the system's paste work there.
+  /// When the clipboard cannot be read (e.g. a browser that does not allow
+  /// it), a snack bar says so and the field takes the focus: the keyboard's
+  /// and the system's paste work there. (A platform without a clipboard
+  /// reads as an empty one.)
   Future<void> _paste({bool focusField = false}) async {
     final messenger = ScaffoldMessenger.maybeOf(context);
     final failure = context.l10n.translatePasteFailed;
@@ -253,8 +254,6 @@ class _InputCardState extends State<InputCard> {
     try {
       text = (await Clipboard.getData(Clipboard.kTextPlain))?.text;
     } on PlatformException {
-      failed = true;
-    } on MissingPluginException {
       failed = true;
     }
     if (!mounted) return;
@@ -272,11 +271,9 @@ class _InputCardState extends State<InputCard> {
   }
 
   /// Whether the empty composer's placeholder ([_PastePrompt]) shows for
-  /// the field's [value]: no text and no text being composed.
+  /// the field's [value]: no text and no input method composing.
   bool _showsPrompt(TextEditingValue value) =>
-      widget.compact &&
-      value.text.isEmpty &&
-      !(value.composing.isValid && !value.composing.isCollapsed);
+      widget.compact && value.text.isEmpty && !value.composing.isValid;
 
   void _clear() {
     _syncController('');
