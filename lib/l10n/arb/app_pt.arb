@@ -617,7 +617,6 @@
   "speechListenSlowly": "Ouvir devagar",
   "imageTranslateTitle": "Traduzir imagem",
   "imageTranslateButtonTooltip": "Traduzir uma imagem",
-  "imageTranslateEmptyTitle": "Traduza textos em fotos",
   "imageTranslateEmptyBody": "Escolha uma foto ou fotografe uma placa, um cardápio ou um documento. O texto será encontrado e traduzido.",
   "imageTranslateMethodsHeader": "Métodos de tradução",
   "imageTranslatePickGallery": "Escolher imagem",
@@ -690,8 +689,6 @@
   "webTranslatePaste": "Colar",
   "webTranslateGo": "Traduzir página",
   "webTranslateInvalidUrl": "Digite um endereço da web válido (http ou https)",
-  "webTranslateEmptyTitle": "Leia qualquer página da web no seu idioma",
-  "webTranslateEmptyBody": "Cole o link de um artigo ou post de blog. O Mozhi baixa a página, mantém apenas o texto legível e o traduz com o mecanismo e os idiomas selecionados abaixo.",
   "webTranslateWebNotice": "Na versão para navegador, o Mozhi só consegue abrir páginas de sites que permitem solicitações entre origens (CORS), e a maioria não permite. Use o app para Android, iOS ou computador para traduzir qualquer página.",
   "webTranslateLoading": "Carregando página…",
   "webTranslateProgress": "Traduzindo… {done} de {total}",
@@ -718,7 +715,6 @@
   "documentsTitle": "Traduzir documentos",
   "documentsModeFile": "Arquivo",
   "documentsModeText": "Texto",
-  "documentsPickTitle": "Escolha um documento",
   "documentsPickHint": "Arquivos de texto, Markdown, legendas SRT e VTT, JSON e ARB de até {size}. Código, links e tempos não são alterados.",
   "documentsPickButton": "Escolher arquivo",
   "documentsReplaceFile": "Substituir",
@@ -1565,5 +1561,8 @@
   "historyButtonTooltip": "Histórico\nToque e segure para abrir os favoritos",
   "historyOpenFavorites": "Abrir favoritos",
   "translateShortcutEnterTranslates": "Traduzir (ao digitar)",
-  "translateShortcutNewLine": "Inserir uma nova linha (ao digitar)"
+  "translateShortcutNewLine": "Inserir uma nova linha (ao digitar)",
+  "translateComposerHint": "Digite ou {paste} um texto",
+  "translateComposerHintPaste": "cole",
+  "translatePasteFailed": "Não foi possível ler a área de transferência. Cole direto no campo de texto."
 }

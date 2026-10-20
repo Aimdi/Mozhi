@@ -617,7 +617,6 @@
   "speechListenSlowly": "Odsłuchaj wolniej",
   "imageTranslateTitle": "Tłumaczenie obrazu",
   "imageTranslateButtonTooltip": "Przetłumacz obraz",
-  "imageTranslateEmptyTitle": "Tłumacz tekst na zdjęciach",
   "imageTranslateEmptyBody": "Wybierz zdjęcie lub sfotografuj znak, menu albo dokument. Tekst na nim zostanie rozpoznany i przetłumaczony.",
   "imageTranslateMethodsHeader": "Metody tłumaczenia",
   "imageTranslatePickGallery": "Wybierz obraz",
@@ -690,8 +689,6 @@
   "webTranslatePaste": "Wklej",
   "webTranslateGo": "Przetłumacz stronę",
   "webTranslateInvalidUrl": "Wpisz prawidłowy adres strony (http lub https)",
-  "webTranslateEmptyTitle": "Czytaj dowolną stronę w swoim języku",
-  "webTranslateEmptyBody": "Wklej link do artykułu lub wpisu na blogu. Mozhi pobierze stronę, zostawi tylko czytelny tekst i przetłumaczy go za pomocą wybranego poniżej silnika i języków.",
   "webTranslateWebNotice": "W wersji przeglądarkowej Mozhi może otwierać tylko strony serwisów, które zezwalają na żądania między domenami (CORS), a większość tego nie robi. Aby tłumaczyć dowolne strony, użyj aplikacji na Androida, iOS lub komputer.",
   "webTranslateLoading": "Wczytywanie strony…",
   "webTranslateProgress": "Tłumaczenie… {done} z {total}",
@@ -718,7 +715,6 @@
   "documentsTitle": "Tłumaczenie dokumentów",
   "documentsModeFile": "Plik",
   "documentsModeText": "Tekst",
-  "documentsPickTitle": "Wybierz dokument",
   "documentsPickHint": "Pliki tekstowe, Markdown, napisy SRT i VTT oraz pliki JSON i ARB do {size}. Kod, linki i znaczniki czasu pozostają bez zmian.",
   "documentsPickButton": "Wybierz plik",
   "documentsReplaceFile": "Zastąp",
@@ -1565,5 +1561,8 @@
   "historyButtonTooltip": "Historia\nPrzytrzymaj, aby otworzyć ulubione",
   "historyOpenFavorites": "Otwórz ulubione",
   "translateShortcutEnterTranslates": "Przetłumacz (podczas pisania)",
-  "translateShortcutNewLine": "Wstaw nowy wiersz (podczas pisania)"
+  "translateShortcutNewLine": "Wstaw nowy wiersz (podczas pisania)",
+  "translateComposerHint": "Wpisz lub {paste} tekst",
+  "translateComposerHintPaste": "wklej",
+  "translatePasteFailed": "Nie udało się odczytać schowka. Wklej tekst bezpośrednio w polu tekstowym."
 }

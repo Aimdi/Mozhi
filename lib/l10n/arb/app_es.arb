@@ -617,7 +617,6 @@
   "speechListenSlowly": "Escuchar despacio",
   "imageTranslateTitle": "Traducir imagen",
   "imageTranslateButtonTooltip": "Traducir una imagen",
-  "imageTranslateEmptyTitle": "Traduce el texto de tus fotos",
   "imageTranslateEmptyBody": "Elige una foto o haz una de un cartel, un menú o un documento. El texto que contenga se detectará y traducirá.",
   "imageTranslateMethodsHeader": "Métodos de traducción",
   "imageTranslatePickGallery": "Elegir imagen",
@@ -690,8 +689,6 @@
   "webTranslatePaste": "Pegar",
   "webTranslateGo": "Traducir página",
   "webTranslateInvalidUrl": "Introduce una dirección web válida (http o https)",
-  "webTranslateEmptyTitle": "Lee cualquier página web en tu idioma",
-  "webTranslateEmptyBody": "Pega el enlace de un artículo o una entrada de blog. Mozhi descarga la página, conserva solo el texto legible y lo traduce con el motor y los idiomas seleccionados abajo.",
   "webTranslateWebNotice": "En la versión para navegador, Mozhi solo puede abrir páginas de sitios que permiten solicitudes de origen cruzado (CORS), y la mayoría no lo hace. Usa la app para Android, iOS o escritorio para traducir cualquier página.",
   "webTranslateLoading": "Cargando página…",
   "webTranslateProgress": "Traduciendo… {done} de {total}",
@@ -718,7 +715,6 @@
   "documentsTitle": "Traducir documentos",
   "documentsModeFile": "Archivo",
   "documentsModeText": "Texto",
-  "documentsPickTitle": "Elige un documento",
   "documentsPickHint": "Archivos de texto, Markdown, subtítulos SRT y VTT, JSON y ARB de hasta {size}. El código, los enlaces y los tiempos no se modifican.",
   "documentsPickButton": "Elegir archivo",
   "documentsReplaceFile": "Reemplazar",
@@ -1565,5 +1561,8 @@
   "historyButtonTooltip": "Historial\nMantén pulsado para abrir los favoritos",
   "historyOpenFavorites": "Abrir favoritos",
   "translateShortcutEnterTranslates": "Traducir (al escribir)",
-  "translateShortcutNewLine": "Insertar una línea nueva (al escribir)"
+  "translateShortcutNewLine": "Insertar una línea nueva (al escribir)",
+  "translateComposerHint": "Escribe o {paste} texto",
+  "translateComposerHintPaste": "pega",
+  "translatePasteFailed": "No se pudo leer el portapapeles. Pega directamente en el campo de texto."
 }

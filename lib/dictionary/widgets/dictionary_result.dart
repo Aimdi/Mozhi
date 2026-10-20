@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/dictionary/cubit/dictionary_cubit.dart';
 import 'package:mozhi/dictionary/widgets/dictionary_entry_tabs.dart';
+import 'package:mozhi/dictionary/widgets/dictionary_favorite_button.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/view/widgets/empty_state_view.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -79,8 +80,9 @@ class DictionaryEngineMessage extends StatelessWidget {
 /// entry in tabs ([DictionaryEntryTabs]), or the look-up in progress, its
 /// error (with Retry, or the consent prompt) or "No entry found", above a
 /// filled "New look-up" button ([onNewLookUp]: clears the word and focuses
-/// the search). Synonyms, related words and "Did you mean …?" look that
-/// word up ([DictionaryCubit.lookUpWord]).
+/// the search) with the favourite heart before it
+/// ([DictionaryFavoriteButton]). Synonyms, related words and "Did you mean
+/// …?" look that word up ([DictionaryCubit.lookUpWord]).
 ///
 /// The "New look-up" button takes the keyboard focus when the view
 /// appears (the search field it came from is gone), so Enter starts the
@@ -150,15 +152,21 @@ class DictionaryResultView extends StatelessWidget {
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                child: FilledButton.icon(
-                  key: const Key('dictionary_new_look_up'),
-                  autofocus: true,
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size(160, 52),
-                  ),
-                  onPressed: onNewLookUp,
-                  icon: const Icon(Icons.search),
-                  label: Text(l10n.dictionaryNewLookUp),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const DictionaryFavoriteButton(),
+                    FilledButton.icon(
+                      key: const Key('dictionary_new_look_up'),
+                      autofocus: true,
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(160, 52),
+                      ),
+                      onPressed: onNewLookUp,
+                      icon: const Icon(Icons.search),
+                      label: Text(l10n.dictionaryNewLookUp),
+                    ),
+                  ],
                 ),
               ),
             ],

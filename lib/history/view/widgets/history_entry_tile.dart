@@ -33,6 +33,12 @@ abstract final class HistoryShare {
 /// the source text quoted below it and an action row (copy, favorite,
 /// share, more).
 ///
+/// A dictionary look-up ([HistoryEntry.isDictionary]) shows the word's
+/// language as the avatar and, below the same header, a "Dictionary"
+/// marker (a book icon and label), the word as the body and the entry's
+/// summary quoted below it. Copy copies the word, share the word and the
+/// summary; tapping it looks the word up ([onTap]).
+///
 /// Swipes work like a mail app's, mirrored in right-to-left layouts:
 ///
 /// * towards the start (right to left in English) deletes: a red
@@ -114,8 +120,18 @@ class _HistoryEntryTileState extends State<HistoryEntryTile> {
     }
   }
 
+  /// What copy copies: the translation, or a look-up's word.
+  String get _copyText => entry.isDictionary ? entry.text : entry.translation;
+
+  /// What share shares: the translation, or a look-up's word and summary.
+  String get _shareText {
+    if (!entry.isDictionary) return entry.translation;
+    final summary = entry.translation.trim();
+    return summary.isEmpty ? entry.text : '${entry.text}\n$summary';
+  }
+
   void _copy() {
-    unawaited(copyToClipboard(context, entry.translation));
+    unawaited(copyToClipboard(context, _copyText));
     _copiedTimer?.cancel();
     setState(() {
       _copiedTimer = Timer(HistoryEntryTile.copiedDuration, () {
@@ -131,7 +147,7 @@ class _HistoryEntryTileState extends State<HistoryEntryTile> {
         : box.localToGlobal(Offset.zero) & box.size;
     unawaited(
       HistoryShare.share(
-        ShareParams(text: entry.translation, sharePositionOrigin: origin),
+        ShareParams(text: _shareText, sharePositionOrigin: origin),
       ),
     );
   }
@@ -155,6 +171,7 @@ class _HistoryEntryTileState extends State<HistoryEntryTile> {
         ? null
         : entry.source.code;
     final targetCode = entry.target.isCustom ? null : entry.target.code;
+    final lookUp = entry.isDictionary;
     final copied = _copiedTimer != null;
     final favoriteLabel = entry.isFavorite
         ? l10n.historyUnfavorite
@@ -211,7 +228,9 @@ class _HistoryEntryTileState extends State<HistoryEntryTile> {
                     widget.onDelete,
               },
               child: Semantics(
-                onTapHint: l10n.historyOpenHint,
+                onTapHint: lookUp
+                    ? l10n.historyOpenDictionaryHint
+                    : l10n.historyOpenHint,
                 // What the swipes do, without swiping.
                 customSemanticsActions: {
                   CustomSemanticsAction(label: l10n.commonDelete):
@@ -227,7 +246,11 @@ class _HistoryEntryTileState extends State<HistoryEntryTile> {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        LanguageAvatar(code: targetCode ?? entry.target.name),
+                        LanguageAvatar(
+                          code: lookUp
+                              ? sourceCode ?? entry.source.code
+                              : targetCode ?? entry.target.name,
+                        ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
@@ -237,36 +260,28 @@ class _HistoryEntryTileState extends State<HistoryEntryTile> {
                                 pair: pair,
                                 meta: '${entry.engineName} · $time',
                               ),
-                              const SizedBox(height: 4),
-                              _LanguageText(
-                                text: entry.translation,
-                                code: targetCode,
-                                maxLines: 6,
-                                style: theme.textTheme.bodyLarge?.copyWith(
-                                  color: colors.onSurface,
-                                  fontSize: 16,
-                                  height: 1.35,
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              // The source, quoted like a linked post: a
-                              // hairline box with no fill.
-                              DecoratedBox(
-                                decoration: BoxDecoration(
-                                  border: Border.all(color: palette.hairline),
-                                  borderRadius: AppRadius.cardBorderRadius,
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 10,
+                              if (lookUp) ...[
+                                const SizedBox(height: 6),
+                                const _DictionaryMarker(),
+                                const SizedBox(height: 2),
+                                _LanguageText(
+                                  text: entry.text,
+                                  code: sourceCode,
+                                  style: theme.textTheme.titleLarge?.copyWith(
+                                    color: colors.onSurface,
+                                    fontWeight: FontWeight.w700,
+                                    height: 1.3,
                                   ),
-                                  child: SizedBox(
-                                    width: double.infinity,
-                                    child: _LanguageText(
-                                      text: entry.text,
-                                      code: sourceCode,
+                                ),
+                                if (entry.translation.trim().isNotEmpty) ...[
+                                  const SizedBox(height: 8),
+                                  // The summary, quoted like a translation's
+                                  // source. Written in the app's language.
+                                  _Quote(
+                                    child: Text(
+                                      entry.translation,
                                       maxLines: 3,
+                                      overflow: TextOverflow.ellipsis,
                                       style: theme.textTheme.bodyMedium
                                           ?.copyWith(
                                             color: palette.secondaryText,
@@ -274,8 +289,33 @@ class _HistoryEntryTileState extends State<HistoryEntryTile> {
                                           ),
                                     ),
                                   ),
+                                ],
+                              ] else ...[
+                                const SizedBox(height: 4),
+                                _LanguageText(
+                                  text: entry.translation,
+                                  code: targetCode,
+                                  maxLines: 6,
+                                  style: theme.textTheme.bodyLarge?.copyWith(
+                                    color: colors.onSurface,
+                                    fontSize: 16,
+                                    height: 1.35,
+                                  ),
                                 ),
-                              ),
+                                const SizedBox(height: 10),
+                                // The source, quoted like a linked post.
+                                _Quote(
+                                  child: _LanguageText(
+                                    text: entry.text,
+                                    code: sourceCode,
+                                    maxLines: 3,
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: palette.secondaryText,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                ),
+                              ],
                               const SizedBox(height: 2),
                               Row(
                                 mainAxisAlignment:
@@ -368,6 +408,55 @@ class _HistoryEntryTileState extends State<HistoryEntryTile> {
       return l10n.historyDetected(LanguageCatalog.nameOf(detected));
     }
     return entry.source.name;
+  }
+}
+
+/// [child] in a hairline box with no fill, full width (a quoted post).
+class _Quote extends StatelessWidget {
+  const new({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      border: Border.all(color: AppPalette.of(context).hairline),
+      borderRadius: AppRadius.cardBorderRadius,
+    ),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: SizedBox(width: double.infinity, child: child),
+    ),
+  );
+}
+
+/// The small "Dictionary" label (with a book icon) of a look-up.
+class _DictionaryMarker extends StatelessWidget {
+  const new();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = AppPalette.of(context).secondaryText;
+    return Row(
+      key: const Key('history_dictionary_marker'),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.menu_book_rounded, size: 16, color: color),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            context.l10n.historyDictionaryMarker,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 

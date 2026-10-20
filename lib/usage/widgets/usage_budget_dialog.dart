@@ -78,7 +78,6 @@ class _UsageBudgetDialogState extends State<UsageBudgetDialog> {
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: InputDecoration(
                 labelText: l10n.usageBudgetFieldLabel,
-                border: const OutlineInputBorder(),
               ),
               validator: (value) {
                 final chars = int.tryParse(value ?? '');

@@ -43,9 +43,7 @@ class ImageTranslateProgress extends StatelessWidget {
                 child: Text(
                   imagePhaseMessage(l10n, state),
                   textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: theme.textTheme.titleSmall,
                 ),
               ),
               if (state.slow) ...[
@@ -63,12 +61,6 @@ class ImageTranslateProgress extends StatelessWidget {
               OutlinedButton.icon(
                 key: const Key('image_translate_cancel_button'),
                 onPressed: context.read<ImageTranslateCubit>().cancel,
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(0, 48),
-                  shape: const StadiumBorder(),
-                  side: BorderSide(color: palette.hairline),
-                  textStyle: const TextStyle(fontWeight: FontWeight.w700),
-                ),
                 icon: const Icon(Icons.close),
                 label: Text(l10n.commonCancel),
               ),

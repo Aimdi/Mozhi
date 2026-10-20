@@ -1,5 +1,6 @@
 export 'dictionary_composer.dart';
 export 'dictionary_entry_tabs.dart';
+export 'dictionary_favorite_button.dart';
 export 'dictionary_language_bar.dart';
 export 'dictionary_language_picker.dart';
 export 'dictionary_options_sheet.dart';

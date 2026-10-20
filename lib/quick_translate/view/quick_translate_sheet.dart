@@ -495,10 +495,7 @@ class _Header extends StatelessWidget {
               offlineOnly
                   ? l10n.quickTranslateOfflineTitle
                   : l10n.quickTranslateTitle,
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.3,
-              ),
+              style: theme.textTheme.titleLarge,
             ),
           ),
         ),

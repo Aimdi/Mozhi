@@ -123,7 +123,6 @@ class _ImportTextDialogState<T> extends State<ImportTextDialog<T>> {
                 hintText: widget.hint,
                 errorText: _error,
                 errorMaxLines: 3,
-                border: const OutlineInputBorder(),
               ),
               onChanged: (_) {
                 if (_error != null) setState(() => _error = null);

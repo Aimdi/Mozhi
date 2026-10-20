@@ -35,7 +35,6 @@ class QuickActionsBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final palette = AppPalette.of(context);
-    const pillText = TextStyle(fontWeight: FontWeight.w700);
 
     return Row(
       children: [
@@ -61,11 +60,6 @@ class QuickActionsBar extends StatelessWidget {
               if (onOpenInApp case final VoidCallback openInApp)
                 OutlinedButton(
                   key: const Key('quick_translate_open_in_app'),
-                  style: OutlinedButton.styleFrom(
-                    shape: const StadiumBorder(),
-                    side: BorderSide(color: palette.hairline),
-                    textStyle: pillText,
-                  ),
                   onPressed: openInApp,
                   child: Text(l10n.quickTranslateOpenInApp),
                 ),
@@ -74,10 +68,6 @@ class QuickActionsBar extends StatelessWidget {
                   message: l10n.quickTranslateReplaceTooltip,
                   child: FilledButton(
                     key: const Key('quick_translate_replace'),
-                    style: FilledButton.styleFrom(
-                      shape: const StadiumBorder(),
-                      textStyle: pillText,
-                    ),
                     onPressed: enabled ? replace : null,
                     child: Text(l10n.quickTranslateReplace),
                   ),

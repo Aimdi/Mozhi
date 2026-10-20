@@ -617,7 +617,6 @@
   "speechListenSlowly": "Dengarkan perlahan",
   "imageTranslateTitle": "Terjemahkan gambar",
   "imageTranslateButtonTooltip": "Terjemahkan gambar",
-  "imageTranslateEmptyTitle": "Terjemahkan teks dalam foto",
   "imageTranslateEmptyBody": "Pilih foto atau potret papan petunjuk, menu, atau dokumen. Teks di dalamnya akan dikenali dan diterjemahkan.",
   "imageTranslateMethodsHeader": "Metode terjemahan",
   "imageTranslatePickGallery": "Pilih gambar",
@@ -690,8 +689,6 @@
   "webTranslatePaste": "Tempel",
   "webTranslateGo": "Terjemahkan halaman",
   "webTranslateInvalidUrl": "Masukkan alamat web yang valid (http atau https)",
-  "webTranslateEmptyTitle": "Baca halaman web apa pun dalam bahasa Anda",
-  "webTranslateEmptyBody": "Tempel tautan ke artikel atau postingan blog. Mozhi akan mendownload halaman, hanya menyimpan teks yang dapat dibaca, lalu menerjemahkannya dengan mesin dan bahasa yang dipilih di bawah.",
   "webTranslateWebNotice": "Di versi browser, Mozhi hanya dapat membuka halaman dari situs yang mengizinkan permintaan lintas asal (CORS), dan kebanyakan situs tidak mengizinkannya. Gunakan aplikasi Android, iOS, atau desktop untuk menerjemahkan halaman apa pun.",
   "webTranslateLoading": "Memuat halaman…",
   "webTranslateProgress": "Menerjemahkan… {done} dari {total}",
@@ -718,7 +715,6 @@
   "documentsTitle": "Terjemahkan dokumen",
   "documentsModeFile": "File",
   "documentsModeText": "Teks",
-  "documentsPickTitle": "Pilih dokumen",
   "documentsPickHint": "File teks, Markdown, subtitel SRT dan VTT, JSON, dan ARB hingga {size}. Kode, tautan, dan pengaturan waktu tetap utuh.",
   "documentsPickButton": "Pilih file",
   "documentsReplaceFile": "Ganti",
@@ -1565,5 +1561,8 @@
   "historyButtonTooltip": "Riwayat\nTekan lama untuk membuka favorit",
   "historyOpenFavorites": "Buka favorit",
   "translateShortcutEnterTranslates": "Terjemahkan (saat mengetik)",
-  "translateShortcutNewLine": "Sisipkan baris baru (saat mengetik)"
+  "translateShortcutNewLine": "Sisipkan baris baru (saat mengetik)",
+  "translateComposerHint": "Ketik atau {paste} teks",
+  "translateComposerHintPaste": "tempel",
+  "translatePasteFailed": "Tidak dapat membaca papan klip. Tempel langsung ke kolom teks."
 }

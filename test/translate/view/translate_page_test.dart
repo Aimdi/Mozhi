@@ -392,6 +392,21 @@ void main() {
           expect(tester.takeException(), isNull);
         });
 
+        testWidgets('a greeting without room for the chip leaves the toggle '
+            'in the app bar', (tester) async {
+          final harness = qualityHarness();
+          await harness.pump(
+            tester,
+            size: const Size(320, 568),
+            textScale: 1.3,
+          );
+          await tester.pumpAndSettle();
+          expect(hero(), findsOneWidget);
+          expect(chip(), findsNothing);
+          expect(appBarToggle(), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        });
+
         testWidgets('the engine choice keeps the toggle in the app bar', (
           tester,
         ) async {
@@ -424,6 +439,12 @@ void main() {
           expect(hero(), findsOneWidget);
         });
       });
+    });
+
+    test('translateComposerFill is the shared composer fill', () {
+      final scheme = ColorScheme.fromSeed(seedColor: Colors.teal);
+      const quiet = Color(0xFF536471);
+      expect(translateComposerFill(scheme, quiet), composerFill(scheme, quiet));
     });
 
     testWidgets('does not overflow at 320 dp with large text', (tester) async {

@@ -73,6 +73,7 @@ void main() {
       List<Widget> actions = const [],
       VoidCallback? onTap,
       FocusNode? focusNode,
+      EdgeInsetsGeometry margin = EdgeInsets.zero,
     }) => tester.pumpApp(
       Scaffold(
         body: Align(
@@ -85,6 +86,7 @@ void main() {
               expand: expand,
               onTap: onTap,
               actions: actions,
+              margin: margin,
               bar: const ComposerBar(
                 key: Key('bar'),
                 children: [SizedBox(width: 48, height: 48)],
@@ -182,6 +184,60 @@ void main() {
       final card = tester.getRect(find.byType(ComposerCard));
       await tester.tapAt(card.topRight + const Offset(-4, 4));
       expect(taps, 1);
+    });
+
+    testWidgets('keeps its margin inside, where taps count too', (
+      tester,
+    ) async {
+      var taps = 0;
+      await pumpCard(
+        tester,
+        onTap: () => taps++,
+        margin: const EdgeInsets.all(12),
+      );
+
+      final card = tester.getRect(find.byType(ComposerCard));
+      final box = tester.getRect(
+        find
+            .descendant(
+              of: find.byType(ComposerCard),
+              matching: find.byType(DecoratedBox),
+            )
+            .first,
+      );
+      expect(box, card.deflate(12));
+      await tester.tapAt(card.topLeft + const Offset(4, 4));
+      expect(taps, 1);
+    });
+
+    testWidgets('animates a change of its margin', (tester) async {
+      await pumpCard(tester, margin: const EdgeInsets.all(12));
+      final docked = tester.getRect(find.byType(ComposerCard));
+      await pumpCard(tester);
+      // Not yet there.
+      await tester.pump(const Duration(milliseconds: 100));
+      final halfway = tester.getRect(
+        find
+            .descendant(
+              of: find.byType(ComposerCard),
+              matching: find.byType(DecoratedBox),
+            )
+            .first,
+      );
+      expect(halfway.width, greaterThan(docked.width - 24));
+      expect(halfway.width, lessThan(docked.width));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getRect(
+          find
+              .descendant(
+                of: find.byType(ComposerCard),
+                matching: find.byType(DecoratedBox),
+              )
+              .first,
+        ),
+        tester.getRect(find.byType(ComposerCard)),
+      );
     });
 
     testWidgets('keeps the field, its focus and text when it turns flat', (

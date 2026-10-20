@@ -12,6 +12,7 @@ import 'package:mozhi/core/bidi.dart';
 import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/core/undo_snack_bar.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
+import 'package:mozhi/dictionary/view/dictionary_request.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/history/view/widgets/clear_history_dialog.dart';
@@ -25,7 +26,7 @@ import 'package:translation_repository/translation_repository.dart';
 
 /// The tabs of the History page.
 enum HistoryTab {
-  /// Every translation.
+  /// Every entry: translations and dictionary look-ups.
   all,
 
   /// Only the favourites.
@@ -36,15 +37,21 @@ enum HistoryTab {
       values.where((tab) => tab.name == name).firstOrNull;
 }
 
-/// On-device translation history with search, favorites, filters by
-/// language pair and by where the text went, and swipe actions (delete,
-/// favourite; see [HistoryEntryTile]). Reads the app-wide [HistoryCubit],
-/// [SettingsCubit] and [TranslateCubit].
+/// On-device history of translations and dictionary look-ups with search,
+/// favorites, filters by language pair and by where the text went, and
+/// swipe actions (delete, favourite; see [HistoryEntryTile]). Reads the
+/// app-wide [HistoryCubit], [SettingsCubit] and [TranslateCubit].
 ///
 /// A full page above the tabs, opened from their app bars
 /// ([TopLevelActions]; a long press on the History button opens it on the
 /// Favorites tab): its back arrow returns to the tab
-/// ([topLevelBackButton]); opening an entry goes to the translate tab.
+/// ([topLevelBackButton]); opening a translation goes to the translate
+/// tab, opening a look-up to the Dictionary tab, which looks the word up
+/// again (with the detail level it was saved with).
+///
+/// Look-ups go to the destination filters by the AI engine that wrote them
+/// ([historyDestinationOf]: a local model is self-hosted, other providers
+/// are in the cloud).
 class HistoryPage extends StatelessWidget {
   const new({this.initialTab, super.key});
 
@@ -137,11 +144,31 @@ class _HistoryViewState extends State<HistoryView>
   }
 
   void _open(HistoryEntry entry) {
+    if (entry.isDictionary) {
+      _openLookUp(entry);
+      return;
+    }
     context.read<TranslateCubit>()
       ..setSource(entry.source)
       ..setTarget(entry.target)
       ..setInputAndTranslate(entry.text);
     context.go(AppRoutes.translate);
+  }
+
+  /// Opens the Dictionary tab on [entry]'s word and languages and looks it
+  /// up with its detail level (also when the tab already shows that word,
+  /// see [DictionaryLookUpRequest]).
+  void _openLookUp(HistoryEntry entry) {
+    final source = entry.source;
+    final target = entry.target;
+    context.go(
+      AppRoutes.dictionaryWord(
+        word: entry.text,
+        from: source.isCustom ? null : source.code,
+        to: target.isCustom || target.isAuto ? null : target.code,
+      ),
+      extra: DictionaryLookUpRequest(verbosity: entry.verbosity),
+    );
   }
 
   /// Deletes [entry]; Undo puts it back as it was (its place, favourite
@@ -153,7 +180,9 @@ class _HistoryViewState extends State<HistoryView>
     unawaited(cubit.delete(entry.id));
     showUndoSnackBar(
       context,
-      message: l10n.historyDeleted,
+      message: entry.isDictionary
+          ? l10n.historyLookUpDeleted
+          : l10n.historyDeleted,
       onUndo: () {
         unawaited(cubit.restore(entry));
         if (mounted) setState(() => _dismissed.remove(entry.id));
@@ -200,7 +229,11 @@ class _HistoryViewState extends State<HistoryView>
       isScrollControlled: true,
       useSafeArea: true,
       showDragHandle: true,
-      builder: (_) => _PairSheet(pairs: state.pairs, selected: state.pair),
+      builder: (_) => _PairSheet(
+        pairs: state.pairs,
+        selected: state.pair,
+        lookUps: state.hasLookUps,
+      ),
     );
     if (choice == null) return;
     cubit.filterByPair(choice.$1);
@@ -750,10 +783,18 @@ class _HistoryFilterBar extends StatelessWidget {
 /// The language pairs of the history (with their number of entries) and
 /// "All language pairs"; pops the choice as a record (null pair: all).
 class _PairSheet extends StatelessWidget {
-  const new({required this.pairs, required this.selected});
+  const new({
+    required this.pairs,
+    required this.selected,
+    required this.lookUps,
+  });
 
   final List<(HistoryPair, int)> pairs;
   final HistoryPair? selected;
+
+  /// Whether the history has dictionary look-ups: the counts are then
+  /// "entries" rather than "translations".
+  final bool lookUps;
 
   @override
   Widget build(BuildContext context) {
@@ -793,7 +834,11 @@ class _PairSheet extends StatelessWidget {
                   ? const Icon(Icons.auto_awesome_outlined)
                   : LanguageAvatar(code: pair.source.code),
               title: Text(historyPairLabel(l10n, pair)),
-              subtitle: Text(l10n.historyFilterPairCount(count)),
+              subtitle: Text(
+                lookUps
+                    ? l10n.historyFilterPairEntries(count)
+                    : l10n.historyFilterPairCount(count),
+              ),
               trailing: selected == pair ? check : null,
               onTap: () => Navigator.of(context).pop((pair,)),
             ),

@@ -280,15 +280,6 @@ class _Status extends StatelessWidget {
               onPressed: state.canTranslate
                   ? () => unawaited(cubit.translate())
                   : null,
-              style: FilledButton.styleFrom(
-                minimumSize: const Size(0, 52),
-                shape: const StadiumBorder(),
-                padding: const EdgeInsets.symmetric(horizontal: 28),
-                textStyle: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 16,
-                ),
-              ),
               icon: const Icon(Icons.translate),
               label: Text(l10n.imageTranslateTranslateAction),
             ),

@@ -2,7 +2,10 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/widgets/consent_prompt.dart';
+import 'package:mozhi/core/widgets/tab_hero.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/web_translate/cubit/web_translate_cubit.dart';
 import 'package:mozhi/web_translate/widgets/web_translate_messages.dart';
@@ -63,7 +66,7 @@ class WebTranslateStatusPanel extends StatelessWidget {
           children: [
             LinearProgressIndicator(
               value: state.totalItems == 0 ? null : state.progress,
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: const BorderRadius.all(Radius.circular(4)),
             ),
             Row(
               children: [
@@ -136,6 +139,8 @@ class WebTranslateStatusPanel extends StatelessWidget {
   }
 }
 
+/// A flat, hairline-outlined notice (error-tinted outline for errors)
+/// with an accent icon and an optional [action] at the end.
 class _Banner extends StatelessWidget {
   const new({
     required this.icon,
@@ -153,28 +158,61 @@ class _Banner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final background = error
-        ? colors.errorContainer
-        : colors.secondaryContainer;
-    final foreground = error
-        ? colors.onErrorContainer
-        : colors.onSecondaryContainer;
-    return Card(
-      elevation: 0,
-      margin: EdgeInsets.zero,
-      color: background,
+    return _OutlinedNotice(
+      icon: icon,
+      iconColor: error ? colors.error : colors.primary,
+      outline: error
+          ? colors.error.withValues(alpha: 0.5)
+          : AppPalette.of(context).hairline,
+      padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 8, 12),
+      message: message,
+      action: action,
+    );
+  }
+}
+
+/// The notices' box: an outline, no fill, the theme's card radius.
+class _OutlinedNotice extends StatelessWidget {
+  const new({
+    required this.icon,
+    required this.iconColor,
+    required this.outline,
+    required this.message,
+    this.padding = const EdgeInsets.all(12),
+    this.action,
+    super.key,
+  });
+
+  final IconData icon;
+  final Color iconColor;
+  final Color outline;
+  final String message;
+  final EdgeInsetsGeometry padding;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) {
+    final action = this.action;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: outline),
+        borderRadius: AppRadius.cardBorderRadius,
+      ),
       child: Padding(
-        padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 8, 12),
+        padding: padding,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(icon, color: foreground),
+                Icon(icon, color: iconColor),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(message, style: TextStyle(color: foreground)),
+                  child: Text(
+                    message,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
                 ),
               ],
             ),
@@ -187,38 +225,19 @@ class _Banner extends StatelessWidget {
   }
 }
 
-/// Shown before anything is loaded.
+/// Shown before anything is loaded: the tabs' empty state ([TabHero]).
 class WebTranslateEmptyState extends StatelessWidget {
   const new({super.key});
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 8),
-      child: Column(
-        children: [
-          Icon(
-            Icons.travel_explore,
-            size: 56,
-            color: theme.colorScheme.primary,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            l10n.webTranslateEmptyTitle,
-            style: theme.textTheme.titleLarge,
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            l10n.webTranslateEmptyBody,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
+      child: TabHero(
+        icon: Icons.travel_explore,
+        title: l10n.webTranslateHeroTitle,
+        body: l10n.webTranslateHeroBody,
       ),
     );
   }
@@ -230,28 +249,12 @@ class WebTranslateWebNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Card(
+    return _OutlinedNotice(
       key: const Key('web_translate_web_notice'),
-      elevation: 0,
-      margin: EdgeInsets.zero,
-      color: colors.tertiaryContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(Icons.public_off, color: colors.onTertiaryContainer),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                context.l10n.webTranslateWebNotice,
-                style: TextStyle(color: colors.onTertiaryContainer),
-              ),
-            ),
-          ],
-        ),
-      ),
+      icon: Icons.public_off,
+      iconColor: Theme.of(context).colorScheme.primary,
+      outline: AppPalette.of(context).hairline,
+      message: context.l10n.webTranslateWebNotice,
     );
   }
 }

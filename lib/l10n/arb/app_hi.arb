@@ -617,7 +617,6 @@
   "speechListenSlowly": "धीरे सुनें",
   "imageTranslateTitle": "इमेज का अनुवाद",
   "imageTranslateButtonTooltip": "इमेज का अनुवाद करें",
-  "imageTranslateEmptyTitle": "फ़ोटो में लिखे टेक्स्ट का अनुवाद करें",
   "imageTranslateEmptyBody": "कोई फ़ोटो चुनें या किसी साइनबोर्ड, मेन्यू या दस्तावेज़ की तस्वीर लें। उसमें लिखा टेक्स्ट ढूंढकर उसका अनुवाद किया जाएगा।",
   "imageTranslateMethodsHeader": "अनुवाद के तरीके",
   "imageTranslatePickGallery": "इमेज चुनें",
@@ -690,8 +689,6 @@
   "webTranslatePaste": "चिपकाएं",
   "webTranslateGo": "पेज का अनुवाद करें",
   "webTranslateInvalidUrl": "मान्य वेब पता डालें (http या https)",
-  "webTranslateEmptyTitle": "कोई भी वेब पेज अपनी भाषा में पढ़ें",
-  "webTranslateEmptyBody": "किसी लेख या ब्लॉग पोस्ट का लिंक चिपकाएं। Mozhi पेज डाउनलोड करता है, सिर्फ़ पढ़ने लायक टेक्स्ट रखता है और नीचे चुने गए इंजन और भाषाओं से उसका अनुवाद करता है।",
   "webTranslateWebNotice": "ब्राउज़र वर्शन में Mozhi सिर्फ़ उन साइटों के पेज खोल सकता है जो क्रॉस-ऑरिजिन अनुरोधों (CORS) की अनुमति देती हैं, और ज़्यादातर साइटें यह अनुमति नहीं देतीं। किसी भी पेज का अनुवाद करने के लिए Android, iOS या डेस्कटॉप ऐप इस्तेमाल करें।",
   "webTranslateLoading": "पेज लोड हो रहा है…",
   "webTranslateProgress": "अनुवाद हो रहा है… {total} में से {done}",
@@ -718,7 +715,6 @@
   "documentsTitle": "दस्तावेज़ों का अनुवाद करें",
   "documentsModeFile": "फ़ाइल",
   "documentsModeText": "टेक्स्ट",
-  "documentsPickTitle": "दस्तावेज़ चुनें",
   "documentsPickHint": "{size} तक की टेक्स्ट, Markdown, SRT और VTT सबटाइटल, JSON और ARB फ़ाइलें। कोड, लिंक और टाइमिंग में कोई बदलाव नहीं होता।",
   "documentsPickButton": "फ़ाइल चुनें",
   "documentsReplaceFile": "बदलें",
@@ -1565,5 +1561,8 @@
   "historyButtonTooltip": "इतिहास\nपसंदीदा खोलने के लिए दबाकर रखें",
   "historyOpenFavorites": "पसंदीदा खोलें",
   "translateShortcutEnterTranslates": "अनुवाद करें (टाइप करते समय)",
-  "translateShortcutNewLine": "नई लाइन जोड़ें (टाइप करते समय)"
+  "translateShortcutNewLine": "नई लाइन जोड़ें (टाइप करते समय)",
+  "translateComposerHint": "टेक्स्ट लिखें या {paste}",
+  "translateComposerHintPaste": "पेस्ट करें",
+  "translatePasteFailed": "क्लिपबोर्ड नहीं पढ़ा जा सका। सीधे टेक्स्ट फ़ील्ड में पेस्ट करें।"
 }

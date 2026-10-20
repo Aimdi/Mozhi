@@ -33,7 +33,8 @@ enum QualityToggleLayout {
   menu,
 }
 
-/// Kagi-style Fast / Best toggle next to the engine selector.
+/// Kagi-style Fast / Best toggle next to the engine selector (while the
+/// empty screen's greeting shows [QualityChip], the app bar leaves it out).
 ///
 /// Offers each quality mode whose engine is configured and available
 /// (`TranslateState.availableQualityModes`); nothing at all when neither is
@@ -220,9 +221,9 @@ class _QualityMenu extends StatelessWidget {
   }
 }
 
-/// The quality mode as an outlined pill, like Kagi Translate's
-/// quality chip at the top of its start screen: the mode's icon and name
-/// ("⚡ Fast"). The empty translate screen shows it in its greeting
+/// The quality mode as an outlined pill, like Kagi Translate's quality
+/// chip at the top of its start screen: the mode's icon and name ("⚡
+/// Fast"). The empty translate screen shows it in its greeting
 /// (`TranslateHero`) instead of the app bar's [QualityToggle].
 ///
 /// Tapping it opens the menu of [QualityToggleLayout.menu]: every

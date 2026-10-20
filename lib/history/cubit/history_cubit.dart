@@ -5,8 +5,9 @@ import 'package:mozhi/history/models/history_entry.dart';
 
 export 'history_state.dart';
 
-/// Exposes the local translation history. `repository` defaults to a
-/// [HistoryRepository] backed by the platform preferences.
+/// Exposes the local history of translations and dictionary look-ups
+/// ([HistoryEntry.kind]). `repository` defaults to a [HistoryRepository]
+/// backed by the platform preferences.
 ///
 /// Retention (history auto-delete): `maxAge` is the initial maximum age of
 /// non-favourite entries (null keeps them forever). It is applied by
@@ -16,7 +17,8 @@ export 'history_state.dart';
 /// Incognito ([setIncognito], [HistoryState.incognito], kept in step with
 /// the settings by `HistoryRetentionListener`): [add] ignores entries that
 /// are not favourites, so no automatic history is written whichever screen
-/// translates. Starring a translation is an explicit save and still works.
+/// translates or looks a word up. Starring a translation (or a dictionary
+/// entry) is an explicit save and still works.
 ///
 /// Storage errors of [load] switch to [HistoryStatus.failure], history that
 /// cannot be decrypted to [HistoryStatus.unreadable] (see

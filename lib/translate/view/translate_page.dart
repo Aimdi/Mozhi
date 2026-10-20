@@ -339,9 +339,9 @@ class _PinnedTargetActionsState extends State<_PinnedTargetActions> {
 /// The translate screen's [Scaffold]: the app bar and the body (the
 /// skeleton, the no-engines view, the engine choice or [_TranslateBody]).
 ///
-/// It knows whether the body shows the greeting ([TranslateHero]), which
-/// then holds the quality chip ([QualityChip]): the app bar leaves its
-/// [QualityToggle] out meanwhile, so the screen offers it once.
+/// It knows whether the body's greeting ([TranslateHero]) holds the
+/// quality chip ([QualityChip]): the app bar leaves its [QualityToggle]
+/// out meanwhile, so the screen offers the quality modes once.
 class _TranslateScaffold extends StatefulWidget {
   const new();
 
@@ -350,32 +350,33 @@ class _TranslateScaffold extends StatefulWidget {
 }
 
 class _TranslateScaffoldState extends State<_TranslateScaffold> {
-  /// Whether the body shows the greeting. Until the body reports it, a
-  /// guess from the state (the greeting is how the screen starts), so the
-  /// quality control does not show twice on the first frame.
-  late final ValueNotifier<bool> _heroShown = ValueNotifier(
+  /// Whether the greeting holds the quality chip. Until the body reports
+  /// it, a guess from the state (the greeting is how the screen starts),
+  /// so the first frame does not show the quality modes twice.
+  late final ValueNotifier<bool> _chipInHero = ValueNotifier(
     translateComposerIsIdle(context.read<TranslateCubit>().state),
   );
 
-  /// The latest report of the body ([_onHeroChanged]).
-  late bool _reportedHero = _heroShown.value;
+  /// The latest report of the body ([_onChipInHeroChanged]).
+  late bool _reported = _chipInHero.value;
   bool _updateScheduled = false;
 
   @override
   void dispose() {
-    _heroShown.dispose();
+    _chipInHero.dispose();
     super.dispose();
   }
 
-  /// The body (built after the app bar in the same frame) shows the
-  /// greeting or not: the app bar follows after this frame.
-  void _onHeroChanged(bool shown) {
-    _reportedHero = shown;
-    if (_updateScheduled || shown == _heroShown.value) return;
+  /// The body (built after the app bar in the same frame) reports whether
+  /// its greeting holds the quality chip; the app bar follows after this
+  /// frame.
+  void _onChipInHeroChanged(bool inHero) {
+    _reported = inHero;
+    if (_updateScheduled || inHero == _chipInHero.value) return;
     _updateScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _updateScheduled = false;
-      if (mounted) _heroShown.value = _reportedHero;
+      if (mounted) _chipInHero.value = _reported;
     });
   }
 
@@ -385,7 +386,7 @@ class _TranslateScaffoldState extends State<_TranslateScaffold> {
     return Scaffold(
       appBar: _TranslateAppBar(
         showTitle: width >= TranslateLayout.compactBreakpoint,
-        heroShown: _heroShown,
+        chipInHero: _chipInHero,
       ),
       body: BlocBuilder<TranslateCubit, TranslateState>(
         buildWhen: (previous, current) =>
@@ -394,7 +395,7 @@ class _TranslateScaffoldState extends State<_TranslateScaffold> {
             (previous.engine == null) != (current.engine == null),
         builder: (context, state) {
           if (state.engines.isEmpty) {
-            _onHeroChanged(false);
+            _onChipInHeroChanged(false);
             return switch (state.enginesStatus) {
               EnginesStatus.initial ||
               EnginesStatus.loading => const TranslateSkeleton(),
@@ -404,7 +405,7 @@ class _TranslateScaffoldState extends State<_TranslateScaffold> {
           }
           if (state.engine == null &&
               state.enginesStatus == EnginesStatus.ready) {
-            _onHeroChanged(false);
+            _onChipInHeroChanged(false);
             return const ChooseEngineView();
           }
           // Measure the pane itself: the shell's navigation rail takes part
@@ -419,7 +420,7 @@ class _TranslateScaffoldState extends State<_TranslateScaffold> {
                 wide: wide,
                 fold: fold,
                 height: constraints.maxHeight,
-                onHeroChanged: _onHeroChanged,
+                onChipInHeroChanged: _onChipInHeroChanged,
               );
             },
           );
@@ -430,13 +431,13 @@ class _TranslateScaffoldState extends State<_TranslateScaffold> {
 }
 
 class _TranslateAppBar extends StatelessWidget implements PreferredSizeWidget {
-  const new({required this.showTitle, required this.heroShown});
+  const new({required this.showTitle, required this.chipInHero});
 
   final bool showTitle;
 
-  /// Whether the body shows the greeting, which then holds the quality
-  /// chip instead of the toggle here.
-  final ValueListenable<bool> heroShown;
+  /// Whether the body's greeting holds the quality chip (the toggle here
+  /// is left out then).
+  final ValueListenable<bool> chipInHero;
 
   /// Largest part of the title area the screen title takes.
   static const _maxTitleShare = 0.4;
@@ -465,13 +466,13 @@ class _TranslateAppBar extends StatelessWidget implements PreferredSizeWidget {
     );
     // The quality toggle (Fast / Best) sits next to the engine selector;
     // it is empty while no quality engine is configured, and left out
-    // while the greeting shows the quality chip. Its layout (and whether
+    // while the greeting holds the quality chip. Its layout (and whether
     // the screen title still fits) follows the available width and the
     // text size.
     return ValueListenableBuilder<bool>(
-      valueListenable: heroShown,
-      builder: (context, hero, _) {
-        final toggle = hasQualityModes && !hero;
+      valueListenable: chipInHero,
+      builder: (context, chipInHero, _) {
+        final toggle = hasQualityModes && !chipInHero;
         return AppBar(
           titleSpacing: showTitle ? null : 8,
           title: LayoutBuilder(
@@ -697,10 +698,12 @@ Color translateComposerFill(ColorScheme scheme, Color secondaryText) =>
 /// Empty ([translateComposerIsIdle] and the field without focus), like
 /// Kagi Translate: the greeting ([TranslateHero]) in the middle and the
 /// composer docked at the bottom, a hairline-outlined card around the text
-/// field (with the microphone at its top end) and the language bar. On
-/// large screens the card sits under the greeting, at most
-/// [TranslateLayout.maxColumnWidth] wide. A window too low for both
-/// ([heroMinHeight]) skips this.
+/// field (with the microphone at its top end, and "Type or paste text" as
+/// its placeholder) and the language bar. On large screens the card sits
+/// under the greeting, at most [TranslateLayout.maxColumnWidth] wide. A
+/// window too low for both ([heroMinHeight]) skips this. The greeting
+/// holds the quality chip when there is room for it too
+/// ([heroChipMinHeight]); otherwise the toggle stays in the app bar.
 ///
 /// Active (the field has focus or text): the thread layout, the input
 /// with its language avatar and the translation below it joined by the
@@ -719,7 +722,7 @@ class _TranslateBody extends StatefulWidget {
     required this.wide,
     required this.fold,
     required this.height,
-    required this.onHeroChanged,
+    required this.onChipInHeroChanged,
   });
 
   final bool wide;
@@ -728,13 +731,20 @@ class _TranslateBody extends StatefulWidget {
   /// Height of the screen's content (without the keyboard).
   final double height;
 
-  /// Told on every build whether the greeting shows.
-  final ValueChanged<bool> onHeroChanged;
+  /// Told on every build whether the greeting holds the quality chip.
+  final ValueChanged<bool> onChipInHeroChanged;
 
   /// The lowest content height that shows the greeting and the docked
   /// composer at [textScale].
   static double heroMinHeight(double textScale) =>
       300 + 120 * textScale.clamp(1, 2);
+
+  /// The lowest content height whose greeting also holds the quality chip
+  /// at [textScale] (lower ones keep the toggle in the app bar, so the
+  /// greeting still fits).
+  static double heroChipMinHeight(double textScale) =>
+      heroMinHeight(textScale) +
+      (translateHeroChipGap + kMinInteractiveDimension) * textScale.clamp(1, 2);
 
   @override
   State<_TranslateBody> createState() => _TranslateBodyState();
@@ -773,7 +783,7 @@ class _TranslateBodyState extends State<_TranslateBody> {
   Widget build(BuildContext context) {
     final fold = widget.fold;
     if (fold != null) {
-      widget.onHeroChanged(false);
+      widget.onChipInHeroChanged(false);
       return _FoldLayout(fold: fold, wide: widget.wide, focusNode: _inputFocus);
     }
     final idle = context.select<TranslateCubit, bool>(
@@ -784,9 +794,12 @@ class _TranslateBodyState extends State<_TranslateBody> {
         idle &&
         !_focused &&
         widget.height >= _TranslateBody.heroMinHeight(textScale);
-    widget.onHeroChanged(hero);
+    final chip =
+        hero && widget.height >= _TranslateBody.heroChipMinHeight(textScale);
+    widget.onChipInHeroChanged(chip);
     return _ComposerLayout(
       hero: hero,
+      qualityChip: chip,
       wide: widget.wide,
       focusNode: _inputFocus,
     );
@@ -802,9 +815,18 @@ class _TranslateBodyState extends State<_TranslateBody> {
 /// card's margin is part of it (taps there focus the field too), and its
 /// width leaves room for the phone gutters once it is flat.
 class _ComposerLayout extends StatelessWidget {
-  const new({required this.hero, required this.wide, required this.focusNode});
+  const new({
+    required this.hero,
+    required this.wide,
+    required this.focusNode,
+    this.qualityChip = true,
+  });
 
   final bool hero;
+
+  /// Whether the greeting holds the quality chip
+  /// ([TranslateHero.showQualityChip]).
+  final bool qualityChip;
   final bool wide;
   final FocusNode focusNode;
 
@@ -864,7 +886,9 @@ class _ComposerLayout extends StatelessWidget {
           child: hero
               ? Align(
                   alignment: wide ? Alignment.bottomCenter : Alignment.center,
-                  child: const SingleChildScrollView(child: TranslateHero()),
+                  child: SingleChildScrollView(
+                    child: TranslateHero(showQualityChip: qualityChip),
+                  ),
                 )
               : const SizedBox(width: double.infinity),
         ),

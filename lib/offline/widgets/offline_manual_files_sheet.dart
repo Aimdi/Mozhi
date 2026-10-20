@@ -97,7 +97,6 @@ class _OfflineManualFilesSheetState extends State<OfflineManualFilesSheet> {
           child: FilledButton.tonalIcon(
             key: const Key('offline_manual_copy_all'),
             style: FilledButton.styleFrom(
-              shape: const StadiumBorder(),
               minimumSize: const Size.fromHeight(48),
             ),
             onPressed: () => unawaited(_copy(all)),

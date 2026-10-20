@@ -1,3 +1,4 @@
+import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -223,6 +224,23 @@ void main() {
       await harness.pump(tester, child: const QualityChip(key: Key('best')));
       expect(find.text('Best'), findsOneWidget);
       expect(find.byIcon(Icons.workspace_premium_outlined), findsOneWidget);
+    });
+
+    testWidgets('follows mode changes', (tester) async {
+      final harness = _harness(_state(mode: QualityMode.fast));
+      whenListen(
+        harness.translate,
+        Stream.fromIterable([
+          // Unrelated changes keep the chip as it is.
+          _state(mode: QualityMode.fast).copyWith(input: 'Hello'),
+          _state(mode: QualityMode.best),
+        ]),
+        initialState: _state(mode: QualityMode.fast),
+      );
+      await harness.pump(tester, child: const QualityChip());
+      await tester.pump();
+      expect(find.text('Best'), findsOneWidget);
+      expect(find.byTooltip('Quality mode: Best'), findsOneWidget);
     });
 
     testWidgets('is a 48 dp target around a 40 dp outlined pill', (

@@ -617,7 +617,6 @@
   "speechListenSlowly": "Nghe chậm",
   "imageTranslateTitle": "Dịch hình ảnh",
   "imageTranslateButtonTooltip": "Dịch một hình ảnh",
-  "imageTranslateEmptyTitle": "Dịch chữ trong ảnh",
   "imageTranslateEmptyBody": "Chọn ảnh hoặc chụp biển hiệu, thực đơn hay tài liệu. Chữ trong ảnh sẽ được nhận diện và dịch.",
   "imageTranslateMethodsHeader": "Phương thức dịch",
   "imageTranslatePickGallery": "Chọn ảnh",
@@ -690,8 +689,6 @@
   "webTranslatePaste": "Dán",
   "webTranslateGo": "Dịch trang",
   "webTranslateInvalidUrl": "Nhập địa chỉ web hợp lệ (http hoặc https)",
-  "webTranslateEmptyTitle": "Đọc mọi trang web bằng ngôn ngữ của bạn",
-  "webTranslateEmptyBody": "Dán liên kết tới một bài báo hoặc bài blog. Mozhi sẽ tải trang về, chỉ giữ lại phần nội dung dễ đọc và dịch bằng công cụ cùng ngôn ngữ đã chọn bên dưới.",
   "webTranslateWebNotice": "Trên phiên bản trình duyệt, Mozhi chỉ mở được trang của những trang web cho phép yêu cầu nhiều nguồn gốc (CORS), mà phần lớn trang web không cho phép. Hãy dùng ứng dụng Android, iOS hoặc máy tính để dịch bất kỳ trang nào.",
   "webTranslateLoading": "Đang tải trang…",
   "webTranslateProgress": "Đang dịch… {done}/{total}",
@@ -718,7 +715,6 @@
   "documentsTitle": "Dịch tài liệu",
   "documentsModeFile": "Tệp",
   "documentsModeText": "Văn bản",
-  "documentsPickTitle": "Chọn tài liệu",
   "documentsPickHint": "Hỗ trợ tệp văn bản, Markdown, phụ đề SRT và VTT, JSON và ARB có dung lượng tối đa {size}. Mã, liên kết và mốc thời gian được giữ nguyên.",
   "documentsPickButton": "Chọn tệp",
   "documentsReplaceFile": "Thay thế",
@@ -1565,5 +1561,8 @@
   "historyButtonTooltip": "Lịch sử\nNhấn giữ để mở mục yêu thích",
   "historyOpenFavorites": "Mở mục yêu thích",
   "translateShortcutEnterTranslates": "Dịch (khi đang gõ)",
-  "translateShortcutNewLine": "Chèn dòng mới (khi đang gõ)"
+  "translateShortcutNewLine": "Chèn dòng mới (khi đang gõ)",
+  "translateComposerHint": "Nhập hoặc {paste} văn bản",
+  "translateComposerHintPaste": "dán",
+  "translatePasteFailed": "Không đọc được bảng nhớ tạm. Hãy dán trực tiếp vào ô văn bản."
 }

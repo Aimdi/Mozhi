@@ -30,19 +30,23 @@ String translateGreeting(AppLocalizations l10n, DateTime now) =>
 
 /// The middle of the empty translate screen (like Kagi Translate's start
 /// screen): the quality mode chip ([QualityChip], while Fast and Best
-/// engines are set up; the app bar leaves its toggle out meanwhile), the
-/// app mark, a greeting for the time of day and chips for the other ways
-/// in (Camera: image translation, Document: document translation). Below
-/// them, up to [translateHeroMaxPairs] recent language pairs other than
-/// the current one (`AppSettings.recentPairs`; one tap applies a pair with
-/// `TranslateCubit.applyLanguagePair`) and, on large screens, where the
-/// keyboard shortcuts are. Everything comes from local
-/// settings: no requests.
+/// engines are set up and [showQualityChip]; the app bar leaves its toggle
+/// out meanwhile), the app mark, a greeting for the time of day and chips
+/// for the other ways in (Camera: image translation, Document: document
+/// translation). Below them, up to [translateHeroMaxPairs] recent
+/// language pairs other than the current one (`AppSettings.recentPairs`;
+/// one tap applies a pair with `TranslateCubit.applyLanguagePair`) and,
+/// on large screens, where the keyboard shortcuts are. Everything comes
+/// from local settings: no requests.
 ///
 /// The composer is docked below it (see `TranslateView`); the hero gives
 /// way to the translation as soon as the input has focus or text.
 class TranslateHero extends StatelessWidget {
-  const new({super.key});
+  const new({this.showQualityChip = true, super.key});
+
+  /// Whether the quality chip is offered here (else the screen keeps the
+  /// toggle in the app bar, e.g. in a window too low for both).
+  final bool showQualityChip;
 
   /// The clock of the greeting (tests pin it).
   @visibleForTesting
@@ -74,7 +78,7 @@ class TranslateHero extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (state.hasQualityModes) ...[
+          if (showQualityChip && state.hasQualityModes) ...[
             const QualityChip(),
             const SizedBox(height: translateHeroChipGap),
           ],

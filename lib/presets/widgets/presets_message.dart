@@ -1,8 +1,9 @@
 import 'package:material_ui/material_ui.dart';
-import 'package:mozhi/core/widgets/x_ui.dart';
+import 'package:mozhi/core/widgets/tab_hero.dart';
 
-/// X-style empty / error state: a quiet icon, a big bold start-aligned
-/// headline, secondary body text and an optional pill action.
+/// An empty or error state in the style of the tabs' greeting
+/// ([TabHero]): an accent icon, a bold centred headline, quiet body text
+/// and an optional pill action. Scrolls when the window is too low.
 class PresetsMessage extends StatelessWidget {
   const new({
     required this.icon,
@@ -19,41 +20,12 @@ class PresetsMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final palette = AppPalette.of(context);
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(32),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, size: 32, color: palette.secondaryText),
-              const SizedBox(height: 16),
-              Semantics(
-                header: true,
-                child: Text(
-                  title,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.4,
-                  ),
-                ),
-              ),
-              if (body != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  body!,
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    color: palette.secondaryText,
-                  ),
-                ),
-              ],
-              if (action != null) ...[const SizedBox(height: 24), action!],
-            ],
-          ),
+          child: TabHero(icon: icon, title: title, body: body, child: action),
         ),
       ),
     );

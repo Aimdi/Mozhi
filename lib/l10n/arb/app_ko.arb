@@ -617,7 +617,6 @@
   "speechListenSlowly": "천천히 듣기",
   "imageTranslateTitle": "이미지 번역",
   "imageTranslateButtonTooltip": "이미지 번역",
-  "imageTranslateEmptyTitle": "사진 속 텍스트 번역",
   "imageTranslateEmptyBody": "사진을 고르거나 표지판, 메뉴, 문서를 촬영하세요. 사진 속 텍스트를 찾아 번역합니다.",
   "imageTranslateMethodsHeader": "번역 방법",
   "imageTranslatePickGallery": "이미지 선택",
@@ -690,8 +689,6 @@
   "webTranslatePaste": "붙여넣기",
   "webTranslateGo": "페이지 번역",
   "webTranslateInvalidUrl": "올바른 웹 주소(http 또는 https)를 입력하세요",
-  "webTranslateEmptyTitle": "어떤 웹페이지든 내 언어로",
-  "webTranslateEmptyBody": "기사나 블로그 게시물 링크를 붙여넣으세요. Mozhi가 페이지를 다운로드해 읽을 수 있는 본문만 남기고, 아래에서 선택한 엔진과 언어로 번역합니다.",
   "webTranslateWebNotice": "브라우저 버전의 Mozhi는 교차 출처 요청(CORS)을 허용하는 사이트의 페이지만 열 수 있으며, 대부분의 사이트는 이를 허용하지 않습니다. 모든 페이지를 번역하려면 Android, iOS 또는 데스크톱 앱을 사용하세요.",
   "webTranslateLoading": "페이지 불러오는 중…",
   "webTranslateProgress": "번역 중… {total}개 중 {done}개",
@@ -718,7 +715,6 @@
   "documentsTitle": "문서 번역",
   "documentsModeFile": "파일",
   "documentsModeText": "텍스트",
-  "documentsPickTitle": "문서 선택",
   "documentsPickHint": "최대 {size}의 텍스트, Markdown, SRT·VTT 자막, JSON·ARB 파일을 지원합니다. 코드, 링크, 타이밍은 그대로 유지됩니다.",
   "documentsPickButton": "파일 선택",
   "documentsReplaceFile": "바꾸기",
@@ -1565,5 +1561,8 @@
   "historyButtonTooltip": "기록\n길게 눌러 즐겨찾기 열기",
   "historyOpenFavorites": "즐겨찾기 열기",
   "translateShortcutEnterTranslates": "번역(입력 중)",
-  "translateShortcutNewLine": "새 줄 삽입(입력 중)"
+  "translateShortcutNewLine": "새 줄 삽입(입력 중)",
+  "translateComposerHint": "텍스트를 입력하거나 {paste}",
+  "translateComposerHintPaste": "붙여넣기",
+  "translatePasteFailed": "클립보드를 읽을 수 없습니다. 텍스트 필드에 직접 붙여넣으세요."
 }

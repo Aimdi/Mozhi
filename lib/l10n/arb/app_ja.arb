@@ -617,7 +617,6 @@
   "speechListenSlowly": "ゆっくり読み上げ",
   "imageTranslateTitle": "画像を翻訳",
   "imageTranslateButtonTooltip": "画像を翻訳",
-  "imageTranslateEmptyTitle": "写真の中のテキストを翻訳",
   "imageTranslateEmptyBody": "写真を選ぶか、看板・メニュー・書類などを撮影してください。写っているテキストを検出して翻訳します。",
   "imageTranslateMethodsHeader": "翻訳方法",
   "imageTranslatePickGallery": "画像を選択",
@@ -690,8 +689,6 @@
   "webTranslatePaste": "貼り付け",
   "webTranslateGo": "ページを翻訳",
   "webTranslateInvalidUrl": "有効なウェブアドレス（http または https）を入力してください",
-  "webTranslateEmptyTitle": "どんなウェブページも自分の言語で",
-  "webTranslateEmptyBody": "記事やブログ投稿のリンクを貼り付けてください。Mozhi がページをダウンロードして読みやすい本文だけを残し、下で選んだエンジンと言語で翻訳します。",
   "webTranslateWebNotice": "ブラウザ版の Mozhi では、クロスオリジンリクエスト（CORS）を許可しているサイトのページしか開けませんが、多くのサイトは許可していません。あらゆるページを翻訳するには、Android、iOS、またはデスクトップ版アプリをご利用ください。",
   "webTranslateLoading": "ページを読み込み中…",
   "webTranslateProgress": "翻訳中… {done}/{total}",
@@ -718,7 +715,6 @@
   "documentsTitle": "ドキュメントを翻訳",
   "documentsModeFile": "ファイル",
   "documentsModeText": "テキスト",
-  "documentsPickTitle": "ドキュメントを選択",
   "documentsPickHint": "{size} までのテキスト、Markdown、SRT・VTT 字幕、JSON・ARB ファイルに対応しています。コード、リンク、タイミングはそのまま保持されます。",
   "documentsPickButton": "ファイルを選択",
   "documentsReplaceFile": "置き換え",
@@ -1565,5 +1561,8 @@
   "historyButtonTooltip": "履歴\n長押しでお気に入りを開く",
   "historyOpenFavorites": "お気に入りを開く",
   "translateShortcutEnterTranslates": "翻訳（入力中）",
-  "translateShortcutNewLine": "改行を挿入（入力中）"
+  "translateShortcutNewLine": "改行を挿入（入力中）",
+  "translateComposerHint": "テキストを入力または{paste}",
+  "translateComposerHintPaste": "貼り付け",
+  "translatePasteFailed": "クリップボードを読み取れませんでした。テキスト欄に直接貼り付けてください。"
 }

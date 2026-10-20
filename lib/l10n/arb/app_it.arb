@@ -617,7 +617,6 @@
   "speechListenSlowly": "Ascolta lentamente",
   "imageTranslateTitle": "Traduci immagine",
   "imageTranslateButtonTooltip": "Traduci un’immagine",
-  "imageTranslateEmptyTitle": "Traduci il testo nelle foto",
   "imageTranslateEmptyBody": "Scegli una foto o scattane una a un cartello, un menu o un documento. Il testo al suo interno verrà riconosciuto e tradotto.",
   "imageTranslateMethodsHeader": "Metodi di traduzione",
   "imageTranslatePickGallery": "Scegli immagine",
@@ -690,8 +689,6 @@
   "webTranslatePaste": "Incolla",
   "webTranslateGo": "Traduci pagina",
   "webTranslateInvalidUrl": "Inserisci un indirizzo web valido (http o https)",
-  "webTranslateEmptyTitle": "Leggi qualsiasi pagina web nella tua lingua",
-  "webTranslateEmptyBody": "Incolla il link di un articolo o di un post. Mozhi scarica la pagina, conserva solo il testo leggibile e lo traduce con il motore e le lingue selezionati qui sotto.",
   "webTranslateWebNotice": "Nella versione per browser, Mozhi può aprire solo le pagine dei siti che consentono richieste cross-origin (CORS), e la maggior parte non lo fa. Usa l’app per Android, iOS o desktop per tradurre qualsiasi pagina.",
   "webTranslateLoading": "Caricamento della pagina…",
   "webTranslateProgress": "Traduzione… {done} di {total}",
@@ -718,7 +715,6 @@
   "documentsTitle": "Traduci documenti",
   "documentsModeFile": "File",
   "documentsModeText": "Testo",
-  "documentsPickTitle": "Scegli un documento",
   "documentsPickHint": "File di testo, Markdown, sottotitoli SRT e VTT, file JSON e ARB fino a {size}. Codice, link e tempi restano invariati.",
   "documentsPickButton": "Scegli file",
   "documentsReplaceFile": "Sostituisci",
@@ -1565,5 +1561,8 @@
   "historyButtonTooltip": "Cronologia\nTieni premuto per aprire i preferiti",
   "historyOpenFavorites": "Apri i preferiti",
   "translateShortcutEnterTranslates": "Traduci (durante la digitazione)",
-  "translateShortcutNewLine": "Inserisci una nuova riga (durante la digitazione)"
+  "translateShortcutNewLine": "Inserisci una nuova riga (durante la digitazione)",
+  "translateComposerHint": "Scrivi o {paste} il testo",
+  "translateComposerHintPaste": "incolla",
+  "translatePasteFailed": "Impossibile leggere gli appunti. Incolla direttamente nel campo di testo."
 }

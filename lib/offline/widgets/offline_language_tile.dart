@@ -349,8 +349,6 @@ class DeleteOfflineLanguageDialog extends StatelessWidget {
           style: TextButton.styleFrom(
             foregroundColor: colors.onError,
             backgroundColor: colors.error,
-            shape: const StadiumBorder(),
-            textStyle: const TextStyle(fontWeight: FontWeight.w700),
           ),
           onPressed: () => Navigator.of(context).pop(true),
           child: Text(l10n.commonDelete),

@@ -125,22 +125,12 @@ class OcrLanguageOfferView extends StatelessWidget {
     final downloadButton = offlineOnly
         ? OutlinedButton.icon(
             key: const Key('image_translate_ocr_download'),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size(0, 48),
-              shape: const StadiumBorder(),
-              side: BorderSide(color: palette.hairline),
-            ),
             onPressed: state.isBusy ? null : () => unawaited(cubit.download()),
             icon: const Icon(Icons.download_for_offline_outlined),
             label: Text(download),
           )
         : FilledButton.icon(
             key: const Key('image_translate_ocr_download'),
-            style: FilledButton.styleFrom(
-              minimumSize: const Size(0, 48),
-              shape: const StadiumBorder(),
-              textStyle: const TextStyle(fontWeight: FontWeight.w700),
-            ),
             onPressed: state.isBusy ? null : () => unawaited(cubit.download()),
             icon: const Icon(Icons.download_for_offline_outlined),
             label: Text(download),
@@ -151,11 +141,6 @@ class OcrLanguageOfferView extends StatelessWidget {
     final importButton = offlineOnly
         ? FilledButton.icon(
             key: const Key('image_translate_ocr_import'),
-            style: FilledButton.styleFrom(
-              minimumSize: const Size(0, 48),
-              shape: const StadiumBorder(),
-              textStyle: const TextStyle(fontWeight: FontWeight.w700),
-            ),
             onPressed: state.isBusy
                 ? null
                 : () => unawaited(cubit.importFromFiles()),
@@ -164,7 +149,6 @@ class OcrLanguageOfferView extends StatelessWidget {
           )
         : TextButton.icon(
             key: const Key('image_translate_ocr_import'),
-            style: TextButton.styleFrom(minimumSize: const Size(0, 48)),
             onPressed: state.isBusy
                 ? null
                 : () => unawaited(cubit.importFromFiles()),
@@ -210,9 +194,7 @@ class OcrLanguageOfferView extends StatelessWidget {
                         missing.guessed
                             ? l10n.imageTranslateOcrGuessTitle
                             : l10n.imageTranslateOcrMissingTitle(name),
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
+                        style: theme.textTheme.titleMedium,
                       ),
                     ),
                   ),
@@ -253,9 +235,6 @@ class OcrLanguageOfferView extends StatelessWidget {
                   if (url != null)
                     TextButton.icon(
                       key: const Key('image_translate_ocr_copy_link'),
-                      style: TextButton.styleFrom(
-                        minimumSize: const Size(0, 48),
-                      ),
                       onPressed: () => unawaited(_copyLink(context, url)),
                       icon: const Icon(Icons.link),
                       label: Text(l10n.imageTranslateOcrCopyLink),

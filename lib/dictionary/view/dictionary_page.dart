@@ -8,15 +8,22 @@ import 'package:mozhi/app/view/top_level_actions.dart';
 import 'package:mozhi/core/widgets/composer_card.dart';
 import 'package:mozhi/core/widgets/tab_hero.dart';
 import 'package:mozhi/dictionary/cubit/dictionary_cubit.dart';
+import 'package:mozhi/dictionary/view/dictionary_request.dart';
 import 'package:mozhi/dictionary/widgets/widgets.dart';
+import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/usage/data/usage_tracker.dart';
 import 'package:translation_repository/translation_repository.dart';
 
+export 'dictionary_request.dart';
+
 /// Pass as the navigation's `extra` (`context.push(location, extra:
 /// DictionaryLaunch.lookUp)`) to look the word up right away. Links from
-/// outside the app cannot carry it.
+/// outside the app cannot carry it. See also [DictionaryLookUpRequest],
+/// which also sets the detail level and works when the dictionary already
+/// shows the location.
 enum DictionaryLaunch { lookUp }
 
 /// The AI dictionary: definitions, pronunciation, examples and
@@ -36,6 +43,15 @@ enum DictionaryLaunch { lookUp }
 /// even with `instantTranslateAi`: the user presses Look up. The detail
 /// level starts as the translate screen's dictionary card has it
 /// ([TranslateState.dictionaryVerbosity]).
+///
+/// A [DictionaryLookUpRequest] as the location's `extra`
+/// ([dictionaryRequestOf]) looks the word up right away too, with its
+/// detail level; a new request also does when the page is kept because the
+/// tab already shows the same location (History opens look-ups this way).
+///
+/// Look-ups are saved to the history of the app-wide [HistoryCubit] as
+/// [SettingsCubit]'s settings allow (see [DictionaryCubit]); without them
+/// (e.g. in tests) nothing is saved.
 class DictionaryPage extends StatelessWidget {
   const new({
     this.word,
@@ -62,6 +78,7 @@ class DictionaryPage extends StatelessWidget {
     return BlocProvider(
       create: (context) {
         final translate = context.read<TranslateCubit>().state;
+        final request = dictionaryRequestOf(context);
         final cubit = DictionaryCubit(
           repository: context.read<TranslationRepository>(),
           engine: dictionaryEngine(translate),
@@ -74,14 +91,19 @@ class DictionaryPage extends StatelessWidget {
               _fromLink(to, DictionaryLanguageBar.targetLanguages) ??
               _known(translate.target, DictionaryLanguageBar.targetLanguages) ??
               const Language(code: 'en', name: 'English'),
-          verbosity: translate.dictionaryVerbosity,
+          verbosity: request?.verbosity ?? translate.dictionaryVerbosity,
           uiLanguage: uiLanguage,
           usageTracker: _usageTracker(context),
+          history: context.read<HistoryCubit?>(),
+          settings: context.read<SettingsCubit?>(),
         );
-        if (autoLookUp) unawaited(cubit.lookUp());
+        if (autoLookUp || request != null) unawaited(cubit.lookUp());
         return cubit;
       },
-      child: DictionaryView(autofocus: word?.trim().isNotEmpty != true),
+      child: _LookUpRequests(
+        page: this,
+        child: DictionaryView(autofocus: word?.trim().isNotEmpty != true),
+      ),
     );
   }
 
@@ -101,6 +123,59 @@ class DictionaryPage extends StatelessWidget {
   /// languages that are not listed).
   static Language? _known(Language language, List<Language> available) =>
       language.isCustom ? null : LanguageMatcher.match(language, available);
+}
+
+/// Applies a new [DictionaryLookUpRequest] when the router rebuilds a page
+/// it keeps (the tab already showed the same location): the page's word
+/// and languages are looked up again with the request's detail level. The
+/// request the page was created with is applied by [DictionaryPage].
+class _LookUpRequests extends StatefulWidget {
+  const new({required this.page, required this.child});
+
+  final DictionaryPage page;
+  final Widget child;
+
+  @override
+  State<_LookUpRequests> createState() => _LookUpRequestsState();
+}
+
+class _LookUpRequestsState extends State<_LookUpRequests> {
+  /// The request applied last (the page's first one, see [DictionaryPage]).
+  DictionaryLookUpRequest? _applied;
+
+  @override
+  void initState() {
+    super.initState();
+    _applied = dictionaryRequestOf(context);
+  }
+
+  @override
+  void didUpdateWidget(_LookUpRequests oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final request = dictionaryRequestOf(context);
+    if (request == null || identical(request, _applied)) return;
+    _applied = request;
+    final page = widget.page;
+    final word = page.word?.trim() ?? '';
+    if (word.isEmpty) return;
+    unawaited(
+      context.read<DictionaryCubit>().open(
+        word,
+        source: DictionaryPage._fromLink(
+          page.from,
+          DictionaryLanguageBar.sourceLanguages,
+        ),
+        target: DictionaryPage._fromLink(
+          page.to,
+          DictionaryLanguageBar.targetLanguages,
+        ),
+        verbosity: request.verbosity,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 /// English name of the UI language: definitions and notes are written in

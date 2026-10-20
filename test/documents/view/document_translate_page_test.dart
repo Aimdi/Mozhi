@@ -5,7 +5,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:mozhi/core/widgets/x_ui.dart';
+import 'package:mozhi/core/widgets/composer_card.dart';
+import 'package:mozhi/core/widgets/language_pair_bar.dart';
+import 'package:mozhi/core/widgets/tab_hero.dart';
 import 'package:mozhi/documents/documents.dart';
 import 'package:mozhi/documents/widgets/widgets.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -82,27 +84,46 @@ void main() {
     testWidgets('starts from the translate screen settings', (tester) async {
       await pumpPage(tester);
       expect(find.text('Translate documents'), findsOneWidget);
-      expect(find.text('Choose a document'), findsOneWidget);
-      // An X-style empty state: a bold headline and a pill CTA.
-      final headline = tester.widget<Text>(find.text('Choose a document'));
-      expect(headline.style?.fontWeight, FontWeight.w800);
+      expect(find.text('Pick a document'), findsOneWidget);
+      // The tabs' empty state: an accent icon over a bold headline.
       expect(
         find.descendant(
-          of: find.byKey(const Key('documents_target_language')),
-          matching: find.byType(LanguageAvatar),
+          of: find.byType(TabHero),
+          matching: find.text('Pick a document'),
         ),
         findsOneWidget,
       );
+      final headline = tester.widget<Text>(find.text('Pick a document'));
+      expect(headline.style?.fontWeight, FontWeight.w800);
+      // The languages in the translate screen's language bar.
+      expect(
+        find.descendant(
+          of: find.byType(LanguagePairBar),
+          matching: find.byKey(const Key('documents_target_language')),
+        ),
+        findsOneWidget,
+      );
+      expect(find.bySemanticsLabel('Translate into German'), findsOneWidget);
+      expect(find.bySemanticsLabel('Translate from Detect language'), findsOne);
       final state = cubitOf(tester).state;
       expect(state.engine, googleEngine);
       expect(state.target, german);
       expect(find.text('Google · mozhi.example'), findsOneWidget);
       expect(find.text('Detect language'), findsOneWidget);
       expect(find.text('German'), findsOneWidget);
-      final translate = tester.widget<FilledButton>(
+      // The go button ends the language bar, disabled without a document.
+      final translate = tester.widget<ComposerGoButton>(
         find.byKey(const Key('documents_translate')),
       );
       expect(translate.onPressed, isNull);
+      expect(translate.label, 'Translate');
+      expect(
+        find.descendant(
+          of: find.byType(LanguagePairBar),
+          matching: find.byKey(const Key('documents_translate')),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('opens an initial file or text', (tester) async {
@@ -171,7 +192,14 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Translation complete'), findsOneWidget);
-      expect(find.text('Translate again'), findsOneWidget);
+      expect(
+        tester
+            .widget<ComposerGoButton>(
+              find.byKey(const Key('documents_translate')),
+            )
+            .label,
+        'Translate again',
+      );
       expect(find.textContaining('HELLO THERE.'), findsOneWidget);
       expect(find.text('File name: movie.de.srt'), findsOneWidget);
 
@@ -509,6 +537,12 @@ void main() {
         find.byKey(const Key('documents_clear')),
       );
       expect(clear.onPressed, isNull);
+      final target = tester.widget<TextButton>(
+        find.byKey(const Key('documents_target_language')),
+      );
+      expect(target.onPressed, isNull);
+      // A ring turns around the go button.
+      expect(find.byKey(const Key('composer_go_progress')), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('documents_cancel')));
       await tester.pumpAndSettle();
@@ -521,7 +555,7 @@ void main() {
       await pickFile(tester, 'a.txt', 'hello');
       await tester.tap(find.byKey(const Key('documents_clear')));
       await tester.pumpAndSettle();
-      expect(find.text('Choose a document'), findsOneWidget);
+      expect(find.text('Pick a document'), findsOneWidget);
       expect(find.byKey(const Key('documents_clear')), findsNothing);
     });
 
@@ -616,7 +650,8 @@ void main() {
       tester,
     ) async {
       await pumpPage(tester, size: const Size(1200, 900));
-      expect(find.text('Choose a document'), findsWidgets);
+      expect(find.text('Pick a document'), findsOneWidget);
+      expect(find.text('The translation appears here.'), findsOneWidget);
       await pickFile(tester, 'movie.srt', srtText);
       expect(find.byKey(const Key('documents_side_by_side')), findsOneWidget);
       expect(find.text('…'), findsNWidgets(2));

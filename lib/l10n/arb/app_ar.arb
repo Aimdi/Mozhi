@@ -617,7 +617,6 @@
   "speechListenSlowly": "استماع ببطء",
   "imageTranslateTitle": "ترجمة صورة",
   "imageTranslateButtonTooltip": "ترجمة صورة",
-  "imageTranslateEmptyTitle": "ترجمة النص في الصور",
   "imageTranslateEmptyBody": "اختر صورة أو التقط صورة للافتة أو قائمة طعام أو مستند. سيُكتشف النص فيها ويُترجم.",
   "imageTranslateMethodsHeader": "طرق الترجمة",
   "imageTranslatePickGallery": "اختيار صورة",
@@ -690,8 +689,6 @@
   "webTranslatePaste": "لصق",
   "webTranslateGo": "ترجمة الصفحة",
   "webTranslateInvalidUrl": "أدخِل عنوان ويب صالحًا (http أو https)",
-  "webTranslateEmptyTitle": "اقرأ أي صفحة ويب بلغتك",
-  "webTranslateEmptyBody": "الصق رابط مقال أو تدوينة. ينزّل Mozhi الصفحة ويحتفظ بالنص المقروء فقط، ثم يترجمه بالمحرّك واللغات المحدّدة أدناه.",
   "webTranslateWebNotice": "في إصدار المتصفح، لا يستطيع Mozhi فتح الصفحات إلا من المواقع التي تسمح بالطلبات عبر المصادر (CORS)، ومعظم المواقع لا تسمح بذلك. استخدم تطبيق Android أو iOS أو سطح المكتب لترجمة أي صفحة.",
   "webTranslateLoading": "جارٍ تحميل الصفحة…",
   "webTranslateProgress": "جارٍ الترجمة… {done} من {total}",
@@ -718,7 +715,6 @@
   "documentsTitle": "ترجمة المستندات",
   "documentsModeFile": "ملف",
   "documentsModeText": "نص",
-  "documentsPickTitle": "اختر مستندًا",
   "documentsPickHint": "ملفات نصية وMarkdown وترجمات مصاحبة بصيغتي SRT وVTT وملفات JSON وARB بحجم يصل إلى {size}. تبقى الشيفرات والروابط والتوقيتات كما هي.",
   "documentsPickButton": "اختيار ملف",
   "documentsReplaceFile": "استبدال",
@@ -1565,5 +1561,8 @@
   "historyButtonTooltip": "السجل\nاضغط مطوّلًا لفتح المفضّلة",
   "historyOpenFavorites": "فتح المفضّلة",
   "translateShortcutEnterTranslates": "ترجمة (أثناء الكتابة)",
-  "translateShortcutNewLine": "إدراج سطر جديد (أثناء الكتابة)"
+  "translateShortcutNewLine": "إدراج سطر جديد (أثناء الكتابة)",
+  "translateComposerHint": "اكتب نصًا أو {paste}",
+  "translateComposerHintPaste": "الصقه",
+  "translatePasteFailed": "تعذّرت قراءة الحافظة. الصق النص مباشرة في حقل النص."
 }

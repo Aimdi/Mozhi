@@ -617,7 +617,6 @@
   "speechListenSlowly": "慢速朗读",
   "imageTranslateTitle": "图片翻译",
   "imageTranslateButtonTooltip": "翻译图片",
-  "imageTranslateEmptyTitle": "翻译照片中的文字",
   "imageTranslateEmptyBody": "选择一张照片，或拍下标牌、菜单或文件，即可识别并翻译其中的文字。",
   "imageTranslateMethodsHeader": "翻译方式",
   "imageTranslatePickGallery": "选择图片",
@@ -690,8 +689,6 @@
   "webTranslatePaste": "粘贴",
   "webTranslateGo": "翻译网页",
   "webTranslateInvalidUrl": "请输入有效的网址（http 或 https）",
-  "webTranslateEmptyTitle": "用你的语言阅读任何网页",
-  "webTranslateEmptyBody": "粘贴文章或博客的链接。Mozhi 会下载网页，只保留可读的正文，并使用下方所选的引擎和语言进行翻译。",
   "webTranslateWebNotice": "在浏览器版本中，Mozhi 只能打开允许跨域请求（CORS）的网站页面，而大多数网站并不允许。如需翻译任意网页，请使用 Android、iOS 或桌面版应用。",
   "webTranslateLoading": "正在加载网页…",
   "webTranslateProgress": "正在翻译… {done}/{total}",
@@ -718,7 +715,6 @@
   "documentsTitle": "翻译文档",
   "documentsModeFile": "文件",
   "documentsModeText": "文本",
-  "documentsPickTitle": "选择文档",
   "documentsPickHint": "支持不超过 {size} 的文本、Markdown、SRT 和 VTT 字幕、JSON 和 ARB 文件。代码、链接和时间轴将保持不变。",
   "documentsPickButton": "选择文件",
   "documentsReplaceFile": "替换",
@@ -1565,5 +1561,8 @@
   "historyButtonTooltip": "历史记录\n长按可打开收藏",
   "historyOpenFavorites": "打开收藏",
   "translateShortcutEnterTranslates": "翻译（输入时）",
-  "translateShortcutNewLine": "插入新行（输入时）"
+  "translateShortcutNewLine": "插入新行（输入时）",
+  "translateComposerHint": "输入或{paste}文本",
+  "translateComposerHintPaste": "粘贴",
+  "translatePasteFailed": "无法读取剪贴板。请直接粘贴到文本框中。"
 }

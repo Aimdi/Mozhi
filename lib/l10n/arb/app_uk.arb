@@ -617,7 +617,6 @@
   "speechListenSlowly": "Прослухати повільно",
   "imageTranslateTitle": "Переклад зображення",
   "imageTranslateButtonTooltip": "Перекласти зображення",
-  "imageTranslateEmptyTitle": "Перекладайте текст на фото",
   "imageTranslateEmptyBody": "Виберіть фото або сфотографуйте вивіску, меню чи документ. Текст на знімку буде розпізнано й перекладено.",
   "imageTranslateMethodsHeader": "Способи перекладу",
   "imageTranslatePickGallery": "Вибрати зображення",
@@ -690,8 +689,6 @@
   "webTranslatePaste": "Вставити",
   "webTranslateGo": "Перекласти сторінку",
   "webTranslateInvalidUrl": "Введіть коректну вебадресу (http або https)",
-  "webTranslateEmptyTitle": "Читайте будь-які вебсторінки своєю мовою",
-  "webTranslateEmptyBody": "Вставте посилання на статтю чи допис у блозі. Mozhi завантажить сторінку, залишить лише текст і перекладе його, використовуючи вибрані нижче сервіс і мови.",
   "webTranslateWebNotice": "У браузерній версії Mozhi може відкривати лише сторінки сайтів, які дозволяють кросдоменні запити (CORS), а більшість сайтів їх не дозволяє. Щоб перекладати будь-які сторінки, використовуйте застосунок для Android, iOS або комп’ютера.",
   "webTranslateLoading": "Завантаження сторінки…",
   "webTranslateProgress": "Переклад… {done} з {total}",
@@ -718,7 +715,6 @@
   "documentsTitle": "Переклад документів",
   "documentsModeFile": "Файл",
   "documentsModeText": "Текст",
-  "documentsPickTitle": "Виберіть документ",
   "documentsPickHint": "Текстові файли, Markdown, субтитри SRT і VTT, файли JSON і ARB розміром до {size}. Код, посилання й таймінги залишаються без змін.",
   "documentsPickButton": "Вибрати файл",
   "documentsReplaceFile": "Замінити",
@@ -1565,5 +1561,8 @@
   "historyButtonTooltip": "Історія\nНатисніть і утримуйте, щоб відкрити обране",
   "historyOpenFavorites": "Відкрити обране",
   "translateShortcutEnterTranslates": "Перекласти (під час набору)",
-  "translateShortcutNewLine": "Новий рядок (під час набору)"
+  "translateShortcutNewLine": "Новий рядок (під час набору)",
+  "translateComposerHint": "Введіть або {paste} текст",
+  "translateComposerHintPaste": "вставте",
+  "translatePasteFailed": "Не вдалося прочитати буфер обміну. Вставте текст прямо в поле."
 }

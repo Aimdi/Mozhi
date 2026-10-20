@@ -179,11 +179,6 @@ class UsageCardView extends StatelessWidget {
                   ),
                 OutlinedButton.icon(
                   key: const Key('usage_budget_button'),
-                  style: OutlinedButton.styleFrom(
-                    shape: const StadiumBorder(),
-                    side: BorderSide(color: palette.hairline),
-                    textStyle: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
                   onPressed: () => _editBudget(context, budget),
                   icon: const Icon(Icons.savings_outlined),
                   label: Text(

@@ -114,6 +114,25 @@ void main() {
       expect(lookup('hello', [_entry('1', text: 'goodbye')]), isNull);
     });
 
+    test('skip dictionary look-ups (their translation is a summary)', () {
+      final lookUp = HistoryEntry(
+        id: 'dictionary:1',
+        kind: HistoryEntryKind.dictionary,
+        text: _sentence,
+        translation: 'noun · A sentence with every letter.',
+        source: Language.auto,
+        target: _de,
+        engineId: 'ai:claude',
+        engineName: 'Claude',
+        createdAt: _now,
+      );
+      final translation = _entry('2', text: _sentence);
+
+      expect(lookup(_sentence, [lookUp]), isNull);
+      expect(lookup('${_sentence}s', [lookUp]), isNull);
+      expect(lookup(_sentence, [lookUp, translation])?.entry, translation);
+    });
+
     test('punctuation is not normalised', () {
       // Short text only matches exactly; punctuation is not normalised.
       expect(lookup('hello!', [_entry('1', text: 'hello')]), isNull);

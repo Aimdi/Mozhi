@@ -114,7 +114,6 @@ class ImageTranslateErrorView extends StatelessWidget {
         chooseSource != null ||
         retry != null ||
         fixRoute != null;
-    const pillText = TextStyle(fontWeight: FontWeight.w700);
     // Flat: an error-tinted hairline outline, no fill.
     return DecoratedBox(
       key: const Key('image_translate_error'),
@@ -156,11 +155,6 @@ class ImageTranslateErrorView extends StatelessWidget {
                   if (onUseOnDevice case final useOnDevice?)
                     FilledButton.icon(
                       key: const Key('image_translate_use_on_device'),
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size(0, 48),
-                        shape: const StadiumBorder(),
-                        textStyle: pillText,
-                      ),
                       onPressed: useOnDevice,
                       icon: const Icon(Icons.document_scanner_outlined),
                       label: Text(l10n.imageTranslateUseOnDevice),
@@ -168,11 +162,6 @@ class ImageTranslateErrorView extends StatelessWidget {
                   if (chooseSource != null)
                     FilledButton.icon(
                       key: const Key('image_translate_choose_source'),
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size(0, 48),
-                        shape: const StadiumBorder(),
-                        textStyle: pillText,
-                      ),
                       onPressed: chooseSource,
                       icon: const Icon(Icons.translate),
                       label: Text(l10n.imageTranslateChooseSourceLanguage),
@@ -181,11 +170,6 @@ class ImageTranslateErrorView extends StatelessWidget {
                     if (onUseOnDevice == null)
                       FilledButton.icon(
                         key: const Key('image_translate_retry_button'),
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size(0, 48),
-                          shape: const StadiumBorder(),
-                          textStyle: pillText,
-                        ),
                         onPressed: retry,
                         icon: const Icon(Icons.refresh),
                         label: Text(l10n.commonRetry),
@@ -194,11 +178,6 @@ class ImageTranslateErrorView extends StatelessWidget {
                       // On-device recognition is the better next step.
                       FilledButton.tonalIcon(
                         key: const Key('image_translate_retry_button'),
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size(0, 48),
-                          shape: const StadiumBorder(),
-                          textStyle: pillText,
-                        ),
                         onPressed: retry,
                         icon: const Icon(Icons.refresh),
                         label: Text(l10n.commonRetry),
@@ -206,9 +185,6 @@ class ImageTranslateErrorView extends StatelessWidget {
                   if (fixRoute != null && fixLabel != null)
                     TextButton(
                       key: const Key('image_translate_error_fix'),
-                      style: TextButton.styleFrom(
-                        minimumSize: const Size(0, 48),
-                      ),
                       onPressed: () => push
                           ? unawaited(context.push<Object?>(fixRoute))
                           : context.go(fixRoute),

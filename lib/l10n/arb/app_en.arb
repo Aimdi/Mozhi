@@ -2833,10 +2833,6 @@
   "@imageTranslateButtonTooltip": {
     "description": "imageTranslateButtonTooltip"
   },
-  "imageTranslateEmptyTitle": "Translate text in photos",
-  "@imageTranslateEmptyTitle": {
-    "description": "imageTranslateEmptyTitle"
-  },
   "imageTranslateEmptyBody": "Choose a photo or take a picture of a sign, menu or document. The text in it is found and translated.",
   "@imageTranslateEmptyBody": {
     "description": "imageTranslateEmptyBody"
@@ -3169,14 +3165,6 @@
   "@webTranslateInvalidUrl": {
     "description": "webTranslateInvalidUrl"
   },
-  "webTranslateEmptyTitle": "Read any web page in your language",
-  "@webTranslateEmptyTitle": {
-    "description": "webTranslateEmptyTitle"
-  },
-  "webTranslateEmptyBody": "Paste a link to an article or blog post. Mozhi downloads the page, keeps only the readable text and translates it with the engine and languages selected below.",
-  "@webTranslateEmptyBody": {
-    "description": "webTranslateEmptyBody"
-  },
   "webTranslateWebNotice": "In the browser version, Mozhi can only open pages from sites that allow cross-origin requests (CORS), and most sites do not. Use the Android, iOS or desktop app to translate any page.",
   "@webTranslateWebNotice": {
     "description": "webTranslateWebNotice"
@@ -3314,10 +3302,6 @@
   "documentsModeText": "Text",
   "@documentsModeText": {
     "description": "documentsModeText"
-  },
-  "documentsPickTitle": "Choose a document",
-  "@documentsPickTitle": {
-    "description": "documentsPickTitle"
   },
   "documentsPickHint": "Text, Markdown, SRT and VTT subtitles, JSON and ARB files up to {size}. Code, links and timings stay untouched.",
   "@documentsPickHint": {
@@ -7898,5 +7882,42 @@
   "translatePasteFailed": "Couldn't read the clipboard. Paste into the text field instead.",
   "@translatePasteFailed": {
     "description": "Snack bar when the paste button or link cannot read the clipboard (e.g. a browser without clipboard access)."
+  },
+  "documentsHeroTitle": "Pick a document",
+  "@documentsHeroTitle": {
+    "description": "documentsHeroTitle"
+  },
+  "imageTranslateHeroTitle": "Take or pick a photo",
+  "@imageTranslateHeroTitle": {
+    "description": "imageTranslateHeroTitle"
+  },
+  "webTranslateHeroTitle": "Enter an address",
+  "@webTranslateHeroTitle": {
+    "description": "webTranslateHeroTitle"
+  },
+  "webTranslateHeroBody": "Paste a link to an article or blog post. Mozhi downloads the page, keeps only the readable text and translates it with the engine and languages above.",
+  "@webTranslateHeroBody": {
+    "description": "webTranslateHeroBody"
+  },
+  "historyDictionaryMarker": "Dictionary",
+  "@historyDictionaryMarker": {
+    "description": "Small label on a History entry that is a dictionary look-up (not a translation)."
+  },
+  "historyOpenDictionaryHint": "Look up in the dictionary",
+  "@historyOpenDictionaryHint": {
+    "description": "Screen reader hint: what tapping a dictionary look-up in History does."
+  },
+  "historyLookUpDeleted": "Look-up deleted",
+  "@historyLookUpDeleted": {
+    "description": "Snack bar after deleting a dictionary look-up from History (with Undo)."
+  },
+  "historyFilterPairEntries": "{count, plural, =1{1 entry} other{{count} entries}}",
+  "@historyFilterPairEntries": {
+    "description": "Number of History entries (translations and dictionary look-ups) of a language pair.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   }
 }

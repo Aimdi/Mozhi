@@ -288,16 +288,10 @@ class _GlossaryTile extends StatelessWidget {
                     : colors.onSurfaceVariant,
                 child: const Icon(Icons.menu_book_outlined),
               ),
-              title: Text(
-                name,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+              title: Text(name, style: theme.textTheme.titleMedium),
               subtitle: Text(
                 '${l10n.glossaryScope(glossary)} · '
                 '${l10n.glossariesTermCount(glossary.terms.length)}',
-                style: TextStyle(color: AppPalette.of(context).secondaryText),
               ),
               trailing: Semantics(
                 label: l10n.glossariesEnableLabel(name),

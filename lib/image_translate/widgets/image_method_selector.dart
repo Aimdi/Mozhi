@@ -28,12 +28,7 @@ class ImageMethodSelector extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          l10n.imageTranslateMethodLabel,
-          style: theme.textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w800,
-          ),
-        ),
+        Text(l10n.imageTranslateMethodLabel, style: theme.textTheme.titleSmall),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,

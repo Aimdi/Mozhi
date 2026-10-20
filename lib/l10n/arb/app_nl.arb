@@ -617,7 +617,6 @@
   "speechListenSlowly": "Langzaam beluisteren",
   "imageTranslateTitle": "Afbeelding vertalen",
   "imageTranslateButtonTooltip": "Een afbeelding vertalen",
-  "imageTranslateEmptyTitle": "Tekst in foto’s vertalen",
   "imageTranslateEmptyBody": "Kies een foto of fotografeer een bord, menu of document. De tekst erin wordt herkend en vertaald.",
   "imageTranslateMethodsHeader": "Vertaalmethoden",
   "imageTranslatePickGallery": "Afbeelding kiezen",
@@ -690,8 +689,6 @@
   "webTranslatePaste": "Plakken",
   "webTranslateGo": "Pagina vertalen",
   "webTranslateInvalidUrl": "Voer een geldig webadres in (http of https)",
-  "webTranslateEmptyTitle": "Lees elke webpagina in je eigen taal",
-  "webTranslateEmptyBody": "Plak een link naar een artikel of blogpost. Mozhi downloadt de pagina, houdt alleen de leesbare tekst over en vertaalt die met de engine en talen die hieronder zijn gekozen.",
   "webTranslateWebNotice": "In de browserversie kan Mozhi alleen pagina’s openen van sites die cross-origin-verzoeken (CORS) toestaan, en de meeste sites doen dat niet. Gebruik de app voor Android, iOS of desktop om elke pagina te vertalen.",
   "webTranslateLoading": "Pagina laden…",
   "webTranslateProgress": "Vertalen… {done} van {total}",
@@ -718,7 +715,6 @@
   "documentsTitle": "Documenten vertalen",
   "documentsModeFile": "Bestand",
   "documentsModeText": "Tekst",
-  "documentsPickTitle": "Kies een document",
   "documentsPickHint": "Tekst, Markdown, SRT- en VTT-ondertitels, JSON- en ARB-bestanden tot {size}. Code, links en tijdcodes blijven ongewijzigd.",
   "documentsPickButton": "Bestand kiezen",
   "documentsReplaceFile": "Vervangen",
@@ -1565,5 +1561,8 @@
   "historyButtonTooltip": "Geschiedenis\nLang indrukken om favorieten te openen",
   "historyOpenFavorites": "Favorieten openen",
   "translateShortcutEnterTranslates": "Vertalen (tijdens het typen)",
-  "translateShortcutNewLine": "Nieuwe regel invoegen (tijdens het typen)"
+  "translateShortcutNewLine": "Nieuwe regel invoegen (tijdens het typen)",
+  "translateComposerHint": "Typ of {paste} tekst",
+  "translateComposerHintPaste": "plak",
+  "translatePasteFailed": "Kan het klembord niet lezen. Plak in plaats daarvan in het tekstveld."
 }

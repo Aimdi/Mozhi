@@ -7,6 +7,8 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/core/widgets/composer_card.dart';
+import 'package:mozhi/core/widgets/tab_hero.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/view/widgets/link_launcher.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -76,13 +78,34 @@ void main() {
       await pumpPage(tester, page());
       final l10n = lookupAppLocalizations(const Locale('en'));
       expect(find.text(l10n.webTranslateTitle), findsOneWidget);
-      expect(find.text(l10n.webTranslateEmptyTitle), findsOneWidget);
+      // The tabs' empty state: an accent icon over a bold headline.
+      expect(
+        find.descendant(
+          of: find.byType(TabHero),
+          matching: find.text(l10n.webTranslateHeroTitle),
+        ),
+        findsOneWidget,
+      );
       expect(find.byKey(const Key('web_translate_url_field')), findsOneWidget);
       expect(
         find.byKey(const Key('translate_engine_selector')),
         findsOneWidget,
       );
-      expect(find.byKey(const Key('translate_target_button')), findsOneWidget);
+      // Options, languages and "Translate page" in one language bar.
+      final bar = find.byKey(const Key('web_translate_language_bar'));
+      for (final key in const [
+        Key('translate_options_button'),
+        Key('web_translate_source_button'),
+        Key('web_translate_swap_button'),
+        Key('web_translate_target_button'),
+        Key('web_translate_go_button'),
+      ]) {
+        expect(find.descendant(of: bar, matching: find.byKey(key)), findsOne);
+      }
+      expect(find.bySemanticsLabel('Target language: Spanish'), findsOne);
+      // Not the translate screen's go button (it translates that screen's
+      // text, not the page).
+      expect(find.byKey(const Key('translate_translate_button')), findsNothing);
       expect(find.byKey(const Key('web_translate_web_notice')), findsNothing);
       expect(find.byKey(const Key('web_translate_copy_button')), findsNothing);
     });
@@ -90,6 +113,74 @@ void main() {
     testWidgets('explains the CORS limits on the web', (tester) async {
       await pumpPage(tester, page(isWeb: true));
       expect(find.byKey(const Key('web_translate_web_notice')), findsOneWidget);
+    });
+
+    testWidgets('shows the language detected for the page', (tester) async {
+      // The translate screen detected another language for its own text.
+      when(() => translateCubit.state).thenReturn(
+        translateState().copyWith(
+          result: () => const TranslationResult(
+            engineId: 'mozhi:google',
+            engineName: 'Google',
+            text: 'Hola',
+            detectedSource: 'ar',
+          ),
+        ),
+      );
+      await pumpPage(tester, page());
+      expect(
+        find.bySemanticsLabel('Source language: Detect language'),
+        findsOneWidget,
+      );
+      await loadUrl(tester, 'https://example.com/sample');
+      expect(
+        find.bySemanticsLabel('Source language: Detected: English'),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('web_translate_source_button')),
+          matching: find.byIcon(Icons.auto_awesome_outlined),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('swaps the languages of the text translator', (tester) async {
+      when(() => translateCubit.state).thenReturn(
+        translateState(
+          source: const Language(code: 'en', name: 'English'),
+        ),
+      );
+      await pumpPage(tester, page());
+      await tester.tap(find.byKey(const Key('web_translate_swap_button')));
+      await tester.pump();
+      verify(() => translateCubit.swap()).called(1);
+    });
+
+    testWidgets('the go button waits while the page loads', (tester) async {
+      final gate = Completer<http.Response>();
+      await pumpPage(tester, page(client: MockClient((_) => gate.future)));
+      await tester.enterText(
+        find.byKey(const Key('web_translate_url_field')),
+        'https://example.com/sample',
+      );
+      await tester.tap(find.byKey(const Key('web_translate_go_button')));
+      await tester.pump();
+      final go = tester.widget<ComposerGoButton>(
+        find.byKey(const Key('web_translate_go_button')),
+      );
+      expect(go.onPressed, isNull);
+      expect(go.busy, isTrue);
+      gate.complete(
+        http.Response(
+          samplePageHtml,
+          200,
+          headers: const {'content-type': 'text/html; charset=utf-8'},
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('SAMPLE PAGE'), findsOneWidget);
     });
 
     testWidgets('loads and translates a page', (tester) async {
@@ -265,7 +356,7 @@ void main() {
       await pumpPage(tester, page());
       await tester.tap(find.byKey(const Key('web_translate_paste_button')));
       await tester.pumpAndSettle();
-      expect(find.text('Read any web page in your language'), findsOneWidget);
+      expect(find.text('Enter an address'), findsOneWidget);
     });
 
     testWidgets('clears the address', (tester) async {

@@ -96,7 +96,8 @@ class MemoryMatch extends Equatable {
 /// with [LanguageMatcher.normalize]) and, unless the looked-up source is
 /// auto, the same source (an entry with an auto source counts when its
 /// detected language is that source or unknown). Entries with an empty
-/// text or translation never match.
+/// text or translation, and dictionary look-ups (their translation is a
+/// summary of the entry), never match.
 ///
 /// Normalised texts and trigrams are cached per entry instance.
 class TranslationMemory {
@@ -167,7 +168,8 @@ class TranslationMemory {
           entry.createdAt.isBefore(cutoff)) {
         continue;
       }
-      if (entry.translation.trim().isEmpty ||
+      if (entry.isDictionary ||
+          entry.translation.trim().isEmpty ||
           !_compatible(entry, source: source, target: target)) {
         continue;
       }

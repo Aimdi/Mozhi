@@ -262,10 +262,6 @@ class MeteredDownloadDialog extends StatelessWidget {
           child: Text(l10n.commonCancel),
         ),
         FilledButton(
-          style: FilledButton.styleFrom(
-            shape: const StadiumBorder(),
-            textStyle: const TextStyle(fontWeight: FontWeight.w700),
-          ),
           onPressed: () => Navigator.of(context).pop(true),
           child: Text(l10n.offlineMeteredDownloadAnyway),
         ),
@@ -286,7 +282,6 @@ class _LoadFailure extends StatelessWidget {
       title: l10n.offlineLoadFailed,
       announce: true,
       action: FilledButton.icon(
-        style: FilledButton.styleFrom(shape: const StadiumBorder()),
         onPressed: () => unawaited(context.read<OfflineModelsCubit>().load()),
         icon: const Icon(Icons.refresh),
         label: Text(l10n.commonRetry),

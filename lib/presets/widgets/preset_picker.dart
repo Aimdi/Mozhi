@@ -138,7 +138,6 @@ class PresetPicker extends StatelessWidget {
     return InputDecorator(
       decoration: InputDecoration(
         labelText: l10n.presetsPickerLabel,
-        border: const OutlineInputBorder(),
         contentPadding: const EdgeInsets.symmetric(horizontal: 12),
       ),
       child: DropdownButtonHideUnderline(

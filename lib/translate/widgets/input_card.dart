@@ -107,9 +107,9 @@ SpeechInputService? _speechInputServiceOf(BuildContext context) {
 /// and clear at the end. [compact] (the composer of the empty screen)
 /// leaves the tools row out; while the field is empty its placeholder
 /// reads "Type or paste text", "paste" being a link that pastes
-/// ([_PastePrompt]). A notice says when long text was shortened. Esc clears the
-/// field while it is focused and not empty. The go button ("Translate")
-/// is at the end of the language bar (`TranslateGoButton`).
+/// ([_PastePrompt]). A notice says when long text was shortened. Esc
+/// clears the field while it is focused and not empty. The go button
+/// ("Translate") is at the end of the language bar (`TranslateGoButton`).
 ///
 /// [focusNode] is the field's focus node (the screen follows it to leave
 /// the empty screen); without one the card makes its own.
@@ -732,6 +732,8 @@ class _PastePrompt extends StatelessWidget {
     final parts = translateComposerHintParts(l10n);
     final direction = Directionality.of(context);
     final scaler = MediaQuery.textScalerOf(context);
+    // The locale picks the fonts; the measuring and the drawing use it.
+    final locale = Localizations.maybeLocaleOf(context);
     final span = TextSpan(
       style: DefaultTextStyle.of(context).style.merge(style),
       children: [
@@ -754,6 +756,7 @@ class _PastePrompt extends StatelessWidget {
               text: span,
               textDirection: direction,
               textScaler: scaler,
+              locale: locale,
             )..layout(
               maxWidth: math.max(0, constraints.maxWidth - padding.horizontal),
             );
@@ -776,6 +779,7 @@ class _PastePrompt extends StatelessWidget {
                     text: span,
                     textDirection: direction,
                     textScaler: scaler,
+                    locale: locale,
                   ),
                 ),
               ),

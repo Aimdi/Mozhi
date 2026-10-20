@@ -617,7 +617,6 @@
   "speechListenSlowly": "மெதுவாகக் கேள்",
   "imageTranslateTitle": "படத்தை மொழிபெயர்",
   "imageTranslateButtonTooltip": "ஒரு படத்தை மொழிபெயர்",
-  "imageTranslateEmptyTitle": "புகைப்படங்களில் உள்ள உரையை மொழிபெயருங்கள்",
   "imageTranslateEmptyBody": "ஒரு புகைப்படத்தைத் தேர்வுசெய்யவும் அல்லது அறிவிப்புப் பலகை, உணவுப் பட்டியல், ஆவணம் போன்றவற்றைப் படம் எடுக்கவும். அதிலுள்ள உரை கண்டறியப்பட்டு மொழிபெயர்க்கப்படும்.",
   "imageTranslateMethodsHeader": "மொழிபெயர்ப்பு முறைகள்",
   "imageTranslatePickGallery": "படத்தைத் தேர்வுசெய்",
@@ -690,8 +689,6 @@
   "webTranslatePaste": "ஒட்டு",
   "webTranslateGo": "பக்கத்தை மொழிபெயர்",
   "webTranslateInvalidUrl": "சரியான இணைய முகவரியை (http அல்லது https) உள்ளிடவும்",
-  "webTranslateEmptyTitle": "எந்த இணையப் பக்கத்தையும் உங்கள் மொழியில் படியுங்கள்",
-  "webTranslateEmptyBody": "ஒரு கட்டுரை அல்லது வலைப்பதிவின் இணைப்பை ஒட்டவும். Mozhi பக்கத்தைப் பதிவிறக்கி, படிக்கக்கூடிய உரையை மட்டும் வைத்துக்கொண்டு, கீழே தேர்ந்தெடுத்த இன்ஜின், மொழிகளைக் கொண்டு மொழிபெயர்க்கும்.",
   "webTranslateWebNotice": "உலாவிப் பதிப்பில், கிராஸ்-ஆரிஜின் கோரிக்கைகளை (CORS) அனுமதிக்கும் தளங்களின் பக்கங்களை மட்டுமே Mozhi திறக்க முடியும்; பெரும்பாலான தளங்கள் அனுமதிப்பதில்லை. எந்தப் பக்கத்தையும் மொழிபெயர்க்க Android, iOS அல்லது டெஸ்க்டாப் ஆப்பைப் பயன்படுத்தவும்.",
   "webTranslateLoading": "பக்கத்தை ஏற்றுகிறது…",
   "webTranslateProgress": "மொழிபெயர்க்கிறது… {total} இல் {done}",
@@ -718,7 +715,6 @@
   "documentsTitle": "ஆவணங்களை மொழிபெயர்",
   "documentsModeFile": "கோப்பு",
   "documentsModeText": "உரை",
-  "documentsPickTitle": "ஆவணத்தைத் தேர்வுசெய்",
   "documentsPickHint": "{size} வரையிலான உரை, Markdown, SRT மற்றும் VTT வசனங்கள், JSON மற்றும் ARB கோப்புகள். குறியீடு, இணைப்புகள், நேரக்குறிப்புகள் மாறாமல் இருக்கும்.",
   "documentsPickButton": "கோப்பைத் தேர்வுசெய்",
   "documentsReplaceFile": "மாற்று",
@@ -1565,5 +1561,8 @@
   "historyButtonTooltip": "வரலாறு\nபிடித்தவையைத் திறக்க நீண்ட நேரம் அழுத்தவும்",
   "historyOpenFavorites": "பிடித்தவையைத் திற",
   "translateShortcutEnterTranslates": "மொழிபெயர் (தட்டச்சு செய்யும்போது)",
-  "translateShortcutNewLine": "புதிய வரியைச் செருகு (தட்டச்சு செய்யும்போது)"
+  "translateShortcutNewLine": "புதிய வரியைச் செருகு (தட்டச்சு செய்யும்போது)",
+  "translateComposerHint": "உரையைத் தட்டச்சிடவும் அல்லது {paste}",
+  "translateComposerHintPaste": "ஒட்டவும்",
+  "translatePasteFailed": "கிளிப்போர்டைப் படிக்க முடியவில்லை. உரைப் புலத்தில் நேரடியாக ஒட்டவும்."
 }

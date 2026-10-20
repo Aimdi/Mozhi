@@ -87,7 +87,6 @@ class _GlossaryDetailsDialogState extends State<GlossaryDetailsDialog> {
                 decoration: InputDecoration(
                   labelText: l10n.glossariesName,
                   hintText: l10n.glossariesNameHint,
-                  border: const OutlineInputBorder(),
                 ),
                 validator: (value) => (value ?? '').trim().isEmpty
                     ? l10n.glossariesNameRequired
@@ -152,7 +151,6 @@ class _LanguageField extends StatelessWidget {
         child: InputDecorator(
           decoration: InputDecoration(
             labelText: label,
-            border: const OutlineInputBorder(),
             suffixIcon: const Icon(Icons.arrow_drop_down),
           ),
           child: Text(value, overflow: TextOverflow.ellipsis),
@@ -236,7 +234,6 @@ class _GlossaryTermDialogState extends State<GlossaryTermDialog> {
                 textInputAction: TextInputAction.next,
                 decoration: InputDecoration(
                   labelText: l10n.glossaryEditorSource,
-                  border: const OutlineInputBorder(),
                 ),
                 validator: required,
               ),
@@ -248,7 +245,6 @@ class _GlossaryTermDialogState extends State<GlossaryTermDialog> {
                 textInputAction: TextInputAction.next,
                 decoration: InputDecoration(
                   labelText: l10n.glossaryEditorTarget,
-                  border: const OutlineInputBorder(),
                 ),
                 validator: required,
               ),
@@ -260,7 +256,6 @@ class _GlossaryTermDialogState extends State<GlossaryTermDialog> {
                 textCapitalization: TextCapitalization.sentences,
                 decoration: InputDecoration(
                   labelText: l10n.glossaryEditorNote,
-                  border: const OutlineInputBorder(),
                 ),
                 onFieldSubmitted: (_) => _submit(),
               ),

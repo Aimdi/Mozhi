@@ -63,9 +63,7 @@ class _QuickSourceCardState extends State<QuickSourceCard> {
                 Flexible(
                   child: Text(
                     l10n.quickTranslateOriginal,
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: theme.textTheme.labelLarge,
                   ),
                 ),
                 if (detected != null) ...[

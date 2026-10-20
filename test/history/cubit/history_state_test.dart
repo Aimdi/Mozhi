@@ -157,5 +157,80 @@ void main() {
         );
       });
     });
+
+    group('dictionary look-ups', () {
+      const spanish = Language(code: 'es', name: 'Spanish');
+      const english = Language(code: 'en', name: 'English');
+      final gato = HistoryEntry(
+        id: 'dictionary:1',
+        kind: HistoryEntryKind.dictionary,
+        text: 'gato',
+        translation: 'noun · A small domesticated feline.',
+        source: spanish,
+        target: english,
+        engineId: 'ai:ollama',
+        engineName: 'Ollama',
+        createdAt: DateTime(2026),
+        isFavorite: true,
+      );
+      final state = HistoryState(entries: [_hello, gato, _thanks]);
+
+      test('lookUpOf finds the look-up of a word and its languages', () {
+        expect(
+          state.lookUpOf(' gato ', source: spanish, target: english),
+          gato,
+        );
+        expect(
+          state.lookUpOf('perro', source: spanish, target: english),
+          isNull,
+        );
+        // A translation of the same text is not a look-up.
+        expect(
+          state.lookUpOf('Gracias', source: spanish, target: english),
+          isNull,
+        );
+      });
+
+      test('hasLookUps tells whether there are any', () {
+        expect(state.hasLookUps, isTrue);
+        expect(HistoryState(entries: entries).hasLookUps, isFalse);
+      });
+
+      test('search the word and the summary', () {
+        expect(state.copyWith(query: 'GATO').visible, [gato]);
+        expect(state.copyWith(query: 'feline').visible, [gato]);
+      });
+
+      test('count in the pairs and the favourites', () {
+        expect(state.pairs, contains((HistoryPair.of(gato), 2)));
+        expect(state.copyWith(favoritesOnly: true).visible, [gato]);
+        expect(state.copyWith(pair: () => HistoryPair.of(gato)).visible, [
+          gato,
+          _thanks,
+        ]);
+      });
+
+      test('go to the destination of their AI engine', () {
+        const local = AiProviderConfig(
+          id: 'ollama',
+          name: 'Ollama',
+          provider: LlmProvider.ollama,
+          baseUrl: 'http://localhost:11434',
+          model: 'llama3',
+        );
+        HistoryDestination? destinationOf(String engineId) =>
+            historyDestinationOf(engineId, providers: const [local]);
+
+        expect(destinationOf(gato.engineId), HistoryDestination.selfHosted);
+        expect(
+          state
+              .copyWith(destination: () => HistoryDestination.selfHosted)
+              .visibleWith(destinationOf),
+          [gato],
+        );
+        // A provider that no longer exists counts as the cloud.
+        expect(historyDestinationOf(gato.engineId), HistoryDestination.cloud);
+      });
+    });
   });
 }

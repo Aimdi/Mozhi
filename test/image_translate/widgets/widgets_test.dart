@@ -711,7 +711,13 @@ void main() {
         ),
         child: const ImageLanguageBar(),
       );
-      expect(find.text('Detected: Japanese'), findsOneWidget);
+      // The name with a sparkle, like the translate screen's language bar.
+      expect(find.text('Japanese'), findsOneWidget);
+      expect(find.byIcon(Icons.auto_awesome_outlined), findsOneWidget);
+      expect(
+        find.bySemanticsLabel('Source language: Detected: Japanese'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('falls back to the catalogue', (tester) async {

@@ -617,7 +617,6 @@
   "speechListenSlowly": "Langsam anhören",
   "imageTranslateTitle": "Bild übersetzen",
   "imageTranslateButtonTooltip": "Ein Bild übersetzen",
-  "imageTranslateEmptyTitle": "Text in Fotos übersetzen",
   "imageTranslateEmptyBody": "Wähle ein Foto oder fotografiere ein Schild, eine Speisekarte oder ein Dokument. Der Text darin wird erkannt und übersetzt.",
   "imageTranslateMethodsHeader": "Übersetzungsmethoden",
   "imageTranslatePickGallery": "Bild auswählen",
@@ -690,8 +689,6 @@
   "webTranslatePaste": "Einfügen",
   "webTranslateGo": "Seite übersetzen",
   "webTranslateInvalidUrl": "Gib eine gültige Webadresse ein (http oder https)",
-  "webTranslateEmptyTitle": "Jede Webseite in deiner Sprache lesen",
-  "webTranslateEmptyBody": "Füge einen Link zu einem Artikel oder Blogbeitrag ein. Mozhi lädt die Seite, behält nur den lesbaren Text und übersetzt ihn mit der unten gewählten Engine und den Sprachen.",
   "webTranslateWebNotice": "In der Browserversion kann Mozhi nur Seiten von Websites öffnen, die ursprungsübergreifende Anfragen (CORS) erlauben – und das tun die meisten nicht. Nutze die App für Android, iOS oder Desktop, um jede Seite zu übersetzen.",
   "webTranslateLoading": "Seite wird geladen…",
   "webTranslateProgress": "Wird übersetzt… {done} von {total}",
@@ -718,7 +715,6 @@
   "documentsTitle": "Dokumente übersetzen",
   "documentsModeFile": "Datei",
   "documentsModeText": "Text",
-  "documentsPickTitle": "Dokument wählen",
   "documentsPickHint": "Text, Markdown, SRT- und VTT-Untertitel, JSON- und ARB-Dateien bis {size}. Code, Links und Zeitangaben bleiben unverändert.",
   "documentsPickButton": "Datei wählen",
   "documentsReplaceFile": "Ersetzen",
@@ -1565,5 +1561,8 @@
   "historyButtonTooltip": "Verlauf\nLange drücken, um Favoriten zu öffnen",
   "historyOpenFavorites": "Favoriten öffnen",
   "translateShortcutEnterTranslates": "Übersetzen (beim Tippen)",
-  "translateShortcutNewLine": "Neue Zeile einfügen (beim Tippen)"
+  "translateShortcutNewLine": "Neue Zeile einfügen (beim Tippen)",
+  "translateComposerHint": "Text tippen oder {paste}",
+  "translateComposerHintPaste": "einfügen",
+  "translatePasteFailed": "Die Zwischenablage konnte nicht gelesen werden. Füge den Text direkt ins Textfeld ein."
 }

@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:mozhi/history/cubit/history_filters.dart';
 import 'package:mozhi/history/models/history_entry.dart';
+import 'package:translation_repository/translation_repository.dart';
 
 export 'history_filters.dart';
 
@@ -52,7 +53,8 @@ class HistoryState extends Equatable {
 
   /// [entries] filtered by [favoritesOnly], [pair], [destination] (with the
   /// default [historyDestinationOf]) and case-insensitive [query] over
-  /// text, translation and language names.
+  /// text, translation and language names (for dictionary look-ups: the
+  /// word and its summary).
   List<HistoryEntry> get visible => visibleWith(historyDestinationOf);
 
   /// Like [visible], classifying entries for the [destination] filter with
@@ -73,6 +75,19 @@ class HistoryState extends Equatable {
           entry,
     ];
   }
+
+  /// The dictionary look-up of [word] from [source] into [target] in
+  /// [entries] ([HistoryEntry.isLookUpOf]), or null.
+  HistoryEntry? lookUpOf(
+    String word, {
+    required Language source,
+    required Language target,
+  }) => entries
+      .where((entry) => entry.isLookUpOf(word, source: source, target: target))
+      .firstOrNull;
+
+  /// Whether [entries] holds dictionary look-ups.
+  bool get hasLookUps => entries.any((entry) => entry.isDictionary);
 
   /// The language pairs of [entries] with how many entries each has, most
   /// used first.

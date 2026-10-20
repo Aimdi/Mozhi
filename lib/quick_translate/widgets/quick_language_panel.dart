@@ -76,10 +76,7 @@ class _QuickLanguagePanelState extends State<QuickLanguagePanel> {
                 header: true,
                 child: Text(
                   l10n.translatePickerTargetTitle,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.3,
-                  ),
+                  style: theme.textTheme.titleLarge,
                 ),
               ),
             ),
@@ -157,10 +154,7 @@ class _QuickLanguagePanelState extends State<QuickLanguagePanel> {
           leading: language.isCustom
               ? null
               : LanguageAvatar(code: language.code),
-          title: Text(
-            language.name,
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
+          title: Text(language.name),
           subtitle:
               language.nativeName == null ||
                   language.nativeName == language.name
@@ -227,9 +221,7 @@ class _ChipSection extends StatelessWidget {
               header: true,
               child: Text(
                 title,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
+                style: theme.textTheme.titleSmall,
               ),
             ),
           ),

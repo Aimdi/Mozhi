@@ -617,7 +617,6 @@
   "speechListenSlowly": "Yavaş dinle",
   "imageTranslateTitle": "Görsel çevir",
   "imageTranslateButtonTooltip": "Bir görseli çevir",
-  "imageTranslateEmptyTitle": "Fotoğraflardaki metni çevirin",
   "imageTranslateEmptyBody": "Bir fotoğraf seçin ya da bir tabelanın, menünün veya belgenin fotoğrafını çekin. İçindeki metin bulunup çevrilir.",
   "imageTranslateMethodsHeader": "Çeviri yöntemleri",
   "imageTranslatePickGallery": "Görsel seç",
@@ -690,8 +689,6 @@
   "webTranslatePaste": "Yapıştır",
   "webTranslateGo": "Sayfayı çevir",
   "webTranslateInvalidUrl": "Geçerli bir web adresi girin (http veya https)",
-  "webTranslateEmptyTitle": "Her web sayfasını kendi dilinizde okuyun",
-  "webTranslateEmptyBody": "Bir makalenin veya blog yazısının bağlantısını yapıştırın. Mozhi sayfayı indirir, yalnızca okunabilir metni tutar ve aşağıda seçilen motor ve dillerle çevirir.",
   "webTranslateWebNotice": "Tarayıcı sürümünde Mozhi yalnızca çapraz kaynak isteklerine (CORS) izin veren sitelerin sayfalarını açabilir ve çoğu site buna izin vermez. Herhangi bir sayfayı çevirmek için Android, iOS veya masaüstü uygulamasını kullanın.",
   "webTranslateLoading": "Sayfa yükleniyor…",
   "webTranslateProgress": "Çevriliyor… {done}/{total}",
@@ -718,7 +715,6 @@
   "documentsTitle": "Belge çevir",
   "documentsModeFile": "Dosya",
   "documentsModeText": "Metin",
-  "documentsPickTitle": "Belge seçin",
   "documentsPickHint": "{size} boyutuna kadar metin, Markdown, SRT ve VTT altyazı, JSON ve ARB dosyaları. Kod, bağlantılar ve zamanlamalar olduğu gibi kalır.",
   "documentsPickButton": "Dosya seç",
   "documentsReplaceFile": "Değiştir",
@@ -1565,5 +1561,8 @@
   "historyButtonTooltip": "Geçmiş\nFavorileri açmak için basılı tutun",
   "historyOpenFavorites": "Favorileri aç",
   "translateShortcutEnterTranslates": "Çevir (yazarken)",
-  "translateShortcutNewLine": "Yeni satır ekle (yazarken)"
+  "translateShortcutNewLine": "Yeni satır ekle (yazarken)",
+  "translateComposerHint": "Metin yazın veya {paste}",
+  "translateComposerHintPaste": "yapıştırın",
+  "translatePasteFailed": "Pano okunamadı. Bunun yerine metin alanına yapıştırın."
 }

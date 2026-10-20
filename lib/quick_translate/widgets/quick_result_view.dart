@@ -8,6 +8,8 @@ import 'package:mozhi/translate/widgets/offline_offer.dart'
     show offlineDownloadLabel;
 import 'package:mozhi/translate/widgets/translate_error.dart'
     show describeTranslateError;
+import 'package:mozhi/translate/widgets/translate_layout.dart'
+    show TranslateLayout;
 import 'package:translation_repository/translation_repository.dart'
     show ConsentRequiredException, LanguageCatalog;
 
@@ -62,7 +64,6 @@ class QuickResultView extends StatelessWidget {
         message: describeTranslateError(l10n, state.error).message,
         action: FilledButton.icon(
           key: const Key('quick_translate_retry'),
-          style: FilledButton.styleFrom(shape: const StadiumBorder()),
           onPressed: onRetry,
           icon: const Icon(Icons.refresh),
           label: Text(l10n.commonRetry),
@@ -102,7 +103,6 @@ class QuickResultView extends StatelessWidget {
             ? null
             : FilledButton.icon(
                 key: const Key('quick_translate_offline_download'),
-                style: FilledButton.styleFrom(shape: const StadiumBorder()),
                 onPressed: onOpenOfflineModels,
                 icon: const Icon(Icons.download_for_offline_outlined),
                 label: Text(offlineDownloadLabel(l10n, state.offlineDownloads)),
@@ -147,12 +147,10 @@ class _Translation extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final theme = Theme.of(context);
     final text = state.translation;
-    // Large compose-sheet text; long translations stay readable.
-    final style = text.length <= 120
-        ? theme.textTheme.headlineSmall?.copyWith(height: 1.3)
-        : theme.textTheme.bodyLarge?.copyWith(fontSize: 18, height: 1.4);
+    // The translate screen's text: large for short translations, smaller
+    // for long ones; body text, not the bold heading style.
+    final style = TranslateLayout.outputTextStyle(context, text.length);
     final target = state.target;
     final direction = target.isCustom
         ? null
@@ -177,7 +175,7 @@ class _Translation extends StatelessWidget {
             child: LinearProgressIndicator(
               key: const Key('quick_translate_streaming'),
               semanticsLabel: l10n.translateTranslating,
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: const BorderRadius.all(Radius.circular(4)),
             ),
           ),
         // Offline only, the "On device" chip is next to the target already.
@@ -213,7 +211,7 @@ class _Progress extends StatelessWidget {
           LinearProgressIndicator(
             key: const Key('quick_translate_progress'),
             semanticsLabel: label,
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: const BorderRadius.all(Radius.circular(4)),
           ),
           const SizedBox(height: 12),
           ExcludeSemantics(
@@ -266,12 +264,7 @@ class _Message extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (title case final String title) ...[
-                      Text(
-                        title,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
+                      Text(title, style: theme.textTheme.titleMedium),
                       const SizedBox(height: 4),
                     ],
                     Text(
