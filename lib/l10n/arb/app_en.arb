@@ -7432,5 +7432,13 @@
   "offlineOcrUnavailable": "This device can’t run on-device text recognition",
   "@offlineOcrUnavailable": {
     "description": "offlineOcrUnavailable"
+  },
+  "translateErrorSourceLanguageRequired": "This engine can't detect the language of this text. Choose the language it is written in.",
+  "@translateErrorSourceLanguageRequired": {
+    "description": "translateErrorSourceLanguageRequired"
+  },
+  "translateChooseSourceLanguage": "Choose language",
+  "@translateChooseSourceLanguage": {
+    "description": "translateChooseSourceLanguage"
   }
 }

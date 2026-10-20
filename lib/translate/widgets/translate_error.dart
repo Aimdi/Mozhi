@@ -21,6 +21,7 @@ class TranslateErrorInfo {
     this.fix = TranslateErrorFix.none,
     this.details,
     this.offlineModels = false,
+    this.chooseSourceLanguage = false,
     this.consent,
   });
 
@@ -37,6 +38,11 @@ class TranslateErrorInfo {
 
   /// The on-device models must be downloaded first (Settings → Offline).
   final bool offlineModels;
+
+  /// The engine can't detect the source language ("Detect language" with
+  /// the offline engine and text too short to detect): let the user pick it
+  /// instead of retrying.
+  final bool chooseSourceLanguage;
 }
 
 /// Route of the offline language models page.
@@ -69,6 +75,10 @@ TranslateErrorInfo describeTranslateError(
     ),
     OfflineLanguageUnsupportedException() => TranslateErrorInfo(
       l10n.translateErrorOfflineUnsupported,
+    ),
+    SourceLanguageRequiredException() => TranslateErrorInfo(
+      l10n.translateErrorSourceLanguageRequired,
+      chooseSourceLanguage: true,
     ),
     LlmRefusalException() => TranslateErrorInfo(l10n.translateErrorRefused),
     LlmApiException(isAuthError: true) => TranslateErrorInfo(
@@ -104,6 +114,7 @@ TranslateErrorInfo describeTranslateError(
     info.message,
     fix: info.fix,
     offlineModels: info.offlineModels,
+    chooseSourceLanguage: info.chooseSourceLanguage,
     details: details == null || details == info.message ? null : details,
   );
 }
