@@ -169,13 +169,8 @@ class TranslateSkeleton extends StatelessWidget {
               ),
               child: const Column(
                 children: [
-                  Row(
-                    children: [
-                      Expanded(child: SkeletonBox(height: 40, radius: 20)),
-                      SizedBox(width: 56),
-                      Expanded(child: SkeletonBox(height: 40, radius: 20)),
-                    ],
-                  ),
+                  // The language bar.
+                  SkeletonBox(height: 50, radius: 25),
                   SizedBox(height: 20),
                   _SkeletonPost(lines: 3),
                   SizedBox(height: 20),

@@ -124,7 +124,10 @@ class _BarDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(width: 1, height: 24, child: ColoredBox(color: color));
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 3),
+      child: SizedBox(width: 1, height: 24, child: ColoredBox(color: color)),
+    );
   }
 }
 

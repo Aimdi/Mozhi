@@ -436,7 +436,7 @@ class _TranslateAppBar extends StatelessWidget implements PreferredSizeWidget {
           );
         },
       ),
-      actions: const [OptionsButton(), MoreToolsButton(), SizedBox(width: 4)],
+      actions: const [MoreToolsButton(), SizedBox(width: 4)],
     );
   }
 }

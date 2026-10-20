@@ -9,7 +9,6 @@ import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/image_translate/widgets/image_translate_button.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
-import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/alignment_highlight.dart';
 import 'package:mozhi/translate/widgets/language_text.dart';
@@ -20,15 +19,6 @@ import 'package:mozhi/translate/widgets/translate_layout.dart';
 import 'package:mozhi/usage/usage.dart' show TokenEstimateLabel;
 import 'package:mozhi/voice/voice.dart'
     show SpeechInputService, VoiceInputButton;
-
-/// Whether the user has to press "Translate" (instant translation is off
-/// for the current engine kind).
-bool needsTranslateButton(TranslateState state, AppSettings settings) {
-  if (state.compareMode) return false;
-  return state.isAiEngine
-      ? !settings.instantTranslateAi
-      : !settings.instantTranslate;
-}
 
 /// Direction of the source text: the chosen source language's, or (when
 /// detecting) the direction of the typed characters, falling back to the
@@ -89,10 +79,10 @@ SpeechInputService? _speechInputServiceOf(BuildContext context) {
 }
 
 /// The source text field with listen/voice/image/paste/clear actions,
-/// character count (plus a token estimate for AI engines), a notice when
-/// long text was shortened and (when instant translation is off) a
-/// "Translate" button. Esc clears the field while it is focused and not
-/// empty.
+/// character count (plus a token estimate for AI engines) and a notice
+/// when long text was shortened. Esc clears the field while it is focused
+/// and not empty. The go button ("Translate") is at the end of the
+/// language bar (`TranslateGoButton`).
 ///
 /// The field is limited to [TranslateCubit.maxInputLength] characters;
 /// longer pasted text is passed on whole so the cubit cuts it and reports
@@ -270,9 +260,7 @@ class _InputCardState extends State<InputCard> {
       listener: (context, state) => _syncState(state),
       builder: (context, state) {
         final input = state.input;
-        final empty = input.trim().isEmpty;
         final transliteration = state.result?.sourceTransliteration ?? '';
-        final showTranslate = needsTranslateButton(state, settings);
         final accent = theme.colorScheme.primary;
         final palette = AppPalette.of(context);
         return TranslateFlatCard(
@@ -361,7 +349,7 @@ class _InputCardState extends State<InputCard> {
                     ),
                   ),
                 // X's compose toolbar: accent icons at the start, the
-                // count ring, clear and the action at the end.
+                // count ring and clear at the end.
                 SizedBox(
                   width: double.infinity,
                   child: Wrap(
@@ -484,21 +472,6 @@ class _InputCardState extends State<InputCard> {
                                   onPressed: _clear,
                                 ),
                               ],
-                            ),
-                          if (showTranslate)
-                            Tooltip(
-                              message: l10n.translateShortcutTranslate,
-                              child: FilledButton.icon(
-                                key: const Key('translate_translate_button'),
-                                style: FilledButton.styleFrom(
-                                  shape: const StadiumBorder(),
-                                ),
-                                onPressed: empty
-                                    ? null
-                                    : () => unawaited(_cubit.translate()),
-                                icon: const Icon(Icons.translate),
-                                label: Text(l10n.translateTranslateButton),
-                              ),
                             ),
                         ],
                       ),
