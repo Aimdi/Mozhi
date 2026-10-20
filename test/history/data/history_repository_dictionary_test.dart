@@ -421,7 +421,7 @@ void main() {
 
       test('keeps look-ups of other words and translations apart', () async {
         await repository.add(_lookUp('1', word: 'perro', minute: 1));
-        await repository.add(_translation('2', text: 'hola', minute: 2));
+        await repository.add(_translation('2', minute: 2));
 
         final entries = await repository.restore(_lookUp('3', minute: 3));
 

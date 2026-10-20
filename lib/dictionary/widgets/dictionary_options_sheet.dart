@@ -58,7 +58,14 @@ class DictionaryOptionsSheet extends StatelessWidget {
     final heading = TranslateLayout.headingStyle(context);
     return SingleChildScrollView(
       key: const Key('dictionary_options_sheet'),
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+      // The sheet's safe area leaves out the bottom: keep the last row
+      // above the navigation bar (edge to edge).
+      padding: EdgeInsets.fromLTRB(
+        24,
+        0,
+        24,
+        24 + MediaQuery.paddingOf(context).bottom,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

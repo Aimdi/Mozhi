@@ -710,6 +710,21 @@ void main() {
       );
     });
 
+    test('a listening state keeps what it heard when copied', () {
+      const heard = SpeechInputListening(
+        heardSpeech: true,
+        detectsLanguage: true,
+      );
+      expect(
+        heard.copyWith(level: 0.5),
+        const SpeechInputListening(
+          level: 0.5,
+          heardSpeech: true,
+          detectsLanguage: true,
+        ),
+      );
+    });
+
     test('isPermanent marks blocking failures', () {
       expect(
         SpeechInputFailure.values.where((failure) => failure.isPermanent),

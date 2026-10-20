@@ -198,6 +198,27 @@ void main() {
     );
 
     blocTest<ConversationCubit, ConversationState>(
+      'an empty translation listens for the other side at once',
+      setUp: () =>
+          when(() => repository.translate(any(), any()))
+              .thenAnswer((_) => Stream.value(resultOf(' '))),
+      build: build,
+      act: (cubit) async {
+        cubit
+          ..setAutoSpeak(enabled: false)
+          ..startSession();
+        await hear('Hm');
+        // Nothing to read or announce: no echo to wait for.
+        expect(timers.pending(_echo), isFalse);
+        expect(recognizer.open, isTrue);
+      },
+      verify: (cubit) {
+        expect(cubit.state.session, listeningB);
+        expect(recognizer.language, spanish);
+      },
+    );
+
+    blocTest<ConversationCubit, ConversationState>(
       'continues with the side after the last message',
       build: build,
       act: (cubit) async {

@@ -53,6 +53,28 @@ void main() {
       expect(copy.createdAt, _entry.createdAt);
     });
 
+    group('favoriteOnly', () {
+      test('is off by default and not written then', () {
+        expect(_entry.favoriteOnly, isFalse);
+        expect(_entry.toJson().containsKey('favoriteOnly'), isFalse);
+        expect(HistoryEntry.fromJson(_json()).favoriteOnly, isFalse);
+      });
+
+      test('round-trips and takes part in equality', () {
+        final kept = _entry.copyWith(isFavorite: true, favoriteOnly: true);
+
+        expect(kept, isNot(_entry.copyWith(isFavorite: true)));
+        expect(kept.toJson()['favoriteOnly'], isTrue);
+        expect(
+          HistoryEntry.fromJson(
+            jsonDecode(jsonEncode(kept.toJson())) as Map<String, dynamic>,
+          ),
+          kept,
+        );
+        expect(kept.copyWith(isFavorite: false).favoriteOnly, isTrue);
+      });
+    });
+
     group('toJson', () {
       test('writes createdAt as UTC ISO-8601', () {
         final json = _entry.toJson();

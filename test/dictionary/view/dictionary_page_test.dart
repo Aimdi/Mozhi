@@ -1358,6 +1358,42 @@ void main() {
         verifyNoLookUp();
       });
 
+      testWidgets('keeps the language list above the keyboard', (tester) async {
+        await pumpPage(
+          tester,
+          page: const DictionaryPage(word: 'gato'),
+          size: const Size(400, 800),
+        );
+        await tester.tap(find.byKey(const Key('dictionary_bar_source')));
+        await tester.pumpAndSettle();
+        final list = find.descendant(
+          of: find.byType(DictionaryLanguagePicker),
+          matching: find.byType(ListView),
+        );
+        expect(tester.getRect(list).bottom, 800);
+
+        // The search field opens a 300 dp keyboard.
+        tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+        await tester.pumpAndSettle();
+
+        expect(tester.getRect(list).bottom, 800 - 300);
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('keeps the options above the navigation bar', (tester) async {
+        await pumpPage(tester, size: const Size(400, 800));
+        // Three-button navigation, drawn edge to edge.
+        tester.view
+          ..padding = const FakeViewPadding(bottom: 48)
+          ..viewPadding = const FakeViewPadding(bottom: 48);
+        await openOptions(tester);
+
+        expect(
+          tester.getRect(find.byKey(const Key('dictionary_engine'))).bottom,
+          lessThanOrEqualTo(800 - 48 - 24),
+        );
+      });
+
       testWidgets('swaps them in the options', (tester) async {
         await pumpPage(
           tester,

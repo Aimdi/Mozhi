@@ -105,6 +105,7 @@ void main() {
       history = createHistoryCubit(
         HistoryState(status: HistoryStatus.ready, entries: entries),
       );
+      when(() => history.restoreFavorite(any())).thenAnswer((_) async {});
       settings = createSettingsCubit();
       translate = MockTranslateCubit();
       when(() => translate.state).thenReturn(const TranslateState());
@@ -658,7 +659,10 @@ void main() {
 
         await tester.tap(find.text('Undo'));
         await tester.pumpAndSettle();
-        verify(() => history.restore(_yesterday)).called(1);
+        // Stars the entry as it is now, rather than putting back the copy
+        // the page had (a new look-up may have updated it meanwhile).
+        verify(() => history.restoreFavorite(_yesterday)).called(1);
+        verifyNever(() => history.restore(any()));
         expect(find.text('Bonjour'), findsOneWidget);
         expect(find.text('No favorites yet'), findsNothing);
       });

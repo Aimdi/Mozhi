@@ -507,6 +507,7 @@ void main() {
 
     group('incognito', () {
       final starred = _entry('3', isFavorite: true);
+      final kept = starred.copyWith(favoriteOnly: true);
 
       test('can start incognito', () {
         expect(
@@ -534,17 +535,86 @@ void main() {
       );
 
       blocTest<HistoryCubit, HistoryState>(
-        'add still saves favourites',
+        'add still saves favourites, kept only as favourites',
         setUp: () =>
-            when(() => repository.add(starred))
-                .thenAnswer((_) async => [starred, one]),
+            when(() => repository.add(kept))
+                .thenAnswer((_) async => [kept, one]),
         build: buildCubit,
         seed: () => ready([one]).copyWith(incognito: true),
         act: (cubit) => cubit.add(starred),
         expect: () => [
-          ready([starred, one]).copyWith(incognito: true),
+          ready([kept, one]).copyWith(incognito: true),
         ],
       );
     });
+
+    group('with history off', () {
+      final starred = _entry('3', isFavorite: true);
+      final kept = starred.copyWith(favoriteOnly: true);
+
+      test('can start with history off', () {
+        final cubit = HistoryCubit(repository: repository, saveHistory: false);
+        expect(cubit.state, const HistoryState(saveHistory: false));
+        expect(cubit.state.paused, isTrue);
+      });
+
+      blocTest<HistoryCubit, HistoryState>(
+        'setSaveHistory updates the state',
+        build: buildCubit,
+        act: (cubit) => cubit
+          ..setSaveHistory(enabled: false)
+          ..setSaveHistory(enabled: true),
+        expect: () => const [HistoryState(saveHistory: false), HistoryState()],
+      );
+
+      blocTest<HistoryCubit, HistoryState>(
+        'add ignores new entries',
+        build: buildCubit,
+        seed: () => ready([one]).copyWith(saveHistory: false),
+        act: (cubit) => cubit.add(two),
+        expect: () => <HistoryState>[],
+        verify: (_) => verifyNever(() => repository.add(any())),
+      );
+
+      blocTest<HistoryCubit, HistoryState>(
+        'add saves favourites kept only as favourites',
+        setUp: () =>
+            when(() => repository.add(kept))
+                .thenAnswer((_) async => [kept, one]),
+        build: buildCubit,
+        seed: () => ready([one]).copyWith(saveHistory: false),
+        act: (cubit) => cubit.add(starred),
+        expect: () => [
+          ready([kept, one]).copyWith(saveHistory: false),
+        ],
+      );
+
+      blocTest<HistoryCubit, HistoryState>(
+        'with history on, favourites are ordinary entries',
+        setUp: () =>
+            when(() => repository.add(starred))
+                .thenAnswer((_) async => [starred, one]),
+        build: buildCubit,
+        seed: () => ready([one]),
+        act: (cubit) => cubit.add(starred),
+        expect: () => [
+          ready([starred, one]),
+        ],
+      );
+    });
+
+    blocTest<HistoryCubit, HistoryState>(
+      'restoreFavorite stars the entry again through the repository',
+      setUp: () =>
+          when(() => repository.restoreFavorite(one))
+              .thenAnswer((_) async => [two, one]),
+      build: buildCubit,
+      seed: () => ready([two]),
+      act: (cubit) => cubit.restoreFavorite(one),
+      expect: () => [
+        ready([two, one]),
+      ],
+      verify: (_) => verifyNever(() => repository.restore(any())),
+    );
   });
 }
