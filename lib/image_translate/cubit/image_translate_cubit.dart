@@ -82,7 +82,7 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
            canUseCamera: picker.supportsCamera,
          ),
        ) {
-    methodRestored = _restoreMethod();
+    _methodRestored = _restoreMethod();
   }
 
   /// Where the chosen method's id is remembered ([KeyValueStore]).
@@ -131,7 +131,8 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
 
   /// Completes once the remembered method was read and, when it is
   /// available and no image is shown yet, selected. Never fails.
-  late final Future<void> methodRestored;
+  Future<void> get methodRestored => _methodRestored;
+  late final Future<void> _methodRestored;
 
   /// The remembered method id (null until read, or when none is stored).
   String? _rememberedId;
