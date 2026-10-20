@@ -1540,5 +1540,11 @@
   "proofreadLanguageAuto": "Détecter la langue",
   "proofreadLanguageButton": "Langue : {language}",
   "proofreadLanguageDetected": "Détectée : {language}",
-  "proofreadLanguageAutoSemantics": "Langue : détectée automatiquement"
+  "proofreadLanguageAutoSemantics": "Langue : détectée automatiquement",
+  "historyUnfavorited": "Retiré des favoris",
+  "historyNoFavoritesHeartBody": "Touchez le cœur d’une traduction pour la garder ici.",
+  "historyButtonTooltip": "Historique\nAppui long pour ouvrir les favoris",
+  "historyOpenFavorites": "Ouvrir les favoris",
+  "translateShortcutEnterTranslates": "Traduire (pendant la saisie)",
+  "translateShortcutNewLine": "Insérer une nouvelle ligne (pendant la saisie)"
 }

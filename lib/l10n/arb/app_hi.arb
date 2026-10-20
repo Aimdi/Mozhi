@@ -1540,5 +1540,11 @@
   "proofreadLanguageAuto": "भाषा पहचानें",
   "proofreadLanguageButton": "भाषा: {language}",
   "proofreadLanguageDetected": "पहचानी गई: {language}",
-  "proofreadLanguageAutoSemantics": "भाषा: अपने-आप पहचानी जाती है"
+  "proofreadLanguageAutoSemantics": "भाषा: अपने-आप पहचानी जाती है",
+  "historyUnfavorited": "पसंदीदा से हटाया गया",
+  "historyNoFavoritesHeartBody": "किसी अनुवाद को यहां रखने के लिए उसके दिल पर टैप करें।",
+  "historyButtonTooltip": "इतिहास\nपसंदीदा खोलने के लिए दबाकर रखें",
+  "historyOpenFavorites": "पसंदीदा खोलें",
+  "translateShortcutEnterTranslates": "अनुवाद करें (टाइप करते समय)",
+  "translateShortcutNewLine": "नई लाइन जोड़ें (टाइप करते समय)"
 }

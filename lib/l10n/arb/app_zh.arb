@@ -1540,5 +1540,11 @@
   "proofreadLanguageAuto": "检测语言",
   "proofreadLanguageButton": "语言：{language}",
   "proofreadLanguageDetected": "已检测：{language}",
-  "proofreadLanguageAutoSemantics": "语言：自动检测"
+  "proofreadLanguageAutoSemantics": "语言：自动检测",
+  "historyUnfavorited": "已从收藏中移除",
+  "historyNoFavoritesHeartBody": "点按翻译上的爱心，即可将其保存在这里。",
+  "historyButtonTooltip": "历史记录\n长按可打开收藏",
+  "historyOpenFavorites": "打开收藏",
+  "translateShortcutEnterTranslates": "翻译（输入时）",
+  "translateShortcutNewLine": "插入新行（输入时）"
 }

@@ -1540,5 +1540,11 @@
   "proofreadLanguageAuto": "Dili algıla",
   "proofreadLanguageButton": "Dil: {language}",
   "proofreadLanguageDetected": "Algılanan: {language}",
-  "proofreadLanguageAutoSemantics": "Dil: otomatik algılanır"
+  "proofreadLanguageAutoSemantics": "Dil: otomatik algılanır",
+  "historyUnfavorited": "Favorilerden kaldırıldı",
+  "historyNoFavoritesHeartBody": "Burada tutmak için bir çevirideki kalbe dokunun.",
+  "historyButtonTooltip": "Geçmiş\nFavorileri açmak için basılı tutun",
+  "historyOpenFavorites": "Favorileri aç",
+  "translateShortcutEnterTranslates": "Çevir (yazarken)",
+  "translateShortcutNewLine": "Yeni satır ekle (yazarken)"
 }

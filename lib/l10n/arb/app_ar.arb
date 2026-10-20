@@ -1540,5 +1540,11 @@
   "proofreadLanguageAuto": "اكتشاف اللغة",
   "proofreadLanguageButton": "اللغة: {language}",
   "proofreadLanguageDetected": "تم اكتشاف: {language}",
-  "proofreadLanguageAutoSemantics": "اللغة: تُكتشف تلقائيًا"
+  "proofreadLanguageAutoSemantics": "اللغة: تُكتشف تلقائيًا",
+  "historyUnfavorited": "أُزيلت من المفضّلة",
+  "historyNoFavoritesHeartBody": "انقر على القلب في الترجمة للاحتفاظ بها هنا.",
+  "historyButtonTooltip": "السجل\nاضغط مطوّلًا لفتح المفضّلة",
+  "historyOpenFavorites": "فتح المفضّلة",
+  "translateShortcutEnterTranslates": "ترجمة (أثناء الكتابة)",
+  "translateShortcutNewLine": "إدراج سطر جديد (أثناء الكتابة)"
 }

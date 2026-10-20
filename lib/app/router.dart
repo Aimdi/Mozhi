@@ -219,8 +219,8 @@ typedef LaunchRedirect = String? Function(String location);
 /// translators are full-screen routes on the root navigator
 /// ([navigatorKey]) outside the tabs: pushed (see [TopLevelActions]) they
 /// sit above the tabs and go back to them. Opened on their own (a link, an
-/// app shortcut or a `go`), History and Settings go back to the translate
-/// tab ([TopLevelPageScope], `topLevelBackButton`).
+/// app shortcut or a `go`), History and Settings go back to the first tab
+/// of the user's order ([TopLevelPageScope], `topLevelBackButton`).
 ///
 /// Translate links (`/translate?text=…&from=…&to=…` or the same query on
 /// `/`, including Kagi's option parameters, see [TranslateLink.fromUri])

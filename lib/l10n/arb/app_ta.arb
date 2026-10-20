@@ -1540,5 +1540,11 @@
   "proofreadLanguageAuto": "மொழியைக் கண்டறி",
   "proofreadLanguageButton": "மொழி: {language}",
   "proofreadLanguageDetected": "கண்டறியப்பட்டது: {language}",
-  "proofreadLanguageAutoSemantics": "மொழி: தானாகக் கண்டறியப்படும்"
+  "proofreadLanguageAutoSemantics": "மொழி: தானாகக் கண்டறியப்படும்",
+  "historyUnfavorited": "பிடித்தவையிலிருந்து அகற்றப்பட்டது",
+  "historyNoFavoritesHeartBody": "ஒரு மொழிபெயர்ப்பை இங்கே வைத்திருக்க அதன் இதயத்தைத் தட்டவும்.",
+  "historyButtonTooltip": "வரலாறு\nபிடித்தவையைத் திறக்க நீண்ட நேரம் அழுத்தவும்",
+  "historyOpenFavorites": "பிடித்தவையைத் திற",
+  "translateShortcutEnterTranslates": "மொழிபெயர் (தட்டச்சு செய்யும்போது)",
+  "translateShortcutNewLine": "புதிய வரியைச் செருகு (தட்டச்சு செய்யும்போது)"
 }

@@ -1540,5 +1540,11 @@
   "proofreadLanguageAuto": "Deteksi bahasa",
   "proofreadLanguageButton": "Bahasa: {language}",
   "proofreadLanguageDetected": "Terdeteksi: {language}",
-  "proofreadLanguageAutoSemantics": "Bahasa: dideteksi otomatis"
+  "proofreadLanguageAutoSemantics": "Bahasa: dideteksi otomatis",
+  "historyUnfavorited": "Dihapus dari favorit",
+  "historyNoFavoritesHeartBody": "Ketuk ikon hati pada terjemahan untuk menyimpannya di sini.",
+  "historyButtonTooltip": "Riwayat\nTekan lama untuk membuka favorit",
+  "historyOpenFavorites": "Buka favorit",
+  "translateShortcutEnterTranslates": "Terjemahkan (saat mengetik)",
+  "translateShortcutNewLine": "Sisipkan baris baru (saat mengetik)"
 }

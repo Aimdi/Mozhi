@@ -1540,5 +1540,11 @@
   "proofreadLanguageAuto": "Определить язык",
   "proofreadLanguageButton": "Язык: {language}",
   "proofreadLanguageDetected": "Определён: {language}",
-  "proofreadLanguageAutoSemantics": "Язык: определяется автоматически"
+  "proofreadLanguageAutoSemantics": "Язык: определяется автоматически",
+  "historyUnfavorited": "Удалено из избранного",
+  "historyNoFavoritesHeartBody": "Нажмите на сердечко у перевода, чтобы сохранить его здесь.",
+  "historyButtonTooltip": "История\nНажмите и удерживайте, чтобы открыть избранное",
+  "historyOpenFavorites": "Открыть избранное",
+  "translateShortcutEnterTranslates": "Перевести (при наборе)",
+  "translateShortcutNewLine": "Новая строка (при наборе)"
 }

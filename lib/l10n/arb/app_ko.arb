@@ -1540,5 +1540,11 @@
   "proofreadLanguageAuto": "언어 감지",
   "proofreadLanguageButton": "언어: {language}",
   "proofreadLanguageDetected": "감지됨: {language}",
-  "proofreadLanguageAutoSemantics": "언어: 자동 감지"
+  "proofreadLanguageAutoSemantics": "언어: 자동 감지",
+  "historyUnfavorited": "즐겨찾기에서 삭제됨",
+  "historyNoFavoritesHeartBody": "번역의 하트를 탭하면 여기에 보관됩니다.",
+  "historyButtonTooltip": "기록\n길게 눌러 즐겨찾기 열기",
+  "historyOpenFavorites": "즐겨찾기 열기",
+  "translateShortcutEnterTranslates": "번역(입력 중)",
+  "translateShortcutNewLine": "새 줄 삽입(입력 중)"
 }

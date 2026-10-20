@@ -1540,5 +1540,11 @@
   "proofreadLanguageAuto": "Taal herkennen",
   "proofreadLanguageButton": "Taal: {language}",
   "proofreadLanguageDetected": "Herkend: {language}",
-  "proofreadLanguageAutoSemantics": "Taal: automatisch herkend"
+  "proofreadLanguageAutoSemantics": "Taal: automatisch herkend",
+  "historyUnfavorited": "Verwijderd uit favorieten",
+  "historyNoFavoritesHeartBody": "Tik op het hartje bij een vertaling om die hier te bewaren.",
+  "historyButtonTooltip": "Geschiedenis\nLang indrukken om favorieten te openen",
+  "historyOpenFavorites": "Favorieten openen",
+  "translateShortcutEnterTranslates": "Vertalen (tijdens het typen)",
+  "translateShortcutNewLine": "Nieuwe regel invoegen (tijdens het typen)"
 }

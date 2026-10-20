@@ -593,12 +593,15 @@ the device. Offline translation is not available on the web.
   in your history are shown). Mozhi entries are classed by your current
   preferred instance, since an entry doesn't record which instance answered.
   **Clear filters** shows everything again. Tap an entry to open it in the
-  translator; swipe it away to delete it (with undo).
-- Star a translation to make it a **favourite**. Favourites are never removed
+  translator. Swipe an entry towards the start to delete it, or towards the
+  end to add it to (or remove it from) your favourites; both offer **Undo**,
+  and screen readers get the same actions on each entry.
+- Tap the heart on a translation to make it a **favourite**. Long-press the
+  History button to open **Favorites** directly. Favourites are never removed
   automatically; the newest 1,000 other entries are kept.
 - **Settings > Delete history automatically** removes translations older
-  than 1, 7 or 30 days (**Never** by default); starred translations are
-  always kept. If older translations already exist, Mozhi asks first
+  than 1, 7 or 30 days (**Never** by default); favourites are always
+  kept. If older translations already exist, Mozhi asks first
   (**Delete older translations now?**). While it is on, the History page says
   so, and **Import history** skips entries older than the setting.
 - **Clear history** can keep your favourites.

@@ -1540,5 +1540,11 @@
   "proofreadLanguageAuto": "Phát hiện ngôn ngữ",
   "proofreadLanguageButton": "Ngôn ngữ: {language}",
   "proofreadLanguageDetected": "Đã phát hiện: {language}",
-  "proofreadLanguageAutoSemantics": "Ngôn ngữ: tự động phát hiện"
+  "proofreadLanguageAutoSemantics": "Ngôn ngữ: tự động phát hiện",
+  "historyUnfavorited": "Đã xóa khỏi mục yêu thích",
+  "historyNoFavoritesHeartBody": "Nhấn vào trái tim trên một bản dịch để giữ nó ở đây.",
+  "historyButtonTooltip": "Lịch sử\nNhấn giữ để mở mục yêu thích",
+  "historyOpenFavorites": "Mở mục yêu thích",
+  "translateShortcutEnterTranslates": "Dịch (khi đang gõ)",
+  "translateShortcutNewLine": "Chèn dòng mới (khi đang gõ)"
 }

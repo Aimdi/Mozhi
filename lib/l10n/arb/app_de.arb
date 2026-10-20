@@ -1540,5 +1540,11 @@
   "proofreadLanguageAuto": "Sprache erkennen",
   "proofreadLanguageButton": "Sprache: {language}",
   "proofreadLanguageDetected": "Erkannt: {language}",
-  "proofreadLanguageAutoSemantics": "Sprache: automatisch erkannt"
+  "proofreadLanguageAutoSemantics": "Sprache: automatisch erkannt",
+  "historyUnfavorited": "Aus Favoriten entfernt",
+  "historyNoFavoritesHeartBody": "Tippe bei einer Übersetzung auf das Herz, um sie hier zu behalten.",
+  "historyButtonTooltip": "Verlauf\nLange drücken, um Favoriten zu öffnen",
+  "historyOpenFavorites": "Favoriten öffnen",
+  "translateShortcutEnterTranslates": "Übersetzen (beim Tippen)",
+  "translateShortcutNewLine": "Neue Zeile einfügen (beim Tippen)"
 }
