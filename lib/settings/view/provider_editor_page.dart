@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/network/network_policy.dart';
 import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/core/widgets/local_overlay.dart';
@@ -1021,7 +1022,7 @@ class _TestResultView extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: AppRadius.cardBorderRadius,
         ),
         child: Padding(
           padding: const EdgeInsets.all(12),

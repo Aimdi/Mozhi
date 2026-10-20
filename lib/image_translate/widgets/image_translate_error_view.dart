@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/image_translate/data/text_recognition_service.dart';
 import 'package:mozhi/image_translate/models/models.dart';
@@ -121,7 +122,7 @@ class ImageTranslateErrorView extends StatelessWidget {
         border: Border.all(
           color: theme.colorScheme.error.withValues(alpha: 0.5),
         ),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: AppRadius.cardBorderRadius,
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),

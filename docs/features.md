@@ -821,8 +821,13 @@ The same list is under **More tools > Keyboard shortcuts**.
 
 ## Appearance and layout
 
-- Light, dark or system theme; **Pure black** for OLED screens; Dynamic color
-  or one of ten accent colours.
+- Light, dark or system theme. The dark theme is **Lights out** (true
+  black, easy on OLED screens) by default, or **Dim** (dark blue-grey);
+  pick it under **Settings > Appearance > Dark theme**.
+- Dynamic color or one of ten accent colours, including a soft
+  **Lavender**.
+- Rounded, outlined controls: pill-shaped chips and buttons, rounded
+  cards, sheets and text fields, and big bold headings.
 - Four tabs: **Translate**, **Dictionary**, **Proofread** and
   **Conversation**. **History** and **Settings** are the clock and gear
   buttons at the top of every tab; they open as full pages above the tabs,

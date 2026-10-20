@@ -248,8 +248,9 @@ needs it before its APK can match the release.
 Screenshot (golden) tests in `test/goldens/` cover the translate screen
 (empty, with a result, on a tablet, and split at the hinge of a
 two-screen device), the translation options sheet, history, settings, and the onboarding privacy and
-languages steps. They run on a 411 × 891 phone in light and dark, and
-translate and settings also at 1280 × 800. The PNGs are in
+languages steps. They run on a 411 × 891 phone in light and dark (the
+default Lights out look), and translate and settings also at 1280 × 800.
+The PNGs are in
 `test/goldens/images/`. The tests are tagged `golden` (declared in
 `dart_test.yaml`), and CI runs them with the rest (`flutter test` on
 `ubuntu-latest`).

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/presets/models/glossary.dart';
@@ -146,7 +147,8 @@ class _LanguageField extends StatelessWidget {
       button: true,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(4),
+        // The shape of the field it looks like.
+        borderRadius: AppRadius.fieldBorderRadius,
         child: InputDecorator(
           decoration: InputDecoration(
             labelText: label,

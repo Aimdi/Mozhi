@@ -1313,7 +1313,7 @@ void main() {
           // Other settings changes leave them alone.
           await change(const AppSettings(extraTargets: [ja, es, de]));
           await change(
-            const AppSettings(extraTargets: [ja, es, de], pureBlack: true),
+            const AppSettings(extraTargets: [ja, es, de], pureBlack: false),
           );
         },
         verify: (cubit) {

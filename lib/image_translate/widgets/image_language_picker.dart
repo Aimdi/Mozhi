@@ -98,11 +98,6 @@ class _ImageLanguagePickerSheetState extends State<ImageLanguagePickerSheet> {
               decoration: InputDecoration(
                 prefixIcon: const Icon(Icons.search),
                 hintText: l10n.imageTranslateSearchLanguages,
-                filled: true,
-                border: const OutlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(28)),
-                  borderSide: BorderSide.none,
-                ),
               ),
             ),
           ),

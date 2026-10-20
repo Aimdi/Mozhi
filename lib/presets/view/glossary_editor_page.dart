@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/undo_snack_bar.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -414,11 +415,11 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    // A flat, hairline-bordered box (radius 16, no fill).
+    // A flat, hairline-bordered box (no fill).
     return DecoratedBox(
       decoration: BoxDecoration(
         border: Border.all(color: AppPalette.of(context).hairline),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: AppRadius.cardBorderRadius,
       ),
       child: Column(
         children: [

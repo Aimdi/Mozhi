@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/image_translate/cubit/ocr_offer_cubit.dart';
@@ -186,7 +187,7 @@ class OcrLanguageOfferView extends StatelessWidget {
         key: const Key('image_translate_ocr_offer'),
         decoration: BoxDecoration(
           border: Border.all(color: palette.hairline),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: AppRadius.cardBorderRadius,
         ),
         child: Padding(
           padding: const EdgeInsets.all(16),

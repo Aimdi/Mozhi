@@ -22,7 +22,7 @@ const _instance = MozhiInstance(url: 'https://mozhi.example.org');
 const _custom = AppSettings(
   themeMode: ThemeMode.dark,
   dynamicColor: false,
-  pureBlack: true,
+  pureBlack: false,
   seedColor: 0xFF009688,
   instances: [_instance],
   providers: [_provider],
@@ -67,7 +67,8 @@ void main() {
 
       expect(settings.themeMode, ThemeMode.system);
       expect(settings.dynamicColor, isTrue);
-      expect(settings.pureBlack, isFalse);
+      // Lights out (true black) is the default dark look.
+      expect(settings.pureBlack, isTrue);
       expect(settings.seedColor, 0xFF1D9BF0);
       expect(settings.instances, MozhiInstance.publicInstances);
       expect(settings.providers, isEmpty);
@@ -327,6 +328,22 @@ void main() {
 
       test('falls back to defaults for an empty object', () {
         expect(AppSettings.fromJson(const {}), equals(const AppSettings()));
+      });
+
+      test('keeps a stored dark look; Lights out when none is stored', () {
+        expect(
+          AppSettings.fromJson(const {'pureBlack': false}).pureBlack,
+          isFalse,
+        );
+        expect(
+          AppSettings.fromJson(const {'pureBlack': true}).pureBlack,
+          isTrue,
+        );
+        expect(AppSettings.fromJson(const {}).pureBlack, isTrue);
+        expect(
+          const AppSettings(pureBlack: false).toJson()['pureBlack'],
+          false,
+        );
       });
 
       test('falls back to defaults for fields of the wrong type', () {

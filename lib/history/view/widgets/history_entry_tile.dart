@@ -4,6 +4,7 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart' show Bidi, DateFormat;
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/bidi.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/history/models/history_entry.dart';
@@ -174,7 +175,7 @@ class _HistoryEntryTileState extends State<HistoryEntryTile> {
                               DecoratedBox(
                                 decoration: BoxDecoration(
                                   border: Border.all(color: palette.hairline),
-                                  borderRadius: BorderRadius.circular(16),
+                                  borderRadius: AppRadius.cardBorderRadius,
                                 ),
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(

@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/network/network.dart' show isCleartextAllowed;
 import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
@@ -187,7 +188,7 @@ class _InstanceList extends StatelessWidget {
           color: colors.surface,
           clipBehavior: Clip.antiAlias,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: AppRadius.cardBorderRadius,
             side: BorderSide(color: AppPalette.of(context).hairline),
           ),
           child: RadioGroup<String>(

@@ -1501,5 +1501,6 @@
   "conversationHeroHint": "Торкніться мікрофона, щоб почати або зупинити",
   "conversationHeroMicLanguage": "Говоріть: {language}",
   "dictionaryHeroTitle": "Що це означає?",
-  "proofreadHeroTitle": "Чи все тут правильно?"
+  "proofreadHeroTitle": "Чи все тут правильно?",
+  "settingsColorLavender": "Лавандовий"
 }

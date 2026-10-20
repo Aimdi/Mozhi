@@ -7558,5 +7558,9 @@
   "proofreadHeroTitle": "Does this look right?",
   "@proofreadHeroTitle": {
     "description": "Big headline above the proofreading input before the first check"
+  },
+  "settingsColorLavender": "Lavender",
+  "@settingsColorLavender": {
+    "description": "settingsColorLavender"
   }
 }

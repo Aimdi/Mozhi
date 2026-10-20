@@ -518,9 +518,9 @@ class _ThemeModePicker extends StatelessWidget {
   }
 }
 
-/// The dark look: "Dim" (dark blue-grey) or "Lights out" (true black),
-/// stored as [AppSettings.pureBlack]. Disabled while the light theme is
-/// forced.
+/// The dark look: "Dim" (dark blue-grey) or "Lights out" (true black, the
+/// default), stored as [AppSettings.pureBlack]. Disabled while the light
+/// theme is forced.
 class _DarkLookPicker extends StatelessWidget {
   const new({
     required this.lightsOut,

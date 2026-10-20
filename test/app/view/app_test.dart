@@ -149,7 +149,6 @@ void main() {
         settings: const AppSettings(
           instances: [testInstance],
           dynamicColor: false,
-          pureBlack: true,
           onboardingComplete: true,
         ),
       );
@@ -646,7 +645,7 @@ void main() {
         isTrue,
       );
       expect(
-        appearanceChanged(base, const AppSettings(pureBlack: true)),
+        appearanceChanged(base, const AppSettings(pureBlack: false)),
         isTrue,
       );
       expect(appearanceChanged(base, const AppSettings(seedColor: 1)), isTrue);

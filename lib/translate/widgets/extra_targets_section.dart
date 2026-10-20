@@ -575,11 +575,6 @@ class _ExtraTargetsSheetState extends State<ExtraTargetsSheet> {
                           setState(() => _query = '');
                         },
                       ),
-                filled: true,
-                border: const OutlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(28)),
-                  borderSide: BorderSide.none,
-                ),
               ),
             ),
           ),

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/documents/core/core.dart';
@@ -219,9 +220,6 @@ class _TextInputState extends State<_TextInput> {
               labelText: l10n.documentsTextLabel,
               hintText: l10n.documentsTextHint,
               alignLabelWithHint: true,
-              border: const OutlineInputBorder(
-                borderRadius: BorderRadius.all(Radius.circular(16)),
-              ),
             ),
           ),
           Row(
@@ -261,7 +259,7 @@ class _ErrorBanner extends StatelessWidget {
               ? AppPalette.of(context).hairline
               : scheme.error.withValues(alpha: 0.5),
         ),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: AppRadius.cardBorderRadius,
       ),
       child: Padding(
         padding: const EdgeInsets.all(12),

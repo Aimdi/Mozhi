@@ -739,7 +739,7 @@ class _ComposerLayout extends StatelessWidget {
   final FocusNode focusNode;
 
   /// Corner radius of the empty screen's composer card.
-  static const double cardRadius = 28;
+  static const double cardRadius = TranslateLayout.composerRadius;
 
   /// Space between the card's outline and what is inside it.
   static const double cardPadding = 6;

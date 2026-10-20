@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/app/view/top_level_actions.dart';
 import 'package:mozhi/core/bidi.dart';
 import 'package:mozhi/core/privacy/ime_learning.dart';
@@ -406,9 +407,9 @@ class _HistoryViewState extends State<HistoryView>
       rows.add(entry);
     }
     final theme = Theme.of(context);
-    final headerStyle = theme.textTheme.labelLarge?.copyWith(
-      color: AppPalette.of(context).secondaryText,
-      fontWeight: FontWeight.w700,
+    // The days are section headings, like the settings sections.
+    final headerStyle = theme.textTheme.titleLarge?.copyWith(
+      color: theme.colorScheme.onSurface,
     );
     return [
       SliverPadding(
@@ -582,9 +583,7 @@ class _HistoryFilterBar extends StatelessWidget {
                   minimumSize: const Size(0, 32),
                   tapTargetSize: MaterialTapTargetSize.padded,
                   padding: const EdgeInsetsDirectional.only(start: 8, end: 4),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+                  shape: const StadiumBorder(),
                   backgroundColor: pair == null
                       ? null
                       : colors.secondaryContainer,
@@ -723,9 +722,9 @@ class _RetentionNote extends StatelessWidget {
   }
 }
 
-/// The history search field: a pill like [SearchBar], with keyboard
-/// learning off while incognito ([imeLearningAllowed]), which [SearchBar]
-/// cannot do.
+/// The history search field: outlined and rounded like the app's other
+/// search fields, with keyboard learning off while incognito
+/// ([imeLearningAllowed]), which [SearchBar] cannot do.
 class _HistorySearchField extends StatelessWidget {
   const new({
     required this.controller,
@@ -743,9 +742,16 @@ class _HistorySearchField extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     const none = InputBorder.none;
+    // The outline of the theme's text fields.
+    final outline =
+        theme.inputDecorationTheme.enabledBorder?.borderSide.color ??
+        colors.outline;
     return Material(
-      color: colors.surfaceContainerHigh,
-      shape: const StadiumBorder(),
+      color: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: AppRadius.fieldBorderRadius,
+        side: BorderSide(color: outline),
+      ),
       clipBehavior: Clip.antiAlias,
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 56),
@@ -831,7 +837,7 @@ class _HistoryPausedBanner extends StatelessWidget {
         child: DecoratedBox(
           decoration: BoxDecoration(
             border: Border.all(color: palette.hairline),
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: AppRadius.cardBorderRadius,
           ),
           child: Padding(
             padding: const EdgeInsetsDirectional.fromSTEB(16, 14, 12, 12),

@@ -1501,5 +1501,6 @@
   "conversationHeroHint": "Dotknij mikrofonu, aby zacząć lub zakończyć",
   "conversationHeroMicLanguage": "Mów: {language}",
   "dictionaryHeroTitle": "Co to znaczy?",
-  "proofreadHeroTitle": "Czy to wygląda dobrze?"
+  "proofreadHeroTitle": "Czy to wygląda dobrze?",
+  "settingsColorLavender": "Lawendowy"
 }

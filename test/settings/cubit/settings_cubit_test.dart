@@ -85,8 +85,8 @@ void main() {
         equals(const AppSettings()),
       );
       expect(
-        buildCubit(const AppSettings(pureBlack: true)).state.pureBlack,
-        isTrue,
+        buildCubit(const AppSettings(pureBlack: false)).state.pureBlack,
+        isFalse,
       );
     });
 
@@ -139,8 +139,8 @@ void main() {
         setUp: () =>
             when(() => repository.save(any())).thenThrow(StateError('disk')),
         build: buildCubit,
-        act: (cubit) => cubit.setPureBlack(enabled: true),
-        expect: () => [const AppSettings(pureBlack: true)],
+        act: (cubit) => cubit.setPureBlack(enabled: false),
+        expect: () => [const AppSettings(pureBlack: false)],
         errors: () => [isA<StateError>()],
       );
 
@@ -150,8 +150,8 @@ void main() {
             when(() => repository.save(any()))
                 .thenAnswer((_) => Future.error(StateError('disk'))),
         build: buildCubit,
-        act: (cubit) => cubit.setPureBlack(enabled: true),
-        expect: () => [const AppSettings(pureBlack: true)],
+        act: (cubit) => cubit.setPureBlack(enabled: false),
+        expect: () => [const AppSettings(pureBlack: false)],
         errors: () => [isA<StateError>()],
       );
 
@@ -165,7 +165,7 @@ void main() {
         build: buildCubit,
         act: (cubit) async {
           await cubit.close();
-          cubit.setPureBlack(enabled: true);
+          cubit.setPureBlack(enabled: false);
         },
         expect: () => <AppSettings>[],
         verify: (_) => verifyNever(() => repository.save(any())),
@@ -190,9 +190,9 @@ void main() {
         expected: const AppSettings(dynamicColor: false),
       );
       mutation(
-        'setPureBlack',
-        act: (cubit) => cubit.setPureBlack(enabled: true),
-        expected: const AppSettings(pureBlack: true),
+        'setPureBlack (Dim)',
+        act: (cubit) => cubit.setPureBlack(enabled: false),
+        expected: const AppSettings(pureBlack: false),
       );
       mutation(
         'setSeedColor',

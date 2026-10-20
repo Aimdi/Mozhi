@@ -144,7 +144,14 @@ void main() {
     );
     final heading = tester.widget<Text>(find.text('Section'));
     expect(heading.style?.fontWeight, FontWeight.w800);
-    expect(heading.style?.fontSize, 20);
+    // The theme's section heading size, not a size of its own.
+    expect(
+      heading.style?.fontSize,
+      Theme.of(tester.element(find.text('Section')))
+          .textTheme
+          .titleLarge
+          ?.fontSize,
+    );
     expect(
       tester.getSemantics(find.text('Section')),
       isSemantics(isHeader: true),

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -274,7 +275,7 @@ class _ProofreadResultCardState extends State<ProofreadResultCard> {
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   border: Border.all(color: palette.hairline),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: AppRadius.cardBorderRadius,
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(12),
@@ -691,7 +692,7 @@ class _FlatNotice extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           border: Border.all(color: palette.hairline),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: AppRadius.cardBorderRadius,
         ),
         child: Padding(
           padding: EdgeInsetsDirectional.fromSTEB(

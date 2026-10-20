@@ -8,13 +8,16 @@ class AccentColorOption {
   final int argb;
   final String Function(AppLocalizations l10n) label;
 
-  /// X's accents first (blue is the default), then a few classics so a
-  /// previously picked colour stays selectable.
+  /// X's accents first (blue is the default) with Lavender next to Purple,
+  /// then a few classics so a previously picked colour stays selectable.
   static final options = <AccentColorOption>[
     AccentColorOption(0xFF1D9BF0, (l10n) => l10n.settingsColorBlue),
     AccentColorOption(0xFFFFD400, (l10n) => l10n.settingsColorYellow),
     AccentColorOption(0xFFF91880, (l10n) => l10n.settingsColorPink),
     AccentColorOption(0xFF7856FF, (l10n) => l10n.settingsColorPurple),
+    // A soft pastel violet, like Kagi Translate's accent. Too light for
+    // text on white: the light theme darkens it (see `appColorScheme`).
+    AccentColorOption(0xFFC4B5FD, (l10n) => l10n.settingsColorLavender),
     AccentColorOption(0xFFFF7A00, (l10n) => l10n.settingsColorOrange),
     AccentColorOption(0xFF00BA7C, (l10n) => l10n.settingsColorGreen),
     AccentColorOption(0xFF00897B, (l10n) => l10n.settingsColorTeal),

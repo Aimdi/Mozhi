@@ -1501,5 +1501,6 @@
   "conversationHeroHint": "शुरू करने या रोकने के लिए माइक्रोफ़ोन पर टैप करें",
   "conversationHeroMicLanguage": "{language} में बोलें",
   "dictionaryHeroTitle": "इसका क्या मतलब है?",
-  "proofreadHeroTitle": "क्या यह सही लग रहा है?"
+  "proofreadHeroTitle": "क्या यह सही लग रहा है?",
+  "settingsColorLavender": "लैवेंडर"
 }

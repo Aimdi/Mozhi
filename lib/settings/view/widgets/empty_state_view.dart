@@ -90,8 +90,7 @@ class EmptyStateView extends StatelessWidget {
                           title,
                           style: compact
                               ? theme.textTheme.titleLarge
-                              : theme.textTheme.headlineSmall?.copyWith(
-                                  fontSize: 28,
+                              : theme.textTheme.headlineMedium?.copyWith(
                                   height: 1.15,
                                 ),
                           textAlign: TextAlign.start,

@@ -584,7 +584,8 @@ void main() {
         );
       });
 
-      testWidgets('picks Lights out or Dim for the dark theme', (tester) async {
+      testWidgets('picks Lights out (the default) or Dim for the dark '
+          'theme', (tester) async {
         final handle = tester.ensureSemantics();
         await pump(tester);
         expect(find.text('Dark theme'), findsOneWidget);
@@ -593,22 +594,22 @@ void main() {
           tester
               .widget<RadioGroup<bool>>(find.byType(RadioGroup<bool>))
               .groupValue,
-          isFalse,
+          isTrue,
         );
-        await tester.tap(find.text('Lights out'));
-        verify(() => settings.setPureBlack(enabled: true)).called(1);
-        // Picking the current look again is a no-op.
         await tester.tap(find.text('Dim'));
+        verify(() => settings.setPureBlack(enabled: false)).called(1);
+        // Picking the current look again is a no-op.
+        await tester.tap(find.text('Lights out'));
         verifyNever(
           () => settings.setPureBlack(enabled: any(named: 'enabled')),
         );
         handle.dispose();
       });
 
-      testWidgets('switches back to Dim', (tester) async {
-        await pump(tester, state: const AppSettings(pureBlack: true));
-        await tester.tap(find.text('Dim'));
-        verify(() => settings.setPureBlack(enabled: false)).called(1);
+      testWidgets('switches back to Lights out', (tester) async {
+        await pump(tester, state: const AppSettings(pureBlack: false));
+        await tester.tap(find.text('Lights out'));
+        verify(() => settings.setPureBlack(enabled: true)).called(1);
       });
 
       testWidgets('the dark look is disabled in light mode', (tester) async {

@@ -1501,5 +1501,6 @@
   "conversationHeroHint": "点按麦克风开始或停止",
   "conversationHeroMicLanguage": "说{language}",
   "dictionaryHeroTitle": "这是什么意思？",
-  "proofreadHeroTitle": "这样写对吗？"
+  "proofreadHeroTitle": "这样写对吗？",
+  "settingsColorLavender": "薰衣草紫"
 }

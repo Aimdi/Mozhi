@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/network/network.dart';
 import 'package:mozhi/core/undo_snack_bar.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
@@ -385,7 +386,7 @@ class _Header extends StatelessWidget {
           color: colors.surface,
           shape: RoundedRectangleBorder(
             side: BorderSide(color: AppPalette.of(context).hairline),
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: AppRadius.cardBorderRadius,
           ),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -543,7 +544,7 @@ class _InstanceTile extends StatelessWidget {
         margin: EdgeInsets.zero,
         color: colors.surface,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: AppRadius.cardBorderRadius,
           side: preferred
               ? BorderSide(color: colors.primary, width: 2)
               : BorderSide(color: AppPalette.of(context).hairline),
