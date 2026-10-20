@@ -51,7 +51,7 @@ class AppSettings extends Equatable {
     this.target = const Language(code: 'en', name: 'English'),
     this.options = const TranslationOptions(),
     this.instantTranslate = true,
-    this.instantTranslateAi = false,
+    this.instantTranslateAi = true,
     this.saveHistory = true,
     this.showTransliteration = true,
     this.recentLanguages = const [],
@@ -199,7 +199,8 @@ class AppSettings extends Equatable {
   final bool instantTranslate;
 
   /// Translate while typing for AI engines (debounced ~1200 ms; costs
-  /// tokens, off by default).
+  /// tokens). On by default, like Kagi: translation is automatic for every
+  /// online engine, and the go button translates at once.
   final bool instantTranslateAi;
   final bool saveHistory;
   final bool showTransliteration;

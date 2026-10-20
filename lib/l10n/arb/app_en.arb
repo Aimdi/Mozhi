@@ -7500,5 +7500,37 @@
   "imageTranslateLowConfidence": "Wrong language?",
   "@imageTranslateLowConfidence": {
     "description": "imageTranslateLowConfidence"
+  },
+  "translateStopTranslating": "Stop translating",
+  "@translateStopTranslating": {
+    "description": "Tooltip and accessible name of the go button at the end of the language bar while a translation is running: pressing it stops the translation (the text so far stays)."
+  },
+  "translateOptionsDone": "Done",
+  "@translateOptionsDone": {
+    "description": "Button that closes the translation options sheet (the choices are already saved)."
+  },
+  "translateOptionsNeedAi": "{engine} translates without these options. Style, formality, gender and context need an AI translator. Your choices are saved and apply when you use one.",
+  "@translateOptionsNeedAi": {
+    "description": "Note at the top of the translation options sheet when the current engine (e.g. a Mozhi engine or the offline engine) applies none of the options; {engine} is its name (e.g. Google).",
+    "placeholders": {
+      "engine": {
+        "type": "String",
+        "example": "Google"
+      }
+    }
+  },
+  "translateOptionsPartlyNeedAi": "{engine} applies only formality, context and formatting. Style, reading level, gender and the glossary need an AI translator. Your choices are saved and apply when you use one.",
+  "@translateOptionsPartlyNeedAi": {
+    "description": "Note at the top of the translation options sheet for a machine translation service that applies some options (DeepL API); {engine} is its name (e.g. DeepL).",
+    "placeholders": {
+      "engine": {
+        "type": "String",
+        "example": "DeepL"
+      }
+    }
+  },
+  "translateOptionsChooseAi": "Choose an AI translator",
+  "@translateOptionsChooseAi": {
+    "description": "Action of the note in the translation options sheet: closes the sheet and opens the engine picker to switch to an AI translator."
   }
 }

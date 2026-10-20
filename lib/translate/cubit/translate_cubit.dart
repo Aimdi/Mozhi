@@ -1170,12 +1170,36 @@ class TranslateCubit extends Cubit<TranslateState> {
     unawaited(_translateAgain());
   }
 
+  /// Saves [options] (without one-off instructions) for every engine, also
+  /// one that does not apply them (they apply once an engine that does is
+  /// used), and translates again right away when the current engine
+  /// applies a changed option ([optionsChangeApplies]).
   void setOptions(TranslationOptions options) {
     final persisted = options.copyWith(instructions: '');
-    if (persisted == state.options) return;
+    final previous = state.options;
+    if (persisted == previous) return;
     _settings.setOptions(persisted);
     emit(_clearedExtras(state).copyWith(options: persisted));
-    if (state.isAiEngine) _retranslate();
+    final engine = state.engine;
+    if (engine != null && optionsChangeApplies(engine, previous, persisted)) {
+      _retranslate();
+    }
+  }
+
+  /// Whether [engine] translates differently with [next] than with
+  /// [previous]: AI engines with the general profile apply every option,
+  /// DeepL (`TranslationEngine.supportsFormality`) the formality, the
+  /// context and the formatting; other engines none.
+  static bool optionsChangeApplies(
+    TranslationEngine engine,
+    TranslationOptions previous,
+    TranslationOptions next,
+  ) {
+    if (engine.supportsOptions) return previous != next;
+    if (!engine.supportsFormality) return false;
+    return previous.formality != next.formality ||
+        previous.context.trim() != next.context.trim() ||
+        previous.preserveFormatting != next.preserveFormatting;
   }
 
   void clear() {
@@ -1222,6 +1246,24 @@ class TranslateCubit extends Cubit<TranslateState> {
     _debounceTimer?.cancel();
     if (state.compareMode) return runCompare();
     return _translate(userAsked: true);
+  }
+
+  /// Stops what is translating the input (the go button while it runs): a
+  /// pending instant translation, the main translation in flight (the text
+  /// streamed so far stays, unfinished, and the status goes back to idle)
+  /// and, in compare mode, the compare run (the results so far stay).
+  /// Translations into the extra targets go on. Does nothing while
+  /// nothing runs.
+  void stopTranslation() {
+    _debounceTimer?.cancel();
+    if (state.comparing) {
+      _cancelCompare();
+      emit(state.copyWith(comparing: false));
+    }
+    if (state.status == TranslateStatus.translating) {
+      _cancelTranslation();
+      emit(state.copyWith(status: TranslateStatus.idle));
+    }
   }
 
   /// [translate] for a translation the user did not ask for as such (a
