@@ -23,13 +23,13 @@ dependencies:
     sdk: flutter
   flutter_secure_storage: ^11.2.0
   flutter_tts: ^4.2.5
-  go_router: ^18.0.2
+  go_router: ^18.1.0
   http: ^1.6.0
   image_picker: ^1.2.4
   intl: ^0.20.2
   llm_api:
     path: packages/llm_api
-  material_ui: ^1.1.1
+  material_ui: ^1.7.0
   mozhi_api:
     path: packages/mozhi_api
   package_info_plus: ^10.2.2
