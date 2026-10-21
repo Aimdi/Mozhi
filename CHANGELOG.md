@@ -1,9 +1,16 @@
 # Changelog
 
-All notable changes to Mozhi. Versions are the release tags on GitHub;
-pre-releases (`-rc.N`) are listed under the version they lead up to.
+All notable changes to Mozhi, by release tag on GitHub (pre-releases end
+in `-rc.N`).
 
 ## Unreleased
+
+### Changed
+
+- Android builds use the Android Gradle Plugin 9.4.1 and Gradle 9.6.0
+  (see [Building](docs/building.md) for every pinned tool).
+
+## 0.1.0-rc.2
 
 ### Added
 
@@ -52,6 +59,6 @@ pre-releases (`-rc.N`) are listed under the version they lead up to.
 - The keyboard covered the proofreading context field and the dictionary's
   language list.
 
-## 0.1.0-rc.2 and earlier
+## 0.1.0-rc.1 and earlier
 
 See the [GitHub releases](https://github.com/Aimdi/Mozhi/releases).

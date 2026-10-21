@@ -28,6 +28,13 @@ abstract final class HistoryShare {
   // coverage:ignore-end
 }
 
+/// The History screen's clock: the rows' times ("now", "5m", "3h" or the
+/// clock time) and the day headers. Replaceable in tests, so screenshots
+/// don't depend on the time of day they run at.
+abstract final class HistoryClock {
+  static DateTime Function() now = DateTime.now;
+}
+
 /// One history entry as a timeline row: the target language's avatar, a
 /// header (language pair · engine · time), the translation as the body,
 /// the source text quoted below it and an action row (copy, favorite,
@@ -158,7 +165,7 @@ class _HistoryEntryTileState extends State<HistoryEntryTile> {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final palette = AppPalette.of(context);
-    final time = relativeHistoryTime(l10n, entry.createdAt, DateTime.now());
+    final time = relativeHistoryTime(l10n, entry.createdAt, HistoryClock.now());
     // Isolated so Latin-script names keep the arrow's direction in RTL
     // locales.
     final pair = l10n.historyLanguagePair(

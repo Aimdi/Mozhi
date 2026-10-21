@@ -619,7 +619,7 @@ class _HistoryViewState extends State<HistoryView>
   }
 
   static String _dayLabel(AppLocalizations l10n, DateTime day) {
-    final today = _day(DateTime.now());
+    final today = _day(HistoryClock.now());
     if (day == today) return l10n.historyToday;
     if (day == DateTime(today.year, today.month, today.day - 1)) {
       return l10n.historyYesterday;

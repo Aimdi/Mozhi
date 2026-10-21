@@ -27,9 +27,9 @@ a CI or release build.
 | JDK | Temurin 17 | `actions/setup-java` (`java-version: "17"`) in both workflows |
 | Android NDK | 28.2.13676358 (Flutter 3.47's default) | `NDK_VERSION` in both workflows; `ndkVersion` in `packages/bergamot_translator/android/build.gradle`, `packages/tesseract_ocr/android/build.gradle` and `packages/whisper_speech/android/build.gradle` |
 | CMake (Android SDK package) | 3.22.1 | `CMAKE_VERSION` in both workflows; `externalNativeBuild.cmake.version` in the same `build.gradle` |
-| Android Gradle Plugin | 8.12.0 | `android/settings.gradle.kts`; the plugin's `build.gradle` (`classpath`) |
+| Android Gradle Plugin | 9.4.1 | `android/settings.gradle.kts`; the plugin's `build.gradle` (`classpath`) |
 | Kotlin | 2.4.21 | `android/settings.gradle.kts`; `kotlin-stdlib` in `android/app/build.gradle.kts` |
-| Gradle | 9.5.1 | `android/gradle/wrapper/gradle-wrapper.properties` (Flutter writes `gradlew` during the build) |
+| Gradle | 9.6.0 | `android/gradle/wrapper/gradle-wrapper.properties` (Flutter writes `gradlew` during the build) |
 | compileSdk / minSdk | 36 / 24 | Flutter's defaults (`flutter.compileSdkVersion`, `flutter.minSdkVersion`); the engine plugin sets the same explicitly |
 
 CI runs on `ubuntu-latest`, which isn't pinned (GitHub moves it to
@@ -41,6 +41,11 @@ Install the NDK and CMake the way CI does:
 ```sh
 sdkmanager --install "ndk;28.2.13676358" "cmake;3.22.1"
 ```
+
+CI and the release workflow run `tool/install_native_toolchain.sh` (with
+`NDK_VERSION` and `CMAKE_VERSION` set), which does the same, installs
+ccache, and retries the download up to three times because Google's
+servers sometimes send a broken archive.
 
 ## Sources
 
