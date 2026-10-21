@@ -7,6 +7,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/history/view/history_page.dart';
+import 'package:mozhi/history/view/widgets/history_entry_tile.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -18,10 +19,15 @@ const _german = Language(code: 'de', name: 'German');
 const _french = Language(code: 'fr', name: 'French');
 const _spanish = Language(code: 'es', name: 'Spanish');
 
+/// The screen's "now" in these tests ([HistoryClock]): at noon, yesterday
+/// morning is more than a day ago, so its entries show their clock time
+/// whenever the test runs (at 00:03 they would read "14h").
+final _now = DateTime(2026, 10, 20, 12);
+
 /// Entries from today (made just now, shown as "now") and from yesterday
-/// morning (shown with their clock time): stable whenever the test runs.
+/// morning (shown with their clock time).
 List<HistoryEntry> _entries() {
-  final now = DateTime.now();
+  final now = _now;
   final yesterday = DateTime(now.year, now.month, now.day - 1, 9, 30);
   return [
     HistoryEntry(
@@ -74,6 +80,9 @@ void main() {
   setUpAll(registerFallbacks);
 
   goldenGroup('History screen', () {
+    setUp(() => HistoryClock.now = () => _now);
+    tearDown(() => HistoryClock.now = DateTime.now);
+
     for (final brightness in [Brightness.light, Brightness.dark]) {
       testWidgets('with a few entries on a phone (${brightness.name})', (
         tester,
@@ -99,7 +108,7 @@ void main() {
     testWidgets('a dictionary look-up on a phone (light)', (tester) async {
       final translate = MockTranslateCubit();
       when(() => translate.state).thenReturn(const TranslateState());
-      final now = DateTime.now();
+      final now = _now;
       final entries = [
         HistoryEntry(
           id: 'dictionary:1',
