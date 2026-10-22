@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "_provenance": [
+    "Filled by tool/llm_catalog.py resolve from tool/llm_catalog.json (sizes and SHA-256 from Hugging Face's API, URLs pinned to a commit)."
+  ],
+  "models": []
+}

@@ -23,3 +23,7 @@
 	path = packages/whisper_speech/native/third_party/whisper.cpp
 	url = https://github.com/ggml-org/whisper.cpp
 	shallow = true
+[submodule "packages/llama_engine/native/third_party/llama.cpp"]
+	path = packages/llama_engine/native/third_party/llama.cpp
+	url = https://github.com/ggml-org/llama.cpp
+	shallow = true

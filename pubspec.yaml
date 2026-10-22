@@ -27,6 +27,8 @@ dependencies:
   http: ^1.6.0
   image_picker: ^1.2.4
   intl: ^0.20.2
+  llama_engine:
+    path: packages/llama_engine
   llm_api:
     path: packages/llm_api
   material_ui: ^1.7.0
