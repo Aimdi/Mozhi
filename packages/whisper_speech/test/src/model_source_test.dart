@@ -46,6 +46,20 @@ void main() {
     });
   });
 
+  test('rejects an unsafe file name', () {
+    final unsafe = WhisperCatalogModel(
+      id: 'x',
+      name: '..',
+      url: model.url,
+      size: 1,
+      sha1: 'a' * 40,
+    );
+    expect(
+      () => whisperMirrorUrl(Uri.parse('https://m.example/'), unsafe),
+      throwsArgumentError,
+    );
+  });
+
   group(whisperDownloadUrls, () {
     final mirror = Uri.parse('https://mirror.example/');
     final copy = whisperMirrorUrl(mirror, model);

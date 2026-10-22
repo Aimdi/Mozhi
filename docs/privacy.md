@@ -198,6 +198,28 @@ doesn't have fails instead of going to the publisher. No text, voice,
 picture, identifier or cookie is sent with a download. To run a mirror, see
 [self-hosting](self-hosting-mozhi.md#mirror-the-on-device-models).
 
+### On-device translation in the web app
+
+The web app translates without the network too, in browsers that can run
+Mozilla's engine: current Chrome, Edge, Firefox and Safari (WebAssembly
+SIMD, the private storage for sites, a secure `https` page). The engine is
+the same as on Android (Mozilla's Firefox Translations engine and CLD2
+for **Detect language**), compiled to WebAssembly and served by the web
+app's own server (`bergamot/` next to the app); it runs in a worker inside
+the page, so your text never leaves the browser. Language packs are
+downloaded only when you tap **Download** on **Offline languages**, from the
+[model source](#where-model-files-come-from) (by default the server the web
+app comes from: Mozilla's bucket doesn't let other websites download its
+files), checked against the SHA-256 checksums bundled with the app, and
+kept in the browser's private storage for the site; the app asks the
+browser to keep them (`navigator.storage.persist()`: Firefox may ask you,
+Chrome decides by itself). The downloads go through the same request log as
+the Android app's ([Network activity](#network-activity)). **Offline only**
+and **Offline first** work as on Android. A browser without what the engine
+needs (an old one, a private window without site storage, a page opened over
+plain `http`) keeps the old behaviour, online only, and **Offline languages**
+says why. Details: [offline engine](offline-engine.md#web-app).
+
 ## What is sent, to whom, and how long it is kept
 
 Mozhi itself keeps nothing off the device. "Kept" below means what Mozhi
@@ -211,7 +233,7 @@ stores on the device and what the other party may keep.
 | DeepL API, LibreTranslate | The service you set up | Text, languages, formality, context or glossary (DeepL), the key | The service's policy. |
 | Offline translation | Nowhere | Nothing | History as above. |
 | Language detection (**Detect language**, an "auto" source with a translation-only AI model) | The device first; if it is unsure, the AI provider itself or, for translation-only models, your Mozhi instance's Google engine, when the privacy rules allow that destination | The text | As for that destination. |
-| Kagi-style extras, **Check meaning**, **Proofread** | The AI model for extras (**Settings > AI > AI assistant for insights**) or the model you selected; **Check meaning** without one: the engine you translate with, to translate back | Source text, translation or both (the first 4,000 characters for **Check meaning**; the word for the dictionary) | The provider's policy. Results stay in memory only, except Dictionary tab look-ups: on the device, the word, its languages, the model's name, the detail level and a one-line summary go to the history unless incognito or **Save history** is off (or when you heart the entry). |
+| Kagi-style extras, **Check meaning**, **Proofread** | The AI model for extras (**Settings > AI > AI assistant for insights**) or the model you selected; **Check meaning** without one: the engine you translate with, to translate back | Source text, translation or both (the first 4,000 characters for **Check meaning**; the word for the dictionary), with [personal data masked](#personal-data-shield) | The provider's policy. Results stay in memory only, except Dictionary tab look-ups: on the device, the word, its languages, the model's name, the detail level and a one-line summary go to the history unless incognito or **Save history** is off (or when you heart the entry). |
 | **Listen** (read aloud) | The device's text-to-speech voice, one on the device whenever the language has one. An [online voice](#online-voices) only after you agree, once per voice. A Mozhi instance only when the device has no voice for the language: never in Offline only or with **Device voice only**, and in Offline first only after you agree (**Listen online**) | Device voice on the device: nothing leaves it. Online voice: the text to the voice's speech service (for example Google). Mozhi: the text **in the request address** (`GET /api/tts?text=…`, up to 200 characters per part). The [personal data shield](#personal-data-shield) can't apply to speech | Online voice: its service's policy. Mozhi: the address can end up in the server's and any reverse proxy's access logs. The app keeps the last 20 clips in memory until it closes. |
 | Image translation | **On-device text recognition** (Android, the default) sends the image nowhere: Tesseract reads it on the phone ([text recognition](text-recognition.md); ML Kit in the [Play variant](#google-code)), and only the recognised text follows the translation rows above. The AI model with **Supports images** gets the image itself; so does your Mozhi instance (experimental), which passes it to Google Translate (at most two instances are tried) | AI vision and Mozhi: the image, re-encoded first (no EXIF data such as the GPS location). On-device: nothing | The provider's or instance's policy. The app doesn't store the image. |
 | Dictation, conversation | **System speech recognition** (the default): the system's recogniser (Google or the phone maker on Android; the browser's maker in the web app). **Offline (Whisper)** (Android, **Settings > Read aloud & voice > Voice input**): nobody, it runs on the phone. In **Offline only** always Whisper, never the system recogniser ([voice input](voice-input.md)) | System: your voice. Whisper: nothing leaves the phone | System: the recogniser's policy; **Prefer on-device speech recognition** (Android 12+) only asks to keep it on the phone. Whisper: the recording stays in memory until it is transcribed, and is never stored. |
@@ -247,7 +269,7 @@ the fastest server** during setup.
 | History and favorites | App preferences, **encrypted with AES-256-GCM**; the key is in secure storage (Android Keystore) | Translations (text, translation, languages, engine, time) and dictionary look-ups (word, languages, AI model, detail level, a one-line summary of the entry, time). Up to 1,000 entries plus favorites. **Settings > Privacy & data > Delete history automatically** removes entries older than 1, 7 or 30 days (favorites are kept). |
 | Presets, glossaries, read-aloud settings, usage counters | App preferences | Usage counters are numbers only (requests, characters, estimated tokens per provider and month, for 13 months). |
 | Cached engine and language lists | App preferences | Lists only, keyed by instance address without any password. |
-| Offline language models | App storage (`<app files>/bergamot`) | About 50 MB to download and 73 MB on disk per language. Delete them under **Settings > Translation engines > Offline languages**. |
+| Offline language models | App storage (`<app files>/bergamot`); in the web app the browser's private storage for the site (the Origin Private File System, folder `bergamot`), which no other site and no page script outside the app can read | About 50 MB to download and 73 MB on disk per language. Delete them under **Settings > Translation engines > Offline languages**; in the web app clearing the site's data deletes them too. |
 | Text recognition data | App storage (`<app files>/tesseract`) | 0.4 to 12 MB per language (median 2.4 MB). Delete it under **Settings > Translation engines > Offline languages > Text recognition**. |
 
 **History encryption.** Each history value is encrypted with AES-256-GCM (a

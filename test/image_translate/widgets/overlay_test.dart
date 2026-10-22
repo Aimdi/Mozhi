@@ -537,11 +537,25 @@ void main() {
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
       expect(
-        tester.widget<SelectableText>(find.text('مخرج')).textDirection,
+        tester
+            .widget<SelectableText>(
+              find.ancestor(
+                of: find.text('مخرج'),
+                matching: find.byType(SelectableText),
+              ),
+            )
+            .textDirection,
         TextDirection.rtl,
       );
       expect(
-        tester.widget<SelectableText>(find.text('Exit')).textDirection,
+        tester
+            .widget<SelectableText>(
+              find.ancestor(
+                of: find.text('Exit'),
+                matching: find.byType(SelectableText),
+              ),
+            )
+            .textDirection,
         TextDirection.ltr,
       );
     });

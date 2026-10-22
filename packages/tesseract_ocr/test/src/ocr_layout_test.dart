@@ -127,8 +127,9 @@ void main() {
 
     test('rejects anything else', () {
       const badBaseline =
-          '{"text":"","blocks":[{"box":[0,0,1,1],"paragraphs":[{"box":[0,0,1,1],'
-          '"lines":[{"box":[0,0,1,1],"text":"a","baseline":[1]}]}]}]}';
+          '{"text":"","blocks":[{"box":[0,0,1,1],"paragraphs":['
+          '{"box":[0,0,1,1],"lines":[{"box":[0,0,1,1],"text":"a",'
+          '"baseline":[1]}]}]}]}';
       for (final json in [
         'not json',
         '[]',

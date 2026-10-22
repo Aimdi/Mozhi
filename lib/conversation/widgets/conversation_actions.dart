@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/conversation/cubit/conversation_cubit.dart';
 import 'package:mozhi/conversation/models/conversation_transcript.dart';
 import 'package:mozhi/conversation/widgets/conversation_turn_bubble.dart';
@@ -73,10 +75,11 @@ class ConversationLayoutButton extends StatelessWidget {
   }
 }
 
-enum _MenuAction { autoSpeak, copy, share, clear }
+enum _MenuAction { autoSpeak, copy, share, clear, transcribe }
 
-/// Overflow menu: copy or share the transcript, clear the conversation;
-/// with [showAutoSpeak] (narrow app bars) also the
+/// Overflow menu: copy or share the transcript, clear the conversation,
+/// open Transcribe (a rolling transcript of a talk; with a [GoRouter]
+/// above); with [showAutoSpeak] (narrow app bars) also the
 /// [ConversationAutoSpeakButton]'s toggle, as a checked item.
 class ConversationMenuButton extends StatelessWidget {
   const new({

@@ -387,7 +387,7 @@ class _SearchLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasEngine = context.select<DictionaryCubit, bool>(
-      (cubit) => cubit.state.hasEngine,
+      (cubit) => cubit.state.hasEngine || cubit.state.hasOfflineDictionaries,
     );
     final composer = DictionaryComposer(
       focusNode: focusNode,
@@ -426,21 +426,29 @@ class _SearchLayout extends StatelessWidget {
   }
 }
 
-/// "Look up a word" with what the dictionary does, above the composer
-/// until a word is looked up.
+/// "Look up a word" with what the dictionary does (from the AI provider,
+/// the offline dictionaries, or both), above the composer until a word is
+/// looked up.
 class DictionaryHero extends StatelessWidget {
   const new({super.key});
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final (offline, ai) = context.select<DictionaryCubit, (bool, bool)>(
+      (cubit) => (cubit.state.hasOfflineDictionaries, cubit.state.hasEngine),
+    );
     return Padding(
       key: const Key('dictionary_hero'),
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
       child: TabHero(
         icon: Icons.menu_book_rounded,
         title: l10n.dictionaryHeroPrompt,
-        body: l10n.dictionaryHeroSubtitle,
+        body: switch ((offline, ai)) {
+          (false, _) => l10n.dictionaryHeroSubtitle,
+          (true, true) => l10n.dictionaryHeroSubtitleOffline,
+          (true, false) => l10n.dictionaryHeroSubtitleOfflineOnly,
+        },
       ),
     );
   }

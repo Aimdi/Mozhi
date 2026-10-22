@@ -7,7 +7,7 @@ import 'package:mozhi/image_translate/image_translate.dart';
 
 /// A 4 x 2 JPEG whose EXIF orientation (6) says it is to be shown turned
 /// 90 degrees clockwise: 2 x 4 upright (made with Pillow).
-final _rotatedJpeg = base64Decode(
+final Uint8List _rotatedJpeg = base64Decode(
   '/9j/4AAQSkZJRgABAQAAAQABAAD/4QAiRXhpZgAATU0AKgAAAAgAAQESAAMAAAAB'
   'AAYAAAAAAAD/2wBDAAIBAQEBAQIBAQECAgICAgQDAgICAgUEBAMEBgUGBgYFBgYG'
   'BwkIBgcJBwYGCAsICQoKCgoKBggLDAsKDAkKCgr/2wBDAQICAgICAgUDAwUKBwYH'

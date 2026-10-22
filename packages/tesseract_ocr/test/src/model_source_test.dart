@@ -48,6 +48,21 @@ void main() {
     });
   });
 
+  test('rejects an unsafe file name', () {
+    final unsafe = TessdataLanguage(
+      code: 'a/b',
+      name: 'x',
+      languages: const ['x'],
+      url: language.url,
+      size: 1,
+      sha256: 'a' * 64,
+    );
+    expect(
+      () => tessdataMirrorUrl(Uri.parse('https://m.test/'), unsafe),
+      throwsArgumentError,
+    );
+  });
+
   group(tessdataDownloadUrls, () {
     final mirror = Uri.parse('https://mirror.test/');
     final copy = tessdataMirrorUrl(mirror, language);

@@ -9,6 +9,8 @@ import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/network/network_policy.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
+import 'package:mozhi/dictionary/data/default_dictionary_packs.dart'
+    show maybeDictionaryPacks;
 import 'package:mozhi/image_translate/data/text_recognition_service.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/cubit/offline_models_cubit.dart';
@@ -17,6 +19,8 @@ import 'package:mozhi/offline/data/offline_model_details.dart';
 import 'package:mozhi/offline/data/offline_model_error.dart';
 import 'package:mozhi/offline/data/offline_model_file_picker.dart';
 import 'package:mozhi/offline/data/unavailable_offline_translator.dart';
+import 'package:mozhi/offline/view/dictionary_packs_page.dart'
+    show DictionaryPacksEntry;
 import 'package:mozhi/offline/view/ocr_languages_page.dart';
 import 'package:mozhi/offline/widgets/offline_import_summary.dart';
 import 'package:mozhi/offline/widgets/offline_language_tile.dart';
@@ -561,6 +565,8 @@ class _Overview extends StatelessWidget {
         if (state.canImport) _ImportTile(importing: state.importing),
         if (textRecognition case final data? when data.isSupported)
           OcrLanguagesEntry(data: data),
+        if (maybeDictionaryPacks(context) case final packs?)
+          DictionaryPacksEntry(packs: packs),
         const Hairline(),
       ],
     );

@@ -331,12 +331,18 @@ its own domain with the same `/models/` next to it.
 location /models/ {
     alias /srv/mozhi/models/;
     autoindex off;
+    # Partial downloads of the mirror tool.
     location ~ \.part$ { return 404; }
     add_header Access-Control-Allow-Origin "*" always;
-    add_header Access-Control-Allow-Headers "Range" always;
     add_header Access-Control-Expose-Headers "Content-Length, Content-Range, Accept-Ranges, ETag" always;
     add_header Cache-Control "public, max-age=86400" always;
-    if ($request_method = OPTIONS) { return 204; }
+    # CORS preflight (headers set in an `if` replace the ones above).
+    if ($request_method = OPTIONS) {
+        add_header Access-Control-Allow-Origin "*";
+        add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS";
+        add_header Access-Control-Allow-Headers "Range";
+        return 204;
+    }
 }
 ```
 
