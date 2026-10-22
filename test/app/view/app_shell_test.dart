@@ -1,10 +1,15 @@
 import 'package:bloc_test/bloc_test.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/app/view/app_shell.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
+import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 
@@ -53,7 +58,7 @@ void main() {
 
     Finder navIcon(IconData icon) => find.byIcon(icon);
 
-    testWidgets('uses an icon-only bottom bar on a blur bar on phones', (
+    testWidgets('uses a labelled bottom bar on a blur bar on phones', (
       tester,
     ) async {
       final handle = tester.ensureSemantics();
@@ -73,15 +78,16 @@ void main() {
       );
       expect(
         theme.navigationBarTheme.labelBehavior,
-        NavigationDestinationLabelBehavior.alwaysHide,
+        NavigationDestinationLabelBehavior.alwaysShow,
       );
-      // Labels are hidden visually but still name each destination.
+      // Each destination shows its name and is named by it.
       for (final label in [
         'Translate',
         'Dictionary',
         'Proofread',
         'Conversation',
       ]) {
+        expect(find.text(label), findsOneWidget);
         expect(find.bySemanticsLabel(RegExp(label)), findsOneWidget);
       }
       // History and Settings are app bar actions, not destinations.
@@ -89,7 +95,9 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('uses a collapsed icon sidebar from 840 dp', (tester) async {
+    testWidgets('uses a collapsed sidebar with small labels from 840 dp', (
+      tester,
+    ) async {
       await pumpShell(tester, width: 840);
 
       expect(find.byType(NavigationRail), findsOneWidget);
@@ -97,7 +105,21 @@ void main() {
       expect(find.text('body'), findsOneWidget);
       final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
       expect(rail.extended, isFalse);
-      expect(rail.labelType, NavigationRailLabelType.none);
+      expect(rail.labelType, NavigationRailLabelType.all);
+      for (final label in [
+        'Translate',
+        'Dictionary',
+        'Proofread',
+        'Conversation',
+      ]) {
+        expect(find.text(label), findsOneWidget);
+      }
+      // Small labels under the icons, bold when selected.
+      expect(rail.selectedLabelTextStyle?.fontWeight, FontWeight.w800);
+      expect(rail.unselectedLabelTextStyle?.fontWeight, FontWeight.w500);
+      final label = DefaultTextStyle.of(tester.element(find.text('Translate')))
+          .style;
+      expect(label.fontSize, 12);
       expect(find.bySemanticsLabel('Mozhi'), findsOneWidget);
       // A hairline separates the sidebar from the page.
       expect(tester.widget<Hairline>(find.byType(Hairline)).vertical, isTrue);
@@ -113,6 +135,8 @@ void main() {
       final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
       expect(rail.extended, isTrue);
       expect(rail.labelType, NavigationRailLabelType.none);
+      // The theme's bold labels.
+      expect(rail.selectedLabelTextStyle, isNull);
       expect(find.text('Mozhi'), findsOneWidget);
       expect(find.text('Translate'), findsOneWidget);
       // Bold labels replace the marker.
@@ -436,6 +460,344 @@ void main() {
       await pump(tester, selected: true, marker: false);
       expect(find.byKey(const Key('nav_icon_marker')), findsNothing);
       expect(find.byIcon(Icons.home), findsOneWidget);
+    });
+  });
+
+  group('AppShell labels', () {
+    final theme = buildAppTheme(
+      appColorScheme(brightness: Brightness.light, seedColor: kDefaultAccent),
+    );
+
+    /// The shell at [width] in [locale] with [textScale], in the app theme.
+    Future<void> pumpLocalized(
+      WidgetTester tester, {
+      required double width,
+      required Locale locale,
+      double textScale = 1,
+    }) async {
+      tester.view
+        ..physicalSize = Size(width, 700)
+        ..devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: theme,
+          locale: locale,
+          localizationsDelegates: appLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: MediaQuery.withClampedTextScaling(
+            minScaleFactor: textScale,
+            maxScaleFactor: textScale,
+            child: AppShell(
+              selectedIndex: 3,
+              onDestinationSelected: (_) {},
+              child: const SizedBox.expand(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    for (final locale in const [
+      Locale('ta'),
+      Locale('it'),
+      Locale('de'),
+      Locale('en'),
+    ]) {
+      testWidgets('fit one line each on a 320 dp phone ($locale)', (
+        tester,
+      ) async {
+        await pumpLocalized(tester, width: 320, locale: locale, textScale: 2);
+        expect(tester.takeException(), isNull);
+        final bar = tester.getRect(find.byType(NavigationBar));
+        expect(bar.height, greaterThanOrEqualTo(kNavigationBarHeight));
+        final labels = find.descendant(
+          of: find.byType(NavigationBar),
+          matching: find.byType(Text),
+        );
+        expect(labels, findsNWidgets(4));
+        for (final element in labels.evaluate()) {
+          final rect = tester.getRect(find.byWidget(element.widget));
+          final paragraph = element.renderObject! as RenderParagraph;
+          // One line, within its quarter of the bar and the bar itself.
+          expect(
+            paragraph.text.style?.overflow ?? TextOverflow.ellipsis,
+            TextOverflow.ellipsis,
+          );
+          expect(
+            rect.height,
+            lessThanOrEqualTo(paragraph.textScaler.scale(12) * 2),
+            reason: '${(element.widget as Text).data} wraps',
+          );
+          expect(rect.width, lessThanOrEqualTo(320 / 4));
+          expect(rect.bottom, lessThanOrEqualTo(bar.bottom));
+        }
+      });
+    }
+
+    testWidgets('the collapsed sidebar fits long labels', (tester) async {
+      await pumpLocalized(
+        tester,
+        width: 900,
+        locale: const Locale('ta'),
+        textScale: 1.5,
+      );
+      expect(tester.takeException(), isNull);
+      expect(find.text('உரையாடல்'), findsOneWidget);
+    });
+  });
+
+  group('AppShell keyboard', () {
+    final theme = buildAppTheme(
+      appColorScheme(brightness: Brightness.light, seedColor: kDefaultAccent),
+    );
+
+    /// The shell at [width] in a router with a History page; returns the
+    /// branch indexes it reported.
+    Future<List<int>> pumpRouted(
+      WidgetTester tester, {
+      double width = 400,
+      List<AppTab>? order,
+      Widget body = const SizedBox.expand(),
+    }) async {
+      tester.view
+        ..physicalSize = Size(width, 800)
+        ..devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final selected = <int>[];
+      final router = GoRouter(
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) => AppShell(
+              selectedIndex: 0,
+              order: order,
+              onDestinationSelected: selected.add,
+              child: body,
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.history,
+            builder: (context, state) => const Text('History page'),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        MaterialApp.router(
+          theme: theme,
+          localizationsDelegates: appLocalizationsDelegates,
+          routerConfig: router,
+        ),
+      );
+      await tester.pumpAndSettle();
+      return selected;
+    }
+
+    Future<void> press(
+      WidgetTester tester,
+      LogicalKeyboardKey key, {
+      bool control = true,
+      bool shift = true,
+      bool alt = false,
+    }) async {
+      final modifiers = [
+        if (control) LogicalKeyboardKey.controlLeft,
+        if (shift) LogicalKeyboardKey.shiftLeft,
+        if (alt) LogicalKeyboardKey.altLeft,
+      ];
+      for (final modifier in modifiers) {
+        await tester.sendKeyDownEvent(modifier);
+      }
+      await tester.sendKeyEvent(key);
+      for (final modifier in modifiers.reversed) {
+        await tester.sendKeyUpEvent(modifier);
+      }
+      await tester.pumpAndSettle();
+    }
+
+    test('lists Ctrl+Shift+1 … 4 and Ctrl+Shift+H', () {
+      expect(AppShell.tabShortcuts, hasLength(4));
+      for (final (i, shortcut) in AppShell.tabShortcuts.indexed) {
+        expect(shortcut.control && shortcut.shift, isTrue);
+        expect(shortcut.alt || shortcut.meta, isFalse);
+        expect(
+          shortcut.trigger,
+          [
+            LogicalKeyboardKey.digit1,
+            LogicalKeyboardKey.digit2,
+            LogicalKeyboardKey.digit3,
+            LogicalKeyboardKey.digit4,
+          ][i],
+        );
+      }
+      expect(AppShell.historyShortcut.trigger, LogicalKeyboardKey.keyH);
+      expect(AppShell.historyShortcut.control, isTrue);
+      expect(AppShell.historyShortcut.shift, isTrue);
+    });
+
+    testWidgets("Ctrl+Shift+digit opens the tab at that place of the user's "
+        'order', (tester) async {
+      final selected = await pumpRouted(
+        tester,
+        order: const [
+          AppTab.proofread,
+          AppTab.translate,
+          AppTab.conversation,
+          AppTab.dictionary,
+        ],
+      );
+      await press(tester, LogicalKeyboardKey.digit1);
+      await press(tester, LogicalKeyboardKey.digit4);
+      await press(tester, LogicalKeyboardKey.digit3);
+      expect(selected, [
+        AppTab.proofread.index,
+        AppTab.dictionary.index,
+        AppTab.conversation.index,
+      ]);
+    });
+
+    testWidgets('Ctrl+Shift+digit works beside the sidebar too', (
+      tester,
+    ) async {
+      final selected = await pumpRouted(tester, width: 1000);
+      await press(tester, LogicalKeyboardKey.digit2);
+      expect(selected, [AppTab.dictionary.index]);
+    });
+
+    testWidgets('other modifiers and keys do nothing', (tester) async {
+      final selected = await pumpRouted(tester);
+      // Alt+digit is the translate tab's (pinned languages) and the
+      // browser's.
+      await press(
+        tester,
+        LogicalKeyboardKey.digit2,
+        control: false,
+        shift: false,
+        alt: true,
+      );
+      // Ctrl+digit is the browser's.
+      await press(tester, LogicalKeyboardKey.digit2, shift: false);
+      await press(tester, LogicalKeyboardKey.digit5);
+      await press(tester, LogicalKeyboardKey.keyJ);
+      expect(selected, isEmpty);
+      expect(find.text('History page'), findsNothing);
+    });
+
+    testWidgets('work while typing, and type nothing', (tester) async {
+      final controller = TextEditingController();
+      addTearDown(controller.dispose);
+      final selected = await pumpRouted(
+        tester,
+        body: Material(
+          child: TextField(controller: controller, autofocus: true),
+        ),
+      );
+      await tester.enterText(find.byType(TextField), 'Hi');
+      await press(tester, LogicalKeyboardKey.digit2);
+      expect(selected, [AppTab.dictionary.index]);
+      expect(controller.text, 'Hi');
+    });
+
+    testWidgets('Ctrl+Shift+H opens History', (tester) async {
+      await pumpRouted(tester, width: 1000);
+      await press(tester, LogicalKeyboardKey.keyH);
+      expect(find.text('History page'), findsOneWidget);
+
+      // Not from History itself (the tabs are below it).
+      await press(tester, LogicalKeyboardKey.keyH);
+      expect(find.text('History page'), findsOneWidget);
+    });
+
+    testWidgets('wait while a dialog is open above the tabs', (tester) async {
+      final selected = await pumpRouted(tester);
+      final context = tester.element(find.byType(AppShell));
+      showDialog<void>(
+        context: context,
+        builder: (context) => const AlertDialog(content: Text('Dialog')),
+      ).ignore();
+      await tester.pumpAndSettle();
+
+      await press(tester, LogicalKeyboardKey.digit2);
+      await press(tester, LogicalKeyboardKey.keyH);
+      expect(selected, isEmpty);
+      expect(find.text('History page'), findsNothing);
+    });
+
+    testWidgets('need a router for History', (tester) async {
+      tester.view
+        ..physicalSize = const Size(400, 800)
+        ..devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpApp(
+        AppShell(
+          selectedIndex: 0,
+          onDestinationSelected: (_) {},
+          child: const SizedBox.expand(),
+        ),
+        theme: theme,
+      );
+      await press(tester, LogicalKeyboardKey.keyH);
+      expect(tester.takeException(), isNull);
+    });
+
+    /// The labels of the focused controls, pressing Tab [count] times.
+    Future<List<String>> tabThrough(WidgetTester tester, int count) async {
+      final labels = <String>[];
+      for (var i = 0; i < count; i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        final focus = FocusManager.instance.primaryFocus!;
+        final text = find.descendant(
+          of: find.byElementPredicate((element) => element == focus.context),
+          matching: find.byType(Text),
+        );
+        labels.add(
+          text.evaluate().isEmpty
+              ? focus.toString()
+              : (text.evaluate().first.widget as Text).data!,
+        );
+      }
+      return labels;
+    }
+
+    Widget tabBody() => Scaffold(
+      appBar: AppBar(
+        title: const Text('Tab'),
+        actions: [TextButton(onPressed: () {}, child: const Text('Bar'))],
+      ),
+      body: Center(
+        child: TextButton(onPressed: () {}, child: const Text('Content')),
+      ),
+    );
+
+    testWidgets('Tab goes through the sidebar, then the app bar and content', (
+      tester,
+    ) async {
+      await pumpRouted(tester, width: 1000, body: tabBody());
+      expect(await tabThrough(tester, 6), [
+        'Translate',
+        'Dictionary',
+        'Proofread',
+        'Conversation',
+        'Bar',
+        'Content',
+      ]);
+    });
+
+    testWidgets('on phones through the tab, then the bottom bar', (
+      tester,
+    ) async {
+      await pumpRouted(tester, body: tabBody());
+      expect(await tabThrough(tester, 6), [
+        'Bar',
+        'Content',
+        'Translate',
+        'Dictionary',
+        'Proofread',
+        'Conversation',
+      ]);
     });
   });
 }

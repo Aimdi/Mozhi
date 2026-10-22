@@ -6,23 +6,27 @@ import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
-import 'package:mozhi/translate/widgets/dictionary_card.dart';
 import 'package:mozhi/translate/widgets/explain_sheet.dart';
 import 'package:mozhi/translate/widgets/language_text.dart';
-import 'package:mozhi/translate/widgets/refine_chips.dart';
 import 'package:mozhi/translate/widgets/status_announcer.dart';
+import 'package:mozhi/translate/widgets/tool_chip.dart';
 import 'package:mozhi/translate/widgets/translate_error.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 export 'package:mozhi/translate/widgets/refine_chips.dart';
 
-/// "Refine & learn": the AI extras under a finished translation, under one
-/// heading: refinement chips (AI engines), alternatives, explain and
-/// (short inputs) a dictionary card. Hidden while
-/// the translation belongs to text the user has since edited, and while
-/// not [expanded] (the translate screen's "More" area is closed); a failed
-/// refinement is reported either way.
+/// "Learn": the AI extras under a finished translation in the "Tools" area,
+/// as rows like the tools above them ([TranslateToolRow]): "Alternatives"
+/// (unfolds the alternatives in place) and "Explain" (opens the
+/// explanation). Hidden while the translation belongs to text the user has
+/// since edited, and while not [expanded] (the translate screen's "Tools"
+/// area is closed).
+///
+/// The refinement chips are with the translation's actions (see
+/// `OutputCard`) and the AI dictionary with the short-input panel
+/// (`ShortQueryPanel`); a failed refinement is reported here, as a snack
+/// bar, whether the area is open or not.
 class ExtrasSection extends StatelessWidget {
   const new({this.expanded = true, super.key});
 
@@ -57,23 +61,32 @@ class ExtrasSection extends StatelessWidget {
         state.isResultStale) {
       return const SizedBox.shrink();
     }
-    return Column(
+    final theme = Theme.of(context);
+    return Padding(
       key: const Key('translate_refine_and_learn'),
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const SizedBox(height: TranslateLayout.gap),
-        const Hairline(),
-        TranslateSectionHeader(
-          context.l10n.translateRefineAndLearn,
-          icon: Icons.auto_awesome_outlined,
-        ),
-        if (state.isAiEngine) ...[
-          RefinementChips(state: state),
-          const SizedBox(height: TranslateLayout.gap),
+      padding: const EdgeInsetsDirectional.only(start: 4, end: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsetsDirectional.only(
+              start: 8,
+              top: 8,
+              bottom: 4,
+            ),
+            child: Semantics(
+              header: true,
+              child: Text(
+                context.l10n.translateToolsLearn,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: AppPalette.of(context).secondaryText,
+                ),
+              ),
+            ),
+          ),
+          _ExtrasRows(state: state),
         ],
-        _ExtrasCard(state: state),
-        if (state.isShortInput) const DictionaryCard(),
-      ],
+      ),
     );
   }
 
@@ -104,59 +117,79 @@ class ExtrasSection extends StatelessWidget {
   }
 }
 
-class _ExtrasCard extends StatelessWidget {
+/// "Alternatives" (unfolds in place) and "Explain" (opens the sheet).
+/// The alternatives fold up again whenever the translation changes.
+class _ExtrasRows extends StatefulWidget {
   const new({required this.state});
 
   final TranslateState state;
 
   @override
+  State<_ExtrasRows> createState() => _ExtrasRowsState();
+}
+
+class _ExtrasRowsState extends State<_ExtrasRows> {
+  bool _alternatives = false;
+
+  @override
+  void didUpdateWidget(_ExtrasRows oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.state.output != widget.state.output) _alternatives = false;
+  }
+
+  void _toggleAlternatives() {
+    final state = widget.state;
+    setState(() => _alternatives = !_alternatives);
+    // Alternatives for a selected part (see showSpanAlternativesSheet) are
+    // replaced by ones for the whole translation.
+    if (_alternatives &&
+        (state.alternativesStatus == ExtraStatus.idle ||
+            state.alternativesStatus == ExtraStatus.failure ||
+            state.alternativesSpan != null)) {
+      unawaited(context.read<TranslateCubit>().loadAlternatives());
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final theme = Theme.of(context);
+    final state = widget.state;
     final cubit = context.read<TranslateCubit>();
-    return TranslateFlatCard(
-      look: TranslateCardLook.plain,
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          Theme(
-            data: theme.copyWith(dividerColor: Colors.transparent),
-            child: ExpansionTile(
-              // Collapse whenever the translation changes.
-              key: ValueKey('alternatives:${state.output}'),
-              leading: const Icon(Icons.alt_route),
-              title: Text(l10n.translateAlternatives),
-              onExpansionChanged: (expanded) {
-                // Alternatives for a selected part (see
-                // showSpanAlternativesSheet) are replaced by ones for the
-                // whole translation.
-                if (expanded &&
-                    (state.alternativesStatus == ExtraStatus.idle ||
-                        state.alternativesStatus == ExtraStatus.failure ||
-                        state.alternativesSpan != null)) {
-                  unawaited(cubit.loadAlternatives());
-                }
-              },
-              childrenPadding: const EdgeInsets.only(bottom: 8),
-              children: [AlternativesList(state: state)],
-            ),
-          ),
-          const Hairline(indent: 16),
-          ListTile(
-            key: const Key('translate_explain_button'),
-            leading: const Icon(Icons.school_outlined),
-            title: Text(l10n.translateExplain),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              if (state.explainStatus == ExtraStatus.idle ||
-                  state.explainStatus == ExtraStatus.failure) {
-                unawaited(cubit.explain());
-              }
-              unawaited(showExplainSheet(context));
-            },
-          ),
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TranslateToolRow(
+          key: const Key('translate_alternatives_button'),
+          icon: Icons.alt_route,
+          label: l10n.translateAlternatives,
+          expanded: _alternatives,
+          onPressed: _toggleAlternatives,
+        ),
+        AnimatedSize(
+          duration: TranslateLayout.motion(context),
+          curve: Curves.easeOutCubic,
+          alignment: AlignmentDirectional.topStart,
+          child: _alternatives
+              ? Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: AlternativesList(state: state),
+                )
+              : const SizedBox(width: double.infinity),
+        ),
+        TranslateToolRow(
+          key: const Key('translate_explain_button'),
+          icon: Icons.school_outlined,
+          label: l10n.translateExplain,
+          opens: true,
+          onPressed: () {
+            if (state.explainStatus == ExtraStatus.idle ||
+                state.explainStatus == ExtraStatus.failure) {
+              unawaited(cubit.explain());
+            }
+            unawaited(showExplainSheet(context));
+          },
+        ),
+      ],
     );
   }
 }

@@ -312,11 +312,11 @@
   "@translateProvidersAction": {
     "description": "translateProvidersAction"
   },
-  "translateFavorite": "Add to favourites",
+  "translateFavorite": "Add to favorites",
   "@translateFavorite": {
     "description": "translateFavorite"
   },
-  "translateUnfavorite": "Remove from favourites",
+  "translateUnfavorite": "Remove from favorites",
   "@translateUnfavorite": {
     "description": "translateUnfavorite"
   },
@@ -2642,7 +2642,7 @@
   "@glossaryEditorCaseSensitive": {
     "description": "glossaryEditorCaseSensitive"
   },
-  "glossaryEditorCaseSensitiveDescription": "Only use this entry when the capitalisation matches",
+  "glossaryEditorCaseSensitiveDescription": "Only use this entry when the capitalization matches",
   "@glossaryEditorCaseSensitiveDescription": {
     "description": "glossaryEditorCaseSensitiveDescription"
   },
@@ -5624,7 +5624,7 @@
   "@settingsDarkLookLightsOut": {
     "description": "settingsDarkLookLightsOut"
   },
-  "settingsDarkLookSubtitle": "Dim is dark blue-grey; Lights out is true black, easier on OLED screens",
+  "settingsDarkLookSubtitle": "Dim is dark blue-gray; Lights out is true black, easier on OLED screens",
   "@settingsDarkLookSubtitle": {
     "description": "settingsDarkLookSubtitle"
   },
@@ -7557,7 +7557,7 @@
   "@settingsHapticFeedback": {
     "description": "settingsHapticFeedback"
   },
-  "settingsHapticFeedbackSubtitle": "Vibrate lightly when you press translate, swap, copy or favourite",
+  "settingsHapticFeedbackSubtitle": "Vibrate lightly when you press translate, swap, copy or favorite",
   "@settingsHapticFeedbackSubtitle": {
     "description": "settingsHapticFeedbackSubtitle"
   },
@@ -8136,7 +8136,7 @@
   "@settingsNetworkStatusFailed": {
     "description": "settingsNetworkStatusFailed"
   },
-  "settingsNetworkStatusCancelled": "Cancelled",
+  "settingsNetworkStatusCancelled": "Canceled",
   "@settingsNetworkStatusCancelled": {
     "description": "settingsNetworkStatusCancelled"
   },
@@ -8294,7 +8294,7 @@
   "@translateWarningLinks": {
     "description": "translateWarningLinks"
   },
-  "translateWarningEmails": "E-mail addresses may be missing or changed",
+  "translateWarningEmails": "Email addresses may be missing or changed",
   "@translateWarningEmails": {
     "description": "translateWarningEmails"
   },
@@ -8342,7 +8342,7 @@
       }
     }
   },
-  "translatePersonalDataKeptHint": "E-mail addresses, phone numbers and account numbers were replaced before the text left the device",
+  "translatePersonalDataKeptHint": "Email addresses, phone numbers and account numbers were replaced before the text left the device",
   "@translatePersonalDataKeptHint": {
     "description": "translatePersonalDataKeptHint"
   },
@@ -8394,11 +8394,11 @@
   "@settingsMaskPersonalData": {
     "description": "settingsMaskPersonalData"
   },
-  "settingsMaskPersonalDataSubtitle": "E-mail addresses, phone numbers, IBANs and card numbers are replaced before text leaves the device, then put back into the translation",
+  "settingsMaskPersonalDataSubtitle": "Email addresses, phone numbers, IBANs and card numbers are replaced before text leaves the device, then put back into the translation",
   "@settingsMaskPersonalDataSubtitle": {
     "description": "settingsMaskPersonalDataSubtitle"
   },
-  "settingsProviderDeeplQualityModel": "Prefer the quality-optimised model",
+  "settingsProviderDeeplQualityModel": "Prefer the quality-optimized model",
   "@settingsProviderDeeplQualityModel": {
     "description": "settingsProviderDeeplQualityModel"
   },
@@ -8413,5 +8413,584 @@
         "type": "String"
       }
     }
+  },
+  "settingsSaveFailed": "Couldn't save your settings. Changes stay until you close Mozhi.",
+  "@settingsSaveFailed": {
+    "description": "settingsSaveFailed"
+  },
+  "settingsSaveSecretFailed": "Couldn't store your API key or password securely. It works until you close Mozhi and is never saved unprotected.",
+  "@settingsSaveSecretFailed": {
+    "description": "settingsSaveSecretFailed"
+  },
+  "commonAiModelChip": "AI model: {engine}",
+  "@commonAiModelChip": {
+    "description": "Screen-reader name of the chip in the Dictionary and Proofread app bars that shows (and changes) the AI model they use; {engine} is the model's name.",
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "commonAiModelChipTooltip": "Choose the AI model",
+  "@commonAiModelChipTooltip": {
+    "description": "Tooltip of the AI model chip in the Dictionary and Proofread app bars (opens a menu of the AI models and a link to the AI provider settings)."
+  },
+  "dictionaryHeroPrompt": "Look up a word",
+  "@dictionaryHeroPrompt": {
+    "description": "Greeting of the empty Dictionary tab: a short verb-led prompt (like 'Check your writing' on Proofread)."
+  },
+  "dictionaryHeroSubtitle": "Meanings, pronunciation and examples from your AI provider.",
+  "@dictionaryHeroSubtitle": {
+    "description": "One-line subtitle under dictionaryHeroPrompt on the empty Dictionary tab."
+  },
+  "dictionaryTabUsage": "Usage",
+  "@dictionaryTabUsage": {
+    "description": "Tab of a dictionary entry with the other senses, related words, etymology and usage notes (between 'Meaning' and 'Examples')."
+  },
+  "proofreadHeroPrompt": "Check your writing",
+  "@proofreadHeroPrompt": {
+    "description": "Greeting of the empty Proofread tab: a short verb-led prompt (like 'Look up a word' on Dictionary)."
+  },
+  "proofreadHeroSubtitle": "Fix grammar, spelling and style, one suggestion at a time.",
+  "@proofreadHeroSubtitle": {
+    "description": "One-line subtitle under proofreadHeroPrompt on the empty Proofread tab."
+  },
+  "proofreadCopyCorrected": "Copy corrected text",
+  "@proofreadCopyCorrected": {
+    "description": "Main button under the proofread result: copies the corrected text (with the accepted suggestions)."
+  },
+  "proofreadEditAccept": "Accept",
+  "@proofreadEditAccept": {
+    "description": "Check-mark button on a suggested edit: keep this change in the corrected text (a toggle, selected while the change is applied)."
+  },
+  "proofreadEditReject": "Reject",
+  "@proofreadEditReject": {
+    "description": "Cross button on a suggested edit: leave the original text (a toggle, selected while the change is not applied)."
+  },
+  "proofreadEditsReset": "Reset",
+  "@proofreadEditsReset": {
+    "description": "Link above the suggested edits, shown once one was rejected: applies every suggestion again."
+  },
+  "proofreadEditsResetTooltip": "Apply every suggestion again",
+  "@proofreadEditsResetTooltip": {
+    "description": "Tooltip of proofreadEditsReset."
+  },
+  "onboardingServiceBody": "For languages that aren’t on this device, Mozhi uses a Mozhi server run by volunteers. If it’s down, Mozhi tries the next one.",
+  "@onboardingServiceBody": {
+    "description": "Intro of the onboarding's online service step on a device that can translate on its own."
+  },
+  "onboardingServiceBodyNoDevice": "Mozhi translates with a Mozhi server run by volunteers. If it’s down, Mozhi tries the next one.",
+  "@onboardingServiceBodyNoDevice": {
+    "description": "Intro of the onboarding's online service step where the device can't translate on its own (a browser)."
+  },
+  "onboardingServiceUsing": "Using {server}",
+  "@onboardingServiceUsing": {
+    "description": "The server Mozhi uses first, on the onboarding's online service step; {server} is its name.",
+    "placeholders": {
+      "server": {
+        "type": "String"
+      }
+    }
+  },
+  "onboardingServiceChange": "Change",
+  "@onboardingServiceChange": {
+    "description": "Button beside 'Using <server>' in the onboarding: shows the list of servers to pick another."
+  },
+  "onboardingServiceChangeDone": "Done",
+  "@onboardingServiceChangeDone": {
+    "description": "The 'Change' button of the onboarding's server row while the list of servers is open: closes the list."
+  },
+  "onboardingServiceFindFastestTitle": "Find the fastest server",
+  "@onboardingServiceFindFastestTitle": {
+    "description": "Onboarding: measures the speed of every listed server and uses the fastest first (one tap, never automatic)."
+  },
+  "onboardingServiceFindFastestHint": "Contacts every listed server once to measure its speed, then tries the fastest first.",
+  "@onboardingServiceFindFastestHint": {
+    "description": "Subtitle of onboardingServiceFindFastestTitle: says that it contacts each volunteer server."
+  },
+  "onboardingServiceAskFirst": "Ask before sending text",
+  "@onboardingServiceAskFirst": {
+    "description": "Onboarding switch where the device can't translate on its own: on = ask once for each language pair before text goes to a server (Offline first mode), off = Online mode."
+  },
+  "onboardingServiceAskFirstBody": "This device can’t translate on its own, so your text goes to this server. Turn this on to be asked once for each language pair.",
+  "@onboardingServiceAskFirstBody": {
+    "description": "Subtitle of onboardingServiceAskFirst."
+  },
+  "translateErrorUseEngine": "Translate with {engine}",
+  "@translateErrorUseEngine": {
+    "description": "Main action under a failed translation: translates with another engine the user already allowed for this language pair; {engine} is its name.",
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "translateErrorTryNextInstance": "Try next instance",
+  "@translateErrorTryNextInstance": {
+    "description": "Main action under a failed Mozhi translation: makes the next Mozhi instance of the user's list the preferred one and translates again."
+  },
+  "translateErrorTitleOffline": "You’re offline",
+  "@translateErrorTitleOffline": {
+    "description": "Title of a failed request while the device has no network connection."
+  },
+  "translateErrorOfflineBody": "Connect to the internet, then try again.",
+  "@translateErrorOfflineBody": {
+    "description": "Body under translateErrorTitleOffline."
+  },
+  "translateErrorTitleConnection": "Couldn’t connect",
+  "@translateErrorTitleConnection": {
+    "description": "Short title of an error: the server did not answer (no connection, a timeout, a server error)."
+  },
+  "translateErrorTitleProvider": "AI provider problem",
+  "@translateErrorTitleProvider": {
+    "description": "Short title of an error reported by an AI provider (sign-in, model, limits, refusal)."
+  },
+  "translateErrorTitleInstance": "Mozhi instance problem",
+  "@translateErrorTitleInstance": {
+    "description": "Short title of an error reported by a Mozhi instance."
+  },
+  "translateErrorTitleDownload": "Download needed",
+  "@translateErrorTitleDownload": {
+    "description": "Short title of an error: the languages are not downloaded for on-device translation."
+  },
+  "translateErrorTitleLanguage": "Language not detected",
+  "@translateErrorTitleLanguage": {
+    "description": "Short title of an error: the engine could not tell the language of the text."
+  },
+  "translateTools": "Tools",
+  "@translateTools": {
+    "description": "Disclosure under the translation that shows the analysis tools (check meaning, insights, matching phrases, alternatives, explain, ...)"
+  },
+  "translateRefineMoreMenu": "More refinements",
+  "@translateRefineMoreMenu": {
+    "description": "Tooltip and screen-reader label of the + chip after the refinement chips; opens a menu with the other refinements"
+  },
+  "translateShortOtherTranslations": "Other translations",
+  "@translateShortOtherTranslations": {
+    "description": "Heading of other translations of a short input (1-3 words) the engine returned; tapping one uses it"
+  },
+  "translateShortUseTranslation": "Use this translation",
+  "@translateShortUseTranslation": {
+    "description": "Tooltip of another translation of a short input: tapping it makes it the translation"
+  },
+  "translateShortOpenDictionary": "Open in Dictionary",
+  "@translateShortOpenDictionary": {
+    "description": "Link under the translation of a short input that opens the word in the Dictionary tab"
+  },
+  "translateShortMoreDetail": "More detail",
+  "@translateShortMoreDetail": {
+    "description": "Button under the translation of a short input that looks the word up with the AI dictionary (an AI request)"
+  },
+  "translateUncertainHint": "The on-device engine is unsure about this sentence",
+  "@translateUncertainHint": {
+    "description": "Tooltip of a sentence of an on-device translation that is underlined with dots because the engine is unsure about it"
+  },
+  "translateUncertainNote": "{count, plural, =1{The on-device engine is unsure about 1 sentence (dotted underline)} other{The on-device engine is unsure about {count} sentences (dotted underline)}}",
+  "@translateUncertainNote": {
+    "description": "Note under an on-device translation: how many of its sentences the engine is unsure about; they are underlined with dots",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "translateUncertainCompare": "Compare with another engine",
+  "@translateUncertainCompare": {
+    "description": "Button under an on-device translation with unsure sentences: translates with the other engines side by side"
+  },
+  "translateShowMode": "Show full screen",
+  "@translateShowMode": {
+    "description": "Action under the translation: shows it full screen in large type, to show it to someone"
+  },
+  "translateShowModeTitle": "Translation, full screen",
+  "@translateShowModeTitle": {
+    "description": "Screen-reader name of the full-screen view of the translation"
+  },
+  "translateShowModeHint": "Tap anywhere to close",
+  "@translateShowModeHint": {
+    "description": "Small hint at the bottom of the full-screen view of the translation"
+  },
+  "translateToolsLearn": "Learn",
+  "@translateToolsLearn": {
+    "description": "Small heading above alternatives and explain in the Tools area under the translation"
+  },
+  "settingsSearchHint": "Search settings",
+  "@settingsSearchHint": {
+    "description": "settingsSearchHint"
+  },
+  "settingsSearchClear": "Clear search",
+  "@settingsSearchClear": {
+    "description": "settingsSearchClear"
+  },
+  "settingsSearchNoResults": "No settings match “{query}”.",
+  "@settingsSearchNoResults": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsSearchResults": "{count, plural, =0{No settings found} =1{1 setting found} other{{count} settings found}}",
+  "@settingsSearchResults": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsCategoryPrivacy": "Privacy & data",
+  "@settingsCategoryPrivacy": {
+    "description": "settingsCategoryPrivacy"
+  },
+  "settingsCategoryEngines": "Translation engines",
+  "@settingsCategoryEngines": {
+    "description": "settingsCategoryEngines"
+  },
+  "settingsCategoryAi": "AI",
+  "@settingsCategoryAi": {
+    "description": "settingsCategoryAi"
+  },
+  "settingsCategorySpeech": "Read aloud & voice",
+  "@settingsCategorySpeech": {
+    "description": "settingsCategorySpeech"
+  },
+  "settingsCategoryGeneralSummary": "App language, tab order, typing",
+  "@settingsCategoryGeneralSummary": {
+    "description": "settingsCategoryGeneralSummary"
+  },
+  "settingsCategoryPrivacySummary": "Privacy mode, history, network, delete data",
+  "@settingsCategoryPrivacySummary": {
+    "description": "settingsCategoryPrivacySummary"
+  },
+  "settingsCategoryEnginesSummary": "Offline languages, Mozhi instances, services, instant translate",
+  "@settingsCategoryEnginesSummary": {
+    "description": "settingsCategoryEnginesSummary"
+  },
+  "settingsCategoryAiSummary": "AI providers, insights, presets, glossaries, usage",
+  "@settingsCategoryAiSummary": {
+    "description": "settingsCategoryAiSummary"
+  },
+  "settingsCategoryAppearanceSummary": "Theme, dark look, accent color, romanization",
+  "@settingsCategoryAppearanceSummary": {
+    "description": "settingsCategoryAppearanceSummary"
+  },
+  "settingsCategorySpeechSummary": "Speech rate, voices, voice input",
+  "@settingsCategorySpeechSummary": {
+    "description": "settingsCategorySpeechSummary"
+  },
+  "settingsSectionNetwork": "Network",
+  "@settingsSectionNetwork": {
+    "description": "settingsSectionNetwork"
+  },
+  "settingsSectionData": "Data",
+  "@settingsSectionData": {
+    "description": "settingsSectionData"
+  },
+  "settingsSectionTranslating": "Translating",
+  "@settingsSectionTranslating": {
+    "description": "settingsSectionTranslating"
+  },
+  "settingsInstantTranslateDialogBody": "Translate while you type, without pressing Translate.",
+  "@settingsInstantTranslateDialogBody": {
+    "description": "settingsInstantTranslateDialogBody"
+  },
+  "settingsInstantOff": "Off",
+  "@settingsInstantOff": {
+    "description": "settingsInstantOff"
+  },
+  "settingsInstantOffSubtitle": "Translate only when you press Translate",
+  "@settingsInstantOffSubtitle": {
+    "description": "settingsInstantOffSubtitle"
+  },
+  "settingsInstantEngines": "Online engines",
+  "@settingsInstantEngines": {
+    "description": "settingsInstantEngines"
+  },
+  "settingsInstantEnginesSubtitle": "Mozhi, translation services and on-device translation. AI waits until you press Translate.",
+  "@settingsInstantEnginesSubtitle": {
+    "description": "settingsInstantEnginesSubtitle"
+  },
+  "settingsInstantEnginesAndAi": "Online engines and AI",
+  "@settingsInstantEnginesAndAi": {
+    "description": "settingsInstantEnginesAndAi"
+  },
+  "settingsInstantEnginesAndAiSubtitle": "AI providers too. Uses more tokens and may cost money.",
+  "@settingsInstantEnginesAndAiSubtitle": {
+    "description": "settingsInstantEnginesAndAiSubtitle"
+  },
+  "settingsInstantAiOnly": "AI providers only",
+  "@settingsInstantAiOnly": {
+    "description": "settingsInstantAiOnly"
+  },
+  "settingsInstantAiOnlySubtitle": "Other engines wait until you press Translate.",
+  "@settingsInstantAiOnlySubtitle": {
+    "description": "settingsInstantAiOnlySubtitle"
+  },
+  "translatePickerLanguagesTab": "Languages",
+  "@translatePickerLanguagesTab": {
+    "description": "Segment of the target language picker (AI engines) that lists the languages; the other segment is Styles."
+  },
+  "translateShortcutFocusInput": "Go to the text box",
+  "@translateShortcutFocusInput": {
+    "description": "Keyboard shortcuts dialog: the / key moves the keyboard focus to the text to translate."
+  },
+  "translateShortcutSectionApp": "Anywhere in the app",
+  "@translateShortcutSectionApp": {
+    "description": "Keyboard shortcuts dialog: heading of the shortcuts that work on every tab."
+  },
+  "translateShortcutTabs": "Switch to tab 1 to 4",
+  "@translateShortcutTabs": {
+    "description": "Keyboard shortcuts dialog: Alt+1 to Alt+4 switch between the four tabs (Translate, Dictionary, Proofread, Conversation)."
+  },
+  "translateShortcutHistory": "Open History",
+  "@translateShortcutHistory": {
+    "description": "Keyboard shortcuts dialog: the shortcut that opens the History page."
+  },
+  "translateCharacterCountOfLimit": "{count} / {limit}",
+  "@translateCharacterCountOfLimit": {
+    "description": "The input character count near the limit, e.g. 4,950 / 5,000",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      },
+      "limit": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "translateCharacterCountOfLimitSemantics": "{count} of {limit} characters",
+  "@translateCharacterCountOfLimitSemantics": {
+    "description": "Screen reader text of translateCharacterCountOfLimit",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      },
+      "limit": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "translateEngineCustom": "Custom engine…",
+  "@translateEngineCustom": {
+    "description": "translateEngineCustom"
+  },
+  "translateEngineCustomFast": "Choose the engine Fast translates with",
+  "@translateEngineCustomFast": {
+    "description": "translateEngineCustomFast"
+  },
+  "translateEngineCustomBest": "Choose the engine Best translates with",
+  "@translateEngineCustomBest": {
+    "description": "translateEngineCustomBest"
+  },
+  "translateEngineAboutGoogle": "Covers the most languages",
+  "@translateEngineAboutGoogle": {
+    "description": "translateEngineAboutGoogle"
+  },
+  "translateEngineAboutDeepl": "Good for European languages",
+  "@translateEngineAboutDeepl": {
+    "description": "translateEngineAboutDeepl"
+  },
+  "translateEngineAboutBing": "Microsoft Translator, via DuckDuckGo",
+  "@translateEngineAboutBing": {
+    "description": "translateEngineAboutBing"
+  },
+  "translateEngineAboutMyMemory": "Translation memory, best for short phrases",
+  "@translateEngineAboutMyMemory": {
+    "description": "translateEngineAboutMyMemory"
+  },
+  "translateEngineAboutReverso": "Good for short phrases and idioms",
+  "@translateEngineAboutReverso": {
+    "description": "translateEngineAboutReverso"
+  },
+  "translateEngineAboutYandex": "Good for Russian and nearby languages",
+  "@translateEngineAboutYandex": {
+    "description": "translateEngineAboutYandex"
+  },
+  "translateEngineAboutLibre": "Open-source machine translation",
+  "@translateEngineAboutLibre": {
+    "description": "translateEngineAboutLibre"
+  },
+  "translateEngineAboutOnDevice": "Private: your text stays on this device",
+  "@translateEngineAboutOnDevice": {
+    "description": "translateEngineAboutOnDevice"
+  },
+  "translateEngineAboutAi": "Follows tone, context and your other options",
+  "@translateEngineAboutAi": {
+    "description": "translateEngineAboutAi"
+  },
+  "translateEngineAboutAiTranslationModel": "A translation model: plain translation, no options",
+  "@translateEngineAboutAiTranslationModel": {
+    "description": "translateEngineAboutAiTranslationModel"
+  },
+  "translateCompareCurrent": "Current translation",
+  "@translateCompareCurrent": {
+    "description": "translateCompareCurrent"
+  },
+  "translateCompareAgreeTwo": "{first} and {second} agree",
+  "@translateCompareAgreeTwo": {
+    "description": "Header of a compare card whose engines returned the same translation",
+    "placeholders": {
+      "first": {
+        "type": "String"
+      },
+      "second": {
+        "type": "String"
+      }
+    }
+  },
+  "translateCompareAgreeMany": "{others} and {last} agree",
+  "@translateCompareAgreeMany": {
+    "description": "Header of a compare card for three or more engines with the same translation; others is a list joined with translateCompareNameSeparator",
+    "placeholders": {
+      "others": {
+        "type": "String"
+      },
+      "last": {
+        "type": "String"
+      }
+    }
+  },
+  "translateCompareNameSeparator": ", ",
+  "@translateCompareNameSeparator": {
+    "description": "Separator between engine names in translateCompareAgreeMany"
+  },
+  "translateCompareDiffHint": "Highlighted words differ from the current translation.",
+  "@translateCompareDiffHint": {
+    "description": "translateCompareDiffHint"
+  },
+  "translateCompareDone": "Done",
+  "@translateCompareDone": {
+    "description": "translateCompareDone"
+  },
+  "translateOptionsTone": "Tone",
+  "@translateOptionsTone": {
+    "description": "translateOptionsTone"
+  },
+  "translateToneFormal": "Formal",
+  "@translateToneFormal": {
+    "description": "translateToneFormal"
+  },
+  "translateToneNeutral": "Neutral",
+  "@translateToneNeutral": {
+    "description": "translateToneNeutral"
+  },
+  "translateToneCasual": "Casual",
+  "@translateToneCasual": {
+    "description": "translateToneCasual"
+  },
+  "translateOptionsAdvanced": "Advanced",
+  "@translateOptionsAdvanced": {
+    "description": "translateOptionsAdvanced"
+  },
+  "translateOptionsSoftToneHint": "Only where it sounds natural: a lighter touch than Formal or Casual.",
+  "@translateOptionsSoftToneHint": {
+    "description": "translateOptionsSoftToneHint"
+  },
+  "translateOptionsAiOnly": "AI engines only",
+  "@translateOptionsAiOnly": {
+    "description": "translateOptionsAiOnly"
+  },
+  "translateOptionsAiOrDeeplOnly": "AI engines and DeepL only",
+  "@translateOptionsAiOrDeeplOnly": {
+    "description": "translateOptionsAiOrDeeplOnly"
+  },
+  "translateHeroContinue": "Continue",
+  "@translateHeroContinue": {
+    "description": "translateHeroContinue"
+  },
+  "translateHeroContinueSemantics": "Continue: {text}, {pair}",
+  "@translateHeroContinueSemantics": {
+    "placeholders": {
+      "text": {
+        "type": "String"
+      },
+      "pair": {
+        "type": "String"
+      }
+    }
+  },
+  "translateHeroPasteTranslate": "Paste and translate",
+  "@translateHeroPasteTranslate": {
+    "description": "translateHeroPasteTranslate"
+  },
+  "translateHeroPaste": "Paste copied text",
+  "@translateHeroPaste": {
+    "description": "translateHeroPaste"
+  },
+  "translateHeroPasteDismiss": "Dismiss",
+  "@translateHeroPasteDismiss": {
+    "description": "translateHeroPasteDismiss"
+  },
+  "settingsQualityUsesUsual": "Uses your usual engine. Tap to choose another one.",
+  "@settingsQualityUsesUsual": {
+    "description": "settingsQualityUsesUsual"
+  },
+  "historyExportFavorites": "Export favorites",
+  "@historyExportFavorites": {
+    "description": "historyExportFavorites"
+  },
+  "historyExportTitle": "{count, plural, =1{Export 1 favorite} other{Export {count} favorites}}",
+  "@historyExportTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "historyExportNote": "A CSV file for Anki flashcards and spreadsheets, with the text, its translation, the languages and the date. It isn't encrypted, and it stays on this device unless you share it.",
+  "@historyExportNote": {
+    "description": "historyExportNote"
+  },
+  "historyExportSave": "Save as CSV",
+  "@historyExportSave": {
+    "description": "historyExportSave"
+  },
+  "historyExportShare": "Share CSV",
+  "@historyExportShare": {
+    "description": "historyExportShare"
+  },
+  "historyExportSaved": "{count, plural, =1{Saved 1 favorite} other{Saved {count} favorites}}",
+  "@historyExportSaved": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "historyExportFailed": "Couldn't export your favorites",
+  "@historyExportFailed": {
+    "description": "historyExportFailed"
+  },
+  "historyExportShareUnsupported": "Sharing files isn't supported on this device. Use Save instead.",
+  "@historyExportShareUnsupported": {
+    "description": "historyExportShareUnsupported"
+  },
+  "historyDetails": "Details",
+  "@historyDetails": {
+    "description": "historyDetails"
+  },
+  "historyDetailEmpty": "Select a translation to see it here",
+  "@historyDetailEmpty": {
+    "description": "historyDetailEmpty"
+  },
+  "historyDetailOriginal": "Original",
+  "@historyDetailOriginal": {
+    "description": "historyDetailOriginal"
+  },
+  "historyDetailTranslation": "Translation",
+  "@historyDetailTranslation": {
+    "description": "historyDetailTranslation"
+  },
+  "historyDetailSummary": "Summary",
+  "@historyDetailSummary": {
+    "description": "historyDetailSummary"
+  },
+  "historyPairFilters": "Language pairs",
+  "@historyPairFilters": {
+    "description": "historyPairFilters"
   }
 }

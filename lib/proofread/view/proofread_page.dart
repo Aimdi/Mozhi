@@ -116,13 +116,18 @@ String proofreadUiLanguage(Locale locale) {
 /// Active (the field has focus or text, or there is a result): like the
 /// translate tab, the card's outline fades and it fills the screen: the
 /// input with its toolbar above the result (the corrected text with its
-/// diff, the summary, the writing statistics and the suggested edits with
-/// their explanations and "Accept all"), side by side from
+/// diff and "Copy corrected text", the summary, the writing statistics and
+/// the suggested edits, each with accept and reject buttons), side by side
+/// from
 /// [wideBreakpoint], with the bar docked at the bottom (above the
 /// keyboard while it is open). It is one tree in both, so the field keeps
-/// its focus, text and keyboard. At a vertical hinge or half-opened fold
-/// the input and the result are split at it, with the bar under the
-/// input.
+/// its focus, text and keyboard. Once there is a result the input shrinks
+/// to its text. At a vertical hinge or half-opened fold the input and the
+/// result are split at it, with the bar under the input.
+///
+/// The app bar shows the AI model in use ([ProofreadEngineChip]: beside
+/// the title on large screens, instead of it on phones), like the
+/// translate screen's engine.
 class ProofreadView extends StatelessWidget {
   const new({super.key});
 
@@ -173,7 +178,10 @@ class ProofreadView extends StatelessWidget {
       ),
       child: Scaffold(
         appBar: AppBar(
-          title: Text(context.l10n.proofreadTitle),
+          title: ComposerAppBarTitle(
+            title: context.l10n.proofreadTitle,
+            chip: hasEngines ? const ProofreadEngineChip() : null,
+          ),
           actions: const [TopLevelActions(), SizedBox(width: 4)],
         ),
         body: SafeArea(top: false, child: body),
@@ -182,8 +190,8 @@ class ProofreadView extends StatelessWidget {
   }
 }
 
-/// "Does this look right?" above the docked composer while there is
-/// nothing to check yet; the field's hint says what to do.
+/// "Check your writing" with what proofreading does, above the docked
+/// composer while there is nothing to check yet.
 class ProofreadHero extends StatelessWidget {
   const new({super.key});
 
@@ -193,7 +201,8 @@ class ProofreadHero extends StatelessWidget {
     padding: const EdgeInsets.all(24),
     child: TabHero(
       icon: Icons.spellcheck_rounded,
-      title: context.l10n.proofreadHeroTitle,
+      title: context.l10n.proofreadHeroPrompt,
+      body: context.l10n.proofreadHeroSubtitle,
     ),
   );
 }
@@ -293,6 +302,9 @@ class _NarrowRegion extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasResult = context.select<ProofreadCubit, bool>(
+      (cubit) => cubit.state.result != null,
+    );
     return SingleChildScrollView(
       key: const Key('proofread_narrow_layout'),
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -313,7 +325,12 @@ class _NarrowRegion extends StatelessWidget {
               ProofreadInputCard(
                 focusNode: focusNode,
                 compact: hero,
-                minLines: hero ? 3 : 6,
+                // Once there is a result the input fits its text.
+                minLines: hero
+                    ? 3
+                    : hasResult
+                    ? 1
+                    : 6,
               ),
               if (!hero) const ProofreadResultSection(),
             ],
@@ -334,6 +351,9 @@ class _WideRegion extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasResult = context.select<ProofreadCubit, bool>(
+      (cubit) => cubit.state.result != null,
+    );
     return LayoutBuilder(
       builder: (context, constraints) {
         final result = hero ? 0.0 : (constraints.maxWidth - 1) / 2;
@@ -359,7 +379,12 @@ class _WideRegion extends StatelessWidget {
                 child: ProofreadInputCard(
                   focusNode: focusNode,
                   compact: hero,
-                  minLines: hero ? 3 : 8,
+                  // Once there is a result the input fits its text.
+                  minLines: hero
+                      ? 3
+                      : hasResult
+                      ? 1
+                      : 8,
                 ),
               ),
             ),

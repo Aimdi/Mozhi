@@ -7,18 +7,25 @@ import 'package:mozhi/settings/view/widgets/settings_section.dart';
 
 import 'helpers.dart';
 
-/// The [SettingsSection] whose heading is [title].
-Finder _section(String title) => find
-    .ancestor(
-      of: find
-          .descendant(
-            of: find.byType(SettingsSection),
-            matching: find.text(title),
+/// The first [SettingsSection] of the selected category ([title] null: the
+/// General settings, which have no heading).
+Finder _section(String? title) => title == null
+    ? find.byType(SettingsSection).first
+    : find
+          .ancestor(
+            of: find
+                .descendant(
+                  of: find.byType(SettingsSection),
+                  matching: find.text(title),
+                )
+                .first,
+            matching: find.byType(SettingsSection),
           )
-          .first,
-      matching: find.byType(SettingsSection),
-    )
-    .first;
+          .first;
+
+/// The row of [category] in the list.
+Finder _category(SettingsCategory category) =>
+    find.byKey(SettingsView.categoryKey(category));
 
 void main() {
   setUpAll(registerFallbacks);
@@ -56,12 +63,13 @@ void main() {
           ),
         ],
       );
-      final privacy = tester.getRect(_section('Privacy'));
-      final appearance = tester.getRect(_section('Appearance'));
-      expect(privacy.left, 16);
-      expect(privacy.right, 540);
-      expect(appearance.left, 574);
-      expect(appearance.right, 1114 - 16);
+      // The categories on one side, the selected one on the other.
+      final list = tester.getRect(_category(SettingsCategory.general));
+      final detail = tester.getRect(_section(null));
+      expect(list.left, greaterThanOrEqualTo(0));
+      expect(list.right, lessThanOrEqualTo(540));
+      expect(detail.left, greaterThanOrEqualTo(574));
+      expect(detail.right, lessThanOrEqualTo(1114));
     });
 
     testWidgets('uses two columns at a half-opened fold on a narrow window', (
@@ -79,8 +87,11 @@ void main() {
         ],
       );
       expect(find.byKey(const Key('settings_columns')), findsOneWidget);
-      expect(tester.getRect(_section('Privacy')).right, 345);
-      expect(tester.getRect(_section('Appearance')).left, 345);
+      expect(
+        tester.getRect(_category(SettingsCategory.general)).right,
+        lessThanOrEqualTo(345),
+      );
+      expect(tester.getRect(_section(null)).left, greaterThanOrEqualTo(345));
     });
 
     testWidgets('keeps one column at a tabletop fold', (tester) async {
@@ -96,7 +107,9 @@ void main() {
         ],
       );
       expect(find.byKey(const Key('settings_columns')), findsNothing);
+      // The list of categories alone.
       expect(find.byType(ListView), findsOneWidget);
+      expect(find.byType(SettingsSection), findsNothing);
     });
   });
 }

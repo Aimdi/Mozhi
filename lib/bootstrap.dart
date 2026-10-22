@@ -3,6 +3,7 @@ import 'dart:developer';
 
 import 'package:bloc/bloc.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:mozhi/app/app_dependencies.dart';
@@ -12,6 +13,7 @@ import 'package:mozhi/core/key_value_metadata_store.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/network/network_session.dart';
 import 'package:mozhi/core/on_device_ml.dart';
+import 'package:mozhi/core/widgets/focus_ring.dart';
 import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/platform/offline_engine.dart';
@@ -61,13 +63,33 @@ class AppBlocObserver extends BlocObserver {
   }
 }
 
+/// Keeps the accessibility tree of the web app on ([enableWebSemantics]).
+SemanticsHandle? _webSemantics;
+
+/// On the web ([isWeb]), turns the accessibility tree on from the start and
+/// returns the handle that keeps it on (null elsewhere).
+///
+/// Flutter web draws on a canvas and otherwise only builds the tree once a
+/// screen reader user finds and activates its hidden "Enable
+/// accessibility" button; with it on, screen readers, browser zoom tools
+/// and automation see every control, label and text from the first frame.
+/// Android builds the tree whenever an accessibility service asks.
+@visibleForTesting
+SemanticsHandle? enableWebSemantics({bool isWeb = kIsWeb}) =>
+    isWeb ? SemanticsBinding.instance.ensureSemantics() : null;
+
 /// Initialises Flutter, creates the [AppDependencies] (with [dependencies])
-/// and runs the widget returned by [builder].
+/// and runs the widget returned by [builder] under a [FocusRingLayer] (the
+/// keyboard focus ring of every control).
+///
+/// On the web the accessibility tree is on from the start
+/// ([enableWebSemantics]).
 Future<void> bootstrap(
   FutureOr<Widget> Function(AppDependencies dependencies) builder, {
   Future<AppDependencies> Function() dependencies = createDependencies,
 }) async {
   WidgetsFlutterBinding.ensureInitialized();
+  _webSemantics ??= enableWebSemantics();
 
   FlutterError.onError = (details) {
     FlutterError.presentError(details);
@@ -81,7 +103,7 @@ Future<void> bootstrap(
   if (kDebugMode) Bloc.observer = const AppBlocObserver();
   registerThirdPartyLicenses(includeMlKit: mlKitIncluded);
 
-  runApp(await builder(await dependencies()));
+  runApp(FocusRingLayer(child: await builder(await dependencies())));
 }
 
 /// Creates the long-lived services and loads the saved settings.

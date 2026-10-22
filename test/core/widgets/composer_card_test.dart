@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/widgets/composer_card.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
+import 'package:translation_repository/translation_repository.dart';
 
 import '../../helpers/helpers.dart';
 
@@ -112,7 +113,7 @@ void main() {
       );
       expect(
         decoration.border,
-        Border.fromBorderSide(BorderSide(color: scheme.outlineVariant)),
+        Border.fromBorderSide(BorderSide(color: scheme.outline)),
       );
       expect(decoration.color, isNot(Colors.transparent));
       expect(decoration.color!.a, 1);
@@ -379,12 +380,13 @@ void main() {
       (widget) => widget is Tooltip && widget.message == message,
     );
 
-    testWidgets('is a filled rocket named by its label', (tester) async {
+    testWidgets('is a filled arrow named by its label', (tester) async {
       final semantics = tester.ensureSemantics();
       var presses = 0;
       await pumpGo(tester, onPressed: () => presses++);
 
-      expect(find.byIcon(Icons.rocket_launch), findsOneWidget);
+      expect(find.byIcon(ComposerGoButton.defaultIcon), findsOneWidget);
+      expect(ComposerGoButton.defaultIcon, Icons.arrow_forward_rounded);
       expect(
         tester.getSemantics(find.byType(IconButton)),
         isSemantics(label: 'Look up', isButton: true, isEnabled: true),
@@ -409,6 +411,255 @@ void main() {
       expect(
         tester.widget<IconButton>(find.byType(IconButton)).onPressed,
         isNull,
+      );
+    });
+
+    testWidgets('is a 40 dp circle in a 48 dp target that fits its bar', (
+      tester,
+    ) async {
+      await tester.pumpApp(
+        Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 300,
+              child: ComposerBar(
+                children: [
+                  const Expanded(child: SizedBox(height: 20)),
+                  ComposerGoButton(label: 'Look up', onPressed: () {}),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final target = tester.getSize(find.byType(ComposerGoButton));
+      expect(target, const Size.square(ComposerGoButton.targetSize));
+      final bar = tester.getRect(find.byType(ComposerBar));
+      final button = tester.getRect(find.byType(ComposerGoButton));
+      expect(bar.contains(button.topLeft), isTrue);
+      expect(bar.contains(button.bottomRight - const Offset(1, 1)), isTrue);
+    });
+
+    testWidgets('keeps the circle at any visual density', (tester) async {
+      await tester.pumpApp(
+        Theme(
+          data: ThemeData(visualDensity: VisualDensity.compact),
+          child: Scaffold(
+            body: Center(
+              child: ComposerGoButton(label: 'Look up', onPressed: () {}),
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        tester.getSize(find.byType(ComposerGoButton)),
+        const Size.square(ComposerGoButton.targetSize),
+      );
+      final style = tester.widget<IconButton>(find.byType(IconButton)).style!;
+      expect(
+        style.fixedSize?.resolve({}),
+        const Size.square(ComposerGoButton.visualSize),
+      );
+    });
+
+    test('a disabled go button has no fill, a stop button is tonal', () {
+      final scheme = ColorScheme.fromSeed(seedColor: kDefaultAccent);
+      final filled = ComposerGoButton.styleOf(scheme);
+      expect(
+        filled.backgroundColor?.resolve({WidgetState.disabled}),
+        Colors.transparent,
+      );
+      expect(filled.backgroundColor?.resolve({}), scheme.primary);
+      final tonal = ComposerGoButton.styleOf(scheme, tonal: true);
+      expect(tonal.backgroundColor?.resolve({}), scheme.secondaryContainer);
+    });
+  });
+
+  group('ComposerEngineChip', () {
+    const claude = TranslationEngine(
+      id: 'ai:claude',
+      kind: EngineKind.ai,
+      name: 'Claude',
+      subtitle: 'claude-sonnet',
+    );
+    const local = TranslationEngine(
+      id: 'ai:ollama',
+      kind: EngineKind.ai,
+      name: 'Ollama',
+      subtitle: 'llama3',
+      isLocal: true,
+    );
+
+    Future<void> pumpChip(
+      WidgetTester tester, {
+      List<TranslationEngine> engines = const [claude, local],
+      ValueChanged<TranslationEngine>? onSelected,
+      VoidCallback? onManage,
+      double textScale = 1,
+      TranslationEngine engine = claude,
+    }) => tester.pumpApp(
+      MediaQuery(
+        data: MediaQueryData(textScaler: TextScaler.linear(textScale)),
+        child: Scaffold(
+          appBar: AppBar(
+            title: ComposerEngineChip(
+              engine: engine,
+              engines: engines,
+              onSelected: onSelected,
+              onManage: onManage,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    testWidgets('shows the model and its subtitle, named for screen readers', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+      await pumpChip(tester, onSelected: (_) {});
+
+      expect(find.text('Claude'), findsOneWidget);
+      expect(find.text('claude-sonnet'), findsOneWidget);
+      expect(find.byIcon(Icons.auto_awesome_outlined), findsOneWidget);
+      expect(
+        tester.getSemantics(find.byKey(const Key('composer_engine_chip'))),
+        isSemantics(label: 'AI model: Claude', isButton: true),
+      );
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Tooltip && widget.message == 'Choose the AI model',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        tester.getSize(find.byKey(const Key('composer_engine_chip'))).height,
+        greaterThanOrEqualTo(48),
+      );
+      semantics.dispose();
+    });
+
+    testWidgets('drops the subtitle with large text', (tester) async {
+      await pumpChip(tester, onSelected: (_) {}, textScale: 1.5);
+
+      expect(find.text('claude-sonnet'), findsNothing);
+    });
+
+    testWidgets('marks a local model with its own icon', (tester) async {
+      await pumpChip(tester, engine: local, onSelected: (_) {});
+
+      expect(find.byIcon(Icons.memory), findsOneWidget);
+    });
+
+    testWidgets('picks another model from its menu', (tester) async {
+      TranslationEngine? picked;
+      var managed = 0;
+      await pumpChip(
+        tester,
+        onSelected: (engine) => picked = engine,
+        onManage: () => managed++,
+      );
+
+      await tester.tap(find.byKey(const Key('composer_engine_chip')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('composer_engine:ai:claude')), findsOne);
+      expect(find.text('llama3'), findsOneWidget);
+      expect(find.text('AI providers'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('composer_engine:ai:ollama')));
+      await tester.pumpAndSettle();
+      expect(picked, local);
+
+      await tester.tap(find.byKey(const Key('composer_engine_chip')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('composer_engine_manage')));
+      await tester.pumpAndSettle();
+      expect(managed, 1);
+    });
+
+    testWidgets('only links the provider settings with a single model', (
+      tester,
+    ) async {
+      await pumpChip(
+        tester,
+        engines: const [claude],
+        onSelected: (_) {},
+        onManage: () {},
+      );
+
+      await tester.tap(find.byKey(const Key('composer_engine_chip')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('composer_engine:ai:claude')), findsNothing);
+      expect(find.byKey(const Key('composer_engine_manage')), findsOneWidget);
+    });
+
+    testWidgets('is disabled with nothing to offer', (tester) async {
+      await pumpChip(tester, engines: const [claude]);
+
+      expect(
+        tester
+            .widget<TextButton>(find.byKey(const Key('composer_engine_chip')))
+            .onPressed,
+        isNull,
+      );
+    });
+
+    testWidgets('closes its open menu when pressed again', (tester) async {
+      await pumpChip(tester, onSelected: (_) {});
+
+      await tester.tap(find.byKey(const Key('composer_engine_chip')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('composer_engine:ai:claude')), findsOne);
+      final chip = tester.widget<TextButton>(
+        find.byKey(const Key('composer_engine_chip')),
+      );
+      chip.onPressed!();
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('composer_engine:ai:claude')), findsNothing);
+    });
+  });
+
+  group('ComposerAppBarTitle', () {
+    Future<void> pumpTitle(WidgetTester tester, double width, {Widget? chip}) {
+      tester.view
+        ..physicalSize = Size(width, 600)
+        ..devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      return tester.pumpApp(
+        Scaffold(
+          appBar: AppBar(
+            title: ComposerAppBarTitle(title: 'Dictionary', chip: chip),
+          ),
+        ),
+      );
+    }
+
+    const chip = SizedBox(key: Key('chip'), width: 120, height: 40);
+
+    testWidgets('is the title alone without a chip', (tester) async {
+      await pumpTitle(tester, 400);
+
+      expect(find.text('Dictionary'), findsOneWidget);
+    });
+
+    testWidgets('is only the chip on phones', (tester) async {
+      await pumpTitle(tester, 400, chip: chip);
+
+      expect(find.text('Dictionary'), findsNothing);
+      expect(find.byKey(const Key('chip')), findsOneWidget);
+    });
+
+    testWidgets('puts the chip beside the title on large screens', (
+      tester,
+    ) async {
+      await pumpTitle(tester, 1000, chip: chip);
+
+      expect(find.text('Dictionary'), findsOneWidget);
+      expect(
+        tester.getRect(find.byKey(const Key('chip'))).left,
+        greaterThan(tester.getRect(find.text('Dictionary')).right),
       );
     });
   });

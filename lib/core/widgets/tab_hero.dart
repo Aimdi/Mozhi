@@ -6,6 +6,11 @@ import 'package:mozhi/core/widgets/x_ui.dart';
 /// [icon], a big bold centred [title], an optional quieter [body] and an
 /// optional [child] below (e.g. a large button).
 ///
+/// Every tab speaks with one voice: the [title] is a short verb-led prompt
+/// ("Look up a word", "Check your writing") and the [body] a one-line
+/// subtitle saying what the tab does; both stay within [maxTextWidth] so
+/// the lines are easy to read on large screens.
+///
 /// The title is a semantic header; the icon is left out of semantics.
 class TabHero extends StatelessWidget {
   const new({required this.title, this.icon, this.body, this.child, super.key});
@@ -17,6 +22,9 @@ class TabHero extends StatelessWidget {
 
   /// Size of the [icon].
   static const double iconSize = 52;
+
+  /// Widest the title and the body get.
+  static const double maxTextWidth = 480;
 
   /// The headline style (the translate screen's greeting).
   static TextStyle? titleStyle(BuildContext context) {
@@ -44,24 +52,32 @@ class TabHero extends StatelessWidget {
           ),
           const SizedBox(height: 12),
         ],
-        Semantics(
-          header: true,
-          child: Text(
-            title,
-            style: titleStyle(context),
-            textAlign: TextAlign.center,
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: maxTextWidth),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Semantics(
+                header: true,
+                child: Text(
+                  title,
+                  style: titleStyle(context),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              if (body != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  body,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: AppPalette.of(context).secondaryText,
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
-        if (body != null) ...[
-          const SizedBox(height: 8),
-          Text(
-            body,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: AppPalette.of(context).secondaryText,
-            ),
-          ),
-        ],
         if (child != null) ...[const SizedBox(height: 24), child],
       ],
     );

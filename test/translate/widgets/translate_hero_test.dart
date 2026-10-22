@@ -1,9 +1,13 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/history/cubit/history_cubit.dart';
+import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/image_translate/view/image_translate_page.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
+import 'package:mozhi/translate/translate.dart';
 import 'package:mozhi/translate/widgets/widgets.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -125,7 +129,7 @@ void main() {
       await harness.pump(tester, child: const TranslateHero());
       final chip = find.byKey(const Key('translate_quality_chip'));
       expect(chip, findsOneWidget);
-      expect(find.text('Best'), findsOneWidget);
+      expect(find.text('Best · Claude'), findsOneWidget);
       final mark = tester.getRect(find.byIcon(Icons.translate_rounded));
       final rect = tester.getRect(chip);
       expect(rect.bottom, lessThanOrEqualTo(mark.top - 24));
@@ -137,6 +141,285 @@ void main() {
       await harness.pump(tester, child: const TranslateHero());
       expect(find.byKey(const Key('translate_quality_chip')), findsNothing);
       expect(find.byType(QualityChip), findsNothing);
+    });
+  });
+
+  group('Continue', () {
+    final entry = HistoryEntry(
+      id: '1',
+      text: 'Where is the   train station?',
+      translation: 'Où est la gare ?',
+      source: Language.auto,
+      target: french,
+      engineId: deepl.id,
+      engineName: deepl.name,
+      createdAt: DateTime(2026, 10, 20),
+      detectedSource: 'en',
+    );
+    final lookUp = HistoryEntry(
+      id: '2',
+      text: 'gare',
+      translation: 'station',
+      source: french,
+      target: english,
+      engineId: claude.id,
+      engineName: claude.name,
+      createdAt: DateTime(2026, 10, 21),
+      kind: HistoryEntryKind.dictionary,
+    );
+    final continueButton = find.byKey(const Key('translate_hero_continue'));
+
+    TranslateHarness harnessWith({
+      List<HistoryEntry>? entries,
+      AppSettings settings = const AppSettings(),
+      bool paused = false,
+      TranslateState? state,
+    }) {
+      final harness = TranslateHarness(
+        state: state,
+        settings: settings,
+        history: HistoryState(
+          status: HistoryStatus.ready,
+          entries: entries ?? [lookUp, entry],
+          incognito: paused,
+        ),
+      );
+      when(() => harness.translate.restoreHistoryEntry(any())).thenReturn(true);
+      return harness;
+    }
+
+    testWidgets('offers the last translation in one line', (tester) async {
+      final handle = tester.ensureSemantics();
+      final harness = harnessWith();
+      await harness.pump(tester, child: const TranslateHero());
+      expect(continueButton, findsOneWidget);
+      expect(find.text('Continue'), findsOneWidget);
+      expect(find.text('Where is the train station?'), findsOneWidget);
+      expect(find.text('\u2068EN\u2069 → \u2068FR\u2069'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(
+          RegExp(r'Continue: Where is the train station\?, .*English.*French'),
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(continueButton);
+      verify(() => harness.translate.restoreHistoryEntry(entry)).called(1);
+      handle.dispose();
+    });
+
+    testWidgets('is hidden while history is off or paused', (tester) async {
+      for (final harness in [
+        harnessWith(settings: const AppSettings(saveHistory: false)),
+        harnessWith(settings: const AppSettings(incognito: true)),
+        harnessWith(paused: true),
+        harnessWith(entries: [lookUp]),
+        harnessWith(entries: const []),
+      ]) {
+        await harness.pump(tester, child: const TranslateHero());
+        expect(continueButton, findsNothing);
+      }
+    });
+
+    testWidgets("is hidden when the engine lacks the entry's languages", (
+      tester,
+    ) async {
+      final custom = HistoryEntry(
+        id: '3',
+        text: 'Ahoy',
+        translation: 'Arr',
+        source: german,
+        target: const Language.custom('Pirate speak'),
+        engineId: claude.id,
+        engineName: claude.name,
+        createdAt: DateTime(2026, 10, 22),
+      );
+      final unknownSource = HistoryEntry(
+        id: '4',
+        text: 'Hola',
+        translation: 'Bonjour',
+        source: const Language(code: 'es', name: 'Spanish'),
+        target: french,
+        engineId: deepl.id,
+        engineName: deepl.name,
+        createdAt: DateTime(2026, 10, 22),
+      );
+      const noEngine = TranslateState();
+      for (final harness in [
+        harnessWith(entries: [custom]),
+        harnessWith(entries: [unknownSource]),
+        harnessWith(state: noEngine),
+      ]) {
+        await harness.pump(tester, child: const TranslateHero());
+        expect(continueButton, findsNothing);
+      }
+    });
+
+    test('translateHeroContinueEntry takes custom languages AI engines '
+        'offer', () {
+      final custom = HistoryEntry(
+        id: '3',
+        text: 'Ahoy',
+        translation: 'Arr',
+        source: const Language.custom('Gen Z'),
+        target: french,
+        engineId: claude.id,
+        engineName: claude.name,
+        createdAt: DateTime(2026, 10, 22),
+      );
+      expect(
+        translateHeroContinueEntry(
+          settings: const AppSettings(),
+          history: HistoryState(entries: [custom]),
+          state: readyState(engine: claude),
+        ),
+        custom,
+      );
+      expect(
+        translateHeroContinueEntry(
+          settings: const AppSettings(),
+          history: null,
+          state: readyState(),
+        ),
+        isNull,
+      );
+    });
+  });
+
+  group('TranslatePasteOffer', () {
+    late bool hasText;
+    late String? clipboard;
+    late int asked;
+    late int read;
+
+    setUp(() {
+      hasText = true;
+      clipboard = 'Guten Morgen';
+      asked = 0;
+      read = 0;
+      TranslatePasteOffer.hasClipboardText = () async {
+        asked++;
+        return hasText;
+      };
+      TranslatePasteOffer.readClipboardText = () async {
+        read++;
+        return clipboard;
+      };
+      TranslatePasteOffer.asksOnResume = () => true;
+    });
+
+    tearDown(() {
+      TranslatePasteOffer.hasClipboardText = Clipboard.hasStrings;
+      TranslatePasteOffer.asksOnResume = () => false;
+    });
+
+    final offer = find.byKey(const Key('translate_paste_offer'));
+
+    Future<void> resume(WidgetTester tester) async {
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      await tester.pump();
+    }
+
+    testWidgets('only asks whether there is text, when the app resumes', (
+      tester,
+    ) async {
+      final harness = TranslateHarness();
+      await harness.pump(tester, child: const TranslateHero());
+      expect(offer, findsNothing);
+      expect(asked, 0);
+      await resume(tester);
+      expect(asked, 1);
+      // Nothing was read, nothing translated.
+      expect(read, 0);
+      verifyNever(
+        () => harness.translate.setInput(
+          any(),
+          pasted: any(named: 'pasted'),
+          dictated: any(named: 'dictated'),
+        ),
+      );
+      expect(offer, findsOneWidget);
+      expect(find.text('Paste and translate'), findsOneWidget);
+    });
+
+    testWidgets('reads and pastes the text only when tapped', (tester) async {
+      final harness = TranslateHarness();
+      await harness.pump(tester, child: const TranslateHero());
+      await resume(tester);
+      await tester.tap(offer);
+      await tester.pump();
+      await tester.pump();
+      expect(read, 1);
+      verify(() => harness.translate.setInput('Guten Morgen', pasted: true))
+          .called(1);
+      expect(offer, findsNothing);
+    });
+
+    testWidgets('says "Paste" when pasted text is not translated by itself', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(
+        settings: const AppSettings(instantTranslate: false),
+      );
+      await harness.pump(tester, child: const TranslateHero());
+      await resume(tester);
+      expect(find.text('Paste copied text'), findsOneWidget);
+    });
+
+    testWidgets('can be dismissed', (tester) async {
+      final harness = TranslateHarness();
+      await harness.pump(tester, child: const TranslateHero());
+      await resume(tester);
+      await tester.tap(find.byTooltip('Dismiss'));
+      await tester.pump();
+      expect(offer, findsNothing);
+      expect(read, 0);
+    });
+
+    testWidgets('is not offered without text or with input', (tester) async {
+      hasText = false;
+      final harness = TranslateHarness();
+      await harness.pump(tester, child: const TranslateHero());
+      await resume(tester);
+      expect(offer, findsNothing);
+
+      hasText = true;
+      harness.setState(readyState(input: 'Hallo'));
+      await resume(tester);
+      expect(offer, findsNothing);
+      expect(asked, 1);
+    });
+
+    testWidgets('ignores an empty or unreadable clipboard', (tester) async {
+      final harness = TranslateHarness();
+      await harness.pump(tester, child: const TranslateHero());
+      await resume(tester);
+      clipboard = '  ';
+      await tester.tap(offer);
+      await tester.pump();
+      verifyNever(
+        () => harness.translate.setInput(
+          any(),
+          pasted: any(named: 'pasted'),
+          dictated: any(named: 'dictated'),
+        ),
+      );
+
+      TranslatePasteOffer.hasClipboardText = () async => throw Exception();
+      await resume(tester);
+      expect(offer, findsNothing);
+    });
+
+    testWidgets('never asks where that would read the clipboard', (
+      tester,
+    ) async {
+      TranslatePasteOffer.asksOnResume = () => false;
+      final harness = TranslateHarness();
+      await harness.pump(tester, child: const TranslateHero());
+      await resume(tester);
+      expect(asked, 0);
+      expect(offer, findsNothing);
     });
   });
 }

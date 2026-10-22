@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show SemanticsInputType;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/semantics.dart';
@@ -18,9 +19,11 @@ import 'package:mozhi/platform/privacy_channel.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/about_page.dart';
 import 'package:mozhi/settings/view/settings_page.dart';
+import 'package:mozhi/settings/view/settings_search_index.dart';
 import 'package:mozhi/settings/view/widgets/choice_dialog.dart';
 import 'package:mozhi/settings/view/widgets/history_data_actions.dart';
 import 'package:mozhi/settings/view/widgets/link_launcher.dart';
+import 'package:mozhi/settings/view/widgets/settings_search.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:mozhi/settings/view/widgets/speech_settings_section.dart';
 import 'package:mozhi/speech/speech_service.dart';
@@ -85,19 +88,27 @@ void main() {
     Future<void> pump(
       WidgetTester tester, {
       AppSettings? state,
+      SettingsCategory? category,
+      String? highlight,
       Size size = const Size(800, 5000),
       double textScale = 1,
     }) async {
       if (state != null) when(() => settings.state).thenReturn(state);
       tester.setScreenSize(size);
       await tester.pumpView(
-        const SettingsPage(),
+        category == null
+            ? const SettingsPage()
+            : SettingsCategoryPage(category: category, highlight: highlight),
         settings: settings,
         history: history,
         router: router,
         textScale: textScale,
       );
     }
+
+    void verifyPush(String location) =>
+        verify(() => router.push<Object?>(location, extra: any(named: 'extra')))
+            .called(1);
 
     testWidgets('is a page with a back arrow to the tabs', (tester) async {
       await pump(tester);
@@ -106,74 +117,119 @@ void main() {
       verify(() => router.go('/translate')).called(1);
     });
 
-    testWidgets('renders all sections', (tester) async {
+    testWidgets('lists the categories with what they hold', (tester) async {
       await pump(tester);
       expect(find.text('Settings'), findsOneWidget);
-      for (final title in [
-        'General',
-        'Privacy',
-        'Offline languages',
-        'Online engines',
-        'Appearance',
-        'About',
+      for (final (title, summary) in [
+        ('General', 'App language, tab order, typing'),
+        ('Privacy & data', 'Privacy mode, history, network, delete data'),
+        (
+          'Translation engines',
+          'Offline languages, Mozhi instances, services, instant translate',
+        ),
+        ('AI', 'AI providers, insights, presets, glossaries, usage'),
+        ('Appearance', 'Theme, dark look, accent color, romanization'),
+        ('About', 'Version, source code, licenses and privacy'),
       ]) {
-        expect(sectionTitled(title), findsOneWidget, reason: title);
+        expect(find.text(title), findsOneWidget, reason: title);
+        expect(find.text(summary), findsOneWidget, reason: summary);
       }
-      // The section heading and its first row.
-      expect(sectionTitled('AI providers'), findsOneWidget);
-      expect(find.text('About Mozhi'), findsOneWidget);
-      // The old groups are gone.
-      expect(find.text('Translation tools'), findsNothing);
-      expect(find.text('Data'), findsNothing);
+      // No rows of the categories on the root.
+      expect(find.text('Incognito'), findsNothing);
+      // Read aloud & voice only with a speech service or voice input.
+      expect(find.text('Read aloud & voice'), findsNothing);
     });
 
-    testWidgets('orders the sections from general to about', (tester) async {
-      await pump(tester, size: const Size(600, 6000));
+    testWidgets('orders the categories from general to about', (tester) async {
+      await pump(tester);
       final tops = [
-        for (final title in [
-          'General',
-          'Privacy',
-          'Offline languages',
-          'Online engines',
-          'AI providers',
-          'Appearance',
-          'About',
+        for (final category in [
+          SettingsCategory.general,
+          SettingsCategory.privacy,
+          SettingsCategory.engines,
+          SettingsCategory.ai,
+          SettingsCategory.appearance,
+          SettingsCategory.about,
         ])
-          tester.getTopLeft(sectionTitled(title)).dy,
+          tester.getTopLeft(find.byKey(SettingsView.categoryKey(category))).dy,
       ];
       expect(tops, orderedEquals([...tops]..sort()));
     });
 
-    testWidgets('marks the AI providers as advanced', (tester) async {
+    testWidgets('opens each category as a page of its own', (tester) async {
+      await pump(tester);
+      for (final category in [
+        SettingsCategory.general,
+        SettingsCategory.privacy,
+        SettingsCategory.engines,
+        SettingsCategory.ai,
+        SettingsCategory.appearance,
+      ]) {
+        await tester.tap(find.byKey(SettingsView.categoryKey(category)));
+        verifyPush('/settings/${category.path}');
+      }
+      await tester.tap(
+        find.byKey(SettingsView.categoryKey(SettingsCategory.about)),
+      );
+      verifyPush('/settings/about');
+    });
+
+    testWidgets('marks the AI settings as advanced', (tester) async {
       final handle = tester.ensureSemantics();
       await pump(tester);
+      final tile = find.byKey(SettingsView.categoryKey(SettingsCategory.ai));
+      expect(
+        find.descendant(of: tile, matching: find.text('Advanced')),
+        findsOneWidget,
+      );
+      // Read with the title.
+      expect(tester.getSemantics(tile).label, startsWith('AI\nAdvanced'));
+      // And on its page, next to the title.
+      await pump(tester, category: SettingsCategory.ai);
       expect(
         find.descendant(
-          of: sectionOf('AI providers'),
+          of: find.byType(AppBar),
           matching: find.text('Advanced'),
         ),
         findsOneWidget,
       );
-      // Read with the heading.
-      expect(
-        tester.getSemantics(find.text('Advanced')),
-        isSemantics(label: 'AI providers\nAdvanced', isHeader: true),
-      );
       handle.dispose();
     });
 
+    testWidgets('a category page is titled after its category', (tester) async {
+      await pump(tester, category: SettingsCategory.privacy);
+      expect(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.text('Privacy & data'),
+        ),
+        findsOneWidget,
+      );
+      // Its back arrow is the app bar's own (Settings is below it).
+      expect(find.byKey(const Key('top_level_back')), findsNothing);
+      // The AI page no longer repeats "AI providers" as a heading.
+      await pump(tester, category: SettingsCategory.ai);
+      expect(find.text('AI providers'), findsOneWidget);
+    });
+
     testWidgets('summarises instances and providers', (tester) async {
-      await pump(tester);
+      await pump(tester, category: SettingsCategory.engines);
       expect(find.text('mozhi.example.com · 2 instances'), findsOneWidget);
+      await pump(tester, category: SettingsCategory.ai);
       expect(find.text('1 of 2 enabled'), findsOneWidget);
     });
 
     testWidgets('shows hints when nothing is configured', (tester) async {
-      await pump(tester, state: const AppSettings(instances: []));
+      await pump(
+        tester,
+        state: const AppSettings(instances: []),
+        category: SettingsCategory.engines,
+      );
       expect(
         find.text('No instances. Add one to use Mozhi engines.'),
         findsOneWidget,
       );
+      await pump(tester, category: SettingsCategory.ai);
       expect(
         find.text('Use your own API key or a local model'),
         findsOneWidget,
@@ -187,33 +243,14 @@ void main() {
     });
 
     testWidgets('navigates to sub pages', (tester) async {
-      await pump(tester);
+      await pump(tester, category: SettingsCategory.engines);
       await tester.tap(find.text('Mozhi instances'));
-      verify(
-        () => router.push<Object?>(
-          '/settings/instances',
-          extra: any(named: 'extra'),
-        ),
-      ).called(1);
-      await tester.tap(find.byKey(const Key('settings_ai_providers')));
-      verify(
-        () => router.push<Object?>(
-          '/settings/providers',
-          extra: any(named: 'extra'),
-        ),
-      ).called(1);
+      verifyPush('/settings/instances');
       await tester.tap(find.text('Translation services'));
-      verify(
-        () => router.push<Object?>(
-          '/settings/providers',
-          extra: any(named: 'extra'),
-        ),
-      ).called(1);
-      await tester.tap(find.text('About Mozhi'));
-      verify(
-        () =>
-            router.push<Object?>('/settings/about', extra: any(named: 'extra')),
-      ).called(1);
+      verifyPush('/settings/providers');
+      await pump(tester, category: SettingsCategory.ai);
+      await tester.tap(find.byKey(const Key('settings_ai_providers')));
+      verifyPush('/settings/providers');
     });
 
     group('round-2 pages', () {
@@ -224,92 +261,148 @@ void main() {
       ) async {
         await tester.ensureVisible(find.text(title));
         await tester.tap(find.text(title));
-        verify(() => router.push<Object?>(location, extra: any(named: 'extra')))
-            .called(1);
+        verifyPush(location);
       }
 
       testWidgets('opens offline languages, usage, presets and glossaries', (
         tester,
       ) async {
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.engines);
         await expectPush(
           tester,
           'Languages on this device',
           '/settings/offline',
         );
+        await pump(tester, category: SettingsCategory.ai);
         await expectPush(tester, 'Usage & costs', '/settings/usage');
         await expectPush(tester, 'Presets', '/settings/presets');
         await expectPush(tester, 'Glossaries', '/settings/glossaries');
+        await pump(tester, category: SettingsCategory.about);
         await expectPush(tester, 'Run setup again', '/onboarding');
       });
 
-      testWidgets('groups the entries into sections', (tester) async {
-        await pump(tester);
+      testWidgets('groups the entries into categories and sections', (
+        tester,
+      ) async {
         Finder inSection(String section, String title) =>
             find.descendant(of: sectionOf(section), matching: find.text(title));
-        for (final (section, rows) in [
+        for (final (category, groups) in [
           (
-            'General',
-            ['App language', 'Tab order', 'Haptic feedback', 'Multiline input'],
-          ),
-          (
-            'Privacy',
+            SettingsCategory.general,
             [
-              'Privacy mode',
-              'Incognito',
-              'Save history',
-              'Delete history automatically',
-              'Export history',
-              'Import history',
-              'Clear recent language pairs',
-              'HTTP proxy',
-              'Clear history',
-              'Delete all local data',
-            ],
-          ),
-          ('Offline languages', ['Languages on this device']),
-          (
-            'Online engines',
-            [
-              'Mozhi instances',
-              'Translation services',
-              'Quality modes',
-              'Remember quality selection',
-              'Instant translate',
+              (
+                null,
+                [
+                  'App language',
+                  'Tab order',
+                  'Haptic feedback',
+                  'Multiline input',
+                ],
+              ),
             ],
           ),
           (
-            'AI providers',
+            SettingsCategory.privacy,
             [
-              'AI assistant for insights',
-              'Instant translate with AI',
-              'Presets',
-              'Glossaries',
-              'Usage & costs',
+              ('Privacy', ['Privacy mode', 'Incognito']),
+              (
+                'History',
+                [
+                  'Save history',
+                  'Delete history automatically',
+                  'Export history',
+                  'Import history',
+                  'Clear recent language pairs',
+                ],
+              ),
+              ('Network', ['HTTP proxy', 'Network activity']),
+              ('Data', ['Clear history', 'Delete all local data']),
             ],
           ),
-          ('Appearance', ['Theme', 'Dark theme', 'Show romanization']),
           (
-            'About',
+            SettingsCategory.engines,
             [
-              'About Mozhi',
-              'Version',
-              'Source code',
-              'Open-source licenses',
-              'Run setup again',
+              ('Offline languages', ['Languages on this device']),
+              ('Online engines', ['Mozhi instances', 'Translation services']),
+              (
+                'Translating',
+                [
+                  'Quality modes',
+                  'Remember quality selection',
+                  'Instant translate',
+                ],
+              ),
+            ],
+          ),
+          (
+            SettingsCategory.ai,
+            [
+              (
+                null,
+                [
+                  'AI providers',
+                  'AI assistant for insights',
+                  'Presets',
+                  'Glossaries',
+                  'Usage & costs',
+                ],
+              ),
+            ],
+          ),
+          (
+            SettingsCategory.appearance,
+            [
+              (null, ['Theme', 'Dark theme', 'Show romanization']),
+            ],
+          ),
+          (
+            SettingsCategory.about,
+            [
+              (
+                'About',
+                ['Source code', 'Open-source licenses', 'Run setup again'],
+              ),
             ],
           ),
         ]) {
-          for (final row in rows) {
-            expect(inSection(section, row), findsOne, reason: '$section: $row');
+          await pump(tester, category: category);
+          for (final (section, rows) in groups) {
+            for (final row in rows) {
+              expect(
+                section == null
+                    ? find.descendant(
+                        of: find.byType(SettingsSection),
+                        matching: find.text(row),
+                      )
+                    : inSection(section, row),
+                findsOne,
+                reason: '${category.name} > $section: $row',
+              );
+            }
           }
         }
+      });
+
+      testWidgets('ends Privacy & data with the destructive actions', (
+        tester,
+      ) async {
+        await pump(tester, category: SettingsCategory.privacy);
+        final data = find.byKey(const Key('settings_data_section'));
+        final error = Theme.of(tester.element(data)).colorScheme.error;
+        for (final key in [
+          'settings_clear_history',
+          'settings_delete_all_data',
+        ]) {
+          final row = find.byKey(Key(key));
+          expect(
+            tester.getTopLeft(row).dy,
+            greaterThan(tester.getTopLeft(find.text('Network activity')).dy),
+          );
+          expect(find.descendant(of: data, matching: row), findsOne);
+        }
         expect(
-          find.descendant(
-            of: sectionOf('AI providers'),
-            matching: find.byKey(const Key('settings_ai_providers')),
-          ),
-          findsOne,
+          tester.widget<Text>(find.text('Delete all local data')).style?.color,
+          error,
         );
       });
 
@@ -318,7 +411,7 @@ void main() {
           tester,
         ) async {
           debugDefaultTargetPlatformOverride = platform;
-          await pump(tester);
+          await pump(tester, category: SettingsCategory.engines);
           expect(find.text('Languages on this device'), findsOneWidget);
           expect(find.text('Not available here'), findsNothing);
           expect(SettingsView.offlineSupported, isTrue);
@@ -334,14 +427,13 @@ void main() {
         testWidgets('says offline languages are unavailable on '
             '${platform.name}', (tester) async {
           debugDefaultTargetPlatformOverride = platform;
-          await pump(tester);
+          await pump(tester, category: SettingsCategory.engines);
           expect(find.text('Languages on this device'), findsNothing);
           expect(find.text('Not available here'), findsOneWidget);
           expect(
             find.text('On-device translation needs the Android app.'),
             findsOneWidget,
           );
-          expect(find.text('Usage & costs'), findsOneWidget);
           expect(SettingsView.offlineSupported, isFalse);
           debugDefaultTargetPlatformOverride = null;
         });
@@ -350,7 +442,7 @@ void main() {
 
     group('general', () {
       testWidgets('starts with the system language', (tester) async {
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.general);
         expect(
           find.descendant(
             of: find.byKey(const Key('settings_app_language')),
@@ -362,7 +454,11 @@ void main() {
 
       testWidgets('shows the chosen app language in itself', (tester) async {
         final handle = tester.ensureSemantics();
-        await pump(tester, state: const AppSettings(appLocale: 'ja'));
+        await pump(
+          tester,
+          category: SettingsCategory.general,
+          state: const AppSettings(appLocale: 'ja'),
+        );
         final name = find.descendant(
           of: find.byKey(const Key('settings_app_language')),
           matching: find.text('日本語'),
@@ -385,14 +481,18 @@ void main() {
       testWidgets('an unknown stored language shows the system default', (
         tester,
       ) async {
-        await pump(tester, state: const AppSettings(appLocale: 'sv'));
+        await pump(
+          tester,
+          category: SettingsCategory.general,
+          state: const AppSettings(appLocale: 'sv'),
+        );
         expect(find.text('System default'), findsOneWidget);
       });
 
       testWidgets('picks an app language from every translation', (
         tester,
       ) async {
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.general);
         await tester.tap(find.text('App language'));
         await tester.pumpAndSettle();
 
@@ -434,7 +534,11 @@ void main() {
       });
 
       testWidgets('goes back to the system language', (tester) async {
-        await pump(tester, state: const AppSettings(appLocale: 'de'));
+        await pump(
+          tester,
+          category: SettingsCategory.general,
+          state: const AppSettings(appLocale: 'de'),
+        );
         await tester.tap(find.text('App language'));
         await tester.pumpAndSettle();
         await tester.tap(find.text('System default'));
@@ -447,7 +551,11 @@ void main() {
       testWidgets('keeps the app language when cancelled or unchanged', (
         tester,
       ) async {
-        await pump(tester, state: const AppSettings(appLocale: 'de'));
+        await pump(
+          tester,
+          category: SettingsCategory.general,
+          state: const AppSettings(appLocale: 'de'),
+        );
         await tester.tap(find.text('App language'));
         await tester.pumpAndSettle();
         await tester.tap(find.text('Cancel'));
@@ -465,6 +573,7 @@ void main() {
       ) async {
         await pump(
           tester,
+          category: SettingsCategory.general,
           state: const AppSettings(
             tabOrder: [
               AppTab.dictionary,
@@ -485,14 +594,8 @@ void main() {
       });
 
       testWidgets('haptic feedback (on by default)', (tester) async {
-        await pump(tester);
-        expect(
-          find.text(
-            'Vibrate lightly when you press translate, swap, copy or '
-            'favourite',
-          ),
-          findsOneWidget,
-        );
+        await pump(tester, category: SettingsCategory.general);
+        expect(find.textContaining('Vibrate lightly'), findsOneWidget);
         await tester.tap(find.text('Haptic feedback'));
         verify(() => settings.setHapticFeedback(enabled: false)).called(1);
       });
@@ -500,7 +603,7 @@ void main() {
       testWidgets('multiline input (on by default) explains Enter', (
         tester,
       ) async {
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.general);
         expect(
           find.text(
             'When on, Enter adds a new line instead of starting a '
@@ -513,7 +616,11 @@ void main() {
       });
 
       testWidgets('turns multiline input back on', (tester) async {
-        await pump(tester, state: const AppSettings(multilineInput: false));
+        await pump(
+          tester,
+          category: SettingsCategory.general,
+          state: const AppSettings(multilineInput: false),
+        );
         await tester.tap(find.text('Multiline input'));
         verify(() => settings.setMultilineInput(enabled: true)).called(1);
       });
@@ -521,7 +628,7 @@ void main() {
 
     group('translation toggles', () {
       testWidgets('remember quality selection (on by default)', (tester) async {
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.engines);
         await tester.ensureVisible(find.text('Remember quality selection'));
         expect(
           find.textContaining('When off, the app starts in Fast'),
@@ -531,28 +638,104 @@ void main() {
         verify(() => settings.setRememberQuality(enabled: false)).called(1);
       });
 
-      testWidgets('instant translate', (tester) async {
-        await pump(tester);
-        await tester.tap(find.text('Instant translate'));
-        verify(() => settings.setInstantTranslate(enabled: false)).called(1);
-      });
+      group('instant translate', () {
+        Future<AppSettings Function(AppSettings)> choose(
+          WidgetTester tester,
+          String choice, {
+          AppSettings state = const AppSettings(),
+        }) async {
+          await pump(tester, state: state, category: SettingsCategory.engines);
+          await tester.tap(find.text('Instant translate'));
+          await tester.pumpAndSettle();
+          await tester.tap(find.text(choice).last);
+          await tester.pump();
+          await tester.tap(find.byKey(ChoiceDialog.saveKey));
+          await tester.pumpAndSettle();
+          return verify(() => settings.update(captureAny())).captured.single
+              as AppSettings Function(AppSettings);
+        }
 
-      testWidgets('instant translate with AI', (tester) async {
-        await pump(tester);
-        expect(find.textContaining('Uses more tokens'), findsOneWidget);
-        // On by default: the switch turns it off.
-        await tester.tap(find.text('Instant translate with AI'));
-        verify(() => settings.setInstantTranslateAi(enabled: false)).called(1);
+        testWidgets('is one row naming the choice (both on by default)', (
+          tester,
+        ) async {
+          await pump(tester, category: SettingsCategory.engines);
+          expect(find.text('Instant translate'), findsOneWidget);
+          expect(find.text('Instant translate with AI'), findsNothing);
+          expect(find.text('Online engines and AI'), findsOneWidget);
+        });
+
+        testWidgets('offers off, online engines, and online engines and AI', (
+          tester,
+        ) async {
+          await pump(tester, category: SettingsCategory.engines);
+          await tester.tap(find.text('Instant translate'));
+          await tester.pumpAndSettle();
+          final dialog = find.byType(AlertDialog);
+          for (final title in [
+            'Off',
+            'Online engines',
+            'Online engines and AI',
+          ]) {
+            expect(
+              find.descendant(of: dialog, matching: find.text(title)),
+              findsOneWidget,
+              reason: title,
+            );
+          }
+          expect(find.text('AI providers only'), findsNothing);
+          expect(find.textContaining('Uses more tokens'), findsOneWidget);
+        });
+
+        testWidgets('off turns both switches off', (tester) async {
+          final change = await choose(tester, 'Off');
+          final next = change(const AppSettings());
+          expect(next.instantTranslate, isFalse);
+          expect(next.instantTranslateAi, isFalse);
+        });
+
+        testWidgets('online engines leaves AI waiting', (tester) async {
+          final change = await choose(tester, 'Online engines');
+          final next = change(const AppSettings());
+          expect(next.instantTranslate, isTrue);
+          expect(next.instantTranslateAi, isFalse);
+        });
+
+        testWidgets('online engines and AI turns both on', (tester) async {
+          final change = await choose(
+            tester,
+            'Online engines and AI',
+            state: const AppSettings(
+              instantTranslate: false,
+              instantTranslateAi: false,
+            ),
+          );
+          final next = change(const AppSettings(instantTranslate: false));
+          expect(next.instantTranslate, isTrue);
+          expect(next.instantTranslateAi, isTrue);
+        });
+
+        testWidgets('keeps an AI-only setting, offered while it is set', (
+          tester,
+        ) async {
+          const aiOnly = AppSettings(instantTranslate: false);
+          await pump(tester, state: aiOnly, category: SettingsCategory.engines);
+          expect(find.text('AI providers only'), findsOneWidget);
+          await tester.tap(find.text('Instant translate'));
+          await tester.pumpAndSettle();
+          await tester.tap(find.byKey(ChoiceDialog.saveKey));
+          await tester.pumpAndSettle();
+          verifyNever(() => settings.update(any()));
+        });
       });
 
       testWidgets('save history', (tester) async {
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.privacy);
         await tester.tap(find.text('Save history'));
         verify(() => settings.setSaveHistory(enabled: false)).called(1);
       });
 
       testWidgets('show romanization', (tester) async {
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.appearance);
         expect(
           find.text(
             'Latin-script text under non-Latin text, when no cloud AI '
@@ -567,7 +750,7 @@ void main() {
 
     group('AI assistant picker', () {
       testWidgets('selects an enabled provider', (tester) async {
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.ai);
         expect(find.text('Automatic'), findsOneWidget);
         await tester.tap(find.text('AI assistant for insights'));
         await tester.pumpAndSettle();
@@ -588,6 +771,7 @@ void main() {
       testWidgets('selects automatic', (tester) async {
         await pump(
           tester,
+          category: SettingsCategory.ai,
           state: const AppSettings(
             providers: [_claude],
             assistEngineId: 'ai:p1',
@@ -606,7 +790,7 @@ void main() {
       testWidgets('arrow keys move the choice without closing the dialog', (
         tester,
       ) async {
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.ai);
         await tester.tap(find.text('AI assistant for insights'));
         await tester.pumpAndSettle();
         await tester.sendKeyEvent(LogicalKeyboardKey.tab);
@@ -623,7 +807,7 @@ void main() {
       });
 
       testWidgets('cancel keeps the selection', (tester) async {
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.ai);
         await tester.tap(find.text('AI assistant for insights'));
         await tester.pumpAndSettle();
         await tester.tap(find.text('Cancel'));
@@ -632,7 +816,11 @@ void main() {
       });
 
       testWidgets('opens providers when none exist', (tester) async {
-        await pump(tester, state: const AppSettings());
+        await pump(
+          tester,
+          category: SettingsCategory.ai,
+          state: const AppSettings(),
+        );
         await tester.tap(find.text('AI assistant for insights'));
         verify(
           () => router.push<Object?>(
@@ -645,26 +833,30 @@ void main() {
 
     group('appearance', () {
       testWidgets('changes theme mode', (tester) async {
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.appearance);
         await tester.tap(find.text('Dark'));
         verify(() => settings.setThemeMode(ThemeMode.dark)).called(1);
       });
 
       testWidgets('toggles dynamic color', (tester) async {
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.appearance);
         await tester.tap(find.text('Dynamic color'));
         verify(() => settings.setDynamicColor(enabled: false)).called(1);
       });
 
       testWidgets('hides accent colors with dynamic color', (tester) async {
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.appearance);
         expect(find.text('Accent color'), findsNothing);
       });
 
       testWidgets('picks an accent color without dynamic color', (
         tester,
       ) async {
-        await pump(tester, state: const AppSettings(dynamicColor: false));
+        await pump(
+          tester,
+          category: SettingsCategory.appearance,
+          state: const AppSettings(dynamicColor: false),
+        );
         expect(find.text('Accent color'), findsOneWidget);
         await tester.tap(find.bySemanticsLabel('Teal'));
         verify(() => settings.setSeedColor(0xFF00897B)).called(1);
@@ -674,7 +866,7 @@ void main() {
         when(() => settings.state).thenReturn(const AppSettings());
         tester.setScreenSize(const Size(800, 5000));
         await tester.pumpView(
-          const SettingsPage(),
+          const SettingsCategoryPage(category: SettingsCategory.appearance),
           settings: settings,
           history: history,
           router: router,
@@ -685,7 +877,7 @@ void main() {
       });
 
       testWidgets('marks the selected theme with a check', (tester) async {
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.appearance);
         expect(
           find.descendant(
             of: find.byType(SegmentedButton<ThemeMode>),
@@ -699,7 +891,12 @@ void main() {
       testWidgets('uses radio rows for the theme with large text', (
         tester,
       ) async {
-        await pump(tester, textScale: 2, size: const Size(800, 10000));
+        await pump(
+          tester,
+          category: SettingsCategory.appearance,
+          textScale: 2,
+          size: const Size(800, 10000),
+        );
         expect(find.byType(SegmentedButton<ThemeMode>), findsNothing);
         expect(find.byType(RadioListTile<ThemeMode>), findsNWidgets(3));
         await tester.ensureVisible(find.text('Dark'));
@@ -711,7 +908,11 @@ void main() {
         tester,
       ) async {
         final handle = tester.ensureSemantics();
-        await pump(tester, state: const AppSettings(dynamicColor: false));
+        await pump(
+          tester,
+          category: SettingsCategory.appearance,
+          state: const AppSettings(dynamicColor: false),
+        );
         final node = tester.getSemantics(find.bySemanticsLabel('Teal'));
         expect(
           node,
@@ -744,7 +945,9 @@ void main() {
           Builder(
             builder: (context) => MediaQuery(
               data: MediaQuery.of(context).copyWith(disableAnimations: true),
-              child: const SettingsPage(),
+              child: const SettingsCategoryPage(
+                category: SettingsCategory.appearance,
+              ),
             ),
           ),
           settings: settings,
@@ -759,7 +962,11 @@ void main() {
       });
 
       testWidgets('offers X accents with blue first', (tester) async {
-        await pump(tester, state: const AppSettings(dynamicColor: false));
+        await pump(
+          tester,
+          category: SettingsCategory.appearance,
+          state: const AppSettings(dynamicColor: false),
+        );
         for (final name in [
           'Blue',
           'Yellow',
@@ -779,7 +986,7 @@ void main() {
       testWidgets('picks Lights out (the default) or Dim for the dark '
           'theme', (tester) async {
         final handle = tester.ensureSemantics();
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.appearance);
         expect(find.text('Dark theme'), findsOneWidget);
         expect(find.bySemanticsLabel('Dark theme'), findsOneWidget);
         expect(
@@ -799,7 +1006,11 @@ void main() {
       });
 
       testWidgets('switches back to Lights out', (tester) async {
-        await pump(tester, state: const AppSettings(pureBlack: false));
+        await pump(
+          tester,
+          category: SettingsCategory.appearance,
+          state: const AppSettings(pureBlack: false),
+        );
         await tester.tap(find.text('Lights out'));
         verify(() => settings.setPureBlack(enabled: true)).called(1);
       });
@@ -807,6 +1018,7 @@ void main() {
       testWidgets('the dark look is disabled in light mode', (tester) async {
         await pump(
           tester,
+          category: SettingsCategory.appearance,
           state: const AppSettings(themeMode: ThemeMode.light),
         );
         final tiles = tester.widgetList<RadioListTile<bool>>(
@@ -840,7 +1052,7 @@ void main() {
           when(() => settings.state).thenReturn(const AppSettings());
           tester.setScreenSize(const Size(800, 4000));
           await tester.pumpView(
-            const SettingsPage(),
+            const SettingsCategoryPage(category: SettingsCategory.engines),
             settings: settings,
             history: history,
             router: router,
@@ -848,7 +1060,7 @@ void main() {
           );
           await tester.pumpAndSettle();
           // Plain rows: no tinted icon squares, bold section headings.
-          final heading = tester.widget<Text>(find.text('Appearance'));
+          final heading = tester.widget<Text>(find.text('Online engines'));
           expect(heading.style?.fontWeight, FontWeight.w800);
           expect(find.byType(Card), findsNothing);
           expect(
@@ -882,7 +1094,7 @@ void main() {
             null,
           ),
         );
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.privacy);
         await tester.tap(find.text('Export history'));
         await tester.pumpAndSettle();
         await tester.tap(find.text('Copy JSON to clipboard'));
@@ -893,7 +1105,7 @@ void main() {
       });
 
       testWidgets('warns that the export is not encrypted', (tester) async {
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.privacy);
         await tester.tap(find.text('Export history'));
         await tester.pumpAndSettle();
         expect(find.byType(ExportUnencryptedWarning), findsOneWidget);
@@ -925,7 +1137,7 @@ void main() {
           ),
         );
         ClipboardService.instance = ClipboardService(isAndroid: true);
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.privacy);
         await tester.tap(find.text('Export history'));
         await tester.pumpAndSettle();
         await tester.tap(find.text('Copy JSON to clipboard'));
@@ -937,7 +1149,11 @@ void main() {
 
       testWidgets('the import field keeps keyboards from learning while '
           'incognito', (tester) async {
-        await pump(tester, state: const AppSettings(incognito: true));
+        await pump(
+          tester,
+          category: SettingsCategory.privacy,
+          state: const AppSettings(incognito: true),
+        );
         await tester.tap(find.text('Import history'));
         await tester.pumpAndSettle();
         final field = tester.widget<TextField>(
@@ -954,7 +1170,7 @@ void main() {
         final original = HistoryShare.share;
         HistoryShare.share = (json) async => shared.add(json);
         addTearDown(() => HistoryShare.share = original);
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.privacy);
         await tester.tap(find.text('Export history'));
         await tester.pumpAndSettle();
         await tester.tap(find.text('Share as file'));
@@ -964,7 +1180,7 @@ void main() {
 
       testWidgets('reports export failures', (tester) async {
         when(history.exportJson).thenThrow(Exception('disk'));
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.privacy);
         await tester.tap(find.text('Export history'));
         await tester.pumpAndSettle();
         await tester.tap(find.text('Copy JSON to clipboard'));
@@ -976,7 +1192,7 @@ void main() {
         when(() => history.importJson(any())).thenAnswer(
           (_) async => const HistoryImport(entries: [], added: 0, expired: 0),
         );
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.privacy);
         await tester.tap(find.text('Import history'));
         await tester.pumpAndSettle();
         // Labelled, not only hinted, so it stays named once filled.
@@ -1001,7 +1217,7 @@ void main() {
         when(() => history.importJson(any())).thenAnswer(
           (_) async => const HistoryImport(entries: [], added: 1, expired: 340),
         );
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.privacy);
         await tester.tap(find.text('Import history'));
         await tester.pumpAndSettle();
         await tester.enterText(find.byType(TextField), '[]');
@@ -1020,7 +1236,7 @@ void main() {
       });
 
       testWidgets('cancelling the import shows nothing', (tester) async {
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.privacy);
         await tester.tap(find.text('Import history'));
         await tester.pumpAndSettle();
         await tester.tap(find.text('Cancel'));
@@ -1044,7 +1260,7 @@ void main() {
             null,
           ),
         );
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.privacy);
         await tester.tap(find.text('Import history'));
         await tester.pumpAndSettle();
         await tester.tap(find.text('Paste from clipboard'));
@@ -1055,7 +1271,7 @@ void main() {
       testWidgets('shows an error for invalid JSON', (tester) async {
         when(() => history.importJson(any()))
             .thenThrow(const FormatException('bad'));
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.privacy);
         await tester.tap(find.text('Import history'));
         await tester.pumpAndSettle();
         await tester.tap(find.text('Import'));
@@ -1075,7 +1291,7 @@ void main() {
       testWidgets('clears history keeping favorites by default', (
         tester,
       ) async {
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.privacy);
         await tester.tap(find.text('Clear history'));
         await tester.pumpAndSettle();
         expect(find.text('Clear history?'), findsOneWidget);
@@ -1086,7 +1302,7 @@ void main() {
       });
 
       testWidgets('clears everything when unchecked', (tester) async {
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.privacy);
         await tester.tap(find.text('Clear history'));
         await tester.pumpAndSettle();
         await tester.tap(find.text('Keep favorites'));
@@ -1097,7 +1313,7 @@ void main() {
       });
 
       testWidgets('cancel does not clear', (tester) async {
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.privacy);
         await tester.tap(find.text('Clear history'));
         await tester.pumpAndSettle();
         await tester.tap(find.text('Cancel'));
@@ -1124,9 +1340,42 @@ void main() {
       });
 
       testWidgets('is hidden without a speech service', (tester) async {
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.speech);
 
         expect(find.byType(SpeechSettingsSection), findsNothing);
+      });
+
+      testWidgets('is a category with a speech service', (tester) async {
+        tester.setScreenSize(const Size(800, 2000));
+        await tester.pumpView(
+          RepositoryProvider<SpeechService>.value(
+            value: speech,
+            child: const SettingsPage(),
+          ),
+          settings: settings,
+          history: history,
+          router: router,
+        );
+        final tile = find.byKey(
+          SettingsView.categoryKey(SettingsCategory.speech),
+        );
+        expect(find.text('Read aloud & voice'), findsOneWidget);
+        expect(find.text('Speech rate, voices, voice input'), findsOneWidget);
+        // After the appearance, before About.
+        expect(
+          tester.getTopLeft(tile).dy,
+          greaterThan(
+            tester
+                .getTopLeft(
+                  find.byKey(
+                    SettingsView.categoryKey(SettingsCategory.appearance),
+                  ),
+                )
+                .dy,
+          ),
+        );
+        await tester.tap(tile);
+        verifyPush('/settings/speech');
       });
 
       testWidgets('offers voices for the languages in use', (tester) async {
@@ -1144,7 +1393,9 @@ void main() {
         await tester.pumpView(
           RepositoryProvider<SpeechService>.value(
             value: speech,
-            child: const SettingsPage(),
+            child: const SettingsCategoryPage(
+              category: SettingsCategory.speech,
+            ),
           ),
           settings: settings,
           history: history,
@@ -1163,15 +1414,6 @@ void main() {
           ],
           ['French voice', 'German voice', 'Spanish voice'],
         );
-        // After the appearance, before About.
-        expect(
-          tester.getTopLeft(find.text('Read aloud')).dy,
-          greaterThan(tester.getTopLeft(find.text('Appearance')).dy),
-        );
-        expect(
-          tester.getTopLeft(find.text('Read aloud')).dy,
-          lessThan(tester.getTopLeft(sectionTitled('About')).dy),
-        );
       });
 
       testWidgets('leaves no empty semantics node over the settings list', (
@@ -1183,14 +1425,16 @@ void main() {
         await tester.pumpView(
           RepositoryProvider<SpeechService>.value(
             value: speech,
-            child: const SettingsPage(),
+            child: const SettingsCategoryPage(
+              category: SettingsCategory.speech,
+            ),
           ),
           settings: settings,
           history: history,
           router: router,
         );
         await tester.pump();
-        // The list builds lazily: bring the rate slider in.
+        // Bring the rate slider in.
         await tester.scrollUntilVisible(
           find.byType(Slider),
           200,
@@ -1216,7 +1460,7 @@ void main() {
 
     group('quality modes', () {
       testWidgets('opens the quality modes page', (tester) async {
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.engines);
         await tester.ensureVisible(find.text('Quality modes'));
         await tester.tap(find.text('Quality modes'));
         verify(
@@ -1227,11 +1471,11 @@ void main() {
         ).called(1);
       });
 
-      testWidgets('lives in the online engines section', (tester) async {
-        await pump(tester);
+      testWidgets('lives in the Translating section', (tester) async {
+        await pump(tester, category: SettingsCategory.engines);
         expect(
           find.descendant(
-            of: sectionOf('Online engines'),
+            of: sectionOf('Translating'),
             matching: find.text('Quality modes'),
           ),
           findsOne,
@@ -1246,19 +1490,17 @@ void main() {
         await tester.pumpAndSettle();
       }
 
-      testWidgets('lives in the privacy section and shows the retention', (
+      testWidgets('lives in the history section and shows the retention', (
         tester,
       ) async {
         await pump(
           tester,
+          category: SettingsCategory.privacy,
           state: const AppSettings(historyRetention: HistoryRetention.week),
         );
         expect(
           find.descendant(
-            of: find.ancestor(
-              of: find.text('Privacy'),
-              matching: find.byType(SettingsSection),
-            ),
+            of: sectionOf('History'),
             matching: find.text('Delete history automatically'),
           ),
           findsOne,
@@ -1267,12 +1509,12 @@ void main() {
       });
 
       testWidgets('shows "Never" by default', (tester) async {
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.privacy);
         expect(find.text('Never'), findsOneWidget);
       });
 
       testWidgets('picks a retention', (tester) async {
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.privacy);
         await openPicker(tester);
         expect(find.byType(AlertDialog), findsOneWidget);
         expect(
@@ -1301,6 +1543,7 @@ void main() {
       ) async {
         await pump(
           tester,
+          category: SettingsCategory.privacy,
           state: const AppSettings(historyRetention: HistoryRetention.day),
         );
         await openPicker(tester);
@@ -1315,7 +1558,7 @@ void main() {
       testWidgets('arrow keys move the choice without closing the dialog', (
         tester,
       ) async {
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.privacy);
         await openPicker(tester);
         // Tab reaches the selected radio of the group.
         await tester.sendKeyEvent(LogicalKeyboardKey.tab);
@@ -1344,7 +1587,7 @@ void main() {
       });
 
       testWidgets('cancel keeps the retention', (tester) async {
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.privacy);
         await openPicker(tester);
         await tester.tap(find.text('Cancel'));
         await tester.pumpAndSettle();
@@ -1388,7 +1631,7 @@ void main() {
         }
 
         testWidgets('asks before deleting them', (tester) async {
-          await pump(tester);
+          await pump(tester, category: SettingsCategory.privacy);
           await pick(tester, 'After 1 day');
 
           verifyNever(() => settings.setHistoryRetention(any()));
@@ -1413,7 +1656,7 @@ void main() {
         testWidgets('counts only what the new retention deletes', (
           tester,
         ) async {
-          await pump(tester);
+          await pump(tester, category: SettingsCategory.privacy);
           await pick(tester, 'After 30 days');
 
           expect(
@@ -1426,7 +1669,7 @@ void main() {
         });
 
         testWidgets('keeps the retention when cancelled', (tester) async {
-          await pump(tester);
+          await pump(tester, category: SettingsCategory.privacy);
           await pick(tester, 'After 7 days');
           expect(find.text('Delete older translations now?'), findsOneWidget);
 
@@ -1437,7 +1680,7 @@ void main() {
         });
 
         testWidgets('keeps the retention when dismissed', (tester) async {
-          await pump(tester);
+          await pump(tester, category: SettingsCategory.privacy);
           await pick(tester, 'After 7 days');
 
           await tester.tapAt(const Offset(4, 4));
@@ -1451,6 +1694,7 @@ void main() {
         ) async {
           await pump(
             tester,
+            category: SettingsCategory.privacy,
             state: const AppSettings(historyRetention: HistoryRetention.week),
           );
           await pick(tester, 'Never');
@@ -1475,7 +1719,7 @@ void main() {
       ];
 
       testWidgets('is disabled without recent pairs', (tester) async {
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.privacy);
         expect(find.text('No recent language pairs'), findsOneWidget);
         await tester.ensureVisible(find.text('Clear recent language pairs'));
         await tester.tap(find.text('Clear recent language pairs'));
@@ -1484,7 +1728,11 @@ void main() {
       });
 
       testWidgets('clears the recent pairs and can undo it', (tester) async {
-        await pump(tester, state: const AppSettings(recentPairs: pairs));
+        await pump(
+          tester,
+          category: SettingsCategory.privacy,
+          state: const AppSettings(recentPairs: pairs),
+        );
         expect(find.text('2 recent language pairs'), findsOneWidget);
         await tester.ensureVisible(find.text('Clear recent language pairs'));
         await tester.tap(find.text('Clear recent language pairs'));
@@ -1514,7 +1762,11 @@ void main() {
       });
 
       testWidgets('the cleared notice closes without undoing', (tester) async {
-        await pump(tester, state: const AppSettings(recentPairs: pairs));
+        await pump(
+          tester,
+          category: SettingsCategory.privacy,
+          state: const AppSettings(recentPairs: pairs),
+        );
         await tester.ensureVisible(find.text('Clear recent language pairs'));
         await tester.tap(find.text('Clear recent language pairs'));
         await tester.pumpAndSettle();
@@ -1535,47 +1787,96 @@ void main() {
     });
 
     group('layout', () {
-      testWidgets('uses two columns on wide screens', (tester) async {
+      testWidgets('shows the categories beside the selected one on wide '
+          'screens', (tester) async {
         await pump(tester, size: const Size(1400, 1600));
-        final privacy = tester.getTopLeft(sectionTitled('Privacy'));
-        final online = tester.getTopLeft(sectionTitled('Online engines'));
-        final ai = tester.getTopLeft(sectionTitled('AI providers'));
-        final appearance = tester.getTopLeft(find.text('Appearance'));
-        expect(online.dx, privacy.dx);
-        expect(ai.dx, greaterThan(privacy.dx));
-        expect(appearance.dx, ai.dx);
-        expect(appearance.dy, greaterThan(ai.dy));
+        expect(find.byKey(SettingsView.columnsKey), findsOneWidget);
+        // General is shown first, under its heading.
+        final general = find.byKey(
+          SettingsView.categoryKey(SettingsCategory.general),
+        );
+        expect(tester.widget<ListTile>(general).selected, isTrue);
+        expect(find.text('Multiline input'), findsOneWidget);
+        expect(
+          tester.getTopLeft(find.text('Multiline input')).dx,
+          greaterThan(tester.getTopRight(general).dx),
+        );
+
+        // Picking a category changes the detail, not the location.
+        await tester.tap(
+          find.byKey(SettingsView.categoryKey(SettingsCategory.privacy)),
+        );
+        await tester.pumpAndSettle();
+        verifyNever(
+          () => router.push<Object?>(any(), extra: any(named: 'extra')),
+        );
+        expect(find.text('Incognito'), findsOneWidget);
+        expect(find.text('Multiline input'), findsNothing);
+        expect(
+          find.descendant(
+            of: find.byType(Semantics),
+            matching: find.text('Privacy & data'),
+          ),
+          findsNWidgets(2),
+        );
+        // The app bar still says Settings.
+        expect(
+          find.descendant(
+            of: find.byType(AppBar),
+            matching: find.text('Settings'),
+          ),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('a category page on a wide screen keeps the list beside '
+          'it', (tester) async {
+        await pump(
+          tester,
+          category: SettingsCategory.appearance,
+          size: const Size(1400, 1600),
+        );
+        expect(find.byKey(SettingsView.columnsKey), findsOneWidget);
+        expect(
+          tester
+              .widget<ListTile>(
+                find.byKey(
+                  SettingsView.categoryKey(SettingsCategory.appearance),
+                ),
+              )
+              .selected,
+          isTrue,
+        );
+        expect(find.text('Dark theme'), findsOneWidget);
       });
 
       testWidgets('fits 320dp with large text', (tester) async {
-        await pump(
-          tester,
-          state: const AppSettings(dynamicColor: false, providers: [_claude]),
-          size: const Size(320, 640),
-          textScale: 2,
-        );
-        expect(tester.takeException(), isNull);
-        await tester.dragUntilVisible(
-          find.text('About Mozhi'),
-          find.byType(ListView),
-          const Offset(0, -300),
-          maxIteration: 200,
-        );
-        expect(tester.takeException(), isNull);
+        for (final category in [null, ...SettingsCategory.values]) {
+          await pump(
+            tester,
+            state: const AppSettings(dynamicColor: false, providers: [_claude]),
+            category: category,
+            size: const Size(320, 640),
+            textScale: 2,
+          );
+          await tester.pumpAndSettle();
+          expect(tester.takeException(), isNull, reason: '$category');
+        }
       });
 
-      testWidgets('keyboard focus finishes the left column first', (
-        tester,
-      ) async {
+      testWidgets('keyboard focus finishes the list first', (tester) async {
         await pump(tester, size: const Size(1400, 1600));
-        final middle = tester.getCenter(find.byType(SettingsView)).dx;
+        final middle = tester
+            .getTopRight(
+              find.byKey(SettingsView.categoryKey(SettingsCategory.general)),
+            )
+            .dx;
         final columns = <int>[];
         FocusNode? first;
-        for (var i = 0; i < 80; i++) {
+        for (var i = 0; i < 40; i++) {
           await tester.sendKeyEvent(LogicalKeyboardKey.tab);
           await tester.pump();
           final node = FocusManager.instance.primaryFocus!;
-          // The page scrolls as focus moves: compare nodes, not rects.
           if (node == first) break;
           first ??= node;
           columns.add(node.rect.center.dx < middle ? 0 : 1);
@@ -1586,7 +1887,7 @@ void main() {
         expect(
           columns.sublist(switchIndex),
           everyElement(1),
-          reason: 'focus went back to the left column: $columns',
+          reason: 'focus went back to the list: $columns',
         );
       });
 
@@ -1601,6 +1902,245 @@ void main() {
           theme: ThemeData(brightness: Brightness.dark),
         );
         expect(find.byType(SettingsView), findsOneWidget);
+      });
+    });
+
+    group('search', () {
+      Future<void> search(WidgetTester tester, String query) async {
+        await tester.enterText(find.byKey(SettingsSearchField.fieldKey), query);
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets('filters every row by title and subtitle', (tester) async {
+        await pump(tester);
+        await search(tester, 'incog');
+        expect(find.byKey(const Key('settings_result_incognito')), findsOne);
+        // The categories make way for the results.
+        expect(
+          find.byKey(SettingsView.categoryKey(SettingsCategory.general)),
+          findsNothing,
+        );
+        expect(find.text('1 setting found'), findsOneWidget);
+
+        // A subtitle match shows the subtitle.
+        await search(tester, 'vibrate');
+        expect(
+          find.byKey(const Key('settings_result_haptic_feedback')),
+          findsOne,
+        );
+        expect(
+          find.textContaining('Vibrate lightly', findRichText: true),
+          findsOneWidget,
+        );
+
+        // Choices are found too, and every word must match.
+        await search(tester, 'lights out');
+        expect(find.byKey(const Key('settings_result_dark_look')), findsOne);
+        await search(tester, 'offline first');
+        expect(find.byKey(const Key('settings_result_privacy_mode')), findsOne);
+      });
+
+      testWidgets('says when nothing matches', (tester) async {
+        final handle = tester.ensureSemantics();
+        await pump(tester);
+        await search(tester, 'zzz nothing');
+        expect(find.text('No settings match “zzz nothing”.'), findsOneWidget);
+        expect(
+          tester.getSemantics(find.text('No settings match “zzz nothing”.')),
+          isSemantics(isLiveRegion: true),
+        );
+        handle.dispose();
+      });
+
+      testWidgets('clearing the search brings the categories back', (
+        tester,
+      ) async {
+        await pump(tester);
+        await search(tester, 'proxy');
+        await tester.tap(find.byTooltip('Clear search'));
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(SettingsView.categoryKey(SettingsCategory.general)),
+          findsOne,
+        );
+      });
+
+      testWidgets('highlights the match in the title', (tester) async {
+        await pump(tester);
+        await search(tester, 'proxy');
+        final title = tester.widget<RichText>(
+          find.descendant(
+            of: find.byKey(const Key('settings_result_http_proxy')),
+            matching: find.byWidgetPredicate(
+              (w) => w is RichText && w.text.toPlainText() == 'HTTP proxy',
+            ),
+          ),
+        );
+        final spans = <TextSpan>[];
+        title.text.visitChildren((span) {
+          if (span is TextSpan && span.text != null) spans.add(span);
+          return true;
+        });
+        final match = spans.singleWhere((span) => span.text == 'proxy');
+        expect(match.style?.fontWeight, FontWeight.w700);
+        expect(match.style?.backgroundColor, isNotNull);
+      });
+
+      testWidgets('a result opens its category at the row', (tester) async {
+        await pump(tester);
+        await search(tester, 'proxy');
+        await tester.tap(find.byKey(const Key('settings_result_http_proxy')));
+        verifyPush('/settings/privacy?row=http_proxy');
+        await search(tester, 'licenses');
+        await tester.tap(find.byKey(const Key('settings_result_licenses')));
+        verifyPush('/settings/about?row=licenses');
+      });
+
+      testWidgets('Enter opens the first result', (tester) async {
+        await pump(tester);
+        await search(tester, 'incognito');
+        await tester.testTextInput.receiveAction(TextInputAction.search);
+        await tester.pump();
+        verifyPush('/settings/privacy?row=incognito');
+        // Nothing to open without results.
+        await search(tester, 'zzz');
+        await tester.testTextInput.receiveAction(TextInputAction.search);
+        await tester.pump();
+        verifyNever(
+          () => router.push<Object?>(any(), extra: any(named: 'extra')),
+        );
+      });
+
+      testWidgets('on wide screens a result shows the row beside the list', (
+        tester,
+      ) async {
+        await pump(tester, size: const Size(1400, 900));
+        await search(tester, 'delete all');
+        await tester.tap(
+          find.byKey(const Key('settings_result_delete_all_data')),
+        );
+        await tester.pump();
+        // The scroll animation starts on the next frame.
+        await tester.pump(const Duration(milliseconds: 16));
+        await tester.pump(const Duration(milliseconds: 400));
+        verifyNever(
+          () => router.push<Object?>(any(), extra: any(named: 'extra')),
+        );
+        // Scrolled into view and highlighted.
+        final row = find.byKey(const Key('settings_delete_all_data'));
+        expect(tester.getRect(row).bottom, lessThanOrEqualTo(900));
+        final highlight = tester.widget<AnimatedContainer>(
+          find.byKey(SettingsAnchor.highlightKey('delete_all_data')),
+        );
+        expect(
+          (highlight.foregroundDecoration! as BoxDecoration).color?.a,
+          greaterThan(0),
+        );
+        expect(
+          tester
+              .widget<ListTile>(
+                find.byKey(const Key('settings_result_delete_all_data')),
+              )
+              .selected,
+          isTrue,
+        );
+        // The highlight fades.
+        await tester.pumpAndSettle(const Duration(seconds: 1));
+        await tester.pump(SettingsAnchor.highlightDuration);
+        await tester.pumpAndSettle();
+        final faded = tester.widget<AnimatedContainer>(
+          find.byKey(SettingsAnchor.highlightKey('delete_all_data')),
+        );
+        expect((faded.foregroundDecoration! as BoxDecoration).color?.a, 0);
+        // The same result again jumps again.
+        await tester.tap(
+          find.byKey(const Key('settings_result_delete_all_data')),
+        );
+        await tester.pump();
+        final again = tester.widget<AnimatedContainer>(
+          find.byKey(SettingsAnchor.highlightKey('delete_all_data')),
+        );
+        expect(
+          (again.foregroundDecoration! as BoxDecoration).color?.a,
+          greaterThan(0),
+        );
+        await tester.pumpAndSettle(const Duration(seconds: 2));
+      });
+
+      testWidgets('a link with a row scrolls to it on a phone', (tester) async {
+        await pump(
+          tester,
+          category: SettingsCategory.privacy,
+          highlight: 'delete_all_data',
+          size: const Size(412, 700),
+        );
+        await tester.pumpAndSettle();
+        final row = find.byKey(const Key('settings_delete_all_data'));
+        expect(tester.getRect(row).bottom, lessThanOrEqualTo(700));
+        await tester.pump(SettingsAnchor.highlightDuration);
+        await tester.pumpAndSettle();
+      });
+
+      testWidgets('every result names a row of its category', (tester) async {
+        final speech = _MockSpeechService();
+        when(() => speech.speaking).thenAnswer((_) => const Stream.empty());
+        when(() => speech.current).thenReturn(null);
+        when(() => speech.deviceVoiceSupported).thenReturn(false);
+        when(() => speech.preferDeviceVoice).thenReturn(false);
+        when(speech.loadPreferDeviceVoice).thenAnswer((_) async => false);
+        when(speech.loadSettings)
+            .thenAnswer((_) async => const SpeechSettings());
+        when(speech.stop).thenAnswer((_) async {});
+        when(() => settings.state).thenReturn(
+          const AppSettings(dynamicColor: false, providers: [_claude]),
+        );
+        tester.setScreenSize(const Size(800, 3000));
+        late List<SettingsSearchEntry> entries;
+        await tester.pumpView(
+          RepositoryProvider<SpeechService>.value(
+            value: speech,
+            child: Builder(
+              builder: (context) {
+                entries = settingsSearchIndex(context, settings.state);
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+          settings: settings,
+          history: history,
+          router: router,
+        );
+        expect(entries.length, greaterThan(30));
+        expect(
+          entries.map((e) => '${e.category.name}/${e.anchor}').toSet(),
+          hasLength(entries.length),
+        );
+        for (final category in SettingsCategory.values) {
+          await tester.pumpView(
+            RepositoryProvider<SpeechService>.value(
+              value: speech,
+              child: SettingsCategoryPage(category: category),
+            ),
+            settings: settings,
+            history: history,
+            router: router,
+          );
+          await tester.pump();
+          for (final entry in entries.where((e) => e.category == category)) {
+            expect(
+              find.byKey(SettingsAnchor.highlightKey(entry.anchor)),
+              findsOneWidget,
+              reason: '${category.name}: ${entry.anchor}',
+            );
+            // The About page names the app instead of "About Mozhi".
+            if (entry.anchor == 'version') continue;
+            expect(
+              find.textContaining(entry.title, findRichText: true),
+              findsWidgets,
+              reason: '${category.name}: ${entry.title}',
+            );
+          }
+        }
       });
     });
 
@@ -1620,6 +2160,7 @@ void main() {
         await pump(
           tester,
           state: const AppSettings(providers: [_claude, _local, deepl]),
+          category: SettingsCategory.engines,
         );
         expect(
           find.descendant(
@@ -1628,6 +2169,7 @@ void main() {
           ),
           findsOneWidget,
         );
+        await pump(tester, category: SettingsCategory.ai);
         expect(
           find.descendant(
             of: find.byKey(const Key('settings_ai_providers')),
@@ -1638,7 +2180,11 @@ void main() {
       });
 
       testWidgets('explains the services when none is set up', (tester) async {
-        await pump(tester, state: const AppSettings());
+        await pump(
+          tester,
+          state: const AppSettings(),
+          category: SettingsCategory.engines,
+        );
         expect(
           find.text('DeepL or LibreTranslate with your own key or server'),
           findsOneWidget,
@@ -1649,6 +2195,7 @@ void main() {
         await pump(
           tester,
           state: const AppSettings(providers: [_claude, deepl]),
+          category: SettingsCategory.ai,
         );
         await tester.tap(find.text('AI assistant for insights'));
         await tester.pumpAndSettle();
@@ -1670,7 +2217,11 @@ void main() {
 
       testWidgets('with only machine translation services the assistant '
           'asks for an AI provider', (tester) async {
-        await pump(tester, state: const AppSettings(providers: [deepl]));
+        await pump(
+          tester,
+          state: const AppSettings(providers: [deepl]),
+          category: SettingsCategory.ai,
+        );
         expect(
           find.text(
             'Add an AI provider for alternatives, insights and explanations',
@@ -1703,12 +2254,12 @@ void main() {
       tearDown(() => LinkLauncher.launcher = launcher);
 
       testWidgets('shows the version', (tester) async {
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.about);
         await tester.pumpAndSettle();
         expect(
           find.descendant(
             of: find.byKey(const Key('settings_version')),
-            matching: find.text('2.1.0 (42)'),
+            matching: find.text('Version 2.1.0 (42)'),
           ),
           findsOneWidget,
         );
@@ -1722,13 +2273,13 @@ void main() {
           buildNumber: '',
           buildSignature: '',
         );
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.about);
         await tester.pumpAndSettle();
-        expect(find.text('2.1.0'), findsOneWidget);
+        expect(find.text('Version 2.1.0'), findsOneWidget);
       });
 
       testWidgets('opens the source code', (tester) async {
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.about);
         await tester.tap(find.text('Source code'));
         await tester.pumpAndSettle();
         expect(opened, [AboutView.sourceCodeUrl]);
@@ -1737,7 +2288,7 @@ void main() {
       testWidgets('opens the licenses with the offline models notice', (
         tester,
       ) async {
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.about);
         expect(
           find.text(
             'Including the MPL-2.0 license of the offline translation '
@@ -1751,7 +2302,7 @@ void main() {
       });
 
       testWidgets('describes the setup steps', (tester) async {
-        await pump(tester);
+        await pump(tester, category: SettingsCategory.about);
         expect(
           find.text('Privacy, languages and an online service, step by step'),
           findsOneWidget,
@@ -1763,43 +2314,66 @@ void main() {
       testWidgets('fits a 360dp phone at 200% text and meets the tap target '
           'guidelines', (tester) async {
         final handle = tester.ensureSemantics();
-        await pump(
-          tester,
-          state: const AppSettings(
-            dynamicColor: false,
-            providers: [_claude],
-            recentPairs: [
-              LanguagePair(
-                source: Language.auto,
-                target: Language(code: 'en', name: 'English'),
-              ),
-            ],
-            networkPairs: ['en>fr'],
-            consentedProviders: ['p1'],
-          ),
-          size: const Size(360, 760),
-          textScale: 2,
-        );
-        final scrollable = find.byType(Scrollable).first;
-        for (var i = 0; i < 200; i++) {
-          expect(tester.takeException(), isNull);
+        for (final category in [null, ...SettingsCategory.values]) {
+          // Tall enough to show every row: rows cut by the edge of a
+          // scrolled list would report clipped targets.
+          await pump(
+            tester,
+            state: const AppSettings(
+              dynamicColor: false,
+              providers: [_claude],
+              recentPairs: [
+                LanguagePair(
+                  source: Language.auto,
+                  target: Language(code: 'en', name: 'English'),
+                ),
+              ],
+              networkPairs: ['en>fr'],
+              consentedProviders: ['p1'],
+            ),
+            category: category,
+            size: const Size(360, 6000),
+            textScale: 2,
+          );
+          await tester.pumpAndSettle();
+          expect(tester.takeException(), isNull, reason: '$category');
           await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
           await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
-          final position = tester.state<ScrollableState>(scrollable).position;
-          if (position.pixels >= position.maxScrollExtent) break;
-          await tester.drag(scrollable, const Offset(0, -500));
-          await tester.pumpAndSettle();
         }
-        final position = tester.state<ScrollableState>(scrollable).position;
-        expect(position.pixels, position.maxScrollExtent);
         expect(find.text('Run setup again'), findsOneWidget);
         handle.dispose();
       });
 
       testWidgets('meets the text contrast guideline', (tester) async {
+        for (final category in [null, SettingsCategory.privacy]) {
+          await pump(tester, category: category, size: const Size(800, 2000));
+          await tester.pumpAndSettle();
+          await expectLater(tester, meetsGuideline(textContrastGuideline));
+        }
         await pump(tester, size: const Size(800, 2000));
+        await tester.enterText(find.byKey(SettingsSearchField.fieldKey), 'his');
         await tester.pumpAndSettle();
         await expectLater(tester, meetsGuideline(textContrastGuideline));
+      });
+
+      testWidgets('the search field is a search box that respects '
+          'incognito', (tester) async {
+        await pump(tester, state: const AppSettings(incognito: true));
+        final field = tester.widget<TextField>(
+          find.byKey(SettingsSearchField.fieldKey),
+        );
+        expect(field.enableIMEPersonalizedLearning, isFalse);
+        expect(
+          find.ancestor(
+            of: find.byKey(SettingsSearchField.fieldKey),
+            matching: find.byWidgetPredicate(
+              (w) =>
+                  w is Semantics &&
+                  w.properties.inputType == SemanticsInputType.search,
+            ),
+          ),
+          findsOneWidget,
+        );
       });
     });
   });

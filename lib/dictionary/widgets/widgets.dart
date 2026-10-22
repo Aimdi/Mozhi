@@ -1,4 +1,5 @@
 export 'dictionary_composer.dart';
+export 'dictionary_engine_chip.dart';
 export 'dictionary_entry_tabs.dart';
 export 'dictionary_favorite_button.dart';
 export 'dictionary_language_bar.dart';

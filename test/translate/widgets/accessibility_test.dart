@@ -288,7 +288,10 @@ void main() {
       tester,
     ) async {
       final handle = tester.ensureSemantics();
-      final harness = TranslateHarness(state: _streaming('Bon'));
+      // A new translation of a shown one: the bar.
+      final harness = TranslateHarness(
+        state: _finished(_done).copyWith(status: TranslateStatus.translating),
+      );
       await harness.pump(tester, child: const OutputCard());
       await pumpPastLoadingDelay(tester);
       final progress = tester.widget<LinearProgressIndicator>(
@@ -296,6 +299,14 @@ void main() {
       );
       expect(progress.semanticsLabel, 'Translating…');
       expect(find.bySemanticsLabel('Translation'), findsOneWidget);
+
+      // No text yet: the placeholder lines say it.
+      final loading = TranslateHarness(
+        state: readyState(input: 'Hi', status: TranslateStatus.translating),
+      );
+      await loading.pump(tester, child: const OutputCard());
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.bySemanticsLabel('Translating…'), findsOneWidget);
       handle.dispose();
     });
   });

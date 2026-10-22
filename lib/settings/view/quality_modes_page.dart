@@ -109,9 +109,14 @@ class _QualityEngineSection extends StatelessWidget {
 
     final String title;
     final String subtitle;
+    // Without an engine of its own a mode uses the usual engine, once the
+    // other mode has one (see `TranslateCubit`).
+    final otherId = _isBest ? settings.fastEngineId : settings.bestEngineId;
     if (id == null) {
       title = l10n.settingsQualityNotSet;
-      subtitle = l10n.settingsQualityChoose;
+      subtitle = otherId == null
+          ? l10n.settingsQualityChoose
+          : l10n.settingsQualityUsesUsual;
     } else if (engine != null) {
       title = engine.name;
       subtitle = engine.subtitle ?? '';

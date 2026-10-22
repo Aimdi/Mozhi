@@ -3,6 +3,7 @@
 // translation, closed by default).
 const { expect } = require('@playwright/test');
 const {
+  accessibilityTree,
   copiedTranslation,
   openApp,
   recordAiRequests,
@@ -40,6 +41,10 @@ async function translate(page) {
 test('typing translates with the AI provider', async ({ page }) => {
   const requests = recordAiRequests(page);
   await translate(page);
+
+  // A screen reader can read the translation itself (on the web the
+  // selectable text alone would be an empty, disabled field).
+  await expect.poll(() => accessibilityTree(page)).toContain(TRANSLATION);
 
   // The result's header names the target language, then the engine that
   // produced it (X-style "French · Local AI (mock) · 0.4 s").

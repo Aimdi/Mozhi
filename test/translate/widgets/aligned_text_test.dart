@@ -602,12 +602,12 @@ void main() {
       );
       stubOutputExtras(harness);
       await harness.pump(tester, child: const OutputCard(), more: true);
-      expect(find.byTooltip('Show matching phrases'), findsOneWidget);
+      expect(tester.widget<TranslateToolRow>(button()).selected, isFalse);
       await tester.tap(button());
       await tester.pump();
       verify(harness.translate.loadAlignment).called(1);
-      expect(find.byTooltip('Hide matching phrases'), findsOneWidget);
-      expect(tester.widget<TranslateToolChip>(button()).selected, isTrue);
+      expect(tester.widget<TranslateToolRow>(button()).selected, isTrue);
+      expect(tester.widget<TranslateToolRow>(button()).selected, isTrue);
     });
 
     testWidgets('is not offered without an AI engine', (tester) async {
@@ -622,7 +622,7 @@ void main() {
             .copyWith(input: 'Hello there', resultInput: () => 'Hello world'),
       );
       await harness.pump(tester, child: const OutputCard(), more: true);
-      expect(tester.widget<TranslateToolChip>(button()).onPressed, isNull);
+      expect(tester.widget<TranslateToolRow>(button()).onPressed, isNull);
     });
 
     testWidgets('shows progress while aligning', (tester) async {
@@ -765,7 +765,7 @@ void main() {
       verify(() => harness.translate.focusAlignment(null)).called(1);
       expect(_alignedText, findsNothing);
       expect(find.byKey(const Key('translate_insight_text')), findsOneWidget);
-      expect(tester.widget<TranslateToolChip>(button()).selected, isFalse);
+      expect(tester.widget<TranslateToolRow>(button()).selected, isFalse);
 
       await tester.tap(button());
       await tester.pump();
@@ -829,8 +829,8 @@ void main() {
       // The new result fades in.
       await tester.pump(const Duration(milliseconds: 300));
       verifyNever(harness.translate.loadAlignment);
-      expect(tester.widget<TranslateToolChip>(button()).selected, isFalse);
-      expect(find.byTooltip('Show matching phrases'), findsOneWidget);
+      expect(tester.widget<TranslateToolRow>(button()).selected, isFalse);
+      expect(tester.widget<TranslateToolRow>(button()).selected, isFalse);
 
       // The button loads it again.
       await tester.tap(button());

@@ -6,8 +6,27 @@ import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:translation_repository/translation_repository.dart';
 
+/// Why saving the settings failed (see [SettingsCubit.saveFailures]).
+enum SettingsSaveFailure {
+  /// The settings could not be written (storage error, or stored settings
+  /// that could not be read are not overwritten:
+  /// [SettingsUnavailableException]). The changes last until the app
+  /// closes.
+  settings,
+
+  /// Secure storage refused an API key, custom headers or an instance
+  /// password ([SecretStorageException]). It is kept in memory until the
+  /// app closes, never in plain storage.
+  secret;
+
+  /// The failure [error] (thrown by [SettingsRepository.save]) stands for.
+  static SettingsSaveFailure of(Object error) =>
+      error is SecretStorageException ? secret : settings;
+}
+
 /// App-wide settings. Every mutation emits immediately and persists
-/// asynchronously (errors are reported via `addError`, never thrown).
+/// asynchronously (errors are reported via `addError`, never thrown, and
+/// on [saveFailures]).
 ///
 /// `repository` defaults to a [SettingsRepository] backed by the platform
 /// stores. Typical bootstrap:
@@ -24,6 +43,13 @@ class SettingsCubit extends Cubit<AppSettings> {
   static const maxRecentPairs = 8;
 
   final SettingsRepository _repository;
+
+  final _saveFailures = StreamController<SettingsSaveFailure>.broadcast();
+
+  /// Every failed save, as it happens (e.g. the Keystore refusing an API
+  /// key): the state keeps the change, which lasts until the app closes.
+  /// Shown to the user by `SettingsSaveFailureListener`.
+  Stream<SettingsSaveFailure> get saveFailures => _saveFailures.stream;
 
   /// Reloads from storage.
   Future<void> load() async {
@@ -352,7 +378,16 @@ class SettingsCubit extends Cubit<AppSettings> {
     try {
       await _repository.save(settings);
     } on Object catch (error, stackTrace) {
+      if (!_saveFailures.isClosed) {
+        _saveFailures.add(SettingsSaveFailure.of(error));
+      }
       addError(error, stackTrace);
     }
+  }
+
+  @override
+  Future<void> close() {
+    unawaited(_saveFailures.close());
+    return super.close();
   }
 }

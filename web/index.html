@@ -35,7 +35,12 @@
   <meta name="referrer" content="no-referrer">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="A fast, private translator: use your own Mozhi instance or AI model (OpenAI, Anthropic, Gemini, Ollama, ...) with Kagi-style alternatives, insights and proofreading.">
-  <meta name="theme-color" content="#1D9BF0">
+  <!-- Browser and installed-app bars in the page colour of the default
+       look (lib/app/theme.dart: white, and "Lights out" black in the dark),
+       like the splash below. The first matching tag wins over the one
+       Flutter adds at runtime (the light accent). -->
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#FFFFFF">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000">
   <meta name="color-scheme" content="light dark">
 
   <!-- iOS meta tags & icons -->
@@ -54,7 +59,9 @@
        resources; follows the system light/dark preference). Its colours
        are the app's defaults (lib/app/theme.dart: the accent #1D9BF0 on
        white, and on "Lights out" black in the dark), so the first frame
-       does not flash another colour. -->
+       does not flash another colour. The look the user picked (Dim, or a
+       light/dark mode other than the system's) is not known before the app
+       starts, so the default is matched. -->
   <style>
     :root { --splash-bg: #ffffff; --splash-fg: #0f1419; --splash-accent: #0d77be; --splash-track: #eff3f4; }
     @media (prefers-color-scheme: dark) {

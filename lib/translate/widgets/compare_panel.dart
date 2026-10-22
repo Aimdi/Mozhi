@@ -1,9 +1,10 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/proofread/models/proofread_diff.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/language_bar.dart'
@@ -17,31 +18,92 @@ import 'package:mozhi/translate/widgets/translate_layout.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// How many engines a compare run of [state] uses with the configured
-/// [compareIds] (all engines when none are configured or none of them is
-/// available; only engines that support custom languages when the source
-/// or target is custom), as `TranslateCubit.runCompare` picks them.
-int compareEngineCount(TranslateState state, List<String> compareIds) {
-  var engines = compareIds.isEmpty
-      ? state.engines
-      : [
-          for (final engine in state.engines)
-            if (compareIds.contains(engine.id)) engine,
-        ];
-  if (engines.isEmpty) engines = state.engines;
-  if (state.source.isCustom || state.target.isCustom) {
-    engines = [
-      for (final engine in engines)
-        if (engine.supportsCustomLanguages) engine,
-    ];
+/// [compareIds] (`TranslateState.compareEnginesFor`).
+int compareEngineCount(TranslateState state, List<String> compareIds) =>
+    state.compareEnginesFor(compareIds).length;
+
+/// Engines whose results read the same once white space is ignored.
+String _sameTextKey(String text) => text.trim().replaceAll(RegExp(r'\s+'), ' ');
+
+/// One card of the compare panel: the results of `entries` (several when
+/// their engines agree), a failed engine, or an engine still running
+/// (`pending`).
+typedef CompareCardData = ({
+  List<CompareEntry> entries,
+  TranslationEngine? pending,
+});
+
+/// The cards of a compare run, in engine order: the current translation's
+/// (`TranslateState.compareBaseline`) first, then one per engine of
+/// [engines] (the run's, see `TranslateState.compareEnginesFor`). Engines
+/// whose translations are the same share the card of the first of them;
+/// a failed engine gets a card of its own; an engine without a result yet
+/// gets a placeholder while [comparing].
+List<CompareCardData> compareCards({
+  required List<CompareEntry> entries,
+  required List<TranslationEngine> engines,
+  required bool comparing,
+  TranslationResult? baseline,
+}) {
+  final byId = {for (final entry in entries) entry.id: entry};
+  final slots = [
+    ?baseline?.engineId,
+    for (final engine in engines)
+      if (engine.id != baseline?.engineId) engine.id,
+    for (final entry in entries)
+      if (entry.id != baseline?.engineId &&
+          engines.every((engine) => engine.id != entry.id))
+        entry.id,
+  ];
+  final groups = <String, List<CompareEntry>>{};
+  for (final id in slots) {
+    final result = byId[id]?.result;
+    if (result == null) continue;
+    (groups[_sameTextKey(result.text)] ??= []).add(byId[id]!);
   }
-  return engines.length;
+  final shown = <String>{};
+  return [
+    for (final id in slots)
+      if (byId[id] case final entry?)
+        if (entry.result case final result?) ...[
+          if (shown.add(_sameTextKey(result.text)))
+            (entries: groups[_sameTextKey(result.text)]!, pending: null),
+        ] else
+          (entries: [entry], pending: null)
+      else if (comparing)
+        for (final engine in engines)
+          if (engine.id == id)
+            (entries: const <CompareEntry>[], pending: engine),
+  ];
 }
 
-/// Compare mode: a card per engine result with copy and "Use this", plus
-/// placeholders for engines that are still running. When every engine has
-/// answered, screen readers hear how many succeeded. The close button
-/// leaves compare mode (it is entered from the "More" tools or the "More
-/// tools" menu).
+/// The header of a card for [names]: the engine, or "DeepL and Google
+/// agree", "DeepL, Google and DuckDuckGo agree".
+String compareCardTitle(AppLocalizations l10n, List<String> names) {
+  if (names.length < 2) return names.firstOrNull ?? '';
+  if (names.length == 2) {
+    return l10n.translateCompareAgreeTwo(names[0], names[1]);
+  }
+  return l10n.translateCompareAgreeMany(
+    names.sublist(0, names.length - 1).join(l10n.translateCompareNameSeparator),
+    names.last,
+  );
+}
+
+/// Compare mode: the engines' translations side by side.
+///
+/// Choosing Compare starts the run at once (`TranslateCubit.setCompareMode`)
+/// with the current translation as the first card ("Current translation").
+/// Cards follow the engines' order, not the order the results arrive in
+/// ([compareCards]); engines that agree share one card ("DeepL and Google
+/// agree"), and the words in which a card differs from the current
+/// translation are highlighted. Engines still running show a placeholder
+/// with their name. When every engine has answered, screen readers hear how
+/// many succeeded.
+///
+/// The header's "Done" is the one way out of compare mode (it is entered
+/// from the tools under a translation); "Compare" shows while there are no
+/// results for the input (after an edit, for example).
 class ComparePanel extends StatelessWidget {
   const new({super.key});
 
@@ -56,23 +118,37 @@ class ComparePanel extends StatelessWidget {
       buildWhen: (previous, current) =>
           previous.compareEntries != current.compareEntries ||
           previous.comparing != current.comparing ||
+          previous.compareBaseline != current.compareBaseline ||
           previous.engines != current.engines ||
           previous.source != current.source ||
           previous.target != current.target ||
           previous.input.trim().isEmpty != current.input.trim().isEmpty,
       builder: (context, state) {
         final cubit = context.read<TranslateCubit>();
-        final expected = compareEngineCount(state, compareIds);
-        final placeholders = state.comparing
-            ? math.max(1, expected - state.compareEntries.length)
-            : 0;
         final entries = state.compareEntries;
-        final finished = !state.comparing && entries.isNotEmpty
+        final baseline = state.compareBaseline;
+        final cards = compareCards(
+          entries: entries,
+          engines: state.compareEnginesFor(compareIds),
+          comparing: state.comparing,
+          baseline: baseline,
+        );
+        final asked = entries.where((e) => e.result != baseline).toList();
+        final finished = !state.comparing && asked.isNotEmpty
             ? l10n.translateCompareFinished(
-                entries.where((e) => e.result != null).length,
-                entries.length,
+                asked.where((e) => e.result != null).length,
+                asked.length,
               )
             : null;
+        final idle = !state.comparing && entries.isEmpty;
+        final differs =
+            baseline != null &&
+            cards.any(
+              (card) =>
+                  card.entries.isNotEmpty &&
+                  card.entries.first.result != null &&
+                  !card.entries.any((entry) => entry.result == baseline),
+            );
         return StatusAnnouncer(
           message: finished,
           child: Column(
@@ -91,23 +167,31 @@ class ComparePanel extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  FilledButton.icon(
-                    key: const Key('translate_compare_button'),
-                    onPressed: state.input.trim().isEmpty || state.comparing
-                        ? null
-                        : () => unawaited(cubit.runCompare()),
-                    icon: const Icon(Icons.compare_arrows),
-                    label: Text(l10n.translateCompareButton),
-                  ),
-                  IconButton(
-                    key: const Key('translate_compare_toggle'),
-                    tooltip: l10n.translateCompareModeExit,
-                    icon: const Icon(Icons.close),
-                    onPressed: () => cubit.setCompareMode(enabled: false),
+                  if (idle) ...[
+                    FilledButton.icon(
+                      key: const Key('translate_compare_button'),
+                      onPressed: state.input.trim().isEmpty
+                          ? null
+                          : () => unawaited(cubit.runCompare()),
+                      icon: const Icon(Icons.compare_arrows),
+                      label: Text(l10n.translateCompareButton),
+                    ),
+                    const SizedBox(width: 4),
+                  ],
+                  Tooltip(
+                    message: l10n.translateCompareModeExit,
+                    child: TextButton(
+                      key: const Key('translate_compare_toggle'),
+                      style: TextButton.styleFrom(
+                        minimumSize: const Size(48, 48),
+                      ),
+                      onPressed: () => cubit.setCompareMode(enabled: false),
+                      child: Text(l10n.translateCompareDone),
+                    ),
                   ),
                 ],
               ),
-              if (!state.comparing && state.compareEntries.isEmpty)
+              if (idle)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(
@@ -116,19 +200,39 @@ class ComparePanel extends StatelessWidget {
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
+                )
+              else if (differs)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    l10n.translateCompareDiffHint,
+                    key: const Key('translate_compare_diff_hint'),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppPalette.of(context).secondaryText,
+                    ),
+                  ),
                 ),
-              for (final entry in entries) ...[
+              for (final card in cards) ...[
                 const SizedBox(height: TranslateLayout.gap),
-                CompareEntryCard(
-                  key: ValueKey('compare:${entry.id}'),
-                  entry: entry,
-                  target: state.target,
-                  onUse: () => cubit.useCompareEntry(entry),
-                ),
-              ],
-              for (var i = 0; i < placeholders; i++) ...[
-                const SizedBox(height: TranslateLayout.gap),
-                const SkeletonCard(),
+                if (card.pending case final engine?)
+                  _PendingCard(
+                    key: ValueKey('compare_pending:${engine.id}'),
+                    name: engine.name,
+                  )
+                else
+                  CompareEntryCard(
+                    key: ValueKey('compare:${card.entries.first.id}'),
+                    entry: card.entries.first,
+                    agreeing: card.entries.sublist(1),
+                    target: state.target,
+                    baseline: baseline,
+                    onUse: () => cubit.useCompareEntry(
+                      card.entries.firstWhere(
+                        (entry) => entry.result == baseline,
+                        orElse: () => card.entries.first,
+                      ),
+                    ),
+                  ),
               ],
             ],
           ),
@@ -138,9 +242,21 @@ class ComparePanel extends StatelessWidget {
   }
 }
 
-/// One engine's compare result (or error).
+/// One engine's compare result (or error), or the result several engines
+/// agree on ([entry] and [agreeing]).
+///
+/// With a [baseline] (the translation shown before comparing) the card of
+/// that translation is marked "Current translation", and the words of
+/// another card that are not in it are highlighted.
 class CompareEntryCard extends StatelessWidget {
-  const new({required this.entry, required this.onUse, this.target, super.key});
+  const new({
+    required this.entry,
+    required this.onUse,
+    this.target,
+    this.agreeing = const [],
+    this.baseline,
+    super.key,
+  });
 
   final CompareEntry entry;
   final VoidCallback onUse;
@@ -148,16 +264,33 @@ class CompareEntryCard extends StatelessWidget {
   /// Language of the translations (text direction and screen-reader voice).
   final Language? target;
 
+  /// Other engines with the same translation as [entry].
+  final List<CompareEntry> agreeing;
+
+  /// The translation compared with (`TranslateState.compareBaseline`).
+  final TranslationResult? baseline;
+
+  /// Longest text whose differences are highlighted.
+  static const maxDiffLength = 5000;
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final result = entry.result;
-    final elapsed = result?.elapsed;
+    final all = [entry, ...agreeing];
+    final elapsed = agreeing.isEmpty ? result?.elapsed : null;
+    final baseline = this.baseline;
+    final current = baseline != null && all.any((e) => e.result == baseline);
     final target = this.target;
     final direction =
         (target == null ? null : textDirectionForLanguage(target)) ??
         (result == null ? null : textDirectionForText(result.text));
+    final highlight = TextStyle(
+      backgroundColor: scheme.tertiaryContainer,
+      color: scheme.onTertiaryContainer,
+    );
     return TranslateFlatCard(
       look: TranslateCardLook.quote,
       child: Padding(
@@ -171,9 +304,9 @@ class CompareEntryCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      entry.name,
+                      compareCardTitle(l10n, [for (final e in all) e.name]),
                       style: theme.textTheme.titleSmall?.copyWith(
-                        color: theme.colorScheme.primary,
+                        color: scheme.primary,
                       ),
                     ),
                   ),
@@ -184,12 +317,23 @@ class CompareEntryCard extends StatelessWidget {
                         formatSeconds(elapsed),
                       ),
                       style: theme.textTheme.labelMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                        color: scheme.onSurfaceVariant,
                       ),
                     ),
                 ],
               ),
             ),
+            if (current)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  l10n.translateCompareCurrent,
+                  key: const Key('translate_compare_current'),
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: AppPalette.of(context).secondaryText,
+                  ),
+                ),
+              ),
             const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsetsDirectional.only(end: 12, bottom: 8),
@@ -198,10 +342,16 @@ class CompareEntryCard extends StatelessWidget {
                       width: double.infinity,
                       child: SelectableText.rich(
                         TextSpan(
-                          text: result.text,
                           locale: target == null
                               ? null
                               : localeForLanguage(target),
+                          children: current || baseline == null
+                              ? [TextSpan(text: result.text)]
+                              : _differences(
+                                  baseline.text,
+                                  result.text,
+                                  highlight,
+                                ),
                         ),
                         textDirection: direction,
                         style: TranslateLayout.textStyle(
@@ -242,6 +392,64 @@ class CompareEntryCard extends StatelessWidget {
                   ),
                 ],
               ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// [text] with the words that are not in [baseline] in [highlight]
+  /// (a word diff, as in Proofread); plain for long texts.
+  static List<TextSpan> _differences(
+    String baseline,
+    String text,
+    TextStyle highlight,
+  ) {
+    if (text.length > maxDiffLength || baseline.length > maxDiffLength) {
+      return [TextSpan(text: text)];
+    }
+    return [
+      for (final segment in ProofreadDiff.wordDiff(baseline, text))
+        if (segment.type != DiffType.removed)
+          TextSpan(
+            text: segment.text,
+            style:
+                segment.type == DiffType.inserted &&
+                    segment.text.trim().isNotEmpty
+                ? highlight
+                : null,
+          ),
+    ];
+  }
+}
+
+/// The place of an engine that is still translating: its [name] over a
+/// loading placeholder.
+class _PendingCard extends StatelessWidget {
+  const new({required this.name, super.key});
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return TranslateFlatCard(
+      look: TranslateCardLook.quote,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              name,
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: AppPalette.of(context).secondaryText,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const SkeletonBox(),
+            const SizedBox(height: 8),
+            const FractionallySizedBox(widthFactor: 0.6, child: SkeletonBox()),
           ],
         ),
       ),

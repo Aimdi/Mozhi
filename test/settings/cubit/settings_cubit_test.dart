@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -159,6 +161,74 @@ void main() {
         'does not emit or save unchanged settings',
         act: (cubit) => cubit.setThemeMode(ThemeMode.system),
       );
+
+      group('save failures', () {
+        test('are reported on saveFailures', () async {
+          when(() => repository.save(any()))
+              .thenAnswer((_) => Future.error(StateError('disk')));
+          final cubit = buildCubit();
+          final failures = <SettingsSaveFailure>[];
+          final subscription = cubit.saveFailures.listen(failures.add);
+          cubit.setPureBlack(enabled: false);
+          await pumpEventQueue();
+          expect(failures, [SettingsSaveFailure.settings]);
+          await subscription.cancel();
+          await cubit.close();
+        });
+
+        test('say when secure storage refused a secret', () async {
+          when(() => repository.save(any())).thenAnswer(
+            (_) => Future.error(SecretStorageException(StateError('ks'))),
+          );
+          final cubit = buildCubit();
+          final failures = <SettingsSaveFailure>[];
+          cubit.saveFailures.listen(failures.add);
+          cubit
+            ..setPureBlack(enabled: false)
+            ..setSeedColor(1);
+          await pumpEventQueue();
+          expect(failures, [
+            SettingsSaveFailure.secret,
+            SettingsSaveFailure.secret,
+          ]);
+          await cubit.close();
+        });
+
+        test('classify unreadable stored settings as a settings failure', () {
+          expect(
+            SettingsSaveFailure.of(const SettingsUnavailableException()),
+            SettingsSaveFailure.settings,
+          );
+        });
+
+        test('are not reported for successful saves', () async {
+          final cubit = buildCubit();
+          final failures = <SettingsSaveFailure>[];
+          cubit.saveFailures.listen(failures.add);
+          cubit.setPureBlack(enabled: false);
+          await pumpEventQueue();
+          expect(failures, isEmpty);
+          await cubit.close();
+        });
+
+        test('a save failing after close is not reported', () async {
+          final gate = Completer<void>();
+          when(() => repository.save(any())).thenAnswer((_) async {
+            await gate.future;
+            throw StateError('late');
+          });
+          final cubit = buildCubit();
+          final failures = <SettingsSaveFailure>[];
+          final done = expectLater(cubit.saveFailures, emitsDone);
+          cubit.saveFailures.listen(failures.add);
+          cubit.setPureBlack(enabled: false);
+          await cubit.close();
+          gate.complete();
+          await pumpEventQueue();
+          await done;
+          expect(failures, isEmpty);
+        });
+      });
 
       blocTest<SettingsCubit, AppSettings>(
         'ignores changes after close',

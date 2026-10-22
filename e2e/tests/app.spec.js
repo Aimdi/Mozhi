@@ -4,7 +4,6 @@
 const { expect } = require('@playwright/test');
 const {
   collectPageErrors,
-  enableSemantics,
   goBack,
   openApp,
   openHistory,
@@ -12,6 +11,7 @@ const {
   scrollTo,
   seedSettings,
   test,
+  waitForSemantics,
 } = require('./helpers');
 
 test.beforeEach(async ({ page }) => {
@@ -39,6 +39,9 @@ test('app loads on the translate tab', async ({ page }) => {
   await expect(
     page.getByRole('textbox', { name: 'Text to translate' }),
   ).toBeVisible();
+  // Screen readers get the tree from the start: Flutter's hidden "Enable
+  // accessibility" button is gone (lib/bootstrap.dart).
+  await expect(page.locator('flt-semantics-placeholder')).toHaveCount(0);
   // The seeded AI provider is the selected engine.
   await expect(
     page.getByRole('button', { name: /Local AI \(mock\)/ }).first(),
@@ -57,7 +60,7 @@ test('first run: at most three steps after the welcome', async ({ page }) => {
     localStorage.setItem('settings.v1', JSON.stringify(JSON.stringify(settings)));
   });
   await page.reload();
-  await enableSemantics(page);
+  await waitForSemantics(page);
 
   await expect(
     page.getByRole('heading', { name: 'Welcome to Mozhi' }),

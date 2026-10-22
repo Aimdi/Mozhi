@@ -13,6 +13,7 @@ import 'package:mozhi/settings/view/widgets/choice_dialog.dart';
 import 'package:mozhi/settings/view/widgets/delete_local_data.dart';
 import 'package:mozhi/settings/view/widgets/history_data_actions.dart';
 import 'package:mozhi/settings/view/widgets/http_proxy_dialog.dart';
+import 'package:mozhi/settings/view/widgets/settings_search.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -25,11 +26,35 @@ String historyRetentionLabel(
   final maxAge => l10n.settingsHistoryRetentionDays(maxAge.inDays),
 };
 
-/// The Privacy settings: privacy mode, incognito, screen protection,
-/// history saving, auto-delete, export and import, the recent language
-/// pairs, what the user allowed to go to the network (language pairs,
-/// cloud providers), the HTTP proxy and, after a divider, "Clear history"
-/// and "Delete all local data".
+/// Anchors ([SettingsAnchor.id]) of the Privacy & data settings.
+abstract final class PrivacyAnchors {
+  static const privacyMode = 'privacy_mode';
+  static const incognito = 'incognito';
+  static const secureScreen = 'secure_screen';
+  static const maskPersonalData = 'mask_personal_data';
+  static const saveHistory = 'save_history';
+  static const historyRetention = 'history_retention';
+  static const exportHistory = 'export_history';
+  static const importHistory = 'import_history';
+  static const recentPairs = 'recent_pairs';
+  static const networkPairs = 'network_pairs';
+  static const consentedProviders = 'consented_providers';
+  static const httpProxy = 'http_proxy';
+  static const networkActivity = 'network_activity';
+  static const clearHistory = 'clear_history';
+  static const deleteAllData = 'delete_all_data';
+}
+
+/// The Privacy & data settings, in four groups:
+///
+/// * Privacy: privacy mode, incognito, screen protection (Android) and the
+///   personal data shield;
+/// * History: saving it, auto-delete, export and import, the recent
+///   language pairs;
+/// * Network: what the user allowed to go to the network (language pairs,
+///   cloud providers), the HTTP proxy and the network activity;
+/// * Data, last and in the error colour: "Clear history" and "Delete all
+///   local data".
 ///
 /// Reads [SettingsCubit] and (for the history rows) [HistoryCubit].
 class PrivacySettingsSection extends StatelessWidget {
@@ -47,106 +72,186 @@ class PrivacySettingsSection extends StatelessWidget {
     final l10n = context.l10n;
     final cubit = context.read<SettingsCubit>();
     final error = Theme.of(context).colorScheme.error;
-    return SettingsSection(
-      title: l10n.settingsSectionPrivacy,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _PrivacyModePicker(
-          value: settings.privacyMode,
-          onChanged: cubit.setPrivacyMode,
+        SettingsSection(
+          title: l10n.settingsSectionPrivacy,
+          children: [
+            SettingsAnchor(
+              id: PrivacyAnchors.privacyMode,
+              child: _PrivacyModePicker(
+                value: settings.privacyMode,
+                onChanged: cubit.setPrivacyMode,
+              ),
+            ),
+            SettingsAnchor(
+              id: PrivacyAnchors.incognito,
+              child: SwitchListTile(
+                key: const Key('settings_incognito'),
+                secondary: const SettingsIcon(Icons.visibility_off_outlined),
+                title: Text(l10n.settingsIncognito),
+                subtitle: Text(l10n.settingsIncognitoSubtitle),
+                value: settings.incognito,
+                onChanged: (value) => cubit.setIncognito(enabled: value),
+              ),
+            ),
+            if (secureScreenSupported)
+              SettingsAnchor(
+                id: PrivacyAnchors.secureScreen,
+                child: SwitchListTile(
+                  key: const Key('settings_secure_screen'),
+                  secondary: const SettingsIcon(
+                    Icons.screen_lock_portrait_outlined,
+                  ),
+                  title: Text(l10n.settingsSecureScreen),
+                  subtitle: Text(l10n.settingsSecureScreenSubtitle),
+                  value: settings.secureScreen,
+                  onChanged: (value) => cubit.setSecureScreen(enabled: value),
+                ),
+              ),
+            SettingsAnchor(
+              id: PrivacyAnchors.maskPersonalData,
+              child: SwitchListTile(
+                key: const Key('settings_mask_personal_data'),
+                secondary: const SettingsIcon(Icons.shield_outlined),
+                title: Text(l10n.settingsMaskPersonalData),
+                subtitle: Text(l10n.settingsMaskPersonalDataSubtitle),
+                value: settings.maskPersonalData,
+                onChanged: (value) => cubit.setMaskPersonalData(enabled: value),
+              ),
+            ),
+          ],
         ),
-        SwitchListTile(
-          key: const Key('settings_incognito'),
-          secondary: const SettingsIcon(Icons.visibility_off_outlined),
-          title: Text(l10n.settingsIncognito),
-          subtitle: Text(l10n.settingsIncognitoSubtitle),
-          value: settings.incognito,
-          onChanged: (value) => cubit.setIncognito(enabled: value),
+        SettingsSection(
+          title: l10n.historyTitle,
+          children: [
+            SettingsAnchor(
+              id: PrivacyAnchors.saveHistory,
+              child: SwitchListTile(
+                key: const Key('settings_save_history'),
+                secondary: const SettingsIcon(Icons.history),
+                title: Text(l10n.settingsSaveHistory),
+                subtitle: Text(l10n.settingsSaveHistorySubtitle),
+                value: settings.saveHistory,
+                onChanged: (value) => cubit.setSaveHistory(enabled: value),
+              ),
+            ),
+            SettingsAnchor(
+              id: PrivacyAnchors.historyRetention,
+              child: ListTile(
+                key: const Key('settings_history_retention'),
+                leading: const SettingsIcon(Icons.auto_delete_outlined),
+                title: Text(l10n.settingsHistoryRetention),
+                subtitle: Text(
+                  historyRetentionLabel(l10n, settings.historyRetention),
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => _pickRetention(context),
+              ),
+            ),
+            SettingsAnchor(
+              id: PrivacyAnchors.exportHistory,
+              child: ListTile(
+                key: const Key('settings_export_history'),
+                leading: const SettingsIcon(Icons.upload_outlined),
+                title: Text(l10n.settingsExportHistory),
+                subtitle: Text(l10n.settingsExportHistorySubtitle),
+                onTap: () => showExportHistorySheet(context),
+              ),
+            ),
+            SettingsAnchor(
+              id: PrivacyAnchors.importHistory,
+              child: ListTile(
+                key: const Key('settings_import_history'),
+                leading: const SettingsIcon(Icons.download_outlined),
+                title: Text(l10n.settingsImportHistory),
+                subtitle: Text(l10n.settingsImportHistorySubtitle),
+                onTap: () => showImportHistoryDialog(context),
+              ),
+            ),
+            SettingsAnchor(
+              id: PrivacyAnchors.recentPairs,
+              child: _RecentPairsTile(count: settings.recentPairs.length),
+            ),
+          ],
         ),
-        if (secureScreenSupported)
-          SwitchListTile(
-            key: const Key('settings_secure_screen'),
-            secondary: const SettingsIcon(Icons.screen_lock_portrait_outlined),
-            title: Text(l10n.settingsSecureScreen),
-            subtitle: Text(l10n.settingsSecureScreenSubtitle),
-            value: settings.secureScreen,
-            onChanged: (value) => cubit.setSecureScreen(enabled: value),
-          ),
-        SwitchListTile(
-          key: const Key('settings_mask_personal_data'),
-          secondary: const SettingsIcon(Icons.shield_outlined),
-          title: Text(l10n.settingsMaskPersonalData),
-          subtitle: Text(l10n.settingsMaskPersonalDataSubtitle),
-          value: settings.maskPersonalData,
-          onChanged: (value) => cubit.setMaskPersonalData(enabled: value),
+        SettingsSection(
+          title: l10n.settingsSectionNetwork,
+          children: [
+            SettingsAnchor(
+              id: PrivacyAnchors.networkPairs,
+              child: _NetworkPairsTile(pairs: settings.networkPairs),
+            ),
+            SettingsAnchor(
+              id: PrivacyAnchors.consentedProviders,
+              child: _ConsentedProviders(settings: settings),
+            ),
+            SettingsAnchor(
+              id: PrivacyAnchors.httpProxy,
+              child: ListTile(
+                key: const Key('settings_http_proxy'),
+                leading: const SettingsIcon(Icons.vpn_lock_outlined),
+                title: Text(l10n.settingsHttpProxy),
+                subtitle: Text(settings.httpProxy ?? l10n.settingsHttpProxyOff),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => _editProxy(context),
+              ),
+            ),
+            SettingsAnchor(
+              id: PrivacyAnchors.networkActivity,
+              child: ListTile(
+                key: const Key('settings_network_activity'),
+                leading: const SettingsIcon(Icons.swap_vert),
+                title: Text(l10n.settingsNetworkActivity),
+                subtitle: Text(l10n.settingsNetworkActivitySubtitle),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () =>
+                    GoRouter.maybeOf(context)
+                        ?.push<void>(AppRoutes.networkActivity),
+              ),
+            ),
+          ],
         ),
-        SwitchListTile(
-          secondary: const SettingsIcon(Icons.history),
-          title: Text(l10n.settingsSaveHistory),
-          subtitle: Text(l10n.settingsSaveHistorySubtitle),
-          value: settings.saveHistory,
-          onChanged: (value) => cubit.setSaveHistory(enabled: value),
-        ),
-        ListTile(
-          key: const Key('settings_history_retention'),
-          leading: const SettingsIcon(Icons.auto_delete_outlined),
-          title: Text(l10n.settingsHistoryRetention),
-          subtitle: Text(
-            historyRetentionLabel(l10n, settings.historyRetention),
-          ),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => _pickRetention(context),
-        ),
-        ListTile(
-          key: const Key('settings_export_history'),
-          leading: const SettingsIcon(Icons.upload_outlined),
-          title: Text(l10n.settingsExportHistory),
-          subtitle: Text(l10n.settingsExportHistorySubtitle),
-          onTap: () => showExportHistorySheet(context),
-        ),
-        ListTile(
-          key: const Key('settings_import_history'),
-          leading: const SettingsIcon(Icons.download_outlined),
-          title: Text(l10n.settingsImportHistory),
-          subtitle: Text(l10n.settingsImportHistorySubtitle),
-          onTap: () => showImportHistoryDialog(context),
-        ),
-        _RecentPairsTile(count: settings.recentPairs.length),
-        _NetworkPairsTile(pairs: settings.networkPairs),
-        _ConsentedProviders(settings: settings),
-        ListTile(
-          key: const Key('settings_http_proxy'),
-          leading: const SettingsIcon(Icons.vpn_lock_outlined),
-          title: Text(l10n.settingsHttpProxy),
-          subtitle: Text(settings.httpProxy ?? l10n.settingsHttpProxyOff),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => _editProxy(context),
-        ),
-        ListTile(
-          key: const Key('settings_network_activity'),
-          leading: const SettingsIcon(Icons.swap_vert),
-          title: Text(l10n.settingsNetworkActivity),
-          subtitle: Text(l10n.settingsNetworkActivitySubtitle),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () =>
-              GoRouter.maybeOf(context)?.push<void>(AppRoutes.networkActivity),
-        ),
-        const SettingsDangerDivider(),
-        ListTile(
-          key: const Key('settings_clear_history'),
-          leading: SettingsIcon(Icons.delete_sweep_outlined, color: error),
-          title: Text(l10n.historyClearMenu, style: TextStyle(color: error)),
-          subtitle: Text(l10n.settingsClearHistorySubtitle),
-          onTap: () => confirmClearHistory(context),
-        ),
-        ListTile(
-          key: const Key('settings_delete_all_data'),
-          leading: SettingsIcon(Icons.delete_forever_outlined, color: error),
-          title: Text(
-            l10n.settingsDeleteAllData,
-            style: TextStyle(color: error),
-          ),
-          subtitle: Text(l10n.settingsDeleteAllDataSubtitle),
-          onTap: () => confirmDeleteLocalData(context),
+        // Destructive actions last, in the error colour.
+        SettingsSection(
+          key: const Key('settings_data_section'),
+          title: l10n.settingsSectionData,
+          divider: false,
+          children: [
+            SettingsAnchor(
+              id: PrivacyAnchors.clearHistory,
+              child: ListTile(
+                key: const Key('settings_clear_history'),
+                leading: SettingsIcon(
+                  Icons.delete_sweep_outlined,
+                  color: error,
+                ),
+                title: Text(
+                  l10n.historyClearMenu,
+                  style: TextStyle(color: error),
+                ),
+                subtitle: Text(l10n.settingsClearHistorySubtitle),
+                onTap: () => confirmClearHistory(context),
+              ),
+            ),
+            SettingsAnchor(
+              id: PrivacyAnchors.deleteAllData,
+              child: ListTile(
+                key: const Key('settings_delete_all_data'),
+                leading: SettingsIcon(
+                  Icons.delete_forever_outlined,
+                  color: error,
+                ),
+                title: Text(
+                  l10n.settingsDeleteAllData,
+                  style: TextStyle(color: error),
+                ),
+                subtitle: Text(l10n.settingsDeleteAllDataSubtitle),
+                onTap: () => confirmDeleteLocalData(context),
+              ),
+            ),
+          ],
         ),
       ],
     );

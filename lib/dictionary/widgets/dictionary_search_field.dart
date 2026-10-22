@@ -12,8 +12,8 @@ import 'package:mozhi/translate/widgets/translate_layout.dart';
 
 /// Looks the word of [context]'s [DictionaryCubit] up (nothing for a
 /// blank word). Only the on-screen keyboard is put away so the entry
-/// shows; keyboard focus is left to the screen (the entry's "New look-up"
-/// button takes it, WCAG 2.4.3).
+/// shows; keyboard focus stays in the search field, which stays on top of
+/// the entry, so the next word can be typed right away.
 void lookUpDictionaryWord(BuildContext context) {
   final cubit = context.read<DictionaryCubit>();
   if (cubit.state.word.trim().isEmpty) return;
@@ -33,11 +33,22 @@ bool get _hasSoftKeyboard =>
 /// text size of the translate screen. Enter looks the word up
 /// ([lookUpDictionaryWord]); the go button is on the composer's bar and
 /// Clear at its top end (`DictionaryClearButton`).
+///
+/// [dense] is the one-line field of the search bar above an entry
+/// (`DictionarySearchBar`), at `titleMedium`.
 class DictionarySearchField extends StatefulWidget {
-  const new({this.autofocus = false, this.focusNode, super.key});
+  const new({
+    this.autofocus = false,
+    this.focusNode,
+    this.dense = false,
+    super.key,
+  });
 
   /// Focus the field when it first shows (no word given).
   final bool autofocus;
+
+  /// The small one-line variant of the search bar above an entry.
+  final bool dense;
 
   /// The field's focus node (the screen focuses it for a new look-up, and
   /// Clear hands the focus to it); null: the field's own.
@@ -75,6 +86,10 @@ class _DictionarySearchFieldState extends State<DictionarySearchField> {
     final l10n = context.l10n;
     final palette = AppPalette.of(context);
     final cubit = context.read<DictionaryCubit>();
+    final dense = widget.dense;
+    final textStyle = dense
+        ? Theme.of(context).textTheme.titleMedium
+        : TranslateLayout.textStyle(context, 0);
     return BlocListener<DictionaryCubit, DictionaryState>(
       listenWhen: (previous, current) => previous.word != current.word,
       listener: (context, state) {
@@ -104,20 +119,19 @@ class _DictionarySearchFieldState extends State<DictionarySearchField> {
           inputFormatters: [
             LengthLimitingTextInputFormatter(DictionaryCubit.maxWordLength),
           ],
-          style: TranslateLayout.textStyle(context, 0),
+          style: textStyle,
           decoration: InputDecoration(
             hintText: l10n.dictionarySearchHint,
-            hintStyle: TranslateLayout.textStyle(
-              context,
-              0,
-            )?.copyWith(color: palette.secondaryText),
-            hintMaxLines: 2,
+            hintStyle: textStyle?.copyWith(color: palette.secondaryText),
+            hintMaxLines: dense ? 1 : 2,
             border: InputBorder.none,
             enabledBorder: InputBorder.none,
             focusedBorder: InputBorder.none,
             filled: false,
             isDense: true,
-            contentPadding: const EdgeInsetsDirectional.fromSTEB(10, 14, 4, 14),
+            contentPadding: dense
+                ? const EdgeInsetsDirectional.fromSTEB(4, 12, 4, 12)
+                : const EdgeInsetsDirectional.fromSTEB(10, 14, 4, 14),
           ),
         ),
       ),

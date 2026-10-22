@@ -14,6 +14,8 @@ import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/translate/widgets/offline_offer.dart'
+    show maybeOfflineTranslator;
 import 'package:mozhi/usage/data/usage_tracker.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -52,6 +54,14 @@ enum DictionaryLaunch { lookUp }
 /// Look-ups are saved to the history of the app-wide [HistoryCubit] as
 /// [SettingsCubit]'s settings allow (see [DictionaryCubit]); without them
 /// (e.g. in tests) nothing is saved.
+///
+/// Without a word, the search field takes the focus only as
+/// [dictionaryAutofocus] allows: not on a plain tap on the tab on a touch
+/// screen, where the keyboard would pop up over the greeting.
+///
+/// The language of an entry looked up with "Detect language" is
+/// identified on the device ([OfflineTranslator.identifyLanguage], when
+/// the device has an on-device engine) so Listen can read it.
 class DictionaryPage extends StatelessWidget {
   const new({
     this.word,
@@ -96,15 +106,46 @@ class DictionaryPage extends StatelessWidget {
           usageTracker: _usageTracker(context),
           history: context.read<HistoryCubit?>(),
           settings: context.read<SettingsCubit?>(),
+          identifyLanguage: _identifier(context),
         );
         if (autoLookUp || request != null) unawaited(cubit.lookUp());
         return cubit;
       },
       child: _LookUpRequests(
         page: this,
-        child: DictionaryView(autofocus: word?.trim().isNotEmpty != true),
+        child: DictionaryView(
+          autofocus:
+              word?.trim().isNotEmpty != true &&
+              dictionaryAutofocus(
+                highlightMode: FocusManager.instance.highlightMode,
+                launchedHere: _launchedHere(),
+                linked:
+                    from?.trim().isNotEmpty == true ||
+                    to?.trim().isNotEmpty == true,
+              ),
+        ),
       ),
     );
+  }
+
+  /// Whether the app was opened at the dictionary (a launcher shortcut or
+  /// a link to `/dictionary`).
+  static bool _launchedHere() {
+    final initial = Uri.tryParse(
+      WidgetsBinding.instance.platformDispatcher.defaultRouteName,
+    );
+    return initial?.path == '/dictionary';
+  }
+
+  /// The device's language identifier, or null without an on-device
+  /// engine (the web).
+  static Future<String?> Function(String text)? _identifier(
+    BuildContext context,
+  ) {
+    final offline = maybeOfflineTranslator(context);
+    return offline != null && offline.isAvailable
+        ? offline.identifyLanguage
+        : null;
   }
 
   /// The language a link names, when it is one of [available].
@@ -178,6 +219,20 @@ class _LookUpRequestsState extends State<_LookUpRequests> {
   Widget build(BuildContext context) => widget.child;
 }
 
+/// Whether the empty dictionary's search field takes the focus when the
+/// page opens: only when that brings up no on-screen keyboard by surprise,
+/// that is when the user drives the app with a keyboard or a mouse
+/// ([highlightMode] [FocusHighlightMode.traditional]: a keyboard shortcut,
+/// a click on the web), or when the dictionary was asked for directly:
+/// the app was opened at it ([launchedHere]: a launcher shortcut, a link)
+/// or a link named its languages ([linked]). A tap on the tab on a touch
+/// screen leaves the keyboard down.
+bool dictionaryAutofocus({
+  required FocusHighlightMode highlightMode,
+  bool launchedHere = false,
+  bool linked = false,
+}) => highlightMode == FocusHighlightMode.traditional || launchedHere || linked;
+
 /// English name of the UI language: definitions and notes are written in
 /// it.
 String dictionaryUiLanguage(Locale locale) {
@@ -213,11 +268,14 @@ UsageTracker? _usageTracker(BuildContext context) {
 /// ([DictionaryComposer]: the search field, the microphone and the bar
 /// [options | go | languages]). Enter or the go button looks the word up.
 ///
-/// Once a word is looked up: the entry in tabs ([DictionaryResultView]),
-/// with a back arrow in the app bar (system back does the same) that
-/// returns to the search with the word kept, the options button beside
-/// History and Settings, and "New look-up", which clears the word and
-/// focuses the search.
+/// Once a word is looked up: the search bar on top and the entry in tabs
+/// below ([DictionaryResultView]), with a back arrow in the app bar
+/// (system back does the same) that returns to the greeting with the word
+/// kept, and the options button beside History and Settings.
+///
+/// The app bar shows the AI model in use ([DictionaryEngineChip]: beside
+/// the title on large screens, instead of it on phones), like the
+/// translate screen's engine.
 ///
 /// On large screens the composer and the entry are centred columns.
 class DictionaryView extends StatefulWidget {
@@ -246,20 +304,15 @@ class _DictionaryViewState extends State<DictionaryView> {
     super.dispose();
   }
 
-  /// Clears the word and focuses the search field once it is back.
-  void _newLookUp() {
-    context.read<DictionaryCubit>().clear();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _searchFocus.requestFocus();
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final cubit = context.read<DictionaryCubit>();
     final showEntry = context.select<DictionaryCubit, bool>(
       (cubit) => cubit.state.status != DictionaryStatus.idle,
+    );
+    final hasEngine = context.select<DictionaryCubit, bool>(
+      (cubit) => cubit.state.hasEngine,
     );
     if (showEntry) _autofocus = false;
     return BlocListener<TranslateCubit, TranslateState>(
@@ -268,8 +321,9 @@ class _DictionaryViewState extends State<DictionaryView> {
       listenWhen: (previous, current) =>
           !identical(previous.engines, current.engines) ||
           !identical(previous.assistEngine, current.assistEngine),
-      listener: (context, state) =>
-          context.read<DictionaryCubit>().setEngine(dictionaryEngine(state)),
+      listener: (context, state) => context
+          .read<DictionaryCubit>()
+          .updateEngines(state.engines, preferred: dictionaryEngine(state)),
       child: PopScope(
         // Back from an entry returns to the search first.
         canPop: !showEntry,
@@ -287,7 +341,11 @@ class _DictionaryViewState extends State<DictionaryView> {
                     onPressed: cubit.closeEntry,
                   )
                 : null,
-            title: Text(l10n.dictionaryTitle),
+            titleSpacing: showEntry ? 0 : null,
+            title: ComposerAppBarTitle(
+              title: l10n.dictionaryTitle,
+              chip: hasEngine ? const DictionaryEngineChip() : null,
+            ),
             actions: [
               if (showEntry)
                 const DictionaryOptionsButton(
@@ -300,7 +358,7 @@ class _DictionaryViewState extends State<DictionaryView> {
           body: SafeArea(
             top: false,
             child: showEntry
-                ? DictionaryResultView(onNewLookUp: _newLookUp)
+                ? DictionaryResultView(focusNode: _searchFocus)
                 : _SearchLayout(focusNode: _searchFocus, autofocus: _autofocus),
           ),
         ),
@@ -361,8 +419,8 @@ class _SearchLayout extends StatelessWidget {
   }
 }
 
-/// "What does this mean?" with what the dictionary does, above the
-/// composer until a word is looked up.
+/// "Look up a word" with what the dictionary does, above the composer
+/// until a word is looked up.
 class DictionaryHero extends StatelessWidget {
   const new({super.key});
 
@@ -374,8 +432,8 @@ class DictionaryHero extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
       child: TabHero(
         icon: Icons.menu_book_rounded,
-        title: l10n.dictionaryHeroTitle,
-        body: l10n.dictionaryEmptyBody,
+        title: l10n.dictionaryHeroPrompt,
+        body: l10n.dictionaryHeroSubtitle,
       ),
     );
   }

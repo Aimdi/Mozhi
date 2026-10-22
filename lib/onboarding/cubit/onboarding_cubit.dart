@@ -38,21 +38,48 @@ typedef OnboardingLanguageSetter = void Function({
 /// default languages, finding the fastest Mozhi instance and adding the
 /// user's own instance. Every choice is applied to [SettingsCubit] right
 /// away.
+///
+/// Instances are only contacted when the user asks
+/// ([findFastestInstance], [addOwnInstance]), never by themselves: each
+/// one is a volunteer's server.
+///
+/// On a device that can't translate on its own (`onDevice` false, the
+/// web) the flow skips the privacy step ([OnboardingState.steps]):
+/// "Offline first" would ask before every language pair with nothing on
+/// the device to fall back on. Arriving at the online service step then
+/// selects [PrivacyMode.online] (still "Offline first", the default,
+/// unless the user changed it); the step says where the text goes and
+/// keeps the choice as a switch ([setAskBeforeSending]).
 class OnboardingCubit extends Cubit<OnboardingState> {
   /// `pingTimeout` bounds each instance ping. `describeError` words
   /// failures for the user (default: [onboardingErrorMessage]; the page puts
   /// the network policy's reasons first). `setLanguages` applies the
   /// default languages (default: `SettingsCubit.setLanguages`; the page
   /// goes through the translator so that it shows them right away).
+  /// `onDevice` says whether the device translates on its own (default:
+  /// `TranslationRepository.hasOfflineEngine`).
   new({
     required this._repository,
     required this._settings,
     this._pingTimeout = const Duration(seconds: 6),
     String Function(Object error)? describeError,
     OnboardingLanguageSetter? setLanguages,
+    bool? onDevice,
   }) : _describe = describeError ?? onboardingErrorMessage,
        _setLanguages = setLanguages ?? _settings.setLanguages,
-       super(const OnboardingState());
+       super(
+         OnboardingState(onDevice: onDevice ?? _hasOfflineEngine(_repository)),
+       );
+
+  /// Whether [repository] has an on-device engine (true when it can't
+  /// tell, e.g. a test double).
+  static bool _hasOfflineEngine(TranslationRepository repository) {
+    try {
+      return repository.hasOfflineEngine;
+    } on Object {
+      return true;
+    }
+  }
 
   final String Function(Object error) _describe;
   final OnboardingLanguageSetter _setLanguages;
@@ -67,25 +94,44 @@ class OnboardingCubit extends Cubit<OnboardingState> {
 
   /// Whether the user picked an instance (it then wins over the fastest).
   bool _userChoseInstance = false;
+
+  /// Whether the privacy mode was set for a device without an on-device
+  /// engine (once) or chosen on the service step.
+  bool _privacyChosen = false;
   int _pingRun = 0;
   int _ownRun = 0;
 
   // Navigation
 
   void next() {
-    final index = state.step.index;
-    if (index < OnboardingStep.values.length - 1) {
-      goTo(OnboardingStep.values[index + 1]);
-    }
+    final steps = state.steps;
+    final index = steps.indexOf(state.step);
+    if (index < steps.length - 1) goTo(steps[index + 1]);
   }
 
   void back() {
-    final index = state.step.index;
-    if (index > 0) goTo(OnboardingStep.values[index - 1]);
+    final steps = state.steps;
+    final index = steps.indexOf(state.step);
+    if (index > 0) goTo(steps[index - 1]);
   }
 
+  /// Shows [step] (a step the flow skips is ignored).
   void goTo(OnboardingStep step) {
-    if (step != state.step) emit(state.copyWith(step: step));
+    if (step == state.step || !state.steps.contains(step)) return;
+    emit(state.copyWith(step: step));
+    if (step == OnboardingStep.service && !state.onDevice) {
+      _preselectOnline();
+    }
+  }
+
+  /// Without an on-device engine: selects [PrivacyMode.online] once,
+  /// while the mode is still the default "Offline first".
+  void _preselectOnline() {
+    if (_privacyChosen) return;
+    _privacyChosen = true;
+    if (_settings.state.privacyMode == PrivacyMode.offlineFirst) {
+      _settings.setPrivacyMode(PrivacyMode.online);
+    }
   }
 
   /// Marks onboarding as complete in the settings.
@@ -95,8 +141,15 @@ class OnboardingCubit extends Cubit<OnboardingState> {
 
   /// How willing the app is to send text over the network (saved at once).
   void setPrivacyMode(PrivacyMode mode) {
+    _privacyChosen = true;
     if (_settings.state.privacyMode != mode) _settings.setPrivacyMode(mode);
   }
+
+  /// The service step's switch on a device without an on-device engine:
+  /// ask once for each language pair before text goes to a server
+  /// ([PrivacyMode.offlineFirst]), or not ([PrivacyMode.online]).
+  void setAskBeforeSending({required bool ask}) =>
+      setPrivacyMode(ask ? PrivacyMode.offlineFirst : PrivacyMode.online);
 
   // Languages
 

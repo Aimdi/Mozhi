@@ -373,11 +373,55 @@ void main() {
         expect(state.qualityEngine(QualityMode.fast), deepl);
         expect(state.qualityEngine(QualityMode.best), isNull);
         expect(state.qualityEngine(QualityMode.off), isNull);
-        expect(state.hasQualityModes, isTrue);
+        // One engine does not set the modes up.
+        expect(state.hasQualityModes, isFalse);
         expect(state.availableQualityModes, [
           QualityMode.off,
           QualityMode.fast,
         ]);
+      });
+
+      test('Fast and Best with two engines are set up, without off', () {
+        final state = const TranslateState().copyWith(
+          fastEngine: () => deepl,
+          bestEngine: () => claude,
+        );
+        expect(state.hasQualityModes, isTrue);
+        expect(state.availableQualityModes, [
+          QualityMode.fast,
+          QualityMode.best,
+        ]);
+        final same = state.copyWith(bestEngine: () => deepl);
+        expect(same.hasQualityModes, isFalse);
+        expect(same.availableQualityModes, [
+          QualityMode.off,
+          QualityMode.fast,
+          QualityMode.best,
+        ]);
+      });
+
+      test('isPending while queued or translating', () {
+        const state = TranslateState();
+        expect(state.isPending, isFalse);
+        expect(state.copyWith(queued: true).isPending, isTrue);
+        expect(
+          state.copyWith(status: TranslateStatus.translating).isPending,
+          isTrue,
+        );
+      });
+
+      test('compareEnginesFor keeps the engine order', () {
+        final state = readyState();
+        expect(state.compareEnginesFor(const []), allEngines);
+        expect(state.compareEnginesFor([claude.id, google.id]), [
+          google,
+          claude,
+        ]);
+        expect(state.compareEnginesFor(const ['gone']), allEngines);
+        expect(
+          state.copyWith(target: pirate).compareEnginesFor(const []),
+          [claude],
+        );
       });
     });
   });

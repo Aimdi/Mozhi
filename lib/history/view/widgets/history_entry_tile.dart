@@ -10,11 +10,12 @@ import 'package:mozhi/core/haptics.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/settings/view/widgets/search_highlight.dart';
 import 'package:mozhi/translate/widgets/output_card.dart' show copyToClipboard;
 import 'package:share_plus/share_plus.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-enum _EntryAction { favorite, delete }
+enum _EntryAction { copy, share, details, favorite, delete }
 
 /// Sharing, replaceable in tests.
 abstract final class HistoryShare {
@@ -28,23 +29,82 @@ abstract final class HistoryShare {
   // coverage:ignore-end
 }
 
-/// The History screen's clock: the rows' times ("now", "5m", "3h" or the
-/// clock time) and the day headers. Replaceable in tests, so screenshots
-/// don't depend on the time of day they run at.
+/// The History screen's clock: the times of the entries and the day
+/// headers. Replaceable in tests, so screenshots don't depend on the time
+/// of day they run at.
 abstract final class HistoryClock {
   static DateTime Function() now = DateTime.now;
 }
 
-/// One history entry as a timeline row: the target language's avatar, a
-/// header (language pair · engine · time), the translation as the body,
-/// the source text quoted below it and an action row (copy, favorite,
-/// share, more).
+/// What copying [entry] copies: the translation, or a look-up's word.
+String historyCopyText(HistoryEntry entry) =>
+    entry.isDictionary ? entry.text : entry.translation;
+
+/// What sharing [entry] shares: the translation, or a look-up's word and
+/// summary.
+String historyShareText(HistoryEntry entry) {
+  if (!entry.isDictionary) return entry.translation;
+  final summary = entry.translation.trim();
+  return summary.isEmpty ? entry.text : '${entry.text}\n$summary';
+}
+
+/// Shares [entry] ([historyShareText]), anchoring the share sheet on the
+/// widget of [anchor] (iPad, macOS).
+Future<void> shareHistoryEntry(BuildContext anchor, HistoryEntry entry) {
+  final box = anchor.findRenderObject() as RenderBox?;
+  final origin = box == null || !box.hasSize
+      ? null
+      : box.localToGlobal(Offset.zero) & box.size;
+  return HistoryShare.share(
+    ShareParams(text: historyShareText(entry), sharePositionOrigin: origin),
+  );
+}
+
+/// The language code of [entry]'s source: the detected language when it
+/// was detected, null when unknown or custom.
+String? historySourceCode(HistoryEntry entry) => entry.source.isAuto
+    ? entry.detectedSource
+    : entry.source.isCustom
+    ? null
+    : entry.source.code;
+
+/// The language code of [entry]'s target, null for a custom target.
+String? historyTargetCode(HistoryEntry entry) =>
+    entry.target.isCustom ? null : entry.target.code;
+
+/// "English (detected) → French" for [entry], both names bidi-isolated so
+/// that Latin-script names keep the arrow's direction in RTL locales.
+String historyEntryPair(AppLocalizations l10n, HistoryEntry entry) {
+  final detected = entry.detectedSource;
+  final source = entry.source.isAuto && detected != null && detected.isNotEmpty
+      ? l10n.historyDetected(LanguageCatalog.nameOf(detected))
+      : entry.source.name;
+  return l10n.historyLanguagePair(
+    bidiIsolate(source),
+    bidiIsolate(entry.target.name),
+  );
+}
+
+/// One history entry as a compact two-line row, Google Translate style:
+/// the source text (`bodyLarge`) with its translation below it
+/// (`bodyMedium`, in the primary colour), a small language pair tag
+/// ("EN → FR", read as the full pair) and the favourite heart at the end,
+/// then "More actions". Matches of [query] are highlighted in both lines
+/// (ignoring case, as the search does).
 ///
-/// A dictionary look-up ([HistoryEntry.isDictionary]) shows the word's
-/// language as the avatar and, below the same header, a "Dictionary"
-/// marker (a book icon and label), the word as the body and the entry's
-/// summary quoted below it. Copy copies the word, share the word and the
-/// summary; tapping it looks the word up ([onTap]).
+/// The engine and the time are not repeated on every row: the day headers
+/// group the rows, and [onShowDetails] ("Details" in the menu) or the
+/// detail pane on wide screens show them.
+///
+/// A dictionary look-up ([HistoryEntry.isDictionary]) shows a book icon
+/// ("Dictionary" for screen readers) before the word and the entry's
+/// summary below it. Copy copies the word, share the word and the summary;
+/// tapping it looks the word up ([onTap]).
+///
+/// Copy, share and delete are in the "More actions" menu (also opened by a
+/// long press), behind the swipes, in screen readers' custom actions and,
+/// while a mouse hovers the row or the keyboard focus is in it, buttons in
+/// place of the pair tag.
 ///
 /// Swipes work like a mail app's, mirrored in right-to-left layouts:
 ///
@@ -56,9 +116,9 @@ abstract final class HistoryClock {
 ///   slides away (it leaves the Favorites tab).
 ///
 /// Neither needs a drag (WCAG 2.5.7): the favourite has its heart button,
-/// delete the "More actions" menu (also opened by a long press) and the
-/// Delete key while the entry has focus, and both are screen-reader custom
-/// actions. With reduced motion the row jumps instead of sliding.
+/// delete the "More actions" menu and the Delete key while the entry has
+/// focus, and both are screen-reader custom actions. With reduced motion
+/// the row jumps instead of sliding.
 class HistoryEntryTile extends StatefulWidget {
   const new({
     required this.entry,
@@ -66,6 +126,9 @@ class HistoryEntryTile extends StatefulWidget {
     required this.onToggleFavorite,
     required this.onDelete,
     this.unfavoriteRemoves = false,
+    this.query = '',
+    this.selected = false,
+    this.onShowDetails,
     super.key,
   });
 
@@ -80,8 +143,20 @@ class HistoryEntryTile extends StatefulWidget {
   /// is gone.
   final bool unfavoriteRemoves;
 
+  /// The search, whose matches are highlighted.
+  final String query;
+
+  /// Whether the row is the one shown in the detail pane (wide screens).
+  final bool selected;
+
+  /// Shows the entry's details ("Details" in the menu); none without it.
+  final VoidCallback? onShowDetails;
+
   /// How long the copy action shows its check mark.
   static const copiedDuration = Duration(seconds: 2);
+
+  /// Key of the language pair tag.
+  static const pairTagKey = Key('history_pair_tag');
 
   @override
   State<HistoryEntryTile> createState() => _HistoryEntryTileState();
@@ -90,6 +165,8 @@ class HistoryEntryTile extends StatefulWidget {
 class _HistoryEntryTileState extends State<HistoryEntryTile> {
   final _menuKey = GlobalKey<PopupMenuButtonState<_EntryAction>>();
   Timer? _copiedTimer;
+  bool _hovered = false;
+  bool _focused = false;
 
   HistoryEntry get entry => widget.entry;
 
@@ -100,6 +177,9 @@ class _HistoryEntryTileState extends State<HistoryEntryTile> {
   }
 
   void _onAction(_EntryAction action) => switch (action) {
+    _EntryAction.copy => _copy(),
+    _EntryAction.share => unawaited(shareHistoryEntry(context, entry)),
+    _EntryAction.details => widget.onShowDetails?.call(),
     _EntryAction.favorite => widget.onToggleFavorite(),
     _EntryAction.delete => widget.onDelete(),
   };
@@ -127,18 +207,8 @@ class _HistoryEntryTileState extends State<HistoryEntryTile> {
     }
   }
 
-  /// What copy copies: the translation, or a look-up's word.
-  String get _copyText => entry.isDictionary ? entry.text : entry.translation;
-
-  /// What share shares: the translation, or a look-up's word and summary.
-  String get _shareText {
-    if (!entry.isDictionary) return entry.translation;
-    final summary = entry.translation.trim();
-    return summary.isEmpty ? entry.text : '${entry.text}\n$summary';
-  }
-
   void _copy() {
-    unawaited(copyToClipboard(context, _copyText));
+    unawaited(copyToClipboard(context, historyCopyText(entry)));
     _copiedTimer?.cancel();
     setState(() {
       _copiedTimer = Timer(HistoryEntryTile.copiedDuration, () {
@@ -147,43 +217,141 @@ class _HistoryEntryTileState extends State<HistoryEntryTile> {
     });
   }
 
-  void _share(BuildContext buttonContext) {
-    final box = buttonContext.findRenderObject() as RenderBox?;
-    final origin = box == null || !box.hasSize
-        ? null
-        : box.localToGlobal(Offset.zero) & box.size;
-    unawaited(
-      HistoryShare.share(
-        ShareParams(text: _shareText, sharePositionOrigin: origin),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final palette = AppPalette.of(context);
-    final time = relativeHistoryTime(l10n, entry.createdAt, HistoryClock.now());
-    // Isolated so Latin-script names keep the arrow's direction in RTL
-    // locales.
-    final pair = l10n.historyLanguagePair(
-      bidiIsolate(_sourceName(l10n)),
-      bidiIsolate(entry.target.name),
-    );
-    final sourceCode = entry.source.isAuto
-        ? entry.detectedSource
-        : entry.source.isCustom
-        ? null
-        : entry.source.code;
-    final targetCode = entry.target.isCustom ? null : entry.target.code;
     final lookUp = entry.isDictionary;
     final copied = _copiedTimer != null;
     final favoriteLabel = entry.isFavorite
         ? l10n.historyUnfavorite
         : l10n.historyFavorite;
     final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    final showActions = _hovered || _focused;
+    final highlight = searchHighlightStyle(context);
+    final sourceCode = historySourceCode(entry);
+    final targetCode = historyTargetCode(entry);
+
+    final first = _LanguageText(
+      text: entry.text,
+      code: sourceCode,
+      query: widget.query,
+      highlight: highlight,
+      style: theme.textTheme.bodyLarge?.copyWith(
+        color: colors.onSurface,
+        fontWeight: lookUp ? FontWeight.w600 : null,
+      ),
+    );
+    final second = entry.translation.trim().isEmpty
+        ? null
+        : _LanguageText(
+            text: entry.translation,
+            // A look-up's summary is in the app's language.
+            code: lookUp ? null : targetCode,
+            query: widget.query,
+            highlight: highlight,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: lookUp ? palette.secondaryText : colors.primary,
+            ),
+          );
+
+    final menu = PopupMenuButton<_EntryAction>(
+      key: _menuKey,
+      tooltip: l10n.historyEntryActions,
+      icon: Icon(
+        Icons.more_vert_rounded,
+        size: 20,
+        color: palette.secondaryText,
+      ),
+      onSelected: _onAction,
+      itemBuilder: (context) => [
+        _menuItem(_EntryAction.copy, Icons.copy_rounded, l10n.commonCopy),
+        _menuItem(
+          _EntryAction.share,
+          Icons.ios_share_rounded,
+          l10n.commonShare,
+        ),
+        if (widget.onShowDetails != null)
+          _menuItem(
+            _EntryAction.details,
+            Icons.info_outline_rounded,
+            l10n.historyDetails,
+          ),
+        _menuItem(
+          _EntryAction.favorite,
+          entry.isFavorite
+              ? Icons.favorite_rounded
+              : Icons.favorite_border_rounded,
+          favoriteLabel,
+        ),
+        _menuItem(_EntryAction.delete, Icons.delete_outline, l10n.commonDelete),
+      ],
+    );
+
+    final row = Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(4, 8, 0, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (lookUp)
+                  Row(
+                    children: [
+                      const _DictionaryMarker(),
+                      const SizedBox(width: 6),
+                      Flexible(child: first),
+                    ],
+                  )
+                else
+                  first,
+                if (second != null) ...[const SizedBox(height: 2), second],
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          if (showActions) ...[
+            XActionButton(
+              icon: copied ? Icons.check_rounded : Icons.copy_rounded,
+              tooltip: copied ? l10n.commonCopied : l10n.commonCopy,
+              active: copied,
+              activeColor: palette.success,
+              onPressed: _copy,
+            ),
+            Builder(
+              builder: (buttonContext) => XActionButton(
+                icon: Icons.ios_share_rounded,
+                tooltip: l10n.commonShare,
+                onPressed: () =>
+                    unawaited(shareHistoryEntry(buttonContext, entry)),
+              ),
+            ),
+            XActionButton(
+              icon: Icons.delete_outline,
+              tooltip: l10n.commonDelete,
+              onPressed: widget.onDelete,
+            ),
+          ] else
+            _PairTag(entry: entry),
+          XActionButton(
+            // The label says the state, so the icon swaps instead of using
+            // toggle semantics.
+            icon: entry.isFavorite
+                ? Icons.favorite_rounded
+                : Icons.favorite_border_rounded,
+            tooltip: favoriteLabel,
+            active: entry.isFavorite,
+            activeColor: palette.like,
+            onPressed: widget.onToggleFavorite,
+          ),
+          menu,
+        ],
+      ),
+    );
+
     return Dismissible(
       key: ValueKey('history-${entry.id}'),
       // Towards the end: what happens to the heart. Only an icon: the long
@@ -228,177 +396,47 @@ class _HistoryEntryTileState extends State<HistoryEntryTile> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Material(
-            type: MaterialType.transparency,
+            color: widget.selected
+                ? colors.primary.withValues(alpha: 0.08)
+                : Colors.transparent,
             child: CallbackShortcuts(
               bindings: {
                 const SingleActivator(LogicalKeyboardKey.delete):
                     widget.onDelete,
               },
-              child: Semantics(
-                onTapHint: lookUp
-                    ? l10n.historyOpenDictionaryHint
-                    : l10n.historyOpenHint,
-                // What the swipes do, without swiping.
-                customSemanticsActions: {
-                  CustomSemanticsAction(label: l10n.commonDelete):
-                      widget.onDelete,
-                  CustomSemanticsAction(label: favoriteLabel):
-                      widget.onToggleFavorite,
-                },
-                child: InkWell(
-                  onTap: widget.onTap,
-                  onLongPress: () => _menuKey.currentState?.showButtonMenu(),
-                  // The long press vibrates only with haptic feedback on.
-                  enableFeedback: Haptics.enabled(context),
-                  child: Padding(
-                    padding: const EdgeInsetsDirectional.fromSTEB(4, 12, 4, 2),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        LanguageAvatar(
-                          code: lookUp
-                              ? sourceCode ?? entry.source.code
-                              : targetCode ?? entry.target.name,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _Header(
-                                pair: pair,
-                                meta: '${entry.engineName} · $time',
-                              ),
-                              if (lookUp) ...[
-                                const SizedBox(height: 6),
-                                const _DictionaryMarker(),
-                                const SizedBox(height: 2),
-                                _LanguageText(
-                                  text: entry.text,
-                                  code: sourceCode,
-                                  style: theme.textTheme.titleLarge?.copyWith(
-                                    color: colors.onSurface,
-                                    fontWeight: FontWeight.w700,
-                                    height: 1.3,
-                                  ),
-                                ),
-                                if (entry.translation.trim().isNotEmpty) ...[
-                                  const SizedBox(height: 8),
-                                  // The summary, quoted like a translation's
-                                  // source. Written in the app's language.
-                                  _Quote(
-                                    child: Text(
-                                      entry.translation,
-                                      maxLines: 3,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: theme.textTheme.bodyMedium
-                                          ?.copyWith(
-                                            color: palette.secondaryText,
-                                            fontSize: 15,
-                                          ),
-                                    ),
-                                  ),
-                                ],
-                              ] else ...[
-                                const SizedBox(height: 4),
-                                _LanguageText(
-                                  text: entry.translation,
-                                  code: targetCode,
-                                  maxLines: 6,
-                                  style: theme.textTheme.bodyLarge?.copyWith(
-                                    color: colors.onSurface,
-                                    fontSize: 16,
-                                    height: 1.35,
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
-                                // The source, quoted like a linked post.
-                                _Quote(
-                                  child: _LanguageText(
-                                    text: entry.text,
-                                    code: sourceCode,
-                                    maxLines: 3,
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      color: palette.secondaryText,
-                                      fontSize: 15,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                              const SizedBox(height: 2),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  XActionButton(
-                                    icon: copied
-                                        ? Icons.check_rounded
-                                        : Icons.copy_rounded,
-                                    tooltip: copied
-                                        ? l10n.commonCopied
-                                        : l10n.commonCopy,
-                                    active: copied,
-                                    activeColor: palette.success,
-                                    onPressed: _copy,
-                                  ),
-                                  XActionButton(
-                                    // The label says the state, so the icon
-                                    // swaps instead of using toggle semantics.
-                                    icon: entry.isFavorite
-                                        ? Icons.favorite_rounded
-                                        : Icons.favorite_border_rounded,
-                                    tooltip: favoriteLabel,
-                                    active: entry.isFavorite,
-                                    activeColor: palette.like,
-                                    onPressed: widget.onToggleFavorite,
-                                  ),
-                                  Builder(
-                                    builder: (buttonContext) => XActionButton(
-                                      icon: Icons.ios_share_rounded,
-                                      tooltip: l10n.commonShare,
-                                      onPressed: () => _share(buttonContext),
-                                    ),
-                                  ),
-                                  PopupMenuButton<_EntryAction>(
-                                    key: _menuKey,
-                                    tooltip: l10n.historyEntryActions,
-                                    icon: Icon(
-                                      Icons.more_horiz_rounded,
-                                      size: 20,
-                                      color: palette.secondaryText,
-                                    ),
-                                    onSelected: _onAction,
-                                    itemBuilder: (context) => [
-                                      PopupMenuItem(
-                                        value: _EntryAction.favorite,
-                                        child: ListTile(
-                                          contentPadding: EdgeInsets.zero,
-                                          leading: Icon(
-                                            entry.isFavorite
-                                                ? Icons.favorite_rounded
-                                                : Icons.favorite_border_rounded,
-                                          ),
-                                          title: Text(favoriteLabel),
-                                        ),
-                                      ),
-                                      PopupMenuItem(
-                                        value: _EntryAction.delete,
-                                        child: ListTile(
-                                          contentPadding: EdgeInsets.zero,
-                                          leading: const Icon(
-                                            Icons.delete_outline,
-                                          ),
-                                          title: Text(l10n.commonDelete),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+              child: Focus(
+                canRequestFocus: false,
+                skipTraversal: true,
+                onFocusChange: (focused) => setState(() => _focused = focused),
+                child: MouseRegion(
+                  onEnter: (_) => setState(() => _hovered = true),
+                  onExit: (_) => setState(() => _hovered = false),
+                  child: Semantics(
+                    selected: widget.selected ? true : null,
+                    onTapHint: lookUp
+                        ? l10n.historyOpenDictionaryHint
+                        : l10n.historyOpenHint,
+                    // What the swipes and the menu do, without them.
+                    customSemanticsActions: {
+                      CustomSemanticsAction(label: l10n.commonDelete):
+                          widget.onDelete,
+                      CustomSemanticsAction(label: favoriteLabel):
+                          widget.onToggleFavorite,
+                      CustomSemanticsAction(label: l10n.commonCopy): _copy,
+                      CustomSemanticsAction(label: l10n.commonShare): () =>
+                          unawaited(shareHistoryEntry(context, entry)),
+                    },
+                    child: InkWell(
+                      onTap: widget.onTap,
+                      onLongPress: () =>
+                          _menuKey.currentState?.showButtonMenu(),
+                      // The long press vibrates only with haptic feedback
+                      // on.
+                      enableFeedback: Haptics.enabled(context),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(minHeight: 56),
+                        child: row,
+                      ),
                     ),
                   ),
                 ),
@@ -411,62 +449,82 @@ class _HistoryEntryTileState extends State<HistoryEntryTile> {
     );
   }
 
-  String _sourceName(AppLocalizations l10n) {
-    final detected = entry.detectedSource;
-    if (entry.source.isAuto && detected != null && detected.isNotEmpty) {
-      return l10n.historyDetected(LanguageCatalog.nameOf(detected));
-    }
-    return entry.source.name;
-  }
-}
-
-/// [child] in a hairline box with no fill, full width (a quoted post).
-class _Quote extends StatelessWidget {
-  const new({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) => DecoratedBox(
-    decoration: BoxDecoration(
-      border: Border.all(color: AppPalette.of(context).hairline),
-      borderRadius: AppRadius.cardBorderRadius,
-    ),
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: SizedBox(width: double.infinity, child: child),
+  static PopupMenuItem<_EntryAction> _menuItem(
+    _EntryAction action,
+    IconData icon,
+    String label,
+  ) => PopupMenuItem(
+    value: action,
+    child: ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(icon),
+      title: Text(label),
     ),
   );
 }
 
-/// The small "Dictionary" label (with a book icon) of a look-up.
+/// The small "EN → FR" tag of a row (custom languages by name), read as
+/// the whole pair ("English (detected) → French").
+class _PairTag extends StatelessWidget {
+  const new({required this.entry});
+
+  final HistoryEntry entry;
+
+  static String _short(Language language, String? code) =>
+      language.isCustom ? language.name : (code ?? '?').toUpperCase();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final palette = AppPalette.of(context);
+    final label = l10n.historyLanguagePair(
+      bidiIsolate(_short(entry.source, historySourceCode(entry))),
+      bidiIsolate(_short(entry.target, historyTargetCode(entry))),
+    );
+    return Semantics(
+      label: historyEntryPair(l10n, entry),
+      excludeSemantics: true,
+      child: ConstrainedBox(
+        key: HistoryEntryTile.pairTagKey,
+        constraints: const BoxConstraints(maxWidth: 96),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            border: Border.all(color: palette.hairline),
+            borderRadius: const BorderRadius.all(
+              Radius.circular(AppRadius.badge),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: palette.secondaryText,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The book icon before a look-up's word, read as "Dictionary".
 class _DictionaryMarker extends StatelessWidget {
   const new();
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final color = AppPalette.of(context).secondaryText;
-    return Row(
-      key: const Key('history_dictionary_marker'),
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(Icons.menu_book_rounded, size: 16, color: color),
-        const SizedBox(width: 6),
-        Flexible(
-          child: Text(
-            context.l10n.historyDictionaryMarker,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => Icon(
+    Icons.menu_book_rounded,
+    key: const Key('history_dictionary_marker'),
+    size: 18,
+    color: AppPalette.of(context).secondaryText,
+    semanticLabel: context.l10n.historyDictionaryMarker,
+  );
 }
 
 /// X-style short relative time of [time] as seen at [now]: "now", "5m",
@@ -485,84 +543,10 @@ String relativeHistoryTime(AppLocalizations l10n, DateTime time, DateTime now) {
   return DateFormat.jm(l10n.localeName).format(time.toLocal());
 }
 
-/// The bold language pair followed by the secondary " · engine · time"
-/// ([meta]) on one line when both fit. Otherwise the pair keeps the line
-/// (wrapping to a second one rather than being cut to
-/// "English (detected) → Fren…") and the meta moves below it.
-class _Header extends StatelessWidget {
-  const new({required this.pair, required this.meta});
-
-  final String pair;
-  final String meta;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final palette = AppPalette.of(context);
-    final base = DefaultTextStyle.of(context).style
-        .merge(theme.textTheme.bodyMedium?.copyWith(fontSize: 15));
-    final pairStyle = base.copyWith(
-      fontWeight: FontWeight.w700,
-      color: theme.colorScheme.onSurface,
-    );
-    final metaStyle = base.copyWith(color: palette.secondaryText);
-    final oneLine = ' · $meta';
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final painter = TextPainter(
-          text: TextSpan(
-            children: [
-              TextSpan(text: pair, style: pairStyle),
-              TextSpan(text: oneLine, style: metaStyle),
-            ],
-          ),
-          textDirection: Directionality.of(context),
-          textScaler: MediaQuery.textScalerOf(context),
-          maxLines: 1,
-        )..layout();
-        final fits = painter.width <= constraints.maxWidth;
-        painter.dispose();
-        if (fits) {
-          return Row(
-            children: [
-              // Ellipsis only guards against sub-pixel rounding.
-              Flexible(
-                child: Text(
-                  pair,
-                  style: pairStyle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              Text(oneLine, style: metaStyle, maxLines: 1),
-            ],
-          );
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              pair,
-              style: pairStyle,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            Text(
-              meta,
-              style: metaStyle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
 /// User or translated text in its own language: laid out in that
 /// language's direction (WCAG 1.3.2) and tagged with its locale so screen
-/// readers pick the right voice and CJK text the right glyphs (WCAG 3.1.2).
+/// readers pick the right voice and CJK text the right glyphs (WCAG 3.1.2),
+/// with the matches of [query] highlighted.
 ///
 /// [code] is a language code, or null when unknown (auto-detected without
 /// a result, or a custom AI target); the direction is then guessed from
@@ -572,13 +556,18 @@ class _LanguageText extends StatelessWidget {
     required this.text,
     required this.code,
     required this.style,
-    this.maxLines = 2,
+    required this.query,
+    required this.highlight,
   });
 
   final String text;
   final String? code;
   final TextStyle? style;
-  final int maxLines;
+  final String query;
+  final TextStyle highlight;
+
+  /// Lines shown at most (long texts end with an ellipsis).
+  static const maxLines = 2;
 
   @override
   Widget build(BuildContext context) {
@@ -588,7 +577,12 @@ class _LanguageText extends StatelessWidget {
         ? Bidi.isRtlLanguage(code)
         : Bidi.detectRtlDirectionality(text);
     return Text.rich(
-      TextSpan(text: text, locale: known ? localeForLanguageCode(code) : null),
+      highlightedSpan(
+        text,
+        query,
+        highlight: highlight,
+        locale: known ? localeForLanguageCode(code) : null,
+      ),
       style: style,
       textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
       maxLines: maxLines,
@@ -599,7 +593,6 @@ class _LanguageText extends StatelessWidget {
 
 /// A [Locale] for a language code such as `ja`, `pt-BR`, `zh_TW` or
 /// `sr-Latn`, or null when [code] is not a valid language subtag.
-@visibleForTesting
 Locale? localeForLanguageCode(String code) {
   final parts = code.split(RegExp('[-_]'));
   final language = parts.first.toLowerCase();

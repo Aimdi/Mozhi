@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui' show SemanticsInputType;
+import 'dart:ui' show PointerDeviceKind, SemanticsInputType;
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/semantics.dart';
@@ -14,6 +14,7 @@ import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/history/view/history_page.dart';
+import 'package:mozhi/history/view/widgets/history_entry_details.dart';
 import 'package:mozhi/history/view/widgets/history_entry_tile.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
@@ -149,9 +150,10 @@ void main() {
       expect(find.text('Yesterday'), findsOneWidget);
       expect(find.text('Good morning'), findsOneWidget);
       expect(find.text('Guten Morgen'), findsOneWidget);
-      expect(find.text(_pair('English', 'German')), findsNWidgets(2));
-      expect(find.text(_pair('French (detected)', 'English')), findsOneWidget);
-      expect(find.textContaining('Claude · '), findsOneWidget);
+      // A short pair tag on each row; no engine or time.
+      expect(find.text(_pair('EN', 'DE')), findsNWidgets(2));
+      expect(find.text(_pair('FR', 'EN')), findsOneWidget);
+      expect(find.textContaining('Claude'), findsNothing);
       // The 10-day-old entry has a date header.
       final todayY = tester.getTopLeft(find.text('Today')).dy;
       final yesterdayY = tester.getTopLeft(find.text('Yesterday')).dy;
@@ -832,6 +834,8 @@ void main() {
             customActions: [
               const CustomSemanticsAction(label: 'Delete'),
               const CustomSemanticsAction(label: 'Add to favorites'),
+              const CustomSemanticsAction(label: 'Copy'),
+              const CustomSemanticsAction(label: 'Share'),
               const CustomSemanticsAction.overridingAction(
                 hint: 'Open in translator',
                 action: SemanticsAction.tap,
@@ -846,8 +850,8 @@ void main() {
           semantics.attributedLabel.attributes
               .whereType<LocaleStringAttribute>()
               .map((a) => a.locale),
-          // The translation is the body; the quoted source follows it.
-          [const Locale('de'), const Locale('en')],
+          // The source first, its translation below it.
+          [const Locale('en'), const Locale('de')],
         );
         tester.semantics.customAction(
           node,
@@ -881,6 +885,8 @@ void main() {
             customActions: [
               const CustomSemanticsAction(label: 'Delete'),
               const CustomSemanticsAction(label: 'Remove from favorites'),
+              const CustomSemanticsAction(label: 'Copy'),
+              const CustomSemanticsAction(label: 'Share'),
               const CustomSemanticsAction.overridingAction(
                 hint: 'Open in translator',
                 action: SemanticsAction.tap,
@@ -1131,18 +1137,38 @@ void main() {
             .setMockMethodCallHandler(SystemChannels.platform, null);
       });
 
-      testWidgets('copy copies the translation and shows a check', (
-        tester,
+      Future<void> pickFromMenu(
+        WidgetTester tester,
+        int row,
+        String item,
       ) async {
-        await pump(tester);
-        await tester.tap(find.byTooltip('Copy').first);
+        await tester.tap(find.byTooltip('More actions').at(row));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(item).last);
         await tester.pump();
+      }
+
+      testWidgets('copy in the menu copies the translation', (tester) async {
+        await pump(tester);
+        await pickFromMenu(tester, 0, 'Copy');
         expect(
           calls
               .where((c) => c.method == 'Clipboard.setData')
               .map((c) => (c.arguments as Map)['text']),
           ['Guten Morgen'],
         );
+        await tester.pumpAndSettle();
+      });
+
+      testWidgets('copy on hover shows a check', (tester) async {
+        await pump(tester);
+        final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+        await mouse.addPointer(location: Offset.zero);
+        addTearDown(mouse.removePointer);
+        await mouse.moveTo(tester.getCenter(find.text('Good morning')));
+        await tester.pump();
+        await tester.tap(find.byTooltip('Copy'));
+        await tester.pump();
         expect(find.byIcon(Icons.check_rounded), findsOneWidget);
         expect(find.byTooltip('Copied to clipboard'), findsOneWidget);
         // Copying again restarts the timer.
@@ -1150,7 +1176,7 @@ void main() {
         await tester.pump();
         await tester.pump(HistoryEntryTile.copiedDuration);
         expect(find.byIcon(Icons.check_rounded), findsNothing);
-        expect(find.byTooltip('Copy'), findsNWidgets(3));
+        expect(find.byTooltip('Copy'), findsOneWidget);
         await tester.pumpAndSettle();
       });
 
@@ -1158,20 +1184,20 @@ void main() {
         tester,
       ) async {
         await pump(tester);
-        await tester.tap(find.byTooltip('Copy').first);
-        await tester.pump();
+        await pickFromMenu(tester, 0, 'Copy');
         await tester.pumpWidget(const SizedBox());
         expect(tester.takeException(), isNull);
       });
 
-      testWidgets('share shares the translation', (tester) async {
+      testWidgets('share in the menu shares the translation', (tester) async {
         final shared = <String?>[];
         final previous = HistoryShare.share;
         HistoryShare.share = (params) async => shared.add(params.text);
         addTearDown(() => HistoryShare.share = previous);
         await pump(tester);
-        await tester.tap(find.byTooltip('Share').at(1));
+        await pickFromMenu(tester, 1, 'Share');
         expect(shared, ['Hello']);
+        await tester.pumpAndSettle();
       });
 
       testWidgets('the favorite is a heart in the like colour', (tester) async {
@@ -1734,23 +1760,15 @@ void main() {
         await pump(tester, state: withLookUp);
 
         final marker = find.byKey(const Key('history_dictionary_marker'));
+        // Translations have no marker.
         expect(marker, findsOneWidget);
-        expect(
-          find.descendant(of: marker, matching: find.text('Dictionary')),
-          findsOneWidget,
-        );
-        expect(
-          find.descendant(
-            of: marker,
-            matching: find.byIcon(Icons.menu_book_rounded),
-          ),
-          findsOneWidget,
-        );
+        // A book icon, read as "Dictionary".
+        final icon = tester.widget<Icon>(marker);
+        expect(icon.icon, Icons.menu_book_rounded);
+        expect(icon.semanticLabel, 'Dictionary');
         expect(find.text('hola'), findsOneWidget);
         expect(find.text('interjection · A greeting.'), findsOneWidget);
-        expect(find.text(_pair('Spanish', 'English')), findsOneWidget);
-        // Translations have no marker.
-        expect(find.text('Dictionary'), findsOneWidget);
+        expect(find.text(_pair('ES', 'EN')), findsOneWidget);
         // The word is the body, in its own language; the summary below it.
         final word = tester.widget<Text>(find.text('hola'));
         expect(word._locale, const Locale('es'));
@@ -1846,6 +1864,8 @@ void main() {
             customActions: [
               const CustomSemanticsAction(label: 'Delete'),
               const CustomSemanticsAction(label: 'Add to favorites'),
+              const CustomSemanticsAction(label: 'Copy'),
+              const CustomSemanticsAction(label: 'Share'),
               const CustomSemanticsAction.overridingAction(
                 hint: 'Look up in the dictionary',
                 action: SemanticsAction.tap,
@@ -1877,7 +1897,9 @@ void main() {
 
         testWidgets('copy copies the word', (tester) async {
           await pump(tester, state: withLookUp);
-          await tester.tap(find.byTooltip('Copy').first);
+          await tester.tap(find.byTooltip('More actions').first);
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Copy').last);
           await tester.pump();
           expect(
             calls
@@ -1912,8 +1934,12 @@ void main() {
             ),
           );
 
-          await tester.tap(find.byTooltip('Share').first);
-          await tester.tap(find.byTooltip('Share').last);
+          for (final row in [0, 1]) {
+            await tester.tap(find.byTooltip('More actions').at(row));
+            await tester.pumpAndSettle();
+            await tester.tap(find.text('Share').last);
+            await tester.pumpAndSettle();
+          }
 
           expect(shared, ['hola\ninterjection · A greeting.', 'gato']);
         });
@@ -1930,14 +1956,380 @@ void main() {
       });
     });
 
-    testWidgets('centers the list on wide screens', (tester) async {
-      await pump(tester, size: const Size(1400, 1000));
-      expect(
-        tester.getTopLeft(find.byKey(HistoryView.searchFieldKey)).dx,
-        greaterThan(300),
+    group('wide screens', () {
+      const size = Size(1400, 1000);
+
+      testWidgets('show the list beside the selected entry', (tester) async {
+        await pump(tester, size: size);
+        expect(find.byKey(const Key('history_panes')), findsOneWidget);
+        // The list keeps its width; the first entry is shown beside it.
+        expect(
+          tester.getTopRight(find.byKey(HistoryView.searchFieldKey)).dx,
+          lessThanOrEqualTo(HistoryView.listPaneWidth),
+        );
+        final details = find.byType(HistoryEntryDetails);
+        expect(details, findsOneWidget);
+        expect(
+          find.descendant(of: details, matching: find.text('Guten Morgen')),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: details,
+            matching: find.textContaining('Google · '),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          tester
+              .widget<HistoryEntryTile>(find.byType(HistoryEntryTile).first)
+              .selected,
+          isTrue,
+        );
+      });
+
+      testWidgets('a tap selects an entry instead of opening it', (
+        tester,
+      ) async {
+        await pump(tester, size: size);
+        await tester.tap(find.text('Thank you'));
+        await tester.pumpAndSettle();
+        verifyNever(() => translate.setInputAndTranslate(any()));
+        final details = find.byType(HistoryEntryDetails);
+        expect(
+          find.descendant(of: details, matching: find.text('Danke')),
+          findsOneWidget,
+        );
+        // "Details" in the menu selects it too.
+        await tester.tap(find.byTooltip('More actions').at(1));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Details'));
+        await tester.pumpAndSettle();
+        expect(
+          find.descendant(of: details, matching: find.text('Hello')),
+          findsOneWidget,
+        );
+        expect(find.byType(BottomSheet), findsNothing);
+
+        // The details open it in the translator.
+        await tester.tap(find.byKey(HistoryEntryDetails.openKey));
+        verify(() => translate.setInputAndTranslate('Bonjour')).called(1);
+      });
+
+      testWidgets('the details favourite and delete', (tester) async {
+        await pump(tester, size: size);
+        final details = find.byType(HistoryEntryDetails);
+        await tester.tap(
+          find.descendant(
+            of: details,
+            matching: find.byTooltip('Add to favorites'),
+          ),
+        );
+        verify(() => history.toggleFavorite('1')).called(1);
+        await tester.tap(
+          find.descendant(of: details, matching: find.byTooltip('Delete')),
+        );
+        await tester.pump();
+        verify(() => history.delete('1')).called(1);
+        // The next entry is shown.
+        expect(
+          find.descendant(of: details, matching: find.text('Hello')),
+          findsOneWidget,
+        );
+        await tester.pumpAndSettle();
+      });
+
+      testWidgets('say when nothing is selected', (tester) async {
+        await pump(
+          tester,
+          size: size,
+          state: HistoryState(
+            status: HistoryStatus.ready,
+            entries: [_today],
+            query: 'nothing like this',
+          ),
+        );
+        expect(find.text('Select a translation to see it here'), findsOne);
+      });
+
+      testWidgets('list and details are separate focus groups', (tester) async {
+        await pump(tester, size: size);
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('history_panes')),
+            matching: find.byType(FocusTraversalGroup),
+          ),
+          findsAtLeast(2),
+        );
+      });
+    });
+
+    group('details on phones', () {
+      testWidgets('open in a sheet from the menu', (tester) async {
+        await pump(tester);
+        await tester.tap(find.byTooltip('More actions').first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Details'));
+        await tester.pumpAndSettle();
+        final details = find.byType(HistoryEntryDetails);
+        expect(details, findsOneWidget);
+        expect(
+          find.descendant(of: details, matching: find.text('Original')),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(of: details, matching: find.text('Translation')),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: details,
+            matching: find.text(_pair('English', 'German')),
+          ),
+          findsOneWidget,
+        );
+        // Its actions close it first.
+        await tester.tap(find.byKey(HistoryEntryDetails.openKey));
+        await tester.pumpAndSettle();
+        expect(details, findsNothing);
+        verify(() => translate.setInputAndTranslate('Good morning')).called(1);
+      });
+
+      for (final (action, verifyIt) in [
+        ('Add to favorites', (MockHistoryCubit h) => h.toggleFavorite('1')),
+        ('Delete', (MockHistoryCubit h) => h.delete('1')),
+      ]) {
+        testWidgets('"$action" in the sheet', (tester) async {
+          await pump(tester);
+          await tester.tap(find.byTooltip('More actions').first);
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Details'));
+          await tester.pumpAndSettle();
+          await tester.tap(
+            find.descendant(
+              of: find.byType(HistoryEntryDetails),
+              matching: find.byTooltip(action),
+            ),
+          );
+          await tester.pumpAndSettle();
+          expect(find.byType(HistoryEntryDetails), findsNothing);
+          verify(() => verifyIt(history)).called(1);
+        });
+      }
+
+      testWidgets('a look-up shows the word and its summary', (tester) async {
+        await pump(
+          tester,
+          state: HistoryState(status: HistoryStatus.ready, entries: [_lookUp]),
+        );
+        await tester.tap(find.byTooltip('More actions'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Details'));
+        await tester.pumpAndSettle();
+        final details = find.byType(HistoryEntryDetails);
+        expect(
+          find.descendant(of: details, matching: find.text('Summary')),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: details,
+            matching: find.text('Look up in the dictionary'),
+          ),
+          findsOneWidget,
+        );
+      });
+    });
+
+    group('search', () {
+      testWidgets('highlights matches in both lines', (tester) async {
+        await pump(
+          tester,
+          state: HistoryState(
+            status: HistoryStatus.ready,
+            entries: [_today, _yesterday, _older],
+            query: 'MORGEN',
+          ),
+        );
+        final tile = tester.widget<HistoryEntryTile>(
+          find.byType(HistoryEntryTile).first,
+        );
+        expect(tile.query, 'MORGEN');
+        final rich = tester.widget<RichText>(
+          find.byWidgetPredicate(
+            (w) => w is RichText && w.text.toPlainText() == 'Guten Morgen',
+          ),
+        );
+        final highlighted = <String>[];
+        rich.text.visitChildren((span) {
+          if (span is TextSpan && span.style?.backgroundColor != null) {
+            highlighted.add(span.text!);
+          }
+          return true;
+        });
+        expect(highlighted, ['Morgen']);
+      });
+    });
+
+    group('favorites as a phrasebook', () {
+      final pairs = HistoryState(
+        status: HistoryStatus.ready,
+        favoritesOnly: true,
+        entries: [
+          _today.copyWithFavorite(),
+          _yesterday,
+          _older.copyWithFavorite(),
+          _lookUp.copyWithFavorite(),
+        ],
       );
+
+      testWidgets('groups the favourites by language pair', (tester) async {
+        await pump(tester, state: pairs);
+        expect(find.text('Today'), findsNothing);
+        final english = find.text(
+          '${_pair('English', 'German')} · 2 translations',
+        );
+        expect(english, findsOneWidget);
+        final french = find.textContaining('${_pair('French', 'English')} · ');
+        // The biggest group first, each with its entries.
+        expect(
+          tester.getTopLeft(english).dy,
+          lessThan(tester.getTopLeft(find.text('Good morning')).dy),
+        );
+        expect(
+          tester.getTopLeft(find.text('Thank you')).dy,
+          lessThan(tester.getTopLeft(french.first).dy),
+        );
+      });
+
+      testWidgets('chips show one pair', (tester) async {
+        await pump(tester, state: pairs);
+        final chips = find.byKey(HistoryView.favoritePairsKey);
+        expect(chips, findsOneWidget);
+        // The pair button of the filters makes way for the chips.
+        expect(find.byKey(HistoryView.pairFilterKey), findsNothing);
+        await tester.tap(
+          find.descendant(
+            of: chips,
+            matching: find.text(_pair('French', 'English')),
+          ),
+        );
+        verify(
+          () => history.filterByPair(
+            const HistoryPair(
+              source: Language(code: 'fr', name: 'French'),
+              target: _english,
+            ),
+          ),
+        ).called(1);
+      });
+
+      testWidgets('the selected chip and All clear the pair', (tester) async {
+        final pair = HistoryPair.of(_today);
+        await pump(
+          tester,
+          state: HistoryState(
+            status: HistoryStatus.ready,
+            favoritesOnly: true,
+            entries: pairs.entries,
+            pair: pair,
+          ),
+        );
+        final chips = find.byKey(HistoryView.favoritePairsKey);
+        await tester.tap(
+          find.descendant(
+            of: chips,
+            matching: find.text(_pair('English', 'German')),
+          ),
+        );
+        await tester.tap(
+          find.descendant(of: chips, matching: find.text('All')),
+        );
+        verify(() => history.filterByPair(null)).called(2);
+      });
+
+      testWidgets('no chips with a single pair', (tester) async {
+        await pump(
+          tester,
+          state: HistoryState(
+            status: HistoryStatus.ready,
+            favoritesOnly: true,
+            entries: [_yesterday],
+          ),
+        );
+        expect(find.byKey(HistoryView.favoritePairsKey), findsNothing);
+      });
+
+      testWidgets('a pair set elsewhere keeps its chip', (tester) async {
+        final pair = HistoryPair.of(_older);
+        await pump(
+          tester,
+          state: HistoryState(
+            status: HistoryStatus.ready,
+            favoritesOnly: true,
+            entries: [_yesterday],
+            pair: pair,
+          ),
+        );
+        expect(
+          find.descendant(
+            of: find.byKey(HistoryView.favoritePairsKey),
+            matching: find.text(_pair('English', 'German')),
+          ),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('exports the favourites shown', (tester) async {
+        final exported = <List<HistoryEntry>>[];
+        final previous = HistoryView.exportFavorites;
+        HistoryView.exportFavorites = (context, entries) async =>
+            exported.add(entries);
+        addTearDown(() => HistoryView.exportFavorites = previous);
+        await pump(tester, state: pairs);
+        await tester.tap(find.byKey(HistoryView.exportKey));
+        expect(exported.single.map((e) => e.id).toSet(), {
+          '1',
+          '2',
+          '3',
+          'dictionary:1',
+        });
+      });
+
+      testWidgets('nothing to export outside Favorites or without any', (
+        tester,
+      ) async {
+        await pump(tester);
+        expect(find.byKey(HistoryView.exportKey), findsNothing);
+        await pump(
+          tester,
+          state: HistoryState(
+            status: HistoryStatus.ready,
+            favoritesOnly: true,
+            entries: [_today],
+          ),
+        );
+        expect(find.byKey(HistoryView.exportKey), findsNothing);
+      });
     });
   });
+}
+
+extension on HistoryEntry {
+  HistoryEntry copyWithFavorite() => HistoryEntry(
+    id: id,
+    text: text,
+    translation: translation,
+    source: source,
+    target: target,
+    engineId: engineId,
+    engineName: engineName,
+    createdAt: createdAt,
+    detectedSource: detectedSource,
+    isFavorite: true,
+    kind: kind,
+    verbosity: verbosity,
+  );
 }
 
 extension on Text {

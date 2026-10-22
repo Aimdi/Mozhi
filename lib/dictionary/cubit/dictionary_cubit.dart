@@ -32,6 +32,14 @@ export 'dictionary_state.dart';
 ///   translations. A new look-up of the same word and languages updates
 ///   that entry (`HistoryRepository.add`). [toggleFavorite] stars the shown
 ///   entry. History errors never fail a look-up.
+/// * The engine follows the app's AI engine ([setEngine], [updateEngines])
+///   until the user picks one for the dictionary ([pickEngine]), which is
+///   then kept while it is available (not saved: like Proofread's model).
+/// * The language of a shown entry ([DictionaryState.entryLanguage], e.g.
+///   to read it aloud) is the chosen source language; when the source is
+///   detected, a script only one language uses tells it, else the
+///   optional `identifyLanguage` (the on-device identifier, nothing is
+///   sent anywhere) looks at the headword, the examples and the synonyms.
 class DictionaryCubit extends Cubit<DictionaryState> {
   new({
     required this._repository,
@@ -44,6 +52,7 @@ class DictionaryCubit extends Cubit<DictionaryState> {
     this._usageTracker,
     this._history,
     this._settings,
+    this._identifyLanguage,
     DateTime Function()? clock,
   }) : _clock = clock ?? DateTime.now,
        super(
@@ -81,6 +90,12 @@ class DictionaryCubit extends Cubit<DictionaryState> {
   final HistoryCubit? _history;
   final SettingsCubit? _settings;
   final DateTime Function() _clock;
+
+  /// Identifies the language of a text on the device (null: unknown).
+  final Future<String?> Function(String text)? _identifyLanguage;
+
+  /// Id of the engine the user picked ([pickEngine]).
+  String? _pickedEngineId;
 
   /// The engine that wrote the shown entry (for [toggleFavorite]).
   TranslationEngine? _entryEngine;
@@ -149,6 +164,41 @@ class DictionaryCubit extends Cubit<DictionaryState> {
       emit(state.copyWith(engine: () => usable));
     }
     if (usable != null && _pending) unawaited(lookUp());
+  }
+
+  /// Uses [engine] for look-ups from now on, also when the app's AI engine
+  /// changes later ([updateEngines]), as long as it is available. The
+  /// shown (or loading) word is looked up again with it.
+  void pickEngine(TranslationEngine engine) {
+    final usable = _usable(engine);
+    if (usable == null) return;
+    _pickedEngineId = usable.id;
+    if (usable.id == state.engine?.id) {
+      setEngine(usable);
+      return;
+    }
+    setEngine(usable);
+    _refresh();
+  }
+
+  /// The app's engines changed: uses the engine the user picked
+  /// ([pickEngine]) while [engines] still has it (refreshing its details),
+  /// else [preferred] (the app's AI engine for the dictionary).
+  void updateEngines(
+    List<TranslationEngine> engines, {
+    TranslationEngine? preferred,
+  }) {
+    final picked = _pickedEngineId;
+    if (picked != null) {
+      for (final engine in engines) {
+        if (engine.id == picked && _usable(engine) != null) {
+          setEngine(engine);
+          return;
+        }
+      }
+      _pickedEngineId = null;
+    }
+    setEngine(preferred);
   }
 
   /// The user typed [word] (cut to [maxWordLength]).
@@ -299,6 +349,7 @@ class DictionaryCubit extends Cubit<DictionaryState> {
         entry: () => null,
         lookedUp: '',
         error: () => null,
+        entryLanguage: () => null,
       ),
     );
   }
@@ -315,6 +366,7 @@ class DictionaryCubit extends Cubit<DictionaryState> {
         entry: () => null,
         lookedUp: '',
         error: () => null,
+        entryLanguage: () => null,
       ),
     );
   }
@@ -345,6 +397,7 @@ class DictionaryCubit extends Cubit<DictionaryState> {
         entry: () => null,
         lookedUp: word,
         error: () => null,
+        entryLanguage: () => null,
       ),
     );
     try {
@@ -359,9 +412,17 @@ class DictionaryCubit extends Cubit<DictionaryState> {
       _recordUsage(engine, word, entry);
       if (isClosed || request != _request) return;
       _entryEngine = engine;
+      final known = source.isAuto ? dictionaryScriptLanguage(entry.word) : null;
       emit(
-        state.copyWith(status: DictionaryStatus.success, entry: () => entry),
+        state.copyWith(
+          status: DictionaryStatus.success,
+          entry: () => entry,
+          entryLanguage: () => source.isAuto ? known : source.code,
+        ),
       );
+      if (source.isAuto && known == null) {
+        unawaited(_identify(entry, request));
+      }
       if (!state.isEmptyEntry) {
         _record(
           engine,
@@ -379,6 +440,32 @@ class DictionaryCubit extends Cubit<DictionaryState> {
         state.copyWith(status: DictionaryStatus.failure, error: () => error),
       );
     }
+  }
+
+  /// Sets [DictionaryState.entryLanguage] from the on-device identifier
+  /// for [entry] (the look-up [request]): its headword, examples and
+  /// synonyms are all in the word's language. Unknown codes and failures
+  /// leave it unknown.
+  Future<void> _identify(DictionaryEntry entry, int request) async {
+    final identify = _identifyLanguage;
+    if (identify == null) return;
+    final text = [
+      entry.word,
+      for (final example in entry.examples) example.source,
+      ...entry.synonyms,
+      ...entry.relatedWords,
+    ].map(_oneLine).where((part) => part.isNotEmpty).join('\n');
+    String? code;
+    try {
+      code = (await identify(text))?.trim();
+    } on Object {
+      return;
+    }
+    if (isClosed || request != _request || code == null || code.isEmpty) {
+      return;
+    }
+    if (LanguageCatalog.byCode(code) == null) return;
+    emit(state.copyWith(entryLanguage: () => code));
   }
 
   /// Looks the word up again after a language change, once something was
@@ -483,4 +570,35 @@ class DictionaryCubit extends Cubit<DictionaryState> {
       // Usage counting must never break a look-up.
     }
   }
+}
+
+/// Scripts that one language alone uses, with that language's code.
+final _scripts = <(RegExp, String)>[
+  (RegExp('[\u3040-\u30FF]'), 'ja'), // Hiragana, Katakana.
+  (RegExp('[\uAC00-\uD7AF\u1100-\u11FF]'), 'ko'), // Hangul.
+  (RegExp('[\u0E00-\u0E7F]'), 'th'),
+  (RegExp('[\u0370-\u03FF]'), 'el'),
+  (RegExp('[\u10A0-\u10FF]'), 'ka'),
+  (RegExp('[\u0530-\u058F]'), 'hy'),
+  (RegExp('[\u0B80-\u0BFF]'), 'ta'),
+  (RegExp('[\u0C00-\u0C7F]'), 'te'),
+  (RegExp('[\u0C80-\u0CFF]'), 'kn'),
+  (RegExp('[\u0D00-\u0D7F]'), 'ml'),
+  (RegExp('[\u0A80-\u0AFF]'), 'gu'),
+  (RegExp('[\u0A00-\u0A7F]'), 'pa'),
+  (RegExp('[\u0D80-\u0DFF]'), 'si'),
+  (RegExp('[\u1780-\u17FF]'), 'km'),
+  (RegExp('[\u0E80-\u0EFF]'), 'lo'),
+  (RegExp('[\u1000-\u109F]'), 'my'),
+];
+
+/// The language of [word] when it is written in a script that one
+/// language alone uses (Japanese kana, Hangul, Thai, Greek, Georgian,
+/// Armenian, several Indic scripts, Sinhala, Khmer, Lao, Myanmar), else
+/// null (Latin, Cyrillic, Arabic, Han and other shared scripts).
+String? dictionaryScriptLanguage(String word) {
+  for (final (script, code) in _scripts) {
+    if (script.hasMatch(word)) return code;
+  }
+  return null;
 }

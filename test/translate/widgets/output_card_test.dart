@@ -86,29 +86,69 @@ void main() {
       expect(find.byTooltip('Copy'), findsNothing);
     });
 
-    testWidgets('shows progress once translating takes a while', (
+    testWidgets('shows the header and placeholder lines at once', (
       tester,
     ) async {
       final harness = TranslateHarness(
         state: readyState(input: 'Hi', status: TranslateStatus.translating),
       );
       await harness.pump(tester, child: const OutputCard());
-      // Quick translations never flash a progress bar.
-      expect(find.byKey(const Key('translate_output_progress')), findsNothing);
-      expect(find.byKey(const Key('translate_output_skeleton')), findsNothing);
-      await tester.pump(const Duration(milliseconds: 299));
-      expect(find.byKey(const Key('translate_output_progress')), findsNothing);
-      await tester.pump(const Duration(milliseconds: 1));
-      expect(
-        find.byKey(const Key('translate_output_progress')),
-        findsOneWidget,
-      );
-      // Placeholder lines (decorative) where the translation will appear.
+      // No delay on top of the typing pause.
       expect(
         find.byKey(const Key('translate_output_skeleton')),
         findsOneWidget,
       );
       expect(find.text('French'), findsOneWidget);
+      expect(find.text('DeepL'), findsOneWidget);
+      // The destination chip's room is kept.
+      expect(
+        find.byKey(const Key('translate_output_destination_placeholder')),
+        findsOneWidget,
+      );
+      expect(find.bySemanticsLabel('Translating…'), findsOneWidget);
+      // The bar is for a translation that replaces a shown one.
+      await pumpPastLoadingDelay(tester);
+      expect(find.byKey(const Key('translate_output_progress')), findsNothing);
+      expect(translateOutputIsEmpty(harness.translate.state), isFalse);
+    });
+
+    testWidgets('shows the placeholder lines while a translation is queued', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(
+        state: readyState(input: 'Hi').copyWith(queued: true),
+      );
+      await harness.pump(tester, child: const OutputCard());
+      expect(
+        find.byKey(const Key('translate_output_skeleton')),
+        findsOneWidget,
+      );
+      expect(translateOutputIsEmpty(harness.translate.state), isFalse);
+    });
+
+    testWidgets('dims the shown translation while a new one runs', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(
+        state: translatedState().copyWith(status: TranslateStatus.translating),
+      );
+      await harness.pump(tester, child: const OutputCard(), more: true);
+      expect(find.text('Bonjour le monde'), findsOneWidget);
+      expect(
+        tester
+            .widget<AnimatedOpacity>(
+              find.byKey(const Key('translate_output_opacity')),
+            )
+            .opacity,
+        staleOutputOpacity,
+      );
+      // A bar once it takes a while.
+      expect(find.byKey(const Key('translate_output_progress')), findsNothing);
+      await pumpPastLoadingDelay(tester);
+      expect(
+        find.byKey(const Key('translate_output_progress')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('a translation done in time never shows progress', (
@@ -153,13 +193,118 @@ void main() {
       );
       await harness.pump(tester, child: const OutputCard(), more: true);
       expect(find.text('Bonjour'), findsOneWidget);
+      // The text itself shows the progress; it is not dimmed.
       await pumpPastLoadingDelay(tester);
+      expect(find.byKey(const Key('translate_output_progress')), findsNothing);
       expect(
-        find.byKey(const Key('translate_output_progress')),
-        findsOneWidget,
+        tester
+            .widget<AnimatedOpacity>(
+              find.byKey(const Key('translate_output_opacity')),
+            )
+            .opacity,
+        1,
       );
-      // No footer until the result is complete.
-      expect(find.byKey(const Key('translate_output_footer')), findsNothing);
+      // The engine without the time until the result is complete.
+      expect(find.text('Claude'), findsOneWidget);
+      // The actions keep their place, hidden until it is complete.
+      expect(
+        tester
+            .widget<AnimatedOpacity>(
+              find.byKey(const Key('translate_output_actions_fade')),
+            )
+            .opacity,
+        0,
+      );
+      expect(
+        tester
+            .widget<IgnorePointer>(
+              find
+                  .ancestor(
+                    of: find.byKey(const Key('translate_output_actions_fade')),
+                    matching: find.byType(IgnorePointer),
+                  )
+                  .first,
+            )
+            .ignoring,
+        isTrue,
+      );
+    });
+
+    testWidgets('fades the actions in and ticks when streaming ends', (
+      tester,
+    ) async {
+      final clipboard = FakeClipboard(tester);
+      final streaming = readyState(
+        engine: claude,
+        input: 'Hello world',
+        status: TranslateStatus.translating,
+        result: const TranslationResult(
+          engineId: 'ai:claude',
+          engineName: 'Claude',
+          text: 'Bonjour',
+          isComplete: false,
+        ),
+      );
+      final done = streaming.copyWith(
+        status: TranslateStatus.success,
+        result: () => const TranslationResult(
+          engineId: 'ai:claude',
+          engineName: 'Claude',
+          text: 'Bonjour le monde',
+        ),
+      );
+      final states = StreamController<TranslateState>();
+      addTearDown(states.close);
+      final harness = TranslateHarness(state: streaming);
+      whenListen(harness.translate, states.stream, initialState: streaming);
+      await harness.pump(tester, child: const OutputCard());
+      expect(clipboard.haptics, isEmpty);
+
+      states.add(done);
+      await tester.pump();
+      await tester.pump();
+      final fade = tester.widget<AnimatedOpacity>(
+        find.byKey(const Key('translate_output_actions_fade')),
+      );
+      expect(fade.opacity, 1);
+      expect(fade.duration, const Duration(milliseconds: 150));
+      expect(clipboard.haptics, ['HapticFeedbackType.selectionClick']);
+    });
+
+    testWidgets('no tick with haptic feedback off', (tester) async {
+      final clipboard = FakeClipboard(tester);
+      final streaming = readyState(
+        engine: claude,
+        input: 'Hello world',
+        status: TranslateStatus.translating,
+        result: const TranslationResult(
+          engineId: 'ai:claude',
+          engineName: 'Claude',
+          text: 'Bonjour',
+          isComplete: false,
+        ),
+      );
+      final states = StreamController<TranslateState>();
+      addTearDown(states.close);
+      final harness = TranslateHarness(
+        state: streaming,
+        settings: const AppSettings(hapticFeedback: false),
+      );
+      whenListen(harness.translate, states.stream, initialState: streaming);
+      await harness.pump(tester, child: const OutputCard());
+      states.add(
+        streaming.copyWith(
+          status: TranslateStatus.success,
+          result: () => const TranslationResult(
+            engineId: 'ai:claude',
+            engineName: 'Claude',
+            text: 'Bonjour le monde',
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(clipboard.haptics, isEmpty);
     });
 
     testWidgets('shows the result with footer and detected language', (
@@ -169,7 +314,15 @@ void main() {
       await harness.pump(tester, child: const OutputCard(), more: true);
       expect(find.text('Bonjour le monde'), findsOneWidget);
       expect(find.text('DeepL · 0.8 s'), findsOneWidget);
-      expect(find.text('Detected: English'), findsOneWidget);
+      // On a raised surface, a little bolder than the input.
+      expect(find.byKey(const Key('translate_output_surface')), findsOneWidget);
+      final text = tester.widget<SelectableText>(
+        find.byKey(const Key('translate_output_text')),
+      );
+      expect(text.style?.fontWeight, FontWeight.w500);
+      // The language bar says which language was detected.
+      expect(find.text('Detected: English'), findsNothing);
+      expect(find.byKey(const Key('translate_detected_chip')), findsNothing);
     });
 
     testWidgets('marks on-device translations', (tester) async {
@@ -343,14 +496,68 @@ void main() {
       });
     });
 
-    testWidgets('copy copies the translation', (tester) async {
+    testWidgets('copy copies the translation and confirms in place', (
+      tester,
+    ) async {
       final clipboard = FakeClipboard(tester);
       final harness = TranslateHarness(state: translatedState());
-      await harness.pump(tester, child: const OutputCard(), more: true);
+      await harness.pump(
+        tester,
+        child: const OutputCard(),
+        more: true,
+        supportsAnnounce: false,
+      );
+      await tester.tap(find.byTooltip('Copy'));
+      await tester.pump();
+      expect(clipboard.copied, 'Bonjour le monde');
+      expect(clipboard.haptics, ['HapticFeedbackType.lightImpact']);
+      // A check mark and a polite announcement, no snack bar (web, and
+      // Android 13+ confirms copies itself).
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('translate_copy_button')),
+          matching: find.byIcon(Icons.check),
+        ),
+        findsOneWidget,
+      );
+      expect(find.byType(SnackBar), findsNothing);
+      expect(find.bySemanticsLabel('Copied to clipboard'), findsOneWidget);
+      // The button keeps its name.
+      expect(find.byTooltip('Copy'), findsOneWidget);
+      await tester.pump(CopyActionButton.confirmFor);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('translate_copy_button')),
+          matching: find.byIcon(Icons.copy_outlined),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('copy shows a snack bar on Android 12 and older', (
+      tester,
+    ) async {
+      debugSnackBarAfterInlineCopy = true;
+      addTearDown(() => debugSnackBarAfterInlineCopy = null);
+      final clipboard = FakeClipboard(tester);
+      final harness = TranslateHarness(state: translatedState());
+      await harness.pump(
+        tester,
+        child: const OutputCard(),
+        more: true,
+        supportsAnnounce: false,
+      );
       await tester.tap(find.byTooltip('Copy'));
       await tester.pump();
       expect(clipboard.copied, 'Bonjour le monde');
       expect(find.text('Copied to clipboard'), findsOneWidget);
+      // The snack bar says it: no second announcement.
+      expect(
+        find.byKey(const Key('status_announcer_live_region')),
+        findsNothing,
+      );
     });
 
     testWidgets('copy is marked sensitive and Android confirms it', (
@@ -423,7 +630,7 @@ void main() {
       ) async {
         final harness = TranslateHarness(state: translatedState());
         await harness.pump(tester, child: const OutputCard(), more: true);
-        await tester.tap(find.byTooltip('Add to favourites'));
+        await tester.tap(find.byTooltip('Add to favorites'));
         final entry =
             verify(() => harness.history.add(captureAny())).captured.single
                 as HistoryEntry;
@@ -455,8 +662,8 @@ void main() {
           ),
         );
         await harness.pump(tester, child: const OutputCard(), more: true);
-        expect(find.byTooltip('Remove from favourites'), findsOneWidget);
-        await tester.tap(find.byTooltip('Remove from favourites'));
+        expect(find.byTooltip('Remove from favorites'), findsOneWidget);
+        await tester.tap(find.byTooltip('Remove from favorites'));
         verify(() => harness.history.toggleFavorite('new')).called(1);
         verifyNever(() => harness.history.add(any()));
       });
@@ -511,8 +718,8 @@ void main() {
           ),
         );
         await harness.pump(tester, child: const OutputCard(), more: true);
-        expect(find.byTooltip('Remove from favourites'), findsNothing);
-        await tester.tap(find.byTooltip('Add to favourites'));
+        expect(find.byTooltip('Remove from favorites'), findsNothing);
+        await tester.tap(find.byTooltip('Add to favorites'));
         // A new translation entry; the look-up is left alone.
         final added =
             verify(() => harness.history.add(captureAny())).captured.single
@@ -541,7 +748,14 @@ void main() {
         await tester.tap(find.byKey(const Key('translate_insights_button')));
         await tester.pump();
         verify(harness.translate.loadInsights).called(1);
-        expect(find.byTooltip('Hide insights'), findsOneWidget);
+        expect(
+          tester
+              .widget<TranslateToolRow>(
+                find.byKey(const Key('translate_insights_button')),
+              )
+              .selected,
+          isTrue,
+        );
       });
 
       testWidgets('show progress and empty states', (tester) async {
@@ -701,7 +915,7 @@ void main() {
       ) async {
         final harness = TranslateHarness(state: _stale());
         await harness.pump(tester, child: const OutputCard(), more: true);
-        final button = tester.widget<TranslateToolChip>(
+        final button = tester.widget<TranslateToolRow>(
           find.byKey(const Key('translate_insights_button')),
         );
         expect(button.onPressed, isNull);
@@ -746,7 +960,14 @@ void main() {
         await harness.pump(tester, child: const OutputCard(), more: true);
         await tester.tap(find.byKey(const Key('translate_insights_button')));
         await tester.pump();
-        expect(find.byTooltip('Hide insights'), findsOneWidget);
+        expect(
+          tester
+              .widget<TranslateToolRow>(
+                find.byKey(const Key('translate_insights_button')),
+              )
+              .selected,
+          isTrue,
+        );
 
         // A typing pause translated the edited text.
         controller.add(
@@ -876,7 +1097,7 @@ void main() {
     ) async {
       final harness = TranslateHarness(state: _stale());
       await harness.pump(tester, child: const OutputCard(), more: true);
-      await tester.tap(find.byTooltip('Add to favourites'));
+      await tester.tap(find.byTooltip('Add to favorites'));
       final entry =
           verify(() => harness.history.add(captureAny())).captured.single
               as HistoryEntry;

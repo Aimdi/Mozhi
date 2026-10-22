@@ -37,6 +37,56 @@ Future<void> _focusInput(WidgetTester tester) async {
   await tester.pump();
 }
 
+/// Whether the input field has the keyboard focus.
+bool _inputFocused(WidgetTester tester) => tester
+    .widget<EditableText>(
+      find.descendant(
+        of: find.byKey(const Key('translate_input_field')),
+        matching: find.byType(EditableText),
+      ),
+    )
+    .focusNode
+    .hasFocus;
+
+/// Where the keyboard focus is: 'input', 'languages' (the language bar or
+/// the languages above the panes, with the options and go buttons),
+/// 'output' or 'other'.
+String _focusRegion(WidgetTester tester) {
+  final focused = FocusManager.instance.primaryFocus?.context;
+  if (focused == null) return 'none';
+  bool inside(Finder finder) => finder.evaluate().any((element) {
+    if (identical(element, focused)) return true;
+    var found = false;
+    focused.visitAncestorElements((ancestor) {
+      found = identical(ancestor, element);
+      return !found;
+    });
+    return found;
+  });
+  if (inside(find.byType(InputCard))) return 'input';
+  if (inside(find.byType(OutputCard))) return 'output';
+  if (inside(find.byType(LanguageBar)) ||
+      inside(find.byKey(const Key('translate_language_header'))) ||
+      inside(find.byKey(const Key('translate_pane_footer')))) {
+    return 'languages';
+  }
+  return 'other';
+}
+
+/// The regions Tab visits from the input on, each once, in order.
+Future<List<String>> _tabOrder(WidgetTester tester) async {
+  await tester.tap(find.byKey(const Key('translate_input_field')));
+  await tester.pumpAndSettle();
+  final regions = <String>[_focusRegion(tester)];
+  for (var i = 0; i < 40; i++) {
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    final region = _focusRegion(tester);
+    if (region != regions.last) regions.add(region);
+  }
+  return regions;
+}
+
 void main() {
   setUpAll(registerTranslateFallbacks);
 
@@ -176,6 +226,52 @@ void main() {
       expect(find.byKey(const Key('translate_shortcuts_dialog')), findsNothing);
     });
 
+    testWidgets('/ moves the focus to the input', (tester) async {
+      final harness = TranslateHarness(state: translatedState());
+      await harness.pump(tester);
+      await tester.pump();
+      expect(_inputFocused(tester), isFalse);
+      final handled = await tester.sendKeyEvent(
+        LogicalKeyboardKey.slash,
+        character: '/',
+      );
+      await tester.pump();
+      expect(handled, isTrue);
+      expect(_inputFocused(tester), isTrue);
+      // Typed, not handled, inside the input.
+      final typed = await tester.sendKeyEvent(
+        LogicalKeyboardKey.slash,
+        character: '/',
+      );
+      expect(typed, isFalse);
+    });
+
+    testWidgets('/ brings the phone screen from the greeting to the input', (
+      tester,
+    ) async {
+      final harness = TranslateHarness();
+      await harness.pump(tester, size: const Size(400, 800));
+      await tester.pump();
+      expect(find.byKey(const Key('translate_hero')), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.slash, character: '/');
+      await tester.pumpAndSettle();
+      expect(_inputFocused(tester), isTrue);
+      expect(find.byKey(const Key('translate_hero')), findsNothing);
+    });
+
+    testWidgets('/ is left alone without engines', (tester) async {
+      final harness = TranslateHarness(
+        state: const TranslateState(enginesStatus: EnginesStatus.failure),
+      );
+      await harness.pump(tester);
+      await tester.pump();
+      final handled = await tester.sendKeyEvent(
+        LogicalKeyboardKey.slash,
+        character: '/',
+      );
+      expect(handled, isFalse);
+    });
+
     testWidgets('the cheat sheet uses ⌘ on Apple platforms', (tester) async {
       final harness = TranslateHarness();
       await harness.pump(
@@ -194,26 +290,36 @@ void main() {
 
     test('lists every shortcut', () async {
       final l10n = await AppLocalizations.delegate.load(const Locale('en'));
-      final rows = translateShortcutHelp(l10n, command: false);
+      final rows = translateShortcutHelp(l10n, command: false, web: false);
       expect(rows.map((r) => r.keys), [
         'Ctrl + Enter',
         'Ctrl + Shift + S',
         'Ctrl + Shift + C',
         'Ctrl + L',
         'Ctrl + Shift + L',
+        '/',
         'Esc',
         'Alt + 1…9',
         'Shift + Enter',
         '? or Ctrl + /',
       ]);
-      expect(rows[7].keysSemantics, 'Shift Enter');
-      expect(rows[7].description, 'Listen slowly (on a focused Listen button)');
-      expect(rows[6].keysSemantics, 'Alt 1 to 9');
-      expect(rows[6].description, 'Translate into pinned language 1 to 9');
+      expect(rows[5].description, 'Go to the text box');
+      expect(rows[8].keysSemantics, 'Shift Enter');
+      expect(rows[8].description, 'Listen slowly (on a focused Listen button)');
+      expect(rows[7].keysSemantics, 'Alt 1 to 9');
+      expect(rows[7].description, 'Translate into pinned language 1 to 9');
       expect(rows.last.keysSemantics, '? or Control /');
-      final apple = translateShortcutHelp(l10n, command: true);
-      expect(apple[6].keys, '⌥ + 1…9');
-      expect(apple[6].keysSemantics, 'Option 1 to 9');
+      final apple = translateShortcutHelp(l10n, command: true, web: false);
+      expect(apple[7].keys, '⌥ + 1…9');
+      expect(apple[7].keysSemantics, 'Option 1 to 9');
+      // In a browser Ctrl/Cmd+L is the address bar's: Alt+L.
+      final web = translateShortcutHelp(l10n, command: false, web: true);
+      expect(web[3].keys, 'Alt + L');
+      expect(web[4].keys, 'Alt + Shift + L');
+      expect(web[4].keysSemantics, 'Alt Shift L');
+      final appleWeb = translateShortcutHelp(l10n, command: true, web: true);
+      expect(appleWeb[3].keys, '⌥ + L');
+      expect(appleWeb[3].keysSemantics, 'Option L');
       expect(shortcutUsesCommandKey(TargetPlatform.iOS), isTrue);
       expect(shortcutUsesCommandKey(TargetPlatform.android), isFalse);
     });
@@ -308,6 +414,28 @@ void main() {
       ]);
     });
 
+    test('browsers get Alt+L instead of Ctrl/Cmd+L', () {
+      final web = TranslateView.shortcutsFor(web: true);
+      final pickers = web.entries
+          .where((entry) => entry.value is PickLanguageIntent)
+          .toList();
+      expect(pickers, hasLength(2));
+      for (final MapEntry(:key, :value) in pickers) {
+        final activator = key as SingleActivator;
+        expect(activator.trigger, LogicalKeyboardKey.keyL);
+        expect(activator.alt, isTrue);
+        expect(activator.control || activator.meta, isFalse);
+        expect((value as PickLanguageIntent).source, activator.shift);
+      }
+      // The app keeps Ctrl/Cmd+L.
+      final app = TranslateView.shortcutsFor(web: false).entries.where(
+        (entry) =>
+            entry.value is PickLanguageIntent &&
+            (entry.key as SingleActivator).control,
+      );
+      expect(app, hasLength(2));
+    });
+
     test('browsers get Ctrl/Cmd+Alt+digit instead of Alt+digit', () {
       expect(TranslateView.shortcutsFor(web: false), TranslateView.shortcuts);
       final web = TranslateView.shortcutsFor(web: true);
@@ -329,10 +457,11 @@ void main() {
             (entry.key as SingleActivator).control,
       );
       expect((first.value as SelectPinnedTargetIntent).index, 0);
-      // The other shortcuts are the same.
+      // The other shortcuts are the same, the four Ctrl/Cmd+L ones turned
+      // into two Alt+L ones.
       expect(
         web.length,
-        TranslateView.shortcuts.length + translatePinnedShortcutCount,
+        TranslateView.shortcuts.length + translatePinnedShortcutCount - 2,
       );
     });
 
@@ -358,10 +487,10 @@ void main() {
       expect(translatePinnedShortcut(-1, command: false), isNull);
 
       final web = translateShortcutHelp(l10n, command: false, web: true);
-      expect(web[6].keys, 'Ctrl + Alt + 1…9');
-      expect(web[6].keysSemantics, 'Control Alt 1 to 9');
+      expect(web[7].keys, 'Ctrl + Alt + 1…9');
+      expect(web[7].keysSemantics, 'Control Alt 1 to 9');
       final appleWeb = translateShortcutHelp(l10n, command: true, web: true);
-      expect(appleWeb[6].keys, '⌘ + ⌥ + 1…9');
+      expect(appleWeb[7].keys, '⌘ + ⌥ + 1…9');
       expect(showsShortcutHints(TargetPlatform.linux), isTrue);
       expect(showsShortcutHints(TargetPlatform.android), isFalse);
     });
@@ -420,6 +549,26 @@ void main() {
         'Alt 1 to 9',
       );
     });
+  });
+
+  group('keyboard traversal', () {
+    for (final (name, size) in [
+      ('phone', const Size(400, 1600)),
+      ('two panes', const Size(1280, 1000)),
+    ]) {
+      testWidgets('goes from the input to the languages, then the '
+          'translation ($name)', (tester) async {
+        final harness = TranslateHarness(state: translatedState());
+        await harness.pump(tester, size: size);
+        final order = await _tabOrder(tester);
+        final input = order.indexOf('input');
+        final languages = order.indexOf('languages');
+        final output = order.indexOf('output');
+        expect(input, 0, reason: '$order');
+        expect(languages, greaterThan(input), reason: '$order');
+        expect(output, greaterThan(languages), reason: '$order');
+      });
+    }
   });
 
   group('More tools menu', () {

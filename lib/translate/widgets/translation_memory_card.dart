@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/history/data/translation_memory.dart';
@@ -7,8 +5,8 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart'
     show StatusBadge;
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/translate/widgets/copy_action_button.dart';
 import 'package:mozhi/translate/widgets/language_text.dart';
-import 'package:mozhi/translate/widgets/output_card.dart' show copyToClipboard;
 import 'package:mozhi/translate/widgets/translate_layout.dart';
 
 /// "From your history" / "Similar text in your history": the earlier
@@ -155,12 +153,10 @@ class _MemoryCard extends StatelessWidget {
                       onPressed: cubit.useMemoryMatch,
                     ),
                   ),
-                  IconButton(
+                  CopyActionButton(
                     key: const Key('translate_memory_copy'),
                     tooltip: l10n.translateMemoryCopy,
-                    icon: const Icon(Icons.copy_outlined),
-                    onPressed: () =>
-                        unawaited(copyToClipboard(context, entry.translation)),
+                    text: entry.translation,
                   ),
                 ],
               ),

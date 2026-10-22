@@ -850,7 +850,18 @@ void main() {
         ..changes.clear()
         ..failNextWrite = true;
 
-      await expectLater(repository.save(changed), throwsStateError);
+      await expectLater(
+        repository.save(changed),
+        throwsA(
+          isA<SecretStorageException>()
+              .having((e) => e.cause, 'cause', isA<StateError>())
+              .having(
+                (e) => e.toString(),
+                'toString',
+                isNot(contains('apikey')),
+              ),
+        ),
+      );
       await repository.save(changed);
 
       expect(secrets.changes, ['write apikey.a']);

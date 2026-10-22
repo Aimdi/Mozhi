@@ -69,7 +69,7 @@ void main() {
       await harness.pump(tester, child: const OutputCard());
       await tester.tap(find.byTooltip('Copy'));
       await tester.pump();
-      await tester.tap(find.byTooltip('Add to favourites'));
+      await tester.tap(find.byTooltip('Add to favorites'));
       await tester.pump();
       expect(clipboard.haptics, isEmpty);
       expect(clipboard.copied, 'Bonjour le monde');
@@ -80,7 +80,7 @@ void main() {
       final clipboard = FakeClipboard(tester);
       final harness = TranslateHarness(state: translatedState());
       await harness.pump(tester, child: const OutputCard());
-      await tester.tap(find.byTooltip('Add to favourites'));
+      await tester.tap(find.byTooltip('Add to favorites'));
       await tester.pump();
       expect(clipboard.haptics, ['HapticFeedbackType.lightImpact']);
     });

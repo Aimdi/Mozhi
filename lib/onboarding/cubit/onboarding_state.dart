@@ -2,7 +2,9 @@ import 'package:equatable/equatable.dart';
 
 /// The pages of the first-run flow, in order: after the welcome, at most
 /// three screens: the privacy mode, the default languages (with their
-/// offline downloads) and an optional online service.
+/// offline downloads) and the online service. A device that can't
+/// translate on its own (the web) skips the privacy mode (see
+/// [OnboardingState.steps]).
 ///
 /// AI providers are not part of the flow: the last step links to them in
 /// the settings.
@@ -60,9 +62,25 @@ class OnboardingState extends Equatable {
     this.ownInstanceError,
     this.ownInstanceMessage,
     this.ownInstanceLatency,
+    this.onDevice = true,
   });
 
   final OnboardingStep step;
+
+  /// Whether the device translates on its own (an on-device engine). Without
+  /// one (the web) the flow has no privacy step: its choice is a switch on
+  /// the online service step.
+  final bool onDevice;
+
+  /// The steps of the flow, in order: every [OnboardingStep], without
+  /// [OnboardingStep.privacy] when not [onDevice].
+  List<OnboardingStep> get steps => onDevice
+      ? OnboardingStep.values
+      : const [
+          OnboardingStep.welcome,
+          OnboardingStep.languages,
+          OnboardingStep.service,
+        ];
 
   // Translation service
 
@@ -89,7 +107,7 @@ class OnboardingState extends Equatable {
   final Duration? ownInstanceLatency;
 
   /// Whether [step] is the last page of the flow.
-  bool get isLastStep => step == OnboardingStep.values.last;
+  bool get isLastStep => step == steps.last;
 
   /// Fastest successfully pinged instance (null when none answered).
   String? get fastestUrl {
@@ -122,6 +140,7 @@ class OnboardingState extends Equatable {
     OwnInstanceError? Function()? ownInstanceError,
     String? Function()? ownInstanceMessage,
     Duration? Function()? ownInstanceLatency,
+    bool? onDevice,
   }) {
     return OnboardingState(
       step: step ?? this.step,
@@ -139,6 +158,7 @@ class OnboardingState extends Equatable {
       ownInstanceLatency: ownInstanceLatency != null
           ? ownInstanceLatency()
           : this.ownInstanceLatency,
+      onDevice: onDevice ?? this.onDevice,
     );
   }
 
@@ -153,5 +173,6 @@ class OnboardingState extends Equatable {
     ownInstanceError,
     ownInstanceMessage,
     ownInstanceLatency,
+    onDevice,
   ];
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 
@@ -12,10 +13,11 @@ IconData translateQualityIcon(QualityMode mode) => switch (mode) {
   QualityMode.best => Icons.workspace_premium_outlined,
 };
 
-/// Name of a quality mode ("Usual engine" for [QualityMode.off]).
+/// Name of a quality mode: "Fast" or "Best" ([QualityMode.off], the usual
+/// engine, is never offered as a mode of its own: "Quality mode").
 String translateQualityLabel(AppLocalizations l10n, QualityMode mode) =>
     switch (mode) {
-      QualityMode.off => l10n.translateQualityOff,
+      QualityMode.off => l10n.translateQualityMode,
       QualityMode.fast => l10n.translateQualityFast,
       QualityMode.best => l10n.translateQualityBest,
     };
@@ -36,11 +38,10 @@ enum QualityToggleLayout {
 /// Kagi-style Fast / Best toggle next to the engine selector (while the
 /// empty screen's greeting shows [QualityChip], the app bar leaves it out).
 ///
-/// Offers each quality mode whose engine is configured and available
-/// (`TranslateState.availableQualityModes`); nothing at all when neither is
-/// (the engine sheet links to the quality modes settings). Choosing a mode
-/// calls `TranslateCubit.setQualityMode`; tapping the selected segment
-/// again turns the mode off (back to the usual engine).
+/// Once Fast and Best are set up (`TranslateState.hasQualityModes`) it is
+/// the engine control: one of the two is always selected, and choosing the
+/// other calls `TranslateCubit.setQualityMode`. Nothing at all before that
+/// (the engine sheet links to the quality modes settings).
 ///
 /// Every segment and menu entry names its engine (tooltip or second line)
 /// and has a spoken name; the selection is shown with a check mark.
@@ -134,6 +135,7 @@ class _QualitySegments extends StatelessWidget {
     final modes = state.availableQualityModes.where(
       (mode) => mode != QualityMode.off,
     );
+    final mode = state.qualityMode;
     return Semantics(
       container: true,
       explicitChildNodes: true,
@@ -157,21 +159,24 @@ class _QualitySegments extends StatelessWidget {
                   : null,
             ),
         ],
-        selected: {if (state.qualityMode != QualityMode.off) state.qualityMode},
-        emptySelectionAllowed: true,
+        selected: {if (mode != QualityMode.off) mode},
+        // Only for the moment before the cubit moves a saved "usual
+        // engine" to a mode; a selected segment stays selected.
+        emptySelectionAllowed: mode == QualityMode.off,
         style: const ButtonStyle(
           tapTargetSize: MaterialTapTargetSize.padded,
           visualDensity: VisualDensity.standard,
         ),
-        onSelectionChanged: (selection) =>
-            onSelected(selection.isEmpty ? QualityMode.off : selection.first),
+        onSelectionChanged: (selection) {
+          if (selection.isNotEmpty) onSelected(selection.first);
+        },
       ),
     );
   }
 }
 
-/// The entries of the quality menu: every available mode with its engine,
-/// the current one checked.
+/// The entries of the quality menu: Fast and Best with their engines, the
+/// current one checked.
 List<PopupMenuEntry<QualityMode>> _menuItems(
   AppLocalizations l10n,
   TranslateState state,
@@ -222,15 +227,16 @@ class _QualityMenu extends StatelessWidget {
 }
 
 /// The quality mode as an outlined pill, like Kagi Translate's quality
-/// chip at the top of its start screen: the mode's icon and name ("⚡
-/// Fast"). The empty translate screen shows it in its greeting
-/// (`TranslateHero`) instead of the app bar's [QualityToggle].
+/// chip at the top of its start screen: the mode's icon and name, then the
+/// engine translating as secondary text ("⚡ Fast · Google"). The empty
+/// translate screen shows it in its greeting (`TranslateHero`) instead of
+/// the app bar's [QualityToggle].
 ///
-/// Tapping it opens the menu of [QualityToggleLayout.menu]: every
-/// available mode with its engine, the current one checked; choosing
-/// another mode calls `TranslateCubit.setQualityMode`. For screen readers
-/// it is that menu button too ("Quality mode: Fast", collapsed or
-/// expanded). Nothing at all while no quality engine is configured.
+/// Tapping it opens the menu of [QualityToggleLayout.menu]: Fast and Best
+/// with their engines, the current one checked; choosing the other mode
+/// calls `TranslateCubit.setQualityMode`. For screen readers it is that
+/// menu button too ("Quality mode: Fast", collapsed or expanded). Nothing
+/// at all until Fast and Best are set up.
 class QualityChip extends StatelessWidget {
   const new({super.key});
 
@@ -240,10 +246,13 @@ class QualityChip extends StatelessWidget {
       buildWhen: (previous, current) =>
           previous.qualityMode != current.qualityMode ||
           previous.fastEngine != current.fastEngine ||
-          previous.bestEngine != current.bestEngine,
+          previous.bestEngine != current.bestEngine ||
+          previous.engine != current.engine,
       builder: (context, state) {
         if (!state.hasQualityModes) return const SizedBox.shrink();
         final l10n = context.l10n;
+        final muted = AppPalette.of(context).secondaryText;
+        final engine = state.engine?.name;
         final theme = Theme.of(context);
         final scheme = theme.colorScheme;
         final mode = state.qualityMode;
@@ -275,8 +284,29 @@ class QualityChip extends StatelessWidget {
               Icon(translateQualityIcon(mode), size: 18, color: scheme.primary),
               const SizedBox(width: 8),
               // The tooltip names the button ("Quality mode: Fast"), as in
-              // the app bar's menu.
-              ExcludeSemantics(child: Text(label)),
+              // the app bar's menu; the engine is in its menu entries.
+              Flexible(
+                child: ExcludeSemantics(
+                  child: Text.rich(
+                    TextSpan(
+                      text: label,
+                      children: [
+                        if (engine != null)
+                          TextSpan(
+                            text: ' · $engine',
+                            style: TextStyle(
+                              color: muted,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                      ],
+                    ),
+                    key: const Key('translate_quality_chip_label'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
             ],
           ),
         );

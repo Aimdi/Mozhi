@@ -20,17 +20,26 @@ import 'package:translation_repository/translation_repository.dart';
 
 /// Opens the language picker for the source ([source]) or target language
 /// and applies the choice. [autofocusSearch] focuses the search field
-/// (keyboard shortcut: type to filter, Enter picks the first match).
+/// (type to filter, Enter picks the first match); by default it does on
+/// large screens and after keyboard use (see [showLanguagePicker]).
+///
+/// Below the [TranslateLanguageAnchors] of the large-screen layout the
+/// picker drops down under that side's language button
+/// ([LanguagePaneHeader]), wherever it was opened from (the button, a
+/// keyboard shortcut, the detected language chip).
 Future<void> pickTranslateLanguage(
   BuildContext context, {
   required bool source,
-  bool autofocusSearch = false,
+  bool? autofocusSearch,
 }) async {
   final cubit = context.read<TranslateCubit>();
+  final anchor = TranslateLanguageAnchors.maybeOf(context)
+      ?.rectOf(source: source);
   final picked = await showLanguagePicker(
     context,
     source: source,
     autofocusSearch: autofocusSearch,
+    anchor: anchor,
   );
   if (picked == null) return;
   if (source) {
@@ -89,7 +98,14 @@ bool detectionIsUncertain(TranslateState state) {
 /// Swapping ticks (a selection haptic) and turns the swap icon; a new
 /// language name slides in along the bar's axis (the source's from the
 /// target side, the target's from the source side) while the old one fades
-/// out, like Material's shared-axis motion. No motion with reduced motion.
+/// out, like Material's shared-axis motion. A swap
+/// ([translateLanguagesSwapped]) makes the two names trade places: each
+/// slides all the way across to the other side while it cross-fades into
+/// the other one's form ([languageSwapMotion]). No motion with reduced
+/// motion.
+///
+/// Phones and narrow windows only: the large-screen layout puts the
+/// languages above its panes ([LanguagePaneHeader]).
 class LanguageBar extends StatelessWidget {
   const new({super.key});
 
@@ -100,16 +116,115 @@ class LanguageBar extends StatelessWidget {
       key: Key('translate_language_bar'),
       children: [
         OptionsButton(),
-        Expanded(child: _LanguagePair()),
+        Expanded(child: _LanguagePair(panes: false)),
         TranslateGoButton(),
       ],
     );
   }
 }
 
-/// Source button, swap button and target button of the [LanguageBar].
-class _LanguagePair extends StatelessWidget {
-  const new();
+/// The languages of the large-screen layout, above its two panes (like
+/// Google's and DeepL's): the source button over the input pane, the
+/// target button over the output pane and the swap button between them,
+/// over the line between the panes. The buttons are the [LanguageBar]'s
+/// (same labels, forms, semantics and motion); the options and go buttons
+/// sit under the input pane there.
+///
+/// Its buttons are the anchors of [TranslateLanguageAnchors] when one is
+/// above (the picker drops down under them).
+class LanguagePaneHeader extends StatelessWidget {
+  const new({super.key});
+
+  /// Height of the header.
+  static const double height = 56;
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      key: Key('translate_language_header'),
+      height: height,
+      child: _LanguagePair(panes: true),
+    );
+  }
+}
+
+/// The global keys of the language buttons above the panes of the
+/// large-screen layout ([LanguagePaneHeader]), so a language picker opened
+/// from anywhere below (a keyboard shortcut, the detected language chip)
+/// drops down under the right button ([pickTranslateLanguage]).
+class TranslateLanguageAnchors extends InheritedWidget {
+  const new({
+    required this.source,
+    required this.target,
+    required super.child,
+    super.key,
+  });
+
+  /// The key of the source language button.
+  final GlobalKey source;
+
+  /// The key of the target language button.
+  final GlobalKey target;
+
+  /// The nearest anchors above [context], if any.
+  static TranslateLanguageAnchors? maybeOf(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<TranslateLanguageAnchors>();
+
+  /// The key of the source ([source]) or target button.
+  GlobalKey keyOf({required bool source}) => source ? this.source : target;
+
+  /// Where the source ([source]) or target button is, in global
+  /// coordinates; null while it is not on the screen.
+  Rect? rectOf({required bool source}) {
+    final box = keyOf(source: source).currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.attached || !box.hasSize) return null;
+    return box.localToGlobal(Offset.zero) & box.size;
+  }
+
+  @override
+  bool updateShouldNotify(TranslateLanguageAnchors oldWidget) =>
+      source != oldWidget.source || target != oldWidget.target;
+}
+
+/// Whether [current] swapped the languages of [previous]
+/// (`TranslateCubit.swap`): the new source is the old target and the new
+/// target the old source (the detected language while it was "Detect
+/// language"), matched like everywhere else ([LanguageMatcher]).
+bool translateLanguagesSwapped(
+  TranslateState previous,
+  TranslateState current,
+) {
+  if (previous.source == current.source && previous.target == current.target) {
+    return false;
+  }
+  bool same(Language language, Language other) =>
+      LanguageMatcher.match(language, [other]) != null;
+  if (!same(current.source, previous.target)) return false;
+  if (!previous.source.isAuto) return same(current.target, previous.source);
+  final detected = previous.result?.detectedSource;
+  if (detected == null || detected.isEmpty) return false;
+  return same(current.target, Language(code: detected, name: detected));
+}
+
+/// Source button, swap button and target button of the [LanguageBar]
+/// ([panes] false: laid out by [_LanguagePairRow]) or of the
+/// [LanguagePaneHeader] ([panes]: half the width each, the swap button in
+/// the middle).
+class _LanguagePair extends StatefulWidget {
+  const new({required this.panes});
+
+  final bool panes;
+
+  @override
+  State<_LanguagePair> createState() => _LanguagePairState();
+}
+
+class _LanguagePairState extends State<_LanguagePair> {
+  /// The state of the last build.
+  TranslateState? _last;
+
+  /// Whether the last change of the languages was a swap.
+  bool _swapped = false;
 
   @override
   Widget build(BuildContext context) {
@@ -124,6 +239,17 @@ class _LanguagePair extends StatelessWidget {
           previous.sourceLanguages != current.sourceLanguages ||
           previous.canSwap != current.canSwap,
       builder: (context, state) {
+        final last = _last;
+        if (!identical(last, state)) {
+          // Kept until the languages change again, so a rebuild in the
+          // middle of the motion does not change its course.
+          if (last == null ||
+              last.source != state.source ||
+              last.target != state.target) {
+            _swapped = last != null && translateLanguagesSwapped(last, state);
+          }
+          _last = state;
+        }
         final detected = state.result?.detectedSource;
         final uncertain = detectionLooksUncertain(state);
         final String sourceDescription;
@@ -157,29 +283,56 @@ class _LanguagePair extends StatelessWidget {
             (icon: Icons.auto_awesome_outlined, text: null),
           ];
         }
-        return _LanguagePairRow(
-          children: [
-            _LanguageButton(
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            // A swap carries each name across to the other button: about
+            // half the row away (the buttons share it around the swap
+            // button).
+            final travel = _swapped && constraints.hasBoundedWidth
+                ? constraints.maxWidth / 2
+                : null;
+            final sourceButton = _LanguageButton(
               key: const Key('translate_source_button'),
               forms: sourceForms,
               slideFrom: AxisDirection.right,
+              travel: travel,
               semanticLabel: l10n.translateSourceLanguage(sourceDescription),
               tooltip: sourceTooltip.isEmpty
                   ? sourceDescription
                   : sourceTooltip,
               onPressed: () => pickTranslateLanguage(context, source: true),
-            ),
-            _SwapButton(enabled: state.canSwap),
-            _LanguageButton(
+            );
+            final swap = _SwapButton(enabled: state.canSwap);
+            final targetButton = _LanguageButton(
               key: const Key('translate_target_button'),
               forms: languageLabelForms(state.target),
               slideFrom: AxisDirection.left,
+              travel: travel,
               semanticLabel: l10n.translateTargetLanguage(state.target.name),
               tooltip: state.target.name,
               target: true,
               onPressed: () => pickTranslateLanguage(context, source: false),
-            ),
-          ],
+            );
+            if (!widget.panes) {
+              return _LanguagePairRow(
+                children: [sourceButton, swap, targetButton],
+              );
+            }
+            final anchors = TranslateLanguageAnchors.maybeOf(context);
+            Widget half(Widget button, GlobalKey? anchor) => Expanded(
+              child: Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: KeyedSubtree(key: anchor, child: button),
+              ),
+            );
+            return Row(
+              children: [
+                half(sourceButton, anchors?.source),
+                swap,
+                half(targetButton, anchors?.target),
+              ],
+            );
+          },
         );
       },
     );
@@ -430,7 +583,7 @@ class _SwapButtonState extends State<_SwapButton> {
             ),
             icon: AnimatedRotation(
               turns: _turns,
-              duration: _swapMotion(context),
+              duration: languageSwapMotion(context),
               curve: Curves.easeInOutCubic,
               child: const Icon(Icons.swap_horiz),
             ),
@@ -450,11 +603,12 @@ class _SwapButtonState extends State<_SwapButton> {
   }
 }
 
-/// Duration of the swap motion; zero with reduced motion.
-Duration _swapMotion(BuildContext context) =>
+/// Duration of the swap motion (the swap icon's turn, the names trading
+/// places); zero with reduced motion.
+Duration languageSwapMotion(BuildContext context) =>
     (MediaQuery.maybeDisableAnimationsOf(context) ?? false)
     ? Duration.zero
-    : const Duration(milliseconds: 250);
+    : const Duration(milliseconds: 200);
 
 /// A language button of the [LanguageBar]: an optional icon, the name (the
 /// target's a little bolder) and a chevron, on the bar without an outline
@@ -468,7 +622,7 @@ Duration _swapMotion(BuildContext context) =>
 /// and, for screen readers, in [semanticLabel], which replaces the visible
 /// content (the button keeps its own semantics: tap action, enabled state,
 /// focus). A new name slides in from [slideFrom] (mirrored in right-to-left
-/// layouts).
+/// layouts), from [travel] logical pixels away when given (a swap).
 class _LanguageButton extends StatelessWidget {
   const new({
     required this.forms,
@@ -476,12 +630,17 @@ class _LanguageButton extends StatelessWidget {
     required this.tooltip,
     required this.onPressed,
     required this.slideFrom,
+    this.travel,
     this.target = false,
     super.key,
   });
 
   /// The side a new label slides in from (in a left-to-right layout).
   final AxisDirection slideFrom;
+
+  /// How far (logical pixels) a new label travels, and the old one with
+  /// it (see [_SharedAxisSwitcher.travel]); null: a short slide.
+  final double? travel;
 
   /// Whether this is the target language (bolder, like the translation's
   /// header).
@@ -512,6 +671,7 @@ class _LanguageButton extends StatelessWidget {
           if (text != null)
             _SharedAxisSwitcher(
               slideFrom: slideFrom,
+              travel: travel,
               child: Text(
                 text,
                 key: ValueKey(text),
@@ -729,11 +889,20 @@ class _RenderFirstThatFits extends RenderBox
 /// Switches [child] (told apart by its key) like Material's horizontal
 /// shared-axis transition: the new one slides in from [slideFrom] while
 /// fading in, the old one slides out the other way while fading out.
+///
+/// With a [travel] (a swap) both labels move the same way over that
+/// distance instead: the old one on towards the other language button, the
+/// new one in from it, so the two names trade places while they
+/// cross-fade.
 class _SharedAxisSwitcher extends StatelessWidget {
-  const new({required this.slideFrom, required this.child});
+  const new({required this.slideFrom, required this.child, this.travel});
 
   final AxisDirection slideFrom;
   final Widget child;
+
+  /// How far (logical pixels) the labels travel on a swap; null: a short
+  /// shared-axis slide.
+  final double? travel;
 
   /// How far a label travels, as a share of its width.
   static const _travel = 0.3;
@@ -745,7 +914,7 @@ class _SharedAxisSwitcher extends StatelessWidget {
     final fromRight = (slideFrom == AxisDirection.right) != rtl;
     final current = child.key;
     return AnimatedSwitcher(
-      duration: _swapMotion(context),
+      duration: languageSwapMotion(context),
       switchInCurve: Curves.easeOutCubic,
       switchOutCurve: Curves.easeInCubic,
       // As big as the new label alone (positioned children do not count):
@@ -765,6 +934,24 @@ class _SharedAxisSwitcher extends StatelessWidget {
         ],
       ),
       transitionBuilder: (child, animation) {
+        final swap = travel;
+        if (swap != null) {
+          // Both on [slideFrom]'s side: the incoming label comes from
+          // there, the outgoing one (its animation runs backwards) goes
+          // there.
+          final towards = fromRight ? 1.0 : -1.0;
+          return FadeTransition(
+            opacity: animation,
+            child: AnimatedBuilder(
+              animation: animation,
+              builder: (context, child) => Transform.translate(
+                offset: Offset(towards * swap * (1 - animation.value), 0),
+                child: child,
+              ),
+              child: child,
+            ),
+          );
+        }
         // The incoming label enters from [slideFrom]; the outgoing one
         // (its animation runs backwards) leaves to the opposite side.
         final incoming = child.key == current;

@@ -704,8 +704,14 @@ void main() {
 
   group('cubit-11: compare runs nobody asked for', () {
     blocTest<TranslateCubit, TranslateState>(
-      'turning compare on drops a pending instant translation',
-      setUp: () => mocks.stubTranslate(),
+      'turning compare on drops a pending instant translation and '
+      'compares once, as asked',
+      setUp: () {
+        mocks.stubTranslate();
+        when(
+          () => mocks.repository.compare(any(), any()),
+        ).thenAnswer((_) => const Stream.empty());
+      },
       build: () => mocks.build(),
       seed: readyState,
       act: (cubit) async {
@@ -715,7 +721,7 @@ void main() {
         await Future<void>.delayed(afterDebounce);
       },
       verify: (_) {
-        verifyNever(() => mocks.repository.compare(any(), any()));
+        verify(() => mocks.repository.compare(any(), any())).called(1);
         verifyNever(() => mocks.repository.translate(any(), any()));
       },
     );

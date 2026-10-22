@@ -43,7 +43,7 @@ void main() {
       final active = activeTranslationOptions(l10n, _options);
       expect(active.map((o) => o.label), [
         'Literal',
-        'More formal',
+        'Formal',
         'Reading level B1',
         'Speaker: Feminine',
         'Addressee: Masculine',
@@ -76,7 +76,7 @@ void main() {
         ),
       );
       expect(active.map((o) => o.label), [
-        'More formal',
+        'Formal',
         'Formality notes: My boss, but we are on f…',
       ]);
       expect(active[1].tooltip, notes);
@@ -98,7 +98,46 @@ void main() {
             formalityContext: '  ',
           ),
         ).map((o) => o.label),
-        ['Less formal'],
+        ['Casual'],
+      );
+    });
+
+    test('with an engine: only the options it applies', () {
+      const deeplApi = TranslationEngine(
+        id: 'mt:deepl',
+        kind: EngineKind.mt,
+        name: 'DeepL API',
+        providerId: 'deepl',
+        mtService: MtService.deepl,
+      );
+      const withNotes = TranslationOptions(
+        style: TranslationStyle.literal,
+        formality: Formality.more,
+        formalityContext: 'boss',
+        readingLevel: ReadingLevel.b1,
+        speakerGender: Gender.feminine,
+        addresseeGender: Gender.masculine,
+        context: 'landlord',
+        preserveFormatting: false,
+        glossary: {'cat': 'chat'},
+      );
+      expect(
+        activeTranslationOptions(
+          l10n,
+          withNotes,
+          engine: deeplApi,
+        ).map((o) => o.label),
+        [
+          'Formal',
+          'Context: landlord',
+          'Formatting not kept',
+          'Glossary · 1 term',
+        ],
+      );
+      expect(activeTranslationOptions(l10n, withNotes, engine: deepl), isEmpty);
+      expect(
+        activeTranslationOptions(l10n, withNotes, engine: claude),
+        hasLength(9),
       );
     });
 
@@ -126,6 +165,23 @@ void main() {
       expect(find.byType(InputChip), findsNothing);
     });
 
+    testWidgets('shows what DeepL applies for DeepL', (tester) async {
+      const deeplApi = TranslationEngine(
+        id: 'mt:deepl',
+        kind: EngineKind.mt,
+        name: 'DeepL API',
+        providerId: 'deepl',
+        mtService: MtService.deepl,
+      );
+      final harness = TranslateHarness(
+        state: translatedState(engine: deeplApi).copyWith(options: _options),
+      );
+      await harness.pump(tester, child: const ActiveOptionsBar());
+      expect(find.byType(InputChip), findsNWidgets(4));
+      expect(find.text('Literal'), findsNothing);
+      expect(find.text('Formal'), findsOneWidget);
+    });
+
     testWidgets('shows a chip per active option, grouped and named', (
       tester,
     ) async {
@@ -135,7 +191,7 @@ void main() {
       );
       await harness.pump(tester, child: const ActiveOptionsBar());
       expect(find.byType(InputChip), findsNWidgets(8));
-      expect(find.text('More formal'), findsOneWidget);
+      expect(find.text('Formal'), findsOneWidget);
       expect(find.text('Glossary · 2 terms'), findsOneWidget);
       expect(
         find.bySemanticsLabel('Active translation options'),
@@ -207,7 +263,7 @@ void main() {
       );
       controller.add(formal);
       await tester.pump();
-      expect(find.text('More formal'), findsOneWidget);
+      expect(find.text('Formal'), findsOneWidget);
 
       controller.add(formal.copyWith(engine: () => deepl));
       await tester.pump();
@@ -221,7 +277,7 @@ void main() {
         ),
       );
       await harness.pump(tester, child: const ActiveOptionsBar());
-      await tester.tap(find.text('More formal'));
+      await tester.tap(find.text('Formal'));
       await tester.pumpAndSettle();
       expect(find.byType(TranslationOptionsSheet), findsOneWidget);
     });

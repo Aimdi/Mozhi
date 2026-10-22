@@ -58,6 +58,10 @@ abstract final class AppSpacing {
 /// layout (navigation rail, side-by-side panes).
 const double kExpandedBreakpoint = 840;
 
+/// Height (logical pixels) of the bottom navigation bar: an icon with its
+/// label below it.
+const double kNavigationBarHeight = 64;
+
 /// The default accent (X blue).
 const Color kDefaultAccent = Color(0xFF1D9BF0);
 
@@ -80,8 +84,7 @@ class AppTones {
     required this.text,
     required this.secondaryText,
     required this.hairline,
-    required this.border,
-    required this.inputBorder,
+    required this.controlOutline,
   });
 
   /// White.
@@ -94,8 +97,7 @@ class AppTones {
     text: Color(0xFF0F1419),
     secondaryText: Color(0xFF536471),
     hairline: Color(0xFFEFF3F4),
-    border: Color(0xFFCFD9DE),
-    inputBorder: Color(0xFFCFD9DE),
+    controlOutline: Color(0xFF7B8A97),
   );
 
   /// Dark blue-grey ("Dim").
@@ -106,10 +108,10 @@ class AppTones {
     raisedHigh: Color(0xFF273340),
     raisedHighest: Color(0xFF2F3B47),
     text: Color(0xFFF7F9F9),
-    secondaryText: Color(0xFF8B98A5),
+    // Lighter than X's #8B98A5: 4.6:1 on the raised containers too.
+    secondaryText: Color(0xFF919DA9),
     hairline: Color(0xFF38444D),
-    border: Color(0xFF536471),
-    inputBorder: Color(0xFF38444D),
+    controlOutline: Color(0xFF6E7E8C),
   );
 
   /// True black ("Lights out").
@@ -120,10 +122,11 @@ class AppTones {
     raisedHigh: Color(0xFF1D1F23),
     raisedHighest: Color(0xFF202327),
     text: Color(0xFFE7E9EA),
-    secondaryText: Color(0xFF71767B),
+    // Lighter than X's #71767B (4.6:1 on black only): 4.6:1 on the raised
+    // containers too.
+    secondaryText: Color(0xFF83888D),
     hairline: Color(0xFF2F3336),
-    border: Color(0xFF536471),
-    inputBorder: Color(0xFF333639),
+    controlOutline: Color(0xFF616C77),
   );
 
   /// Page background.
@@ -140,17 +143,18 @@ class AppTones {
   /// Primary text.
   final Color text;
 
-  /// Metadata and subtitles.
+  /// Metadata and subtitles: at least 4.6:1 ([kTextContrast]) on [surface],
+  /// [subtle], [raised] and [raisedHigh].
   final Color secondaryText;
 
-  /// 1 px separators.
+  /// 1 px separators (decorative: no contrast needed).
   final Color hairline;
 
-  /// Stronger borders (outlined buttons, chips).
-  final Color border;
-
-  /// Borders of text fields.
-  final Color inputBorder;
+  /// The outlines of interactive controls: text fields and the composer,
+  /// outlined buttons, chips and pills, segmented buttons (WCAG 1.4.11:
+  /// at least 3:1 on [surface], [subtle], [raised] and [raisedHigh]). The
+  /// scheme's `outline`.
+  final Color controlOutline;
 
   /// The tones for [brightness]; [lightsOut] picks black over Dim.
   static AppTones of(Brightness brightness, {bool lightsOut = false}) {
@@ -161,6 +165,7 @@ class AppTones {
   /// The [AppPalette] registered on themes with these tones.
   AppPalette get palette => AppPalette(
     hairline: hairline,
+    controlOutline: controlOutline,
     secondaryText: secondaryText,
     like: const Color(0xFFF91880),
     success: const Color(0xFF00BA7C),
@@ -297,7 +302,8 @@ ColorScheme appColorScheme({
     surfaceContainer: tones.raised,
     surfaceContainerHigh: tones.raisedHigh,
     surfaceContainerHighest: tones.raisedHighest,
-    outline: tones.border,
+    // Control outlines (3:1); decorative lines use outlineVariant.
+    outline: tones.controlOutline,
     outlineVariant: tones.hairline,
     // Snack bars: dark on light, light on dark.
     inverseSurface: tones.text,
@@ -339,7 +345,7 @@ ThemeData buildAppTheme(ColorScheme scheme, {AppPalette? palette}) {
   const pill = StadiumBorder();
   final inputBorder = OutlineInputBorder(
     borderRadius: AppRadius.fieldBorderRadius,
-    borderSide: BorderSide(color: _tonesOf(scheme).inputBorder),
+    borderSide: BorderSide(color: scheme.outline),
   );
   final buttonText = textTheme.labelLarge?.copyWith(
     fontWeight: FontWeight.w700,
@@ -593,19 +599,29 @@ ThemeData buildAppTheme(ColorScheme scheme, {AppPalette? palette}) {
             ? whiteOnAccent
             : pal.secondaryText;
       }),
-      trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
-      trackOutlineWidth: const WidgetStatePropertyAll(0),
+      // No outline, but for keyboard focus (the focused state is only set
+      // while focus is shown): a 2 px accent ring around the track.
+      trackOutlineColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.focused)
+            ? scheme.primary
+            : Colors.transparent,
+      ),
+      trackOutlineWidth: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.focused) ? 2 : 0,
+      ),
       thumbIcon: const WidgetStatePropertyAll(null),
     ),
     navigationBarTheme: NavigationBarThemeData(
-      // Icon-only on a blurred bar: no fill, no indicator pill.
+      // Labelled icons on a blurred bar: no fill, no indicator pill (the
+      // shell marks the selection with an accent bar and a bold label).
       backgroundColor: Colors.transparent,
       indicatorColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
       shadowColor: Colors.transparent,
       elevation: 0,
-      height: 56,
-      labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
+      height: kNavigationBarHeight,
+      labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+      labelPadding: const EdgeInsets.only(top: 2),
       iconTheme: WidgetStateProperty.resolveWith(
         (states) => IconThemeData(
           size: 26,
@@ -614,11 +630,18 @@ ThemeData buildAppTheme(ColorScheme scheme, {AppPalette? palette}) {
               : pal.secondaryText,
         ),
       ),
+      // One line: a label too long for its quarter of a narrow phone
+      // (Tamil, Italian) ends in an ellipsis; its tooltip and its name for
+      // screen readers stay whole.
       labelTextStyle: WidgetStateProperty.resolveWith(
         (states) => textTheme.labelMedium?.copyWith(
+          color: states.contains(WidgetState.selected)
+              ? scheme.onSurface
+              : pal.secondaryText,
           fontWeight: states.contains(WidgetState.selected)
               ? FontWeight.w800
               : FontWeight.w500,
+          overflow: TextOverflow.ellipsis,
         ),
       ),
     ),

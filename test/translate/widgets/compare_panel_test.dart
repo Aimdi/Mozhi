@@ -2,6 +2,7 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/translate.dart';
 import 'package:mozhi/translate/widgets/widgets.dart';
@@ -30,6 +31,37 @@ TranslateState _compareState({
   String input = 'Hello world',
 }) => readyState(input: input)
     .copyWith(compareMode: true, compareEntries: entries, comparing: comparing);
+
+/// Placeholders of engines still running.
+final Finder _pending = find.byWidgetPredicate(
+  (widget) =>
+      widget.key is ValueKey<String> &&
+      (widget.key! as ValueKey<String>).value.startsWith('compare_pending:'),
+);
+
+const _deeplEntry = CompareEntry.success(
+  TranslationResult(
+    engineId: 'mozhi:deepl',
+    engineName: 'DeepL',
+    text: 'Bonjour  tout le monde ',
+  ),
+);
+
+const _ollamaEntry = CompareEntry.success(
+  TranslationResult(
+    engineId: 'ai:ollama',
+    engineName: 'Ollama',
+    text: 'Salut tout le monde',
+  ),
+);
+
+const _claudeEntry = CompareEntry.success(
+  TranslationResult(
+    engineId: 'ai:claude',
+    engineName: 'Claude',
+    text: 'Bonjour tout le monde',
+  ),
+);
 
 void main() {
   setUpAll(registerTranslateFallbacks);
@@ -74,12 +106,19 @@ void main() {
       expect(find.text('Google'), findsOneWidget);
       expect(find.text('1.2 s'), findsOneWidget);
       expect(find.text('Bonjour tout le monde'), findsOneWidget);
-      // 4 engines, 1 finished.
-      expect(find.byType(SkeletonCard), findsNWidgets(3));
-      final button = tester.widget<ButtonStyleButton>(
-        find.byKey(const Key('translate_compare_button')),
+      // 4 engines, 1 finished: the others in their places, named.
+      expect(_pending, findsNWidgets(3));
+      expect(find.text('DeepL'), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('DeepL')).dy,
+        lessThan(tester.getTopLeft(find.text('Google')).dy),
       );
-      expect(button.onPressed, isNull);
+      expect(
+        tester.getTopLeft(find.text('Google')).dy,
+        lessThan(tester.getTopLeft(find.text('Claude')).dy),
+      );
+      // While it runs there is nothing to start.
+      expect(find.byKey(const Key('translate_compare_button')), findsNothing);
     });
 
     testWidgets('placeholders respect the configured compare engines', (
@@ -92,7 +131,7 @@ void main() {
         ),
       );
       await harness.pump(tester, child: const ComparePanel());
-      expect(find.byType(SkeletonCard), findsNWidgets(2));
+      expect(_pending, findsNWidgets(2));
     });
 
     testWidgets('placeholders only count engines for custom languages', (
@@ -104,7 +143,7 @@ void main() {
       );
       await harness.pump(tester, child: const ComparePanel());
       // Claude and Ollama.
-      expect(find.byType(SkeletonCard), findsNWidgets(2));
+      expect(_pending, findsNWidgets(2));
     });
 
     testWidgets('cards of a custom target follow their text', (tester) async {
@@ -198,6 +237,138 @@ void main() {
       );
       await tester.pumpAndSettle();
       verify(() => harness.translate.setSource(german)).called(1);
+    });
+
+    group('agreement and differences', () {
+      testWidgets('merges engines that agree into one card', (tester) async {
+        final harness = TranslateHarness(
+          state: _compareState(
+            entries: const [_deeplEntry, _googleEntry, _claudeEntry],
+          ),
+        );
+        await harness.pump(tester, child: const ComparePanel());
+        expect(find.byType(CompareEntryCard), findsOneWidget);
+        expect(find.text('DeepL, Google and Claude agree'), findsOneWidget);
+        // No time for several engines.
+        expect(find.text('1.2 s'), findsNothing);
+        await tester.tap(find.text('Use this'));
+        verify(() => harness.translate.useCompareEntry(_deeplEntry)).called(1);
+      });
+
+      testWidgets('marks the current translation and highlights changes', (
+        tester,
+      ) async {
+        final harness = TranslateHarness(
+          state: _compareState(
+            entries: const [_googleEntry, _deeplEntry, _ollamaEntry],
+          ).copyWith(compareBaseline: () => _googleEntry.result),
+        );
+        await harness.pump(tester, child: const ComparePanel());
+        expect(find.byType(CompareEntryCard), findsNWidgets(2));
+        expect(find.text('Google and DeepL agree'), findsOneWidget);
+        expect(find.text('Current translation'), findsOneWidget);
+        expect(
+          find.text('Highlighted words differ from the current translation.'),
+          findsOneWidget,
+        );
+        // The current translation first, then the others by engine.
+        expect(
+          tester.getTopLeft(find.text('Google and DeepL agree')).dy,
+          lessThan(tester.getTopLeft(find.text('Ollama')).dy),
+        );
+        final ollama = tester.widget<SelectableText>(
+          find.descendant(
+            of: find.byKey(const ValueKey('compare:ai:ollama')),
+            matching: find.byType(SelectableText),
+          ),
+        );
+        final spans = ollama.textSpan!.children!.cast<TextSpan>();
+        expect(spans.map((span) => span.text).join(), 'Salut tout le monde');
+        final highlighted = [
+          for (final span in spans)
+            if (span.style?.backgroundColor != null) span.text,
+        ];
+        expect(highlighted, ['Salut']);
+        // "Use this" on the current translation's card keeps it.
+        await tester.tap(find.text('Use this').first);
+        verify(() => harness.translate.useCompareEntry(_googleEntry)).called(1);
+      });
+
+      testWidgets('no hint while every engine agrees', (tester) async {
+        final harness = TranslateHarness(
+          state: _compareState(entries: const [_googleEntry, _claudeEntry])
+              .copyWith(compareBaseline: () => _googleEntry.result),
+        );
+        await harness.pump(tester, child: const ComparePanel());
+        expect(find.textContaining('Highlighted words'), findsNothing);
+      });
+
+      testWidgets('long texts are not compared word by word', (tester) async {
+        final long = 'mot ' * 1300;
+        final harness = TranslateHarness(
+          state: _compareState(
+            entries: [
+              _googleEntry,
+              CompareEntry.success(
+                TranslationResult(
+                  engineId: 'ai:claude',
+                  engineName: 'Claude',
+                  text: long,
+                ),
+              ),
+            ],
+          ).copyWith(compareBaseline: () => _googleEntry.result),
+        );
+        await harness.pump(tester, child: const ComparePanel());
+        final text = tester.widget<SelectableText>(
+          find.descendant(
+            of: find.byKey(const ValueKey('compare:ai:claude')),
+            matching: find.byType(SelectableText),
+          ),
+        );
+        expect(text.textSpan!.children, hasLength(1));
+      });
+
+      testWidgets('cards of engines outside the run come last', (tester) async {
+        const other = CompareEntry.success(
+          TranslationResult(
+            engineId: 'mozhi:other',
+            engineName: 'Other',
+            text: 'Autre',
+          ),
+        );
+        final harness = TranslateHarness(
+          state: _compareState(entries: const [other, _ollamaEntry]),
+        );
+        await harness.pump(tester, child: const ComparePanel());
+        expect(
+          tester.getTopLeft(find.text('Ollama')).dy,
+          lessThan(tester.getTopLeft(find.text('Other')).dy),
+        );
+      });
+
+      test('compareCardTitle names one, two or more engines', () {
+        final l10n = lookupAppLocalizations(const Locale('en'));
+        expect(compareCardTitle(l10n, const []), '');
+        expect(compareCardTitle(l10n, const ['A']), 'A');
+        expect(compareCardTitle(l10n, const ['A', 'B']), 'A and B agree');
+        expect(
+          compareCardTitle(l10n, const ['A', 'B', 'C', 'D']),
+          'A, B, C and D agree',
+        );
+      });
+    });
+
+    testWidgets('"Done" is the one way out', (tester) async {
+      final harness = TranslateHarness(
+        state: _compareState(entries: const [_googleEntry]),
+      );
+      await harness.pump(tester, child: const ComparePanel());
+      expect(find.byKey(const Key('translate_compare_toggle')), findsOneWidget);
+      expect(find.byTooltip('Exit compare mode'), findsOneWidget);
+      expect(find.byIcon(Icons.close), findsNothing);
+      await tester.tap(find.text('Done'));
+      verify(() => harness.translate.setCompareMode(enabled: false)).called(1);
     });
 
     testWidgets('"Use this" selects the entry', (tester) async {

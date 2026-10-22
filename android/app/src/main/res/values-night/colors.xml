@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Launch screen in the system's dark mode: black, like the app's
-         default dark look (Lights out), so a cold start doesn't flash white
-         (Android 12+ takes the splash colour from launch_background). -->
+    <!-- Launch screen and system bars in the system's dark mode: black,
+         like the app's default dark look (Lights out, lib/app/theme.dart
+         AppTones.lightsOut), so a cold start doesn't flash white (Android
+         12+ takes the splash colour from launch_background). The look the
+         user picked (Dim, or light) is not known before Flutter starts, so
+         the default is matched. -->
     <color name="launch_background">#FF000000</color>
     <color name="launch_image">#FFFFFFFF</color>
 </resources>

@@ -24,30 +24,37 @@ String _preview(String text) => text.characters.length <= _contextPreviewLength
     : '${text.characters.take(_contextPreviewLength)}…';
 
 /// The user-chosen options that differ from the defaults, in the order of
-/// the options sheet.
+/// the options sheet. With an [engine], only the ones it applies: every
+/// option for AI engines with the general profile
+/// (`TranslationEngine.supportsOptions`); the formality, context,
+/// formatting and glossary for DeepL (`TranslationEngine.supportsFormality`);
+/// none for other engines.
 List<ActiveTranslationOption> activeTranslationOptions(
   AppLocalizations l10n,
-  TranslationOptions options,
-) {
+  TranslationOptions options, {
+  TranslationEngine? engine,
+}) {
   final context = options.context.trim();
   final formalityNotes = options.formality == Formality.automatic
       ? ''
       : options.formalityContext.trim();
+  final all = engine == null || engine.supportsOptions;
+  final deepl = all || engine.supportsFormality;
   return [
-    if (options.style != TranslationStyle.natural)
+    if (all && options.style != TranslationStyle.natural)
       (
         label: l10n.translateStyleLiteral,
         tooltip: null,
         cleared: options.copyWith(style: TranslationStyle.natural),
       ),
-    if (options.formality != Formality.automatic)
+    if (deepl && options.formality != Formality.automatic)
       (
         label: translateFormalityLabel(l10n, options.formality),
         tooltip: null,
         cleared: options.copyWith(formality: Formality.automatic),
       ),
     // Formality notes only apply with a formality.
-    if (formalityNotes.isNotEmpty)
+    if (all && formalityNotes.isNotEmpty)
       (
         label: l10n.translateActiveOptionFormalityNotes(
           _preview(formalityNotes),
@@ -55,7 +62,7 @@ List<ActiveTranslationOption> activeTranslationOptions(
         tooltip: formalityNotes,
         cleared: options.copyWith(formalityContext: ''),
       ),
-    if (options.readingLevel != ReadingLevel.standard)
+    if (all && options.readingLevel != ReadingLevel.standard)
       (
         label: l10n.translateActiveOptionReadingLevel(
           options.readingLevel.name.toUpperCase(),
@@ -63,7 +70,7 @@ List<ActiveTranslationOption> activeTranslationOptions(
         tooltip: translateReadingLevelLabel(l10n, options.readingLevel),
         cleared: options.copyWith(readingLevel: ReadingLevel.standard),
       ),
-    if (options.speakerGender != Gender.unknown)
+    if (all && options.speakerGender != Gender.unknown)
       (
         label: l10n.translateActiveOptionSpeaker(
           translateGenderLabel(l10n, options.speakerGender),
@@ -71,7 +78,7 @@ List<ActiveTranslationOption> activeTranslationOptions(
         tooltip: null,
         cleared: options.copyWith(speakerGender: Gender.unknown),
       ),
-    if (options.addresseeGender != Gender.unknown)
+    if (all && options.addresseeGender != Gender.unknown)
       (
         label: l10n.translateActiveOptionAddressee(
           translateGenderLabel(l10n, options.addresseeGender),
@@ -79,19 +86,19 @@ List<ActiveTranslationOption> activeTranslationOptions(
         tooltip: null,
         cleared: options.copyWith(addresseeGender: Gender.unknown),
       ),
-    if (context.isNotEmpty)
+    if (deepl && context.isNotEmpty)
       (
         label: l10n.translateActiveOptionContext(_preview(context)),
         tooltip: context,
         cleared: options.copyWith(context: ''),
       ),
-    if (!options.preserveFormatting)
+    if (deepl && !options.preserveFormatting)
       (
         label: l10n.translateActiveOptionNoFormatting,
         tooltip: null,
         cleared: options.copyWith(preserveFormatting: true),
       ),
-    if (options.glossary.isNotEmpty)
+    if (deepl && options.glossary.isNotEmpty)
       (
         label: l10n.translateActiveOptionGlossary(options.glossary.length),
         tooltip: options.glossary.entries
@@ -103,7 +110,9 @@ List<ActiveTranslationOption> activeTranslationOptions(
 }
 
 /// Chips under the language bar for every translation option that differs
-/// from the defaults (AI engines only).
+/// from the defaults and that the engine applies
+/// ([activeTranslationOptions]: AI engines all of them, DeepL the
+/// formality, context, formatting and glossary).
 ///
 /// Options persist across sessions, so a stale context ("a text to my
 /// landlord") or formality would otherwise silently skew later
@@ -121,12 +130,13 @@ class ActiveOptionsBar extends StatelessWidget {
           !identical(previous.options, current.options),
       builder: (context, state) {
         final options = state.options;
-        if (!(state.engine?.supportsOptions ?? false) ||
-            optionsAreDefault(options)) {
+        final engine = state.engine;
+        if (engine == null || optionsAreDefault(options)) {
           return const SizedBox.shrink();
         }
+        final active = activeTranslationOptions(l10n, options, engine: engine);
+        if (active.isEmpty) return const SizedBox.shrink();
         final cubit = context.read<TranslateCubit>();
-        final active = activeTranslationOptions(l10n, options);
         return TranslatePills(
           child: Padding(
             padding: const EdgeInsets.only(top: TranslateLayout.gap),

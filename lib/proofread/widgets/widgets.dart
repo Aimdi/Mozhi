@@ -5,6 +5,7 @@ export 'proofread_diff_colors.dart';
 export 'proofread_diff_text.dart';
 export 'proofread_edit_tile.dart';
 export 'proofread_empty_state.dart';
+export 'proofread_engine_chip.dart';
 export 'proofread_input_card.dart';
 export 'proofread_labels.dart';
 export 'proofread_result_section.dart';

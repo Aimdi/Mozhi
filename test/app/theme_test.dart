@@ -35,7 +35,8 @@ void main() {
     test('builds the palette with the X hairline and secondary tones', () {
       final palette = AppTones.dim.palette;
       expect(palette.hairline, const Color(0xFF38444D));
-      expect(palette.secondaryText, const Color(0xFF8B98A5));
+      expect(palette.secondaryText, const Color(0xFF919DA9));
+      expect(palette.controlOutline, AppTones.dim.controlOutline);
       expect(palette.like, const Color(0xFFF91880));
       expect(palette.success, const Color(0xFF00BA7C));
       expect(palette.barBackground.a, closeTo(0.85, 0.01));
@@ -116,7 +117,7 @@ void main() {
       expect(light.surface, white);
       expect(light.onSurface, const Color(0xFF0F1419));
       expect(light.onSurfaceVariant, const Color(0xFF536471));
-      expect(light.outline, const Color(0xFFCFD9DE));
+      expect(light.outline, const Color(0xFF7B8A97));
       expect(light.outlineVariant, const Color(0xFFEFF3F4));
       expect(light.surfaceContainerLowest, white);
       expect(light.surfaceTint, Colors.transparent);
@@ -127,7 +128,8 @@ void main() {
       expect(dim.surface, const Color(0xFF15202B));
       expect(dim.surfaceContainer, const Color(0xFF1E2732));
       expect(dim.onSurface, const Color(0xFFF7F9F9));
-      expect(dim.onSurfaceVariant, const Color(0xFF8B98A5));
+      expect(dim.onSurfaceVariant, const Color(0xFF919DA9));
+      expect(dim.outline, const Color(0xFF6E7E8C));
       expect(dim.outlineVariant, const Color(0xFF38444D));
     });
 
@@ -138,7 +140,8 @@ void main() {
       expect(black.surfaceDim, const Color(0xFF000000));
       expect(black.surfaceContainer, const Color(0xFF16181C));
       expect(black.onSurface, const Color(0xFFE7E9EA));
-      expect(black.onSurfaceVariant, const Color(0xFF71767B));
+      expect(black.onSurfaceVariant, const Color(0xFF83888D));
+      expect(black.outline, const Color(0xFF616C77));
       expect(black.outlineVariant, const Color(0xFF2F3336));
     });
 
@@ -313,8 +316,15 @@ void main() {
       );
       expect(
         appPalette(scheme(Brightness.dark, pureBlack: true)).secondaryText,
-        const Color(0xFF71767B),
+        const Color(0xFF83888D),
       );
+      for (final s in [
+        scheme(Brightness.light),
+        scheme(Brightness.dark),
+        scheme(Brightness.dark, pureBlack: true),
+      ]) {
+        expect(appPalette(s).controlOutline, s.outline);
+      }
     });
   });
 
@@ -340,7 +350,7 @@ void main() {
       expect(dim.extension<AppPalette>()?.hairline, const Color(0xFF38444D));
       expect(
         dim.extension<AppPalette>()?.secondaryText,
-        const Color(0xFF8B98A5),
+        const Color(0xFF919DA9),
       );
       expect(black.extension<AppPalette>()?.hairline, const Color(0xFF2F3336));
       expect(
@@ -491,7 +501,8 @@ void main() {
           AppRadius.fieldBorderRadius,
         );
       }
-      expect(enabled.borderSide.color, const Color(0xFFCFD9DE));
+      expect(enabled.borderSide.color, const Color(0xFF7B8A97));
+      expect(enabled.borderSide.color, colors.outline);
       final focused = inputs.focusedBorder! as OutlineInputBorder;
       expect(focused.borderSide.width, 2);
       expect(focused.borderSide.color, colors.primary);
@@ -499,7 +510,7 @@ void main() {
         (black.inputDecorationTheme.enabledBorder! as OutlineInputBorder)
             .borderSide
             .color,
-        const Color(0xFF333639),
+        const Color(0xFF616C77),
       );
     });
 
@@ -540,21 +551,26 @@ void main() {
       );
     });
 
-    test('navigation bar: icon only, no indicator', () {
+    test('navigation bar: labelled icons, no indicator', () {
       final nav = light.navigationBarTheme;
-      expect(nav.labelBehavior, NavigationDestinationLabelBehavior.alwaysHide);
+      expect(nav.labelBehavior, NavigationDestinationLabelBehavior.alwaysShow);
       expect(nav.indicatorColor, Colors.transparent);
-      expect(nav.height, inInclusiveRange(56, 60));
+      expect(nav.height, kNavigationBarHeight);
+      expect(kNavigationBarHeight, inInclusiveRange(64, 80));
       expect(
         nav.iconTheme!.resolve({WidgetState.selected})?.color,
         colors.onSurface,
       );
       expect(nav.iconTheme!.resolve({})?.color, const Color(0xFF536471));
-      expect(
-        nav.labelTextStyle!.resolve({WidgetState.selected})?.fontWeight,
-        FontWeight.w800,
-      );
-      expect(nav.labelTextStyle!.resolve({})?.fontWeight, FontWeight.w500);
+      final selected = nav.labelTextStyle!.resolve({WidgetState.selected});
+      final unselected = nav.labelTextStyle!.resolve({});
+      expect(selected?.fontWeight, FontWeight.w800);
+      expect(selected?.color, colors.onSurface);
+      expect(unselected?.fontWeight, FontWeight.w500);
+      expect(unselected?.color, const Color(0xFF536471));
+      // One line: long labels end in an ellipsis.
+      expect(selected?.overflow, TextOverflow.ellipsis);
+      expect(unselected?.overflow, TextOverflow.ellipsis);
     });
 
     test('navigation rail: untinted with bold labels', () {
@@ -581,6 +597,12 @@ void main() {
       expect(resolve(switches.trackColor, disabled)?.a, closeTo(0.12, 0.01));
       expect(resolve(switches.thumbIcon), isNull);
       expect(resolve(switches.trackOutlineColor), Colors.transparent);
+      expect(resolve(switches.trackOutlineWidth), 0);
+      // Keyboard focus (the state is set only while focus is shown): a
+      // 2 px accent ring around the track.
+      const focused = {WidgetState.focused};
+      expect(resolve(switches.trackOutlineColor, focused), colors.primary);
+      expect(resolve(switches.trackOutlineWidth, focused), 2);
     });
 
     test('lists, sheets, dialogs, snack bars and progress', () {
@@ -709,6 +731,160 @@ void main() {
         const Color(0xFF2F3336),
       );
       expect(themes.light.colorScheme.surface, white);
+    });
+  });
+
+  group('contrast (WCAG)', () {
+    // Every look, with every offered accent, a few awkward seeds and
+    // Material You accents of both brightnesses.
+    final seeds = [
+      for (final option in AccentColorOption.options) Color(option.argb),
+      const Color(0xFFFFD400),
+      const Color(0xFFFFFFFF),
+      const Color(0xFF000000),
+      Colors.red,
+      Colors.green,
+    ];
+    final dynamicSchemes = [
+      for (final seed in [Colors.teal, Colors.pink, Colors.amber])
+        for (final brightness in Brightness.values)
+          ColorScheme.fromSeed(seedColor: seed, brightness: brightness),
+    ];
+    final schemes = <String, ColorScheme>{
+      for (final seed in seeds) ...{
+        'light ${seed.toARGB32().toRadixString(16)}': scheme(
+          Brightness.light,
+          seed: seed,
+        ),
+        'Dim ${seed.toARGB32().toRadixString(16)}': scheme(
+          Brightness.dark,
+          seed: seed,
+        ),
+        'Lights out ${seed.toARGB32().toRadixString(16)}': scheme(
+          Brightness.dark,
+          seed: seed,
+          pureBlack: true,
+        ),
+      },
+      for (final (i, dynamicScheme) in dynamicSchemes.indexed) ...{
+        'dynamic $i': scheme(
+          dynamicScheme.brightness,
+          dynamicScheme: dynamicScheme,
+        ),
+        'dynamic $i Lights out': scheme(
+          dynamicScheme.brightness,
+          dynamicScheme: dynamicScheme,
+          pureBlack: true,
+        ),
+      },
+    };
+
+    /// The surfaces controls and text sit on: the page, the composer's
+    /// fill, raised panels and containers.
+    List<Color> backgrounds(ColorScheme s) => [
+      s.surface,
+      s.surfaceContainerLow,
+      s.surfaceContainer,
+      s.surfaceContainerHigh,
+    ];
+
+    test('control outlines reach 3:1 on every surface', () {
+      for (final MapEntry(key: name, value: s) in schemes.entries) {
+        for (final background in backgrounds(s)) {
+          expect(
+            contrastRatio(s.outline, background),
+            greaterThanOrEqualTo(kNonTextContrast),
+            reason: '$name outline on ${background.toARGB32()}',
+          );
+        }
+      }
+    });
+
+    test('hairlines stay for separators only', () {
+      for (final tones in [AppTones.light, AppTones.dim, AppTones.lightsOut]) {
+        expect(
+          contrastRatio(tones.hairline, tones.surface),
+          lessThan(kNonTextContrast),
+        );
+        expect(tones.controlOutline, isNot(tones.hairline));
+      }
+    });
+
+    test('the control outline draws every interactive outline', () {
+      for (final MapEntry(key: name, value: s) in schemes.entries) {
+        final theme = buildAppTheme(s);
+        final outline = s.outline;
+        expect(
+          theme.extension<AppPalette>()?.controlOutline,
+          outline,
+          reason: name,
+        );
+        final inputs = theme.inputDecorationTheme;
+        expect(
+          (inputs.enabledBorder! as OutlineInputBorder).borderSide.color,
+          outline,
+        );
+        expect(
+          (inputs.border! as OutlineInputBorder).borderSide.color,
+          outline,
+        );
+        expect(
+          (theme.chipTheme.side! as WidgetStateBorderSide).resolve({})?.color,
+          outline,
+        );
+        expect(
+          theme.outlinedButtonTheme.style!.side!.resolve({})?.color,
+          outline,
+        );
+        expect(
+          theme.segmentedButtonTheme.style!.side!.resolve({})?.color,
+          outline,
+        );
+      }
+    });
+
+    test('secondary text reaches 4.5:1 on every surface', () {
+      for (final MapEntry(key: name, value: s) in schemes.entries) {
+        final secondary = appPalette(s).secondaryText;
+        expect(s.onSurfaceVariant, secondary);
+        for (final background in backgrounds(s)) {
+          expect(
+            contrastRatio(secondary, background),
+            greaterThanOrEqualTo(kTextContrast),
+            reason: '$name secondary text on ${background.toARGB32()}',
+          );
+        }
+      }
+    });
+
+    test('the focus ring (the accent) reaches 3:1 on every surface', () {
+      for (final MapEntry(key: name, value: s) in schemes.entries) {
+        for (final background in backgrounds(s)) {
+          expect(
+            contrastRatio(s.primary, background),
+            greaterThanOrEqualTo(kNonTextContrast),
+            reason: '$name accent on ${background.toARGB32()}',
+          );
+        }
+      }
+    });
+
+    test("a palette without the app's tones still outlines at 3:1", () {
+      const palette = AppPalette(
+        hairline: Color(0xFFEFF3F4),
+        secondaryText: Color(0xFF536471),
+        like: Color(0xFFF91880),
+        success: Color(0xFF00BA7C),
+        barBackground: Color(0xFFFFFFFF),
+      );
+      for (final tones in [AppTones.light, AppTones.dim, AppTones.lightsOut]) {
+        expect(
+          contrastRatio(palette.controlOutline, tones.surface),
+          greaterThanOrEqualTo(kNonTextContrast),
+        );
+      }
+      final material = ColorScheme.fromSeed(seedColor: blue);
+      expect(AppPalette.fromScheme(material).controlOutline, material.outline);
     });
   });
 }

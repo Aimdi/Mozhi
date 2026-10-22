@@ -19,18 +19,25 @@ EdgeInsets centeredPadding(
 /// A titled group of settings in the X style: a bold section heading,
 /// plain rows and a hairline that closes the group (no card, no tint).
 ///
-/// A [badge] (e.g. "Advanced") follows the title and is read with it.
-/// Use [SettingsIcon] for the leading icons of the tiles inside.
+/// Without a [title] (the only group of a page, which its app bar names)
+/// the rows start right away. A [badge] (e.g. "Advanced") follows the
+/// title and is read with it. Use [SettingsIcon] for the leading icons of
+/// the tiles inside.
 class SettingsSection extends StatelessWidget {
   const new({
-    required this.title,
     required this.children,
+    this.title,
     this.badge,
+    this.divider = true,
     super.key,
   });
 
-  final String title;
+  final String? title;
   final List<Widget> children;
+
+  /// Whether a hairline closes the group (none for the last group of a
+  /// page).
+  final bool divider;
 
   /// A short label shown next to the title.
   final String? badge;
@@ -38,6 +45,19 @@ class SettingsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final title = this.title;
+    if (title == null) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 8, bottom: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ...children,
+            if (divider) ...[const SizedBox(height: 8), const Hairline()],
+          ],
+        ),
+      );
+    }
     final heading = Text(
       title,
       style: theme.textTheme.titleLarge?.copyWith(
@@ -75,8 +95,7 @@ class SettingsSection extends StatelessWidget {
             ),
           ),
           ...children,
-          const SizedBox(height: 8),
-          const Hairline(),
+          if (divider) ...[const SizedBox(height: 8), const Hairline()],
         ],
       ),
     );

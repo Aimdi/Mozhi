@@ -356,4 +356,186 @@ void main() {
       );
     });
   });
+
+  group('low-confidence sentences with the on-device engine', () {
+    late _Detailed translator;
+    late TranslationRepository repository;
+
+    /// "Good day. Bad dog." -> "Guten Tag. Böser Hund." with the second
+    /// sentence unsure (the engine's text is [text]).
+    OfflineTranslation unsure(String text) {
+      final second = text.indexOf('Böser');
+      return OfflineTranslation(
+        text: text,
+        sentences: [
+          OfflineSentence(
+            sourceStart: 0,
+            sourceEnd: 9,
+            targetStart: 0,
+            targetEnd: second,
+            score: -0.1,
+          ),
+          OfflineSentence(
+            sourceStart: 10,
+            sourceEnd: 18,
+            targetStart: second,
+            targetEnd: text.length,
+            score: -0.6,
+            isLowConfidence: true,
+          ),
+        ],
+      );
+    }
+
+    setUp(() {
+      translator = _Detailed()
+        ..answer = (_) => unsure('Guten Tag. Böser Hund.');
+      repository = TranslationRepository(offline: translator);
+    });
+
+    Future<List<AlignedSpan>> uncertain(
+      String translation, {
+      String source = 'Good day. Bad dog.',
+      Language from = _en,
+      Language to = _de,
+    }) => repository.lowConfidenceSentences(
+      engine,
+      source: source,
+      translation: translation,
+      sourceLanguage: from,
+      targetLanguage: to,
+    );
+
+    test('finds the unsure sentences of its own translation', () async {
+      expect(await uncertain('Guten Tag. Böser Hund.'), const [
+        AlignedSpan(
+          sourceStart: 10,
+          sourceEnd: 18,
+          targetStart: 11,
+          targetEnd: 22,
+        ),
+      ]);
+      expect(translator.calls.single, (
+        text: 'Good day. Bad dog.',
+        source: 'en',
+        target: 'de',
+        detailed: true,
+      ));
+    });
+
+    test('leaves the whitespace around a sentence out', () async {
+      translator.answer = (_) => const OfflineTranslation(
+        text: 'Hallo.  Welt? ',
+        sentences: [
+          OfflineSentence(
+            sourceStart: 0,
+            sourceEnd: 6,
+            targetStart: 6,
+            targetEnd: 14,
+            isLowConfidence: true,
+          ),
+          OfflineSentence(
+            sourceStart: 6,
+            sourceEnd: 7,
+            targetStart: 14,
+            targetEnd: 14,
+            isLowConfidence: true,
+          ),
+        ],
+      );
+
+      final spans = await uncertain('Hallo.  Welt? ', source: 'Hello. World?');
+
+      expect([for (final s in spans) s.targetIn('Hallo.  Welt? ')], ['Welt?']);
+    });
+
+    test('finds the sentences again in another translation', () async {
+      const shown = 'Schönen Tag. Böser Hund.';
+      final spans = await uncertain(shown);
+
+      expect([for (final s in spans) s.targetIn(shown)], ['Böser Hund.']);
+      expect(spans.single.sourceStart, 10);
+      expect(await uncertain('Guten Tag. Lieber Hund.'), isEmpty);
+    });
+
+    test('looks the sentences up in order', () async {
+      translator.answer = (_) => const OfflineTranslation(
+        text: 'Ja. Ja.',
+        sentences: [
+          OfflineSentence(
+            sourceStart: 0,
+            sourceEnd: 4,
+            targetStart: 0,
+            targetEnd: 3,
+            isLowConfidence: true,
+          ),
+          OfflineSentence(
+            sourceStart: 5,
+            sourceEnd: 9,
+            targetStart: 4,
+            targetEnd: 7,
+            isLowConfidence: true,
+          ),
+        ],
+      );
+
+      final spans = await uncertain('Nun: Ja. Ja.', source: 'Yes. Yes.');
+
+      expect([for (final s in spans) s.targetStart], [5, 9]);
+    });
+
+    test('nothing is unsure in a confident translation', () async {
+      translator.answer = _helloWorld;
+
+      expect(await uncertain('Hallo Welt', source: 'Hello world'), isEmpty);
+    });
+
+    test('blank texts and the same language give nothing', () async {
+      expect(await uncertain('  '), isEmpty);
+      expect(await uncertain('Guten Tag.', source: ' '), isEmpty);
+      expect(await uncertain('Good day.', to: _en), isEmpty);
+      expect(translator.calls, isEmpty);
+    });
+
+    test('translators without details cannot tell', () async {
+      final plain = TranslationRepository(offline: _Plain());
+
+      expect(
+        await plain.lowConfidenceSentences(
+          engine,
+          source: 'Hello',
+          translation: 'Hallo',
+          sourceLanguage: _en,
+          targetLanguage: _de,
+        ),
+        isEmpty,
+      );
+    });
+
+    test('only the on-device engine can tell', () async {
+      await expectLater(
+        repository.lowConfidenceSentences(
+          const TranslationEngine(
+            id: 'mozhi:google',
+            kind: EngineKind.mozhi,
+            name: 'Google',
+            mozhiEngine: 'google',
+          ),
+          source: 'Hello',
+          translation: 'Hallo',
+          sourceLanguage: _en,
+          targetLanguage: _de,
+        ),
+        throwsArgumentError,
+      );
+      expect(translator.calls, isEmpty);
+    });
+
+    test('language errors are those of the on-device engine', () async {
+      await expectLater(
+        uncertain('Bonjour', to: _fr),
+        throwsA(isA<OfflineLanguageUnsupportedException>()),
+      );
+    });
+  });
 }

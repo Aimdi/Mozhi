@@ -20,9 +20,13 @@ import 'package:translation_repository/translation_repository.dart';
 /// The detail level (concise, standard, detailed) can be picked before and
 /// after looking up; related words and "Did you mean …?" look that word up
 /// instead ([TranslateCubit.lookUpWord]). "Open dictionary" shows the word
-/// in the full-screen dictionary and looks it up there.
+/// in the full-screen dictionary and looks it up there (left out without
+/// [showOpenLink], where the screen has that link already).
 class DictionaryCard extends StatelessWidget {
-  const new({super.key});
+  const new({this.showOpenLink = true, super.key});
+
+  /// Whether the card ends with "Open dictionary".
+  final bool showOpenLink;
 
   /// The word "Open dictionary" opens: the shown (or loading) word, else
   /// the input.
@@ -130,7 +134,7 @@ class DictionaryCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   body,
-                  if (word.isNotEmpty)
+                  if (showOpenLink && word.isNotEmpty)
                     Align(
                       alignment: AlignmentDirectional.centerEnd,
                       child: TextButton.icon(

@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:bloc/bloc.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -16,6 +17,7 @@ import 'package:mozhi/bootstrap.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/network/network_session.dart';
 import 'package:mozhi/core/on_device_ml.dart';
+import 'package:mozhi/core/widgets/focus_ring.dart';
 import 'package:mozhi/l10n/bundled_localizations_io.dart';
 import 'package:mozhi/l10n/gen/app_localizations_ja.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -386,6 +388,14 @@ void main() {
 
       expect(received, same(dependencies));
       expect(find.text('booted'), findsOneWidget);
+      // Under the app-wide keyboard focus ring.
+      expect(
+        find.ancestor(
+          of: find.text('booted'),
+          matching: find.byType(FocusRingLayer),
+        ),
+        findsOneWidget,
+      );
       expect(onError, isNot(same(flutterOnError)));
       expect(handled, isTrue);
       expect(presented, hasLength(1));
@@ -401,6 +411,30 @@ void main() {
       );
       expect(packages, contains(bergamotEngineLicensePackage));
       expect(packages?.contains(mlKitLicensePackage), mlKitIncluded);
+    });
+  });
+
+  group('enableWebSemantics', () {
+    int handles() => SemanticsBinding.instance.debugOutstandingSemanticsHandles;
+
+    testWidgets('turns the accessibility tree on in a browser', (tester) async {
+      final before = handles();
+
+      final handle = enableWebSemantics(isWeb: true);
+
+      expect(handle, isNotNull);
+      expect(handles(), before + 1);
+      expect(SemanticsBinding.instance.semanticsEnabled, isTrue);
+      handle!.dispose();
+      expect(handles(), before);
+    });
+
+    testWidgets('leaves it to the platform elsewhere', (tester) async {
+      final before = handles();
+      expect(enableWebSemantics(isWeb: false), isNull);
+      // Tests are not a browser.
+      expect(enableWebSemantics(), isNull);
+      expect(handles(), before);
     });
   });
 

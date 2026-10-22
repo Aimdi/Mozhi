@@ -7,6 +7,15 @@ import 'package:mozhi/core/widgets/x_ui.dart';
 /// Maximum width of the onboarding content on large screens.
 const onboardingMaxContentWidth = 640.0;
 
+/// Side padding of the onboarding's content column in a [width] wide
+/// window: a 24 dp gutter (32 dp from 600 dp), more once the column
+/// reaches [onboardingMaxContentWidth]. The steps and the bottom bar use
+/// it, so the buttons are exactly as wide as the content.
+double onboardingContentPadding(double width) {
+  final gutter = width >= 600 ? 32.0 : 24.0;
+  return math.max(gutter, (width - onboardingMaxContentWidth) / 2);
+}
+
 /// The scrollable layout of every onboarding step, in the style of X's
 /// sign-up: an accent icon, a big bold left-aligned headline (a semantic
 /// header), an optional secondary intro and the step [children].
@@ -34,11 +43,7 @@ class OnboardingStepLayout extends StatelessWidget {
     final colors = theme.colorScheme;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final gutter = constraints.maxWidth >= 600 ? 32.0 : 24.0;
-        final horizontal = math.max(
-          gutter,
-          (constraints.maxWidth - onboardingMaxContentWidth) / 2,
-        );
+        final horizontal = onboardingContentPadding(constraints.maxWidth);
         return ListView(
           padding: EdgeInsets.fromLTRB(horizontal, 8, horizontal, 32),
           children: [

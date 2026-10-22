@@ -1,5 +1,8 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/haptics.dart';
@@ -9,11 +12,13 @@ import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/offline.dart' show OfflineEngineBadge;
+import 'package:mozhi/platform/android_device.dart';
 import 'package:mozhi/platform/clipboard_service.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/aligned_text.dart';
+import 'package:mozhi/translate/widgets/copy_action_button.dart';
 import 'package:mozhi/translate/widgets/detection_chips.dart';
 import 'package:mozhi/translate/widgets/extras_section.dart';
 import 'package:mozhi/translate/widgets/insight_sheet.dart';
@@ -26,6 +31,8 @@ import 'package:mozhi/translate/widgets/meaning_check_panel.dart';
 import 'package:mozhi/translate/widgets/offline_offer.dart';
 import 'package:mozhi/translate/widgets/offline_only_notice.dart';
 import 'package:mozhi/translate/widgets/romanization_line.dart';
+import 'package:mozhi/translate/widgets/short_query_panel.dart';
+import 'package:mozhi/translate/widgets/show_mode.dart';
 import 'package:mozhi/translate/widgets/skeleton.dart';
 import 'package:mozhi/translate/widgets/status_announcer.dart';
 import 'package:mozhi/translate/widgets/tool_chip.dart';
@@ -42,16 +49,44 @@ export 'package:mozhi/translate/widgets/aligned_text.dart';
 export 'package:mozhi/translate/widgets/detection_chips.dart';
 export 'package:mozhi/translate/widgets/romanization_line.dart';
 
+/// Whether a copy that its button confirms in place (a check mark,
+/// [CopyActionButton]) still gets a "Copied" snack bar: only on Android
+/// versions without a system confirmation of their own (Android 12 and
+/// older); never on the web. Null follows the platform; tests set it.
+@visibleForTesting
+bool? debugSnackBarAfterInlineCopy;
+
 /// Copies [text] (marked as sensitive, see [copyText]) and confirms with a
-/// snackbar, unless the system confirms copies itself (Android 13+).
-Future<void> copyToClipboard(BuildContext context, String text) async {
+/// snackbar, unless the system confirms copies itself (Android 13+), or
+/// [inlineConfirmation] says the caller confirms it in place and the
+/// platform is not an older Android (see [copyAndConfirm]).
+Future<void> copyToClipboard(
+  BuildContext context,
+  String text, {
+  bool inlineConfirmation = false,
+}) => copyAndConfirm(context, text, inlineConfirmation: inlineConfirmation);
+
+/// [copyToClipboard], telling whether it showed the "Copied to clipboard"
+/// snack bar: never when the system confirms copies itself (Android 13+);
+/// with [inlineConfirmation] (a check mark in the button) only on Android
+/// 12 and older, so not on the web.
+Future<bool> copyAndConfirm(
+  BuildContext context,
+  String text, {
+  bool inlineConfirmation = false,
+}) async {
   final messenger = ScaffoldMessenger.maybeOf(context);
   final message = context.l10n.commonCopied;
   await copyText(text);
-  if (systemShowsCopyConfirmation) return;
+  if (systemShowsCopyConfirmation || messenger == null) return false;
+  if (inlineConfirmation &&
+      !(debugSnackBarAfterInlineCopy ?? (runsOnAndroid && !kIsWeb))) {
+    return false;
+  }
   messenger
-    ?..hideCurrentSnackBar()
+    ..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(content: Text(message)));
+  return true;
 }
 
 /// Newest history entry for this exact text + translation (entries are
@@ -103,32 +138,81 @@ bool showsTranslateEngineError(TranslateState state) =>
     state.output.isEmpty;
 
 /// Whether the output has nothing to show for [state]: no translation (nor
-/// one in progress), no consent prompt and no error.
+/// one queued or in progress, `TranslateState.isPending`), no consent
+/// prompt and no error.
 bool translateOutputIsEmpty(TranslateState state) =>
     state.output.isEmpty &&
-    state.status != TranslateStatus.translating &&
+    !state.isPending &&
     state.status != TranslateStatus.failure &&
     state.consent == null &&
     !showsTranslateEngineError(state);
 
-/// The translation: streaming text, progress, errors, romanization,
-/// detected language (with other likely languages when uncertain),
-/// engine/latency footer, the checks' findings ([TranslationNotes]: a
-/// fallback to another engine, personal data kept on the device, warnings),
-/// the everyday actions (copy, listen, favourite;
-/// share at the end) and, behind the "More" toggle
-/// ([TranslateMoreToggle]), labelled tools (check meaning, insights,
-/// romanization, matching phrases, compare engines). The toggle's state is
-/// the [TranslateMoreScope]'s above (shared with the sections under the
-/// card), else the card's own; it starts closed. Without a translation it
-/// shows nothing ([translateOutputIsEmpty]; the empty screen shows the
-/// greeting instead, `TranslateHero`).
+/// Whether the output shows a translation it is about to replace: one is
+/// queued or running (`TranslateState.isPending`) and the shown one is
+/// finished (an earlier result, not the new one streaming in). It stays,
+/// dimmed, until the new text arrives.
+bool outputIsRefreshing(TranslateState state) =>
+    state.isPending &&
+    state.output.isNotEmpty &&
+    (state.result?.isComplete ?? false);
+
+/// Whether the translation is streaming in: text has arrived, the rest is
+/// still on its way.
+bool outputIsStreaming(TranslateState state) =>
+    state.status == TranslateStatus.translating &&
+    state.output.isNotEmpty &&
+    !(state.result?.isComplete ?? true);
+
+/// The translation: header, the text on a raised surface (the hero of the
+/// screen), progress, errors, romanization, the checks' findings, the
+/// everyday actions and, for AI engines, the refinement chips; for short
+/// inputs what the engine returned about the words ([ShortQueryPanel]);
+/// behind the "Tools" toggle ([TranslateMoreToggle]) the analysis tools as
+/// rows ([TranslateToolRow]: check meaning, insights, romanization,
+/// matching phrases, compare engines). The toggle's state is the
+/// [TranslateMoreScope]'s above (shared with the sections under the card),
+/// else the card's own; it starts closed. Without a translation it shows
+/// nothing ([translateOutputIsEmpty]; the empty screen shows the greeting
+/// instead, `TranslateHero`).
 ///
-/// Progress (the bar and placeholder lines) appears only once a
-/// translation has taken [loadingRevealDelay]; a new result, the empty
-/// state, an error or a consent prompt replace one another with a fade
-/// through ([FadeThroughSwitcher]). Copy and favourite tick lightly
-/// (haptics).
+/// **Header:** the target language in bold, then " · engine" (" · 0.7 s"
+/// once complete), where the text went ([DestinationChip]; a placeholder of
+/// its size while the first text is awaited, so nothing moves when it
+/// arrives) and a tag per applied refinement ("More formal ×", the × undoes
+/// it).
+///
+/// **Instant and still:** as soon as a translation is queued or running
+/// (`TranslateState.isPending`) without text yet, the header and three
+/// placeholder lines show (no extra delay). While a new translation of the
+/// same input runs, the previous one stays, dimmed ([outputIsRefreshing];
+/// a thin bar shows once it takes [loadingRevealDelay]). The actions keep
+/// their place while text streams in (hidden until it is complete, then
+/// they fade in over 150 ms and, on Android, a light haptic tick says it
+/// is done when the haptic feedback setting is on). What only a finished
+/// translation has (the checks' findings, other likely source languages,
+/// refinement chips, the short-input panel) comes under the actions. The
+/// detected language is in the language bar, not repeated here. A new
+/// result, the empty state, an error or a consent prompt replace one
+/// another with a fade through ([FadeThroughSwitcher]).
+///
+/// **Refinements:** after a refinement (or undoing one) the changed words
+/// light up and fade out over [refinementFlash] ([changedWordRanges]; held
+/// without the fade with reduced motion), and the translation scrolls into
+/// view when its start is off screen.
+///
+/// **On-device engine:** sentences it is unsure about
+/// (`TranslateState.lowConfidenceSentences`) get a dotted underline (a
+/// tooltip on hover or tap says so), and a note under the text counts them
+/// and offers "Compare with another engine" (compare mode, run at once).
+///
+/// **Copy** morphs into a check mark and is announced politely
+/// ([CopyActionButton]); "Show full screen" opens [ShowModeView].
+///
+/// **Screen readers:** the text is a container named "Translation"; on the
+/// web ([webSemantics]) the text is its read-only value and the selectable
+/// text is left out of the semantics tree (the web renders it as an empty
+/// field otherwise). A finished translation is announced once (never per
+/// streamed token); errors are announced by [TranslateErrorView].
 ///
 /// While the privacy settings hold a translation back
 /// (`TranslateState.consent`), the inline prompt is followed by the
@@ -139,15 +223,12 @@ bool translateOutputIsEmpty(TranslateState state) =>
 /// offers "Switch instance" ([switchInstanceAndRetry]) when several
 /// instances are configured.
 ///
-/// A finished translation is announced to screen readers once (never per
-/// streamed token); errors are announced by [TranslateErrorView].
-///
 /// A translation of text the user has since edited is dimmed (and described
 /// as out of date to screen readers) and offers no AI extras. Selecting part
 /// of a finished translation offers "Alternatives" for that part when an AI
 /// engine is available (see [showSpanAlternativesSheet]).
 ///
-/// "Show matching phrases" loads the phrase alignment of the input and the
+/// "Matching phrases" loads the phrase alignment of the input and the
 /// translation (`TranslateCubit.loadAlignment`); tapping or hovering a
 /// phrase of the translation then highlights it and focuses its pair
 /// (`TranslateCubit.focusAlignment`) so the input can highlight the
@@ -159,7 +240,7 @@ bool translateOutputIsEmpty(TranslateState state) =>
 /// instant translation, or the automatic translation of a link or shared
 /// text (`TranslateState.instantResult`), they are turned off instead, so
 /// neither typing nor text from outside the app starts paid AI requests;
-/// the buttons load them again.
+/// the rows load them again.
 ///
 /// "Romanization ready" and the alignment hint are announced for the load
 /// the user asked for, not for the automatic reloads.
@@ -170,28 +251,47 @@ bool translateOutputIsEmpty(TranslateState state) =>
 /// (`TranslateState.focusedMeaningIssue`) is highlighted in the
 /// translation too, over the alignment and insights.
 class OutputCard extends StatefulWidget {
-  const new({this.meaningButtonFocusNode, super.key});
+  const new({
+    this.meaningButtonFocusNode,
+    this.webSemantics = kIsWeb,
+    super.key,
+  });
 
-  /// Focus node of the "Check meaning" button, e.g. for
+  /// How long the changed words of a refinement stay highlighted.
+  static const refinementFlash = Duration(milliseconds: 1500);
+
+  /// Focus node of the "Check meaning" row, e.g. for
   /// [MeaningCheckPanel.returnFocusNode].
   final FocusNode? meaningButtonFocusNode;
+
+  /// Whether the text is exposed for the web's semantics tree: as the
+  /// read-only value of the "Translation" container, with the selectable
+  /// text left out (true on the web).
+  final bool webSemantics;
 
   @override
   State<OutputCard> createState() => _OutputCardState();
 }
 
-class _OutputCardState extends State<OutputCard> {
-  /// How long the copy action shows its check mark.
-  static const _copiedFor = Duration(seconds: 2);
-
+class _OutputCardState extends State<OutputCard>
+    with SingleTickerProviderStateMixin {
   bool _showInsights = false;
-
-  /// Whether the copy action shows "copied" (a check mark, briefly).
-  bool _copied = false;
-  Timer? _copiedTimer;
 
   /// The "More" state when no [TranslateMoreScope] is above.
   TranslateMoreController? _ownMore;
+
+  /// The card's content (outside the fade between its states), to scroll
+  /// the translation into view after a refinement.
+  final GlobalKey _contentKey = GlobalKey(debugLabel: 'translate_output');
+
+  /// The words a refinement changed ([OutputCard.refinementFlash]), in the
+  /// text [_flashText].
+  List<TextRange> _flash = const [];
+  String? _flashText;
+  late final AnimationController _flashFade = AnimationController(
+    vsync: this,
+    duration: OutputCard.refinementFlash,
+  )..addStatusListener(_onFlashStatus);
 
   TranslateMoreController _more(BuildContext context) =>
       TranslateMoreScope.maybeOf(context) ??
@@ -199,20 +299,9 @@ class _OutputCardState extends State<OutputCard> {
 
   @override
   void dispose() {
-    _copiedTimer?.cancel();
     _ownMore?.dispose();
+    _flashFade.dispose();
     super.dispose();
-  }
-
-  Future<void> _copy(String text) async {
-    Haptics.light(context);
-    await copyToClipboard(context, text);
-    if (!mounted) return;
-    _copiedTimer?.cancel();
-    setState(() => _copied = true);
-    _copiedTimer = Timer(_copiedFor, () {
-      if (mounted) setState(() => _copied = false);
-    });
   }
 
   bool _showAlignment = false;
@@ -333,6 +422,76 @@ class _OutputCardState extends State<OutputCard> {
     );
   }
 
+  // Refinement feedback -----------------------------------------------------
+
+  /// Whether [current] is [previous]'s translation after a refinement was
+  /// applied or undone: same input, another output.
+  static bool _refined(TranslateState previous, TranslateState current) =>
+      !listEquals(previous.appliedRefinements, current.appliedRefinements) &&
+      current.status == TranslateStatus.success &&
+      current.input == previous.input &&
+      previous.output.isNotEmpty &&
+      current.output.isNotEmpty &&
+      previous.output != current.output;
+
+  /// The output before the refinement [_refined] noticed last.
+  String _refinedFrom = '';
+
+  void _onRefined(TranslateState current) {
+    final ranges = changedWordRanges(_refinedFrom, current.output);
+    setState(() {
+      _flash = ranges;
+      _flashText = current.output;
+    });
+    if (ranges.isNotEmpty) _flashFade.forward(from: 0);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _revealText());
+  }
+
+  void _onFlashStatus(AnimationStatus status) {
+    if (status == AnimationStatus.completed && mounted) {
+      setState(() => _flash = const []);
+    }
+  }
+
+  /// Scrolls the translation into view when its start is above the
+  /// viewport (the refinement chips are under it).
+  void _revealText() {
+    final textContext = _contentKey.currentContext;
+    if (!mounted || textContext == null) return;
+    final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    Scrollable.ensureVisible(
+      textContext,
+      duration: reduceMotion
+          ? Duration.zero
+          : const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+      alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtStart,
+    );
+  }
+
+  /// The highlight of the changed words at this point of the fade: held
+  /// for a while, then fading out (held all along with reduced motion).
+  double _flashStrength(BuildContext context) {
+    final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    final t = _flashFade.value;
+    if (reduceMotion || t < 0.4) return 1;
+    return 1 - Curves.easeOut.transform((t - 0.4) / 0.6);
+  }
+
+  // Low confidence ----------------------------------------------------------
+
+  void _compareWithAnotherEngine() {
+    final cubit = context.read<TranslateCubit>()..setCompareMode(enabled: true);
+    if (!cubit.state.comparing) unawaited(cubit.runCompare());
+  }
+
+  /// A light tick when a streamed translation is complete (Android only,
+  /// and only with the haptic feedback setting on).
+  static bool _settled(TranslateState previous, TranslateState current) =>
+      outputIsStreaming(previous) &&
+      current.status == TranslateStatus.success &&
+      (current.result?.isComplete ?? false);
+
   @override
   Widget build(BuildContext context) {
     return MultiBlocListener(
@@ -392,10 +551,27 @@ class _OutputCardState extends State<OutputCard> {
             }
           },
         ),
+        BlocListener<TranslateCubit, TranslateState>(
+          // Show what a refinement changed.
+          listenWhen: (previous, current) {
+            if (!_refined(previous, current)) return false;
+            _refinedFrom = previous.output;
+            return true;
+          },
+          listener: (context, state) => _onRefined(state),
+        ),
+        BlocListener<TranslateCubit, TranslateState>(
+          listenWhen: _settled,
+          listener: (context, state) {
+            if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+              Haptics.selection(context);
+            }
+          },
+        ),
       ],
       child: BlocBuilder<TranslateCubit, TranslateState>(
         builder: (context, state) {
-          final translating = state.status == TranslateStatus.translating;
+          final refreshing = outputIsRefreshing(state);
           final (announcement, announcementDirection) = _announcement(
             context,
             state,
@@ -412,9 +588,10 @@ class _OutputCardState extends State<OutputCard> {
                 children: [
                   SizedBox(
                     height: 2,
-                    // Only for translations that take a while: quick ones
-                    // never flash a bar.
-                    child: translating
+                    // A new translation of a shown one, once it takes a
+                    // while (the placeholder lines show progress without
+                    // a translation).
+                    child: refreshing
                         ? DelayedReveal(
                             child: LinearProgressIndicator(
                               key: const Key('translate_output_progress'),
@@ -428,6 +605,7 @@ class _OutputCardState extends State<OutputCard> {
                         : null,
                   ),
                   Padding(
+                    key: _contentKey,
                     padding: const EdgeInsetsDirectional.fromSTEB(
                       TranslateLayout.cardPadding,
                       6,
@@ -486,7 +664,7 @@ class _OutputCardState extends State<OutputCard> {
       return const ValueKey('translate_phase_failure');
     }
     if (output.isEmpty) {
-      return state.status == TranslateStatus.translating
+      return state.isPending
           ? const ValueKey('translate_phase_loading')
           : const ValueKey('translate_phase_empty');
     }
@@ -505,9 +683,26 @@ class _OutputCardState extends State<OutputCard> {
     return () => unawaited(switchInstanceAndRetry(context));
   }
 
+  /// [child] on the raised surface that makes the translation the hero of
+  /// the screen.
+  Widget _surface(BuildContext context, Widget child) {
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(end: 12),
+      child: DecoratedBox(
+        key: const Key('translate_output_surface'),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainer,
+          borderRadius: TranslateLayout.cardBorderRadius,
+        ),
+        child: Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 14),
+          child: child,
+        ),
+      ),
+    );
+  }
+
   Widget _content(BuildContext context, TranslateState state) {
-    final l10n = context.l10n;
-    final theme = Theme.of(context);
     final output = state.output;
     final result = state.result;
 
@@ -573,144 +768,84 @@ class _OutputCardState extends State<OutputCard> {
     }
 
     if (output.isEmpty) {
-      if (state.status != TranslateStatus.translating) {
+      if (!state.isPending) {
         return const SizedBox(
           key: Key('translate_empty_output'),
           width: double.infinity,
         );
       }
-      // Placeholder lines once it takes a while (the bar above says
-      // "Translating…" to screen readers).
-      return ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 96),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _header(context, state),
-            const Padding(
-              padding: EdgeInsetsDirectional.only(top: 10, end: 12),
-              child: DelayedReveal(child: TranslateOutputSkeleton()),
-            ),
-          ],
-        ),
+      // Queued or running without text yet: the header and placeholder
+      // lines at once, with the actions' room kept, so nothing moves when
+      // the text arrives.
+      return Column(
+        key: const Key('translate_output_loading'),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _header(context, state, loading: true),
+          const SizedBox(height: 8),
+          _surface(
+            context,
+            TranslateOutputSkeleton(label: context.l10n.translateTranslating),
+          ),
+          const SizedBox(height: 4 + 48),
+        ],
       );
     }
 
     final settings = context.watch<SettingsCubit>().state;
-    final style = TranslateLayout.outputTextStyle(context, output.length);
     final complete = result?.isComplete ?? true;
+    final detected = result?.detectedSource;
+    final offline = result != null && isOfflineEngineId(result.engineId);
     final insightsReady =
         _showInsights &&
         state.insightsStatus == ExtraStatus.ready &&
         state.insights.isNotEmpty &&
         complete;
-    final stale = state.isResultStale;
-    final alignmentReady =
-        _showAlignment &&
-        state.alignmentStatus == ExtraStatus.ready &&
-        state.alignment.isNotEmpty &&
-        complete &&
-        !stale;
-    final detected = result?.detectedSource;
-    final direction = outputTextDirection(state);
-    final locale = localeForLanguage(state.target);
-    final offline = result != null && isOfflineEngineId(result.engineId);
+    final uncertain = state.lowConfidenceSentences;
+    final streaming = outputIsStreaming(state);
     final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
-    final meaningHighlight = outputMeaningHighlight(state);
+    final uncertainDetection =
+        complete &&
+        detected != null &&
+        state.source.isAuto &&
+        detectionLooksUncertain(state) &&
+        state.detectedAlternativeLanguages.isNotEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _header(context, state),
-        Padding(
-          padding: const EdgeInsetsDirectional.only(top: 2, end: 12),
-          // A named container; completion is announced separately (a live
-          // region here would fire on every streamed token or not at all).
-          child: Semantics(
-            key: const Key('translate_output_semantics'),
-            container: true,
-            label: l10n.translateOutputLabel,
-            // Out of date until the edited text is translated (a running
-            // translation shows its own progress).
-            hint: stale && state.status != TranslateStatus.translating
-                ? l10n.translateResultStaleHint
-                : null,
-            child: AnimatedOpacity(
-              key: const Key('translate_output_opacity'),
-              opacity: stale ? staleOutputOpacity : 1,
-              duration: reduceMotion
-                  ? Duration.zero
-                  : const Duration(milliseconds: 150),
-              child: SizedBox(
-                width: double.infinity,
-                child: meaningHighlight != null
-                    ? SelectableText.rich(
-                        highlightedTextSpan(
-                          output,
-                          meaningHighlight,
-                          theme.colorScheme,
-                          locale: locale,
-                        ),
-                        key: const Key('translate_output_text'),
-                        style: style,
-                        textDirection: direction,
-                        contextMenuBuilder: (context, editable) =>
-                            _contextMenu(context, editable, state),
-                      )
-                    : alignmentReady
-                    ? AlignedText(
-                        text: output,
-                        alignment: state.alignment,
-                        focus: state.alignmentFocus,
-                        onFocus: context.read<TranslateCubit>().focusAlignment,
-                        other: state.input,
-                        style: style,
-                        textDirection: direction,
-                        locale: locale,
-                      )
-                    : insightsReady
-                    ? InsightText(
-                        text: output,
-                        insights: state.insights,
-                        source: state.resultInput ?? state.input,
-                        style: style,
-                        textDirection: direction,
-                        locale: locale,
-                        onTapAt: (insight, offset) => unawaited(
-                          showInsightSheet(context, insight, offset: offset),
-                        ),
-                      )
-                    : SelectableText.rich(
-                        TextSpan(text: output, locale: locale),
-                        key: const Key('translate_output_text'),
-                        style: style,
-                        textDirection: direction,
-                        contextMenuBuilder: (context, editable) =>
-                            _contextMenu(context, editable, state),
-                      ),
-              ),
-            ),
+        const SizedBox(height: 8),
+        _surface(
+          context,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _text(context, state),
+              if (insightsReady)
+                InsightChips(
+                  insights: state.insights,
+                  locale: localeForLanguage(state.target),
+                  textDirection: outputTextDirection(state),
+                ),
+              if (_romanize ?? settings.showTransliteration)
+                RomanizationLine(
+                  key: const ValueKey('translate_romanization'),
+                  state: state,
+                  announce:
+                      (_romanize ?? false) &&
+                      result != null &&
+                      result == _romanizationAskedFor,
+                ),
+              if (_showInsights && state.hasExtras)
+                _insightsStatus(context, state),
+              if (_showAlignment && state.hasExtras)
+                _alignmentStatus(context, state),
+              if (uncertain.isNotEmpty)
+                _uncertainNote(context, state, uncertain.length),
+            ],
           ),
         ),
-        if (insightsReady)
-          InsightChips(
-            insights: state.insights,
-            locale: locale,
-            textDirection: direction,
-          ),
-        if (_romanize ?? settings.showTransliteration)
-          RomanizationLine(
-            key: const ValueKey('translate_romanization'),
-            state: state,
-            announce:
-                (_romanize ?? false) &&
-                result != null &&
-                result == _romanizationAskedFor,
-          ),
-        if (_showInsights && state.hasExtras) _insightsStatus(context, state),
-        if (_showAlignment && state.hasExtras) _alignmentStatus(context, state),
-        // The checks' findings: fallback, kept personal data, warnings.
-        if (TranslationNotes.hasNotes(state)) TranslationNotes(state: state),
         // The translation stopped part way: what arrived stays, with the
         // error and Retry.
         if (state.status == TranslateStatus.failure)
@@ -724,35 +859,66 @@ class _OutputCardState extends State<OutputCard> {
                   unawaited(context.read<TranslateCubit>().translate()),
             ),
           ),
-        if (complete &&
-            result != null &&
-            ((detected != null && state.source.isAuto) ||
-                offline ||
-                state.resultFromMemory))
+        // Known from the first text on, so they never move the actions.
+        if (offline || state.resultFromMemory)
           Padding(
-            padding: const EdgeInsetsDirectional.only(top: 12, end: 12),
+            padding: const EdgeInsetsDirectional.only(top: 8, end: 12),
             child: Wrap(
+              key: const Key('translate_output_badges'),
               spacing: 12,
               runSpacing: 8,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                if (detected != null && state.source.isAuto)
-                  DetectedLanguageChips(state: state),
                 if (offline) const OfflineEngineBadge(),
                 if (state.resultFromMemory) const MemoryResultBadge(),
               ],
             ),
           ),
         const SizedBox(height: 4),
-        _actions(context, state),
+        // Kept in place while the text streams in, faded in once it is
+        // complete.
+        IgnorePointer(
+          ignoring: streaming,
+          child: ExcludeSemantics(
+            excluding: streaming,
+            child: AnimatedOpacity(
+              key: const Key('translate_output_actions_fade'),
+              opacity: streaming ? 0 : 1,
+              duration: reduceMotion
+                  ? Duration.zero
+                  : const Duration(milliseconds: 150),
+              child: _actions(context, state),
+            ),
+          ),
+        ),
+        // What only a finished translation has: under the actions, so it
+        // never moves them.
+        if (TranslationNotes.hasNotes(state))
+          Padding(
+            padding: const EdgeInsetsDirectional.only(end: 12),
+            child: TranslationNotes(state: state),
+          ),
+        if (uncertainDetection)
+          Padding(
+            padding: const EdgeInsetsDirectional.only(top: 8, end: 12),
+            child: DetectedLanguageChips(state: state),
+          ),
+        if (_showsRefinements(state)) _refinements(context, state),
+        ShortQueryPanel(state: state),
+        _tools(context, state),
       ],
     );
   }
 
   /// The translation's header line, like a reply's: the target language in
-  /// bold, then " · engine · 0.7 s" in the secondary colour once the
-  /// translation is complete.
-  Widget _header(BuildContext context, TranslateState state) {
+  /// bold, then " · engine" (" · 0.7 s" once complete) in the secondary
+  /// colour, where the text went and the applied refinements. [loading]
+  /// keeps the place of the destination while the first text is awaited.
+  Widget _header(
+    BuildContext context,
+    TranslateState state, {
+    bool loading = false,
+  }) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final muted = AppPalette.of(context).secondaryText;
@@ -760,6 +926,13 @@ class _OutputCardState extends State<OutputCard> {
     final complete = result?.isComplete ?? false;
     final elapsed = result?.elapsed;
     final meta = theme.textTheme.bodyMedium?.copyWith(color: muted);
+    final engineName = loading
+        ? state.engine?.name
+        : result?.engineName ?? state.engine?.name;
+    final destination = loading ? null : result?.destination;
+    final refinements = state.isResultStale || loading
+        ? const <AppliedRefinement>[]
+        : state.appliedRefinements;
     return Padding(
       padding: const EdgeInsetsDirectional.only(top: 8, end: 12),
       child: Wrap(
@@ -775,27 +948,236 @@ class _OutputCardState extends State<OutputCard> {
               fontWeight: FontWeight.w800,
             ),
           ),
-          if (complete && result != null) ...[
+          if (engineName != null && engineName.isNotEmpty) ...[
             ExcludeSemantics(child: Text(' · ', style: meta)),
             Text(
-              elapsed == null
-                  ? result.engineName
-                  : l10n.translateEngineElapsed(
+              complete && elapsed != null && result != null
+                  ? l10n.translateEngineElapsed(
                       result.engineName,
                       formatSeconds(elapsed),
-                    ),
+                    )
+                  : engineName,
               key: const Key('translate_output_footer'),
               style: meta,
             ),
           ],
-          if (result?.destination case final destination?) ...[
+          if (destination != null) ...[
             const SizedBox(width: 8),
             DestinationChip(
               key: const Key('translate_output_destination'),
               destination: destination,
               engineId: result?.engineId,
             ),
+          ] else if (loading && state.engine != null) ...[
+            // The destination chip's room (it comes with the first text).
+            const SizedBox(width: 8),
+            const ExcludeSemantics(
+              child: SizedBox(
+                key: Key('translate_output_destination_placeholder'),
+                height: 48,
+                child: Center(
+                  widthFactor: 1,
+                  child: SkeletonBox(height: 26, width: 132, radius: 13),
+                ),
+              ),
+            ),
           ],
+          for (final (index, applied) in refinements.indexed) ...[
+            const SizedBox(width: 8),
+            _RefinementTag(
+              key: ValueKey('translate_refinement_tag:$index'),
+              suggestion: applied.suggestion,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// The translation's text, in the highlight mode that applies: a meaning
+  /// check difference, the alignment, insights, or the plain text (with the
+  /// changed words of a refinement and the unsure sentences); in the
+  /// "Translation" container, dimmed while out of date or being replaced.
+  Widget _text(BuildContext context, TranslateState state) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final output = state.output;
+    final complete = state.result?.isComplete ?? true;
+    final style = TranslateLayout.outputTextStyle(
+      context,
+      output.length,
+    )?.copyWith(fontWeight: FontWeight.w500);
+    final stale = state.isResultStale;
+    final dimmed = stale || outputIsRefreshing(state);
+    final alignmentReady =
+        _showAlignment &&
+        state.alignmentStatus == ExtraStatus.ready &&
+        state.alignment.isNotEmpty &&
+        complete &&
+        !stale;
+    final insightsReady =
+        _showInsights &&
+        state.insightsStatus == ExtraStatus.ready &&
+        state.insights.isNotEmpty &&
+        complete;
+    final direction = outputTextDirection(state);
+    final locale = localeForLanguage(state.target);
+    final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    final meaningHighlight = outputMeaningHighlight(state);
+
+    Widget text;
+    if (meaningHighlight != null) {
+      text = SelectableText.rich(
+        highlightedTextSpan(
+          output,
+          meaningHighlight,
+          theme.colorScheme,
+          locale: locale,
+        ),
+        key: const Key('translate_output_text'),
+        style: style,
+        textDirection: direction,
+        contextMenuBuilder: (context, editable) =>
+            _contextMenu(context, editable, state),
+      );
+    } else if (alignmentReady) {
+      text = AlignedText(
+        text: output,
+        alignment: state.alignment,
+        focus: state.alignmentFocus,
+        onFocus: context.read<TranslateCubit>().focusAlignment,
+        other: state.input,
+        style: style,
+        textDirection: direction,
+        locale: locale,
+      );
+    } else if (insightsReady) {
+      text = InsightText(
+        text: output,
+        insights: state.insights,
+        source: state.resultInput ?? state.input,
+        style: style,
+        textDirection: direction,
+        locale: locale,
+        onTapAt: (insight, offset) =>
+            unawaited(showInsightSheet(context, insight, offset: offset)),
+      );
+    } else {
+      text = _plainText(context, state, style, direction, locale);
+    }
+
+    // On the web the text is the container's value: the selectable text
+    // would be an empty, disabled field there.
+    final web = widget.webSemantics;
+    if (web) text = ExcludeSemantics(child: text);
+    final hint = stale && !state.isPending
+        ? l10n.translateResultStaleHint
+        : null;
+    return Semantics(
+      key: const Key('translate_output_semantics'),
+      // A named container; completion is announced separately (a live
+      // region here would fire on every streamed token or not at all).
+      container: true,
+      label: l10n.translateOutputLabel,
+      attributedValue: web
+          ? AttributedString(
+              output,
+              attributes: [
+                if (locale != null)
+                  LocaleStringAttribute(
+                    range: TextRange(start: 0, end: output.length),
+                    locale: locale,
+                  ),
+              ],
+            )
+          : null,
+      readOnly: web ? true : null,
+      textDirection: direction,
+      // Out of date until the edited text is translated (a running
+      // translation shows its own progress).
+      hint: hint,
+      child: AnimatedOpacity(
+        key: const Key('translate_output_opacity'),
+        opacity: dimmed ? staleOutputOpacity : 1,
+        duration: reduceMotion
+            ? Duration.zero
+            : const Duration(milliseconds: 150),
+        child: SizedBox(width: double.infinity, child: text),
+      ),
+    );
+  }
+
+  /// The plain translation ([_PlainOutputText]): the changed words of a
+  /// refinement lit up (fading), the sentences the on-device engine is
+  /// unsure about with a dotted underline and a tooltip.
+  Widget _plainText(
+    BuildContext context,
+    TranslateState state,
+    TextStyle? style,
+    TextDirection? direction,
+    Locale? locale,
+  ) {
+    final output = state.output;
+    final flash = _flashText == output ? _flash : const <TextRange>[];
+    return _PlainOutputText(
+      text: output,
+      style: style,
+      textDirection: direction,
+      locale: locale,
+      flash: flash,
+      flashStrength: flash.isEmpty ? null : _flashFade,
+      strengthOf: _flashStrength,
+      uncertain: [
+        for (final span in state.lowConfidenceSentences)
+          if (span.targetStart >= 0 &&
+              span.targetEnd <= output.length &&
+              span.targetEnd > span.targetStart)
+            TextRange(start: span.targetStart, end: span.targetEnd),
+      ],
+      contextMenuBuilder: (context, editable) =>
+          _contextMenu(context, editable, state),
+    );
+  }
+
+  /// "The on-device engine is unsure about 2 sentences" and "Compare with
+  /// another engine" (when there is one).
+  Widget _uncertainNote(BuildContext context, TranslateState state, int count) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final muted = AppPalette.of(context).secondaryText;
+    return Padding(
+      key: const Key('translate_uncertain_note'),
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 1),
+                child: Icon(
+                  Icons.help_outline,
+                  size: 18,
+                  color: theme.colorScheme.tertiary,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  l10n.translateUncertainNote(count),
+                  style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                ),
+              ),
+            ],
+          ),
+          if (state.engines.length > 1)
+            TextButton.icon(
+              key: const Key('translate_uncertain_compare'),
+              icon: const Icon(Icons.difference_outlined),
+              label: Text(l10n.translateUncertainCompare),
+              onPressed: _compareWithAnotherEngine,
+            ),
         ],
       ),
     );
@@ -882,10 +1264,7 @@ class _OutputCardState extends State<OutputCard> {
       ),
       ExtraStatus.idle => const SizedBox.shrink(),
     };
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(top: 12, end: 12),
-      child: child,
-    );
+    return Padding(padding: const EdgeInsets.only(top: 12), child: child);
   }
 
   Widget _alignmentStatus(BuildContext context, TranslateState state) {
@@ -938,25 +1317,119 @@ class _OutputCardState extends State<OutputCard> {
       ),
       ExtraStatus.idle => const SizedBox.shrink(),
     };
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(top: 12, end: 12),
-      child: child,
+    return Padding(padding: const EdgeInsets.only(top: 12), child: child);
+  }
+
+  /// The everyday actions, clustered at the start edge (48 dp targets, 8 dp
+  /// apart): copy, listen, favourite (a heart), share and show full screen.
+  Widget _actions(BuildContext context, TranslateState state) {
+    final l10n = context.l10n;
+    final palette = AppPalette.of(context);
+    final output = state.output;
+    final complete = state.result?.isComplete ?? true;
+    final target = state.target;
+    return Wrap(
+      key: const Key('translate_output_actions'),
+      spacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        CopyActionButton(
+          key: const Key('translate_copy_button'),
+          text: output,
+          quiet: true,
+        ),
+        ListenButton(
+          id: translateOutputSpeechId,
+          text: output,
+          languageCode: target.isCustom ? null : target.code,
+          quiet: true,
+        ),
+        BlocBuilder<HistoryCubit, HistoryState>(
+          builder: (context, history) {
+            final entry = findHistoryEntry(
+              history.entries,
+              state.resultInput ?? state.input,
+              output,
+            );
+            final favorite = entry?.isFavorite ?? false;
+            return XActionButton(
+              key: const Key('translate_favorite_button'),
+              tooltip: favorite
+                  ? l10n.translateUnfavorite
+                  : l10n.translateFavorite,
+              active: favorite,
+              icon: Icons.favorite_border,
+              activeIcon: Icons.favorite,
+              activeColor: palette.like,
+              onPressed: complete ? () => _toggleFavorite(state, entry) : null,
+            );
+          },
+        ),
+        Builder(
+          builder: (buttonContext) => XActionButton(
+            key: const Key('translate_share_button'),
+            tooltip: l10n.commonShare,
+            icon: Icons.ios_share,
+            onPressed: () => unawaited(_share(buttonContext, output)),
+          ),
+        ),
+        XActionButton(
+          key: const Key('translate_show_button'),
+          tooltip: l10n.translateShowMode,
+          icon: Icons.fullscreen,
+          onPressed: () => unawaited(
+            showTranslationFullScreen(
+              context,
+              text: output,
+              textDirection: outputTextDirection(state),
+              locale: localeForLanguage(target),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
-  /// "Check meaning" (on demand only), or "Hide meaning check" while a
-  /// check is shown.
+  /// Whether the refinement chips show under the actions: an AI engine with
+  /// extras and a translation (they are disabled until it is finished and
+  /// current, see [_refinements]).
+  static bool _showsRefinements(TranslateState state) =>
+      state.isAiEngine &&
+      state.hasExtras &&
+      state.output.trim().isNotEmpty &&
+      state.status != TranslateStatus.failure;
+
+  /// The refinement chips, always in view under the actions of an AI
+  /// translation; inactive (faded) while the translation is not finished or
+  /// out of date.
+  Widget _refinements(BuildContext context, TranslateState state) {
+    final enabled =
+        state.status == TranslateStatus.success &&
+        (state.result?.isComplete ?? false) &&
+        !state.isResultStale;
+    return Padding(
+      key: const Key('translate_output_refinements'),
+      padding: const EdgeInsetsDirectional.only(top: 4, end: 12),
+      child: IgnorePointer(
+        ignoring: !enabled,
+        child: AnimatedOpacity(
+          opacity: enabled ? 1 : 0.5,
+          duration: TranslateLayout.motion(context),
+          child: RefinementChips(state: state),
+        ),
+      ),
+    );
+  }
+
+  /// "Check meaning" (on demand only), on while a check is shown.
   Widget _meaningButton(BuildContext context, TranslateState state) {
     final l10n = context.l10n;
     final shown = state.meaningStatus != ExtraStatus.idle;
-    return TranslateToolChip(
+    return TranslateToolRow(
       key: const Key('translate_meaning_button'),
       focusNode: widget.meaningButtonFocusNode,
       icon: Icons.fact_check_outlined,
       label: l10n.translateMeaningCheck,
-      tooltip: shown
-          ? l10n.translateMeaningCheckHide
-          : l10n.translateMeaningCheck,
       selected: shown,
       onPressed: shown
           ? context.read<TranslateCubit>().clearMeaningCheck
@@ -966,129 +1439,60 @@ class _OutputCardState extends State<OutputCard> {
     );
   }
 
-  /// The everyday actions as an X action bar (copy, listen, favourite as a
-  /// heart, share; evenly spaced quiet icons that take a colour while
-  /// active), then the "More" toggle and, while it is open, the labelled
-  /// tools ([_tools]).
-  Widget _actions(BuildContext context, TranslateState state) {
+  /// The "Tools" toggle and, while it is open, the analysis tools as rows
+  /// ([_toolRows]).
+  Widget _tools(BuildContext context, TranslateState state) {
     final l10n = context.l10n;
-    final palette = AppPalette.of(context);
-    final output = state.output;
-    final complete = state.result?.isComplete ?? true;
-    final target = state.target;
     final more = _more(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Align(
-          alignment: AlignmentDirectional.centerStart,
-          child: ConstrainedBox(
-            // X keeps its action bar compact on wide columns.
-            constraints: const BoxConstraints(maxWidth: 440),
-            child: Row(
-              key: const Key('translate_output_actions'),
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                XActionButton(
-                  key: const Key('translate_copy_button'),
-                  tooltip: l10n.commonCopy,
-                  icon: _copied ? Icons.check : Icons.copy_outlined,
-                  active: _copied,
-                  activeColor: palette.success,
-                  onPressed: () => unawaited(_copy(output)),
-                ),
-                ListenButton(
-                  id: translateOutputSpeechId,
-                  text: output,
-                  languageCode: target.isCustom ? null : target.code,
-                  quiet: true,
-                ),
-                BlocBuilder<HistoryCubit, HistoryState>(
-                  builder: (context, history) {
-                    final entry = findHistoryEntry(
-                      history.entries,
-                      state.resultInput ?? state.input,
-                      output,
-                    );
-                    final favorite = entry?.isFavorite ?? false;
-                    return XActionButton(
-                      key: const Key('translate_favorite_button'),
-                      tooltip: favorite
-                          ? l10n.translateUnfavorite
-                          : l10n.translateFavorite,
-                      active: favorite,
-                      icon: Icons.favorite_border,
-                      activeIcon: Icons.favorite,
-                      activeColor: palette.like,
-                      onPressed: complete
-                          ? () => _toggleFavorite(state, entry)
-                          : null,
-                    );
-                  },
-                ),
-                Builder(
-                  builder: (buttonContext) => XActionButton(
-                    key: const Key('translate_share_button'),
-                    tooltip: l10n.commonShare,
-                    icon: Icons.ios_share,
-                    onPressed: () => unawaited(_share(buttonContext, output)),
-                  ),
-                ),
-              ],
+    return ListenableBuilder(
+      listenable: more,
+      builder: (context, _) {
+        final rows = more.expanded
+            ? _toolRows(context, state)
+            : const <Widget>[];
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 4),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: TranslateMoreToggle(controller: more),
             ),
-          ),
-        ),
-        ListenableBuilder(
-          listenable: more,
-          builder: (context, _) {
-            final tools = more.expanded
-                ? _tools(context, state)
-                : const <Widget>[];
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Align(
-                  alignment: AlignmentDirectional.centerStart,
-                  child: TranslateMoreToggle(controller: more),
-                ),
-                AnimatedSize(
-                  duration: TranslateLayout.motion(context),
-                  curve: Curves.easeOutCubic,
-                  alignment: AlignmentDirectional.topStart,
-                  child: tools.isEmpty
-                      ? const SizedBox(width: double.infinity)
-                      : Padding(
-                          padding: const EdgeInsetsDirectional.fromSTEB(
-                            0,
-                            4,
-                            12,
-                            8,
-                          ),
-                          child: Semantics(
-                            key: const Key('translate_output_tools'),
-                            container: true,
-                            explicitChildNodes: true,
-                            label: l10n.translateToolsLabel,
-                            child: Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: tools,
-                            ),
-                          ),
+            AnimatedSize(
+              duration: TranslateLayout.motion(context),
+              curve: Curves.easeOutCubic,
+              alignment: AlignmentDirectional.topStart,
+              child: rows.isEmpty
+                  ? const SizedBox(width: double.infinity)
+                  : Padding(
+                      padding: const EdgeInsetsDirectional.fromSTEB(
+                        0,
+                        0,
+                        12,
+                        8,
+                      ),
+                      child: Semantics(
+                        key: const Key('translate_output_tools'),
+                        container: true,
+                        explicitChildNodes: true,
+                        label: l10n.translateToolsLabel,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: rows,
                         ),
-                ),
-              ],
-            );
-          },
-        ),
-      ],
+                      ),
+                    ),
+            ),
+          ],
+        );
+      },
     );
   }
 
-  /// The tools of the "More" area: check meaning, insights (AI extras),
-  /// romanization and matching phrases (alignment), each an on/off
-  /// labelled chip, then "Compare engines" (several engines).
-  List<Widget> _tools(BuildContext context, TranslateState state) {
+  /// The rows of the "Tools" area: check meaning, insights (AI extras),
+  /// romanization and matching phrases (alignment), each on or off, then
+  /// "Compare engines" (several engines).
+  List<Widget> _toolRows(BuildContext context, TranslateState state) {
     final l10n = context.l10n;
     final complete = state.result?.isComplete ?? true;
     final romanizationShown = _romanizationShown(
@@ -1098,13 +1502,10 @@ class _OutputCardState extends State<OutputCard> {
     return [
       _meaningButton(context, state),
       if (state.hasExtras)
-        TranslateToolChip(
+        TranslateToolRow(
           key: const Key('translate_insights_button'),
           icon: Icons.lightbulb_outline,
           label: l10n.translateInsights,
-          tooltip: _showInsights
-              ? l10n.translateInsightsHide
-              : l10n.translateInsights,
           selected: _showInsights,
           // No extras for a translation of text that has been edited.
           onPressed: complete && !state.isResultStale
@@ -1117,13 +1518,10 @@ class _OutputCardState extends State<OutputCard> {
           onPressed: () => _toggleRomanization(state, shown: romanizationShown),
         ),
       if (state.alignmentEngine != null)
-        TranslateToolChip(
+        TranslateToolRow(
           key: const Key('translate_alignment_button'),
           icon: Icons.sync_alt,
           label: l10n.translateToolAlignment,
-          tooltip: _showAlignment
-              ? l10n.translateAlignmentHide
-              : l10n.translateAlignmentShow,
           selected: _showAlignment,
           // Can always be turned off; turned on for a finished, current
           // translation.
@@ -1132,15 +1530,188 @@ class _OutputCardState extends State<OutputCard> {
               : null,
         ),
       if (state.engines.length > 1)
-        TranslateToolChip(
+        TranslateToolRow(
           key: const Key('translate_compare_toggle'),
           icon: Icons.difference_outlined,
           label: l10n.translateCompareModeEnter,
-          tooltip: l10n.translateCompareModeEnter,
-          selected: false,
+          opens: true,
           onPressed: () =>
               context.read<TranslateCubit>().setCompareMode(enabled: true),
         ),
     ];
+  }
+}
+
+/// "More formal ×" in the output header: a refinement in the translation;
+/// the × undoes it (`TranslateCubit.applySuggestion` toggles it off, with
+/// every refinement applied after it).
+class _RefinementTag extends StatelessWidget {
+  const new({required this.suggestion, super.key});
+
+  final RefinementSuggestion suggestion;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final label = refinementLabel(l10n, suggestion);
+    return InputChip(
+      avatar: Icon(
+        refinementIcon(suggestion.icon),
+        size: 16,
+        color: theme.colorScheme.primary,
+      ),
+      label: Text(label),
+      labelStyle: theme.textTheme.labelMedium,
+      visualDensity: VisualDensity.compact,
+      deleteIcon: const Icon(Icons.close, size: 16),
+      deleteButtonTooltipMessage: l10n.translateRefinementUndo(label),
+      onDeleted: () =>
+          unawaited(context.read<TranslateCubit>().applySuggestion(suggestion)),
+    );
+  }
+}
+
+/// The plain translation [text]: the [flash] ranges (what a refinement
+/// changed) with a background that fades with [flashStrength] (its
+/// strength from [strengthOf]), and the [uncertain] ranges (sentences the
+/// on-device engine is unsure about) with a dotted underline, a help
+/// cursor and a tooltip shown on hover or tap.
+class _PlainOutputText extends StatefulWidget {
+  const new({
+    required this.text,
+    required this.flash,
+    required this.uncertain,
+    required this.strengthOf,
+    required this.contextMenuBuilder,
+    this.flashStrength,
+    this.style,
+    this.textDirection,
+    this.locale,
+  });
+
+  final String text;
+  final List<TextRange> flash;
+  final List<TextRange> uncertain;
+  final Animation<double>? flashStrength;
+  final double Function(BuildContext context) strengthOf;
+  final EditableTextContextMenuBuilder contextMenuBuilder;
+  final TextStyle? style;
+  final TextDirection? textDirection;
+  final Locale? locale;
+
+  @override
+  State<_PlainOutputText> createState() => _PlainOutputTextState();
+}
+
+class _PlainOutputTextState extends State<_PlainOutputText> {
+  final _tooltip = GlobalKey<TooltipState>();
+
+  late final TapGestureRecognizer _tap = TapGestureRecognizer()
+    ..onTap = _showTooltip;
+
+  @override
+  void dispose() {
+    _tap.dispose();
+    super.dispose();
+  }
+
+  void _showTooltip() => _tooltip.currentState?.ensureTooltipVisible();
+
+  @override
+  Widget build(BuildContext context) {
+    final flash = widget.flash;
+    final uncertain = widget.uncertain;
+    final animation = widget.flashStrength;
+    final text = animation == null || flash.isEmpty
+        ? _text(context)
+        : AnimatedBuilder(
+            animation: animation,
+            builder: (context, _) => _text(context),
+          );
+    if (uncertain.isEmpty) return text;
+    return Tooltip(
+      key: _tooltip,
+      message: context.l10n.translateUncertainHint,
+      triggerMode: TooltipTriggerMode.manual,
+      // The note under the text says it to screen readers.
+      excludeFromSemantics: true,
+      child: text,
+    );
+  }
+
+  Widget _text(BuildContext context) {
+    final text = widget.text;
+    final flash = widget.flash;
+    final uncertain = widget.uncertain;
+    if (flash.isEmpty && uncertain.isEmpty) {
+      return SelectableText.rich(
+        TextSpan(text: text, locale: widget.locale),
+        key: const Key('translate_output_text'),
+        style: widget.style,
+        textDirection: widget.textDirection,
+        contextMenuBuilder: widget.contextMenuBuilder,
+      );
+    }
+    final scheme = Theme.of(context).colorScheme;
+    final strength = flash.isEmpty ? 0.0 : widget.strengthOf(context);
+    final flashStyle = TextStyle(
+      backgroundColor: scheme.tertiaryContainer.withValues(
+        alpha: 0.9 * strength,
+      ),
+    );
+    final unsureStyle = TextStyle(
+      decoration: TextDecoration.underline,
+      decorationStyle: TextDecorationStyle.dotted,
+      decorationColor: scheme.tertiary,
+      decorationThickness: 2,
+    );
+    final cuts = {
+      0,
+      text.length,
+      for (final range in [...flash, ...uncertain]) ...[range.start, range.end],
+    }.where((offset) => offset >= 0 && offset <= text.length).toList()..sort();
+    bool covers(List<TextRange> ranges, int start, int end) =>
+        ranges.any((range) => range.start <= start && end <= range.end);
+    return SelectableText.rich(
+      TextSpan(
+        locale: widget.locale,
+        children: [
+          for (var i = 0; i + 1 < cuts.length; i++)
+            if (cuts[i] < cuts[i + 1])
+              _segment(
+                text.substring(cuts[i], cuts[i + 1]),
+                unsure: covers(uncertain, cuts[i], cuts[i + 1]),
+                flashed: strength > 0 && covers(flash, cuts[i], cuts[i + 1]),
+                unsureStyle: unsureStyle,
+                flashStyle: flashStyle,
+              ),
+        ],
+      ),
+      key: const Key('translate_output_text'),
+      style: widget.style,
+      textDirection: widget.textDirection,
+      contextMenuBuilder: widget.contextMenuBuilder,
+    );
+  }
+
+  TextSpan _segment(
+    String text, {
+    required bool unsure,
+    required bool flashed,
+    required TextStyle unsureStyle,
+    required TextStyle flashStyle,
+  }) {
+    var style = unsure ? unsureStyle : null;
+    if (flashed) style = (style ?? const TextStyle()).merge(flashStyle);
+    if (!unsure) return TextSpan(text: text, style: style);
+    return TextSpan(
+      text: text,
+      style: style,
+      mouseCursor: SystemMouseCursors.help,
+      onEnter: (_) => _showTooltip(),
+      onExit: (_) => Tooltip.dismissAllToolTips(),
+      recognizer: _tap,
+    );
   }
 }

@@ -224,6 +224,7 @@ class ProofreadCubit extends Cubit<ProofreadState> {
     emit(state.copyWith(acceptedEdits: accepted));
   }
 
+  /// Applies every edit again (the result as it arrived).
   void acceptAll() => emit(
     state.copyWith(
       acceptedEdits: {for (var i = 0; i < state.edits.length; i++) i},

@@ -61,6 +61,81 @@ Future<List<AlignedSpan>> alignOffline(
   return locateAlignment(result, translation);
 }
 
+/// `TranslationRepository.lowConfidenceSentences` for the on-device engine:
+/// [source] is translated again on the device with details (instant: the
+/// engine caches its sentences, and nothing leaves the device), and the
+/// sentences the engine is unsure about
+/// ([OfflineTranslation.lowConfidenceSentences]) are located in
+/// [translation] ([locateLowConfidence]).
+///
+/// Empty when the translator does not report details (it is not a
+/// [DetailedOfflineTranslator]), for blank texts and for identical
+/// languages. Language errors are those of `OfflineEngine.translate`.
+Future<List<AlignedSpan>> lowConfidenceOffline(
+  OfflineEngine offline,
+  TranslationEngine engine, {
+  required String source,
+  required String translation,
+  required Language sourceLanguage,
+  required Language targetLanguage,
+}) async {
+  final translator = offline.translator;
+  if (translator is! DetailedOfflineTranslator) return const [];
+  if (source.trim().isEmpty || translation.trim().isEmpty) return const [];
+  final detailed = _RequestTranslator(translator, detailed: true);
+  await OfflineEngine(detailed).translate(
+    engine,
+    TranslationRequest(
+      text: source,
+      source: sourceLanguage,
+      target: targetLanguage,
+    ),
+  );
+  final result = detailed.result;
+  if (result == null) return const [];
+  return locateLowConfidence(result, translation);
+}
+
+/// The [OfflineTranslation.lowConfidenceSentences] of [result] as
+/// [AlignedSpan]s (the sentence in the source and in the translation),
+/// with their target ranges in [translation]: as they are when it is
+/// [result]'s text, else each sentence (without its surrounding
+/// whitespace) is looked up in order; sentences that are not found are
+/// left out. Empty sentences are left out too.
+List<AlignedSpan> locateLowConfidence(
+  OfflineTranslation result,
+  String translation,
+) {
+  final located = <AlignedSpan>[];
+  final same = result.text == translation;
+  var from = 0;
+  for (final sentence in result.lowConfidenceSentences) {
+    final start = sentence.targetStart.clamp(0, result.text.length);
+    final end = sentence.targetEnd.clamp(start, result.text.length);
+    final raw = result.text.substring(start, end);
+    final text = raw.trim();
+    if (text.isEmpty) continue;
+    final int at;
+    if (same) {
+      at = start + raw.indexOf(text);
+    } else {
+      final found = translation.indexOf(text, from);
+      if (found < 0) continue;
+      at = found;
+    }
+    located.add(
+      AlignedSpan(
+        sourceStart: sentence.sourceStart,
+        sourceEnd: sentence.sourceEnd,
+        targetStart: at,
+        targetEnd: at + text.length,
+      ),
+    );
+    from = at + text.length;
+  }
+  return located;
+}
+
 /// The [OfflineTranslation.alignedSpans] of [result], with their target
 /// ranges in [translation]: as they are when it is [result]'s text, else
 /// found again phrase by phrase, in order and at word boundaries (phrases

@@ -1,0 +1,311 @@
+import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/settings/models/app_settings.dart';
+import 'package:mozhi/settings/models/settings_category.dart';
+import 'package:mozhi/settings/view/about_page.dart';
+import 'package:mozhi/settings/view/categories/ai_settings.dart';
+import 'package:mozhi/settings/view/categories/appearance_settings.dart';
+import 'package:mozhi/settings/view/categories/engine_settings.dart';
+import 'package:mozhi/settings/view/categories/general_settings.dart';
+import 'package:mozhi/settings/view/categories/speech_settings.dart';
+import 'package:mozhi/settings/view/widgets/privacy_settings_section.dart';
+import 'package:mozhi/settings/view/widgets/settings_search.dart';
+
+/// Every row the settings search finds, in the settings' order: what each
+/// category page shows here ([settings], the platform and the services
+/// provided), with the texts the rows show.
+///
+/// Each entry's anchor is a [SettingsAnchor] on its category's page (a
+/// test checks that they match).
+List<SettingsSearchEntry> settingsSearchIndex(
+  BuildContext context,
+  AppSettings settings,
+) {
+  final l10n = context.l10n;
+  SettingsSearchEntry entry(
+    SettingsCategory category,
+    String anchor,
+    String title, {
+    String? subtitle,
+    List<String> keywords = const [],
+  }) => SettingsSearchEntry(
+    category: category,
+    anchor: anchor,
+    title: title,
+    subtitle: subtitle,
+    keywords: keywords,
+  );
+  const general = SettingsCategory.general;
+  const privacy = SettingsCategory.privacy;
+  const engines = SettingsCategory.engines;
+  const ai = SettingsCategory.ai;
+  const appearance = SettingsCategory.appearance;
+  const speech = SettingsCategory.speech;
+  const about = SettingsCategory.about;
+  final dynamicColor = AppearanceSettings.dynamicColorAvailable(
+    Theme.of(context).platform,
+  );
+  return [
+    entry(
+      general,
+      GeneralAnchors.appLanguage,
+      l10n.settingsAppLanguage,
+      subtitle: l10n.settingsAppLanguageSystem,
+    ),
+    entry(general, GeneralAnchors.tabOrder, l10n.settingsTabOrder),
+    if (GeneralSettings.hapticFeedbackSupported)
+      entry(
+        general,
+        GeneralAnchors.hapticFeedback,
+        l10n.settingsHapticFeedback,
+        subtitle: l10n.settingsHapticFeedbackSubtitle,
+      ),
+    entry(
+      general,
+      GeneralAnchors.multilineInput,
+      l10n.settingsMultilineInput,
+      subtitle: l10n.settingsMultilineInputSubtitle,
+    ),
+    entry(
+      privacy,
+      PrivacyAnchors.privacyMode,
+      l10n.settingsPrivacyMode,
+      keywords: [
+        l10n.settingsPrivacyModeOfflineOnly,
+        l10n.settingsPrivacyModeOfflineOnlySubtitle,
+        l10n.settingsPrivacyModeOfflineFirst,
+        l10n.settingsPrivacyModeOfflineFirstSubtitle,
+        l10n.settingsPrivacyModeOnline,
+        l10n.settingsPrivacyModeOnlineSubtitle,
+      ],
+    ),
+    entry(
+      privacy,
+      PrivacyAnchors.incognito,
+      l10n.settingsIncognito,
+      subtitle: l10n.settingsIncognitoSubtitle,
+    ),
+    if (PrivacySettingsSection.secureScreenSupported)
+      entry(
+        privacy,
+        PrivacyAnchors.secureScreen,
+        l10n.settingsSecureScreen,
+        subtitle: l10n.settingsSecureScreenSubtitle,
+      ),
+    entry(
+      privacy,
+      PrivacyAnchors.maskPersonalData,
+      l10n.settingsMaskPersonalData,
+      subtitle: l10n.settingsMaskPersonalDataSubtitle,
+    ),
+    entry(
+      privacy,
+      PrivacyAnchors.saveHistory,
+      l10n.settingsSaveHistory,
+      subtitle: l10n.settingsSaveHistorySubtitle,
+    ),
+    entry(
+      privacy,
+      PrivacyAnchors.historyRetention,
+      l10n.settingsHistoryRetention,
+      subtitle: historyRetentionLabel(l10n, settings.historyRetention),
+      keywords: [
+        for (final retention in HistoryRetention.values)
+          historyRetentionLabel(l10n, retention),
+      ],
+    ),
+    entry(
+      privacy,
+      PrivacyAnchors.exportHistory,
+      l10n.settingsExportHistory,
+      subtitle: l10n.settingsExportHistorySubtitle,
+    ),
+    entry(
+      privacy,
+      PrivacyAnchors.importHistory,
+      l10n.settingsImportHistory,
+      subtitle: l10n.settingsImportHistorySubtitle,
+    ),
+    entry(privacy, PrivacyAnchors.recentPairs, l10n.settingsClearRecentPairs),
+    entry(privacy, PrivacyAnchors.networkPairs, l10n.settingsNetworkPairs),
+    entry(
+      privacy,
+      PrivacyAnchors.consentedProviders,
+      l10n.settingsConsentedProviders,
+    ),
+    entry(
+      privacy,
+      PrivacyAnchors.httpProxy,
+      l10n.settingsHttpProxy,
+      subtitle: settings.httpProxy ?? l10n.settingsHttpProxyOff,
+    ),
+    entry(
+      privacy,
+      PrivacyAnchors.networkActivity,
+      l10n.settingsNetworkActivity,
+      subtitle: l10n.settingsNetworkActivitySubtitle,
+    ),
+    entry(
+      privacy,
+      PrivacyAnchors.clearHistory,
+      l10n.historyClearMenu,
+      subtitle: l10n.settingsClearHistorySubtitle,
+    ),
+    entry(
+      privacy,
+      PrivacyAnchors.deleteAllData,
+      l10n.settingsDeleteAllData,
+      subtitle: l10n.settingsDeleteAllDataSubtitle,
+    ),
+    if (EngineSettings.offlineSupported)
+      entry(
+        engines,
+        EngineAnchors.offlineLanguages,
+        l10n.settingsOfflineManage,
+        subtitle: l10n.settingsOfflineSubtitle,
+        keywords: [l10n.offlineTitle],
+      )
+    else
+      entry(
+        engines,
+        EngineAnchors.offlineLanguages,
+        l10n.offlineTitle,
+        subtitle: l10n.settingsOfflineUnavailableSubtitle,
+      ),
+    entry(engines, EngineAnchors.instances, l10n.settingsInstancesTitle),
+    entry(engines, EngineAnchors.services, l10n.settingsMtServicesTitle),
+    entry(
+      engines,
+      EngineAnchors.quality,
+      l10n.settingsQualityTitle,
+      subtitle: l10n.settingsQualitySubtitle,
+    ),
+    entry(
+      engines,
+      EngineAnchors.rememberQuality,
+      l10n.settingsRememberQuality,
+      subtitle: l10n.settingsRememberQualitySubtitle,
+    ),
+    entry(
+      engines,
+      EngineAnchors.instantTranslate,
+      l10n.settingsInstantTranslate,
+      subtitle: InstantTranslateChoice.of(settings).title(l10n),
+      keywords: [
+        l10n.settingsInstantTranslateDialogBody,
+        l10n.settingsInstantEnginesAndAi,
+      ],
+    ),
+    entry(ai, AiAnchors.providers, l10n.settingsProvidersTitle),
+    entry(ai, AiAnchors.assistant, l10n.settingsAssistEngine),
+    entry(
+      ai,
+      AiAnchors.presets,
+      l10n.presetsTitle,
+      subtitle: l10n.settingsPresetsSubtitle,
+    ),
+    entry(
+      ai,
+      AiAnchors.glossaries,
+      l10n.glossariesTitle,
+      subtitle: l10n.settingsGlossariesSubtitle,
+    ),
+    entry(
+      ai,
+      AiAnchors.usage,
+      l10n.settingsUsageTitle,
+      subtitle: l10n.settingsUsageSubtitle,
+    ),
+    entry(
+      appearance,
+      AppearanceAnchors.theme,
+      l10n.settingsTheme,
+      keywords: [
+        l10n.settingsThemeSystem,
+        l10n.settingsThemeLight,
+        l10n.settingsThemeDark,
+      ],
+    ),
+    if (dynamicColor)
+      entry(
+        appearance,
+        AppearanceAnchors.dynamicColor,
+        l10n.settingsDynamicColor,
+        subtitle: l10n.settingsDynamicColorSubtitle,
+      ),
+    entry(
+      appearance,
+      AppearanceAnchors.darkLook,
+      l10n.settingsDarkLook,
+      subtitle: l10n.settingsDarkLookSubtitle,
+      keywords: [l10n.settingsDarkLookDim, l10n.settingsDarkLookLightsOut],
+    ),
+    entry(
+      appearance,
+      AppearanceAnchors.transliteration,
+      l10n.settingsShowTransliteration,
+      subtitle: l10n.settingsShowTransliterationSubtitle,
+    ),
+    if (!dynamicColor || !settings.dynamicColor)
+      entry(
+        appearance,
+        AppearanceAnchors.accentColor,
+        l10n.settingsAccentColor,
+      ),
+    if (SpeechCategorySettings.readAloudAvailable(context))
+      entry(
+        speech,
+        SpeechAnchors.readAloud,
+        l10n.speechSettingsTitle,
+        keywords: [
+          l10n.speechRate,
+          l10n.speechRateSubtitle,
+          l10n.speechDeviceVoiceOnly,
+          l10n.speechVoicesTitle,
+        ],
+      ),
+    if (SpeechCategorySettings.voiceInputAvailable(context))
+      entry(
+        speech,
+        SpeechAnchors.voiceInput,
+        l10n.voiceSettingsTitle,
+        keywords: [l10n.voiceEngineTitle, l10n.voicePreferOnDeviceTitle],
+      ),
+    entry(
+      about,
+      AboutAnchors.version,
+      l10n.settingsAbout,
+      subtitle: l10n.settingsAboutSubtitle,
+      keywords: [l10n.settingsVersion],
+    ),
+    entry(
+      about,
+      AboutAnchors.privacy,
+      l10n.settingsAboutPrivacyTitle,
+      keywords: [
+        l10n.settingsAboutPrivacyTelemetry,
+        l10n.settingsAboutPrivacyHistory,
+        l10n.settingsAboutPrivacyServices,
+      ],
+    ),
+    entry(about, AboutAnchors.sourceCode, l10n.settingsAboutSource),
+    entry(
+      about,
+      AboutAnchors.mozhiProject,
+      l10n.settingsAboutMozhiProject,
+      subtitle: l10n.settingsAboutMozhiProjectSubtitle,
+    ),
+    entry(
+      about,
+      AboutAnchors.licenses,
+      l10n.settingsAboutLicenses,
+      subtitle: l10n.settingsAboutLicensesSubtitle,
+    ),
+    entry(
+      about,
+      AboutAnchors.runSetup,
+      l10n.settingsRunSetup,
+      subtitle: l10n.settingsRunSetupSteps,
+    ),
+  ];
+}
