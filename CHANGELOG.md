@@ -164,6 +164,27 @@ in `-rc.N`).
   serves the page on the local network, so there is no app to install and
   no server; guests scan a QR code and enter a PIN. See
   [Shared conversation](docs/features.md#shared-conversation).
+- **On-device AI** (Android, 64-bit phones; Settings › AI › On-device
+  AI): translation and every AI extra (refine, alternatives, insights,
+  explanations, dictionary, proofreading, meaning checks) with a language
+  model that runs on your phone, so no text leaves it and no network or
+  account is needed. Hy-MT2 1.8B (Tencent, Apache-2.0, 33 languages)
+  translates; Gemma 4 E2B or Qwen3 1.7B (Apache-2.0) handle the extras.
+  Downloads are 1.1 to 3.1 GB, only when you ask, from the model source
+  you chose, and checked against checksums built into the app; or import
+  a file, or receive one from another phone. Each model says whether it
+  fits your phone's memory. On-device engines read **On this device**
+  everywhere, work in **Offline only**, and never ask for consent. While
+  the phone is very hot or in battery saver, translating as you type
+  doesn't start on-device AI (Enter still does). Runs on llama.cpp
+  (MIT), in three builds for older and newer ARM processors. See
+  [On-device AI](docs/on-device-ai.md).
+- **Faster offline voice input** on phones from about 2019 on: Whisper now
+  uses the processor's dot-product, half-precision and matrix
+  instructions when the phone has them. New voice models: **Better
+  (compact)** (base, 60 MB), **Best** (small, 190 MB) and **Large**
+  (large-v3-turbo, 574 MB, for phones with 8 GB or more), each offered
+  only on phones with enough memory.
 
 ### Changed
 
@@ -278,6 +299,9 @@ in `-rc.N`).
 
 ### Fixed
 
+- **Phone to phone between app versions:** a phone now leaves out what it
+  doesn't know how to receive (an on-device AI model from a newer Mozhi)
+  instead of refusing the whole transfer.
 - **Saving in the web app** (exporting favorites, a phrasebook collection
   or flashcards, saving a document) now says it was saved: the browser's
   download used to count as cancelled.

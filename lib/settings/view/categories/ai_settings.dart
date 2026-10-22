@@ -40,10 +40,7 @@ class AiSettings extends StatelessWidget {
     return SettingsSection(
       divider: false,
       children: [
-        const SettingsAnchor(
-          id: AiAnchors.onDeviceAi,
-          child: OnDeviceAiTile(),
-        ),
+        const SettingsAnchor(id: AiAnchors.onDeviceAi, child: OnDeviceAiTile()),
         SettingsAnchor(
           id: AiAnchors.providers,
           child: ListTile(
@@ -130,9 +127,10 @@ class _AssistEngineTile extends StatelessWidget {
   Widget _tile(BuildContext context, List<AiProviderConfig> onDevice) {
     final l10n = context.l10n;
     final current = settings.assistEngineId;
-    final selected = [...settings.providers, ...onDevice]
-        .where((p) => 'ai:${p.id}' == current)
-        .firstOrNull;
+    final selected = [
+      ...settings.providers,
+      ...onDevice,
+    ].where((p) => 'ai:${p.id}' == current).firstOrNull;
     final hasProviders =
         onDevice.isNotEmpty || settings.providers.any((p) => !p.isMtService);
     return ListTile(
