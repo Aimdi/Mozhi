@@ -101,6 +101,40 @@ void main() {
         expect(masked.valueOf(9), isNull);
       });
 
+      test('numbers past 9999 are restored', () {
+        const text = 'Ref ⟨9999⟩: mail bob@example.com';
+        final masked = TextMasker.mask(text, PersonalData.find(text));
+        expect(masked.text, 'Ref ⟨9999⟩: mail ⟨10000⟩');
+        final restored = masked.restore('Réf ⟨9999⟩ : écrire à ⟨10000⟩');
+        expect(restored.text, 'Réf ⟨9999⟩ : écrire à bob@example.com');
+        expect(restored.isComplete, isTrue);
+        expect(restored.lostPersonalData, isFalse);
+        final xml = TextMasker.mask(text, const [
+          ProtectedSpan(17, 32, kind: ProtectedKind.personal),
+        ], style: MaskStyle.xml);
+        expect(xml.text, 'Ref ⟨9999⟩: mail <x i="10000"/>');
+        expect(
+          xml.restore('Ref ⟨9999⟩: <x i="10000"></x>').text,
+          'Ref ⟨9999⟩: bob@example.com',
+        );
+      });
+
+      test('take free low numbers when the text uses the highest', () {
+        const text = 'Ref ⟨999999⟩ and ⟨1⟩: mail bob@example.com, eve@x.org';
+        final masked = TextMasker.mask(text, PersonalData.find(text));
+        expect(TextMasker.maxTokenNumber, 999999);
+        expect(masked.first, 2);
+        expect(masked.text, 'Ref ⟨999999⟩ and ⟨1⟩: mail ⟨2⟩, ⟨3⟩');
+        final restored = masked.restore(masked.text);
+        expect(restored.text, text);
+        expect(restored.isComplete, isTrue);
+        // Seven digits are no token.
+        expect(
+          TextMasker.mask('⟨1234567⟩ x', const [ProtectedSpan(10, 11)]).text,
+          '⟨1234567⟩ ⟨1⟩',
+        );
+      });
+
       test('without spans leaves the text alone', () {
         final masked = TextMasker.mask('plain', const []);
         expect(masked.text, 'plain');
