@@ -50,6 +50,9 @@ class FakeOcrData
   /// The confidence [recognizeWithConfidence] reports (null: unknown).
   int? confidence;
 
+  /// The layout [recognizeWithConfidence] reports (null: unknown).
+  TextLayout? layout;
+
   List<OcrLanguage> languages = [chiSimOcr, deuOcr, engOcr, fraOcr, jpnOcr];
 
   /// Thrown by [recognizeWith], [downloadOcrLanguage] or [importOcrFiles]
@@ -134,6 +137,7 @@ class FakeOcrData
   ) async => TextWithConfidence(
     await recognizeWith(image, codes),
     confidence: confidence,
+    layout: layout,
   );
 
   @override

@@ -981,7 +981,9 @@ void main() {
                 303,
                 headers: {'location': 'http://mozhi.example/other'},
               ),
-              message: 'Redirected to http://mozhi.example/other',
+              message:
+                  'Redirected to http://mozhi.example, a different server. '
+                  'Add that address as an instance to use it.',
             ),
             (
               description: 'body of a redirect without a location',
@@ -1206,7 +1208,7 @@ void main() {
         await translate(
           clientAnswering([
             redirect(307, '/mozhi/api/translate'),
-            redirect(308, '//mirror.example:8443/api/translate#top'),
+            redirect(308, '//MOZHI.example:443/v2/api/translate#top'),
             _json(googleTranslationJson),
           ]),
         );
@@ -1214,7 +1216,7 @@ void main() {
         expect(requests.map((r) => r.url), [
           httpsTranslate,
           Uri.parse('https://mozhi.example/mozhi/api/translate'),
-          Uri.parse('https://mirror.example:8443/api/translate'),
+          Uri.parse('https://mozhi.example/v2/api/translate'),
         ]);
       });
 
@@ -1289,13 +1291,238 @@ void main() {
                 .having(
                   (e) => e.message,
                   'message',
-                  'Redirected to $httpTranslate',
+                  'Redirected to http://mozhi.example, a different server. '
+                      'Add that address as an instance to use it.',
                 )
                 .having((e) => e.uri, 'uri', httpsTranslate)
                 .having((e) => e.isRetryable, 'isRetryable', isTrue),
           ),
         );
         expect(requests, hasLength(1));
+      });
+
+      group('to another server', () {
+        String differentServer(String origin) =>
+            'Redirected to $origin, a different server. '
+            'Add that address as an instance to use it.';
+
+        for (final status in [301, 302, 307, 308]) {
+          test('does not re-POST the text elsewhere on a $status', () async {
+            await expectLater(
+              translate(
+                clientAnswering([
+                  redirect(
+                    status,
+                    'https://x.tail123.ts.net/api/translate?text=a#top',
+                  ),
+                  _json(googleTranslationJson),
+                ]),
+              ),
+              throwsA(
+                isA<MozhiApiException>()
+                    .having((e) => e.statusCode, 'statusCode', status)
+                    .having(
+                      (e) => e.message,
+                      'message',
+                      differentServer('https://x.tail123.ts.net'),
+                    )
+                    .having((e) => e.uri, 'uri', httpsTranslate)
+                    .having((e) => e.isRetryable, 'isRetryable', isTrue),
+              ),
+            );
+            // The text was sent once, to the configured instance only.
+            expect(requests.single.url, httpsTranslate);
+            expect(requests.single.bodyFields, form);
+          });
+        }
+
+        final targets = [
+          (
+            description: 'another host',
+            location: 'https://mirror.example/api/translate',
+            origin: 'https://mirror.example',
+          ),
+          (
+            description: 'a subdomain',
+            location: 'https://api.mozhi.example/api/translate',
+            origin: 'https://api.mozhi.example',
+          ),
+          (
+            description: 'another port',
+            location: 'https://mozhi.example:8443/api/translate',
+            origin: 'https://mozhi.example:8443',
+          ),
+          (
+            description: 'a private address',
+            location: 'https://192.168.1.1:3000/api/translate',
+            origin: 'https://192.168.1.1:3000',
+          ),
+          (
+            description: 'another host by a network-path reference',
+            location: '//me:pw@[fd00::1]/api/translate?text=x',
+            origin: 'https://[fd00::1]',
+          ),
+        ];
+        for (final (:description, :location, :origin) in targets) {
+          test('is not followed to $description', () async {
+            await expectLater(
+              translate(clientAnswering([redirect(307, location)])),
+              _throwsMozhiError(
+                statusCode: 307,
+                message: differentServer(origin),
+                uri: httpsTranslate,
+              ),
+            );
+            expect(requests, hasLength(1));
+          });
+        }
+
+        test('names the origin only, never the path or query', () async {
+          await expectLater(
+            clientAnswering([
+              redirect(302, 'https://other.example/a/secret?text=secret'),
+            ]).textToSpeech(engine: 'google', language: 'en', text: 'secret'),
+            throwsA(
+              isA<MozhiApiException>()
+                  .having((e) => e.statusCode, 'statusCode', 302)
+                  .having(
+                    (e) => e.message,
+                    'message',
+                    allOf(
+                      differentServer('https://other.example'),
+                      isNot(contains('secret')),
+                    ),
+                  ),
+            ),
+          );
+          expect(requests, hasLength(1));
+        });
+
+        test('is not followed for a GET either', () async {
+          await expectLater(
+            clientAnswering([
+              redirect(301, 'https://cdn.example/api/version'),
+              _json(versionJson),
+            ]).getVersion(),
+            _throwsMozhiError(
+              statusCode: 301,
+              message: differentServer('https://cdn.example'),
+              uri: Uri.parse('https://mozhi.example/api/version'),
+            ),
+          );
+          expect(requests, hasLength(1));
+        });
+
+        test('is not followed for translateImage', () async {
+          final client = MozhiApiClient(
+            baseUrl: _baseUrl,
+            httpClient: MockClient((request) async {
+              requests.add(request);
+              return redirect(308, 'https://images.example/api/image');
+            }),
+          );
+
+          await expectLater(
+            client.translateImage(
+              pngBytes: Uint8List.fromList(const [0x89, 0x50]),
+              from: 'fr',
+              to: 'en',
+            ),
+            _throwsMozhiError(
+              statusCode: 308,
+              message: differentServer('https://images.example'),
+            ),
+          );
+          expect(requests, hasLength(1));
+        });
+
+        for (final (:from, :to, :origin) in [
+          (
+            from: 'http://mozhi.example',
+            to: 'https://www.mozhi.example/api/version',
+            origin: 'https://www.mozhi.example',
+          ),
+          (
+            from: 'http://mozhi.example',
+            to: 'https://mozhi.example:8443/api/version',
+            origin: 'https://mozhi.example:8443',
+          ),
+          (
+            from: 'http://mozhi.example:8080',
+            to: 'https://mozhi.example:8080/api/version',
+            origin: 'https://mozhi.example:8080',
+          ),
+          (
+            from: 'http://mozhi.example:80',
+            to: 'http://mozhi.example:8080/api/version',
+            origin: 'http://mozhi.example:8080',
+          ),
+        ]) {
+          test('is not followed from $from to $to', () async {
+            await expectLater(
+              clientAnswering([
+                redirect(301, to),
+                _json(versionJson),
+              ], baseUrl: Uri.parse(from)).getVersion(),
+              _throwsMozhiError(
+                statusCode: 301,
+                message: differentServer(origin),
+              ),
+            );
+            expect(requests, hasLength(1));
+          });
+        }
+      });
+
+      group('on the same server', () {
+        for (final location in [
+          'https://mozhi.example/api/version',
+          'https://mozhi.example:443/v2/api/version',
+          'https://MOZHI.example/v2/api/version',
+        ]) {
+          test('follows an upgrade from http to $location', () async {
+            final version = await clientAnswering([
+              redirect(301, location),
+              _json(versionJson),
+            ], baseUrl: Uri.parse('http://mozhi.example:80')).getVersion();
+
+            expect(version.goVersion, 'go1.23.1');
+            expect(requests.map((r) => r.url.origin), [
+              'http://mozhi.example',
+              'https://mozhi.example',
+            ]);
+          });
+        }
+
+        test('follows redirects on the same origin', () async {
+          final translation = await translate(
+            clientAnswering([
+              redirect(302, '/v2/api/translate'),
+              redirect(307, 'https://mozhi.example/v3/api/translate?x=1'),
+              _json(googleTranslationJson),
+            ]),
+          );
+
+          expect(translation.translatedText, 'cat');
+          expect(requests.map((r) => r.url.toString()), [
+            '$httpsTranslate',
+            'https://mozhi.example/v2/api/translate',
+            'https://mozhi.example/v3/api/translate?x=1',
+          ]);
+          expect(requests.map((r) => r.bodyFields), everyElement(form));
+        });
+
+        test('follows plain http redirects on a LAN instance', () async {
+          await clientAnswering([
+            redirect(308, '/mozhi/api/version'),
+            _json(versionJson),
+          ], baseUrl: Uri.parse('http://192.168.1.10:3000')).getVersion();
+
+          expect(
+            requests.last.url,
+            Uri.parse('http://192.168.1.10:3000/mozhi/api/version'),
+          );
+        });
       });
 
       for (final location in [
@@ -1394,11 +1621,12 @@ void main() {
           clientAnswering([
             redirect(307, '/moved/api/translate'),
             redirect(308, 'https://mozhi.example/api/translate'),
-            redirect(308, 'https://evil:creds@cdn.example/api/translate'),
+            redirect(308, 'https://evil:creds@mozhi.example/v2/api/translate'),
             _json(googleTranslationJson),
           ], baseUrl: Uri.parse('http://me:secret@mozhi.example')),
         );
 
+        // The upgrade to https changes the origin: no credentials there.
         expect(requests.map((r) => r.headers['authorization']), [
           _basic('me:secret'),
           _basic('me:secret'),
@@ -1406,7 +1634,10 @@ void main() {
           null,
         ]);
         expect(requests.map((r) => r.url.userInfo), everyElement(isEmpty));
-        expect(requests.last.url.host, 'cdn.example');
+        expect(
+          requests.last.url,
+          Uri.parse('https://mozhi.example/v2/api/translate'),
+        );
       });
 
       test(

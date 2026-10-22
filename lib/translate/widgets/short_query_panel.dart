@@ -3,6 +3,10 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
+import 'package:mozhi/dictionary/data/default_dictionary_packs.dart'
+    show maybeDictionaryPacks;
+import 'package:mozhi/dictionary/widgets/dictionary_attribution.dart'
+    show DictionaryAttributionLink;
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/dictionary_card.dart';
@@ -17,7 +21,9 @@ import 'package:translation_repository/translation_repository.dart';
 ///
 /// * up to [maxOtherTranslations] other translations; tapping one makes it
 ///   the translation (`TranslateCubit.useOtherTranslation`);
-/// * up to [maxDefinitions] definitions, each with an example;
+/// * up to [maxDefinitions] definitions, each with an example; when the
+///   engine returned none, the installed offline dictionaries' (looked up
+///   on the device, nothing is sent; with their source and licence);
 /// * synonyms of the input;
 /// * "Open in Dictionary" (the Dictionary tab, [DictionaryCard.openDictionary])
 ///   and, with an AI engine for extras, "More detail": the AI dictionary
@@ -157,7 +163,18 @@ class ShortQueryPanel extends StatelessWidget {
                 targetLocale: targetLocale,
                 targetDirection: targetDirection,
               ),
-          ],
+          ] else if (maybeDictionaryPacks(context) case final packs?
+              when word.isNotEmpty)
+            OfflineDefinitions(
+              key: const Key('translate_short_offline_definitions'),
+              dictionary: packs,
+              word: word,
+              language: state.source.isCustom ? null : sourceCode,
+              target: state.target.isCustom ? null : state.target.code,
+              heading: heading(l10n.translateDefinitions),
+              sourceLocale: sourceLocale,
+              sourceDirection: sourceDirection,
+            ),
           if (similar.isNotEmpty) ...[
             heading(l10n.translateDictionarySynonyms),
             Text.rich(
@@ -197,6 +214,150 @@ class ShortQueryPanel extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+/// Up to [ShortQueryPanel.maxDefinitions] senses of [word] from the
+/// offline [dictionary] (the dictionary of [language], or every installed
+/// one when it is unknown), each with its part of speech, and the entry's
+/// first example, under [heading], ending with the source and licence of the
+/// data. Nothing while it looks or when the dictionaries do not have the
+/// word. Looked up again when the word or a language changes, or
+/// dictionaries are installed or removed.
+class OfflineDefinitions extends StatefulWidget {
+  const new({
+    required this.dictionary,
+    required this.word,
+    required this.heading,
+    this.language,
+    this.target,
+    this.sourceLocale,
+    this.sourceDirection,
+    super.key,
+  });
+
+  final OfflineDictionary dictionary;
+  final String word;
+
+  /// Language code of [word]; null when it is unknown.
+  final String? language;
+
+  /// Language code of the translation.
+  final String? target;
+  final Widget heading;
+  final Locale? sourceLocale;
+  final TextDirection? sourceDirection;
+
+  @override
+  State<OfflineDefinitions> createState() => _OfflineDefinitionsState();
+}
+
+class _OfflineDefinitionsState extends State<OfflineDefinitions> {
+  OfflineDictionaryAnswer? _answer;
+  StreamSubscription<void>? _changes;
+  int _request = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _changes = widget.dictionary.changes.listen((_) => _lookUp());
+    _lookUp();
+  }
+
+  @override
+  void didUpdateWidget(OfflineDefinitions oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.word != widget.word ||
+        oldWidget.language != widget.language ||
+        oldWidget.target != widget.target ||
+        !identical(oldWidget.dictionary, widget.dictionary)) {
+      unawaited(_changes?.cancel());
+      _changes = widget.dictionary.changes.listen((_) => _lookUp());
+      _lookUp();
+    }
+  }
+
+  @override
+  void dispose() {
+    unawaited(_changes?.cancel());
+    super.dispose();
+  }
+
+  void _lookUp() {
+    final request = ++_request;
+    unawaited(
+      widget.dictionary
+          .lookUp(widget.word, language: widget.language, target: widget.target)
+          .then(
+            (answer) {
+              if (mounted && request == _request) {
+                setState(() => _answer = answer);
+              }
+            },
+            onError: (Object _) {
+              // Definitions are extra: a failing dictionary shows none.
+              if (mounted && request == _request) {
+                setState(() => _answer = null);
+              }
+            },
+          ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final answer = _answer;
+    final senses = [
+      for (final sense in answer?.entry.senses ?? const <DictionarySense>[])
+        if (sense.definition.trim().isNotEmpty) sense,
+    ].take(ShortQueryPanel.maxDefinitions).toList();
+    if (answer == null || senses.isEmpty) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    final muted = AppPalette.of(context).secondaryText;
+    final example = answer.entry.examples.isEmpty
+        ? ''
+        : answer.entry.examples.first.source.trim();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        widget.heading,
+        for (final (index, sense) in senses.indexed)
+          Padding(
+            key: ValueKey('translate_short_offline_sense:$index'),
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  if (sense.partOfSpeech.trim().isNotEmpty)
+                    TextSpan(
+                      text: '${sense.partOfSpeech.trim()}  ',
+                      style: TextStyle(
+                        color: muted,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  TextSpan(text: sense.definition.trim()),
+                ],
+              ),
+              style: theme.textTheme.bodyMedium,
+            ),
+          ),
+        // The entry's first example (its senses' examples are merged).
+        if (example.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text.rich(
+              TextSpan(text: example, locale: widget.sourceLocale),
+              key: const Key('translate_short_offline_example'),
+              textDirection: widget.sourceDirection,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ),
+        DictionaryAttributionLink(attribution: answer.attribution),
+      ],
     );
   }
 }

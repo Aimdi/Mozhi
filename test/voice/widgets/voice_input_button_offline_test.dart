@@ -97,7 +97,9 @@ void main() {
 
     await tapMic(tester);
     expect(whisper.stopCalls, 1);
-    expect(listeningChanges, [true, false]);
+    // The session goes on while the recording is transcribed: its partial
+    // results still belong to it.
+    expect(listeningChanges, [true]);
     expect(find.byKey(VoiceInputButton.transcribingKey), findsOneWidget);
     expect(find.bySemanticsLabel(l10n.voiceInputTranscribing), findsOneWidget);
     expect(
@@ -105,9 +107,12 @@ void main() {
       l10n.voiceInputCancelTranscription,
     );
 
+    whisper.emitResult('Guten');
+    await tester.pump();
     whisper.emitResult('Guten Tag', isFinal: true);
     await tester.pump();
-    expect(received, [('Guten Tag', true)]);
+    expect(received, [('Guten', false), ('Guten Tag', true)]);
+    expect(listeningChanges, [true, false]);
     expect(find.byKey(VoiceInputButton.transcribingKey), findsNothing);
     expect(tester.widget<IconButton>(mic()).tooltip, l10n.voiceInputStart);
   });

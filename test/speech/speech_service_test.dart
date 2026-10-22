@@ -83,14 +83,24 @@ class _FakeDeviceTts implements DeviceTts {
     return languages.contains(languageTag);
   }
 
+  /// The voice that reads when none is chosen ([activeVoice]).
+  DeviceVoice? defaultVoice;
+  DeviceVoice? _chosen;
+
   @override
-  Future<void> setLanguage(String languageTag, {DeviceVoice? voice}) => _step(
-    'language',
-    [
-      'language $languageTag',
-      if (voice != null) 'voice ${voice.name}',
-    ].join(' '),
-  );
+  DeviceVoice? get activeVoice => _chosen ?? defaultVoice;
+
+  @override
+  Future<void> setLanguage(String languageTag, {DeviceVoice? voice}) {
+    _chosen = voice;
+    return _step(
+      'language',
+      [
+        'language $languageTag',
+        if (voice != null) 'voice ${voice.name}',
+      ].join(' '),
+    );
+  }
 
   @override
   Future<void> setSpeechRate({required bool slow, double rate = 1}) => _step(
@@ -1885,6 +1895,212 @@ void main() {
           throwsA(unavailable('de')),
         );
         expect(output.played, isEmpty);
+      });
+    });
+
+    group('online voices', () {
+      const google = DeviceVoice(
+        name: 'Google français',
+        locale: 'fr-FR',
+        networkRequired: true,
+      );
+      const local = DeviceVoice(name: 'Amélie', locale: 'fr-CA');
+
+      setUpAll(
+        () => registerFallbackValue(SpeechService.onlineVoiceConsent(google)),
+      );
+
+      setUp(() {
+        device
+          ..supported = true
+          ..defaultVoice = google;
+        when(() => repository.privacyMode).thenReturn(PrivacyMode.offlineFirst);
+      });
+
+      Matcher asks(ConsentKind kind) => isA<SpeechUnavailableException>()
+          .having((e) => e.languageCode, 'languageCode', 'fr')
+          .having(
+            (e) => e.cause,
+            'cause',
+            isA<ConsentRequiredException>()
+                .having((c) => c.kind, 'kind', kind)
+                .having((c) => c.engineId, 'engineId', 'voice:${google.id}')
+                .having(
+                  (c) => c.destination,
+                  'destination',
+                  const CloudProviderDestination('Google'),
+                ),
+          );
+
+      test('asks before an online voice reads, then remembers it', () async {
+        Object? error;
+        try {
+          await service.toggle(
+            id: 'target',
+            text: 'Bonjour',
+            languageCode: 'fr',
+          );
+        } on Object catch (e) {
+          error = e;
+        }
+        expect(error, asks(ConsentKind.cloudProvider));
+        final consent = (error! as SpeechUnavailableException).onlineConsent!;
+        expect(SpeechService.isOnlineVoiceConsent(consent), isTrue);
+        expect(SpeechService.onlineVoiceOf(consent)?.name, 'Google français');
+        expect(device.calls, isNot(contains('speak Bonjour')));
+        expect(service.current, isNull);
+        verifyNever(
+          () => repository.textToSpeech(
+            text: any(named: 'text'),
+            languageCode: any(named: 'languageCode'),
+          ),
+        );
+        verifyNever(() => repository.allowOnce(any()));
+
+        await service.toggle(
+          id: 'target',
+          text: 'Bonjour',
+          languageCode: 'fr',
+          allowOnline: consent,
+        );
+        expect(device.calls.last, 'speak Bonjour');
+        expect(service.settings.allowsOnlineVoice(google), isTrue);
+        expect(
+          jsonDecode((await store.read(SpeechService.settingsKey))!),
+          containsPair('onlineVoices', [google.id]),
+        );
+        expect(service.lastUtterance?.text, 'Bonjour');
+
+        await service.stop();
+        await service.toggle(id: 'target', text: 'Encore', languageCode: 'fr');
+        expect(device.calls.last, 'speak Encore');
+      });
+
+      test('a voice on the device reads without asking', () async {
+        device.defaultVoice = local;
+        await service.toggle(id: 'target', text: 'Bonjour', languageCode: 'fr');
+        expect(device.calls.last, 'speak Bonjour');
+      });
+
+      test('a consent for another voice does not count', () async {
+        await expectLater(
+          service.toggle(
+            id: 'target',
+            text: 'Bonjour',
+            languageCode: 'fr',
+            allowOnline: SpeechService.onlineVoiceConsent(
+              const DeviceVoice(
+                name: 'Google UK',
+                locale: 'en-GB',
+                networkRequired: true,
+              ),
+            ),
+          ),
+          throwsA(asks(ConsentKind.cloudProvider)),
+        );
+      });
+
+      test('never read in offline-only mode, not even a preview', () async {
+        when(() => repository.privacyMode).thenReturn(PrivacyMode.offlineOnly);
+        await service.setVoice('fr', google);
+        await expectLater(
+          service.toggle(id: 'target', text: 'Bonjour', languageCode: 'fr'),
+          throwsA(asks(ConsentKind.offlineOnly)),
+        );
+        final offlineOnly = SpeechService.onlineVoiceConsent(
+          google,
+          kind: ConsentKind.offlineOnly,
+        );
+        await expectLater(
+          service.toggle(
+            id: 'target',
+            text: 'Bonjour',
+            languageCode: 'fr',
+            allowOnline: offlineOnly,
+          ),
+          throwsA(asks(ConsentKind.offlineOnly)),
+        );
+        await expectLater(
+          service.previewVoice(
+            id: 'preview',
+            text: 'Français',
+            languageCode: 'fr',
+            voice: google,
+          ),
+          throwsA(asks(ConsentKind.offlineOnly)),
+        );
+        expect(device.calls, isNot(contains(startsWith('speak'))));
+      });
+
+      test('previews read without asking', () async {
+        await service.previewVoice(
+          id: 'preview',
+          text: 'Français',
+          languageCode: 'fr',
+          voice: google,
+        );
+        expect(device.calls.last, 'speak Français');
+        expect(service.settings.onlineVoices, isEmpty);
+      });
+
+      test('forgetOnlineVoices asks again', () async {
+        await service.toggle(
+          id: 'target',
+          text: 'Bonjour',
+          languageCode: 'fr',
+          allowOnline: SpeechService.onlineVoiceConsent(google),
+        );
+        await service.forgetOnlineVoices();
+        await service.stop();
+
+        expect(service.settings.onlineVoices, isEmpty);
+        await expectLater(
+          service.toggle(id: 'target', text: 'Bonjour', languageCode: 'fr'),
+          throwsA(asks(ConsentKind.cloudProvider)),
+        );
+      });
+
+      test('an approval that cannot be saved applies until restart', () async {
+        final failing = _MockKeyValueStore();
+        when(() => failing.read(any())).thenAnswer((_) async => null);
+        when(() => failing.write(any(), any())).thenThrow(StateError('full'));
+        final service = SpeechService(
+          repository: repository,
+          output: output,
+          deviceTts: device,
+          store: failing,
+        );
+        addTearDown(service.dispose);
+
+        await service.toggle(
+          id: 'target',
+          text: 'Bonjour',
+          languageCode: 'fr',
+          allowOnline: SpeechService.onlineVoiceConsent(google),
+        );
+        expect(device.calls.last, 'speak Bonjour');
+        expect(service.settings.allowsOnlineVoice(google), isTrue);
+      });
+
+      test('onlineVoiceOf reads only voice consents', () {
+        expect(
+          SpeechService.onlineVoiceOf(
+            const ConsentRequiredException(
+              kind: ConsentKind.pair,
+              destination: PublicInstanceDestination('mozhi.example'),
+              engineId: 'mozhi:google',
+            ),
+          ),
+          isNull,
+        );
+        final voice = SpeechService.onlineVoiceOf(
+          const ConsentRequiredException(
+            kind: ConsentKind.cloudProvider,
+            destination: CloudProviderDestination(''),
+            engineId: 'voice:odd',
+          ),
+        );
+        expect((voice?.name, voice?.locale), ('odd', ''));
       });
     });
 

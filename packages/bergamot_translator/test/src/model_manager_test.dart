@@ -445,6 +445,177 @@ void main() {
     );
   });
 
+  group('mirror', () {
+    final mirror = Uri.parse('https://mirror.test/models/');
+
+    /// Serves every file of [model] at its mirror URL.
+    void mirrorAll(FakeModel model) {
+      for (final file in model.files) {
+        server.overrides[bergamotMirrorUrl(
+              mirror,
+              model.catalog,
+              file.entry,
+            ).toString()] =
+            file.gz;
+      }
+    }
+
+    List<String> hosts() => [
+      for (final request in server.requests) request.url.host,
+    ];
+
+    test('downloads every file from the mirror', () async {
+      mirrorAll(ende);
+      manager.mirror = mirror;
+      final installed = await manager.install(ende.catalog);
+      expect(installed.version, 'run1');
+      expect(hosts(), everyElement('mirror.test'));
+      expect(
+        server.requests.first.url.path,
+        startsWith('/models/bergamot/en-de/run1/'),
+      );
+      expect(await manager.isInstalled(ende.catalog), isTrue);
+    });
+
+    test('a file the mirror lacks fails, naming the mirror', () async {
+      manager.mirror = mirror;
+      await expectLater(
+        manager.install(ende.catalog),
+        throwsA(
+          isA<ModelDownloadException>()
+              .having((e) => e.statusCode, 'statusCode', 404)
+              .having((e) => e.mirror, 'mirror', mirror)
+              .having((e) => e.message, 'message', contains('mirror.test')),
+        ),
+      );
+      // Never the default host without the fallback.
+      expect(hosts(), everyElement('mirror.test'));
+      expect(await manager.installed(), isEmpty);
+    });
+
+    test('falls back to the catalog URL when allowed', () async {
+      manager
+        ..mirror = mirror
+        ..fallbackToDefault = true;
+      final installed = await manager.install(ende.catalog);
+      expect(installed.pair, 'en-de');
+      expect(hosts(), [
+        for (final _ in ende.files) ...['mirror.test', 'models.test'],
+      ]);
+    });
+
+    test('falls back when the mirror cannot be reached', () async {
+      final client = _MirrorDownClient(server.client);
+      final failing = BergamotModelManager(root: root, httpClient: client)
+        ..mirror = mirror
+        ..fallbackToDefault = true;
+      await failing.install(ende.catalog);
+      expect(hosts(), everyElement('models.test'));
+      expect(client.refused, ende.files.length);
+    });
+
+    test('reports a mirror that cannot be reached', () async {
+      final failing = BergamotModelManager(
+        root: root,
+        httpClient: _MirrorDownClient(server.client),
+      )..mirror = mirror;
+      await expectLater(
+        failing.install(ende.catalog),
+        throwsA(
+          isA<ModelDownloadException>()
+              .having((e) => e.statusCode, 'statusCode', isNull)
+              .having((e) => e.mirror, 'mirror', mirror),
+        ),
+      );
+    });
+
+    test('rejects a file from the mirror that differs, naming it', () async {
+      mirrorAll(ende);
+      final file = ende.files.first;
+      server.overrides[bergamotMirrorUrl(
+        mirror,
+        ende.catalog,
+        file.entry,
+      ).toString()] = List.of(file.gz)
+        ..[10] ^= 0xFF;
+      manager
+        ..mirror = mirror
+        // A mismatch is not a missing file: no fallback.
+        ..fallbackToDefault = true;
+      await expectLater(
+        manager.install(ende.catalog),
+        throwsA(
+          isA<ModelChecksumException>()
+              .having((e) => e.mirror, 'mirror', mirror)
+              .having(
+                (e) => e.toString(),
+                'toString',
+                contains('from the mirror https://mirror.test/models/'),
+              ),
+        ),
+      );
+      expect(hosts(), everyElement('mirror.test'));
+      expect(await manager.installed(), isEmpty);
+    });
+
+    test('rejects a mirror that sends more than the file', () async {
+      mirrorAll(ende);
+      final file = ende.files.first;
+      server.overrides[bergamotMirrorUrl(
+        mirror,
+        ende.catalog,
+        file.entry,
+      ).toString()] = [
+        ...file.gz,
+        1,
+        2,
+        3,
+      ];
+      manager.mirror = mirror;
+      await expectLater(
+        manager.install(ende.catalog),
+        throwsA(
+          isA<ModelChecksumException>()
+              .having((e) => e.mirror, 'mirror', mirror)
+              .having((e) => e.message, 'message', contains('more than')),
+        ),
+      );
+    });
+
+    test('resumes a download from the default host at the mirror', () async {
+      server.cutAfter = 1000;
+      await expectLater(
+        manager.install(ende.catalog),
+        throwsA(
+          isA<ModelDownloadException>().having(
+            (e) => e.mirror,
+            'mirror',
+            isNull,
+          ),
+        ),
+      );
+      mirrorAll(ende);
+      manager.mirror = mirror;
+      await manager.install(ende.catalog);
+      expect(server.requests[1].url.host, 'mirror.test');
+      expect(server.requests[1].headers['Range'], 'bytes=1000-');
+    });
+
+    test('an interrupted mirror download names the mirror', () async {
+      mirrorAll(ende);
+      server.cutAfter = 1000;
+      manager.mirror = mirror;
+      await expectLater(
+        manager.install(ende.catalog),
+        throwsA(
+          isA<ModelDownloadException>()
+              .having((e) => e.mirror, 'mirror', mirror)
+              .having((e) => e.message, 'message', contains('mirror.test')),
+        ),
+      );
+    });
+  });
+
   test('value objects', () async {
     final installed = await manager.install(ende.catalog);
     expect(installed.toString(), 'InstalledModel(en-de, run1)');
@@ -471,4 +642,22 @@ class _ThrowingClient extends http.BaseClient {
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) =>
       Future.error(const SocketException('No network'));
+}
+
+/// Refuses every request to `mirror.test` as an unreachable host would;
+/// others go to [_inner].
+class _MirrorDownClient extends http.BaseClient {
+  new(this._inner);
+
+  final http.Client _inner;
+  int refused = 0;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    if (request.url.host == 'mirror.test') {
+      refused++;
+      return Future.error(const SocketException('Connection refused'));
+    }
+    return _inner.send(request);
+  }
 }

@@ -20,6 +20,7 @@ alone.
 - [Proofread](#proofread)
 - [Image translation](#image-translation)
 - [Voice](#voice)
+- [Transcribe](#transcribe)
 - [Documents](#documents)
 - [Web pages](#web-pages)
 - [Offline translation](#offline-translation)
@@ -367,12 +368,18 @@ options**.
 | Preserve formatting | Keep line breaks, Markdown, HTML tags, links, `{placeholders}`, `%s` and emoji intact (on by default) |
 | Glossary | Term pairs that must always be translated the same way, e.g. product names |
 
-Mozhi engines ignore these options. The DeepL API applies the tone, the
-context, formatting and the glossary; translation-only models
-(TranslateGemma, Hy-MT) ignore them. With such an engine the sheet says so
-at the top and offers **Choose an AI translator** (or **Add AI provider**
-when you have none), and each option the engine ignores is greyed out with
-**AI engines only** or **AI engines and DeepL only**. Your choices are kept
+Mozhi engines and LibreTranslate apply only the glossary, on the device:
+its terms (whole words only, so *Bank* never matches *Bankett*; acronyms
+such as *IT* and case-sensitive terms in their exact case) go to the engine
+as placeholders it keeps, are replaced by your renderings and a term that
+couldn't be placed is
+flagged under the result. The DeepL API applies the tone, the context,
+formatting and the glossary; translation-only models (TranslateGemma,
+Hy-MT) and the on-device engine ignore them all. With such an engine the
+sheet says so at the top and offers **Choose an AI translator** (or **Add
+AI provider** when you have none), and each option the engine ignores is
+greyed out with **AI engines only**, **AI engines and DeepL only** or, for
+the glossary, **Not with this engine**. Your choices are kept
 for when you use an AI model, and changing them doesn't translate again
 with an engine that ignores them.
 
@@ -579,6 +586,22 @@ words** (tap one to look it up). For a misspelled word the entry offers
 AI model (the one under **Settings > AI > AI assistant for insights** when
 you translate with a Mozhi engine) and are marked **AI-generated**.
 
+**Offline.** With dictionaries downloaded under **Settings > Offline
+languages > Dictionaries** (Wiktionary packs, one per language, checked
+against the app's SHA-256), the Dictionary tab answers from them first,
+without a network or an AI provider: definitions, part of speech,
+pronunciation, examples, synonyms, related words, a short etymology and
+translations, labelled **From Wiktionary · CC BY-SA 4.0** (tap it for the
+attribution and the licence) instead of **AI-generated**. Case and accents
+don't matter (`cafe` finds *café*), and an inflected form finds its lemma
+(*“went” is a form of “go”*). **More detail** under such an entry asks your
+AI provider for its fuller entry; a word the dictionaries don't have goes to
+the AI provider as before. Without one, the tab suggests similar words of
+the dictionaries, or says how to get a dictionary for the word's language.
+The panel under a short translation shows the dictionaries' definitions
+when the engine returned none. Details: [Offline dictionary
+packs](dictionary-packs.md).
+
 A link such as `/dictionary?word=gato&from=es&to=en` opens the Dictionary tab
 with the word filled in, but never looks it up on its own: press **Look up**.
 
@@ -646,6 +669,23 @@ order:
   Choose the language of the text** hint. The
   [Play variant](contributing.md#build-variants) uses Google's ML Kit
   instead.
+
+  The translation is then **drawn over the photo**, in place of the
+  original text, like a camera translator: each paragraph's area is filled
+  with the colour around it and the translation is written in it, sized to
+  fit, in the text's own colour (or black or white, whichever reads
+  better), right to left for Arabic or Hebrew. Pinch to zoom and drag to
+  pan; tap a paragraph to see the original and the translation and copy
+  either; press and hold **Original** to look at the photo without the
+  overlay. **Overlay | Text** above the photo switches to the plain photo
+  with the recognised text (which you can correct and translate again)
+  and the translation below it; your choice is kept for the next photos.
+  **Share image** and **Save image** make a PNG of the photo with the
+  translation, at the photo's resolution (at most 4096 px on its long
+  side), on the phone; nothing is uploaded. All the paragraphs of a photo
+  are translated in one request, so a cloud engine gets no more requests
+  than before. Screen readers read each paragraph as its translation, with
+  the original as hint.
 - **AI vision**: an AI model with **Supports images** turned on reads and
   translates the text itself, with your translation options. One choice per
   such model.
@@ -681,7 +721,10 @@ reported before anything is uploaded.
   OpenAI's Whisper model (Fast, 75 MB, or Better, 142 MB, downloaded from
   Hugging Face or imported from a file) recognises 99 languages on the
   phone, so your voice never leaves it. **Offline only** always uses Whisper (see
-  [Voice input](voice-input.md)).
+  [Voice input](voice-input.md)). A small speech detector (Silero VAD,
+  0.9 MB, downloaded with the model) tells speech from noise, so Whisper
+  writes each phrase down as soon as you pause, while you go on speaking,
+  and a recording may last a minute.
 - **Conversation** (a tab of its own): two people, two languages. Each
   person speaks or types in turn and hears or reads the other's words in
   their own language. While the conversation is empty, a large microphone
@@ -689,11 +732,51 @@ reported before anything is uploaded.
   in one pill above the two input fields (tap a language to change it, the
   arrows to swap). **Face to face** (the two-people button) turns the screen
   into two halves, the far one upside down, and covers the tabs; back
-  returns to the tab.
+  returns to the tab. With Whisper and its speech detector, each phrase is
+  transcribed while the person goes on speaking, so the translation follows
+  sooner after they stop; Whisper still tells which of the two languages
+  was spoken. The menu's **Transcribe a talk** opens [Transcribe](#transcribe).
 - **Device voices**: besides your Mozhi instance's voices, the app can read
   text aloud with the device's built-in text-to-speech voices, with a speech
   rate and a voice per language of your choice (see
   [Text-to-speech](#text-to-speech)).
+
+## Transcribe
+
+For a lecture, a guided tour or a meeting: **Transcribe** (in the
+translate screen's **More tools** menu and the Conversation tab's menu)
+listens for as long as you like and writes down what it hears, one
+paragraph per phrase with its time (`1:05`), as a rolling transcript.
+
+- **Start**, **Pause** (resume continues the same transcript and its time
+  line, pauses left out) and **Stop**. The screen stays on while Mozhi
+  listens; it only listens while it is on screen, so switching apps or
+  turning the screen off pauses it.
+- **What hears**: on Android, offline Whisper (the speech model of
+  [Voice input](voice-input.md)), so the speech stays on the phone, also
+  when voice input is set to the system recogniser (it stops after every
+  pause and cannot transcribe a talk). Without a model, Transcribe says so
+  and opens the voice input settings to get one. With the speech detector
+  (0.9 MB, offered on the screen when it is missing) phrases end at real
+  pauses; without it, loudness decides, which noise can fool. When
+  transcription falls behind (the Better model on a slow phone), speech is
+  skipped rather than piling up, and the transcript says so. In the web
+  app, the browser's own speech recognition listens continuously where it
+  can; the screen says that it may send the audio to the browser's maker
+  (Chrome to Google), and in **Offline only** Transcribe is off there.
+- **Translation** is off until you turn on **Translate**: then each phrase
+  (and the transcript so far) is translated into the language you choose,
+  with the translate screen's engine and options, one phrase at a time.
+  The screen says where the phrases go ("Each phrase is sent to DeepL to be
+  translated", or translated on this device), and the usual privacy rules
+  apply: a phrase that needs your OK waits for it in the transcript; in
+  **Offline only** the on-device engine translates. From 840 dp the
+  translation sits beside each phrase.
+- **Copy**, **Share**, **Save as text (.txt)** and **Save as subtitles
+  (.srt)** (times from the transcript, the translation as a second line);
+  **Save to History** saves the transcript as one entry, only when you ask
+  (as a favourite while history is paused). Nothing is saved otherwise:
+  the transcript is gone when you leave the screen.
 
 ## Documents
 
@@ -727,26 +810,45 @@ In the web app this only works for sites that allow cross-origin requests
 
 ## Offline translation
 
-On Android, Mozhi can translate without any network with Mozilla's
-**Bergamot** engine and the **Firefox Translations** models (MPL-2.0), the
-ones Firefox uses for its built-in translation: about 55 languages, each to
-and from English, and between other languages through English. In **Settings >
-Translation engines > Offline languages** (or with the download button in the
-[language picker](#languages-and-detection)), download the languages you need
-once (about 50 MB to download and 73 MB on disk each; English is built in),
-update them when a newer model is out, and delete them when you no longer need
-them. With **Download over Wi-Fi only** on (the default), Mozhi asks before
-using mobile data or a metered network. Models come from Mozilla's storage
-(`storage.googleapis.com`) and are checked against bundled checksums before
-use; none of your text is sent. To keep the app from contacting that server at
-all (for example in **Offline only**), tap a language to copy the links of its
-files, download them on another device, copy them to the phone and use
-**Import from files**
+On Android and in the web app, Mozhi can translate without any network
+with Mozilla's **Bergamot** engine and the **Firefox Translations** models
+(MPL-2.0), the ones Firefox uses for its built-in translation: about 55
+languages, each to and from English, and between other languages through
+English. In **Settings > Translation engines > Offline languages** (or with the
+download button in the [language picker](#languages-and-detection)), download
+the languages you need once (about 50 MB to download and 73 MB on disk each;
+English is built in), update them when a newer model is out, and delete them
+when you no longer need them. With **Download over Wi-Fi only** on (the
+default), Mozhi asks before using mobile data or a metered network. Models are
+checked against bundled checksums before use; none of your text is sent.
+
+**Where models come from** (**Settings > Translation engines > Model source**,
+also on the Offline languages screen, for offline languages, voice input and
+text recognition alike): the **Original publishers** (Mozilla's storage at
+`storage.googleapis.com`, GitHub and Hugging Face; the Android default),
+**This web server** (a copy next to the web app; the web app's default, since
+Mozilla's storage doesn't let other websites download from it) or a **Custom
+mirror** (your server, a computer on your network or a `.onion` address),
+optionally falling back to the publishers when the mirror lacks a file. A
+mirror can't change a file: each one is checked against the fingerprint built
+into Mozhi. How to set one up: [Mirror the on-device
+models](self-hosting-mozhi.md#mirror-the-on-device-models).
+
+To keep the Android app from contacting any server at all (for example in
+**Offline only**), tap a language to copy the links of its files, download
+them on another device, copy them to the phone and use **Import from files**
 ([details](offline-engine.md#import-models-without-the-app-downloading-them)).
-After that, translation runs entirely on the phone, and results are marked
+After that, translation runs entirely on the device, and results are marked
 **Offline**. Quality is below the best online engines, but it works on a plane
-and nothing leaves the device. Offline translation is not available on the
-web.
+and nothing leaves the device.
+
+**In the web app** the engine runs as WebAssembly in a background worker of
+the browser, and the models are kept in the browser's private storage for this
+site (they stay after a reload and are removed with the site's data). It
+needs a recent browser (Chrome or Edge 102, Firefox 125, Safari 16.4 or
+later), `https` (or `localhost`) and the site's storage (Firefox's private
+windows have none); the Offline languages screen says what is missing. It is slower than on Android (about 120 to 150 words a
+second on a desktop computer) and **Import from files** isn't available.
 
 ## History and favorites
 
@@ -896,7 +998,13 @@ The sound comes from one of two places:
 
 - **Device voices** (first): the text-to-speech voices of your phone,
   computer or browser read every language they have a voice for, and work
-  offline when the voice is installed.
+  offline when the voice is installed. Some of them are **online voices**
+  that send the text to a speech service (Chrome's "Google …" voices, for
+  example): the voice picker labels them **Online voice: the text goes to
+  …**, a voice on the device is preferred, and before an online voice
+  reads for the first time Mozhi asks (your answer is kept per voice;
+  **Allowed online voices > Forget** asks again). In **Offline only** they
+  never read. See [Online voices](privacy.md#online-voices).
 - **Mozhi voices**: only for a language the device has no voice for, your
   Mozhi instance fetches the audio from Google (with Reverso as a fallback).
   Mozhi receives the text in the request address, which can end up in its

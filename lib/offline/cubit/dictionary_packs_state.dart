@@ -1,0 +1,141 @@
+import 'package:equatable/equatable.dart';
+import 'package:flutter/foundation.dart';
+import 'package:mozhi/dictionary/data/dictionary_packs.dart';
+import 'package:mozhi/offline/cubit/offline_models_state.dart';
+import 'package:translation_repository/translation_repository.dart';
+
+/// One downloadable dictionary, named for display.
+@immutable
+class DictionaryPackItem extends Equatable {
+  const new({required this.pack, required this.display});
+
+  final DictionaryPackInfo pack;
+
+  /// Its language, named (the code is the pack's id).
+  final OfflineLanguage display;
+
+  String get id => pack.id;
+
+  bool matches(String needle) =>
+      display.matches(needle) || pack.language.toLowerCase() == needle;
+
+  @override
+  List<Object?> get props => [pack, display];
+}
+
+/// The dictionaries screen: the catalogue's packs, those on the device and
+/// the downloads and deletions in progress.
+class DictionaryPacksState extends Equatable {
+  const new({
+    this.status = OfflineModelsStatus.initial,
+    this.isAvailable = true,
+    this.packs = const [],
+    this.installed = const {},
+    this.pending = const {},
+    this.progress = const {},
+    this.wifiOnly = true,
+    this.query = '',
+    this.outcome,
+  });
+
+  final OfflineModelsStatus status;
+
+  /// False where packs cannot be stored (a browser without OPFS).
+  final bool isAvailable;
+
+  /// Every pack of the catalogue, sorted by name.
+  final List<DictionaryPackItem> packs;
+
+  /// The installed packs by id.
+  final Map<String, StoredDictionaryPack> installed;
+
+  /// Downloads, updates and deletions in progress, by pack id.
+  final Map<String, OfflineModelOperation> pending;
+
+  /// Fraction (0 to 1) of each running download received so far.
+  final Map<String, double> progress;
+
+  /// Downloads on a metered network ask first (shared with the offline
+  /// translation models).
+  final bool wifiOnly;
+  final String query;
+
+  /// The latest finished operation (null once a new one starts).
+  final OfflineModelOutcome? outcome;
+
+  bool isInstalled(String id) => installed.containsKey(id);
+
+  /// Whether the installed version of [id] differs from the catalogue's.
+  bool isOutdated(String id) {
+    final stored = installed[id];
+    final pack = item(id)?.pack;
+    return stored != null && pack != null && stored.sha256 != pack.sha256;
+  }
+
+  /// Bytes used by every installed pack.
+  int get totalBytes =>
+      installed.values.fold(0, (sum, pack) => sum + pack.size);
+
+  /// [packs] matching [query] (name, native name or exact code).
+  List<DictionaryPackItem> get visible {
+    final needle = query.trim().toLowerCase();
+    if (needle.isEmpty) return packs;
+    return [
+      for (final pack in packs)
+        if (pack.matches(needle)) pack,
+    ];
+  }
+
+  List<DictionaryPackItem> get visibleInstalled => [
+    for (final pack in visible)
+      if (isInstalled(pack.id)) pack,
+  ];
+
+  List<DictionaryPackItem> get visibleAvailable => [
+    for (final pack in visible)
+      if (!isInstalled(pack.id)) pack,
+  ];
+
+  /// The item with [id], if any.
+  DictionaryPackItem? item(String id) {
+    for (final pack in packs) {
+      if (pack.id == id) return pack;
+    }
+    return null;
+  }
+
+  DictionaryPacksState copyWith({
+    OfflineModelsStatus? status,
+    bool? isAvailable,
+    List<DictionaryPackItem>? packs,
+    Map<String, StoredDictionaryPack>? installed,
+    Map<String, OfflineModelOperation>? pending,
+    Map<String, double>? progress,
+    bool? wifiOnly,
+    String? query,
+    ValueGetter<OfflineModelOutcome?>? outcome,
+  }) => DictionaryPacksState(
+    status: status ?? this.status,
+    isAvailable: isAvailable ?? this.isAvailable,
+    packs: packs ?? this.packs,
+    installed: installed ?? this.installed,
+    pending: pending ?? this.pending,
+    progress: progress ?? this.progress,
+    wifiOnly: wifiOnly ?? this.wifiOnly,
+    query: query ?? this.query,
+    outcome: outcome != null ? outcome() : this.outcome,
+  );
+
+  @override
+  List<Object?> get props => [
+    status,
+    isAvailable,
+    packs,
+    installed,
+    pending,
+    progress,
+    wifiOnly,
+    query,
+    outcome,
+  ];
+}

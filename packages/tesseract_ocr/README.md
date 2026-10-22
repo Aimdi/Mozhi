@@ -24,6 +24,16 @@ await ocr.download('deu'); // SHA-256 verified, resumable; only when asked
 final result = await ocr.recognize(rgba, width, height,
     languages: ['deu', 'eng']); // in a background isolate
 result.text; // "Öffnungszeiten\nMontag bis Freitag"
+
+// Where the text is: blocks, paragraphs, lines and words with their boxes
+// (pixels of this image), confidences, baselines, paragraph direction,
+// alignment and the colours of its text and ground.
+final read = await ocr.recognize(rgba, width, height,
+    languages: ['deu'], layout: true);
+final paragraph = read.layout!.paragraphs.first;
+paragraph.box; // OcrBox(26, 30, 316, 109)
+paragraph.background; // 0xFFFFFF
+paragraph.lines.first.words.first.text; // "Öffnungszeiten"
 ```
 
 `recognize` never downloads: missing data throws
@@ -46,8 +56,10 @@ What the native library contains: Tesseract's LSTM recognizer and layout
 analysis, Leptonica's image processing. Not built: Tesseract's legacy
 engine (so no `osd.traineddata`), training tools, ScrollView, OpenMP,
 libarchive, libcurl, libtiff; Leptonica's image codecs (PNG, JPEG, TIFF,
-GIF, WebP, JPEG 2000, zlib). Images come in as raw pixels. Only the seven
-`mozhi_tesseract_*` functions are exported; libc++ is linked statically.
+GIF, WebP, JPEG 2000, zlib). Images come in as raw pixels. Only the eight
+`mozhi_tesseract_*` functions are exported (C API version 2, with
+`mozhi_tesseract_recognize_layout`, which returns the layout as JSON);
+libc++ is linked statically.
 
 ## Building and testing
 
@@ -75,6 +87,8 @@ image (8-bit binary PGM/PPM):
 ```sh
 convert photo.jpg -resize '2500x2500>' photo.ppm
 build/native/linux/mozhi_tesseract_cli build/test_tessdata eng photo.ppm
+# the layout (JSON with blocks, paragraphs, lines, words and colours)
+build/native/linux/mozhi_tesseract_cli --layout build/test_tessdata eng photo.ppm
 ```
 
 Regenerate the catalog (downloads every listed file once, 311 MB, cached

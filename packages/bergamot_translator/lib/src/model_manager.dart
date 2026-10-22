@@ -11,11 +11,16 @@ import 'package:path/path.dart' as p;
 
 /// A download or install of a model failed.
 sealed class ModelInstallException implements Exception {
-  const new(this.model, this.message);
+  const new(this.model, this.message, {this.mirror});
 
   /// The model pair, e.g. `en-de`.
   final String model;
   final String message;
+
+  /// The mirror ([BergamotModelManager.mirror]) the failed download came
+  /// from; null for Mozilla's hosts ([CatalogFile.url]) and for failures
+  /// that are not a download's.
+  final Uri? mirror;
 
   String get _name;
 
@@ -26,7 +31,7 @@ sealed class ModelInstallException implements Exception {
 /// A file did not match the catalog's size or SHA-256 (corrupt or tampered
 /// download). Nothing was installed.
 final class ModelChecksumException extends ModelInstallException {
-  const new(super.model, super.message);
+  const new(super.model, super.message, {super.mirror});
 
   @override
   String get _name => 'ModelChecksumException';
@@ -34,7 +39,7 @@ final class ModelChecksumException extends ModelInstallException {
 
 /// The server answered with an error or the connection failed.
 final class ModelDownloadException extends ModelInstallException {
-  const new(super.model, super.message, {this.statusCode});
+  const new(super.model, super.message, {this.statusCode, super.mirror});
 
   final int? statusCode;
 
@@ -225,6 +230,9 @@ final class ModelImportResult {
 /// Every download is checked against the catalog's size and SHA-256 before
 /// it is decompressed, and the decompressed file against its own size and
 /// SHA-256. The [http.Client] is injectable (tests use `MockClient`).
+/// Files come from the catalog's URLs (Mozilla's hosts) or from a [mirror]
+/// of them ([bergamotDownloadUrls]), which needs no trust: the same checks
+/// apply.
 /// [importFiles] installs files copied to the device by hand instead,
 /// through the same checks and staging, without any network request.
 class BergamotModelManager {
@@ -240,6 +248,18 @@ class BergamotModelManager {
 
   /// Maximum wait for response headers and between chunks of a download.
   final Duration requestTimeout;
+
+  /// Base URL of a mirror of the model files to download from instead of
+  /// the catalog's URLs, e.g. `https://example.org/models/` (layout: see
+  /// [bergamotMirrorUrl]); null downloads from Mozilla's hosts. Read when
+  /// an [install] starts. A file that does not match the catalog fails
+  /// with a [ModelChecksumException] naming the mirror.
+  Uri? mirror;
+
+  /// Whether a file the [mirror] does not serve (an HTTP error or a failed
+  /// connection) is downloaded from the catalog's URL instead. Without it,
+  /// the install fails with a [ModelDownloadException] naming the mirror.
+  bool fallbackToDefault = false;
 
   final http.Client _client;
   final bool _ownsClient;
@@ -453,6 +473,9 @@ class BergamotModelManager {
     );
     await downloads.create(recursive: true);
 
+    // Every file of the model comes from the source chosen at the start.
+    final mirror = this.mirror;
+    final fallbackToDefault = this.fallbackToDefault;
     final received = <ModelFileKind, int>{};
     void report(ModelFileKind kind, int bytes) {
       received[kind] = bytes;
@@ -467,7 +490,14 @@ class BergamotModelManager {
 
     return await _installStaged(model, (staging) async {
       for (final file in model.files.values) {
-        final gz = await _download(model, file, downloads, report);
+        final gz = await _download(
+          model,
+          file,
+          downloads,
+          report,
+          mirror: mirror,
+          fallbackToDefault: fallbackToDefault,
+        );
         try {
           await _writeVerified(
             model,
@@ -541,13 +571,16 @@ class BergamotModelManager {
   }
 
   /// Downloads [file] into `<downloads>/<name>.gz.part` (resuming a partial
-  /// download) and verifies its size and SHA-256.
+  /// download) from [mirror] or the catalog's URL (see
+  /// [bergamotDownloadUrls]) and verifies its size and SHA-256.
   Future<File> _download(
     CatalogModel model,
     CatalogFile file,
     Directory downloads,
-    void Function(ModelFileKind kind, int bytes) report,
-  ) async {
+    void Function(ModelFileKind kind, int bytes) report, {
+    Uri? mirror,
+    bool fallbackToDefault = false,
+  }) async {
     final part = File(p.join(downloads.path, '${file.name}.gz.part'));
     var existing = part.existsSync() ? part.lengthSync() : 0;
     if (existing > file.size) {
@@ -558,26 +591,19 @@ class BergamotModelManager {
     final digestSink = _DigestSink();
     final hasher = sha256.startChunkedConversion(digestSink);
     var received = 0;
+    // The mirror the bytes come from (null: the catalog's URL).
+    Uri? source;
 
     if (existing < file.size) {
-      final request = http.Request('GET', file.url);
-      if (existing > 0) request.headers['Range'] = 'bytes=$existing-';
-      final http.StreamedResponse response;
-      try {
-        response = await _client.send(request).timeout(requestTimeout);
-      } on Object catch (error) {
-        throw ModelDownloadException(model.pair, '$error');
-      }
+      final (response, from) = await _request(
+        model,
+        file,
+        existing,
+        mirror: mirror,
+        fallbackToDefault: fallbackToDefault,
+      );
+      source = from;
       final resumed = existing > 0 && response.statusCode == 206;
-      if (response.statusCode != 200 && !resumed) {
-        // Drain so the connection can be reused.
-        await response.stream.drain<void>().catchError((_) {});
-        throw ModelDownloadException(
-          model.pair,
-          'HTTP ${response.statusCode} for ${file.url}',
-          statusCode: response.statusCode,
-        );
-      }
       if (resumed) {
         // Hash what is already on disk, then append.
         await for (final chunk in part.openRead()) {
@@ -595,7 +621,8 @@ class BergamotModelManager {
           if (received > file.size) {
             throw ModelChecksumException(
               model.pair,
-              '${file.name}: more than ${file.size} bytes',
+              '${file.name}${_from(source)}: more than ${file.size} bytes',
+              mirror: source,
             );
           }
           hasher.add(chunk);
@@ -609,7 +636,11 @@ class BergamotModelManager {
       } on Object catch (error) {
         // Interrupted: keep the part for resuming.
         await sink.close();
-        throw ModelDownloadException(model.pair, '${file.name}: $error');
+        throw ModelDownloadException(
+          model.pair,
+          '${file.name}${_from(source)}: $error',
+          mirror: source,
+        );
       }
       await sink.flush();
       await sink.close();
@@ -627,12 +658,69 @@ class BergamotModelManager {
       await _deleteQuietly(part);
       throw ModelChecksumException(
         model.pair,
-        '${file.name}: got $received bytes with SHA-256 $digest, expected '
-        '${file.size} bytes with SHA-256 ${file.sha256}',
+        '${file.name}${_from(source)}: got $received bytes with SHA-256 '
+        '$digest, expected ${file.size} bytes with SHA-256 ${file.sha256}',
+        mirror: source,
       );
     }
     return part;
   }
+
+  /// Sends the request for [file] (from byte [existing] on) to each URL of
+  /// [bergamotDownloadUrls] in turn until one answers with its contents
+  /// (200, or 206 when resuming): the response and the mirror it came from
+  /// (null: the catalog's URL). Throws the last URL's
+  /// [ModelDownloadException].
+  Future<(http.StreamedResponse, Uri?)> _request(
+    CatalogModel model,
+    CatalogFile file,
+    int existing, {
+    required Uri? mirror,
+    required bool fallbackToDefault,
+  }) async {
+    final urls = bergamotDownloadUrls(
+      model,
+      file,
+      mirror: mirror,
+      fallbackToDefault: fallbackToDefault,
+    );
+    for (var i = 0; ; i++) {
+      final url = urls[i];
+      final source = i == 0 ? mirror : null;
+      final last = i == urls.length - 1;
+      final request = http.Request('GET', url);
+      if (existing > 0) request.headers['Range'] = 'bytes=$existing-';
+      final http.StreamedResponse response;
+      try {
+        response = await _client.send(request).timeout(requestTimeout);
+      } on Object catch (error) {
+        if (!last) continue;
+        throw ModelDownloadException(
+          model.pair,
+          '${file.name}${_from(source)}: $error',
+          mirror: source,
+        );
+      }
+      final status = response.statusCode;
+      if (status == 200 || (existing > 0 && status == 206)) {
+        return (response, source);
+      }
+      // Drain so the connection can be reused.
+      await response.stream.drain<void>().catchError((_) {});
+      if (last) {
+        throw ModelDownloadException(
+          model.pair,
+          'HTTP $status for $url',
+          statusCode: status,
+          mirror: source,
+        );
+      }
+    }
+  }
+
+  /// ` from the mirror <mirror>` for a download from [mirror], else empty.
+  static String _from(Uri? mirror) =>
+      mirror == null ? '' : ' from the mirror $mirror';
 
   /// Writes [contents] (the decompressed bytes of [file]: a verified
   /// download through `gzip.decoder`, or an imported decompressed file)

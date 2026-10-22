@@ -126,6 +126,7 @@ void main() {
         error: () => error,
         pickError: () => error,
         showOriginal: true,
+        resultMode: ImageResultMode.text,
       );
       expect(state.status, ImageTranslateStatus.failure);
       expect(state.phase, ImageTranslatePhase.recognizing);
@@ -142,8 +143,9 @@ void main() {
       expect(state.error, error);
       expect(state.pickError, error);
       expect(state.showOriginal, isTrue);
+      expect(state.resultMode, ImageResultMode.text);
       expect(state.copyWith(), state);
-      expect(state.props, hasLength(15));
+      expect(state.props, hasLength(16));
     });
   });
 }

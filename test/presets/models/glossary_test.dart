@@ -252,6 +252,24 @@ void main() {
       expect(result, {'cat': 'Katze', 'hi': 'hallo'});
     });
 
+    test('mergeActiveGlossaryTerms also names the case-sensitive terms', () {
+      final result = mergeActiveGlossaryTerms(
+        [
+          g(
+            'terms',
+            terms: const [
+              GlossaryTerm(source: 'IT', target: 'TI', caseSensitive: true),
+              GlossaryTerm(source: 'cat', target: 'Katze'),
+            ],
+          ),
+        ],
+        sourceCode: 'en',
+        targetCode: 'de',
+      );
+      expect(result.terms, {'IT': 'TI', 'cat': 'Katze'});
+      expect(result.caseSensitive, {'IT'});
+    });
+
     test('more specific glossaries win, then list order', () {
       final result = mergeActiveGlossaries(
         [

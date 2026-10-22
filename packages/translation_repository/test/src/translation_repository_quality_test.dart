@@ -744,6 +744,45 @@ void main() {
       expect(requests, hasLength(1));
     });
 
+    group('glossary', () {
+      TranslationRequest withIt(String text) => TranslationRequest(
+        text: text,
+        source: english,
+        target: const Language(code: 'es', name: 'Spanish'),
+        options: const TranslationOptions(glossary: {'IT': 'TI'}),
+      );
+
+      test('a word that only looks like a term asks for nothing', () async {
+        stubAnswers(llmOf(plainOpenAi), [
+          '¿Está listo? Lo necesitamos hoy mismo.',
+        ]);
+        final result = await repository
+            .translate(openAi, withIt('Is it ready? We need it today.'))
+            .last;
+        expect(requests, hasLength(1));
+        expect(result.warnings, isEmpty);
+      });
+
+      test('a term without its rendering is retried and reported', () async {
+        stubAnswers(llmOf(plainOpenAi), [
+          // (A rendering in a word counts: no "informática" here.)
+          'El equipo de sistemas está listo hoy.',
+          'El equipo de sistemas está listo hoy mismo.',
+        ]);
+        final result = await repository
+            .translate(openAi, withIt('The IT team is ready today.'))
+            .last;
+        expect(requests, hasLength(2));
+        expect(requests.last.messages.last.content, contains('glossary'));
+        expect(
+          result.warnings
+              .singleWhere((w) => w.kind == TranslationWarningKind.glossary)
+              .items,
+          ['TI'],
+        );
+      });
+    });
+
     test('a first attempt that fails is an error', () {
       stubAnswers(llmOf(plainOpenAi), [const LlmApiException('boom')]);
       expect(

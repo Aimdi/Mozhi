@@ -32,6 +32,16 @@ export 'image_translate_state.dart';
 ///   same way (for on-device recognition a target change only
 ///   re-translates the recognised text); with an uploading method the
 ///   image waits for [translate] again.
+/// * On-device recognition that reports where the text is
+///   ([TextWithConfidence.layout]) translates the paragraphs in one
+///   request ([TextLayout.text], paragraphs separated by blank lines) and
+///   splits the translation back into
+///   [ImageTranslation.translatedParagraphs] for the overlay. When an
+///   engine merged or split paragraphs, the on-device engine translates
+///   each paragraph on its own (nothing leaves the device); other engines
+///   never get more requests: their translation is spread over the
+///   paragraphs ([TextLayout.alignTranslation]). [setResultMode] switches
+///   between the overlay and the text.
 /// * The privacy settings apply (the repository enforces them): a stopped
 ///   request fails with a `ConsentRequiredException` (nothing was sent).
 /// * Every new run (and [cancel]) drops the in-flight one; HTTP requests
@@ -366,6 +376,7 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
       await _retranslate(
         recognized.sourceText,
         confidence: recognized.recognitionConfidence,
+        layout: recognized.layout,
       );
     } else {
       emit(_awaitingUpload(state.copyWith(target: language)));
@@ -375,6 +386,13 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
 
   void setShowOriginal({required bool showOriginal}) =>
       emit(state.copyWith(showOriginal: showOriginal));
+
+  /// Shows the translation over the photo or as text (see
+  /// [ImageTranslateState.showsOverlay]); kept for the next photos.
+  void setResultMode(ImageResultMode mode) {
+    if (mode == state.resultMode) return;
+    emit(state.copyWith(resultMode: mode, showOriginal: false));
+  }
 
   // ---------------------------------------------------------------------
   // Translation
@@ -415,12 +433,18 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
   }
 
   /// Translates (edited) recognised [text] with the translator's engine,
-  /// keeping the image.
-  Future<void> translateText(String text) => _retranslate(text);
+  /// keeping the image. The overlay stays when [text] still has as many
+  /// paragraphs as the photo ([TextLayout.withText]).
+  Future<void> translateText(String text) =>
+      _retranslate(text, layout: state.result?.layout?.withText(text));
 
-  /// [translateText], keeping the recognition [confidence] of unedited
-  /// text.
-  Future<void> _retranslate(String text, {int? confidence}) async {
+  /// [translateText], keeping the recognition [confidence] and [layout] of
+  /// unedited text.
+  Future<void> _retranslate(
+    String text, {
+    int? confidence,
+    TextLayout? layout,
+  }) async {
     final trimmed = text.trim();
     if (state.image == null || trimmed.isEmpty) return;
     final token = _start(ImageTranslatePhase.translatingText);
@@ -429,6 +453,7 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
         token,
         trimmed,
         confidence: confidence,
+        layout: layout,
       );
       if (result != null) _succeed(token, result);
     } on Object catch (error) {
@@ -452,6 +477,7 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
             ? ImageTranslation(
                 sourceText: recognized,
                 recognitionConfidence: state.result?.recognitionConfidence,
+                layout: state.result?.layout,
               )
             : null,
       ),
@@ -572,7 +598,9 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
     PickedImage image,
   ) async {
     final recognized = await _recognize(image);
-    final text = recognized.text.trim();
+    // With a layout, its paragraphs are the text (without specks).
+    final layout = recognized.layout;
+    final text = layout?.text ?? recognized.text.trim();
     if (!_isCurrent(token)) return null;
     if (text.isEmpty) {
       throw const ImageTranslateException(ImageTranslateErrorKind.noText);
@@ -581,6 +609,7 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
       token,
       text,
       confidence: recognized.confidence,
+      layout: layout,
     );
   }
 
@@ -589,13 +618,18 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
   /// installed languages (the preferred ones first); missing data fails
   /// with [OcrDataMissingException] (offered for download by the view,
   /// never downloaded here). The confidence is known when the recognizer
-  /// reports it ([TextRecognitionConfidence]).
+  /// reports it ([TextRecognitionConfidence]), the layout when it reports
+  /// that ([TextWithConfidence.layout]).
   Future<TextWithConfidence> _recognize(PickedImage image) async {
     final data = textRecognitionLanguageDataOf(_recognizer);
     if (data == null) {
-      return TextWithConfidence(
-        await _recognizer.recognize(image, source: state.source),
-      );
+      return switch (_recognizer) {
+        final TextRecognitionLayout withLayout =>
+          await withLayout.recognizeLayout(image, source: state.source),
+        _ => TextWithConfidence(
+          await _recognizer.recognize(image, source: state.source),
+        ),
+      };
     }
     final plan = await planTextRecognition(
       data,
@@ -615,17 +649,19 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
     };
   }
 
-  /// Streams the translation of [text] (read with [confidence]) into
-  /// [ImageTranslateState.result].
+  /// Streams the translation of [text] (read with [confidence]; the
+  /// paragraphs of [layout] when known) into [ImageTranslateState.result].
   Future<ImageTranslation?> _translateRecognized(
     int token,
     String text, {
     int? confidence,
+    TextLayout? layout,
   }) async {
     var current = ImageTranslation(
       sourceText: text,
       isComplete: false,
       recognitionConfidence: confidence,
+      layout: layout,
     );
     emit(
       state.copyWith(
@@ -680,7 +716,63 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
     if (!_isCurrent(token)) return null;
     _subscription = null;
     _pending = null;
-    return current.copyWith(isComplete: true);
+    if (layout == null || layout.isEmpty) {
+      return current.copyWith(isComplete: true);
+    }
+    final paragraphs = await _paragraphTranslations(
+      token,
+      engine,
+      layout,
+      current,
+    );
+    if (paragraphs == null) return null;
+    return current.copyWith(isComplete: true, translatedParagraphs: paragraphs);
+  }
+
+  /// The translation of each paragraph of [layout] in [translation]: its
+  /// parts between blank lines when there are as many. Otherwise the
+  /// on-device engine translates each paragraph on its own (only there:
+  /// nothing leaves the device, and no request is added for a network
+  /// engine), else the translation is spread over the paragraphs
+  /// ([TextLayout.alignTranslation]). Null when the run was replaced.
+  Future<List<String>?> _paragraphTranslations(
+    int token,
+    TranslationEngine engine,
+    TextLayout layout,
+    ImageTranslation translation,
+  ) async {
+    final parts = TextLayout.splitParagraphs(translation.translatedText);
+    if (parts.length == layout.paragraphs.length) return parts;
+    if (engine.kind == EngineKind.offline) {
+      final detected = translation.detectedSource;
+      final source = state.source.isAuto && detected != null
+          ? LanguageCatalog.byCode(detected) ??
+                Language(code: detected, name: detected)
+          : state.source;
+      try {
+        final translated = <String>[];
+        for (final paragraph in layout.paragraphs) {
+          final result = await _repository
+              .translate(
+                engine,
+                TranslationRequest(
+                  text: paragraph.text,
+                  source: source,
+                  target: state.target,
+                  options: state.options,
+                ),
+              )
+              .last;
+          if (!_isCurrent(token)) return null;
+          translated.add(result.text.trim());
+        }
+        return translated;
+      } on Object {
+        if (!_isCurrent(token)) return null;
+        // Keep the translation that came through, spread as below.
+      }
+    }
+    return layout.alignTranslation(translation.translatedText);
   }
 
   /// What a vision request is counted as sending to the provider: the text
@@ -793,6 +885,7 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
             : ImageTranslation(
                 sourceText: result.sourceText,
                 recognitionConfidence: result.recognitionConfidence,
+                layout: result.layout,
               ),
       ),
     );

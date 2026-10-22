@@ -57,8 +57,10 @@ abstract final class TranslationQa {
 
   /// Checks [output], the translation of [source] from [sourceLanguage]
   /// (may be auto: [detectedSource] is then the detected language, if any)
-  /// into [target]. [glossary] is `TranslationOptions.glossary`; [ai] adds
-  /// the chat-reply checks of AI engines.
+  /// into [target]. [glossary] is `TranslationOptions.glossary` and
+  /// [caseSensitiveGlossaryTerms] `TranslationOptions
+  /// .caseSensitiveGlossaryTerms`; [ai] adds the chat-reply checks of AI
+  /// engines.
   static List<TranslationWarning> check({
     required String source,
     required String output,
@@ -66,6 +68,7 @@ abstract final class TranslationQa {
     required Language target,
     String? detectedSource,
     Map<String, String> glossary = const {},
+    Set<String> caseSensitiveGlossaryTerms = const {},
     bool ai = false,
   }) {
     if (source.trim().isEmpty || output.trim().isEmpty) return const [];
@@ -93,7 +96,12 @@ abstract final class TranslationQa {
     if (emails.isNotEmpty) add(TranslationWarningKind.emails, emails);
     final numbers = _missingNumbers(source, output);
     if (numbers.isNotEmpty) add(TranslationWarningKind.numbers, numbers);
-    final terms = missingGlossaryTargets(source, output, glossary);
+    final terms = missingGlossaryTargets(
+      source,
+      output,
+      glossary,
+      caseSensitive: caseSensitiveGlossaryTerms,
+    );
     if (terms.isNotEmpty) add(TranslationWarningKind.glossary, terms);
 
     if (checksSuspects(source)) {
@@ -179,22 +187,37 @@ abstract final class TranslationQa {
   }
 
   /// The targets of [glossary] entries whose source term occurs in
-  /// [source] (as `TranslationPrompts.glossaryMatches` finds it, so that
-  /// the check agrees with what the prompt sent) but that do not occur in
-  /// [output] (matched the same way, which accepts inflected forms, or
-  /// ignoring case).
+  /// [source] but that do not occur in [output], in the order the terms
+  /// occur.
+  ///
+  /// The source side is strict: a term occurs where
+  /// `TranslationPrompts.glossaryOccurrences` places it (whole words, case
+  /// ignored except for [caseSensitive] terms and acronyms, at most a
+  /// plural `s` or `es`; the terms engines without glossaries get replaced
+  /// on the device), outside URLs, e-mail addresses, tags, placeholders and
+  /// code, which are kept as they are. So a word that merely looks like a
+  /// term (`it` for `IT`, `applied` for `Apple`) asks for no rendering.
+  /// The output side is lenient, as a false hit only spares a warning: the
+  /// rendering in any case, inflected (see `TranslationPrompts
+  /// .glossaryMatches`) or as part of a word.
   static List<String> missingGlossaryTargets(
     String source,
     String output,
-    Map<String, String> glossary,
-  ) {
+    Map<String, String> glossary, {
+    Set<String> caseSensitive = const {},
+  }) {
     if (glossary.isEmpty) return const [];
+    final found = {
+      for (final occurrence in TranslationPrompts.glossaryOccurrences(
+        glossary,
+        _withoutProtected(source),
+        caseSensitive: caseSensitive,
+      ))
+        occurrence.term: occurrence.rendering,
+    };
     final lowerOutput = output.toLowerCase();
     return [
-      for (final MapEntry(value: wanted) in TranslationPrompts.glossaryMatches(
-        glossary,
-        source,
-      ).entries)
+      for (final wanted in found.values.toSet())
         if (wanted.trim().isNotEmpty &&
             !_containsTerm(lowerOutput, wanted.trim().toLowerCase()) &&
             TranslationPrompts.glossaryMatches({
@@ -276,7 +299,7 @@ abstract final class TranslationQa {
   );
   static final _wordOrDigit = RegExp(r'[\p{L}\p{N}]+', unicode: true);
   static final _url = RegExp(ProtectedPatterns.url);
-  static final _email = RegExp(ProtectedPatterns.email);
+  static final _email = RegExp(ProtectedPatterns.email, unicode: true);
   static final _tag = RegExp(ProtectedPatterns.htmlTag);
   static final _entity = RegExp(ProtectedPatterns.htmlEntity);
   static final _tagName = RegExp(r'^<(/?)([A-Za-z][\w:.-]*)');

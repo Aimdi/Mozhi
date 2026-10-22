@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' show Color, Rect;
 
 import 'package:bergamot_translator/bergamot_translator.dart'
     show MeteredConnectionException;
@@ -73,6 +74,7 @@ void main() {
         any(),
         dataPath: any(named: 'dataPath'),
         languages: any(named: 'languages'),
+        layout: any(named: 'layout'),
       ),
     ).thenAnswer((_) async => const OcrResult(text: 'Ausgang links'));
     when(() => engine.release()).thenAnswer((_) async {});
@@ -155,6 +157,7 @@ void main() {
         any(),
         dataPath: p.join(root.path, 'tessdata'),
         languages: ['deu'],
+        layout: true,
       ),
     ).called(1);
     expect(decoder.sides, [defaultOcrMaxSide]);
@@ -208,6 +211,7 @@ void main() {
           any(),
           dataPath: any(named: 'dataPath'),
           languages: ['eng', 'chi_sim'],
+          layout: any(named: 'layout'),
         ),
       ).called(1);
     });
@@ -248,6 +252,7 @@ void main() {
           any(),
           dataPath: any(named: 'dataPath'),
           languages: any(named: 'languages'),
+          layout: any(named: 'layout'),
         ),
       ).thenAnswer(
         (_) async => const OcrResult(text: 'Ausgang', meanConfidence: 37),
@@ -258,6 +263,109 @@ void main() {
         const TextWithConfidence('Ausgang', confidence: 37),
       );
       expect(await service.recognizeWith(pngImage, const ['deu']), 'Ausgang');
+    });
+
+    test('reports where the paragraphs are, without specks', () async {
+      await service.downloadOcrLanguage('deu', wifiOnly: false);
+      const layout = OcrLayout(
+        width: 3,
+        height: 2,
+        blocks: [
+          OcrBlock(
+            box: OcrBox(0, 0, 3, 2),
+            paragraphs: [
+              OcrParagraph(
+                box: OcrBox(10, 20, 200, 80),
+                confidence: 91,
+                alignment: OcrAlignment.center,
+                background: 0xFFDC00,
+                foreground: 0x001480,
+                lines: [
+                  OcrLine(text: 'Bitte klingeln', box: OcrBox(10, 20, 200, 48)),
+                  OcrLine(text: 'Sie an der Tür', box: OcrBox(10, 52, 190, 80)),
+                ],
+              ),
+              // Specks: no letter, and a very unsure single character.
+              OcrParagraph(
+                box: OcrBox(0, 0, 4, 4),
+                lines: [OcrLine(text: '|—', box: OcrBox(0, 0, 4, 4))],
+              ),
+              OcrParagraph(
+                box: OcrBox(0, 0, 4, 4),
+                confidence: 12,
+                lines: [OcrLine(text: 'e', box: OcrBox(0, 0, 4, 4))],
+              ),
+              OcrParagraph(
+                box: OcrBox(30, 100, 90, 130),
+                isLeftToRight: false,
+                alignment: OcrAlignment.right,
+                lines: [OcrLine(text: 'مخرج', box: OcrBox(30, 100, 90, 130))],
+              ),
+              OcrParagraph(
+                box: OcrBox(1, 1, 2, 2),
+                alignment: OcrAlignment.left,
+                confidence: 80,
+                lines: [OcrLine(text: '7', box: OcrBox(1, 1, 2, 2))],
+              ),
+              OcrParagraph(box: OcrBox(1, 1, 2, 2), lines: []),
+              OcrParagraph(
+                box: OcrBox(5, 5, 9, 9),
+                lines: [OcrLine(text: 'Kasse', box: OcrBox(5, 5, 9, 9))],
+              ),
+            ],
+          ),
+        ],
+      );
+      when(
+        () => engine.recognize(
+          any(),
+          dataPath: any(named: 'dataPath'),
+          languages: any(named: 'languages'),
+          layout: true,
+        ),
+      ).thenAnswer(
+        (_) async => const OcrResult(
+          text: 'Bitte klingeln\nSie an der Tür\n\n|—',
+          meanConfidence: 80,
+          layout: layout,
+        ),
+      );
+      final recognized = await service.recognizeWithConfidence(pngImage, const [
+        'deu',
+      ]);
+      expect(recognized.text, 'Bitte klingeln\nSie an der Tür\n\n|—');
+      final paragraphs = recognized.layout!.paragraphs;
+      expect((recognized.layout!.width, recognized.layout!.height), (3, 2));
+      expect(paragraphs.map((p) => p.text), [
+        'Bitte klingeln Sie an der Tür',
+        'مخرج',
+        '7',
+        'Kasse',
+      ]);
+      expect(paragraphs.last.alignment, TextParagraphAlignment.unknown);
+      expect(
+        recognized.layout!.text,
+        'Bitte klingeln Sie an der Tür\n\nمخرج\n\n7\n\nKasse',
+      );
+      final first = paragraphs.first;
+      expect(first.box, const Rect.fromLTRB(10, 20, 200, 80));
+      expect(first.lineCount, 2);
+      expect(first.alignment, TextParagraphAlignment.center);
+      expect(first.background, const Color(0xFFFFDC00));
+      expect(first.foreground, const Color(0xFF001480));
+      expect(first.confidence, 91);
+      expect(first.isRightToLeft, isFalse);
+      expect(paragraphs[1].isRightToLeft, isTrue);
+      expect(paragraphs[1].alignment, TextParagraphAlignment.right);
+      expect(paragraphs[1].background, isNull);
+      expect(paragraphs[2].alignment, TextParagraphAlignment.left);
+      expect(
+        TesseractTextRecognitionService.textLayoutOf(
+          const OcrLayout(width: 1, height: 1, blocks: []),
+        )!.isEmpty,
+        isTrue,
+      );
+      expect(TesseractTextRecognitionService.textLayoutOf(null), isNull);
     });
 
     test('turns missing data into an offer', () async {
@@ -280,6 +388,7 @@ void main() {
           any(),
           dataPath: any(named: 'dataPath'),
           languages: any(named: 'languages'),
+          layout: any(named: 'layout'),
         ),
       ).thenThrow(const TesseractEngineException('boom'));
       await expectLater(

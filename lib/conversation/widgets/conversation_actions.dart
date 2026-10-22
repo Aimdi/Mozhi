@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/conversation/cubit/conversation_cubit.dart';
 import 'package:mozhi/conversation/models/conversation_transcript.dart';
 import 'package:mozhi/conversation/widgets/conversation_turn_bubble.dart';
@@ -73,10 +75,11 @@ class ConversationLayoutButton extends StatelessWidget {
   }
 }
 
-enum _MenuAction { autoSpeak, copy, share, clear }
+enum _MenuAction { autoSpeak, copy, share, clear, transcribe }
 
-/// Overflow menu: copy or share the transcript, clear the conversation;
-/// with [showAutoSpeak] (narrow app bars) also the
+/// Overflow menu: copy or share the transcript, clear the conversation,
+/// open Transcribe (a rolling transcript of a talk; with a [GoRouter]
+/// above); with [showAutoSpeak] (narrow app bars) also the
 /// [ConversationAutoSpeakButton]'s toggle, as a checked item.
 class ConversationMenuButton extends StatelessWidget {
   const new({
@@ -169,6 +172,8 @@ class ConversationMenuButton extends StatelessWidget {
             unawaited(_share(context, state));
           case _MenuAction.clear:
             unawaited(_clear(context));
+          case _MenuAction.transcribe:
+            unawaited(GoRouter.of(context).push<void>(AppRoutes.transcribe));
         }
       },
       itemBuilder: (context) => [
@@ -208,6 +213,17 @@ class ConversationMenuButton extends StatelessWidget {
             title: Text(l10n.conversationClear),
           ),
         ),
+        if (GoRouter.maybeOf(context) != null) ...[
+          const PopupMenuDivider(),
+          PopupMenuItem(
+            key: const Key('conversation_menu_transcribe'),
+            value: _MenuAction.transcribe,
+            child: ListTile(
+              leading: const Icon(Icons.subtitles_outlined),
+              title: Text(l10n.conversationTranscribe),
+            ),
+          ),
+        ],
       ],
     );
   }

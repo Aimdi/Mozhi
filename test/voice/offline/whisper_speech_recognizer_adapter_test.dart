@@ -84,6 +84,8 @@ void main() {
     results = [];
     levels = [];
     when(() => speech.isReady()).thenAnswer((_) async => true);
+    // One pass, by loudness (the phrase mode has tests of its own).
+    when(() => speech.isVadReady()).thenAnswer((_) async => false);
     when(() => speech.transcribe(any(), language: any(named: 'language')))
         .thenAnswer((_) async => const WhisperTranscription('hello'));
     when(() => speech.cancel()).thenAnswer((_) async {});

@@ -30,6 +30,7 @@ final class IsolateTesseractEngine implements OcrEngine {
     OcrImage image, {
     required String dataPath,
     required List<String> languages,
+    bool layout = false,
   }) async {
     final worker = await _start();
     final result = await worker.request(
@@ -41,6 +42,7 @@ final class IsolateTesseractEngine implements OcrEngine {
         bytesPerLine: image.bytesPerLine,
         dataPath: dataPath,
         languages: List.unmodifiable(languages),
+        layout: layout,
       ),
     );
     return result! as OcrResult;
@@ -214,6 +216,7 @@ final class _Worker {
             bytesPerLine: op.bytesPerLine,
             dataPath: op.dataPath,
             languages: op.languages,
+            layout: op.layout,
           ),
           _Release() => () {
             engine.release();
@@ -274,6 +277,7 @@ final class _Recognize extends _Op {
     required this.bytesPerLine,
     required this.dataPath,
     required this.languages,
+    required this.layout,
   });
 
   final TransferableTypedData pixels;
@@ -283,6 +287,7 @@ final class _Recognize extends _Op {
   final int bytesPerLine;
   final String dataPath;
   final List<String> languages;
+  final bool layout;
 }
 
 final class _Release extends _Op {

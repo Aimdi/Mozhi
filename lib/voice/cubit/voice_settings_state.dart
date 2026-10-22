@@ -35,7 +35,7 @@ enum VoiceModelErrorKind {
 /// A failed model operation, classified for the user.
 @immutable
 class VoiceModelError extends Equatable {
-  const new(this.kind, {this.statusCode});
+  const new(this.kind, {this.statusCode, this.mirror});
 
   /// Classifies [error] (thrown by [OfflineSpeech.download] or
   /// [OfflineSpeech.delete]).
@@ -43,15 +43,19 @@ class VoiceModelError extends Equatable {
     VoiceModelMeteredException() => const VoiceModelError(
       VoiceModelErrorKind.metered,
     ),
-    WhisperChecksumException() => const VoiceModelError(
+    WhisperChecksumException(:final mirror) => VoiceModelError(
       VoiceModelErrorKind.checksum,
+      mirror: mirror?.host,
     ),
-    WhisperDownloadException(:final int statusCode) => VoiceModelError(
-      VoiceModelErrorKind.server,
-      statusCode: statusCode,
-    ),
-    WhisperDownloadException() => const VoiceModelError(
+    WhisperDownloadException(:final int statusCode, :final mirror) =>
+      VoiceModelError(
+        VoiceModelErrorKind.server,
+        statusCode: statusCode,
+        mirror: mirror?.host,
+      ),
+    WhisperDownloadException(:final mirror) => VoiceModelError(
       VoiceModelErrorKind.network,
+      mirror: mirror?.host,
     ),
     FileSystemException() => const VoiceModelError(VoiceModelErrorKind.storage),
     _ => const VoiceModelError(VoiceModelErrorKind.unknown),
@@ -62,8 +66,12 @@ class VoiceModelError extends Equatable {
   /// The HTTP status of a [VoiceModelErrorKind.server] error.
   final int? statusCode;
 
+  /// The host of the model mirror the failed download came from (the
+  /// model source setting); null for the default host.
+  final String? mirror;
+
   @override
-  List<Object?> get props => [kind, statusCode];
+  List<Object?> get props => [kind, statusCode, mirror];
 }
 
 /// A downloadable speech model as the settings show it.
@@ -144,6 +152,8 @@ class VoiceSettingsState extends Equatable {
     this.importing = false,
     this.outcome,
     this.importOutcome,
+    this.voiceDetection,
+    this.voiceDetectionInstalled = false,
   });
 
   final VoiceSettingsStatus status;
@@ -178,6 +188,22 @@ class VoiceSettingsState extends Equatable {
   /// The latest finished import (null once another starts).
   final VoiceImportOutcome? importOutcome;
 
+  /// The voice activity detection model (Silero VAD, about 0.9 MB), which
+  /// lets Whisper transcribe phrase by phrase: downloaded with every speech
+  /// model, imported with them, deleted with the last one. Null without
+  /// one (or where Whisper does not run).
+  final VoiceModel? voiceDetection;
+
+  /// Whether [voiceDetection] is installed.
+  final bool voiceDetectionInstalled;
+
+  /// A speech model is installed but not the voice activity model (it was
+  /// installed before the app had one): offer to download it.
+  bool get voiceDetectionMissing =>
+      voiceDetection != null &&
+      !voiceDetectionInstalled &&
+      installed.isNotEmpty;
+
   bool isInstalled(String id) => installed.contains(id);
 
   /// The model [id], if listed.
@@ -196,6 +222,8 @@ class VoiceSettingsState extends Equatable {
     bool? importing,
     ValueGetter<VoiceModelOutcome?>? outcome,
     ValueGetter<VoiceImportOutcome?>? importOutcome,
+    ValueGetter<VoiceModel?>? voiceDetection,
+    bool? voiceDetectionInstalled,
   }) => VoiceSettingsState(
     status: status ?? this.status,
     engine: engine ?? this.engine,
@@ -208,6 +236,11 @@ class VoiceSettingsState extends Equatable {
     importing: importing ?? this.importing,
     outcome: outcome != null ? outcome() : this.outcome,
     importOutcome: importOutcome != null ? importOutcome() : this.importOutcome,
+    voiceDetection: voiceDetection != null
+        ? voiceDetection()
+        : this.voiceDetection,
+    voiceDetectionInstalled:
+        voiceDetectionInstalled ?? this.voiceDetectionInstalled,
   );
 
   @override
@@ -223,5 +256,7 @@ class VoiceSettingsState extends Equatable {
     importing,
     outcome,
     importOutcome,
+    voiceDetection,
+    voiceDetectionInstalled,
   ];
 }

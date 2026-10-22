@@ -2,6 +2,9 @@ import 'dart:convert';
 
 import 'package:meta/meta.dart';
 
+// Where the models are downloaded from (Hugging Face or a mirror).
+export 'package:whisper_speech/src/model_source.dart';
+
 /// One downloadable Whisper model (a whisper.cpp `ggml-*.bin` file).
 @immutable
 final class WhisperCatalogModel {
@@ -11,6 +14,7 @@ final class WhisperCatalogModel {
     required this.url,
     required this.size,
     required this.sha1,
+    this.sha256,
     this.multilingual = true,
     this.parameters,
   });
@@ -30,6 +34,11 @@ final class WhisperCatalogModel {
     if (!_sha1Pattern.hasMatch(sha1)) {
       throw FormatException('Invalid SHA-1', sha1);
     }
+    final sha256 = json['sha256'];
+    if (sha256 != null &&
+        (sha256 is! String || !_sha256Pattern.hasMatch(sha256))) {
+      throw FormatException('Invalid SHA-256', sha256);
+    }
     final size = json['size'];
     if (size is! int || size <= 0) {
       throw FormatException('Invalid size', size);
@@ -48,6 +57,7 @@ final class WhisperCatalogModel {
       url: url,
       size: size,
       sha1: sha1,
+      sha256: sha256 as String?,
       multilingual: multilingual,
       parameters: parameters as int?,
     );
@@ -59,7 +69,8 @@ final class WhisperCatalogModel {
   /// File name as published and installed, e.g. `ggml-tiny.bin`.
   final String name;
 
-  /// Where the file is downloaded from (https).
+  /// Where the file is downloaded from by default (https; see
+  /// `whisperDownloadUrls` for mirrors).
   final Uri url;
 
   /// Exact bytes of the file, checked while downloading.
@@ -67,6 +78,11 @@ final class WhisperCatalogModel {
 
   /// Lower-case hex SHA-1 of the file (as published by whisper.cpp).
   final String sha1;
+
+  /// Lower-case hex SHA-256 of the file (as Hugging Face reports it), when
+  /// the catalog has it: checked as well as [sha1], so that a mirror
+  /// cannot pass off another file.
+  final String? sha256;
 
   /// Whether the model knows the 99 Whisper languages (else English only).
   final bool multilingual;
@@ -77,6 +93,7 @@ final class WhisperCatalogModel {
   static final _safeId = RegExp(r'^[a-z0-9][a-z0-9_.-]{0,31}$');
   static final _safeName = RegExp(r'^[A-Za-z0-9._-]+$');
   static final _sha1Pattern = RegExp(r'^[0-9a-f]{40}$');
+  static final _sha256Pattern = RegExp(r'^[0-9a-f]{64}$');
 
   static String _string(Map<String, Object?> json, String key) {
     final value = json[key];
@@ -94,25 +111,31 @@ final class WhisperCatalogModel {
       other.url == url &&
       other.size == size &&
       other.sha1 == sha1 &&
+      other.sha256 == sha256 &&
       other.multilingual == multilingual &&
       other.parameters == parameters;
 
   @override
   int get hashCode =>
-      Object.hash(id, name, url, size, sha1, multilingual, parameters);
+      Object.hash(id, name, url, size, sha1, sha256, multilingual, parameters);
 
   @override
   String toString() => 'WhisperCatalogModel($id, $name)';
 }
 
 /// The Whisper models that can be downloaded (`assets/models.json`), from
-/// the fastest to the most accurate.
+/// the fastest to the most accurate, and the voice activity detection
+/// model ([vad]).
 @immutable
 final class WhisperModelCatalog {
-  const new({required this.models, this.source, this.license});
+  const new({required this.models, this.vad, this.source, this.license});
 
   /// Parses `models.json`. Throws [FormatException] when it is invalid
-  /// (unknown schema, unsafe names, non-https URLs, duplicate ids).
+  /// (unknown schema, unsafe names, non-https URLs, duplicate ids, an
+  /// unknown `kind`, more than one VAD model, no speech model).
+  ///
+  /// Entries are speech models unless their `kind` is `vad` (the [vad]
+  /// model, listed with them so that tools reading `models` see it too).
   factory parse(String source) {
     final json = jsonDecode(source);
     if (json is! Map<String, Object?>) {
@@ -129,6 +152,7 @@ final class WhisperModelCatalog {
       throw const FormatException('The catalog has no models');
     }
     final models = <WhisperCatalogModel>[];
+    WhisperCatalogModel? vad;
     final ids = <String>{};
     final names = <String>{};
     for (final entry in entries) {
@@ -139,10 +163,23 @@ final class WhisperModelCatalog {
       if (!ids.add(model.id) || !names.add(model.name.toLowerCase())) {
         throw FormatException('Duplicate model', model.id);
       }
-      models.add(model);
+      switch (entry['kind'] ?? 'speech') {
+        case 'speech':
+          models.add(model);
+        case 'vad' when vad == null:
+          vad = model;
+        case 'vad':
+          throw FormatException('More than one VAD model', model.id);
+        case final kind:
+          throw FormatException('Unknown model kind', kind);
+      }
+    }
+    if (models.isEmpty) {
+      throw const FormatException('The catalog has no speech models');
     }
     return WhisperModelCatalog(
       models: List.unmodifiable(models),
+      vad: vad,
       source: json['source'] as String?,
       license: json['license'] as String?,
     );
@@ -154,8 +191,14 @@ final class WhisperModelCatalog {
   /// Asset key of the bundled catalog (see `loadBundledWhisperCatalog`).
   static const assetKey = 'packages/whisper_speech/assets/models.json';
 
-  /// From the fastest (smallest) to the most accurate (largest).
+  /// The speech models, from the fastest (smallest) to the most accurate
+  /// (largest).
   final List<WhisperCatalogModel> models;
+
+  /// The Silero voice activity detection model (`kind: vad`): tells speech
+  /// from silence and noise while recording (`WhisperSpeech.detectSpeech`).
+  /// Downloaded with a speech model; null when the catalog has none.
+  final WhisperCatalogModel? vad;
 
   /// Where the models are published, e.g. the Hugging Face repository.
   final String? source;
@@ -163,7 +206,7 @@ final class WhisperModelCatalog {
   /// License of the model weights.
   final String? license;
 
-  /// The model with [id], if listed.
+  /// The speech model with [id], if listed ([vad] is not one).
   WhisperCatalogModel? model(String id) {
     for (final model in models) {
       if (model.id == id) return model;

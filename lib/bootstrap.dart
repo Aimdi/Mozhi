@@ -14,6 +14,8 @@ import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/network/network_session.dart';
 import 'package:mozhi/core/on_device_ml.dart';
 import 'package:mozhi/core/widgets/focus_ring.dart';
+import 'package:mozhi/dictionary/data/default_dictionary_packs.dart';
+import 'package:mozhi/dictionary/data/dictionary_packs.dart';
 import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/platform/offline_engine.dart';
@@ -116,6 +118,8 @@ Future<void> bootstrap(
 /// [NetworkSession.current] (the proxy setting). [offlineSpeech] defaults
 /// to [createOfflineSpeech]: Whisper for offline voice input (Android on a
 /// supported CPU; null elsewhere), behind the [SpeechInputService].
+/// [dictionaryPacks] defaults to [defaultDictionaryPacks]: the offline
+/// dictionaries, whose storage opens only when a screen needs it.
 ///
 /// Nothing waits for what it does not need: the offline engine and the
 /// offline speech load their catalogues while the settings load, the
@@ -134,6 +138,7 @@ Future<AppDependencies> createDependencies({
   OfflineTranslator? offlineTranslator,
   NetworkSession Function(String? proxy)? network,
   Future<OfflineSpeech?> Function(KeyValueStore preferences)? offlineSpeech,
+  DictionaryPacks? Function()? dictionaryPacks,
 }) async {
   // Started first: loading the model catalogues runs while the stores open.
   // Neither sends anything yet (downloads use the session set below).
@@ -208,6 +213,8 @@ Future<AppDependencies> createDependencies({
       privacyMode: () => translationRepository.privacyMode,
     ),
     offlineSpeech: speech,
+    // Nothing is read until a screen asks (the storage opens lazily).
+    dictionaryPacks: (dictionaryPacks ?? defaultDictionaryPacks)(),
     offlineTranslator: offline,
     usageTracker: UsageTracker(store: preferences),
     network: session,

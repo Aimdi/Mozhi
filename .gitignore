@@ -90,6 +90,7 @@ coverage/
 packages/**/pubspec.lock
 
 # Web related
+web/bergamot/bergamot-translator.*
 
 # Symbolication related
 app.*.symbols

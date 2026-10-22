@@ -113,6 +113,31 @@ abstract final class TranslationPrompts {
   /// (characters; longer ones are cut).
   static const maxEarlierTermLength = 80;
 
+  /// What a model is told when the personal data shield
+  /// (`TranslationRepository.maskPersonalData`) replaced parts of its input
+  /// by tokens (see [withMaskedPersonalDataNote]).
+  static const maskedPersonalDataNote =
+      'Tokens such as ⟨1⟩ in the input stand for personal data (e-mail '
+      'addresses, phone numbers, account or card numbers, IP addresses) '
+      "that stays on the user's device. Keep each token exactly as written "
+      'wherever what it stands for belongs in your reply, treat it as the '
+      'name or number it replaces, and never comment on the tokens.';
+
+  /// [messages] with [maskedPersonalDataNote] as a system message after
+  /// their leading system messages: for the AI extras, whose input was
+  /// masked by the personal data shield.
+  static List<LlmMessage> withMaskedPersonalDataNote(
+    List<LlmMessage> messages,
+  ) {
+    final at = messages.indexWhere((m) => m.role != LlmRole.system);
+    final index = at < 0 ? messages.length : at;
+    return [
+      ...messages.take(index),
+      const LlmMessage.system(maskedPersonalDataNote),
+      ...messages.skip(index),
+    ];
+  }
+
   /// Makes a free-form (custom) language or style name safe to interpolate
   /// into a prompt: control and invisible characters, double quotes,
   /// guillemets, backticks and `<`/`>` are removed, whitespace (including
@@ -170,7 +195,7 @@ abstract final class TranslationPrompts {
     final translated = precedingTranslation.trim();
     final terms = _earlierTermLines(
       earlierTerms,
-      _relevantGlossary(request.options.glossary, request.text),
+      _relevantGlossary(request.options, request.text),
     );
     return [
       LlmMessage.system(
@@ -199,16 +224,23 @@ abstract final class TranslationPrompts {
     ];
   }
 
-  /// The entries of [glossary] whose term occurs in [text], each reduced to
-  /// one line (entries with a blank term or rendering are dropped), in the
-  /// glossary's order.
+  /// The entries of [glossary] whose term may occur in [text], each reduced
+  /// to one line (entries with a blank term or rendering are dropped), in
+  /// the glossary's order: which entries of a long glossary a prompt
+  /// sends. Tuned to find rather than to miss (an extra entry only adds a
+  /// line to the prompt; see [glossaryOccurrences] for the strict matching
+  /// that decides what a term replaces or what the checks require).
   ///
-  /// Matching ignores case and common diacritics (`Häuser` matches
-  /// `Hauser`). A term that contains Chinese, Japanese, Korean, Thai, Lao,
-  /// Khmer, Myanmar or Tibetan characters (scripts written without spaces
-  /// between words, or with particles attached to them) matches anywhere
-  /// in the text. Any other term matches whole words only, so `cat` does
-  /// not match `category`; its last word may also be inflected:
+  /// Matching ignores common diacritics (`Häuser` matches `Hauser`) and
+  /// case, except for terms that must match their exact capitalisation:
+  /// those in [caseSensitive] (`TranslationOptions
+  /// .caseSensitiveGlossaryTerms`) and acronyms (two or more letters, all
+  /// upper case: `IT` does not match `it`, `US` not `us`). A term that
+  /// contains Chinese, Japanese, Korean, Thai, Lao, Khmer, Myanmar or
+  /// Tibetan characters (scripts written without spaces between words, or
+  /// with particles attached to them) matches anywhere in the text. Any
+  /// other term matches whole words only, so `cat` does not match
+  /// `category`; its last word may also be inflected:
   /// * with at most 3 letters: a plural `s` or `es` (`cat`: `cats`);
   /// * with 4 letters: words it begins, up to 4 letters longer (`Haus`:
   ///   `Häuser`, `Hauses`);
@@ -222,14 +254,93 @@ abstract final class TranslationPrompts {
   /// A term ending in a digit or symbol (`C++`, `4K`) must match exactly.
   static Map<String, String> glossaryMatches(
     Map<String, String> glossary,
-    String text,
-  ) {
-    final matcher = _GlossaryMatcher(text);
+    String text, {
+    Set<String> caseSensitive = const {},
+  }) {
+    final locator = _GlossaryLocator(text);
+    final exact = _singleLines(caseSensitive);
     return {
       for (final MapEntry(:key, :value) in _glossaryEntries(glossary).entries)
-        if (matcher.matches(key)) key: value,
+        if (locator
+            .find(_GlossaryTerm(key, caseSensitive: exact.contains(key)))
+            .isNotEmpty)
+          key: value,
     };
   }
+
+  /// Where the terms of [glossary] occur in [text], as ranges of [text]
+  /// (`text.substring(start, end)` is the occurrence) with the entry's
+  /// term and rendering (each reduced to one line), in text order: what
+  /// engines that cannot apply a glossary themselves get as placeholders
+  /// (see `TranslationRepository.translate`), and the terms whose
+  /// renderings the checks require (`TranslationQa
+  /// .missingGlossaryTargets`).
+  ///
+  /// Matching is strict, as an occurrence is replaced by the rendering:
+  /// * whole words only (no letter, combining mark or digit of any script
+  ///   right before or after: `Mail` does not match `Mailand`, `Bank` not
+  ///   `Bankett`, `Paris` not `parish`), the words of a phrase separated
+  ///   by any whitespace; a term ending in a digit or symbol (`C++`,
+  ///   `Node.js`) matches as written (`C++` not in `C++11`). Terms in a
+  ///   script written without spaces (see [glossaryMatches]) match
+  ///   anywhere.
+  /// * Case is ignored (`glossary` matches `Glossary`), except for the
+  ///   terms in [caseSensitive] (`TranslationOptions
+  ///   .caseSensitiveGlossaryTerms`) and acronyms (two or more letters,
+  ///   all upper case), which match their exact capitalisation: `IT`
+  ///   matches `IT department` but not `Is it ready?`, `US` not `Tell us`.
+  /// * Accents must agree, as a word with an accent is often another word
+  ///   (`té`, tea, is not `te`; `résumé` is not `resume`; `año` is not
+  ///   `ano`): only decomposed accents (`e` + U+0301) compare equal to
+  ///   precomposed ones, and Russian `ё` to `е` (it is often written
+  ///   without its dots).
+  /// * The only inflection is a plural or genitive `s` or `es` after a
+  ///   last word of four or more letters that is written in lower case or
+  ///   capitalised (`server`: `servers`; `Haus`: `Hauses`, not `Häuser`).
+  ///   Shorter words, acronyms and mixed case like `iPhone` get none, so
+  ///   `car` matches neither `cars` nor `cares`. A possessive needs none,
+  ///   as the apostrophe ends the word (`Mozhi` in `Mozhi's`).
+  ///
+  /// Occurrences never overlap: longer terms are placed first (`New York
+  /// Times` before `New York`), and an occurrence that overlaps one placed
+  /// before is left out.
+  static List<({int start, int end, String term, String rendering})>
+  glossaryOccurrences(
+    Map<String, String> glossary,
+    String text, {
+    Set<String> caseSensitive = const {},
+  }) {
+    final entries = _glossaryEntries(glossary);
+    if (entries.isEmpty || text.isEmpty) return const [];
+    final locator = _GlossaryLocator(text);
+    final exact = _singleLines(caseSensitive);
+    final terms = entries.keys.toList()
+      ..sort((a, b) => foldForMatching(b).length - foldForMatching(a).length);
+    final found = <({int start, int end, String term, String rendering})>[];
+    for (final term in terms) {
+      final candidate = _GlossaryTerm(
+        term,
+        caseSensitive: exact.contains(term),
+        strict: true,
+      );
+      for (final (start, end) in locator.find(candidate)) {
+        if (found.any((o) => start < o.end && o.start < end)) continue;
+        found.add((
+          start: start,
+          end: end,
+          term: term,
+          rendering: entries[term]!,
+        ));
+      }
+    }
+    return found..sort((a, b) => a.start - b.start);
+  }
+
+  /// [terms] reduced to one line each, as [_glossaryEntries] reduces the
+  /// terms of a glossary.
+  static Set<String> _singleLines(Set<String> terms) => {
+    for (final term in terms) PromptSanitizer.singleLine(term),
+  };
 
   /// [text] in lower case, without combining marks and with common
   /// accented Latin letters (and Cyrillic `ё`) replaced by their base
@@ -1433,7 +1544,7 @@ abstract final class TranslationPrompts {
       prompt.add(_readingLevelSection(options.readingLevel));
     }
     _addGenderSection(prompt, options);
-    final glossary = _relevantGlossary(options.glossary, glossaryText);
+    final glossary = _relevantGlossary(options, glossaryText);
     if (glossary.isNotEmpty) {
       prompt.add(
         'Glossary: always translate these terms as given, inflecting them as '
@@ -1653,25 +1764,25 @@ abstract final class TranslationPrompts {
           'where the language allows; otherwise avoid gendered constructions.',
   };
 
-  /// The glossary entries to send with [text], each term and rendering
-  /// reduced to one line (glossaries can be imported): every entry when
-  /// there are at most [maxWholeGlossaryEntries] or when [text] is empty
-  /// (image translation), otherwise only those whose term occurs in [text]
-  /// (see [glossaryMatches]), so long glossaries do not distract small
-  /// models.
+  /// The entries of `options.glossary` to send with [text], each term and
+  /// rendering reduced to one line (glossaries can be imported): every
+  /// entry when there are at most [maxWholeGlossaryEntries] or when [text]
+  /// is empty (image translation), otherwise only those whose term may
+  /// occur in [text] (see [glossaryMatches]), so long glossaries do not
+  /// distract small models.
   static Map<String, String> _relevantGlossary(
-    Map<String, String> glossary,
+    TranslationOptions options,
     String text,
   ) {
-    final entries = _glossaryEntries(glossary);
+    final entries = _glossaryEntries(options.glossary);
     if (text.isEmpty || entries.length <= maxWholeGlossaryEntries) {
       return entries;
     }
-    final matcher = _GlossaryMatcher(text);
-    return {
-      for (final MapEntry(:key, :value) in entries.entries)
-        if (matcher.matches(key)) key: value,
-    };
+    return glossaryMatches(
+      entries,
+      text,
+      caseSensitive: options.caseSensitiveGlossaryTerms,
+    );
   }
 
   /// [glossary] with every term and rendering reduced to one line, without
@@ -1707,7 +1818,7 @@ abstract final class TranslationPrompts {
         '- Addressee: ${_genderWord[options.addresseeGender]}',
       if (tagged.contains('context')) _contextSetting,
       for (final MapEntry(:key, :value) in _relevantGlossary(
-        options.glossary,
+        options,
         text,
       ).entries)
         '- Always translate "$key" as "$value"',
@@ -2033,21 +2144,183 @@ final class _Prompt {
   String build() => _sections.join('\n\n');
 }
 
-/// Finds glossary terms in one text (see `TranslationPrompts
-/// .glossaryMatches`).
-final class _GlossaryMatcher {
-  new(String text) : _text = TranslationPrompts.foldForMatching(text);
-
-  /// The text, folded (see `TranslationPrompts.foldForMatching`).
-  final String _text;
-
-  /// Whether [term] occurs in the text.
-  bool matches(String term) {
-    final folded = TranslationPrompts.foldForMatching(term).trim();
-    if (folded.isEmpty) return false;
-    if (_unspaced.hasMatch(folded)) return _text.contains(folded);
-    return _patternFor(folded).hasMatch(_text);
+/// A text folded like `TranslationPrompts.foldForMatching`, character by
+/// character, remembering for each code unit of the folded text where it
+/// came from, whether that character was upper case and whether it carried
+/// an accent: an accented letter that folds to its base letter, or one
+/// followed by combining marks (Russian `ё` counts as `е`, accented or
+/// not, as it is often written without its dots).
+final class _Folded {
+  new(String text) {
+    final buffer = StringBuffer();
+    var index = 0;
+    var last = -1;
+    for (final rune in text.runes) {
+      final char = String.fromCharCode(rune);
+      final lower = char.toLowerCase();
+      final isUpper = lower != char;
+      for (final unit in lower.runes) {
+        if (unit >= 0x300 && unit <= 0x36F) {
+          if (accented.isNotEmpty && !(unit == 0x308 && last == 0x435)) {
+            accented[accented.length - 1] = true;
+          }
+          continue;
+        }
+        final folded = TranslationPrompts._folds[unit] ?? unit;
+        buffer.writeCharCode(folded);
+        for (var i = folded > 0xFFFF ? 2 : 1; i > 0; i--) {
+          origin.add(index);
+          upper.add(isUpper);
+          accented.add(folded != unit && unit != 0x451);
+        }
+        last = folded;
+      }
+      index += rune > 0xFFFF ? 2 : 1;
+    }
+    this.text = buffer.toString();
+    origin.add(index);
   }
+
+  /// The folded text.
+  late final String text;
+
+  /// The index in the original text of each code unit of [text], and the
+  /// original's length after the last one.
+  final List<int> origin = [];
+
+  /// Whether the character of each code unit of [text] was upper case.
+  final List<bool> upper = [];
+
+  /// Whether the character of each code unit of [text] had an accent.
+  final List<bool> accented = [];
+}
+
+/// A glossary term as [_GlossaryLocator.find] looks for it: [strict]ly as
+/// `TranslationPrompts.glossaryOccurrences` places terms, otherwise as
+/// `TranslationPrompts.glossaryMatches` selects them.
+final class _GlossaryTerm {
+  new(String term, {bool caseSensitive = false, this.strict = false})
+    : folded = _Folded(term.trim()),
+      exactCase = caseSensitive || _isAcronym(term),
+      _lastWord = term.trim().split(_spaces).last;
+
+  /// The term, folded.
+  final _Folded folded;
+
+  /// Whether the term is matched strictly (see `TranslationPrompts
+  /// .glossaryOccurrences`): with the same accents, and inflected only by
+  /// a plural `s` or `es`.
+  final bool strict;
+
+  /// Whether the term matches its exact capitalisation only: a
+  /// case-sensitive term or an acronym.
+  final bool exactCase;
+
+  /// The last word of the term as written.
+  final String _lastWord;
+
+  /// Whether the term has characters of a script written without spaces
+  /// between words: it matches anywhere then.
+  bool get unspaced => _unspaced.hasMatch(folded.text);
+
+  /// Whether the occurrence `start`..`end` of [text] (indexes of its
+  /// folded text) has the capitalisation of the term (when [exactCase];
+  /// an ending after the term must be lower case then) and, when
+  /// [strict], its accents.
+  bool agreesWith(_Folded text, int start, int end) {
+    if (!exactCase && !strict) return true;
+    var at = start;
+    for (var i = 0; i < folded.text.length; i++) {
+      if (_isSpace(folded.text.codeUnitAt(i))) continue;
+      while (at < end && _isSpace(text.text.codeUnitAt(at))) {
+        at++;
+      }
+      // A stem shorter than the term (not strict) ends here.
+      if (at >= end) return true;
+      if (exactCase && text.upper[at] != folded.upper[i]) return false;
+      if (strict && text.accented[at] != folded.accented[i]) return false;
+      at++;
+    }
+    if (exactCase) {
+      for (; at < end; at++) {
+        if (text.upper[at]) return false;
+      }
+    }
+    return true;
+  }
+
+  /// The pattern of a term without unspaced characters, on folded text:
+  /// whole words, the last one possibly inflected (see `TranslationPrompts
+  /// .glossaryMatches` and, when [strict], `TranslationPrompts
+  /// .glossaryOccurrences`).
+  RegExp get pattern {
+    final source = _parts.source;
+    if (_patterns[source] case final pattern?) return pattern;
+    if (_patterns.length >= 4096) _patterns.clear();
+    return _patterns[source] = RegExp(source, unicode: true);
+  }
+
+  /// What every match of [pattern] starts with (its first word, or the
+  /// stem of its only word): a quick test before the pattern runs.
+  String get start => _parts.start;
+
+  late final ({String source, String start}) _parts = _compose();
+
+  /// The source of [pattern] and [start].
+  ({String source, String start}) _compose() {
+    final words = folded.text.split(_spaces);
+    final last = words.removeLast();
+    var stem = last;
+    var ending = '';
+    if (_word.hasMatch(last)) {
+      final letters = last.runes.toList();
+      if (strict) {
+        final rest = _lastWord.substring(
+          String.fromCharCode(_lastWord.runes.first).length,
+        );
+        if (letters.length >= 4 && rest == rest.toLowerCase()) {
+          ending = '(?:e?s)?';
+        }
+      } else {
+        final (cut, more) = switch (letters.length) {
+          < 4 => (0, -1),
+          4 => (0, 4),
+          < 7 => (1, 5),
+          _ => (2, 6),
+        };
+        stem = String.fromCharCodes(letters.take(letters.length - cut));
+        ending = more < 0 ? '(?:e?s)?' : '\\p{L}{0,$more}';
+      }
+    }
+    const before = r'(?<![\p{L}\p{M}\p{N}])';
+    const after = r'(?![\p{L}\p{M}\p{N}])';
+    final body = [...words, stem].map(RegExp.escape).join(r'\s+');
+    return (
+      source: '$before$body$ending$after',
+      start: words.isEmpty ? stem : words.first,
+    );
+  }
+
+  /// Whether [term] is an acronym: two or more letters, all upper case
+  /// (`IT`, `US`, `NASA`, `B2B`).
+  static bool _isAcronym(String term) =>
+      _letter.allMatches(term).length >= 2 &&
+      term == term.toUpperCase() &&
+      term != term.toLowerCase();
+
+  /// Whether [unit] is whitespace (as `\s` matches it).
+  static bool _isSpace(int unit) =>
+      unit == 0x20 ||
+      (unit >= 0x09 && unit <= 0x0D) ||
+      unit == 0xA0 ||
+      unit == 0x1680 ||
+      (unit >= 0x2000 && unit <= 0x200A) ||
+      unit == 0x2028 ||
+      unit == 0x2029 ||
+      unit == 0x202F ||
+      unit == 0x205F ||
+      unit == 0x3000 ||
+      unit == 0xFEFF;
 
   /// Characters of scripts written without spaces between words (or, for
   /// Korean, with particles attached to the words).
@@ -2060,37 +2333,44 @@ final class _GlossaryMatcher {
 
   static final _spaces = RegExp(r'\s+');
   static final _word = RegExp(r'^\p{L}+$', unicode: true);
+  static final _letter = RegExp(r'\p{L}', unicode: true);
 
-  /// Compiled patterns by folded term (cleared when it grows large).
+  /// Compiled patterns by source (cleared when it grows large).
   static final _patterns = <String, RegExp>{};
+}
 
-  /// The pattern of a folded term without unspaced characters: whole words,
-  /// the last one possibly inflected (see `TranslationPrompts
-  /// .glossaryMatches`).
-  static RegExp _patternFor(String folded) {
-    if (_patterns[folded] case final pattern?) return pattern;
-    if (_patterns.length >= 4096) _patterns.clear();
-    final words = folded.split(_spaces);
-    final last = words.removeLast();
-    var stem = last;
-    var ending = '';
-    if (_word.hasMatch(last)) {
-      final letters = last.runes.toList();
-      final (cut, more) = switch (letters.length) {
-        < 4 => (0, -1),
-        4 => (0, 4),
-        < 7 => (1, 5),
-        _ => (2, 6),
-      };
-      stem = String.fromCharCodes(letters.take(letters.length - cut));
-      ending = more < 0 ? '(?:e?s)?' : '\\p{L}{0,$more}';
+/// Finds where glossary terms occur in one text (see `TranslationPrompts
+/// .glossaryMatches` and `TranslationPrompts.glossaryOccurrences`).
+final class _GlossaryLocator {
+  new(String text) : _text = _Folded(text);
+
+  final _Folded _text;
+
+  /// The ranges of the text where [term] occurs.
+  Iterable<(int, int)> find(_GlossaryTerm term) sync* {
+    final folded = term.folded.text;
+    if (folded.isEmpty) return;
+    final origin = _text.origin;
+    if (term.unspaced) {
+      var from = 0;
+      while (true) {
+        final at = _text.text.indexOf(folded, from);
+        if (at < 0) return;
+        final end = at + folded.length;
+        if (term.agreesWith(_text, at, end)) {
+          yield (origin[at], origin[end]);
+          from = end;
+        } else {
+          from = at + 1;
+        }
+      }
     }
-    const before = r'(?<![\p{L}\p{M}\p{N}])';
-    const after = r'(?![\p{L}\p{M}\p{N}])';
-    final body = [...words, stem].map(RegExp.escape).join(r'\s+');
-    return _patterns[folded] = RegExp(
-      '$before$body$ending$after',
-      unicode: true,
-    );
+    if (!_text.text.contains(term.start)) return;
+    for (final match in term.pattern.allMatches(_text.text)) {
+      if (match.end > match.start &&
+          term.agreesWith(_text, match.start, match.end)) {
+        yield (origin[match.start], origin[match.end]);
+      }
+    }
   }
 }

@@ -10,9 +10,19 @@ import 'package:translation_repository/translation_repository.dart';
 
 export 'dictionary_state.dart';
 
-/// Drives the dictionary page: looks words up with an AI engine
+/// Drives the dictionary page: looks words up in the installed offline
+/// dictionaries (`offlineDictionary`, see below), else with an AI engine
 /// ([TranslationRepository.lookUp]).
 ///
+/// * With offline dictionaries installed ([DictionaryState.offlineLanguages],
+///   kept up to date through [OfflineDictionary.changes]), [lookUp] asks
+///   them first: their answer is the entry
+///   ([DictionaryState.offlineAnswer]: no network, nothing sent anywhere).
+///   Without an answer it asks the AI engine; without one either, it ends
+///   with no entry and the [DictionaryState.suggestions] of the
+///   dictionaries. [moreDetail] then asks the AI engine for the shown word
+///   (and [retry] repeats the last kind of request). Changing the detail
+///   level or the engine only looks an AI entry up again.
 /// * Only engines that [TranslationEngine.supportsExtras] are used.
 /// * [lookUp] before an engine is available waits for one: the look-up
 ///   runs as soon as [setEngine] provides it (unless the word changed).
@@ -53,6 +63,7 @@ class DictionaryCubit extends Cubit<DictionaryState> {
     this._history,
     this._settings,
     this._identifyLanguage,
+    this._offlineDictionary,
     DateTime Function()? clock,
   }) : _clock = clock ?? DateTime.now,
        super(
@@ -63,7 +74,14 @@ class DictionaryCubit extends Cubit<DictionaryState> {
            engine: _usable(engine),
            verbosity: verbosity,
          ),
-       );
+       ) {
+    final offline = _offlineDictionary;
+    if (offline == null) return;
+    _offlineLoaded = _loadOffline(offline);
+    _offlineChanges = offline.changes.listen(
+      (_) => _offlineLoaded = _loadOffline(offline),
+    );
+  }
 
   /// Longest word or phrase looked up; longer text is cut (a dictionary is
   /// for words, and links are not trusted).
@@ -93,6 +111,31 @@ class DictionaryCubit extends Cubit<DictionaryState> {
 
   /// Identifies the language of a text on the device (null: unknown).
   final Future<String?> Function(String text)? _identifyLanguage;
+
+  /// The installed offline dictionaries (null: AI only).
+  final OfflineDictionary? _offlineDictionary;
+
+  /// [DictionaryState.offlineLanguages] is being read.
+  Future<void>? _offlineLoaded;
+  StreamSubscription<void>? _offlineChanges;
+
+  /// The latest request (shown, loading or failed) went to the AI engine.
+  bool _aiRequest = false;
+
+  /// The "engine" of entries from offline dictionaries, for the history:
+  /// named after their source ([DictionaryAttribution.source]).
+  static TranslationEngine offlineEngine(DictionaryAttribution attribution) =>
+      TranslationEngine(
+        id: offlineEngineId,
+        kind: EngineKind.offline,
+        name: attribution.source.trim().isEmpty
+            ? 'Offline dictionary'
+            : attribution.source.trim(),
+        isLocal: true,
+      );
+
+  /// Id of [offlineEngine].
+  static const offlineEngineId = 'dictionary:offline';
 
   /// Id of the engine the user picked ([pickEngine]).
   String? _pickedEngineId;
@@ -178,7 +221,7 @@ class DictionaryCubit extends Cubit<DictionaryState> {
       return;
     }
     setEngine(usable);
-    _refresh();
+    _refresh(engineChanged: true);
   }
 
   /// The app's engines changed: uses the engine the user picked
@@ -234,7 +277,9 @@ class DictionaryCubit extends Cubit<DictionaryState> {
         state.status == DictionaryStatus.success;
     final engine = state.engine;
     final word = state.lookedUp;
-    if (!shown || engine == null || word.isEmpty) return Future.value();
+    if (!shown || engine == null || word.isEmpty || !_aiRequest) {
+      return Future.value();
+    }
     return _lookUp(engine, word);
   }
 
@@ -350,6 +395,8 @@ class DictionaryCubit extends Cubit<DictionaryState> {
         lookedUp: '',
         error: () => null,
         entryLanguage: () => null,
+        offlineAnswer: () => null,
+        suggestions: const [],
       ),
     );
   }
@@ -367,15 +414,27 @@ class DictionaryCubit extends Cubit<DictionaryState> {
         lookedUp: '',
         error: () => null,
         entryLanguage: () => null,
+        offlineAnswer: () => null,
+        suggestions: const [],
       ),
     );
   }
 
-  /// Looks the current word up with the current [DictionaryState.verbosity].
-  /// Without an engine the look-up waits for [setEngine].
+  /// Looks the current word up with the current [DictionaryState.verbosity]:
+  /// in the offline dictionaries first when some are installed, else with
+  /// the AI engine. Without either the look-up waits for [setEngine].
   Future<void> lookUp() async {
     final word = state.word.trim();
     if (word.isEmpty) return;
+    final offline = _offlineDictionary;
+    if (offline != null) {
+      await _offlineLoaded;
+      if (isClosed) return;
+      if (state.hasOfflineDictionaries) {
+        await _lookUpOffline(offline, word);
+        return;
+      }
+    }
     final engine = state.engine;
     if (engine == null) {
       _pending = true;
@@ -384,12 +443,31 @@ class DictionaryCubit extends Cubit<DictionaryState> {
     await _lookUp(engine, word);
   }
 
-  /// Looks [word] up with [engine] and the current verbosity.
-  Future<void> _lookUp(TranslationEngine engine, String word) async {
-    final verbosity = state.verbosity;
+  /// Asks the AI engine about the shown (or typed) word: "More detail"
+  /// under an entry from an offline dictionary. Nothing without an engine.
+  Future<void> moreDetail() {
+    final engine = state.engine;
+    final word = state.lookedUp.isNotEmpty ? state.lookedUp : state.word.trim();
+    if (engine == null || word.isEmpty) return Future.value();
+    return _lookUp(engine, word);
+  }
+
+  /// Repeats the latest look-up: [moreDetail] when it went to the AI
+  /// engine (after an offline entry, the AI is asked again), else [lookUp].
+  Future<void> retry() =>
+      _aiRequest && state.engine != null && state.lookedUp.isNotEmpty
+      ? _lookUp(state.engine!, state.lookedUp)
+      : lookUp();
+
+  /// Looks [word] up in [offline] (the language of the word, or every
+  /// dictionary while it is detected), then with the AI engine when the
+  /// dictionaries do not have it.
+  Future<void> _lookUpOffline(OfflineDictionary offline, String word) async {
     final source = state.source;
     final target = state.target;
+    final verbosity = state.verbosity;
     _pending = false;
+    _aiRequest = false;
     final request = ++_request;
     emit(
       state.copyWith(
@@ -398,6 +476,138 @@ class DictionaryCubit extends Cubit<DictionaryState> {
         lookedUp: word,
         error: () => null,
         entryLanguage: () => null,
+        offlineAnswer: () => null,
+        suggestions: const [],
+      ),
+    );
+    final answer = await _offlineAnswer(offline, word, source, target);
+    if (isClosed || request != _request) return;
+    if (answer != null) {
+      final engine = offlineEngine(answer.attribution);
+      final language = source.isAuto ? answer.language : source.code;
+      _entryEngine = engine;
+      emit(
+        state.copyWith(
+          status: DictionaryStatus.success,
+          entry: () => answer.entry,
+          entryLanguage: () => language,
+          offlineAnswer: () => answer,
+        ),
+      );
+      if (!state.isEmptyEntry) {
+        _record(
+          engine,
+          answer.entry,
+          word: word,
+          source: source,
+          target: target,
+          verbosity: verbosity,
+        );
+      }
+      return;
+    }
+    final engine = state.engine;
+    if (engine != null) {
+      await _lookUp(engine, word);
+      return;
+    }
+    final suggestions = await _suggest(offline, word, source);
+    if (isClosed || request != _request) return;
+    emit(
+      state.copyWith(
+        status: DictionaryStatus.success,
+        suggestions: suggestions,
+      ),
+    );
+  }
+
+  /// [offline]'s answer for [word], or null (also when it fails: an
+  /// unreadable dictionary answers nothing). A method of its own so that no
+  /// nullable local set in a `try` is read in a closure (dart2js got such
+  /// locals wrong).
+  Future<OfflineDictionaryAnswer?> _offlineAnswer(
+    OfflineDictionary offline,
+    String word,
+    Language source,
+    Language target,
+  ) async {
+    try {
+      return await offline.lookUp(
+        word,
+        language: source.isAuto ? null : source.code,
+        target: target.code,
+      );
+    } on Object catch (error, stackTrace) {
+      addError(error, stackTrace);
+      return null;
+    }
+  }
+
+  /// Words of the dictionaries that start like [word] (or, without any,
+  /// like [word] without its last letter), other than [word] itself.
+  Future<List<String>> _suggest(
+    OfflineDictionary offline,
+    String word,
+    Language source,
+  ) async {
+    final language = source.isAuto ? null : source.code;
+    final lower = word.toLowerCase();
+    try {
+      for (final prefix in [
+        word,
+        if (word.runes.length > 2)
+          String.fromCharCodes(word.runes.take(word.runes.length - 1)),
+      ]) {
+        final words = [
+          for (final suggestion in await offline.suggest(
+            prefix,
+            language: language,
+            limit: maxSuggestions + 1,
+          ))
+            if (suggestion.toLowerCase() != lower) suggestion,
+        ].take(maxSuggestions).toList();
+        if (words.isNotEmpty) return words;
+      }
+    } on Object catch (error, stackTrace) {
+      addError(error, stackTrace);
+    }
+    return const [];
+  }
+
+  /// Most [DictionaryState.suggestions].
+  static const maxSuggestions = 6;
+
+  /// Reads the languages of the installed offline dictionaries.
+  Future<void> _loadOffline(OfflineDictionary offline) async {
+    List<String> languages;
+    try {
+      languages = List.unmodifiable(await offline.installedLanguages());
+    } on Object catch (error, stackTrace) {
+      addError(error, stackTrace);
+      languages = const [];
+    }
+    if (isClosed) return;
+    emit(state.copyWith(offlineLanguages: languages));
+    if (_pending && state.hasOfflineDictionaries) unawaited(lookUp());
+  }
+
+  /// Looks [word] up with [engine] and the current verbosity.
+  Future<void> _lookUp(TranslationEngine engine, String word) async {
+    final verbosity = state.verbosity;
+    final source = state.source;
+    final target = state.target;
+    _pending = false;
+    _aiRequest = true;
+    final request = ++_request;
+    emit(
+      state.copyWith(
+        status: DictionaryStatus.loading,
+        entry: () => null,
+        lookedUp: word,
+        error: () => null,
+        entryLanguage: () => null,
+        offlineAnswer: () => null,
+        suggestions: const [],
       ),
     );
     try {
@@ -469,10 +679,26 @@ class DictionaryCubit extends Cubit<DictionaryState> {
   }
 
   /// Looks the word up again after a language change, once something was
-  /// looked up.
-  void _refresh() {
-    if (state.status == DictionaryStatus.idle || state.engine == null) return;
+  /// looked up; after an engine change ([engineChanged]) only an entry of
+  /// the AI engine is.
+  void _refresh({bool engineChanged = false}) {
+    if (state.status == DictionaryStatus.idle) return;
+    final offline = _offlineDictionary != null && state.hasOfflineDictionaries;
+    final engine = state.engine;
+    if (engineChanged) {
+      final word = state.word.trim();
+      if (!_aiRequest || engine == null || word.isEmpty) return;
+      unawaited(_lookUp(engine, word));
+      return;
+    }
+    if (engine == null && !offline) return;
     unawaited(lookUp());
+  }
+
+  @override
+  Future<void> close() async {
+    await _offlineChanges?.cancel();
+    await super.close();
   }
 
   /// Saves the look-up of [word] in the history when history is on (see

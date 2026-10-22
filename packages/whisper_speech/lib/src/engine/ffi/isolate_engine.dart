@@ -103,6 +103,74 @@ final class IsolateWhisperEngine implements WhisperEngine {
   }
 }
 
+/// [WhisperVadEngine] running the native voice activity detector in its
+/// own long-lived background isolate (a transcription in
+/// [IsolateWhisperEngine]'s isolate takes seconds; detection has to keep up
+/// with the microphone meanwhile).
+///
+/// The isolate starts on first use and handles one request at a time, in
+/// order. [dispose] stops it; a later call starts a new one (with a new
+/// stream). If the isolate dies, pending requests fail with
+/// [WhisperEngineException] and the next call starts a new one.
+final class IsolateWhisperVadEngine implements WhisperVadEngine {
+  new({this.libraryPath});
+
+  /// Explicit path of `libmozhi_whisper.so` (desktop tests); null uses
+  /// `$WHISPER_LIBRARY_PATH` or the library bundled with the app.
+  final String? libraryPath;
+
+  Future<_Worker>? _worker;
+
+  @override
+  Future<WhisperVadFrames> detect(String modelPath, Float32List samples) async {
+    final worker = await _start();
+    final result = await worker.request(
+      _VadDetect(modelPath, TransferableTypedData.fromList([samples])),
+    );
+    return result! as WhisperVadFrames;
+  }
+
+  @override
+  Future<void> reset() async {
+    final worker = _worker;
+    if (worker == null) return;
+    await (await worker).request(const _VadReset());
+  }
+
+  @override
+  Future<void> release(String modelPath) async {
+    final worker = _worker;
+    if (worker == null) return;
+    await (await worker).request(_Release(modelPath));
+  }
+
+  @override
+  Future<void> dispose() async {
+    final worker = _worker;
+    _worker = null;
+    if (worker == null) return;
+    try {
+      await (await worker).stop();
+    } on WhisperEngineException {
+      // It failed to start or died already: nothing left to stop.
+    }
+  }
+
+  Future<_Worker> _start() {
+    final existing = _worker;
+    if (existing != null) return existing;
+    late final Future<_Worker> started;
+    void forget() {
+      if (identical(_worker, started)) _worker = null;
+    }
+
+    started = _Worker.spawn(libraryPath, onExit: forget, name: 'whisper vad');
+    _worker = started;
+    unawaited(started.then<void>((_) {}, onError: (Object _) => forget()));
+    return started;
+  }
+}
+
 final class _Worker {
   new _(this._isolate, this._requests, this._responses, this._onExit) {
     _subscription = _responses.listen(_handle);
@@ -111,15 +179,16 @@ final class _Worker {
   static Future<_Worker> spawn(
     String? libraryPath, {
     required void Function() onExit,
+    String name = 'whisper',
   }) async {
-    final responses = ReceivePort('whisper responses');
-    final exits = ReceivePort('whisper exit');
+    final responses = ReceivePort('$name responses');
+    final exits = ReceivePort('$name exit');
     final Isolate isolate;
     try {
       isolate = await Isolate.spawn(
         _main,
         _Start(responses.sendPort, libraryPath),
-        debugName: 'whisper',
+        debugName: name,
         onExit: exits.sendPort,
         onError: exits.sendPort,
       );
@@ -231,7 +300,7 @@ final class _Worker {
     void handle(Object? message) {
       if (message is! _Request) return;
       try {
-        final Object? result = switch (message.op) {
+        final result = switch (message.op) {
           _Transcribe(
             :final modelPath,
             :final samples,
@@ -244,6 +313,14 @@ final class _Worker {
               language: language,
               threads: threads,
             ),
+          _VadDetect(:final modelPath, :final samples) => engine.detectSpeech(
+            modelPath,
+            samples.materialize().asFloat32List(),
+          ),
+          _VadReset() => () {
+            engine.resetSpeech();
+            return null;
+          }(),
           _Release(:final modelPath) => () {
             engine.release(modelPath);
             return null;
@@ -308,6 +385,17 @@ final class _Transcribe extends _Op {
   final TransferableTypedData samples;
   final String? language;
   final int threads;
+}
+
+final class _VadDetect extends _Op {
+  const new(this.modelPath, this.samples);
+
+  final String modelPath;
+  final TransferableTypedData samples;
+}
+
+final class _VadReset extends _Op {
+  const new();
 }
 
 final class _Release extends _Op {

@@ -10,6 +10,7 @@ import 'package:mozhi/image_translate/cubit/image_translate_cubit.dart';
 import 'package:mozhi/image_translate/models/models.dart';
 import 'package:mozhi/image_translate/widgets/image_language_bar.dart';
 import 'package:mozhi/image_translate/widgets/image_translate_links.dart';
+import 'package:mozhi/image_translate/widgets/overlay_export.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart'
@@ -21,6 +22,11 @@ import 'package:share_plus/share_plus.dart';
 /// actions. Text read poorly for "Detect language"
 /// ([ImageTranslateState.hasLowRecognitionConfidence]) gets a "Wrong
 /// language? Choose the language of the text" hint.
+///
+/// While the translation is drawn over the photo
+/// ([ImageTranslateState.showsOverlay]) the texts are not repeated here:
+/// a hint says to tap the photo's text, and the actions share or save the
+/// overlaid photo.
 class ImageTranslateResultSection extends StatelessWidget {
   const new({super.key});
 
@@ -37,18 +43,29 @@ class ImageTranslateResultSection extends StatelessWidget {
         result.translatedText.isNotEmpty ||
         result.hasImage ||
         result.sourceText.isNotEmpty;
+    final overlay = state.showsOverlay;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
         if (state.hasLowRecognitionConfidence) const _LowConfidenceHint(),
-        if (result.sourceText.isNotEmpty)
+        if (overlay)
+          Padding(
+            key: const Key('image_translate_overlay_hint'),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Text(
+              l10n.imageTranslateOverlayHint,
+              style: Theme.of(context).textTheme.bodyMedium
+                  ?.copyWith(color: AppPalette.of(context).secondaryText),
+            ),
+          ),
+        if (result.sourceText.isNotEmpty && !overlay)
           _SourceTextCard(
             text: result.sourceText,
             editable: state.canEditSourceText,
             busy: state.isWorking,
           ),
-        if (showTranslation) ...[
+        if (showTranslation && !overlay) ...[
           if (result.sourceText.isNotEmpty) const Hairline(),
           _TextCard(
             key: const Key('image_translate_translation'),
@@ -308,11 +325,39 @@ class _ResultActionsState extends State<_ResultActions> {
     });
   }
 
-  Future<void> _share(BuildContext buttonContext) async {
+  /// Whether the overlaid photo is being rendered for saving or sharing.
+  bool _exporting = false;
+
+  Future<void> _export(
+    BuildContext buttonContext,
+    OverlayExportAction action,
+  ) async {
+    final image = widget.state.image;
+    if (image == null || _exporting) return;
+    setState(() => _exporting = true);
+    try {
+      await exportOverlayImage(
+        buttonContext,
+        action: action,
+        image: image,
+        result: result,
+        target: widget.state.target,
+        origin: _originOf(buttonContext),
+      );
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  static Rect? _originOf(BuildContext buttonContext) {
     final box = buttonContext.findRenderObject() as RenderBox?;
-    final origin = box == null || !box.hasSize
+    return box == null || !box.hasSize
         ? null
         : box.localToGlobal(Offset.zero) & box.size;
+  }
+
+  Future<void> _share(BuildContext buttonContext) async {
+    final origin = _originOf(buttonContext);
     final image = result.translatedImage;
     final text = result.translatedText;
     await SharePlus.instance.share(
@@ -367,7 +412,32 @@ class _ResultActionsState extends State<_ResultActions> {
               activeColor: palette.success,
               onPressed: () => unawaited(_copy(text)),
             ),
-          if (text.isNotEmpty || result.hasImage)
+          if (widget.state.showsOverlay) ...[
+            Builder(
+              builder: (buttonContext) => XActionButton(
+                key: const Key('image_translate_share_image_button'),
+                tooltip: l10n.imageTranslateShareImage,
+                icon: Icons.share_outlined,
+                onPressed: _exporting
+                    ? null
+                    : () => unawaited(
+                        _export(buttonContext, OverlayExportAction.share),
+                      ),
+              ),
+            ),
+            Builder(
+              builder: (buttonContext) => XActionButton(
+                key: const Key('image_translate_save_image_button'),
+                tooltip: l10n.imageTranslateSaveImage,
+                icon: Icons.file_download_outlined,
+                onPressed: _exporting
+                    ? null
+                    : () => unawaited(
+                        _export(buttonContext, OverlayExportAction.save),
+                      ),
+              ),
+            ),
+          ] else if (text.isNotEmpty || result.hasImage)
             Builder(
               builder: (buttonContext) => XActionButton(
                 key: const Key('image_translate_share_button'),

@@ -7,10 +7,13 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:mozhi/core/network/network_session.dart';
 import 'package:mozhi/offline/data/unavailable_offline_translator.dart';
+import 'package:mozhi/platform/current_session_client.dart';
 import 'package:mozhi/platform/metered_network.dart';
 import 'package:mozhi/platform/native_memory.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:translation_repository/translation_repository.dart';
+
+export 'package:mozhi/platform/current_session_client.dart';
 
 /// Folder of the app's support directory that holds the offline models
 /// (`<support>/bergamot/models/<pair>/<version>/`).
@@ -128,13 +131,4 @@ Future<void> _cleanUp(BergamotTranslator translator) async {
     );
   }
   // coverage:ignore-end
-}
-
-/// An [http.Client] that sends every request with the client of
-/// [NetworkSession.current] at that moment (the proxy and network policy
-/// of this run). Closing it does nothing: the session owns the client.
-class CurrentSessionClient extends http.BaseClient {
-  @override
-  Future<http.StreamedResponse> send(http.BaseRequest request) =>
-      NetworkSession.current.client.send(request);
 }

@@ -9,45 +9,43 @@ import 'package:mozhi/core/network/http_client_factory.dart';
 /// Routes [client]'s connections through the HTTP proxy at [proxy], except
 /// connections to hosts for which [bypass] is true, which are direct.
 ///
-/// * `https`: `dart:io` opens the `CONNECT` tunnel itself ([proxyDirective]
-///   answers `PROXY host:port`) and runs TLS through it.
-/// * plain `http` (Tor `.onion` services, I2P sites): the tunnel is opened
-///   here ([connectTunnel]). `dart:io` would send proxy-style requests
-///   (`GET http://…`) instead, which Tor's HTTP tunnel port refuses.
+/// Every tunnel is opened here, in the client's connection factory, so the
+/// client's `connectionTimeout` covers all of it: the connection to the
+/// proxy, the `CONNECT` answer (Tor builds its circuit meanwhile) and, for
+/// `https`, the TLS handshake with the server through the tunnel
+/// ([connectSecureTunnel]). `dart:io`'s own proxy support (`findProxy`
+/// answering `PROXY host:port`) would time only the connection to the
+/// proxy, so a server that never answers through it would hang until the
+/// request timed out, which a Mozhi request carrying text never fails over
+/// from. Plain `http` (Tor `.onion` services, I2P sites) goes through a
+/// `CONNECT` tunnel too ([connectTunnel]): `dart:io` would send
+/// proxy-style requests (`GET http://…`), which Tor's HTTP tunnel port
+/// refuses.
 ///
-/// Host names are resolved by the proxy, never locally.
+/// Host names are resolved by the proxy, never locally. [context] is the
+/// TLS trust of `https` connections (default: the system's; tests).
 void routeThroughProxy(
   HttpClient client,
   ProxyAddress proxy, {
   required bool Function(String host) bypass,
+  SecurityContext? context,
 }) {
   client
-    ..findProxy = ((uri) => proxyDirective(uri, proxy, bypass: bypass))
-    ..connectionFactory = (uri, proxyHost, proxyPort) {
-      if (proxyHost != null && proxyPort != null) {
-        // `https` through the proxy: dart:io sends CONNECT on this socket.
-        return Socket.startConnect(proxyHost, proxyPort);
-      }
+    // The tunnels are the connection factory's: dart:io connects "directly"
+    // to what it returns and adds no TLS of its own.
+    ..findProxy = ((_) => 'DIRECT')
+    ..connectionFactory = (uri, _, _) {
+      final secure = uri.isScheme('https');
       if (bypass(uri.host)) {
-        // With a connection factory dart:io adds no TLS of its own.
-        return uri.isScheme('https')
-            ? SecureSocket.startConnect(uri.host, uri.port)
+        return secure
+            ? SecureSocket.startConnect(uri.host, uri.port, context: context)
             : Socket.startConnect(uri.host, uri.port);
       }
-      return connectTunnel(proxy, uri.host, uri.port);
+      return secure
+          ? connectSecureTunnel(proxy, uri.host, uri.port, context: context)
+          : connectTunnel(proxy, uri.host, uri.port);
     };
 }
-
-/// The `findProxy` answer for [uri]: `PROXY host:port` for `https` to hosts
-/// that do not [bypass] the proxy, else `DIRECT` (plain `http` is tunnelled
-/// by the connection factory, see [routeThroughProxy]).
-String proxyDirective(
-  Uri uri,
-  ProxyAddress proxy, {
-  required bool Function(String host) bypass,
-}) => uri.isScheme('https') && !bypass(uri.host)
-    ? 'PROXY ${proxy.authority}'
-    : 'DIRECT';
 
 /// The `host:port` of a `CONNECT` request, with brackets around IPv6.
 String connectAuthority(String host, int port) =>
@@ -84,6 +82,121 @@ Future<ConnectionTask<Socket>> connectTunnel(
     task.cancel();
     connected?.destroy();
   });
+}
+
+/// Opens a socket to [proxy], asks it to `CONNECT` to [host]:[port] and
+/// runs TLS with [host] through the tunnel ([openSecureTunnel]). The
+/// task's socket completes once the TLS handshake is done, and fails with
+/// a [SocketException] when the proxy refuses, answers garbage or closes
+/// the connection (a `HandshakeException` when TLS fails). Cancelling the
+/// task closes the connection.
+///
+/// [connect] opens the connection to the proxy (tests); [context] is the
+/// TLS trust (default: the system's).
+Future<ConnectionTask<Socket>> connectSecureTunnel(
+  ProxyAddress proxy,
+  String host,
+  int port, {
+  SecurityContext? context,
+  @visibleForTesting
+  Future<ConnectionTask<Socket>> Function(String host, int port) connect =
+      Socket.startConnect,
+}) async {
+  final task = await connect(proxy.host, proxy.port);
+  var cancelled = false;
+  Socket? connected;
+  Never stop() {
+    connected?.destroy();
+    throw const SocketException('Connection attempt cancelled');
+  }
+
+  final tunnel = task.socket.then((socket) async {
+    connected = socket;
+    if (cancelled) stop();
+    final secure = await openSecureTunnel(socket, host, port, context: context);
+    connected = secure;
+    if (cancelled) stop();
+    return secure as Socket;
+  });
+  return ConnectionTask.fromSocket(tunnel, () {
+    cancelled = true;
+    task.cancel();
+    connected?.destroy();
+  });
+}
+
+/// Sends `CONNECT` to [host]:[port] on [socket] (a `dart:io` socket
+/// connected to the proxy) and, once the proxy answered `200`, runs TLS
+/// with [host] on it, with [context] (default: the system's trust).
+///
+/// The answer is read from [socket] itself (TLS can only take over a
+/// `dart:io` socket, not a wrapper such as the plain tunnel's): its
+/// subscription is paused, not cancelled, after the answer (cancelling
+/// would stop the socket from reading), and TLS takes the connection over.
+/// A proxy that sends anything after its answer, before TLS has started,
+/// is refused.
+@visibleForTesting
+Future<SecureSocket> openSecureTunnel(
+  Socket socket,
+  String host,
+  int port, {
+  SecurityContext? context,
+}) async {
+  final authority = connectAuthority(host, port);
+  final answered = Completer<void>();
+  final answer = BytesBuilder(copy: false);
+  late final StreamSubscription<Uint8List> subscription;
+
+  void fail(String message) {
+    if (answered.isCompleted) return;
+    unawaited(subscription.cancel());
+    socket.destroy();
+    answered.completeError(SocketException(message));
+  }
+
+  subscription = socket.listen(
+    (data) {
+      if (answered.isCompleted) return;
+      answer.add(data);
+      final bytes = answer.toBytes();
+      final end = _endOfHeader(bytes);
+      if (end < 0) {
+        if (bytes.length > _maxAnswerBytes) {
+          fail('The proxy sent an invalid answer');
+        }
+        return;
+      }
+      final status = _status(bytes.sublist(0, end));
+      if (status != 200) {
+        fail(
+          status == null
+              ? 'The proxy sent an invalid answer'
+              : 'The proxy refused the connection to $authority (HTTP $status)',
+        );
+        return;
+      }
+      if (end < bytes.length) {
+        // The server speaks only after the TLS client hello.
+        fail('The proxy sent an invalid answer');
+        return;
+      }
+      subscription.pause();
+      answered.complete();
+    },
+    onError: (Object error, StackTrace stackTrace) =>
+        fail('The proxy connection failed: $error'),
+    onDone: () => fail('The proxy closed the connection'),
+  );
+  socket.add(
+    utf8.encode('CONNECT $authority HTTP/1.1\r\nHost: $authority\r\n\r\n'),
+  );
+  await answered.future;
+  try {
+    return await SecureSocket.secure(socket, host: host, context: context);
+  } finally {
+    // Detached from the connection by now, so cancelling stops nothing.
+    unawaited(subscription.cancel());
+  }
 }
 
 /// Longest proxy answer read before giving up on it.

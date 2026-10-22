@@ -49,7 +49,8 @@ if(ANDROID AND ANDROID_NDK)
   add_compile_options("-ffile-prefix-map=${ANDROID_NDK}=ndk")
 endif()
 # Lets --gc-sections drop what the C API never reaches (the parakeet model,
-# VAD, grammar sampling, ...).
+# grammar sampling, ...). Silero VAD stays: mozhi_whisper_vad_* uses it
+# (whisper_vad_*), so the linker keeps it.
 add_compile_options(-ffunction-sections -fdata-sections)
 
 # --- Engine options ------------------------------------------------------------

@@ -112,6 +112,8 @@ class SpeechSettingsView extends StatelessWidget {
                       speechLanguageTag(language.code),
                 ),
             ],
+            if (state.settings.onlineVoices.isNotEmpty)
+              _OnlineVoicesTile(count: state.settings.onlineVoices.length),
           ],
         ],
       ),
@@ -329,7 +331,13 @@ class _VoiceTile extends StatelessWidget {
               ChoiceDialogOption(
                 value: voice.id,
                 title: Text(voiceLabel(l10n, voice, listed)),
-                subtitle: Text(_voiceDetails(l10n, voice)),
+                subtitle: Text(
+                  _voiceDetails(
+                    l10n,
+                    voice,
+                    allowed: cubit.state.settings.allowsOnlineVoice(voice),
+                  ),
+                ),
                 action: preview(voice, voiceLabel(l10n, voice, listed)),
               ),
           ],
@@ -372,12 +380,48 @@ String voiceLabel(
   };
 }
 
-/// The locale and labels shown under a voice, e.g. `fr-CA · High quality`.
-String _voiceDetails(AppLocalizations l10n, DeviceVoice voice) => [
+/// The locale and labels shown under a voice, e.g. `fr-CA · High quality`
+/// or `en-US · Online voice: the text goes to Google · Allowed` for an
+/// online voice the user [allowed] to read aloud.
+String _voiceDetails(
+  AppLocalizations l10n,
+  DeviceVoice voice, {
+  required bool allowed,
+}) => [
   voice.locale,
   if (voice.isHighQuality) l10n.speechVoiceHighQuality,
-  if (voice.networkRequired) l10n.speechVoiceNeedsInternet,
+  if (voice.networkRequired)
+    switch (voice.onlineProvider) {
+      final provider? => l10n.speechVoiceOnline(provider),
+      null => l10n.speechVoiceOnlineUnknown,
+    },
+  if (voice.networkRequired && allowed) l10n.speechVoiceOnlineAllowed,
 ].join(' · ');
+
+/// How many online voices the user allowed to read aloud
+/// (`SpeechSettings.onlineVoices`), with "Forget" to be asked again.
+class _OnlineVoicesTile extends StatelessWidget {
+  const new({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return ListTile(
+      key: const Key('speech_online_voices'),
+      leading: const SettingsIcon(Icons.cloud_outlined),
+      title: Text(l10n.speechOnlineVoicesTitle),
+      subtitle: Text(l10n.speechOnlineVoicesSubtitle(count)),
+      trailing: TextButton(
+        key: const Key('speech_online_voices_forget'),
+        onPressed: () =>
+            unawaited(context.read<SpeechSettingsCubit>().forgetOnlineVoices()),
+        child: Text(l10n.speechOnlineVoicesForget),
+      ),
+    );
+  }
+}
 
 /// Plays [sample] with [voice] (null: the default voice); stops when that
 /// preview is playing.

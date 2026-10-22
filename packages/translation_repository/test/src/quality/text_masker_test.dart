@@ -32,6 +32,17 @@ void main() {
         expect(TextMasker.formatSpans(''), isEmpty);
       });
 
+      test('formatSpans keeps e-mail addresses of any script whole', () {
+        const text = 'Mail info@müller.de or jürgen@example.de.';
+        expect(
+          [
+            for (final span in TextMasker.formatSpans(text))
+              text.substring(span.start, span.end),
+          ],
+          ['info@müller.de', 'jürgen@example.de'],
+        );
+      });
+
       test('formatSpans leaves percentages and ICU messages alone', () {
         expect(TextMasker.formatSpans('100% done, 50%off'), isEmpty);
         expect(TextMasker.formatSpans('{count, plural, one{# item}}'), isEmpty);
@@ -99,6 +110,40 @@ void main() {
         expect(masked.restore('⟨3⟩ ⟨8⟩').text, '⟨3⟩ {name}');
         expect(masked.valueOf(7), isNull);
         expect(masked.valueOf(9), isNull);
+      });
+
+      test('numbers past 9999 are restored', () {
+        const text = 'Ref ⟨9999⟩: mail bob@example.com';
+        final masked = TextMasker.mask(text, PersonalData.find(text));
+        expect(masked.text, 'Ref ⟨9999⟩: mail ⟨10000⟩');
+        final restored = masked.restore('Réf ⟨9999⟩ : écrire à ⟨10000⟩');
+        expect(restored.text, 'Réf ⟨9999⟩ : écrire à bob@example.com');
+        expect(restored.isComplete, isTrue);
+        expect(restored.lostPersonalData, isFalse);
+        final xml = TextMasker.mask(text, const [
+          ProtectedSpan(17, 32, kind: ProtectedKind.personal),
+        ], style: MaskStyle.xml);
+        expect(xml.text, 'Ref ⟨9999⟩: mail <x i="10000"/>');
+        expect(
+          xml.restore('Ref ⟨9999⟩: <x i="10000"></x>').text,
+          'Ref ⟨9999⟩: bob@example.com',
+        );
+      });
+
+      test('take free low numbers when the text uses the highest', () {
+        const text = 'Ref ⟨999999⟩ and ⟨1⟩: mail bob@example.com, eve@x.org';
+        final masked = TextMasker.mask(text, PersonalData.find(text));
+        expect(TextMasker.maxTokenNumber, 999999);
+        expect(masked.first, 2);
+        expect(masked.text, 'Ref ⟨999999⟩ and ⟨1⟩: mail ⟨2⟩, ⟨3⟩');
+        final restored = masked.restore(masked.text);
+        expect(restored.text, text);
+        expect(restored.isComplete, isTrue);
+        // Seven digits are no token.
+        expect(
+          TextMasker.mask('⟨1234567⟩ x', const [ProtectedSpan(10, 11)]).text,
+          '⟨1234567⟩ ⟨1⟩',
+        );
       });
 
       test('without spans leaves the text alone', () {
@@ -188,6 +233,56 @@ void main() {
     });
   });
 
+  group(ProtectedPatterns, () {
+    List<String> all(RegExp pattern, String text) => [
+      for (final match in pattern.allMatches(text)) match.group(0)!,
+    ];
+
+    test('every combined pattern compiles as a Unicode pattern', () {
+      for (final pattern in [
+        ProtectedPatterns.plainText,
+        ProtectedPatterns.subtitle,
+        ProtectedPatterns.markdown,
+        ProtectedPatterns.json,
+        ProtectedPatterns.placeholders,
+        ProtectedPatterns.translation,
+        ProtectedPatterns.combine([r'\{[^{}]*\}', ProtectedPatterns.email]),
+      ]) {
+        expect(pattern.isUnicode, isTrue);
+      }
+      expect(all(ProtectedPatterns.plainText, 'See www.x.de or jürgen@x.de'), [
+        'www.x.de',
+        'jürgen@x.de',
+      ]);
+      expect(
+        all(ProtectedPatterns.markdown, '`code` [a](https://x.de) ö@ü.de'),
+        ['`code`', '(https://x.de)', 'ö@ü.de'],
+      );
+      expect(all(ProtectedPatterns.subtitle, r'{\an8}<i>Hi</i> &amp;'), [
+        r'{\an8}',
+        '<i>',
+        '</i>',
+        '&amp;',
+      ]);
+      expect(all(ProtectedPatterns.json, r'Hi {{n}} %1$s <b> a@b.de 😀'), [
+        '{{n}}',
+        r'%1$s',
+        '<b>',
+        'a@b.de',
+      ]);
+    });
+
+    test('email: whole addresses of any script, not inside words', () {
+      final email = RegExp(ProtectedPatterns.email, unicode: true);
+      expect(all(email, 'jürgen@example.de, info@müller.de.'), [
+        'jürgen@example.de',
+        'info@müller.de',
+      ]);
+      expect(all(email, '请发邮件至info@example.com获取'), ['info@example.com']);
+      expect(all(email, 'a@b, @x.de, x@.de'), isEmpty);
+    });
+  });
+
   group(ProtectedSpan, () {
     test('has value equality and a readable toString', () {
       expect(const ProtectedSpan(1, 2), const ProtectedSpan(1, 2));
@@ -207,6 +302,82 @@ void main() {
         const ProtectedSpan(1, 2).toString(),
         'ProtectedSpan(1-2, format)',
       );
+    });
+
+    group('glossary spans', () {
+      const term = ProtectedSpan(
+        4,
+        8,
+        kind: ProtectedKind.glossary,
+        replacement: 'house',
+      );
+
+      test('are dropped where they overlap other spans', () {
+        expect(
+          TextMasker.merge(const [
+            ProtectedSpan(0, 6),
+            ProtectedSpan(4, 9, kind: ProtectedKind.glossary, replacement: 'x'),
+          ]),
+          const [ProtectedSpan(0, 6)],
+        );
+        expect(
+          TextMasker.merge(const [
+            term,
+            ProtectedSpan(6, 12, kind: ProtectedKind.personal),
+          ]),
+          const [ProtectedSpan(6, 12, kind: ProtectedKind.personal)],
+        );
+        expect(
+          TextMasker.merge(const [
+            term,
+            ProtectedSpan(5, 7, kind: ProtectedKind.glossary, replacement: 'y'),
+          ]),
+          const [term],
+        );
+      });
+
+      test('are masked and restored as their rendering', () {
+        const text = 'Ein Haus, ein Hauses';
+        final masked = TextMasker.mask(text, const [
+          term,
+          ProtectedSpan(
+            14,
+            20,
+            kind: ProtectedKind.glossary,
+            replacement: 'house',
+          ),
+        ]);
+        expect(masked.text, 'Ein ⟨1⟩, ein ⟨1⟩');
+        expect(masked.values, ['house']);
+        expect(masked.originals, ['Haus']);
+        expect(masked.glossaryCount, 1);
+        expect(masked.formatCount, 0);
+        expect(masked.personalCount, 0);
+        expect(masked.restore('A ⟨1⟩, a ⟨1⟩').text, 'A house, a house');
+        expect(masked.restore('a ⟨1⟩', original: true).text, 'a Haus');
+        expect(masked.restore('A house').missing, {0});
+      });
+
+      test('start with a capital at the start of a sentence', () {
+        final masked = TextMasker.mask('Haus. Ein Haus', const [
+          ProtectedSpan(
+            0,
+            4,
+            kind: ProtectedKind.glossary,
+            replacement: 'house',
+          ),
+          ProtectedSpan(
+            10,
+            14,
+            kind: ProtectedKind.glossary,
+            replacement: 'iPhone',
+          ),
+        ]);
+        expect(
+          masked.restore('⟨1⟩ is big. A ⟨1⟩!\n"⟨1⟩" ⟨2⟩. ⟨2⟩').text,
+          'House is big. A house!\n"House" iPhone. iPhone',
+        );
+      });
     });
   });
 }

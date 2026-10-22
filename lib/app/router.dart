@@ -60,6 +60,8 @@ import 'package:mozhi/settings/view/tab_order_page.dart'
     deferred as tab_order_page;
 import 'package:mozhi/settings/view/voice_input_settings_page.dart'
     deferred as voice_settings_page;
+import 'package:mozhi/transcribe/view/transcribe_page.dart'
+    deferred as transcribe_page;
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/view/translate_page.dart';
 import 'package:mozhi/usage/view/usage_summary_page.dart'
@@ -127,6 +129,9 @@ abstract final class AppRoutes {
   static const image = '/image';
   static const documents = '/documents';
   static const web = '/web';
+
+  /// Transcribe (a rolling transcript of a talk), above the tabs.
+  static const transcribe = '/transcribe';
 
   /// The only page of the translucent quick translate window on Android
   /// (see [QuickTranslateHost]); never shown in the main window.
@@ -212,6 +217,7 @@ abstract final class DeferredFeatures {
     ]),
   );
   static final web = DeferredLibrary(web_page.loadLibrary);
+  static final transcribe = DeferredLibrary(transcribe_page.loadLibrary);
   static final conversation = DeferredLibrary(
     () => Future.wait<void>([
       conversation_page.loadLibrary(),
@@ -247,6 +253,7 @@ abstract final class DeferredFeatures {
     image,
     documents,
     web,
+    transcribe,
     conversation,
     dictionary,
     offline,
@@ -454,6 +461,11 @@ GoRouter createAppRouter({
           autoLoad: false,
         );
       }),
+      fullScreenDeferred(
+        AppRoutes.transcribe,
+        DeferredFeatures.transcribe,
+        (context, state) => transcribe_page.TranscribePage(),
+      ),
       // Not deferred: in the VM, deferred libraries share one load, and a
       // test that opens History before another deferred page would leave
       // that load to a finished test's zone (test/app/view/app_test.dart).

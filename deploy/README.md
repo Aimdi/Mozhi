@@ -8,7 +8,7 @@ with background and troubleshooting, is
 | --- | --- |
 | `docker-compose.yml` | Mozhi, plus optional Ollama, LibreTranslate and Caddy |
 | `.env.example` | Every setting, with defaults. Copy to `.env` to change them |
-| `Caddyfile` | HTTPS reverse proxy for Mozhi (and, optionally, Ollama) |
+| `Caddyfile` | HTTPS reverse proxy for Mozhi (and, optionally, Ollama), the model mirror at `/models/` and, optionally, the web app |
 
 ## 1. Mozhi on your network
 
@@ -73,6 +73,31 @@ MOZHI_BIND_ADDRESS=127.0.0.1   # optional: only reachable through Caddy
 then `docker compose up -d` and add `https://mozhi.example.com` in the app.
 The `Caddyfile` also has commented examples for Ollama behind an API key and
 for HTTPS on a LAN without a public domain.
+
+## 3. Mirror the on-device models
+
+The app downloads its offline languages, voice input and text recognition
+models from their publishers (Mozilla's bucket on Google Cloud, Hugging
+Face, GitHub), which see each user's IP address and languages. Serve them
+from your server instead:
+
+```sh
+docker compose --profile mirror run --rm mirror --list        # what and how much
+docker compose --profile mirror run --rm mirror --languages de,fr,ja --whisper tiny,silero-vad
+docker compose --profile mirror run --rm mirror               # everything, about 3 GB
+```
+
+The files land in `./models` (`MOZHI_MODELS_DIR`), checked against the
+SHA-256 built into the app; run it again after updating the app (it
+resumes, skips what is in place and never deletes other files). Caddy (the
+`https` profile) serves them at `https://mozhi.example.com/models/`. In the
+app: **Settings > Translation engines > Model source > Custom mirror** with
+that address. A web app served from the same site (see the commented web
+app block in the `Caddyfile`) uses it by default ("This web server").
+
+Without Docker: `python3 tool/mirror_models.py /path/to/models [filters]`
+from a checkout of the repository, and serve the directory as static files
+(guide: [docs/self-hosting-mozhi.md](../docs/self-hosting-mozhi.md#mirror-the-on-device-models)).
 
 ## Everyday commands
 

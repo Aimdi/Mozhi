@@ -1,6 +1,8 @@
+export 'cubit/dictionary_packs_cubit.dart';
 export 'cubit/ocr_languages_cubit.dart';
 export 'cubit/offline_models_cubit.dart';
 export 'data/unavailable_offline_translator.dart';
+export 'view/dictionary_packs_page.dart';
 export 'view/ocr_languages_page.dart';
 export 'view/offline_models_page.dart';
 export 'widgets/ocr_import_summary.dart';

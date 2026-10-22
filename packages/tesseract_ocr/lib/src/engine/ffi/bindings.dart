@@ -18,6 +18,27 @@ typedef _RecognizeNative = Pointer<Utf8> Function(
   Pointer<Int32> meanConfidence,
 );
 
+typedef _RecognizeLayoutNative = Pointer<Utf8> Function(
+  Pointer<NativeTesseract> engine,
+  Pointer<Uint8> pixels,
+  Int32 width,
+  Int32 height,
+  Int32 bytesPerPixel,
+  Int32 bytesPerLine,
+  Int32 flags,
+);
+
+/// `mozhi_tesseract_recognize_layout`.
+typedef RecognizeLayoutFunction = Pointer<Utf8> Function(
+  Pointer<NativeTesseract> engine,
+  Pointer<Uint8> pixels,
+  int width,
+  int height,
+  int bytesPerPixel,
+  int bytesPerLine,
+  int flags,
+);
+
 /// `mozhi_tesseract_recognize`.
 typedef RecognizeFunction = Pointer<Utf8> Function(
   Pointer<NativeTesseract> engine,
@@ -52,6 +73,10 @@ final class TesseractBindings {
       recognize = library.lookupFunction<_RecognizeNative, RecognizeFunction>(
         'mozhi_tesseract_recognize',
       ),
+      recognizeLayout = library
+          .lookupFunction<_RecognizeLayoutNative, RecognizeLayoutFunction>(
+            'mozhi_tesseract_recognize_layout',
+          ),
       freeString = library
           .lookupFunction<
             Void Function(Pointer<Utf8>),
@@ -63,7 +88,10 @@ final class TesseractBindings {
           );
 
   /// MOZHI_TESSERACT_ABI_VERSION these bindings were written for.
-  static const expectedAbiVersion = 1;
+  static const expectedAbiVersion = 2;
+
+  /// MOZHI_TESSERACT_LAYOUT_WORDS: [recognizeLayout] reports the words too.
+  static const layoutWords = 1;
 
   /// File name of the library (Android packs it into the APK per ABI).
   static const libraryName = 'libmozhi_tesseract.so';
@@ -80,6 +108,7 @@ final class TesseractBindings {
   create;
   final void Function(Pointer<NativeTesseract> engine) destroy;
   final RecognizeFunction recognize;
+  final RecognizeLayoutFunction recognizeLayout;
   final void Function(Pointer<Utf8> text) freeString;
   final Pointer<Utf8> Function() lastError;
 

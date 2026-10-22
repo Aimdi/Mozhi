@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/offline/cubit/offline_models_cubit.dart'
     show OfflineModelsCubit;
+import 'package:mozhi/settings/models/model_source.dart';
 import 'package:whisper_speech/whisper_speech.dart';
 
 /// A "Download over Wi-Fi only" download on a metered network: nothing was
@@ -16,13 +17,17 @@ final class VoiceModelMeteredException implements Exception {
 }
 
 /// The app's offline speech recognition: Whisper ([WhisperSpeech]) with
-/// the model the user chose and the app's download rules.
+/// the model the user chose and the app's download rules, and the voice
+/// activity detector (Silero VAD, [WhisperSpeech.vadModel]) that tells
+/// speech from silence while recording ([detectSpeech]).
 ///
-/// * Downloads only happen when [download] is called (the user tapped
-///   download), from Hugging Face ([WhisperCatalogModel.url]), and follow
-///   the "Download over Wi-Fi only" setting of the offline languages
-///   ([OfflineModelsCubit.wifiOnlyKey], default on): on a metered network
-///   they throw [VoiceModelMeteredException] unless `overMeteredNetwork`.
+/// * Downloads only happen when [download] or [downloadVoiceDetection] is
+///   called (the user tapped download), from Hugging Face
+///   ([WhisperCatalogModel.url]), and follow the "Download over Wi-Fi only"
+///   setting of the offline languages ([OfflineModelsCubit.wifiOnlyKey],
+///   default on): on a metered network they throw
+///   [VoiceModelMeteredException] unless `overMeteredNetwork`. The voice
+///   activity model (0.9 MB) comes with every speech model download.
 /// * [importFiles] installs model files copied to the device by hand,
 ///   without any network request (for Offline only users).
 /// * The model in use ([selected]) is stored under [modelKey]; without a
@@ -33,7 +38,9 @@ class OfflineSpeech {
     required this.whisper,
     required this._store,
     Future<bool> Function()? isMeteredConnection,
-  }) : _isMetered = isMeteredConnection ?? _neverMetered;
+    ModelSource Function()? modelSource,
+  }) : _isMetered = isMeteredConnection ?? _neverMetered,
+       _modelSource = modelSource ?? _currentModelSource;
 
   /// [KeyValueStore] key of the model in use ([WhisperCatalogModel.id]).
   static const modelKey = 'voice.offlineModel';
@@ -43,6 +50,12 @@ class OfflineSpeech {
   final Future<bool> Function() _isMetered;
 
   static Future<bool> _neverMetered() async => false;
+
+  /// Where downloads come from (default [ModelSource.current], the
+  /// settings'; SHARED W3-B).
+  final ModelSource Function() _modelSource;
+
+  static ModelSource _currentModelSource() => ModelSource.current;
 
   /// Whether Whisper runs on this device.
   bool get isAvailable => whisper.isAvailable;
@@ -80,7 +93,9 @@ class OfflineSpeech {
   }
 
   /// Downloads model [id] (resuming an interrupted download) and makes it
-  /// the one in use. [onProgress] receives the fraction done (0 to 1).
+  /// the one in use; the voice activity model ([vadModel]) first, when it
+  /// is not installed yet. [onProgress] receives the fraction done of both
+  /// (0 to 1).
   ///
   /// Throws [VoiceModelMeteredException] on a metered network when
   /// [wifiOnly] (unless [overMeteredNetwork]), [ArgumentError] for an
@@ -95,26 +110,102 @@ class OfflineSpeech {
     if (!overMeteredNetwork && await wifiOnly() && await _isMetered()) {
       throw const VoiceModelMeteredException();
     }
-    await whisper.download(
-      model,
-      onProgress: onProgress == null
-          ? null
-          : (progress) => onProgress(progress.fraction),
-    );
+    final vad = await _vadToInstall();
+    final total = model.size + (vad?.size ?? 0);
+    void report(int done) => onProgress?.call(total == 0 ? 1 : done / total);
+    if (vad != null) {
+      await _install(vad, report);
+    }
+    final before = vad?.size ?? 0;
+    await _install(model, (received) => report(before + received));
     await select(id);
   }
 
-  /// Deletes model [id] (and a partial download of it).
-  Future<void> delete(String id) => whisper.delete(id);
+  /// The voice activity detection model of the catalog, if any.
+  WhisperCatalogModel? get vadModel => whisper.vadModel;
 
-  /// Installs the Whisper models among the files at [paths] (picked by the
-  /// user); never goes online. The last model installed becomes the one in
-  /// use.
+  /// Whether the voice activity model is installed and runs here, so
+  /// recordings are cut at real pauses ([detectSpeech]).
+  Future<bool> isVadReady() async {
+    try {
+      return await whisper.isVadReady();
+    } on Object {
+      return false;
+    }
+  }
+
+  /// Downloads the voice activity model alone (for speech models installed
+  /// before it came with them), under the same rules as [download].
+  /// Does nothing when it is installed or the catalog has none.
+  Future<void> downloadVoiceDetection({
+    bool overMeteredNetwork = false,
+    void Function(double fraction)? onProgress,
+  }) async {
+    final vad = await _vadToInstall();
+    if (vad == null) return;
+    if (!overMeteredNetwork && await wifiOnly() && await _isMetered()) {
+      throw const VoiceModelMeteredException();
+    }
+    await _install(
+      vad,
+      (received) => onProgress?.call(vad.size == 0 ? 1 : received / vad.size),
+    );
+  }
+
+  /// Every Whisper download goes through here (speech and voice activity
+  /// models): [onProgress] receives the bytes received.
+  Future<void> _install(
+    WhisperCatalogModel model,
+    void Function(int received) onProgress,
+  ) async {
+    final source = _modelSource();
+    whisper.models
+      ..mirror = source.mirror()
+      ..fallbackToDefault = source.fallsBackToDefault;
+    await whisper.download(
+      model,
+      onProgress: (progress) => onProgress(progress.receivedBytes),
+    );
+  }
+
+  /// The voice activity model when it is listed and not installed yet.
+  Future<WhisperCatalogModel?> _vadToInstall() async {
+    final vad = whisper.vadModel;
+    if (vad == null || await whisper.installedVad() != null) return null;
+    return vad;
+  }
+
+  /// Speech probabilities of the 32 ms windows [samples] (16 kHz mono)
+  /// complete in the recording ([WhisperSpeech.detectSpeech]); call
+  /// [resetSpeechDetection] before each recording.
+  Future<WhisperVadFrames> detectSpeech(Float32List samples) =>
+      whisper.detectSpeech(samples);
+
+  /// Starts a new recording for [detectSpeech].
+  Future<void> resetSpeechDetection() => whisper.resetSpeechDetection();
+
+  /// Deletes model [id] (and a partial download of it); the voice activity
+  /// model goes with the last speech model.
+  Future<void> delete(String id) async {
+    await whisper.delete(id);
+    final vad = whisper.vadModel;
+    if (vad != null &&
+        id != vad.id &&
+        (await whisper.installedModels()).isEmpty &&
+        await whisper.models.installedModel(vad.id) != null) {
+      await whisper.delete(vad.id);
+    }
+  }
+
+  /// Installs the Whisper models (and the voice activity model) among the
+  /// files at [paths] (picked by the user); never goes online. The last
+  /// speech model installed becomes the one in use.
   Future<WhisperImportResult> importFiles(List<String> paths) async {
     final result = await whisper.importFiles([
       for (final path in paths) File(path),
     ]);
-    if (result.installed.lastOrNull case final model?) await select(model.id);
+    final speech = result.installed.where((model) => model != vadModel);
+    if (speech.lastOrNull case final model?) await select(model.id);
     return result;
   }
 

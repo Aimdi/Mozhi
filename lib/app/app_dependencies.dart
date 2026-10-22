@@ -1,6 +1,7 @@
 import 'package:mozhi/app/fallback_key_value_store.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/network/network_session.dart';
+import 'package:mozhi/dictionary/data/dictionary_packs.dart';
 import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
@@ -27,6 +28,7 @@ class AppDependencies {
     required this.offlineTranslator,
     required this.usageTracker,
     this.offlineSpeech,
+    this.dictionaryPacks,
     this._network,
   });
 
@@ -55,6 +57,11 @@ class AppDependencies {
   /// [speechInputService]; null where it cannot run (web, unsupported
   /// CPUs).
   final OfflineSpeech? offlineSpeech;
+
+  /// The offline dictionaries (Wiktionary packs) of the Dictionary tab,
+  /// the short-query panel and the Offline languages screen; null in tests
+  /// that don't need them (the widgets then work as before, with AI only).
+  final DictionaryPacks? dictionaryPacks;
 
   /// On-device translation engine (also used by [translationRepository]):
   /// Mozilla's Bergamot engine (`lib/platform/offline_engine.dart`), or an

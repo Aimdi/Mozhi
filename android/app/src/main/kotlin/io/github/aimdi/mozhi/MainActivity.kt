@@ -55,6 +55,8 @@ import java.util.Locale
  * without copying on older versions (Dart then uses `Clipboard.setData`).
  * `isActiveNetworkMetered()` answers whether the active network is metered
  * (`lib/platform/metered_network.dart`: Wi-Fi-only offline model downloads).
+ * `setKeepScreenOn(Boolean)` sets or clears `FLAG_KEEP_SCREEN_ON`
+ * (`lib/transcribe/data/screen_awake.dart`: while Transcribe listens).
  *
  * [MEMORY_CHANNEL] (`lib/platform/native_memory.dart`): `memoryInfo()` answers
  * what [ActivityManager] says about memory (see [memoryInfo]), which sizes the
@@ -179,6 +181,20 @@ open class MainActivity : FlutterActivity() {
                         result.error("invalid_argument", "copySensitiveText expects the text", null)
                     } else {
                         result.success(copySensitiveText(text))
+                    }
+                }
+                "setKeepScreenOn" -> {
+                    val on = call.arguments as? Boolean
+                    if (on == null) {
+                        result.error("invalid_argument", "setKeepScreenOn expects a Boolean", null)
+                    } else {
+                        // Transcribe keeps the screen on while it listens.
+                        if (on) {
+                            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                        } else {
+                            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                        }
+                        result.success(null)
                     }
                 }
                 "isActiveNetworkMetered" -> result.success(isActiveNetworkMetered())

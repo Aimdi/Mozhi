@@ -242,4 +242,45 @@ void main() {
       expect(DeviceVoice.sortFor('fr', [swiss, amelie]), [amelie, swiss]);
     });
   });
+
+  group('online voices', () {
+    test('onlineProvider names who receives the text', () {
+      DeviceVoice online(String name) =>
+          DeviceVoice(name: name, locale: 'fr-FR', networkRequired: true);
+      expect(online('Google français').onlineProvider, 'Google');
+      expect(online('fr-fr-x-frd-network').onlineProvider, 'Google');
+      expect(
+        online('Microsoft Denise Online (Natural) - French').onlineProvider,
+        'Microsoft',
+      );
+      expect(online('Some voice').onlineProvider, isNull);
+      expect(
+        const DeviceVoice(
+          name: 'Google français',
+          locale: 'fr-FR',
+        ).onlineProvider,
+        isNull,
+      );
+    });
+
+    test('withNetworkRequired copies the voice', () {
+      const voice = DeviceVoice(
+        name: 'Thomas',
+        locale: 'fr-FR',
+        identifier: 'id',
+        quality: 'high',
+      );
+      expect(voice.withNetworkRequired(online: false), same(voice));
+      expect(
+        voice.withNetworkRequired(online: true),
+        const DeviceVoice(
+          name: 'Thomas',
+          locale: 'fr-FR',
+          identifier: 'id',
+          quality: 'high',
+          networkRequired: true,
+        ),
+      );
+    });
+  });
 }

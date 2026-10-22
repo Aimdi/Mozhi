@@ -30,6 +30,16 @@ enum ImageTranslatePhase {
   translatingText,
 }
 
+/// How the translation of on-device recognised text is shown.
+enum ImageResultMode {
+  /// Drawn over the photo, in place of the original text (when the
+  /// recognizer said where the text is).
+  overlay,
+
+  /// As text below the photo.
+  text,
+}
+
 class ImageTranslateState extends Equatable {
   const new({
     this.status = ImageTranslateStatus.initial,
@@ -47,6 +57,7 @@ class ImageTranslateState extends Equatable {
     this.error,
     this.pickError,
     this.showOriginal = false,
+    this.resultMode = ImageResultMode.overlay,
   });
 
   final ImageTranslateStatus status;
@@ -82,8 +93,17 @@ class ImageTranslateState extends Equatable {
   /// Why the last pick failed; shown once as a snackbar.
   final Object? pickError;
 
-  /// Original/Translated toggle of a re-rendered image.
+  /// Original/Translated toggle of a re-rendered image; for the overlay,
+  /// whether "Show original" is held.
   final bool showOriginal;
+
+  /// The chosen way to show the translation (see [showsOverlay]).
+  final ImageResultMode resultMode;
+
+  /// Whether the translation is drawn over the photo: chosen, and the
+  /// result can be ([ImageTranslation.hasOverlay]).
+  bool get showsOverlay =>
+      resultMode == ImageResultMode.overlay && (result?.hasOverlay ?? false);
 
   bool get hasImage => image != null;
   bool get isWorking => status == ImageTranslateStatus.working;
@@ -137,6 +157,7 @@ class ImageTranslateState extends Equatable {
     Object? Function()? error,
     Object? Function()? pickError,
     bool? showOriginal,
+    ImageResultMode? resultMode,
   }) {
     return ImageTranslateState(
       status: status ?? this.status,
@@ -156,6 +177,7 @@ class ImageTranslateState extends Equatable {
       error: error != null ? error() : this.error,
       pickError: pickError != null ? pickError() : this.pickError,
       showOriginal: showOriginal ?? this.showOriginal,
+      resultMode: resultMode ?? this.resultMode,
     );
   }
 
@@ -176,5 +198,6 @@ class ImageTranslateState extends Equatable {
     error,
     pickError,
     showOriginal,
+    resultMode,
   ];
 }

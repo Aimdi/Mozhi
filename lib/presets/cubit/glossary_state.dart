@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:mozhi/presets/models/glossary.dart';
+import 'package:translation_repository/translation_repository.dart'
+    show SavedGlossary;
 
 enum GlossaryStatus { initial, loading, ready, failure }
 
@@ -18,6 +20,17 @@ class GlossaryState extends Equatable {
     }
     return null;
   }
+
+  /// The enabled glossaries' terms for the pair with their case-sensitive
+  /// ones (see [mergeActiveGlossaryTerms]).
+  SavedGlossary savedGlossary({
+    required String sourceCode,
+    required String targetCode,
+  }) => mergeActiveGlossaryTerms(
+    glossaries,
+    sourceCode: sourceCode,
+    targetCode: targetCode,
+  );
 
   /// See [mergeActiveGlossaries].
   Map<String, String> activeGlossary({

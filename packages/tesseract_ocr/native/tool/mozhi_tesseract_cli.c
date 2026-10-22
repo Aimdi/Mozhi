@@ -5,8 +5,11 @@
  * device: `adb push` the binary, the library, a traineddata file and an
  * image, then run it in `adb shell`). Not shipped in the app.
  *
- *   mozhi_tesseract_cli TESSDATA_DIR LANGUAGES IMAGE.pgm|IMAGE.ppm
+ *   mozhi_tesseract_cli [--layout] TESSDATA_DIR LANGUAGES IMAGE.pgm|IMAGE.ppm
  *   e.g. mozhi_tesseract_cli tessdata deu+eng sign.ppm
+ *
+ * --layout prints the JSON of mozhi_tesseract_recognize_layout() (with
+ * words) instead of the text.
  *
  * Convert a photo first, e.g. `convert photo.jpg -resize 2500x2500\> p.ppm`.
  *
@@ -83,9 +86,14 @@ done:
 }
 
 int main(int argc, char** argv) {
+  int layout = argc == 5 && strcmp(argv[1], "--layout") == 0;
+  if (layout) {
+    argv++;
+    argc--;
+  }
   if (argc != 4) {
     fprintf(stderr,
-            "usage: %s TESSDATA_DIR LANGUAGES IMAGE.pgm|IMAGE.ppm\n"
+            "usage: %s [--layout] TESSDATA_DIR LANGUAGES IMAGE.pgm|IMAGE.ppm\n"
             "%s\n",
             argv[0], mozhi_tesseract_version());
     return 2;
@@ -103,7 +111,11 @@ int main(int argc, char** argv) {
   }
   double loaded = now_ms();
   int32_t confidence = 0;
-  char* text = mozhi_tesseract_recognize(engine, pixels, width, height,
+  char* text =
+      layout ? mozhi_tesseract_recognize_layout(engine, pixels, width, height,
+                                                channels, width * channels,
+                                                MOZHI_TESSERACT_LAYOUT_WORDS)
+             : mozhi_tesseract_recognize(engine, pixels, width, height,
                                          channels, width * channels,
                                          &confidence);
   double done = now_ms();
@@ -115,9 +127,9 @@ int main(int argc, char** argv) {
   }
   fputs(text, stdout);
   fprintf(stderr, "%s\nload %s: %.0f ms, recognize %dx%d: %.0f ms, "
-          "mean confidence %d\n",
+          "mean confidence %d%s\n",
           mozhi_tesseract_version(), argv[2], loaded - start, width, height,
-          done - loaded, (int)confidence);
+          done - loaded, (int)confidence, layout ? " (see the JSON)" : "");
   mozhi_tesseract_free_string(text);
   mozhi_tesseract_destroy(engine);
   return 0;

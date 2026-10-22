@@ -102,10 +102,11 @@ other providers have free API tiers.
 
 ### Why are the translation options ignored?
 
-Formality, reading level, context, glossary, custom styles and the other
-options only work with AI engines. Mozhi engines (Google, DeepL, ...) don't
-support them; your own [DeepL API](ai-providers.md#deepl-and-libretranslate)
-service applies only the tone, the context, formatting and the glossary.
+Formality, reading level, context, custom styles and the other options
+only work with AI engines. Mozhi engines (Google, DeepL, ...) and
+LibreTranslate apply only the glossary (Mozhi applies it on your device);
+your own [DeepL API](ai-providers.md#deepl-and-libretranslate) service
+applies only the tone, the context, formatting and the glossary.
 The options sheet greys out what the selected engine ignores (**AI engines
 only**). Translation-specialised
 local models such as Hy-MT2 and TranslateGemma also ignore most of them; use

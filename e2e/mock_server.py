@@ -7,6 +7,9 @@ Standard library only. Serves, with open CORS:
               streaming and JSON-mode answers for the AI extras: alternatives,
               insights, dictionary, proofreading, meaning check, refinements)
   /__health   200 "ok" (readiness probe)
+  /models/*   a model mirror (layout of tool/mirror_models.py) of the files in
+              $E2E_MODELS_DIR (e2e/fetch_models.py), with Range requests,
+              for the on-device specs; 404 without it
 
 Answers are deterministic (no randomness, no clock), so tests can assert on
 exact text, e.g. "[refined] ..." after a refinement chip.
@@ -114,7 +117,8 @@ class H(BaseHTTPRequestHandler):
     def cors(self):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Headers", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, HEAD, POST, OPTIONS")
+        self.send_header("Access-Control-Expose-Headers", "Content-Length, Content-Range")
     def send_json(self, obj, status=200):
         body = json.dumps(obj).encode()
         self.send_response(status); self.cors()
@@ -139,11 +143,39 @@ class H(BaseHTTPRequestHandler):
             elif "json" in ct and raw:
                 q["__json"] = json.loads(raw)
         return u.path, q
+    def send_model(self, path):
+        root = os.environ.get("E2E_MODELS_DIR")
+        rel = urllib.parse.unquote(path[len("/models/"):])
+        parts = rel.split("/")
+        if not root or any(p in ("", ".", "..") for p in parts):
+            return self.send_text("not found", 404)
+        file = os.path.join(root, *parts)
+        if not os.path.isfile(file):
+            return self.send_text("not found", 404)
+        with open(file, "rb") as f:
+            body = f.read()
+        start, status = 0, 200
+        m = re.match(r"bytes=(\d+)-$", self.headers.get("Range", ""))
+        if m and int(m.group(1)) < len(body):
+            start, status = int(m.group(1)), 206
+        self.send_response(status); self.cors()
+        self.send_header("Content-Type", "application/octet-stream")
+        self.send_header("Accept-Ranges", "bytes")
+        if status == 206:
+            self.send_header("Content-Range", f"bytes {start}-{len(body) - 1}/{len(body)}")
+        self.send_header("Content-Length", str(len(body) - start)); self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(body[start:])
+    def do_HEAD(self):
+        path, _ = self.params()
+        if path.startswith("/models/"): return self.send_model(path)
+        self.send_text("not found", 404)
     def do_GET(self): self.route()
     def do_POST(self): self.route()
     def route(self):
         path, q = self.params()
         if path == "/__health": return self.send_text("ok", 200)
+        if path.startswith("/models/"): return self.send_model(path)
         if path == "/api/version": return self.send_json({"fiberversion": "v2.52.5", "goversion": "go1.24"})
         if path == "/api/engines": return self.send_json(ENGINES)
         if path in ("/api/source_languages", "/api/target_languages"):

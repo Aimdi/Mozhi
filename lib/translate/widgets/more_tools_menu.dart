@@ -24,6 +24,7 @@ enum TranslateTool {
   image(AppRoutes.image, Icons.photo_camera_outlined),
   documents(AppRoutes.documents, Icons.description_outlined),
   webPage(AppRoutes.web, Icons.language),
+  transcribe(AppRoutes.transcribe, Icons.subtitles_outlined),
   recentPairs(null, Icons.history),
   shortcuts(null, Icons.keyboard_outlined);
 
@@ -38,6 +39,7 @@ enum TranslateTool {
     TranslateTool.image => l10n.translateToolImage,
     TranslateTool.documents => l10n.translateToolDocuments,
     TranslateTool.webPage => l10n.translateToolWebPage,
+    TranslateTool.transcribe => l10n.translateToolTranscribe,
     TranslateTool.recentPairs => l10n.translateRecentPairsTitle,
     TranslateTool.shortcuts => l10n.translateKeyboardShortcuts,
   };
@@ -131,7 +133,8 @@ class _MoreToolsButtonState extends State<MoreToolsButton> {
         unawaited(showTranslateShortcuts(context));
       case TranslateTool.image ||
           TranslateTool.documents ||
-          TranslateTool.webPage:
+          TranslateTool.webPage ||
+          TranslateTool.transcribe:
         unawaited(context.push<void>(tool.route!));
     }
   }
@@ -167,7 +170,9 @@ class _MoreToolsButtonState extends State<MoreToolsButton> {
           TranslateTool.image => !hasEngines,
           TranslateTool.recentPairs => hasEngines,
           TranslateTool.shortcuts => shortcuts,
-          TranslateTool.documents || TranslateTool.webPage => true,
+          TranslateTool.documents ||
+          TranslateTool.webPage ||
+          TranslateTool.transcribe => true,
         };
         final tools = TranslateTool.values.where(offered).toList();
         // The divider goes above the first tool of the translate screen.

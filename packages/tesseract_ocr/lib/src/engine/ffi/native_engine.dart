@@ -1,10 +1,12 @@
 import 'dart:collection';
+import 'dart:convert';
 import 'dart:ffi';
 import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
 import 'package:tesseract_ocr/src/engine/ffi/bindings.dart';
 import 'package:tesseract_ocr/src/engine/ocr_engine.dart';
+import 'package:tesseract_ocr/src/engine/ocr_layout.dart';
 
 /// Synchronous access to the native engine with a small cache of loaded
 /// language sets. Blocks the calling isolate: only used inside the OCR
@@ -47,7 +49,8 @@ final class NativeTesseractEngine {
   /// Keys of the loaded engines, least recently used first.
   List<String> get loaded => List.unmodifiable(_engines.keys);
 
-  /// Recognises the text in [pixels] (see [OcrImage] for the layout).
+  /// Recognises the text in [pixels] (see [OcrImage] for the layout), and
+  /// with [layout] where it is ([OcrResult.layout], words included).
   OcrResult recognize(
     Uint8List pixels, {
     required int width,
@@ -56,6 +59,7 @@ final class NativeTesseractEngine {
     required int bytesPerLine,
     required String dataPath,
     required List<String> languages,
+    bool layout = false,
   }) {
     if (languages.isEmpty) {
       throw ArgumentError.value(languages, 'languages', 'Must not be empty');
@@ -64,6 +68,23 @@ final class NativeTesseractEngine {
     return using((arena) {
       final native = arena<Uint8>(pixels.length);
       native.asTypedList(pixels.length).setAll(0, pixels);
+      if (layout) {
+        final output = _bindings.recognizeLayout(
+          engine,
+          native,
+          width,
+          height,
+          bytesPerPixel,
+          bytesPerLine,
+          TesseractBindings.layoutWords,
+        );
+        if (output == nullptr) _fail('recognize');
+        try {
+          return parseLayoutResult(output.toDartString());
+        } finally {
+          _bindings.freeString(output);
+        }
+      }
       final confidence = arena<Int32>();
       final output = _bindings.recognize(
         engine,
@@ -84,6 +105,23 @@ final class NativeTesseractEngine {
         _bindings.freeString(output);
       }
     });
+  }
+
+  /// The [OcrResult] of `mozhi_tesseract_recognize_layout`'s [json]. Throws
+  /// [TesseractEngineException] when it is not that JSON.
+  static OcrResult parseLayoutResult(String json) {
+    try {
+      final map = jsonDecode(json) as Map<String, Object?>;
+      return OcrResult(
+        text: (map['text']! as String).trim(),
+        meanConfidence: (map['confidence'] as num?)?.toInt() ?? 0,
+        layout: OcrLayout.fromJson(map),
+      );
+    } on Object catch (error) {
+      throw TesseractEngineException(
+        'Unexpected layout from the engine: $error',
+      );
+    }
   }
 
   /// Unloads every engine.

@@ -53,10 +53,15 @@ test('app loads on the translate tab', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test('first run on the web: three steps, no privacy step', async ({
+test('first run in a browser without the on-device engine: three steps, no privacy step', async ({
   page,
 }) => {
   const errors = collectPageErrors(page);
+  // As in a browser that can't run the engine (or a build without it):
+  // the engine's worker doesn't load, so the app has no on-device engine.
+  await page.route('**/bergamot/worker.js', (route) =>
+    route.fulfill({ status: 404, body: '' }),
+  );
   await openApp(page, '/translate');
   // Turn the seeded settings into a first run (the seed only applies once
   // per session, so the reload keeps this).
@@ -73,8 +78,8 @@ test('first run on the web: three steps, no privacy step', async ({
   ).toBeVisible();
   await expect(page.getByText('Step 1 of 3', { exact: true })).toBeVisible();
   const next = page.getByRole('button', { name: 'Next' });
-  // A browser has no on-device engine, so there is no privacy step: its
-  // choice is one switch on the service step.
+  // Without an on-device engine there is no privacy step: its choice is
+  // one switch on the service step.
   const privacyStep = page.getByRole('heading', {
     name: 'How private should translations be?',
   });
@@ -141,6 +146,51 @@ test('first run on the web: three steps, no privacy step', async ({
       .getByRole('group', { name: 'Privacy mode' })
       .getByRole('radio', { name: /^Offline first/ }),
   ).toBeChecked();
+  expect(errors).toEqual([]);
+});
+
+test('first run with the on-device engine: the privacy step and downloads', async ({
+  page,
+}) => {
+  const errors = collectPageErrors(page);
+  await openApp(page, '/translate');
+  await page.evaluate(() => {
+    const settings = JSON.parse(JSON.parse(localStorage.getItem('settings.v1')));
+    settings.onboardingComplete = false;
+    localStorage.setItem('settings.v1', JSON.stringify(JSON.stringify(settings)));
+  });
+  await page.reload();
+  await waitForSemantics(page);
+
+  // The browser runs Mozilla's engine (web/bergamot/): the same four steps
+  // as the Android app.
+  await expect(page.getByText('Step 1 of 4', { exact: true })).toBeVisible();
+  const next = page.getByRole('button', { name: 'Next' });
+  await next.click();
+  await expect(
+    page.getByRole('heading', { name: 'How private should translations be?' }),
+  ).toBeVisible();
+  await expect(page.getByText('Step 2 of 4', { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('radio', { name: /^Offline only/ }),
+  ).toBeVisible();
+
+  await next.click();
+  await expect(
+    page.getByRole('heading', { name: 'Pick your languages' }),
+  ).toBeVisible();
+  // The target language can be downloaded for offline use (nothing is
+  // downloaded unless asked).
+  await expect(
+    page.getByRole('banner', { name: /^Download French/ }),
+  ).toBeVisible();
+  await expect(page.getByText(/can’t translate on its own/)).toHaveCount(0);
+
+  await next.click();
+  await expect(
+    page.getByRole('heading', { name: /^Online translation\s+Optional/ }),
+  ).toBeVisible();
+  await expect(page.getByText('Step 4 of 4', { exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -262,10 +312,12 @@ test.describe('routes render', () => {
       await scrollTo(page, heading);
       await expect(heading).toBeVisible();
     }
-    // The browser has no on-device engine.
-    await expect(
-      page.getByText(/On-device translation needs the Android app\./),
-    ).toBeVisible();
+    // The web app translates on the device too (WebAssembly).
+    const offlineLanguages = page.getByRole('button', {
+      name: /^Languages on this device/,
+    });
+    await scrollTo(page, offlineLanguages);
+    await expect(offlineLanguages).toBeVisible();
     // Instant translation is one setting with three choices.
     const instant = page.getByRole('button', {
       name: /^Instant translate\s+Online engines and AI$/,

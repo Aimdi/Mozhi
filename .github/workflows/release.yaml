@@ -272,8 +272,54 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
+  # The web app's on-device engine: Bergamot and CLD2 compiled to
+  # WebAssembly from the pinned sources (see build-bergamot-wasm in
+  # main.yaml); shipped in the web zip under bergamot/.
+  bergamot-wasm:
+    name: Build Bergamot WASM
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      MOZHI_CACHE_DIR: ${{ github.workspace }}/.mozhi-cache
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Fetch the engine's sources
+        run: packages/bergamot_translator/tool/fetch_native_deps.sh
+
+      - name: Find the pinned Emscripten
+        id: emsdk
+        run: |
+          translations=packages/bergamot_translator/native/third_party/translations
+          version=$(sed -n 's/^EMSDK_VERSION = "\(.*\)"$/\1/p' \
+            "$translations/inference/scripts/build-wasm.py")
+          commit=$(git -C "$translations" ls-tree HEAD inference/3rd_party/emsdk \
+            | awk '{print $3}')
+          echo "key=emsdk-${{ runner.os }}-$version-$commit" >> "$GITHUB_OUTPUT"
+
+      # Emscripten itself (the compiler), restored from the CI runs; the
+      # engine is always compiled from source here.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .mozhi-cache/emsdk
+          key: ${{ steps.emsdk.outputs.key }}
+
+      - name: Build bergamot-translator.{js,wasm}
+        run: packages/bergamot_translator/tool/build_wasm.sh "$RUNNER_TEMP/bergamot-wasm"
+
+      - name: Upload the engine
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-bergamot-wasm
+          path: |
+            ${{ runner.temp }}/bergamot-wasm/bergamot-translator.js
+            ${{ runner.temp }}/bergamot-wasm/bergamot-translator.wasm
+          if-no-files-found: error
+          retention-days: 7
+
   web:
     name: Build web
+    needs: bergamot-wasm
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -284,6 +330,14 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+
+      # The on-device engine next to its worker (web/bergamot/), so the
+      # build copies it into the zip.
+      - name: Add the Bergamot WASM engine
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-bergamot-wasm
+          path: web/bergamot
 
       - name: Install dependencies
         run: |

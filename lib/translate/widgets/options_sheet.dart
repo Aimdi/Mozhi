@@ -202,11 +202,16 @@ Future<T?> _showSideSheet<T>(
 /// The note of the options sheet for [engine], or null when it applies
 /// every option: AI engines with the general prompt profile do; DeepL
 /// (`TranslationEngine.supportsFormality`) applies the formality, the
-/// context, the formatting and the glossary; other engines none.
+/// context, the formatting and the glossary; Mozhi engines and
+/// LibreTranslate the glossary (`TranslationEngine.supportsGlossary`, on
+/// the device); other engines none.
 String? translateOptionsNote(AppLocalizations l10n, TranslationEngine engine) {
   if (engine.supportsOptions) return null;
-  return engine.supportsFormality
-      ? l10n.translateOptionsDeeplNeedAi(engine.name)
+  if (engine.supportsFormality) {
+    return l10n.translateOptionsDeeplNeedAi(engine.name);
+  }
+  return engine.supportsGlossary
+      ? l10n.translateOptionsGlossaryOnlyNeedAi(engine.name)
       : l10n.translateOptionsNeedAi(engine.name);
 }
 
@@ -218,6 +223,11 @@ enum _Needs {
 
   /// That or DeepL (`TranslationEngine.supportsFormality`).
   aiOrDeepl,
+
+  /// An engine that applies glossaries
+  /// (`TranslationEngine.supportsGlossary`: all but the offline engine and
+  /// translation-only AI models).
+  glossary,
 }
 
 /// The "AI engines only" tag of an option that needs [needs] while
@@ -232,6 +242,8 @@ String? _ignoredTag(
     _Needs.ai => engine.supportsOptions ? null : l10n.translateOptionsAiOnly,
     _Needs.aiOrDeepl =>
       engine.supportsFormality ? null : l10n.translateOptionsAiOrDeeplOnly,
+    _Needs.glossary =>
+      engine.supportsGlossary ? null : l10n.translateOptionsGlossaryUnsupported,
   };
 }
 
@@ -693,7 +705,7 @@ class _TranslationOptionsSheetState extends State<TranslationOptionsSheet> {
             ),
             _Label(
               l10n.translateOptionsGlossary,
-              ignored: ignored(_Needs.aiOrDeepl),
+              ignored: ignored(_Needs.glossary),
             ),
             Text(
               l10n.translateOptionsGlossaryDescription,

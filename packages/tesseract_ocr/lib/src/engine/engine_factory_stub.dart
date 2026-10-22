@@ -16,6 +16,7 @@ final class UnsupportedOcrEngine implements OcrEngine {
     OcrImage image, {
     required String dataPath,
     required List<String> languages,
+    bool layout = false,
   }) => Future.error(
     UnsupportedError('On-device text recognition is not available here'),
   );

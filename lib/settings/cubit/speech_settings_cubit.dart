@@ -109,6 +109,21 @@ class SpeechSettingsCubit extends Cubit<SpeechSettingsState> {
     }
   }
 
+  /// Forgets the online voices the user allowed to read aloud
+  /// (`SpeechSettings.onlineVoices`): each asks again before it reads. It
+  /// applies even when it cannot be saved.
+  Future<void> forgetOnlineVoices() async {
+    if (state.settings.onlineVoices.isEmpty) return;
+    emit(
+      state.copyWith(settings: state.settings.copyWith(onlineVoices: const {})),
+    );
+    try {
+      await _speech.forgetOnlineVoices();
+    } on Object catch (error, stackTrace) {
+      addError(error, stackTrace);
+    }
+  }
+
   /// Lists the device voices for [languageCode] into
   /// [SpeechSettingsState.voices] (again each time: voices can be
   /// installed meanwhile).

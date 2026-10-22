@@ -32,14 +32,16 @@ const _noPacks =
     'No language packs on this device yet. Download one to translate '
     'offline.';
 const _web =
-    'Offline translation isn’t available in the web app. Switch to Offline '
-    'first or Online in Settings › Privacy & data.';
+    'This browser can’t run offline translation (Settings › Translation '
+    'engines › Languages on this device says why). Switch to Offline first '
+    'or Online in Settings › Privacy & data.';
 const _device =
     'This device can’t run offline translation. Switch to Offline first or '
     'Online in Settings › Privacy & data.';
 const _needsNetwork = 'Offline only is on, and this engine needs the network.';
 
-/// Not the Android app (the web app: no on-device engine at all).
+/// Not the Android app (the web app, in a browser that can't run the
+/// engine).
 final _notAndroid = TargetPlatformVariant.only(TargetPlatform.linux);
 
 TranslateState _held(
@@ -90,13 +92,13 @@ void main() {
       expect(offlineEngineGap(FakeOfflineTranslator()), isNull);
     });
 
-    test('the web app has no engine', () async {
+    test('a browser that cannot run the engine', () async {
       debugDefaultTargetPlatformOverride = TargetPlatform.linux;
       try {
-        expect(await offlineOnlyGap(null), OfflineOnlyGap.webApp);
+        expect(await offlineOnlyGap(null), OfflineOnlyGap.unsupportedBrowser);
         expect(
           offlineEngineGap(FakeOfflineTranslator(isAvailable: false)),
-          OfflineOnlyGap.webApp,
+          OfflineOnlyGap.unsupportedBrowser,
         );
       } finally {
         debugDefaultTargetPlatformOverride = null;
@@ -206,7 +208,9 @@ void main() {
         await tester.tap(find.text('Change privacy mode'));
         verify(() => harness.router.push<void>('/settings')).called(1);
         expect(
-          find.bySemanticsLabel(RegExp('isn’t available in the web app')),
+          find.bySemanticsLabel(
+            RegExp('This browser can’t run offline translation'),
+          ),
           findsOneWidget,
         );
       },

@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
+import 'package:tesseract_ocr/src/engine/ocr_layout.dart';
 
 /// The native engine failed (it could not be loaded, a language could not
 /// be loaded, or recognition failed).
@@ -67,7 +68,7 @@ final class OcrImage {
 /// What [OcrEngine.recognize] found.
 @immutable
 final class OcrResult {
-  const new({required this.text, this.meanConfidence = 0});
+  const new({required this.text, this.meanConfidence = 0, this.layout});
 
   /// The recognised text: lines separated by `\n`, paragraphs by an empty
   /// line (trimmed; empty when there is none).
@@ -76,17 +77,24 @@ final class OcrResult {
   /// Tesseract's mean word confidence, 0 to 100.
   final int meanConfidence;
 
+  /// Where the text is in the image (blocks, paragraphs, lines and words
+  /// with their boxes), when it was asked for (`layout: true`).
+  final OcrLayout? layout;
+
   @override
   bool operator ==(Object other) =>
       other is OcrResult &&
       other.text == text &&
-      other.meanConfidence == meanConfidence;
+      other.meanConfidence == meanConfidence &&
+      other.layout == layout;
 
   @override
-  int get hashCode => Object.hash(text, meanConfidence);
+  int get hashCode => Object.hash(text, meanConfidence, layout);
 
   @override
-  String toString() => 'OcrResult(${text.length} chars, $meanConfidence%)';
+  String toString() =>
+      'OcrResult(${text.length} chars, $meanConfidence%'
+      '${layout == null ? '' : ', ${layout!.paragraphs.length} paragraphs'})';
 }
 
 /// The OCR engine: Tesseract in a background isolate (see
@@ -94,11 +102,14 @@ final class OcrResult {
 abstract interface class OcrEngine {
   /// Recognises the text in [image] with [languages] (Tesseract codes,
   /// main language first), whose `<code>.traineddata` files are in
-  /// [dataPath]. Throws [TesseractEngineException] on failure.
+  /// [dataPath]. With [layout], the result also says where the text is
+  /// ([OcrResult.layout], words included). Throws
+  /// [TesseractEngineException] on failure.
   Future<OcrResult> recognize(
     OcrImage image, {
     required String dataPath,
     required List<String> languages,
+    bool layout = false,
   });
 
   /// Unloads every loaded language (call after language data changed on

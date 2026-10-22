@@ -5,20 +5,56 @@ import 'package:bergamot_translator/bergamot_translator.dart';
 import 'package:mozhi/offline/data/offline_model_details.dart';
 import 'package:mozhi/offline/data/offline_model_error.dart';
 import 'package:mozhi/offline/data/offline_model_import.dart';
+import 'package:mozhi/settings/models/model_source.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// The [OfflineModelDetails] of [translator] when it is a
-/// [BergamotTranslator], otherwise null.
+/// [BergamotTranslator], otherwise null. In the web app (models in the
+/// browser's storage, [OpfsModelManager]) they have no imports: a browser
+/// has no model files to read.
 OfflineModelDetails? offlineModelDetailsOf(OfflineTranslator translator) =>
-    translator is BergamotTranslator ? BergamotModelDetails(translator) : null;
+    switch (translator) {
+      BergamotTranslator(models: OpfsModelManager()) =>
+        DownloadOnlyModelDetails(BergamotModelDetails(translator)),
+      final BergamotTranslator bergamot => BergamotModelDetails(bergamot),
+      _ => null,
+    };
+
+/// [details] without anything else they implement (such as
+/// [OfflineModelImport]): sizes, storage and downloads only.
+class DownloadOnlyModelDetails implements OfflineModelDetails {
+  const new(this.details);
+
+  final OfflineModelDetails details;
+
+  @override
+  int downloadSize(String code) => details.downloadSize(code);
+
+  @override
+  Future<OfflineStorage> storage(Iterable<String> codes) =>
+      details.storage(codes);
+
+  @override
+  Future<void> download(
+    String code, {
+    required bool wifiOnly,
+    void Function(double fraction)? onProgress,
+  }) => details.download(code, wifiOnly: wifiOnly, onProgress: onProgress);
+}
 
 /// [OfflineModelDetails] of a [BergamotTranslator]: a language is its
 /// models to and from English ([ModelRouter.modelsFor]). Imports go to
 /// [BergamotModelManager.importFiles] with the translator's catalog.
+/// Downloads come from the [ModelSource] in use when they start
+/// (`modelSource`, default [ModelSource.current]: the settings').
 class BergamotModelDetails implements OfflineModelDetails, OfflineModelImport {
-  new(this.translator);
+  new(this.translator, {ModelSource Function()? modelSource})
+    : _modelSource = modelSource ?? _currentSource;
 
   final BergamotTranslator translator;
+  final ModelSource Function() _modelSource;
+
+  static ModelSource _currentSource() => ModelSource.current;
 
   @override
   int downloadSize(String code) => translator.downloadSize(code);
@@ -68,6 +104,10 @@ class BergamotModelDetails implements OfflineModelDetails, OfflineModelImport {
       final bytes = received.values.fold(0, (sum, value) => sum + value);
       onProgress?.call((bytes / total).clamp(0, 1).toDouble());
     });
+    final source = _modelSource();
+    translator.models
+      ..mirror = source.mirror()
+      ..fallbackToDefault = source.fallsBackToDefault;
     try {
       await translator.downloadLanguage(code, wifiOnly: wifiOnly);
     } finally {

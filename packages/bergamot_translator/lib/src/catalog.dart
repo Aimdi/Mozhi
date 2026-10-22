@@ -2,6 +2,9 @@ import 'dart:convert';
 
 import 'package:meta/meta.dart';
 
+// Where the files of the catalog are downloaded from (Mozilla or a mirror).
+export 'package:bergamot_translator/src/model_source.dart';
+
 /// The files of one translation direction.
 enum ModelFileKind {
   /// The quantized model (`model.<pair>.intgemm.alphas.bin`).
@@ -70,7 +73,8 @@ final class CatalogFile {
   /// File name once installed (uncompressed), e.g. `vocab.ende.spm`.
   final String name;
 
-  /// Where the gzip-compressed file is downloaded from.
+  /// Where the gzip-compressed file is downloaded from by default
+  /// (Mozilla's hosts; see `bergamotDownloadUrls` for mirrors).
   final Uri url;
 
   /// Bytes of the download (gzip).

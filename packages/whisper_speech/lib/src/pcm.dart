@@ -41,6 +41,31 @@ double rmsDbfs(Float32List samples, [int start = 0, int? end]) {
   return math.max(20 * math.log(rms) / math.ln10, silenceDbfs);
 }
 
+/// Converts a stream of little-endian 16-bit PCM chunks (from a microphone)
+/// to Whisper's float samples chunk by chunk, without collecting them:
+/// a chunk may split a sample (an odd number of bytes), whose dangling byte
+/// is kept for the next chunk.
+final class Pcm16Decoder {
+  int? _pendingByte;
+
+  /// The samples [chunk] completes.
+  Float32List convert(List<int> chunk) {
+    if (chunk.isEmpty) return Float32List(0);
+    final bytes = Uint8List(chunk.length + (_pendingByte == null ? 0 : 1));
+    var offset = 0;
+    if (_pendingByte case final pending?) {
+      bytes[0] = pending;
+      offset = 1;
+    }
+    bytes.setRange(offset, bytes.length, chunk);
+    _pendingByte = bytes.length.isOdd ? bytes.last : null;
+    return pcm16ToFloat32(bytes);
+  }
+
+  /// Forgets a dangling byte (a new stream).
+  void reset() => _pendingByte = null;
+}
+
 /// Collects a recording that arrives as chunks of little-endian 16-bit
 /// PCM (from a microphone stream) as Whisper's float samples.
 ///

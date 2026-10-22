@@ -4,11 +4,18 @@ import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/image_translate/cubit/image_translate_cubit.dart';
 import 'package:mozhi/image_translate/widgets/image_translate_progress.dart';
+import 'package:mozhi/image_translate/widgets/translated_image_overlay.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:translation_repository/translation_repository.dart';
 
 /// The picked image (or the translated rendering, with an
 /// Original/Translated toggle) in a zoomable viewer, covered by the
 /// progress indicator while translating.
+///
+/// When on-device recognition found where the text is, an Overlay | Text
+/// toggle chooses between the photo with the translation drawn over it
+/// ([TranslatedImageOverlay], the default, with a "hold to see the
+/// original" button) and the plain photo with the text below.
 ///
 /// With [expand] the viewer fills the available height (wide layouts),
 /// otherwise it is [height] tall.
@@ -25,9 +32,12 @@ class ImageTranslatePreview extends StatelessWidget {
     final state = context.watch<ImageTranslateCubit>().state;
     final image = state.image;
     if (image == null) return const SizedBox.shrink();
-    final translated = state.result?.translatedImage;
+    final result = state.result;
+    final translated = result?.translatedImage;
     final showTranslated = translated != null && !state.showOriginal;
     final bytes = showTranslated ? translated : image.bytes;
+    final overlay = state.showsOverlay ? result : null;
+    final cubit = context.read<ImageTranslateCubit>();
 
     // X media: a rounded frame with a hairline edge.
     final viewer = Container(
@@ -44,22 +54,43 @@ class ImageTranslatePreview extends StatelessWidget {
             key: const Key('image_translate_viewer'),
             maxScale: 6,
             child: Center(
-              child: Image.memory(
-                bytes,
-                key: ValueKey(showTranslated),
-                fit: BoxFit.contain,
-                gaplessPlayback: true,
-                semanticLabel: showTranslated
-                    ? l10n.imageTranslateTranslatedImageLabel
-                    : l10n.imageTranslateOriginalImageLabel,
-                errorBuilder: (context, error, stackTrace) => Icon(
-                  Icons.broken_image_outlined,
-                  size: 48,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
+              child: overlay != null
+                  ? TranslatedImageOverlay(
+                      key: const Key('image_translate_overlay'),
+                      image: image.bytes,
+                      layout: overlay.layout!,
+                      translations: overlay.translatedParagraphs,
+                      source: _sourceOf(state),
+                      target: state.target,
+                      showOriginal: state.showOriginal,
+                    )
+                  : Image.memory(
+                      bytes,
+                      key: ValueKey(showTranslated),
+                      fit: BoxFit.contain,
+                      gaplessPlayback: true,
+                      semanticLabel: showTranslated
+                          ? l10n.imageTranslateTranslatedImageLabel
+                          : l10n.imageTranslateOriginalImageLabel,
+                      errorBuilder: (context, error, stackTrace) => Icon(
+                        Icons.broken_image_outlined,
+                        size: 48,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
             ),
           ),
+          if (overlay != null && !state.isWorking)
+            PositionedDirectional(
+              end: 12,
+              bottom: 12,
+              child: HoldToShowOriginalButton(
+                key: const Key('image_translate_hold_original'),
+                showing: state.showOriginal,
+                onChanged: (showing) =>
+                    cubit.setShowOriginal(showOriginal: showing),
+              ),
+            ),
           if (state.isWorking)
             ColoredBox(
               color: theme.colorScheme.scrim.withValues(alpha: 0.32),
@@ -95,9 +126,30 @@ class ImageTranslatePreview extends StatelessWidget {
                 ),
               ],
               selected: {showTranslated},
-              onSelectionChanged: (selection) => context
-                  .read<ImageTranslateCubit>()
-                  .setShowOriginal(showOriginal: !selection.first),
+              onSelectionChanged: (selection) =>
+                  cubit.setShowOriginal(showOriginal: !selection.first),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ] else if (result?.hasOverlay ?? false) ...[
+          Center(
+            child: SegmentedButton<ImageResultMode>(
+              key: const Key('image_translate_mode_toggle'),
+              segments: [
+                ButtonSegment(
+                  value: ImageResultMode.overlay,
+                  icon: const Icon(Icons.layers_outlined),
+                  label: Text(l10n.imageTranslateModeOverlay),
+                ),
+                ButtonSegment(
+                  value: ImageResultMode.text,
+                  icon: const Icon(Icons.notes),
+                  label: Text(l10n.imageTranslateModeText),
+                ),
+              ],
+              selected: {state.resultMode},
+              onSelectionChanged: (selection) =>
+                  cubit.setResultMode(selection.first),
             ),
           ),
           const SizedBox(height: 12),
@@ -109,4 +161,14 @@ class ImageTranslatePreview extends StatelessWidget {
       ],
     );
   }
+}
+
+/// The language of the text in the photo: the chosen source, else the one
+/// the translator detected.
+Language _sourceOf(ImageTranslateState state) {
+  if (!state.source.isAuto) return state.source;
+  final detected = state.result?.detectedSource;
+  if (detected == null || detected.isEmpty) return state.source;
+  return LanguageCatalog.byCode(detected) ??
+      Language(code: detected, name: detected);
 }

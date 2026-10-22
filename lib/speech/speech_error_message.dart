@@ -4,6 +4,11 @@ import 'package:mozhi/speech/speech_service.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// User-facing message for an error thrown by [SpeechService.toggle]:
+/// * an online device voice that the user has not allowed yet
+///   ([SpeechService.isOnlineVoiceConsent]): it names the voice and who
+///   receives the text ([AppLocalizations.speechOnlineVoiceConsent]; offer
+///   [speechListenOnlineLabel] as the action), and in offline-only mode
+///   that it may not read ([AppLocalizations.speechOnlineVoiceOfflineOnly]);
 /// * no device voice, but a Mozhi instance could read the text with the
 ///   user's consent ([SpeechUnavailableException.onlineConsent]):
 ///   [AppLocalizations.speechUnavailableOnline], naming the instance
@@ -16,6 +21,9 @@ import 'package:translation_repository/translation_repository.dart';
 ///   the language, else the generic [AppLocalizations.translateSpeechError].
 String speechErrorMessage(AppLocalizations l10n, Object error) =>
     switch (error) {
+      SpeechUnavailableException(cause: final ConsentRequiredException consent)
+          when SpeechService.isOnlineVoiceConsent(consent) =>
+        _onlineVoiceMessage(l10n, consent),
       SpeechUnavailableException(onlineConsent: final consent?) =>
         l10n.speechUnavailableOnline(speechConsentHost(consent)),
       SpeechUnavailableException(
@@ -26,6 +34,26 @@ String speechErrorMessage(AppLocalizations l10n, Object error) =>
         describeNetworkPolicyError(l10n, cause) ?? l10n.speechUnavailable,
       _ => l10n.translateSpeechError,
     };
+
+/// What an online voice consent ([SpeechService.isOnlineVoiceConsent]) is
+/// about.
+String _onlineVoiceMessage(
+  AppLocalizations l10n,
+  ConsentRequiredException consent,
+) {
+  final online = SpeechService.onlineVoiceOf(consent);
+  final variant = online?.engineVariant;
+  final voice = variant == null
+      ? online?.name ?? ''
+      : l10n.speechVoiceVariant(variant.toUpperCase());
+  if (consent.kind == ConsentKind.offlineOnly) {
+    return l10n.speechOnlineVoiceOfflineOnly(voice);
+  }
+  final provider = speechConsentHost(consent);
+  return provider.isEmpty
+      ? l10n.speechOnlineVoiceConsentUnknown(voice)
+      : l10n.speechOnlineVoiceConsent(voice, provider);
+}
 
 /// "Listen online": the action that retries with `allowOnline: consent`,
 /// or null when [error] offers none. The message

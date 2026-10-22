@@ -75,7 +75,10 @@ class TesseractOcr {
 
   /// Recognises the text in [pixels] ([width] x [height]; RGBA with
   /// premultiplied alpha by default, see [OcrImage]) with [languages]
-  /// (Tesseract codes, main language first; at most 8).
+  /// (Tesseract codes, main language first; at most 8). With [layout] the
+  /// result also says where the text is ([OcrResult.layout]: blocks,
+  /// paragraphs, lines and words with their boxes in pixels of this image,
+  /// and the colours of each paragraph's text and background).
   ///
   /// Throws [ArgumentError] for no or invalid languages,
   /// [TessdataMissingException] when one is not installed,
@@ -88,6 +91,7 @@ class TesseractOcr {
     required List<String> languages,
     int bytesPerPixel = 4,
     int? bytesPerLine,
+    bool layout = false,
   }) async {
     if (!isAvailable) {
       throw UnsupportedError('On-device text recognition is not available');
@@ -121,6 +125,7 @@ class TesseractOcr {
       languages: [
         ...{...languages},
       ],
+      layout: layout,
     );
   }
 

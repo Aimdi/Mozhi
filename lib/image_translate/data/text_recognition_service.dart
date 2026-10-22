@@ -60,24 +60,31 @@ abstract interface class TextRecognitionLanguageData {
   Stream<void> get ocrLanguagesChanged;
 }
 
-/// Text recognised in an image, with how sure the recognizer is.
+/// Text recognised in an image, with how sure the recognizer is and,
+/// when it reports it, where the text is.
 @immutable
 class TextWithConfidence {
-  const new(this.text, {this.confidence});
+  const new(this.text, {this.confidence, this.layout});
 
   final String text;
 
   /// 0 to 100 (Tesseract's mean word confidence), null when unknown.
   final int? confidence;
 
+  /// The paragraphs of [text] with their places in the image (Tesseract,
+  /// ML Kit in the Play variant), null when unknown. Paragraphs without
+  /// letters or digits (specks read as text) are left out.
+  final TextLayout? layout;
+
   @override
   bool operator ==(Object other) =>
       other is TextWithConfidence &&
       other.text == text &&
-      other.confidence == confidence;
+      other.confidence == confidence &&
+      other.layout == layout;
 
   @override
-  int get hashCode => Object.hash(text, confidence);
+  int get hashCode => Object.hash(text, confidence, layout);
 
   @override
   String toString() => 'TextWithConfidence(${text.length} chars, $confidence%)';
@@ -87,11 +94,25 @@ class TextWithConfidence {
 /// read (Tesseract). A low confidence for "Detect language" usually means
 /// the text is in a language whose data was not used.
 abstract interface class TextRecognitionConfidence {
-  /// Like [TextRecognitionLanguageData.recognizeWith], with the confidence.
+  /// Like [TextRecognitionLanguageData.recognizeWith], with the confidence
+  /// (and the [TextWithConfidence.layout] when the recognizer reports it).
   Future<TextWithConfidence> recognizeWithConfidence(
     PickedImage image,
     List<String> codes,
   );
+}
+
+/// A [TextRecognitionService] that also says where the text is (the Play
+/// variant's ML Kit; Tesseract reports it through
+/// [TextRecognitionConfidence.recognizeWithConfidence]).
+abstract interface class TextRecognitionLayout {
+  /// Like [TextRecognitionService.recognize], with
+  /// [TextWithConfidence.layout] when the recognizer found where the text
+  /// is.
+  Future<TextWithConfidence> recognizeLayout(
+    PickedImage image, {
+    required Language source,
+  });
 }
 
 /// [service]'s language data, when it downloads data per language (the

@@ -69,6 +69,62 @@ in `-rc.N`).
   - "/" goes to the text box;
   - a focus ring shows where the keyboard is (never after a touch);
   - the shortcuts list has an "Anywhere in the app" section.
+- **Photo translation over the picture** (Android): the translation is
+  drawn over the original text, paragraph by paragraph, in matching size
+  and colours. Hold to see the original, tap a paragraph to see and copy
+  both, and **Save image** or **Share image** keeps the translated
+  picture. **Text** shows the plain text as before.
+- **Offline translation in the web app.** The same on-device engine and
+  models as on Android run in the browser (WebAssembly in a background
+  worker), with downloads kept in the browser's storage for the site:
+  translation, language detection, alignment and unsure-sentence marks
+  work without a network, and Offline only and Offline first work in the
+  web app too. It needs a recent browser over `https`; the Offline
+  languages screen says what's missing otherwise. Self-hosted web apps
+  serve the models from their own server (Mozilla's storage doesn't allow
+  other websites).
+- **Transcribe** (More tools, and the Conversation menu): a running
+  transcript of a talk or lecture, phrase by phrase with timestamps, on
+  the device with the offline speech model on Android. Tap **Translate**
+  to translate each phrase as it comes (on the device in Offline only),
+  and copy, share, save as text or subtitles (.srt) or keep it in History.
+  It pauses when the app is hidden and keeps the screen on while it
+  listens.
+- **Offline voice input phrase by phrase:** with the 0.9 MB speech
+  detector (downloaded with the speech model, or on its own in Settings ›
+  Read aloud & voice › Voice input), text appears after each phrase
+  instead of at the end, sessions last up to a minute, and noise no longer
+  counts as speech. Conversation uses it too.
+- **Offline dictionaries** (Offline languages › Dictionaries): download a
+  Wiktionary dictionary once, and the Dictionary tab and the panel under
+  short translations show meanings, pronunciation, examples and
+  inflected forms ("went" is a form of "go") without AI or a network,
+  credited "From Wiktionary · CC BY-SA 4.0". **More detail** still asks
+  your AI provider. Look-ups never leave the device. The dictionaries are
+  published with the app's releases.
+- **Model source** (Settings › Translation engines, and the Offline
+  languages screen): download offline languages, voice input and text
+  recognition models from the original publishers, from the server that
+  hosts the web app, or from your own mirror (https, your network or a
+  .onion address), optionally falling back to the publishers. Every file
+  is still checked against the fingerprint built into Mozhi.
+  `tool/mirror_models.py` fills a mirror, and the Caddy setup in `deploy/`
+  serves it.
+- **Glossaries with Mozhi and LibreTranslate:** the terms are protected
+  on the device, translated your way and put back (whole words only, and
+  acronyms like *IT* or case-sensitive terms in their exact case); a term
+  that couldn't be placed is flagged. Every engine but the on-device one
+  and translation-only AI models now applies glossaries.
+- **Personal data stays hidden in the AI extras too:** alternatives,
+  explanations, refining, meaning checks, dictionary look-ups, Proofread
+  and image and document translation get placeholders instead of e-mail
+  addresses, phone numbers and account numbers, and Proofread says how
+  many items stayed on the device.
+- **Online voices are labelled.** Voices that send the text to a speech
+  service (such as Chrome's "Google …" voices) say so in the voice picker,
+  local voices come first, and Mozhi asks once per voice before one reads
+  aloud (Settings › Read aloud & voice › Allowed online voices). In
+  offline-only mode they are not used.
 
 ### Changed
 
@@ -196,6 +252,31 @@ in `-rc.N`).
   disabled.
 - **The splash screen and system bars** match the default light and dark
   looks on Android and the web.
+- **HTTPS through a proxy** (Android): the connection timeout now covers
+  the proxy's `CONNECT` answer and the TLS handshake too, so a server that
+  never answers through Tor fails over in seconds instead of hanging until
+  the request times out. Tor `.onion` and I2P sites in plain http go
+  through a tunnel too, which Tor's HTTP tunnel port requires.
+- **Voice models** are checked against their SHA-256 fingerprint as well
+  as their SHA-1 one.
+- **Saved glossaries apply.** The glossaries in Settings › AI ›
+  Glossaries weren't applied to translations; now every enabled glossary
+  applies to every translation of its language pair (also in
+  Documents, Conversation, Transcribe and photo translation), and the
+  terms you add in the options sheet win over them.
+- **Glossary terms no longer match other words:** *IT* no longer matches
+  "it", *Bank* no longer matches "Bankett", and a missing-term warning no
+  longer appears for words that only look like a term.
+- **Personal data:** e-mail addresses with accented letters
+  (`info@müller.de`) and IPv6 addresses are hidden from online engines
+  too.
+- **Redirects can't move your text or downloads elsewhere.** A Mozhi
+  instance's redirect is only followed on the same server (or from http to
+  https on it): a redirect to another server, which could have received
+  your text again outside your proxy, now shows an error naming that
+  server. Model and dictionary downloads follow redirects only to public
+  `https` servers: never to plain http, into your network or around your
+  proxy.
 
 ## 0.1.0-rc.2
 

@@ -1,2 +1,6 @@
 # Local settings and secrets (see .env.example).
 .env
+# The model mirror and the unpacked web app (large; downloaded, never
+# committed).
+/models/
+/web/

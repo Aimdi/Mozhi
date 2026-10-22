@@ -208,6 +208,7 @@ class DictionaryEntry {
     this.notes = '',
     this.relatedWords = const [],
     this.didYouMean,
+    this.maskedPersonalData = 0,
   });
 
   final String word;
@@ -229,6 +230,27 @@ class DictionaryEntry {
   /// entry then describes that word); null otherwise.
   final String? didYouMean;
 
+  /// How many items of personal data (e-mail addresses, phone numbers,
+  /// ...) of the word and its context the personal data shield kept on
+  /// the device (`TranslationRepository.maskPersonalData`): the model got
+  /// placeholders, which were put back into the entry.
+  final int maskedPersonalData;
+
+  /// A copy with [maskedPersonalData] set to [count].
+  DictionaryEntry withMaskedPersonalData(int count) => DictionaryEntry(
+    word: word,
+    pronunciation: pronunciation,
+    partsOfSpeech: partsOfSpeech,
+    senses: senses,
+    examples: examples,
+    synonyms: synonyms,
+    etymology: etymology,
+    notes: notes,
+    relatedWords: relatedWords,
+    didYouMean: didYouMean,
+    maskedPersonalData: count,
+  );
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -242,7 +264,8 @@ class DictionaryEntry {
           other.etymology == etymology &&
           other.notes == notes &&
           _list.equals(other.relatedWords, relatedWords) &&
-          other.didYouMean == didYouMean;
+          other.didYouMean == didYouMean &&
+          other.maskedPersonalData == maskedPersonalData;
 
   @override
   int get hashCode => Object.hash(
@@ -256,6 +279,7 @@ class DictionaryEntry {
     notes,
     _list.hash(relatedWords),
     didYouMean,
+    maskedPersonalData,
   );
 }
 
@@ -445,6 +469,7 @@ class ProofreadResult {
     this.edits = const [],
     this.detectedLanguage,
     this.summary = '',
+    this.maskedPersonalData = 0,
   });
 
   final String correctedText;
@@ -454,6 +479,21 @@ class ProofreadResult {
   /// One or two sentences on overall style/tone/repetition.
   final String summary;
 
+  /// How many items of personal data (e-mail addresses, phone numbers,
+  /// ...) of the text and its context the personal data shield kept on the
+  /// device (`TranslationRepository.maskPersonalData`): the model got
+  /// placeholders, which were put back into the result.
+  final int maskedPersonalData;
+
+  /// A copy with [maskedPersonalData] set to [count].
+  ProofreadResult withMaskedPersonalData(int count) => ProofreadResult(
+    correctedText: correctedText,
+    edits: edits,
+    detectedLanguage: detectedLanguage,
+    summary: summary,
+    maskedPersonalData: count,
+  );
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -461,11 +501,17 @@ class ProofreadResult {
           other.correctedText == correctedText &&
           _list.equals(other.edits, edits) &&
           other.detectedLanguage == detectedLanguage &&
-          other.summary == summary;
+          other.summary == summary &&
+          other.maskedPersonalData == maskedPersonalData;
 
   @override
-  int get hashCode =>
-      Object.hash(correctedText, _list.hash(edits), detectedLanguage, summary);
+  int get hashCode => Object.hash(
+    correctedText,
+    _list.hash(edits),
+    detectedLanguage,
+    summary,
+    maskedPersonalData,
+  );
 }
 
 @immutable

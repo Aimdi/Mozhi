@@ -43,7 +43,7 @@ enum OfflineModelErrorKind {
 /// A failure of an offline model operation, classified for the user.
 @immutable
 class OfflineModelError extends Equatable {
-  const new(this.kind, {this.statusCode, this.networkPolicy});
+  const new(this.kind, {this.statusCode, this.networkPolicy, this.mirror});
 
   /// Classifies [error] (thrown by `OfflineTranslator.downloadLanguage`,
   /// `deleteLanguage`, `OfflineModelDetails.download` or the text
@@ -52,26 +52,36 @@ class OfflineModelError extends Equatable {
     MeteredConnectionException() => const OfflineModelError(
       OfflineModelErrorKind.metered,
     ),
-    ModelChecksumException() || TessdataChecksumException() =>
-      const OfflineModelError(OfflineModelErrorKind.checksum),
-    TessdataDownloadException(:final int statusCode) => OfflineModelError(
-      OfflineModelErrorKind.server,
-      statusCode: statusCode,
+    ModelChecksumException(:final mirror) ||
+    TessdataChecksumException(:final mirror) => OfflineModelError(
+      OfflineModelErrorKind.checksum,
+      mirror: mirrorName(mirror),
     ),
-    TessdataDownloadException(:final message) => OfflineModelError(
-      OfflineModelErrorKind.network,
-      networkPolicy: NetworkPolicyError.of(message),
-    ),
+    TessdataDownloadException(:final int statusCode, :final mirror) =>
+      OfflineModelError(
+        OfflineModelErrorKind.server,
+        statusCode: statusCode,
+        mirror: mirrorName(mirror),
+      ),
+    TessdataDownloadException(:final message, :final mirror) =>
+      OfflineModelError(
+        OfflineModelErrorKind.network,
+        networkPolicy: NetworkPolicyError.of(message),
+        mirror: mirrorName(mirror),
+      ),
     TessdataMissingException() => const OfflineModelError(
       OfflineModelErrorKind.unsupported,
     ),
-    ModelDownloadException(:final int statusCode) => OfflineModelError(
-      OfflineModelErrorKind.server,
-      statusCode: statusCode,
-    ),
-    ModelDownloadException(:final message) => OfflineModelError(
+    ModelDownloadException(:final int statusCode, :final mirror) =>
+      OfflineModelError(
+        OfflineModelErrorKind.server,
+        statusCode: statusCode,
+        mirror: mirrorName(mirror),
+      ),
+    ModelDownloadException(:final message, :final mirror) => OfflineModelError(
       OfflineModelErrorKind.network,
       networkPolicy: NetworkPolicyError.of(message),
+      mirror: mirrorName(mirror),
     ),
     FileSystemException() => const OfflineModelError(
       OfflineModelErrorKind.storage,
@@ -93,6 +103,18 @@ class OfflineModelError extends Equatable {
   /// download (e.g. an invalid proxy setting), if any.
   final NetworkPolicyError? networkPolicy;
 
+  /// The mirror (host and port, see `AppSettings.modelSource`) a failed
+  /// download came from; null for the original publishers.
+  final String? mirror;
+
+  /// [mirror] as shown to the user: its host, and its port when it has
+  /// one; null for none.
+  static String? mirrorName(Uri? mirror) => switch (mirror) {
+    null => null,
+    final mirror when mirror.hasPort => '${mirror.host}:${mirror.port}',
+    final mirror => mirror.host,
+  };
+
   @override
-  List<Object?> get props => [kind, statusCode, networkPolicy];
+  List<Object?> get props => [kind, statusCode, networkPolicy, mirror];
 }

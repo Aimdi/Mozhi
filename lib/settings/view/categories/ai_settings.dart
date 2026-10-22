@@ -71,7 +71,7 @@ class AiSettings extends StatelessWidget {
             key: const Key('settings_glossaries'),
             leading: const SettingsIcon(Icons.menu_book_outlined),
             title: Text(l10n.glossariesTitle),
-            subtitle: Text(l10n.settingsGlossariesSubtitle),
+            subtitle: Text(l10n.settingsGlossariesSubtitleAllEngines),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push(AppRoutes.glossaries),
           ),

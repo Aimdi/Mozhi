@@ -11,11 +11,16 @@ import 'package:tesseract_ocr/src/catalog.dart';
 
 /// A download or install of language data failed.
 sealed class TessdataInstallException implements Exception {
-  const new(this.language, this.message);
+  const new(this.language, this.message, {this.mirror});
 
   /// The Tesseract code, e.g. `deu`.
   final String language;
   final String message;
+
+  /// The mirror ([TessdataManager.mirror]) the failed download came from;
+  /// null for the catalog's URL (GitHub) and for failures that are not a
+  /// download's.
+  final Uri? mirror;
 
   String get _name;
 
@@ -26,7 +31,7 @@ sealed class TessdataInstallException implements Exception {
 /// A file did not match the catalog's size or SHA-256 (corrupt or tampered
 /// download). Nothing was installed.
 final class TessdataChecksumException extends TessdataInstallException {
-  const new(super.language, super.message);
+  const new(super.language, super.message, {super.mirror});
 
   @override
   String get _name => 'TessdataChecksumException';
@@ -34,7 +39,7 @@ final class TessdataChecksumException extends TessdataInstallException {
 
 /// The server answered with an error or the connection failed.
 final class TessdataDownloadException extends TessdataInstallException {
-  const new(super.language, super.message, {this.statusCode});
+  const new(super.language, super.message, {this.statusCode, super.mirror});
 
   final int? statusCode;
 
@@ -182,7 +187,9 @@ final class TessdataImportResult {
 ///
 /// Every download is checked against the catalog's size and SHA-256 before
 /// it is installed. The [http.Client] is injectable (tests use
-/// `MockClient`). [importFiles] installs files copied to the device by
+/// `MockClient`). Files come from the catalog's URLs (GitHub) or from a
+/// [mirror] of them ([tessdataDownloadUrls]), which needs no trust: the
+/// same checks apply. [importFiles] installs files copied to the device by
 /// hand instead, through the same checks, without any network request.
 class TessdataManager {
   new({
@@ -197,6 +204,19 @@ class TessdataManager {
 
   /// Maximum wait for response headers and between chunks of a download.
   final Duration requestTimeout;
+
+  /// Base URL of a mirror of the model files to download from instead of
+  /// the catalog's URLs, e.g. `https://example.org/models/` (layout: see
+  /// [tessdataMirrorUrl]); null downloads from GitHub. Read when an
+  /// [install] starts. A file that does not match the catalog fails with
+  /// a [TessdataChecksumException] naming the mirror.
+  Uri? mirror;
+
+  /// Whether a file the [mirror] does not serve (an HTTP error or a failed
+  /// connection) is downloaded from the catalog's URL instead. Without it,
+  /// the install fails with a [TessdataDownloadException] naming the
+  /// mirror.
+  bool fallbackToDefault = false;
 
   final http.Client _client;
   final bool _ownsClient;
@@ -377,15 +397,20 @@ class TessdataManager {
     final existing = await installedLanguage(language.code);
     if (existing != null && existing.sha256 == language.sha256) return existing;
     await _downloadsDirectory.create(recursive: true);
-    final part = await _download(language, (received) {
-      onProgress?.call(
-        TessdataDownloadProgress(
-          language: language,
-          receivedBytes: received,
-          totalBytes: language.size,
-        ),
-      );
-    });
+    final part = await _download(
+      language,
+      (received) {
+        onProgress?.call(
+          TessdataDownloadProgress(
+            language: language,
+            receivedBytes: received,
+            totalBytes: language.size,
+          ),
+        );
+      },
+      mirror: mirror,
+      fallbackToDefault: fallbackToDefault,
+    );
     return await _installVerified(language, part);
   }
 
@@ -434,11 +459,14 @@ class TessdataManager {
   }
 
   /// Downloads [language] into `<downloads>/<code>.traineddata.part`
-  /// (resuming a partial download) and verifies its size and SHA-256.
+  /// (resuming a partial download) from [mirror] or the catalog's URL (see
+  /// [tessdataDownloadUrls]) and verifies its size and SHA-256.
   Future<File> _download(
     TessdataLanguage language,
-    void Function(int received) report,
-  ) async {
+    void Function(int received) report, {
+    Uri? mirror,
+    bool fallbackToDefault = false,
+  }) async {
     final part = File(_partPath(language.code));
     var existing = part.existsSync() ? part.lengthSync() : 0;
     if (existing > language.size) {
@@ -449,26 +477,18 @@ class TessdataManager {
     final digestSink = _DigestSink();
     final hasher = sha256.startChunkedConversion(digestSink);
     var received = 0;
+    // The mirror the bytes come from (null: the catalog's URL).
+    Uri? source;
 
     if (existing < language.size) {
-      final request = http.Request('GET', language.url);
-      if (existing > 0) request.headers['Range'] = 'bytes=$existing-';
-      final http.StreamedResponse response;
-      try {
-        response = await _client.send(request).timeout(requestTimeout);
-      } on Object catch (error) {
-        throw TessdataDownloadException(language.code, '$error');
-      }
+      final (response, from) = await _request(
+        language,
+        existing,
+        mirror: mirror,
+        fallbackToDefault: fallbackToDefault,
+      );
+      source = from;
       final resumed = existing > 0 && response.statusCode == 206;
-      if (response.statusCode != 200 && !resumed) {
-        // Drain so the connection can be reused.
-        await response.stream.drain<void>().catchError((_) {});
-        throw TessdataDownloadException(
-          language.code,
-          'HTTP ${response.statusCode} for ${language.url}',
-          statusCode: response.statusCode,
-        );
-      }
       if (resumed) {
         // Hash what is already on disk, then append.
         await for (final chunk in part.openRead()) {
@@ -486,7 +506,9 @@ class TessdataManager {
           if (received > language.size) {
             throw TessdataChecksumException(
               language.code,
-              '${language.fileName}: more than ${language.size} bytes',
+              '${language.fileName}${_from(source)}: more than '
+              '${language.size} bytes',
+              mirror: source,
             );
           }
           hasher.add(chunk);
@@ -502,7 +524,8 @@ class TessdataManager {
         await sink.close();
         throw TessdataDownloadException(
           language.code,
-          '${language.fileName}: $error',
+          '${language.fileName}${_from(source)}: $error',
+          mirror: source,
         );
       }
       await sink.flush();
@@ -521,12 +544,68 @@ class TessdataManager {
       await _deleteQuietly(part);
       throw TessdataChecksumException(
         language.code,
-        '${language.fileName}: got $received bytes with SHA-256 $digest, '
-        'expected ${language.size} bytes with SHA-256 ${language.sha256}',
+        '${language.fileName}${_from(source)}: got $received bytes with '
+        'SHA-256 $digest, expected ${language.size} bytes with SHA-256 '
+        '${language.sha256}',
+        mirror: source,
       );
     }
     return part;
   }
+
+  /// Sends the request for [language] (from byte [existing] on) to each URL
+  /// of [tessdataDownloadUrls] in turn until one answers with its contents
+  /// (200, or 206 when resuming): the response and the mirror it came from
+  /// (null: the catalog's URL). Throws the last URL's
+  /// [TessdataDownloadException].
+  Future<(http.StreamedResponse, Uri?)> _request(
+    TessdataLanguage language,
+    int existing, {
+    required Uri? mirror,
+    required bool fallbackToDefault,
+  }) async {
+    final urls = tessdataDownloadUrls(
+      language,
+      mirror: mirror,
+      fallbackToDefault: fallbackToDefault,
+    );
+    for (var i = 0; ; i++) {
+      final url = urls[i];
+      final source = i == 0 ? mirror : null;
+      final last = i == urls.length - 1;
+      final request = http.Request('GET', url);
+      if (existing > 0) request.headers['Range'] = 'bytes=$existing-';
+      final http.StreamedResponse response;
+      try {
+        response = await _client.send(request).timeout(requestTimeout);
+      } on Object catch (error) {
+        if (!last) continue;
+        throw TessdataDownloadException(
+          language.code,
+          '${language.fileName}${_from(source)}: $error',
+          mirror: source,
+        );
+      }
+      final status = response.statusCode;
+      if (status == 200 || (existing > 0 && status == 206)) {
+        return (response, source);
+      }
+      // Drain so the connection can be reused.
+      await response.stream.drain<void>().catchError((_) {});
+      if (last) {
+        throw TessdataDownloadException(
+          language.code,
+          'HTTP $status for $url',
+          statusCode: status,
+          mirror: source,
+        );
+      }
+    }
+  }
+
+  /// ` from the mirror <mirror>` for a download from [mirror], else empty.
+  static String _from(Uri? mirror) =>
+      mirror == null ? '' : ' from the mirror $mirror';
 
   /// Installs [language] from the verified imported [input].
   Future<TessdataImportOutcome> _importLanguage(

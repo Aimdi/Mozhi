@@ -41,6 +41,75 @@ void main() {
       expect(speechListenOnlineLabel(l10n, error), 'Listen online');
     });
 
+    group('online voices', () {
+      const google = DeviceVoice(
+        name: 'Google français',
+        locale: 'fr-FR',
+        networkRequired: true,
+      );
+
+      test('names the voice and who receives the text', () {
+        final error = SpeechUnavailableException(
+          'fr',
+          cause: SpeechService.onlineVoiceConsent(google),
+        );
+
+        expect(
+          speechErrorMessage(l10n, error),
+          l10n.speechOnlineVoiceConsent('Google français', 'Google'),
+        );
+        expect(speechListenOnlineLabel(l10n, error), 'Listen online');
+      });
+
+      test('says when it is unknown who runs the voice', () {
+        final error = SpeechUnavailableException(
+          'fr',
+          cause: SpeechService.onlineVoiceConsent(
+            const DeviceVoice(
+              name: 'fr-fr-x-abc-network',
+              locale: 'fr-FR',
+              networkRequired: true,
+            ).withNetworkRequired(online: true),
+          ),
+        );
+        // Google's engine names are shown by variant.
+        expect(
+          speechErrorMessage(l10n, error),
+          l10n.speechOnlineVoiceConsent('Voice ABC', 'Google'),
+        );
+        final unknown = SpeechUnavailableException(
+          'fr',
+          cause: SpeechService.onlineVoiceConsent(
+            const DeviceVoice(
+              name: 'Remote',
+              locale: 'fr-FR',
+              networkRequired: true,
+            ),
+          ),
+        );
+        expect(
+          speechErrorMessage(l10n, unknown),
+          l10n.speechOnlineVoiceConsentUnknown('Remote'),
+        );
+      });
+
+      test('says that it may not read in offline-only mode', () {
+        final error = SpeechUnavailableException(
+          'fr',
+          cause: SpeechService.onlineVoiceConsent(
+            google,
+            kind: ConsentKind.offlineOnly,
+          ),
+        );
+
+        expect(
+          speechErrorMessage(l10n, error),
+          l10n.speechOnlineVoiceOfflineOnly('Google français'),
+        );
+        expect(speechListenOnlineLabel(l10n, error), isNull);
+      });
+    });
+
     test('says that offline-only mode sends nothing', () {
       final error = SpeechUnavailableException(
         'fr',

@@ -85,8 +85,9 @@ jobs:
         run: bash .github/scripts/packages.sh test
 
       # tool/play_prepare.sh and tool/fdroid_prepare.sh on scratch copies
-      # (idempotent, fail loudly), and the APK checkers (Google code,
-      # trackers) on synthetic APKs.
+      # (idempotent, fail loudly), the APK checkers (Google code, trackers)
+      # on synthetic APKs, and the model mirror tool against a local
+      # fixture server.
       - name: Test build scripts
         run: |
           sh tool/variant_prepare_test.sh
@@ -96,6 +97,8 @@ jobs:
           python3 tool/check_keystore_test.py
           python3 tool/check_signing_test.py
           python3 tool/check_page_size_test.py
+          python3 tool/mirror_models_test.py
+          python3 tool/dictionary_packs_test.py
 
       - name: Test app
         run: flutter test --coverage
@@ -498,9 +501,66 @@ jobs:
             dist/SHA256SUMS.txt
           if-no-files-found: error
 
+  # The web app's on-device engine: Mozilla's Bergamot and CLD2 compiled to
+  # WebAssembly (single-threaded, WASM SIMD) with Emscripten at the version
+  # mozilla/translations pins, by packages/bergamot_translator/tool/
+  # build_wasm.sh (only the submodules the engine compiles; emsdk in a
+  # cache outside the checkout). The web jobs copy the artifact into
+  # web/bergamot/ before `flutter build web`; nothing binary is committed.
+  build-bergamot-wasm:
+    name: Build Bergamot WASM
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      MOZHI_CACHE_DIR: ${{ github.workspace }}/.mozhi-cache
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Fetch the engine's sources
+        run: packages/bergamot_translator/tool/fetch_native_deps.sh
+
+      # emsdk is ~1.2 GB unpacked; keyed on the version upstream pins and
+      # the emsdk commit of its submodule.
+      - name: Find the pinned Emscripten
+        id: emsdk
+        run: |
+          translations=packages/bergamot_translator/native/third_party/translations
+          version=$(sed -n 's/^EMSDK_VERSION = "\(.*\)"$/\1/p' \
+            "$translations/inference/scripts/build-wasm.py")
+          commit=$(git -C "$translations" ls-tree HEAD inference/3rd_party/emsdk \
+            | awk '{print $3}')
+          echo "key=emsdk-${{ runner.os }}-$version-$commit" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .mozhi-cache/emsdk
+          key: ${{ steps.emsdk.outputs.key }}
+
+      - name: Build bergamot-translator.{js,wasm}
+        run: |
+          packages/bergamot_translator/tool/build_wasm.sh "$RUNNER_TEMP/bergamot-wasm"
+          {
+            echo "### Bergamot WASM"
+            echo
+            echo "| File | Size | gzip |"
+            echo "| --- | ---: | ---: |"
+            for file in "$RUNNER_TEMP"/bergamot-wasm/bergamot-translator.*; do
+              echo "| $(basename "$file") | $(stat -c %s "$file") | $(gzip -9c "$file" | wc -c) |"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the engine
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bergamot-wasm
+          path: |
+            ${{ runner.temp }}/bergamot-wasm/bergamot-translator.js
+            ${{ runner.temp }}/bergamot-wasm/bergamot-translator.wasm
+          if-no-files-found: error
+
   build-web:
     name: Build web
-    needs: analyze-test
+    needs: [analyze-test, build-bergamot-wasm]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -511,6 +571,14 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+
+      # The on-device engine (job build-bergamot-wasm) next to its worker,
+      # so the build copies it into build/web/bergamot/.
+      - name: Add the Bergamot WASM engine
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: bergamot-wasm
+          path: web/bergamot
 
       - name: Install dependencies
         run: |
@@ -550,11 +618,14 @@ jobs:
   # e2e/playwright.config.js).
   e2e-web:
     name: Web end-to-end tests
-    needs: analyze-test
+    needs: [analyze-test, build-bergamot-wasm]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
       E2E_WEB_DIR: ../build/web-e2e
+      # Real German models for the on-device spec (offline_engine.spec.js),
+      # fetched from Mozilla and checked against the bundled catalog.
+      E2E_MODELS_DIR: ${{ github.workspace }}/.e2e-models
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -563,6 +634,21 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+
+      - name: Add the Bergamot WASM engine
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: bergamot-wasm
+          path: web/bergamot
+
+      # 51 MB (de-en and en-de), cached by the catalog's checksums.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .e2e-models
+          key: e2e-models-de-${{ hashFiles('packages/bergamot_translator/assets/catalog.json') }}
+
+      - name: Fetch the test models
+        run: python3 e2e/fetch_models.py de "$E2E_MODELS_DIR"
 
       - name: Install dependencies
         run: |

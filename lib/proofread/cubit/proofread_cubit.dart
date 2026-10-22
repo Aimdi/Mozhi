@@ -209,6 +209,7 @@ class ProofreadCubit extends Cubit<ProofreadState> {
       edits: edits,
       detectedLanguage: result.detectedLanguage,
       summary: result.summary,
+      maskedPersonalData: result.maskedPersonalData,
     );
   }
 

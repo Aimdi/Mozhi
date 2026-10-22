@@ -45,16 +45,21 @@ final class VoiceActivityDetector {
   /// Adds a chunk of [samples] samples whose loudness is [level] dBFS.
   void add(double level, int samples) {
     if (!level.isFinite || samples <= 0) return;
-    if (level > -90) _floor = math.min(_floor ?? level, level);
-    final floor = _floor ?? level;
-    final speech =
-        level >= speechThreshold &&
-        (level >= floor + margin || level >= speechThreshold + margin);
-    if (speech) {
+    if (isSpeech(level)) {
       _heardSpeech = true;
       _quietSamples = 0;
     } else {
       _quietSamples += samples;
     }
+  }
+
+  /// Whether a chunk of loudness [level] dBFS is speech; it also counts
+  /// towards the background noise level (as in [add], which uses it).
+  bool isSpeech(double level) {
+    if (!level.isFinite) return false;
+    if (level > -90) _floor = math.min(_floor ?? level, level);
+    final floor = _floor ?? level;
+    return level >= speechThreshold &&
+        (level >= floor + margin || level >= speechThreshold + margin);
   }
 }

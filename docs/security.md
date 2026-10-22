@@ -91,7 +91,8 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
   local network, Tor `.onion` and I2P `.i2p` addresses. The app refuses
   plain `http` to any other host before anything is sent (the network
   policy in `lib/core/network/network_policy.dart` checks every request of
-  the Mozhi, LibreTranslate, DeepL and AI clients, redirects included), and
+  the Mozhi, LibreTranslate, DeepL and AI clients and of the downloads,
+  redirects included), and
   Settings and first-run setup don't accept such an address. Use HTTPS, a
   VPN, Tailscale or Tor for servers outside your home network.
 - **Android platform networking** (Java/Kotlin code and plugins) allows no
@@ -100,8 +101,17 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
 - **Proxy:** with **Settings > Privacy & data > Network > HTTP proxy** (for
   example Orbot, `127.0.0.1:8118`) every request goes through a `CONNECT`
   tunnel; a proxy setting that can't be parsed never falls back to a direct
-  connection. Without a proxy, `.onion` and `.i2p` addresses are refused
-  before a DNS lookup.
+  connection. The app opens the tunnel itself and runs TLS through it with
+  the system's certificate checks, so the connection timeout (20 s through
+  a proxy, 7 s direct) covers the proxy's answer and the TLS handshake
+  too; `dart:io`'s own proxy support would time only the connection to
+  the proxy. A proxy that answers with anything but `200`, or sends data
+  before the TLS handshake, is refused. Without a proxy, `.onion` and
+  `.i2p` addresses are refused before a DNS lookup. One known limit: a
+  connection given up during the TLS handshake through the tunnel (a
+  server that never answers TLS) stays open until the server or the proxy
+  closes it, because `dart:io` offers no way to close a socket while it
+  is being secured; it has carried nothing but the handshake.
 - **Headers:** requests carry `User-Agent: Mozhi`, no cookies and no
   `Referer`; the web app's page sets `referrer` to `no-referrer`.
 - **Certificates:** the app never disables certificate checks. Release
@@ -111,11 +121,19 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
 - **Redirects:** AI, DeepL and LibreTranslate requests never follow
   redirects (a redirect would otherwise carry headers such as `x-api-key`
   to another host); a moved API shows an error asking you to update the
-  address. Mozhi requests follow at most three redirects and never from
-  `https` to `http`.
+  address. Mozhi requests follow at most three redirects, only on the same
+  server (same scheme, host and port, or `http` upgraded to `https` on
+  that host): a redirect to another server is an error naming it, so your
+  text never goes to a host you didn't add as an instance. Downloads
+  (offline models, dictionaries) follow at most five redirects, to other
+  public `https` servers too (download sites hand files to their CDNs),
+  and the network policy checks every hop: never from `https` to `http`,
+  and never from a public server to this device, your local network or a
+  `.onion` or `.i2p` address (which would also go around the proxy).
 - **Timeouts and size limits** on every request. Mozhi failover does not
   resend your text to another instance after a timeout, when the first one
-  may already have received it.
+  may already have received it. A connection that can't be set up in time
+  (also through the proxy) carried nothing yet, so it fails over.
 
 ## Web page translator
 
@@ -175,6 +193,12 @@ treated as data, not instructions:
   angle brackets) and shortened before they go into a prompt.
 - Refinement suggestions written by the model go into the prompt as a
   lower-trust "refinement preference", never as an instruction from you.
+- With the personal data shield, the AI extras get placeholders such as
+  `⟨1⟩` and a system note that they stand for personal data to keep; the
+  values are put back on the device only, into the model's answer, and a
+  placeholder the model changed is never filled in by sending the value.
+  Glossary terms for Mozhi and LibreTranslate are placeholders too, so
+  those engines never see the glossary.
 - Model output is shown as plain text (with bold, italics and code at most):
   no links, HTML, images or scripts are rendered.
 
@@ -206,6 +230,14 @@ translations, for example with **Check meaning**.
 
 ## Known limitations
 
+- **Online voices** are recognised by what the platform reports: the
+  browser's `localService` flag in the web app, and Android's
+  network-required flag and installed voice data. A speech engine that
+  reports an online voice as local, or switches to its online service on
+  its own, isn't caught; [Offline only](privacy.md#privacy-modes) and
+  **Device voice only** can't stop that either. The personal data shield
+  can't apply to speech.
+
 - Android's "translate clipboard" entry point (Quick Settings tile,
   home-screen widget, launcher shortcut) goes through a non-exported
   component, so other apps can no longer make Mozhi read the clipboard;
@@ -227,7 +259,12 @@ translations, for example with **Check meaning**.
   needs them. A `<meta>` policy can't set `frame-ancestors`: if you host
   the web app, send `Content-Security-Policy: frame-ancestors 'none'` (or
   `X-Frame-Options: DENY`) as an HTTP header to stop other sites framing
-  it. Debug web runs (`flutter run` in debug mode) are blocked by the
+  it. A policy sent as a header applies on top of the page's own, so it
+  must still allow the offline engine: `script-src 'self'
+  'wasm-unsafe-eval'`, `worker-src 'self'` and `connect-src 'self'` (the
+  worker loads `bergamot/` and the models from the same server); serve
+  `.wasm` files as `application/wasm` (Caddy and nginx do by default).
+  Debug web runs (`flutter run` in debug mode) are blocked by the
   policy; see [Contributing](contributing.md).
 - Android release builds made without a signing key (forks, local builds)
   are signed with the debug key. Official releases must use the release

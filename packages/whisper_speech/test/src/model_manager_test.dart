@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -284,6 +285,174 @@ void main() {
     });
   });
 
+  group('mirror', () {
+    final mirror = Uri.parse('https://mirror.example/models/');
+
+    List<String> paths() => [
+      for (final request in server.requests) request.url.path,
+    ];
+
+    test('downloads from <mirror>/whisper/<name>', () async {
+      server.files['/models/whisper/ggml-tiny.bin'] = tinyBytes;
+      manager.mirror = mirror;
+      final installed = await manager.install(tiny);
+      expect(installed.matches(tiny), isTrue);
+      expect(paths(), ['/models/whisper/ggml-tiny.bin']);
+      expect(server.requests.single.url.host, 'mirror.example');
+    });
+
+    test('a model the mirror lacks fails, naming the mirror', () async {
+      manager.mirror = mirror;
+      await expectLater(
+        manager.install(tiny),
+        throwsA(
+          isA<WhisperDownloadException>()
+              .having((e) => e.statusCode, 'statusCode', 404)
+              .having((e) => e.mirror, 'mirror', mirror)
+              .having((e) => e.message, 'message', contains('mirror.example')),
+        ),
+      );
+      expect(paths(), ['/models/whisper/ggml-tiny.bin']);
+    });
+
+    test('falls back to the catalog URL when allowed', () async {
+      manager
+        ..mirror = mirror
+        ..fallbackToDefault = true;
+      await manager.install(tiny);
+      expect(paths(), ['/models/whisper/ggml-tiny.bin', '/ggml-tiny.bin']);
+      expect(server.requests.last.url.host, 'models.example');
+    });
+
+    test('falls back when the mirror cannot be reached', () async {
+      final client = _MirrorDownClient(server.client);
+      final fallback = WhisperModelManager(root: root, httpClient: client)
+        ..mirror = mirror
+        ..fallbackToDefault = true;
+      await fallback.install(tiny);
+      expect(paths(), ['/ggml-tiny.bin']);
+    });
+
+    test('reports a mirror that cannot be reached', () async {
+      final failing = WhisperModelManager(
+        root: root,
+        httpClient: MockClient((_) async => throw const SocketException('x')),
+      )..mirror = mirror;
+      await expectLater(
+        failing.install(tiny),
+        throwsA(
+          isA<WhisperDownloadException>()
+              .having((e) => e.mirror, 'mirror', mirror)
+              .having((e) => e.message, 'message', contains('mirror.example')),
+        ),
+      );
+    });
+
+    test('rejects another file from the mirror, naming it', () async {
+      server.files['/models/whisper/ggml-tiny.bin'] = baseBytes.sublist(
+        0,
+        tinyBytes.length,
+      );
+      manager
+        ..mirror = mirror
+        ..fallbackToDefault = true;
+      await expectLater(
+        manager.install(tiny),
+        throwsA(
+          isA<WhisperChecksumException>()
+              .having((e) => e.mirror, 'mirror', mirror)
+              .having(
+                (e) => e.message,
+                'message',
+                contains('from the mirror https://mirror.example/models/'),
+              ),
+        ),
+      );
+      // A mismatch is not a missing file: no fallback.
+      expect(paths(), ['/models/whisper/ggml-tiny.bin']);
+      expect(part(tiny).existsSync(), isFalse);
+    });
+
+    test('an interrupted mirror download names the mirror', () async {
+      server
+        ..files['/models/whisper/ggml-tiny.bin'] = tinyBytes
+        ..failAfter = 100;
+      manager.mirror = mirror;
+      await expectLater(
+        manager.install(tiny),
+        throwsA(
+          isA<WhisperDownloadException>().having(
+            (e) => e.mirror,
+            'mirror',
+            mirror,
+          ),
+        ),
+      );
+      expect(await manager.partialBytes(tiny), 100);
+    });
+
+    test('rejects a mirror that sends more than the file', () async {
+      server
+        ..files['/models/whisper/ggml-tiny.bin'] = tinyBytes
+        ..extra = [1];
+      manager.mirror = mirror;
+      await expectLater(
+        manager.install(tiny),
+        throwsA(
+          isA<WhisperChecksumException>().having(
+            (e) => e.mirror,
+            'mirror',
+            mirror,
+          ),
+        ),
+      );
+    });
+  });
+
+  group('SHA-256', () {
+    WhisperCatalogModel withSha256(String digest) => WhisperCatalogModel(
+      id: tiny.id,
+      name: tiny.name,
+      url: tiny.url,
+      size: tiny.size,
+      sha1: tiny.sha1,
+      sha256: digest,
+    );
+
+    test('a download must match it as well as the SHA-1', () async {
+      final pinned = withSha256(sha256.convert(tinyBytes).toString());
+      final installed = await manager.install(pinned);
+      expect(installed.matches(pinned), isTrue);
+    });
+
+    test('a download with another SHA-256 is rejected', () async {
+      await expectLater(
+        manager.install(withSha256('0' * 64)),
+        throwsA(
+          isA<WhisperChecksumException>().having(
+            (e) => e.message,
+            'message',
+            allOf(contains('SHA-256'), contains('0' * 64)),
+          ),
+        ),
+      );
+      expect(part(tiny).existsSync(), isFalse);
+      expect(await manager.installed(), isEmpty);
+    });
+
+    test('an imported file with another SHA-256 is damaged', () async {
+      final picked = Directory(p.join(root.path, 'picked'))..createSync();
+      final file = File(p.join(picked.path, 'ggml-tiny.bin'))
+        ..writeAsBytesSync(tinyBytes);
+      final model = withSha256('0' * 64);
+      final result = await manager.importFiles([
+        file,
+      ], catalog: WhisperModelCatalog(models: [model]));
+      expect(result.models.single.status, WhisperImportStatus.checksumMismatch);
+      expect(await manager.installed(), isEmpty);
+    });
+  });
+
   group('installed', () {
     test('is empty without a models directory', () async {
       expect(await manager.installed(), isEmpty);
@@ -481,4 +650,20 @@ void main() {
       expect(outcome.error, isA<FileSystemException>());
     });
   });
+}
+
+/// Refuses every request to `mirror.example` as an unreachable host
+/// would; others go to [_inner].
+class _MirrorDownClient extends http.BaseClient {
+  new(this._inner);
+
+  final http.Client _inner;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    if (request.url.host == 'mirror.example') {
+      return Future.error(const SocketException('Connection refused'));
+    }
+    return _inner.send(request);
+  }
 }

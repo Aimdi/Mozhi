@@ -36,3 +36,8 @@ bool _hasVfpv4() {
 /// The engine: a background isolate running `libmozhi_whisper`.
 WhisperEngine createWhisperEngine({String? libraryPath}) =>
     IsolateWhisperEngine(libraryPath: libraryPath);
+
+/// The voice activity detector: another background isolate running
+/// `libmozhi_whisper`.
+WhisperVadEngine createWhisperVadEngine({String? libraryPath}) =>
+    IsolateWhisperVadEngine(libraryPath: libraryPath);

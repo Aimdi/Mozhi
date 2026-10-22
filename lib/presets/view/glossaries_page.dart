@@ -210,7 +210,7 @@ class _GlossariesViewState extends State<GlossariesView> {
                   return Padding(
                     padding: const EdgeInsets.fromLTRB(4, 8, 4, 16),
                     child: Text(
-                      l10n.glossariesIntro,
+                      l10n.glossariesIntroAllEngines,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),

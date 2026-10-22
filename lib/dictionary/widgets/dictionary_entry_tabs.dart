@@ -33,6 +33,13 @@ import 'package:translation_repository/translation_repository.dart';
 /// (the detected language of the entry, see
 /// `DictionaryState.entryLanguage`); it is disabled, saying why, while
 /// neither is known.
+///
+/// The meaning page ends with [footer], by default "AI-generated" (an
+/// entry from an offline dictionary credits its source instead) and, for
+/// an AI entry whose look-up kept personal data on the device
+/// ([DictionaryEntry.maskedPersonalData]), how many items it kept, as
+/// the translation's notes say it; [header] goes above the part of speech
+/// (e.g. "“went” is a form of “go”").
 class DictionaryEntryTabs extends StatelessWidget {
   const new({
     required this.entry,
@@ -42,8 +49,16 @@ class DictionaryEntryTabs extends StatelessWidget {
     this.query,
     this.speechLanguage,
     this.actions = const [],
+    this.header,
+    this.footer,
     super.key,
   });
+
+  /// Above the part of speech on the meaning page.
+  final Widget? header;
+
+  /// The end of the meaning page; null shows "AI-generated".
+  final Widget? footer;
 
   final DictionaryEntry entry;
 
@@ -86,6 +101,8 @@ class DictionaryEntryTabs extends StatelessWidget {
           onWordTap: onWordTap,
           speechLanguage: speechLanguage,
           actions: actions,
+          header: header,
+          footer: footer,
         ),
       ),
       if (hasMore(entry))
@@ -214,6 +231,8 @@ class _MeaningPage extends StatelessWidget {
     this.query,
     this.speechLanguage,
     this.actions = const [],
+    this.header,
+    this.footer,
   });
 
   final DictionaryEntry entry;
@@ -223,6 +242,8 @@ class _MeaningPage extends StatelessWidget {
   final ValueChanged<String> onWordTap;
   final String? speechLanguage;
   final List<Widget> actions;
+  final Widget? header;
+  final Widget? footer;
 
   /// The headword's style: the theme's display sizes, smaller for long
   /// words and phrases.
@@ -295,6 +316,10 @@ class _MeaningPage extends StatelessWidget {
                   ),
                 ),
               ),
+              const SizedBox(height: 12),
+            ],
+            if (header case final header?) ...[
+              SelectionContainer.disabled(child: header),
               const SizedBox(height: 12),
             ],
             if (partOfSpeech.isNotEmpty)
@@ -444,19 +469,63 @@ class _MeaningPage extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 16),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.auto_awesome_outlined, size: 14, color: muted),
-                const SizedBox(width: 4),
-                Flexible(
-                  child: Text(
-                    l10n.translateAiGenerated,
-                    style: theme.textTheme.labelSmall?.copyWith(color: muted),
+            if (footer case final footer?)
+              SelectionContainer.disabled(child: footer)
+            else
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.auto_awesome_outlined, size: 14, color: muted),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      l10n.translateAiGenerated,
+                      style: theme.textTheme.labelSmall?.copyWith(color: muted),
+                    ),
+                  ),
+                ],
+              ),
+            // Personal data the shield kept on the device (AI entries only:
+            // entries of offline dictionaries never leave it).
+            if (footer == null && entry.maskedPersonalData > 0)
+              Padding(
+                key: const Key('dictionary_personal_data'),
+                padding: const EdgeInsets.only(top: 4),
+                child: MergeSemantics(
+                  child: Semantics(
+                    hint: l10n.translatePersonalDataKeptHint,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsetsDirectional.only(
+                            top: 1,
+                            end: 6,
+                          ),
+                          child: ExcludeSemantics(
+                            child: Icon(
+                              Icons.shield_outlined,
+                              size: 16,
+                              color: muted,
+                            ),
+                          ),
+                        ),
+                        Flexible(
+                          child: Text(
+                            l10n.translatePersonalDataKept(
+                              entry.maskedPersonalData,
+                            ),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: muted,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ],
-            ),
+              ),
           ],
         ),
       ),

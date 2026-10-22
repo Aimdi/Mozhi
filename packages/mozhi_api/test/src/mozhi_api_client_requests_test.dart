@@ -256,27 +256,58 @@ void main() {
           _redirect(302, 'http://mozhi.example/api/tts?text=secret'),
         ]).textToSpeech(engine: 'google', language: 'en', text: 'secret'),
         throwsA(
-          isA<MozhiApiException>().having((e) => e.statusCode, 'status', 302),
+          isA<MozhiApiException>()
+              .having((e) => e.statusCode, 'status', 302)
+              .having((e) => e.message, 'message', isNot(contains('secret'))),
         ),
       );
       expect(requests, hasLength(1));
     });
 
-    test('keeps the credentials on the instance only', () async {
+    test('never sends a GET carrying text to another server', () async {
+      await expectLater(
+        clientAnswering([
+          _redirect(307, 'https://nas.tail123.ts.net/api/tts?text=secret'),
+          _json('{}'),
+        ]).textToSpeech(engine: 'google', language: 'en', text: 'secret'),
+        throwsA(
+          isA<MozhiApiException>()
+              .having((e) => e.statusCode, 'status', 307)
+              .having(
+                (e) => e.message,
+                'message',
+                'Redirected to https://nas.tail123.ts.net, a different '
+                    'server. Add that address as an instance to use it.',
+              ),
+        ),
+      );
+      expect(requests.single.url.host, 'mozhi.example');
+    });
+
+    test('keeps the credentials on the origin of the instance', () async {
       final client = MozhiApiClient(
-        baseUrl: Uri.parse('https://me:pw@mozhi.example'),
+        baseUrl: Uri.parse('http://me:pw@mozhi.example'),
         httpClient: MockClient((request) async {
           requests.add(request);
-          return requests.length == 1
-              ? _redirect(301, 'https://cdn.example/api/version')
-              : _json(versionJson);
+          return switch (requests.length) {
+            1 => _redirect(301, '/v2/api/version'),
+            2 => _redirect(301, 'https://mozhi.example/v2/api/version'),
+            _ => _json(versionJson),
+          };
         }),
       );
 
       await client.getVersion();
 
-      expect(requests.first.headers['authorization'], startsWith('Basic '));
-      expect(requests.last.headers, isNot(contains('authorization')));
+      expect(requests.map((r) => r.url.toString()), [
+        'http://mozhi.example/api/version',
+        'http://mozhi.example/v2/api/version',
+        'https://mozhi.example/v2/api/version',
+      ]);
+      expect(requests[0].headers['authorization'], startsWith('Basic '));
+      expect(requests[1].headers['authorization'], startsWith('Basic '));
+      // https is another origin than the base URL's http.
+      expect(requests[2].headers, isNot(contains('authorization')));
     });
   });
 }

@@ -207,6 +207,33 @@ void main() {
       expect(page.scheme, 'http');
     });
 
+    test('lists every model download as one, mirrors included', () async {
+      final session = NetworkSession(httpClient: platform);
+
+      await session.modelClient.get(
+        Uri.parse('https://mirror.example/models/bergamot/de-en/1/a.gz'),
+      );
+      await session.modelClient.get(
+        Uri.parse('http://192.168.1.4/models/whisper/ggml-base.bin'),
+      );
+      await expectLater(
+        session.modelClient.get(Uri.parse('http://mirror.example/a.gz')),
+        throwsA(isA<CleartextRefusedException>()),
+      );
+
+      final [mirror, lan] = session.ledger.entries;
+      expect(mirror.purpose, EgressPurpose.modelDownload);
+      expect(mirror.destination.kind, EgressDestinationKind.modelHost);
+      expect(mirror.destination.host, 'mirror.example');
+      expect(mirror.destination.name, isNull);
+      expect(lan.purpose, EgressPurpose.modelDownload);
+      expect(lan.destination.kind, EgressDestinationKind.localNetwork);
+      expect(platform.requests, hasLength(2));
+
+      session.modelClient.close();
+      expect(platform.closed, isFalse);
+    });
+
     test('does not record what the policy refuses (never sent)', () async {
       final session = NetworkSession(httpClient: platform);
 

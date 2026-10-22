@@ -34,6 +34,11 @@ List<Language> _languages(int count) => [
   for (var i = 0; i < count; i++) Language(code: 'l$i', name: 'Language $i'),
 ];
 
+const _mirror = ModelSource(
+  kind: ModelSourceKind.custom,
+  customUrl: 'https://mirror.example/models/',
+);
+
 void main() {
   late SettingsRepository repository;
 
@@ -761,6 +766,23 @@ void main() {
         act: (cubit) => cubit.setMaskPersonalData(enabled: false),
         expected: const AppSettings(maskPersonalData: false),
       );
+
+      mutation(
+        'setModelSource stores the source',
+        act: (cubit) => cubit.setModelSource(_mirror),
+        expected: const AppSettings(modelSource: _mirror),
+      );
+
+      test('keeps ModelSource.current equal to the setting', () async {
+        addTearDown(() => ModelSource.current = ModelSource.platformDefault);
+        final cubit = buildCubit(const AppSettings(modelSource: _mirror));
+        expect(ModelSource.current, _mirror);
+        cubit.setModelSource(ModelSource.defaultHosts);
+        expect(ModelSource.current, ModelSource.defaultHosts);
+        cubit.setModelSource(_mirror);
+        expect(ModelSource.current, _mirror);
+        await cubit.close();
+      });
 
       mutation(
         'setHttpProxy stores the trimmed proxy',

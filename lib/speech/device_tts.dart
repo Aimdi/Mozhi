@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:mozhi/speech/browser_voices.dart' as browser;
 import 'package:mozhi/speech/speech_language.dart';
 import 'package:mozhi/speech/speech_settings.dart';
 
@@ -35,7 +36,19 @@ abstract interface class DeviceTts {
   /// voice for the language. Throws [DeviceTtsException] when the engine
   /// rejects the language; a voice the engine rejects (e.g. uninstalled
   /// since it was chosen) is skipped and the default voice speaks.
+  ///
+  /// The default voice is a voice on the device whenever the language has
+  /// one: when the engine would pick an online voice
+  /// ([DeviceVoice.networkRequired]) by default, a voice on the device is
+  /// selected instead.
   Future<void> setLanguage(String languageTag, {DeviceVoice? voice});
+
+  /// The voice that reads after the last [setLanguage], as far as it is
+  /// known: the chosen voice (as the engine lists it now), or the
+  /// language's default voice when the engine tells which one that is (on
+  /// the web; on Android when only online voices speak the language).
+  /// Null when unknown, then a voice on the device reads.
+  DeviceVoice? get activeVoice;
 
   /// Speech speed for later [speak] calls: [rate] times the engine's normal
   /// speed (see [SpeechSettings.rate]), slowed down by
@@ -82,7 +95,12 @@ abstract interface class DeviceTts {
 ///   language resets the voice to the language's default, so [setLanguage]
 ///   applies the voice after the language, and re-selects the language to
 ///   go back to the default voice. Android voices that are not downloaded
-///   are not listed.
+///   are not listed. Android reports whether a voice needs the network;
+///   the web plugin does not, so `browserVoices` (the browser's
+///   `speechSynthesis` voices) tell which voices are not a `localService`.
+///   The web plugin's default voice for a language is the browser's first
+///   voice whose tag starts with it; when that is an online voice and the
+///   language has one on the device, [setLanguage] selects that one.
 /// * Availability: Android prefers `isLanguageInstalled` (voice data on the
 ///   device, usable offline); it needs an exact locale (`fr-FR`), so a bare
 ///   `fr` falls back to `isLanguageAvailable`. Windows has no availability
@@ -100,8 +118,10 @@ class FlutterTtsDeviceTts implements DeviceTts {
     this._isWeb = kIsWeb,
     this.settleTimeout = const Duration(milliseconds: 500),
     this.webVoicesDelay = const Duration(milliseconds: 300),
+    List<browser.BrowserVoice> Function()? browserVoices,
   }) : _createTts = createTts ?? FlutterTts.new,
-       _platform = platform ?? defaultTargetPlatform;
+       _platform = platform ?? defaultTargetPlatform,
+       _browserVoices = browserVoices ?? browser.browserVoices;
 
   /// Longest wait in [speak] for the engine to confirm a [stop].
   final Duration settleTimeout;
@@ -112,6 +132,15 @@ class FlutterTtsDeviceTts implements DeviceTts {
   final FlutterTts Function() _createTts;
   final TargetPlatform _platform;
   final bool _isWeb;
+
+  /// The browser's voices, with `localService` (web only).
+  final List<browser.BrowserVoice> Function() _browserVoices;
+
+  /// Tags with an installed voice on the device (Android).
+  final Set<String> _installed = {};
+
+  /// The default voice of [_language], when known (see [activeVoice]).
+  DeviceVoice? _defaultVoice;
   final StreamController<void> _completions = StreamController.broadcast();
 
   /// Tags known to be available, mapped to the tag to pass to the engine.
@@ -222,7 +251,10 @@ class FlutterTtsDeviceTts implements DeviceTts {
 
   Future<bool> _isAvailable(String languageTag) async {
     final tts = _engine;
-    if (_isAndroid && await _isInstalled(tts, languageTag)) return true;
+    if (_isAndroid && await _isInstalled(tts, languageTag)) {
+      _installed.add(languageTag);
+      return true;
+    }
     var available = await tts.isLanguageAvailable(languageTag) == true;
     if (!available && _isWeb && !_webVoicesLoaded) {
       await Future<void>.delayed(webVoicesDelay);
@@ -243,6 +275,9 @@ class FlutterTtsDeviceTts implements DeviceTts {
   }
 
   @override
+  DeviceVoice? get activeVoice => _voice ?? _defaultVoice;
+
+  @override
   Future<void> setLanguage(String languageTag, {DeviceVoice? voice}) async {
     final tts = _engine;
     final language = await _resolve(languageTag) ?? languageTag;
@@ -252,17 +287,74 @@ class FlutterTtsDeviceTts implements DeviceTts {
       }
       _language = language;
       _voice = null; // The engine picked the language's default voice.
+      _defaultVoice = await _defaultVoiceOf(tts, language);
     }
     if (voice?.id == _voice?.id) return;
     if (voice != null && await _selectVoice(tts, voice)) {
-      _voice = voice;
+      _voice = await _listed(voice);
       return;
     }
     if (_voice != null) {
       // Selecting the language again restores its default voice.
       await tts.setLanguage(language);
       _voice = null;
+      _defaultVoice = await _defaultVoiceOf(tts, language);
     }
+  }
+
+  /// [voice] as the engine lists it now (whether it needs the network may
+  /// have been unknown when it was chosen); [voice] itself when it is not
+  /// listed or the listing fails.
+  Future<DeviceVoice> _listed(DeviceVoice voice) async {
+    if (!_isWeb && !_isAndroid) return voice;
+    try {
+      final listed = (await _engineVoices())
+          .where((v) => v.id == voice.id)
+          .firstOrNull;
+      return listed == null
+          ? voice
+          : voice.withNetworkRequired(online: listed.networkRequired);
+    } on Object {
+      return voice;
+    }
+  }
+
+  /// The voice the engine reads [language] with by default, when it tells
+  /// (see [activeVoice]); selects a voice on the device instead of an
+  /// online default where the language has one. Never throws.
+  Future<DeviceVoice?> _defaultVoiceOf(FlutterTts tts, String language) async {
+    try {
+      if (_isWeb) {
+        final all = await _engineVoices();
+        final prefix = language.toLowerCase();
+        // The web plugin's choice.
+        final first = all
+            .where((voice) => voice.locale.toLowerCase().startsWith(prefix))
+            .firstOrNull;
+        if (first == null || !first.networkRequired) return first;
+        final local = DeviceVoice.sortFor(
+          language,
+          all.where(
+            (voice) => voice.speaks(language) && !voice.networkRequired,
+          ),
+        ).firstOrNull;
+        if (local != null && await _selectVoice(tts, local)) return local;
+        return first;
+      }
+      if (_isAndroid && !_installed.contains(language)) {
+        final voices = DeviceVoice.sortFor(
+          language,
+          (await _engineVoices()).where((voice) => voice.speaks(language)),
+        );
+        // Without voice data on the device, the engine reads online.
+        if (voices.isNotEmpty && voices.every((v) => v.networkRequired)) {
+          return voices.first;
+        }
+      }
+    } on Object {
+      // Unknown: a voice on the device reads.
+    }
+    return null;
   }
 
   /// Whether the engine accepted [voice].
@@ -307,11 +399,24 @@ class FlutterTtsDeviceTts implements DeviceTts {
     }
   }
 
+  /// The engine's voices; on the web marked as online when the browser
+  /// says they are not a `localService`.
   Future<List<DeviceVoice>> _engineVoices() async {
     final voices = await _engine.getVoices;
-    return [
+    final listed = [
       if (voices is List)
         for (final voice in voices) ?DeviceVoice.fromEngine(voice),
+    ];
+    if (!_isWeb) return listed;
+    final online = {
+      for (final voice in _browserVoices())
+        if (!voice.localService) (voice.name, voice.lang),
+    };
+    return [
+      for (final voice in listed)
+        voice.withNetworkRequired(
+          online: online.contains((voice.name, voice.locale)),
+        ),
     ];
   }
 

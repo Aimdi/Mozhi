@@ -4,6 +4,9 @@
 #   docker compose --profile ai up -d             # + Ollama for local AI (port 11434)
 #   docker compose --profile libre up -d          # + LibreTranslate behind Mozhi
 #   docker compose --profile https up -d          # + Caddy with automatic HTTPS
+#   docker compose --profile mirror run --rm mirror --languages de,fr
+#                                                 # mirror the on-device models
+#                                                 # (served by Caddy at /models/)
 #
 # Profiles can be combined (--profile ai --profile libre) or listed in .env
 # as COMPOSE_PROFILES=ai,libre. Copy .env.example to .env to change the
@@ -164,6 +167,8 @@ services:
       # Public DNS name pointing at this host; Caddy gets a certificate for
       # it automatically. `localhost` uses Caddy's internal CA.
       MOZHI_DOMAIN: ${MOZHI_DOMAIN:-localhost}
+      # Used only by the optional web app site in the Caddyfile.
+      MOZHI_APP_DOMAIN: ${MOZHI_APP_DOMAIN:-app.localhost}
       # Used only by the optional Ollama site in the Caddyfile.
       OLLAMA_DOMAIN: ${OLLAMA_DOMAIN:-ollama.localhost}
       OLLAMA_API_KEY:
@@ -171,6 +176,37 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+      # The model mirror served at /models/ (see the `mirror` service).
+      - ${MOZHI_MODELS_DIR:-./models}:/srv/models:ro
+      # Optional: the unpacked web app (mozhi-<version>-web.zip), for the
+      # commented web app site in the Caddyfile.
+      - ${MOZHI_WEB_DIR:-./web}:/srv/mozhi-web:ro
+    logging: *logging
+
+  # One-shot: downloads the on-device model files (offline languages, voice
+  # input, text recognition) the app's catalogues list into
+  # MOZHI_MODELS_DIR, verified by SHA-256, resuming and never deleting other
+  # files (tool/mirror_models.py; filters as arguments, nothing = all of
+  # them, about 3 GB). Run it again after updating the app.
+  #   docker compose --profile mirror run --rm mirror --list
+  #   docker compose --profile mirror run --rm mirror --languages de,fr,ja --whisper tiny,silero-vad
+  mirror:
+    image: python:3.13-alpine
+    profiles: ["mirror"]
+    restart: "no"
+    working_dir: /repo
+    entrypoint: ["python3", "-I", "tool/mirror_models.py", "/models"]
+    command: []
+    volumes:
+      # The app's catalogues and the tool, read-only.
+      - ..:/repo:ro
+      - ${MOZHI_MODELS_DIR:-./models}:/models
+    read_only: true
+    tmpfs: ["/tmp"]
+    cap_drop: [ALL]
+    # Root in the container may write into a MOZHI_MODELS_DIR you own.
+    cap_add: [DAC_OVERRIDE]
+    security_opt: ["no-new-privileges:true"]
     logging: *logging
 
 volumes:

@@ -446,6 +446,21 @@ void main() {
         ],
       );
 
+      test('keeps the personal data count when it adds edits', () async {
+        stubProofread(
+          () async => const ProofreadResult(
+            correctedText: 'I have an apple and an orange. The end.',
+            edits: _edits,
+            maskedPersonalData: 2,
+          ),
+        );
+        final cubit = build()..setInput('$_input Teh end.');
+        await cubit.proofread();
+        expect(cubit.state.edits, hasLength(4));
+        expect(cubit.state.result?.maskedPersonalData, 2);
+        await cubit.close();
+      });
+
       test('toggling one edit leaves every other change in place', () async {
         stubProofread(
           () async => const ProofreadResult(

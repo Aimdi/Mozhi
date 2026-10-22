@@ -638,18 +638,20 @@ void main() {
       expect(note(), findsOneWidget);
       expect(
         find.text(
-          'DeepL translates without these options. Style, formality, '
-          'gender and context need an AI translator. Your choices are '
-          'saved and apply when you use one.',
+          'DeepL applies the glossary. Style, formality, gender and '
+          'context need an AI translator. Your choices are saved and apply '
+          'when you use one.',
         ),
         findsOneWidget,
       );
       for (final label in ['Style', 'Tone', 'Speaker gender', 'Context']) {
         expect(find.text(label), findsOneWidget, reason: label);
       }
-      // Each ignored option is greyed with the reason.
+      // Each ignored option is greyed with the reason; the glossary is
+      // applied on the device.
       expect(find.text('AI engines only'), findsNWidgets(4));
-      expect(find.text('AI engines and the DeepL API only'), findsNWidgets(3));
+      expect(find.text('AI engines and the DeepL API only'), findsNWidgets(2));
+      expect(find.text('Not with this engine'), findsNothing);
       expect(
         find.text(
           'Keep line breaks, Markdown, links and placeholders\n'
@@ -712,6 +714,16 @@ void main() {
         readyState(engine: gemma),
       );
       expect(note(), findsOneWidget);
+      expect(
+        find.text(
+          'Gemma translates without these options. Style, formality, '
+          'gender and context need an AI translator. Your choices are '
+          'saved and apply when you use one.',
+        ),
+        findsOneWidget,
+      );
+      // It ignores the glossary too.
+      expect(find.text('Not with this engine'), findsOneWidget);
     });
 
     testWidgets('"Choose an AI translator" opens the engine picker', (
