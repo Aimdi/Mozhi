@@ -750,8 +750,10 @@ void main() {
       final subscription = response.listen((_) {}, onError: (Object _) {});
       await Future<void>.delayed(const Duration(milliseconds: 100));
       subscription.pause();
-      room.update(_bigTurns(0));
-      await Future<void>.delayed(const Duration(milliseconds: 400));
+      for (var round = 0; round < 2; round++) {
+        room.update(_bigTurns(round));
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+      }
 
       final ending = Stopwatch()..start();
       await room.end();
@@ -780,22 +782,25 @@ void main() {
                 turns.isEmpty ? '' : (turns.first as Map)['text'] as String,
               );
             }
-          });
+          }, onError: (Object _) {});
       await Future<void>.delayed(const Duration(milliseconds: 100));
       subscription.pause();
-      for (var round = 0; round < 3; round++) {
+      const rounds = 6;
+      for (var round = 0; round < rounds; round++) {
         room.update(_bigTurns(round));
         await Future<void>.delayed(const Duration(milliseconds: 300));
       }
 
       subscription.resume();
       for (var i = 0; i < 50; i++) {
-        if (snapshots.isNotEmpty && snapshots.last.startsWith('2 ')) break;
+        if (snapshots.lastOrNull?.startsWith('${rounds - 1} ') ?? false) {
+          break;
+        }
         await Future<void>.delayed(const Duration(milliseconds: 100));
       }
-      expect(snapshots.last, startsWith('2 '));
+      expect(snapshots.last, startsWith('${rounds - 1} '));
       // Not one snapshot per change: the waiting ones were sent as one.
-      expect(snapshots.length, lessThan(4));
+      expect(snapshots.length, lessThan(rounds + 1));
       expect(room.guests.single.connected, isTrue);
       await subscription.cancel();
     });

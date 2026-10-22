@@ -135,6 +135,12 @@ Carried over to later waves:
   in speaking practice; FSRS weights fitted to the user's own reviews.
 - **Settings merge:** a preset that names a deleted AI provider could pick
   up a merged provider with the same id.
+- **Shared conversation:** the page is plain `http` (a phone has no
+  certificate browsers trust), so others on the same Wi-Fi can read
+  along; guests' devices are told apart by IP address, so someone who
+  keeps changing addresses is held back only by the room-wide limits;
+  a guest microphone needs a recogniser that doesn't send speech to the
+  browser's maker.
 - **Not done on purpose:** measuring instance speed automatically during
   setup. It contacts every listed volunteer server, so it stays a button
   ("Find the fastest server").
