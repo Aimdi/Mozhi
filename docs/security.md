@@ -106,7 +106,11 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
   too; `dart:io`'s own proxy support would time only the connection to
   the proxy. A proxy that answers with anything but `200`, or sends data
   before the TLS handshake, is refused. Without a proxy, `.onion` and
-  `.i2p` addresses are refused before a DNS lookup.
+  `.i2p` addresses are refused before a DNS lookup. One known limit: a
+  connection given up during the TLS handshake through the tunnel (a
+  server that never answers TLS) stays open until the server or the proxy
+  closes it, because `dart:io` offers no way to close a socket while it
+  is being secured; it has carried nothing but the handshake.
 - **Headers:** requests carry `User-Agent: Mozhi`, no cookies and no
   `Referer`; the web app's page sets `referrer` to `no-referrer`.
 - **Certificates:** the app never disables certificate checks. Release
