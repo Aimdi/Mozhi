@@ -47,7 +47,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-# --- Reproducible builds -------------------------------------------------------
+# --- Reproducible builds ------------------------------------------------------
 # __FILE__ (GGML_ASSERT, logging) would embed absolute source paths, which
 # differ between machines (CI, F-Droid, a developer's checkout). Map the
 # repository root (three levels up) to "." and the build directory to
@@ -65,7 +65,7 @@ endif()
 # training, sessions, LoRA, ...).
 add_compile_options(-ffunction-sections -fdata-sections)
 
-# --- Engine options ------------------------------------------------------------
+# --- Engine options -----------------------------------------------------------
 # CACHE ... FORCE so that option() in llama.cpp and ggml sees them.
 macro(_mozhi_force name value)
   set(${name} ${value} CACHE BOOL "Set by mozhi_llama" FORCE)
@@ -122,16 +122,16 @@ _mozhi_force(GGML_OPENVINO OFF)
 _mozhi_force(GGML_ET OFF)
 _mozhi_force(GGML_VIRTGPU OFF)
 _mozhi_force(GGML_VIRTGPU_BACKEND OFF)
-_mozhi_force(GGML_CCACHE OFF)             # CMAKE_<LANG>_COMPILER_LAUNCHER instead
+_mozhi_force(GGML_CCACHE OFF)             # the launcher variables instead
 _mozhi_force(GGML_LTO OFF)
-_mozhi_force(GGML_STATIC OFF)             # not -static: this is a shared library
+_mozhi_force(GGML_STATIC OFF)             # not -static: a shared library
 _mozhi_force(GGML_ALL_WARNINGS OFF)
 _mozhi_force(GGML_FATAL_WARNINGS OFF)
 _mozhi_force(GGML_SANITIZE_THREAD OFF)
 _mozhi_force(GGML_SANITIZE_ADDRESS OFF)
 _mozhi_force(GGML_SANITIZE_UNDEFINED OFF)
 
-# --- Target CPU ----------------------------------------------------------------
+# --- Target CPU ---------------------------------------------------------------
 # A portable baseline per ABI, never the build machine's CPU (GGML_NATIVE):
 #  * arm64-v8a: ARMv8.0-A (NEON; Cortex-A53/A57/A72 phones lack dotprod,
 #    FP16 arithmetic and i8mm), plus the two faster variants below;
@@ -168,7 +168,7 @@ else()
 endif()
 message(STATUS "mozhi_llama: CPU baseline ${_cpu}")
 
-# --- llama.cpp + ggml ------------------------------------------------------------
+# --- llama.cpp + ggml ---------------------------------------------------------
 file(STRINGS "${MOZHI_LLAMA_CPP_DIR}/CMakeLists.txt" _version_lines
   REGEX "^set\\(LLAMA_VERSION_(MAJOR|MINOR|PATCH) [0-9]+\\)")
 string(REGEX REPLACE ".*MAJOR ([0-9]+).*MINOR ([0-9]+).*PATCH ([0-9]+).*"
@@ -240,7 +240,7 @@ function(_mozhi_cpu_variant name march)
   message(STATUS "mozhi_llama: CPU variant ${name}: -march=${march}")
 endfunction()
 
-# --- The shim ----------------------------------------------------------------------
+# --- The shim -----------------------------------------------------------------
 
 # kJsonGrammar: llama.cpp's grammars/json.gbnf (any JSON object) as a C++
 # string, read from the pinned checkout.
@@ -326,7 +326,9 @@ if(ANDROID)
     if(NOT TARGET mozhi_llama_${_name})
       set(_stub "${CMAKE_CURRENT_BINARY_DIR}/mozhi_llama_${_name}_absent.c")
       file(CONFIGURE OUTPUT "${_stub}" CONTENT
-        "/* No mozhi_llama_${_name} for this ABI (CMakeLists.txt). */\ntypedef int mozhi_llama_${_name}_absent;\n")
+        "/* No mozhi_llama_${_name} for this ABI (CMakeLists.txt). */
+typedef int mozhi_llama_${_name}_absent;
+")
       add_library(mozhi_llama_${_name} STATIC EXCLUDE_FROM_ALL "${_stub}")
     endif()
   endforeach()
