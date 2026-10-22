@@ -11997,5 +11997,41 @@
   "backupRestoreSettingsModesBody": "Settings: Merge adds the backup's AI providers (used only once you choose them) but not its Mozhi instances, since Mozhi can send your text to any instance in your list by itself. Replace uses the backup's providers and instances.",
   "@backupRestoreSettingsModesBody": {
     "description": "Shown when a backup holds settings, below what Merge and Replace do."
+  },
+  "conversationShareGuestLanguageLimit": "No more languages can be added to this conversation right now. Choose one it already uses: {languages}.",
+  "@conversationShareGuestLanguageLimit": {
+    "description": "Guest page (shared conversation): the guest picked a language beyond the most the host translates at a time; {languages} lists the languages they can pick instead, comma-separated.",
+    "placeholders": {
+      "languages": {
+        "type": "String"
+      }
+    }
+  },
+  "conversationShareLanguagePending": "{count, plural, =1{1 message still to translate} other{{count} messages still to translate}}",
+  "@conversationShareLanguagePending": {
+    "description": "Sharing page: how many messages are still being translated into a guest language.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "conversationShareLanguagesLimit": "{count, plural, =1{Guests can read 1 other language at a time.} other{Guests can read up to {count} other languages at a time.}}",
+  "@conversationShareLanguagesLimit": {
+    "description": "Sharing page: the most languages besides the conversation two that guests may read at the same time.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "backupRestoreAddedProvidersOff": "Added but turned off until you turn them on in Settings, as they would get your text without asking first: {providers}",
+  "@backupRestoreAddedProvidersOff": {
+    "description": "Restore result under Settings after Merge: providers on a private network or LibreTranslate servers that were added turned off. providers is a comma-separated list like \"Name (host)\".",
+    "placeholders": {
+      "providers": {
+        "type": "String"
+      }
+    }
   }
 }

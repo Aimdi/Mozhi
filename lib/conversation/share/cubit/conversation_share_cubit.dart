@@ -42,6 +42,7 @@ class ConversationShareState extends Equatable {
     this.repliesAllowed = true,
     this.locked = false,
     this.engineName,
+    this.maxExtraLanguages = ShareRoom.defaultMaxExtraLanguages,
   });
 
   final ConversationShareStatus status;
@@ -67,6 +68,10 @@ class ConversationShareState extends Equatable {
   /// The host's engine, which translates the guests' other languages.
   final String? engineName;
 
+  /// The most [languages] guests may read at a time
+  /// ([ShareRoom.maxExtraLanguages]).
+  final int maxExtraLanguages;
+
   bool get isLive => status == ConversationShareStatus.live;
 
   /// Starting or live: the sharing has to be stopped.
@@ -84,6 +89,7 @@ class ConversationShareState extends Equatable {
     repliesAllowed,
     locked,
     engineName,
+    maxExtraLanguages,
   ];
 }
 
@@ -232,6 +238,10 @@ class ConversationShareCubit extends Cubit<ConversationShareState> {
         usageTracker: _usageTracker,
       ),
       onReply: _onReply,
+      conversationLanguages: () => [
+        _conversation.state.languageA,
+        _conversation.state.languageB,
+      ],
       pin: pin ? _secrets.pin() : null,
       secrets: _secrets,
       clock: _clock,
@@ -317,9 +327,12 @@ class ConversationShareCubit extends Cubit<ConversationShareState> {
     _emitLive();
   }
 
-  /// The host consented to sending [language]'s translations (from the
-  /// sharing page's consent prompt): the turns that waited are translated.
-  void retryLanguage(Language language) => _room?.retryLanguage(language);
+  /// The host gave [consent] for [language]'s translations (from the
+  /// sharing page's consent prompt, by default the one it showed): the
+  /// turns that waited for it are translated, and what the consent would
+  /// still let through afterwards is withdrawn.
+  void retryLanguage(Language language, {ConsentRequiredException? consent}) =>
+      _room?.retryLanguage(language, consent: consent);
 
   /// Whether a screen of the conversation ([owner]: the conversation, the
   /// sharing page, face-to-face mode) is shown. With none shown for
@@ -423,6 +436,7 @@ class ConversationShareCubit extends Cubit<ConversationShareState> {
         repliesAllowed: room.repliesAllowed,
         locked: room.locked,
         engineName: _engine()?.name,
+        maxExtraLanguages: room.maxExtraLanguages,
       ),
     );
   }

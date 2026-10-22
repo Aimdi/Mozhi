@@ -448,11 +448,10 @@ class IoShareServer implements ShareServer {
         return _status(response, switch (error) {
           ShareJoinError.wrongPin => HttpStatus.forbidden,
           ShareJoinError.locked => HttpStatus.locked,
-          ShareJoinError.full => HttpStatus.conflict,
+          // (The language limit is answered above.)
+          ShareJoinError.full ||
+          ShareJoinError.languageLimit => HttpStatus.conflict,
           ShareJoinError.tooMany => HttpStatus.tooManyRequests,
-          // Answered above.
-          ShareJoinError.languageLimit => // coverage:ignore-line
-          HttpStatus.conflict, // coverage:ignore-line
           ShareJoinError.unknownLanguage => HttpStatus.badRequest,
           // An ended room answers 404 before this.
           ShareJoinError.ended => HttpStatus.gone, // coverage:ignore-line

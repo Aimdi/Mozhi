@@ -543,6 +543,7 @@ void main() {
     await tester.tap(find.byKey(const Key('practice_start')));
     await settle(tester);
     expect(find.text('Hello (pt)'), findsOneWidget);
+    expect(find.text('Space shows the answer, 1 to 4 rate it'), findsOneWidget);
   });
 
   testWidgets('the answer shows the pronunciation and the note', (

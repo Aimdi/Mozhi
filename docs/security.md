@@ -83,12 +83,25 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
   stored; only the date of the last backup is. API keys and passwords are
   only included when the user turns that on, with a warning, and go back
   to secure storage on restore. Reading is bounded (file 64 MiB, header
-  4 KiB, Argon2id at most 256 MiB, 16 passes and 8 lanes, decompressed
-  data 128 MiB) so a crafted file can't exhaust the device, and newer
-  formats or unknown parts are refused or left out. Threat: whoever gets
-  the file can guess passphrases offline; the strength hint (length and
-  word count, computed on the device) asks for four or more random words,
-  and at least 8 characters are required.
+  4 KiB, Argon2id at most 128 MiB, 8 passes, 4 lanes and 128 MiB × 4
+  passes of work, under three times the Android parameters, since it runs
+  before the passphrase can be checked; decompressed data 128 MiB) so a
+  crafted file can't exhaust the device, and newer formats or unknown
+  parts are refused or left out. No restore moves this device's keys to
+  another server: a provider's key and headers only carry over (Replace
+  keeping this device's, Merge filling in the backup's) between providers
+  of the same id on the same server (service, provider type and
+  normalised base URL). Merge adds nothing that gets text by itself: it
+  never adds Mozhi instances (the failover would send text to them
+  without asking), and providers it adds are used only once chosen
+  (consents and engine choices left for their id are dropped). Replace
+  takes the backup's providers and instances, as the user chose; the
+  review and the result list every provider and instance a restore adds,
+  by host. Custom headers can't replace the key's auth header
+  (`Authorization`, `x-api-key`, `x-goog-api-key`), which is sent last.
+  Threat: whoever gets the file can guess passphrases offline; the
+  strength hint (length and word count, computed on the device) asks for
+  four or more random words, and at least 8 characters are required.
 - **Sync** ([Sync](sync.md)): the sync file on the user's WebDAV server is
   a `.mozhibackup` (above) written with a key derived once from the sync
   passphrase (Argon2id with the salt and parameters of the file's header,
@@ -241,31 +254,45 @@ or malicious. What protects you:
   dropped or reordered frame ends the transfer. Someone who didn't see the
   code learns nothing and can't connect: the sending phone proves it knows
   the secret in its first encrypted frame, before the receiver sends
-  anything but its public key, and three failed attempts burn the code.
+  anything but its public key. Only a frame that fails to decrypt counts
+  as a wrong code: three from one address shut that address out, 30 in
+  all burn the code. So one device can neither guess the secret nor burn
+  the code for everyone, and timeouts or garbage, which prove nothing,
+  count for nothing.
 - **Someone in the middle** who did see the code (over your shoulder)
   shows up in the six-digit number both phones display: the sender commits
   to its key before it sees the receiver's, so they get one try in a
-  million to make the numbers match. Compare them; the app asks.
+  million to make the numbers match. Compare them: both phones ask, and
+  the receiving phone can't accept anything until you say they match.
 - **A malicious sending phone** can't plant files: the receiver asks only
   for files its own bundled catalogue lists, checks each file's size and
   SHA-256 (and SHA-1 for speech models) while it arrives and installs only
   through each manager's import path, which checks again; file names come
   from the receiver's catalogue, never from the sender, and nothing is
   run. A backup goes through the normal restore (64 MiB at most, newer
-  formats refused). You see the list first and accept or decline.
+  formats refused), limited to the sections the offer listed, which are
+  the ones you see; a backup holding any other section, or API keys and
+  passwords the offer didn't announce, is refused whole. It stays in
+  memory (never in storage) and is parsed off the UI thread. You see the
+  list first and accept or decline.
 - **A malicious receiving phone** gets only what you chose to send; the
   sender reads only the files it offered, whatever is asked for.
 - **Reach and limits:** the receiver listens only on its private IPv4
   address, for one connection and five minutes, and closes connections
   from any other address; the sender only connects to private addresses
-  (a `mozhi://pair` link only fills in the code). Every frame's length is
-  checked before it is read (256 KiB at most), with timeouts for the key
-  agreement (10 seconds), between frames (30 seconds) and for the people
-  deciding (10 minutes).
+  (a `mozhi://pair` link only fills in the code). A few connections may
+  set up at once, so a device that connects and stalls can't keep the
+  real phone out. Every frame's length is checked before it is read
+  (256 KiB at most), with one deadline for the key agreement and `hello`
+  (10 seconds in all), timeouts between frames (30 seconds) and for the
+  people deciding (10 minutes).
 - **What it doesn't hide:** the phones' addresses and the port (they are in
   the code), and the sizes and timing of what goes across. Someone with
-  the code and no interest in hiding can still try to connect first, which
-  only stops the pairing (make a new code).
+  the code can still connect first: the real sender is then turned away
+  and has no number to show, so the receiving phone's question gets a
+  no (make a new code). A device that keeps opening connections faster
+  than a phone completes the key agreement can delay pairing, as can
+  anyone who floods or jams the network.
 
 ## Web page translator
 

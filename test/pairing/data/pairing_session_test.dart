@@ -786,11 +786,9 @@ void main() {
         PairingItemOutcome.installed,
       );
       expect(
-        await library.install(
-          history,
-          [File('${temp.path}/missing.json')],
-          mode: BackupRestoreMode.merge,
-        ),
+        await library.install(history, [
+          File('${temp.path}/missing.json'),
+        ], mode: BackupRestoreMode.merge),
         PairingItemOutcome.failed,
       );
       final big = File('${temp.path}/big.json')

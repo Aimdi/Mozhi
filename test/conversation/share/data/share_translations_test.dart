@@ -19,19 +19,30 @@ ConversationTurn _turn({
   String original = 'Hello',
   ConversationTurnStatus status = ConversationTurnStatus.complete,
   String translation = 'Hola',
+  Language source = english,
+  Language target = spanish,
 }) => ConversationTurn(
   id: id,
-  side: ConversationSide.a,
+  side: source == english ? ConversationSide.a : ConversationSide.b,
   original: original,
-  source: english,
-  target: spanish,
+  source: source,
+  target: target,
   createdAt: sentAt,
   translation: translation,
   status: status,
 );
 
 void main() {
-  setUpAll(registerConversationFallbacks);
+  setUpAll(() {
+    registerConversationFallbacks();
+    registerFallbackValue(
+      const ConsentRequiredException(
+        kind: ConsentKind.pair,
+        destination: PublicInstanceDestination(''),
+        engineId: '',
+      ),
+    );
+  });
 
   late MockTranslationRepository repository;
   late TranslationEngine? engine;
@@ -201,6 +212,7 @@ void main() {
         const ShareLanguageState(
           language: french,
           mode: ShareLanguageMode.engine,
+          pending: 1,
         ),
       ]);
     });
@@ -463,6 +475,243 @@ void main() {
       expect(
         translations.languageStates([french]).single.mode,
         ShareLanguageMode.unavailable,
+      );
+    });
+  });
+
+  group('only what guests read', () {
+    final turns = [
+      _turn(),
+      _turn(id: 1, original: 'Bye'),
+      _turn(id: 2, original: 'Thanks'),
+    ];
+
+    test('counts what is still to translate', () async {
+      translations.ensure(turns, [french]);
+      expect(translations.languageStates([french]).single.pending, 3);
+
+      streamOf(deepl, french).add(resultOf('Bonjour'));
+      await streamOf(deepl, french).close();
+      await settle();
+      expect(translations.languageStates([french]).single.pending, 2);
+    });
+
+    test('stops queued and running work for a language nobody reads', () {
+      final changes = <void>[];
+      translations.changes.listen(changes.add);
+      translations.ensure(turns, [french, german]);
+      expect(streams.keys, ['mozhi:deepl>fr:Hello', 'mozhi:deepl>de:Hello']);
+
+      translations.ensure(turns, [german]);
+
+      expect(streamOf(deepl, french).hasListener, isFalse);
+      expect(streamOf(deepl, german).hasListener, isTrue);
+      // The freed place went to German, not to a French turn.
+      expect(streams.keys, [
+        'mozhi:deepl>fr:Hello',
+        'mozhi:deepl>de:Hello',
+        'mozhi:deepl>de:Bye',
+      ]);
+      expect(translations.languageStates([french]), isEmpty);
+      expect(translations.textOf(turns.first, french).text, isEmpty);
+
+      translations.ensure(turns, []);
+      expect(streamOf(deepl, german).hasListener, isFalse);
+      expect(streams, hasLength(3));
+      expect(translations.languageStates([french, german]), isEmpty);
+      expect(changes, isNotEmpty);
+    });
+
+    test('keeps the finished translations of a language read before', () async {
+      translations.ensure([turns.first], [french]);
+      streamOf(deepl, french).add(resultOf('Bonjour'));
+      await streamOf(deepl, french).close();
+      await settle();
+
+      translations.ensure(turns, [], keep: [french]);
+      expect(streams, hasLength(1));
+      expect(translations.textOf(turns.first, french).text, 'Bonjour');
+
+      // Read again: only what is missing is translated.
+      translations.ensure(turns, [french]);
+      expect(streams.keys, [
+        'mozhi:deepl>fr:Hello',
+        'mozhi:deepl>fr:Bye',
+        'mozhi:deepl>fr:Thanks',
+      ]);
+      expect(translations.textOf(turns.first, french).text, 'Bonjour');
+
+      translations.ensure(turns, []);
+      expect(translations.textOf(turns.first, french).text, isEmpty);
+    });
+
+    test('keeps nothing unfinished of a language read before', () {
+      translations.ensure([turns.first], [french]);
+
+      translations.ensure([turns.first], [], keep: [french]);
+
+      expect(streamOf(deepl, french).hasListener, isFalse);
+      expect(translations.languageStates([french]), isEmpty);
+    });
+
+    test('shows the host any language still being translated', () {
+      translations.ensure([turns.first], [french]);
+
+      expect(translations.languageStates([german]), [
+        const ShareLanguageState(
+          language: french,
+          mode: ShareLanguageMode.engine,
+          pending: 1,
+        ),
+      ]);
+    });
+  });
+
+  group('consent', () {
+    final fromEnglish = _turn();
+    final fromSpanish = _turn(
+      id: 1,
+      original: 'Hola',
+      source: spanish,
+      target: english,
+    );
+    const englishToFrench = ConsentRequiredException(
+      kind: ConsentKind.pair,
+      destination: PublicInstanceDestination('mozhi.example.org'),
+      engineId: 'mozhi:deepl',
+      source: 'en',
+      target: 'fr',
+    );
+    const spanishToFrench = ConsentRequiredException(
+      kind: ConsentKind.pair,
+      destination: PublicInstanceDestination('mozhi.example.org'),
+      engineId: 'mozhi:deepl',
+      source: 'es',
+      target: 'fr',
+    );
+
+    void needConsent() => when(
+      () => repository.needsConsent(
+        deepl,
+        source: any(named: 'source'),
+        target: any(named: 'target'),
+      ),
+    ).thenReturn(true);
+
+    bool sameConsent(ConsentRequiredException? a, ConsentRequiredException b) =>
+        a != null &&
+        a.kind == b.kind &&
+        a.engineId == b.engineId &&
+        a.destination == b.destination &&
+        a.source == b.source &&
+        a.target == b.target;
+
+    test('is asked for one language pair at a time', () {
+      needConsent();
+      translations.ensure(
+        [fromEnglish, fromSpanish, _turn(id: 2, original: 'Bye')],
+        [french],
+      );
+
+      var state = translations.languageStates([french]).single;
+      expect(sameConsent(state.consent, englishToFrench), isTrue);
+      expect(state.waiting, 2);
+
+      translations.retry(french, consent: state.consent);
+      verify(() => repository.translate(deepl, any())).called(2);
+      state = translations.languageStates([french]).single;
+      expect(sameConsent(state.consent, spanishToFrench), isTrue);
+      expect(state.waiting, 1);
+      expect(state.pending, 2);
+    });
+
+    test('withdraws the approval once its turns all started', () async {
+      needConsent();
+      translations.ensure([fromEnglish], [french]);
+      final consent = translations.languageStates([french]).single.consent!;
+
+      translations.retry(french, consent: consent);
+
+      verify(() => repository.translate(deepl, any())).called(1);
+      verify(() => repository.revokeOnce(consent)).called(1);
+    });
+
+    test('withdraws what turns dropped before starting did not use', () {
+      needConsent();
+      final turns = [
+        fromEnglish,
+        _turn(id: 2, original: 'Bye'),
+        _turn(id: 3, original: 'Thanks'),
+      ];
+      translations.ensure(turns, [french]);
+      final consent = translations.languageStates([french]).single.consent!;
+
+      translations.retry(french, consent: consent);
+      // Two run, one waits for a place.
+      verify(() => repository.translate(deepl, any())).called(2);
+      verifyNever(() => repository.revokeOnce(any()));
+
+      // The guest left.
+      translations.ensure(turns, []);
+      verify(() => repository.revokeOnce(consent)).called(1);
+    });
+
+    test('withdraws what is left when disposed', () async {
+      needConsent();
+      final turns = [
+        fromEnglish,
+        _turn(id: 2, original: 'Bye'),
+        _turn(id: 3, original: 'Thanks'),
+      ];
+      translations.ensure(turns, [french]);
+      final consent = translations.languageStates([french]).single.consent!;
+      translations.retry(french, consent: consent);
+
+      await translations.dispose();
+      verify(() => repository.revokeOnce(consent)).called(1);
+    });
+
+    test('withdraws an approval nothing waits for', () {
+      translations.retry(french, consent: englishToFrench);
+
+      verify(() => repository.revokeOnce(englishToFrench)).called(1);
+      verifyNever(() => repository.translate(any(), any()));
+    });
+
+    test('waits for every retry of the same consent', () async {
+      needConsent();
+      final turns = [
+        fromEnglish,
+        _turn(id: 2, original: 'Bye'),
+        _turn(id: 3, original: 'Thanks'),
+        _turn(id: 4, original: 'Later'),
+      ];
+      translations
+        ..ensure(turns, [french])
+        ..retry(french);
+      // The approval was used up meanwhile: the first turn waits again,
+      // and the host allows it again.
+      streamOf(deepl, french).addError(englishToFrench);
+      await settle();
+      final again = translations.languageStates([french]).single;
+      expect(again.waiting, 1);
+      translations.retry(french, consent: again.consent);
+
+      await streamOf(deepl, french, text: 'Bye').close();
+      await settle();
+      // The first retry's turns all started; the second's waits.
+      verifyNever(() => repository.revokeOnce(any()));
+      await streamOf(deepl, french, text: 'Thanks').close();
+      await settle();
+      verify(() => repository.revokeOnce(any())).called(1);
+    });
+
+    test('a failed withdrawal does not break the sharing', () {
+      when(() => repository.revokeOnce(any())).thenThrow(StateError('x'));
+
+      expect(
+        () => translations.retry(french, consent: englishToFrench),
+        returnsNormally,
       );
     });
   });

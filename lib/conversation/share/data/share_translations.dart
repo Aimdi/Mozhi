@@ -248,8 +248,9 @@ class ShareTranslations {
         if (job.status == _JobStatus.consent) job,
     ];
     if (waiting.isNotEmpty) {
-      // One pair at a time: an approval covers one pair only.
-      final consent = waiting.first.consent!;
+      // One pair at a time (the latest asked for): an approval covers one
+      // pair only.
+      final consent = waiting.last.consent!;
       return ShareLanguageState(
         language: language,
         mode: ShareLanguageMode.needsConsent,

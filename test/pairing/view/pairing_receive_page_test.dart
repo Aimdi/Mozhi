@@ -75,9 +75,8 @@ void main() {
     when(() => cubit.useAddress(any())).thenAnswer((_) async {});
     when(() => cubit.accept()).thenAnswer((_) async {});
     when(() => cubit.decline()).thenAnswer((_) async {});
-    when(
-      () => cubit.confirm(match: any(named: 'match')),
-    ).thenAnswer((_) async {});
+    when(() => cubit.confirm(match: any(named: 'match')))
+        .thenAnswer((_) async {});
   });
 
   Future<void> pump(WidgetTester tester, PairingReceiveState state) async {
@@ -244,9 +243,7 @@ void main() {
       expect(find.byKey(const Key('pairing_mismatch')), findsNothing);
     });
 
-    testWidgets('accepts only once the numbers are confirmed', (
-      tester,
-    ) async {
+    testWidgets('accepts only once the numbers are confirmed', (tester) async {
       await pump(
         tester,
         PairingReceiveState(

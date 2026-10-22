@@ -13,6 +13,7 @@ import 'package:mozhi/backup/view/backup_services.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
+import 'package:translation_repository/translation_repository.dart';
 
 import '../../helpers/helpers.dart';
 import '../helpers/backup_fakes.dart';
@@ -40,6 +41,7 @@ void main() {
   late BackupRegistry registry;
   late MemorySection history;
   late MemorySection presets;
+  late SettingsRepository settings;
   late FakeBackupFiles files;
   bool? result;
 
@@ -50,14 +52,11 @@ void main() {
   setUp(() {
     history = MemorySection('history', data: [1, 2]);
     presets = MemorySection('presets', data: const <Object?>[]);
+    settings = SettingsRepository(prefs: MemoryStore(), secrets: MemoryStore());
     registry = BackupRegistry()
       ..register(history)
       ..register(presets)
-      ..register(
-        SettingsBackupSection(
-          SettingsRepository(prefs: MemoryStore(), secrets: MemoryStore()),
-        ),
-      );
+      ..register(SettingsBackupSection(settings));
     files = FakeBackupFiles()
       ..picked = PickedBackupFile(
         name: 'mozhi-2026-10-01.mozhibackup',
@@ -353,6 +352,121 @@ void main() {
 
     expect(find.text('Choose what to restore'), findsOneWidget);
     expect(find.textContaining('with Mozhi 1.4.0+12'), findsOneWidget);
+  });
+
+  group('settings with servers new here', () {
+    // A backup (crafted, or from another phone) whose settings add an AI
+    // provider and a Mozhi instance, under a misleading label.
+    final crafted = BackupSnapshot(
+      createdAt: DateTime.utc(2026, 10, 1, 8, 30),
+      appVersion: '1.4.0+12',
+      sections: {
+        'settings': BackupSectionData(
+          version: 1,
+          data: {
+            'settings': const AppSettings(
+              onboardingComplete: true,
+              providers: [
+                AiProviderConfig(
+                  id: 'p',
+                  name: 'Mirror',
+                  provider: LlmProvider.openAiCompatible,
+                  baseUrl: 'https://evil.example/v1',
+                  model: 'm',
+                ),
+              ],
+              instances: [
+                MozhiInstance(
+                  url: 'https://evil.example',
+                  label: 'mozhi.aryak.me (India)',
+                ),
+              ],
+            ).toJson(),
+          },
+        ),
+      },
+    );
+
+    testWidgets('the review lists them by host', (tester) async {
+      await open(tester, from: crafted);
+
+      expect(
+        find.textContaining(
+          'New AI and translation providers: Mirror (evil.example)',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining(
+          'New Mozhi instances, used only with Replace: evil.example',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('mozhi.aryak.me'), findsNothing);
+      expect(
+        find.textContaining('Settings: Merge adds the backup'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('Merge adds the provider, not the instance, and says '
+        'so', (tester) async {
+      await open(tester, from: crafted);
+
+      await run(
+        tester,
+        () => tester.tap(find.byKey(const Key('backup_restore_merge'))),
+      );
+
+      expect(
+        find.textContaining(
+          'Added AI and translation providers: Mirror (evil.example)',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining(
+          'Not added, because Merge never adds Mozhi instances: evil.example',
+        ),
+        findsOneWidget,
+      );
+      final restored = await tester.runAsync(settings.load);
+      expect(restored!.providers.map((p) => p.id), ['p']);
+      expect(
+        restored.instances.map((i) => i.url),
+        isNot(contains('https://evil.example')),
+      );
+    });
+
+    testWidgets('Replace lists the instance it added', (tester) async {
+      await open(tester, from: crafted);
+
+      await run(
+        tester,
+        () => tester.tap(find.byKey(const Key('backup_restore_replace'))),
+      );
+
+      expect(
+        find.textContaining(
+          'Added AI and translation providers: Mirror (evil.example)',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Added Mozhi instances: evil.example'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Not added'), findsNothing);
+      final restored = await tester.runAsync(settings.load);
+      expect(restored!.instances.map((i) => i.url), ['https://evil.example']);
+    });
+
+    testWidgets('a backup of these settings lists nothing new', (tester) async {
+      await open(tester, from: snapshot);
+
+      expect(find.textContaining('New AI'), findsNothing);
+      expect(find.textContaining('New Mozhi'), findsNothing);
+    });
   });
 
   testWidgets('shows the progress while unlocking and restoring', (

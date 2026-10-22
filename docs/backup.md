@@ -93,11 +93,17 @@ the encrypted backup instead.
    that was damaged or changed, gives one clear error: **Wrong passphrase,
    or the file is damaged.** (the two can't be told apart; see below).
 4. Mozhi lists what the backup holds, part by part, with how many items
-   each has and whether it includes API keys and passwords. Uncheck what
-   you don't want. Parts that this version of Mozhi doesn't know (from a
-   newer version) are named and left out.
+   each has and whether it includes API keys and passwords. Under
+   **Settings** it names the servers in the backup that this device
+   doesn't use yet: the AI and translation providers (name and host, for
+   example "Mirror (llm.example.org)") and the Mozhi instances (by host,
+   whatever their label says). Uncheck what you don't want. Parts that
+   this version of Mozhi doesn't know (from a newer version) are named and
+   left out.
 5. Tap **Merge with my data** or **Replace my data**. The result says
-   what changed, for example "History and favorites: 135 now, 120 before".
+   what changed, for example "History and favorites: 135 now, 120 before",
+   and under **Settings** which providers and instances were added (and,
+   after a merge, which instances were left out).
 
 **Merge with my data** keeps what is on this device and adds what is only
 in the backup:
@@ -120,8 +126,16 @@ in the backup:
   changed (older backups), this device's order and default stay, or the
   backup's default when there is none here.
 - **Settings:** this device's settings stay, privacy choices included; the
-  AI providers, Mozhi instances and pinned languages you don't have are
-  added, and the backup's API keys fill in keys missing here.
+  AI providers and pinned languages you don't have are added. A provider
+  added this way is used only once you choose it (and a cloud provider
+  still asks before your first text goes to it). The backup's API keys
+  and headers fill in those missing here only for the same provider on
+  the same server (same service, provider type and address). **Mozhi
+  instances are never added by a merge**: Mozhi switches to the next
+  instance in your list by itself when one fails, so an instance in the
+  list gets your text without asking. To use the backup's instances,
+  restore the settings with **Replace my data**, or add them under
+  **Settings > Translation engines > Mozhi instances**.
 - **Phrasebook:** phrases, collections and notes are matched by id; of one
   on both sides the newer copy stays, and one deleted on either side stays
   deleted unless it changed after it was deleted. A collection keeps the
@@ -129,10 +143,15 @@ in the backup:
 
 **Replace my data** makes each chosen part exactly what the backup holds:
 history and favorites (with their deletion records), presets, glossaries,
-settings and the phrasebook. Two things are kept: setup stays finished, and a provider or
-instance keeps this device's key or password when the backup has none for
-it. Replacing your history leaves no deletion records for what was here
-before, so another device you sync with keeps its entries.
+settings (its providers and Mozhi instances included) and the phrasebook.
+Two things are kept: setup stays finished, and a provider or instance
+keeps this device's key or password when the backup has none for it. A
+provider keeps it only when the backup's provider of that id is on the
+same server (same service, provider type and address, ignoring case,
+default ports and trailing slashes): a backup can't point one of your
+providers at another server and take its key along. Replacing your
+history leaves no deletion records for what was here before, so another
+device you sync with keeps its entries.
 
 Restored API keys and passwords go to secure storage, exactly like keys
 you type in the settings. A changed HTTP proxy applies after a restart.
@@ -165,7 +184,14 @@ memory-hungry, but only a long passphrase makes guessing hopeless:
 - **A file from someone else** (or a newer, unknown format) is refused
   before anything is restored. A backup you restore can only change the
   parts you choose; settings from it take effect as if you had typed them,
-  so restore only backups you made.
+  so restore only backups you made. A merge never adds a Mozhi instance
+  (one would get your text without asking when your own instances fail),
+  never moves this device's keys to another server, and the providers it
+  adds are only used once you choose them; the review and the result name
+  every provider and instance a restore adds, by host. A custom header from
+  a backup can't replace a provider's key header either: Mozhi always
+  sends the key's own header (`Authorization`, `x-api-key`,
+  `x-goog-api-key`) last.
 - **Out of scope:** malware on your device, and someone who knows your
   passphrase. Backups never leave your device by themselves: Mozhi sends
   nothing anywhere when it makes or restores one.
@@ -237,9 +263,13 @@ The header:
   `formatVersion` above 1, is refused with "made by a newer version of
   Mozhi". Unknown header fields are ignored.
 - **Bounds:** files over 64 MiB, a header over 4 KiB, Argon2id asking for
-  more than 256 MiB, 16 passes or 8 lanes, and data that decompresses to
-  more than 128 MiB are refused, so a crafted file can't exhaust the
-  device.
+  more than 128 MiB, 8 passes or 4 lanes, or for more work than 128 MiB
+  with 4 passes (memory × passes; 64 MiB with 8 passes is the same), and
+  data that decompresses to more than 128 MiB are refused, so a crafted
+  file can't exhaust the device. Argon2id runs before the passphrase can
+  be checked, so these bounds are what a crafted file can cost: under
+  three times the Android parameters (below), about 3 s on a mid-range
+  phone and half a minute in its browser.
 
 **Argon2id parameters.** Backups made on Android use 64 MiB, 3 passes and
 one lane (RFC 9106's second recommendation, with one lane). In the web app

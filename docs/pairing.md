@@ -16,8 +16,10 @@ the network). The code lives in `lib/pairing/`.
    the `mozhi://pair?code=…` link in Mozhi), or open **Send to another
    phone** and type or paste the code, then tap **Connect**. A link only
    fills in the code; nothing connects until you tap Connect.
-3. Both phones show the same six-digit number. Check that they match: if
-   they differ, stop, because someone may be in the middle.
+3. Both phones show the same six-digit number and ask whether the other
+   phone shows it too. Tap **Yes, it matches** on both (the receiving phone
+   can't accept anything before), or **No, stop** if they differ: someone
+   may be in the middle, or another phone connected first.
 4. The sending phone chooses what to send: **Your data** (the backup
    sections, without API keys and passwords unless you switch them on) and
    any of the offline languages and models on the phone: translation
@@ -27,7 +29,7 @@ the network). The code lives in `lib/pairing/`.
 5. The receiving phone sees the list, with what it already has and what its
    version of Mozhi cannot use, picks what to take, chooses **Merge with my
    data** or **Replace my data** for the data (as for a backup restore),
-   and accepts or declines.
+   and accepts (once the numbers are confirmed) or declines.
 6. Both phones show the progress (the screen stays on) and then what became
    of each item. Leaving the screen on either phone stops the transfer.
 
@@ -92,16 +94,31 @@ manager's own import path (`BergamotModelManager.importFiles`,
 `WhisperSpeech.importFiles`, `importOcrFiles`,
 `DictionaryPacks.installFrom`), which checks them again before the atomic
 install. File names come from the receiver's catalogue, never from the
-sender. The data item is a `BackupSnapshot` as JSON (at most 64 MiB),
-restored with `BackupRegistry.restore` and the chosen mode. The sender, in
-turn, only reads the files it offered, whatever the receiver asks for.
+sender. The data item is a `BackupSnapshot` as JSON (at most 64 MiB). It
+stays in memory (it is never written to storage), is parsed on a
+background isolate, and is restored with `BackupRegistry.restore` and the
+chosen mode, limited (`only:`) to the sections the offer listed, which are
+the ones the receiving phone showed. A snapshot that holds any other
+section, or secrets (API keys, headers, passwords) when the offer said it
+has none, is refused as `damaged` and nothing of it is restored. The
+sender, in turn, only reads the files it offered, whatever the receiver
+asks for.
 
 **Limits and timeouts.** Only private IPv4 addresses (10/8, 172.16/12,
 192.168/16) on both ends; anything else is closed at once (the sender
 refuses a code for another address before connecting). One connection per
-code; others are closed while it sets up. The key agreement and `hello`
-must complete within 10 seconds. Three phones failing the secret burn the
-code. A code works for five minutes. Waiting for the other person to choose
+code: once one has set up, the others are closed. Up to four set up at a
+time, so a connection that stalls can't keep the real phone out; when a
+fifth arrives, the oldest connection of the address with the most of them
+is closed (a device that opens many loses its own first). The key
+agreement and both `hello`s must complete within 10 seconds in all, on
+both phones. Only a first encrypted frame that doesn't decrypt proves a
+wrong code; timeouts and malformed handshakes prove nothing (anybody can
+cause them) and don't count. After three wrong codes from one address,
+that address is refused for as long as the code works; after 30 in all,
+the code is burnt. One device therefore can't burn the code for everyone,
+and guessing stays hopeless (a few dozen tries at a 64-bit secret). A code
+works for five minutes. Waiting for the other person to choose
 or accept: 10 minutes; between frames of a file: 30 seconds; for an item to
 install: 10 minutes. At most 1,000 items, 32 files per item, 4 GiB per
 file.

@@ -137,9 +137,13 @@ class PracticeSession extends StatelessWidget {
                   child: Center(
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: maxWidth),
-                      child: revealed
-                          ? const _Rating()
-                          : SizedBox(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (revealed)
+                            const _Rating()
+                          else
+                            SizedBox(
                               width: double.infinity,
                               child: FilledButton(
                                 key: const Key('practice_show_answer'),
@@ -150,6 +154,19 @@ class PracticeSession extends StatelessWidget {
                                 child: Text(l10n.practiceShowAnswer),
                               ),
                             ),
+                          // Where a keyboard is likely (wide screens).
+                          if (MediaQuery.sizeOf(context).width >= 840)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Text(
+                                l10n.practiceKeyboardHint,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

@@ -390,7 +390,8 @@ class _Details extends StatelessWidget {
           Text(l10n.conversationShareLanguages, style: heading),
           const SizedBox(height: 4),
           Text(
-            l10n.conversationShareLanguagesHint,
+            '${l10n.conversationShareLanguagesHint} '
+            '${l10n.conversationShareLanguagesLimit(state.maxExtraLanguages)}',
             style: theme.textTheme.bodySmall?.copyWith(
               color: palette.secondaryText,
             ),
@@ -399,7 +400,10 @@ class _Details extends StatelessWidget {
             _LanguageRow(
               language: language,
               engineName: state.engineName,
-              onGranted: () => cubit.retryLanguage(language.language),
+              onGranted: () => cubit.retryLanguage(
+                language.language,
+                consent: language.consent,
+              ),
             ),
         ],
         const SizedBox(height: 8),
@@ -527,6 +531,13 @@ class _LanguageRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(text, style: theme.textTheme.bodyMedium),
+          if (language.pending > 0)
+            Text(
+              l10n.conversationShareLanguagePending(language.pending),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: AppPalette.of(context).secondaryText,
+              ),
+            ),
           if (language.mode == ShareLanguageMode.needsConsent &&
               consent != null) ...[
             const SizedBox(height: 8),

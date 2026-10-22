@@ -32,8 +32,8 @@ String renderGuestPage({
 }
 
 /// The page's texts in [l10n]'s language. Placeholders stay as
-/// `{language}` and `{number}` for the page to fill in; `_locale` and
-/// `_dir` are the language and its direction.
+/// `{language}`, `{languages}` and `{number}` for the page to fill in;
+/// `_locale` and `_dir` are the language and its direction.
 Map<String, String> guestPageStrings(AppLocalizations l10n) => {
   '_locale': l10n.localeName,
   '_dir': Bidi.isRtlLanguage(l10n.localeName) ? 'rtl' : 'ltr',
@@ -47,6 +47,7 @@ Map<String, String> guestPageStrings(AppLocalizations l10n) => {
   'full': l10n.conversationShareGuestFull,
   'locked': l10n.conversationShareGuestLocked,
   'tooMany': l10n.conversationShareGuestTooMany,
+  'languageLimit': l10n.conversationShareGuestLanguageLimit('{languages}'),
   'connecting': l10n.conversationShareGuestConnecting,
   'reconnecting': l10n.conversationShareGuestReconnecting,
   'unreachable': l10n.conversationShareGuestUnreachable,
@@ -273,6 +274,22 @@ const guestPageScript = r'''
     return config.languages.length ? config.languages[0].code : '';
   }
 
+  // No more languages can be added: which ones the guest may pick.
+  function languageLimit(codes) {
+    var names = (codes || []).map(function (code) {
+      for (var i = 0; i < config.languages.length; i++) {
+        var language = config.languages[i];
+        if (language.code === code) return language.nativeName || language.name;
+      }
+      return code;
+    });
+    return t('languageLimit', { languages: names.join(', ') });
+  }
+
+  function limited(result) {
+    return result.code === 409 && result.body && result.body.error === 'languageLimit';
+  }
+
   function api(path, body) {
     var headers = { 'Content-Type': 'application/json' };
     if (session) { headers['X-Mozhi-Guest'] = session.guest; headers['X-Mozhi-Key'] = session.key; }
@@ -423,6 +440,7 @@ const guestPageScript = r'''
         connect();
         return;
       }
+      if (limited(result)) { $('join-error').textContent = languageLimit(result.body.languages); return; }
       var reasons = { 403: 'wrongPin', 409: 'full', 423: 'locked', 429: 'tooMany', 410: 'ended' };
       $('join-error').textContent = t(reasons[result.code] || 'error');
       if (result.code === 410) end();
@@ -443,7 +461,7 @@ const guestPageScript = r'''
         setStrings(result.body.strings);
       } else {
         select.value = session.language;
-        setStatus(t(result.code === 429 ? 'tooFast' : 'error'));
+        setStatus(limited(result) ? languageLimit(result.body.languages) : t(result.code === 429 ? 'tooFast' : 'error'));
         if (result.code === 401) check();
       }
     }, function () { select.value = session.language; setStatus(t('unreachable')); });

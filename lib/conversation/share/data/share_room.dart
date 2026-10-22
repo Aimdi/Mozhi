@@ -147,7 +147,7 @@ class ShareRoom {
     required this._onReply,
     this._pin,
     this.maxGuests = 8,
-    this.maxExtraLanguages = 4,
+    this.maxExtraLanguages = defaultMaxExtraLanguages,
     List<Language> Function()? conversationLanguages,
     ShareSecrets? secrets,
     DateTime Function()? clock,
@@ -206,6 +206,9 @@ class ShareRoom {
   /// Joins per minute in all, whoever asks (the server also limits them
   /// per address).
   static const maxRoomJoinsPerMinute = 20;
+
+  /// See [maxExtraLanguages].
+  static const defaultMaxExtraLanguages = 4;
 
   /// How long a language no guest reads any more keeps its translations
   /// and its place among the [maxExtraLanguages].

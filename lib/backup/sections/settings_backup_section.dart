@@ -36,8 +36,10 @@ import 'package:translation_repository/translation_repository.dart';
 /// to tell the newer copy). Merge never adds Mozhi instances: the failover
 /// may send the user's text to any instance in the list without asking,
 /// so only Replace, the user's explicit choice, takes the backup's
-/// instances. A provider Merge adds is only used once the user picks it
-/// (consents and engine choices still naming its id are dropped).
+/// instances. A provider Merge adds is only used once the user picks it:
+/// consents and engine choices still naming its id are dropped, and one
+/// that would get text without asking first ([asksBeforeFirstUse]) comes
+/// turned off.
 ///
 /// [additions] tells what a restore adds, for the review before it and
 /// its result.
@@ -219,7 +221,7 @@ class SettingsBackupSection implements BackupSection {
     final added = [
       for (final provider in theirs.values)
         if (!mine.contains(provider.id))
-          secrets.applyTo(_withoutSecrets(provider)),
+          _offUnlessAsked(secrets.applyTo(_withoutSecrets(provider))),
     ];
     final addedIds = {for (final provider in added) provider.id};
     // Choices left behind for a removed provider of that id must not pick
@@ -266,6 +268,31 @@ class SettingsBackupSection implements BackupSection {
 
   static AiProviderConfig _withoutSecrets(AiProviderConfig provider) =>
       provider.copyWith(clearApiKey: true, headers: const {});
+
+  /// [provider] turned off, unless the app asks the user before its first
+  /// text goes to it (see [asksBeforeFirstUse]).
+  static AiProviderConfig _offUnlessAsked(AiProviderConfig provider) =>
+      asksBeforeFirstUse(provider)
+      ? provider
+      : provider.copyWith(enabled: false);
+
+  /// Whether text only goes to [provider] once the user consented to that
+  /// provider: a cloud provider (`TranslationRepository.updatePrivacy`,
+  /// [CloudProviderDestination], as the repository resolves it: DeepL
+  /// always, an AI provider unless it is on a private network). Others (an
+  /// AI provider on a private network, a LibreTranslate server) need no
+  /// consent of their own, and an AI one may be picked by itself (the
+  /// first AI engine assists and proofreads when none is chosen), so Merge
+  /// adds them turned off.
+  static bool asksBeforeFirstUse(AiProviderConfig provider) =>
+      switch (provider.service) {
+        MtService.deepl => true,
+        MtService.libreTranslate => false,
+        MtService.llm => DataDestination.forUrl(
+          provider.baseUrl.trim(),
+          cloudProvider: '',
+        ) is CloudProviderDestination,
+      };
 
   /// [provider] with [apiKey] and [headers] where it has none.
   static AiProviderConfig _filled(

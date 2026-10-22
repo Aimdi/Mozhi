@@ -23,11 +23,13 @@ class PairingSendCubit extends Cubit<PairingSendState> {
   new(
     this._environment, {
     String? initialCode,
-    this.purpose = PairingSendPurpose.everything,
+    this._purpose = PairingSendPurpose.everything,
   }) : super(PairingSendState(input: initialCode?.trim() ?? ''));
 
   final PairingEnvironment _environment;
-  final PairingSendPurpose purpose;
+
+  /// What is selected at first.
+  final PairingSendPurpose _purpose;
   PairingSender? _sender;
 
   /// The code as the user types it.
@@ -83,7 +85,7 @@ class PairingSendCubit extends Cubit<PairingSendState> {
         packs: packs,
         sections: sections,
         chosenSections: sections.toSet(),
-        selected: switch (purpose) {
+        selected: switch (_purpose) {
           PairingSendPurpose.packs => {
             for (final outgoing in packs) outgoing.item.id,
           },
