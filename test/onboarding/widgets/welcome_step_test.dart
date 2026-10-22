@@ -21,6 +21,22 @@ void main() {
       );
     });
 
+    testWidgets('offers to restore a backup when it can', (tester) async {
+      tester.setScreenSize(const Size(400, 1400));
+      var restores = 0;
+      await tester.pumpOnboarding(WelcomeStep(onRestore: () => restores++));
+
+      await tester.tap(find.byKey(const Key('onboarding_restore_backup')));
+      expect(restores, 1);
+      expect(find.text('Restore from a backup'), findsOneWidget);
+    });
+
+    testWidgets('has no restore button without backups', (tester) async {
+      await tester.pumpOnboarding(const WelcomeStep());
+
+      expect(find.byKey(const Key('onboarding_restore_backup')), findsNothing);
+    });
+
     testWidgets('title is a semantic header', (tester) async {
       final handle = tester.ensureSemantics();
       await tester.pumpOnboarding(const WelcomeStep());

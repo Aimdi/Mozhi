@@ -14,6 +14,9 @@ import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/image_translate/data/text_recognition_service.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/pairing/view/pairing_environment_of.dart' as pairing;
+import 'package:mozhi/pairing/view/pairing_unavailable.dart'
+    show isPairingSupported;
 import 'package:mozhi/phrasebook/data/phrasebook_repository.dart';
 import 'package:mozhi/platform/mlkit_bindings.dart'
     show createTextRecognitionService;
@@ -107,6 +110,7 @@ class LocalDataEraser {
     this.phrasebook,
     this.practice,
     this.sync,
+    this.deletePairingFiles,
   });
 
   /// Uses what the app provides above [context].
@@ -150,6 +154,10 @@ class LocalDataEraser {
           : null,
       phrasebook: maybe<PhrasebookRepository>(),
       practice: maybe<PracticeRepository>(),
+      // What an interrupted phone-to-phone transfer left in the cache.
+      deletePairingFiles: isPairingSupported
+          ? pairing.deletePairingFiles
+          : null,
       sync: maybe<SyncService>(),
     );
   }
@@ -190,6 +198,10 @@ class LocalDataEraser {
   /// Deletes the text recognition folder afterwards (see
   /// `deleteTextRecognitionFiles`): partial downloads too.
   final Future<void> Function()? deleteTextRecognitionFiles;
+
+  /// Deletes what an interrupted phone-to-phone transfer left in the
+  /// cache (see `deletePairingFiles`); pairing stores nothing else.
+  final Future<void> Function()? deletePairingFiles;
 
   /// The phrasebook (its collections, phrases, notes, key and starter
   /// phrasebooks: [PhrasebookRepository.deleteAll]).
@@ -274,6 +286,7 @@ class LocalDataEraser {
     }
     if (phrasebook case final phrasebook?) await attempt(phrasebook.deleteAll);
     if (practice case final practice?) await attempt(practice.deleteAll);
+    if (deletePairingFiles case final deleteFiles?) await attempt(deleteFiles);
     // Back to the defaults (setup starts again): saving them also deletes
     // the API keys of every provider.
     settings.update((_) => const AppSettings());

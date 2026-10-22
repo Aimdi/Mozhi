@@ -11383,10 +11383,6 @@
   "@syncTestNoFolder": {
     "description": "syncTestNoFolder"
   },
-  "syncTestFirst": "Test the connection first.",
-  "@syncTestFirst": {
-    "description": "syncTestFirst"
-  },
   "syncPassphraseJoinHelper": "The sync passphrase of your other devices.",
   "@syncPassphraseJoinHelper": {
     "description": "syncPassphraseJoinHelper"
@@ -11924,5 +11920,9 @@
   "conversationSharePrivacyNote": "Only devices on this network can open it, and as it is plain http others on the same Wi-Fi could read along, so avoid public Wi-Fi for sensitive talk: your phone's hotspot is best.",
   "@conversationSharePrivacyNote": {
     "description": "conversationSharePrivacyNote"
+  },
+  "onboardingRestoreBackup": "Restore from a backup",
+  "@onboardingRestoreBackup": {
+    "description": "onboardingRestoreBackup"
   }
 }

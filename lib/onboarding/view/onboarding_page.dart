@@ -4,6 +4,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
+import 'package:mozhi/backup/data/backup_registry.dart';
+import 'package:mozhi/backup/view/backup_restore_dialog.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/network/network.dart'
     show describeNetworkPolicyError;
@@ -141,6 +143,22 @@ class _OnboardingViewState extends State<OnboardingView> {
     super.dispose();
   }
 
+  /// Whether a [BackupRegistry] is provided (the app; not every test).
+  bool get _hasBackups {
+    try {
+      context.read<BackupRegistry>();
+      return true;
+    } on ProviderNotFoundException {
+      return false;
+    }
+  }
+
+  /// Restores a backup; once restored, setup is done.
+  Future<void> _restoreBackup() async {
+    final restored = await showBackupRestoreDialog(context);
+    if (restored && mounted) _finish();
+  }
+
   /// Goes to [OnboardingView.finishLocation]; with [above] (the AI
   /// provider settings) that page is pushed on top of it, so its back
   /// arrow returns to the tabs.
@@ -212,7 +230,9 @@ class _OnboardingViewState extends State<OnboardingView> {
               children: [
                 for (final page in steps)
                   switch (page) {
-                    OnboardingStep.welcome => const WelcomeStep(),
+                    OnboardingStep.welcome => WelcomeStep(
+                      onRestore: _hasBackups ? _restoreBackup : null,
+                    ),
                     OnboardingStep.privacy => const PrivacyStep(),
                     OnboardingStep.languages => const OnboardingKeepAlive(
                       child: LanguagesStep(),

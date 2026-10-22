@@ -338,6 +338,10 @@ parameters run as JavaScript).
   one reaches your other devices, but editing or deleting one does not (a
   deleted preset comes back from a device that still has it). Change them
   on each device, or sync them only from one.
+- **Delete history automatically** works on each device alone: what it
+  removes here isn't deleted on your other devices (and a sync brings it
+  back until the next clean-up). Deleting entries yourself, or **Clear
+  history**, does travel.
 - Sync isn't instant: other devices pick changes up when they start, when
   something changes there, or on **Sync now**.
 - No sharing between people: everyone who knows the folder's account and

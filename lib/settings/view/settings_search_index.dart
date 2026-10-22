@@ -1,5 +1,8 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/pairing/view/pairing_entries.dart' show PairingAnchors;
+import 'package:mozhi/pairing/view/pairing_unavailable.dart'
+    show isPairingSupported;
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/models/settings_category.dart';
 import 'package:mozhi/settings/view/about_page.dart';
@@ -194,6 +197,22 @@ List<SettingsSearchEntry> settingsSearchIndex(
           ...SyncAnchors.keywords,
         ],
       ),
+    if (isPairingSupported) ...[
+      entry(
+        backup,
+        PairingAnchors.receive,
+        l10n.pairingReceiveAction,
+        subtitle: l10n.pairingReceiveSubtitle,
+        keywords: [l10n.pairingSectionTitle],
+      ),
+      entry(
+        backup,
+        PairingAnchors.send,
+        l10n.pairingSendAction,
+        subtitle: l10n.pairingSendSubtitle,
+        keywords: [l10n.pairingSectionTitle, l10n.pairingSharePacksAction],
+      ),
+    ],
     if (EngineSettings.offlineSupported)
       entry(
         engines,

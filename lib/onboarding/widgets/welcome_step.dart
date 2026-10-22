@@ -2,9 +2,14 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/onboarding/widgets/step_layout.dart';
 
-/// Step 1: what Mozhi is, plus a privacy note.
+/// Step 1: what Mozhi is, plus a privacy note, and (with [onRestore])
+/// a way to bring back a backup instead of setting up again.
 class WelcomeStep extends StatelessWidget {
-  const new({super.key});
+  const new({this.onRestore, super.key});
+
+  /// Restores a backup (`showBackupRestoreDialog`); null hides the
+  /// button.
+  final VoidCallback? onRestore;
 
   @override
   Widget build(BuildContext context) {
@@ -37,6 +42,18 @@ class WelcomeStep extends StatelessWidget {
           background: colors.secondaryContainer,
           foreground: colors.onSecondaryContainer,
         ),
+        if (onRestore case final restore?) ...[
+          const SizedBox(height: 8),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: TextButton.icon(
+              key: const Key('onboarding_restore_backup'),
+              onPressed: restore,
+              icon: const Icon(Icons.settings_backup_restore),
+              label: Text(l10n.onboardingRestoreBackup),
+            ),
+          ),
+        ],
       ],
     );
   }

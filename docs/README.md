@@ -17,6 +17,8 @@ Translate.
 | [Voice input](voice-input.md) | Dictation with the system recognizer or offline with Whisper: models, languages, privacy, import from files |
 | [Text recognition](text-recognition.md) | Reading text in photos on the phone with Tesseract: languages, sizes, where the data comes from, import from files |
 | [Offline dictionaries](dictionary-packs.md) | Wiktionary dictionaries for the Dictionary tab without AI or a network: what's in a pack, downloads, attribution, building and publishing packs |
+| [Backup](backup.md) | Encrypted backups of your history, favorites, settings, presets and glossaries: what's inside, restoring, the file format, passphrase advice |
+| [Phone to phone](pairing.md) | Moving your data or language packs to another phone over the local network, end to end encrypted: how pairing works and what is checked |
 | [Privacy](privacy.md) | What stays on your device and what each back end sees |
 | [Security](security.md) | Threat model: how API keys, network traffic, shared text, links and AI prompts are protected, and how to report a vulnerability |
 | [FAQ](faq.md) | Short answers to common questions |

@@ -272,6 +272,18 @@ void main() {
       await expectLater(device.setUp(), _fails(SyncFailure.offlineOnly));
     });
 
+    test('a status that cannot be stored is kept in memory', () async {
+      final prefs = _FlakyStore()..failing.add(SyncStore.stateKey);
+      final device = _Device(_server(), prefs: prefs);
+      await device.setUp();
+      expect(device.service.state.status.lastResult, SyncResult.sent);
+      expect(await device.service.syncNow(), isNull);
+      prefs.failing.add(SyncStore.configKey);
+      await device.service.updateOptions(_config.copyWith(wifiOnly: true));
+      expect(device.service.state.config!.wifiOnly, isTrue);
+      await device.service.dispose();
+    });
+
     test('fails when the secrets cannot be stored', () async {
       final device = _Device(_server(), secrets: _FailingStore());
       await expectLater(device.setUp(), _fails(SyncFailure.localData));
@@ -699,6 +711,17 @@ void main() {
     );
     expect(WebDavClient.defaultTimeout, const Duration(seconds: 60));
   });
+}
+
+/// Preferences that refuse to store the keys in [failing].
+class _FlakyStore extends MemoryStore {
+  final failing = <String>{};
+
+  @override
+  Future<void> write(String key, String value) async {
+    if (failing.contains(key)) throw Exception('disk full');
+    await super.write(key, value);
+  }
 }
 
 /// Secure storage that refuses to store anything.
