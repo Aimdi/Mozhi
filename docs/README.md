@@ -18,6 +18,7 @@ Translate.
 | [Text recognition](text-recognition.md) | Reading text in photos on the phone with Tesseract: languages, sizes, where the data comes from, import from files |
 | [Offline dictionaries](dictionary-packs.md) | Wiktionary dictionaries for the Dictionary tab without AI or a network: what's in a pack, downloads, attribution, building and publishing packs |
 | [Backup](backup.md) | Encrypted backups of your history, favorites, settings, presets and glossaries: what's inside, restoring, the file format, passphrase advice |
+| [Sync](sync.md) | End-to-end-encrypted sync between your devices through your own WebDAV folder: setup per server, how it works, what the server sees, CORS for the web app |
 | [Phone to phone](pairing.md) | Moving your data or language packs to another phone over the local network, end to end encrypted: how pairing works and what is checked |
 | [Privacy](privacy.md) | What stays on your device and what each back end sees |
 | [Security](security.md) | Threat model: how API keys, network traffic, shared text, links and AI prompts are protected, and how to report a vulnerability |

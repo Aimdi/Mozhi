@@ -9,6 +9,8 @@ import 'package:mozhi/backup/view/backup_restore_dialog.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/pairing/view/pairing_entries.dart';
+import 'package:mozhi/pairing/view/pairing_unavailable.dart'
+    show isPairingSupported;
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/widgets/settings_search.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
@@ -31,14 +33,15 @@ class BackupSettings extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        EncryptedBackupSettings(),
-        // End-to-end-encrypted sync with the user's WebDAV folder.
-        SyncSettingsSection(divider: false),
+        const EncryptedBackupSettings(),
+        // End-to-end-encrypted sync with the user's WebDAV folder; the
+        // last group in the web app, which has no phone to phone.
+        SyncSettingsSection(divider: isPairingSupported),
         // Phone to phone over the local network (Android).
-        PairingSettingsSection(divider: false),
+        const PairingSettingsSection(divider: false),
       ],
     );
   }
