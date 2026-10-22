@@ -1,8 +1,10 @@
 # Offline engine: Mozilla Firefox Translations (Bergamot)
 
-Status: **the app's offline engine in every build** (wave B). Built and
-proven on Linux x86_64 (real models) and on ARM (aarch64 and armv7 under
-qemu); the Android build runs on CI (no device run yet). Package:
+Status: **the app's offline engine in every build** (wave B), and since
+wave 3 **in the web app too**, compiled to WebAssembly ([Web app](#web-app)).
+Built and proven on Linux x86_64 (real models) and on ARM (aarch64 and
+armv7 under qemu); the Android build runs on CI (no device run yet); the
+web engine runs in Chromium here. Package:
 [`packages/bergamot_translator`](../packages/bergamot_translator/).
 
 It replaced Google ML Kit (proprietary, Google Play services adjacent,
@@ -74,8 +76,9 @@ BergamotTranslator (implements DetailedOfflineTranslator)  lib/src/bergamot_tran
   then en->de inside the engine (`pivotMultiple`, no re-splitting).
   "Downloading Spanish" installs es-en and en-es; English needs no model.
 * **Web:** the package imports on every platform; `dart:ffi` is behind a
-  conditional import (`engine_factory.dart`), web gets a stub and
-  `isAvailable == false`.
+  conditional import (`engine_factory.dart`). In a browser the same
+  `BergamotTranslator` runs the WebAssembly build of the engine in a worker,
+  with the models in the browser's private storage ([Web app](#web-app)).
 
 ## Responsiveness, alignment and memory
 
@@ -267,9 +270,10 @@ app deletes those copies after the import.
 
 `BergamotTranslator.identifyLanguage` (the app's on-device detection, also
 used to pick the source of an `auto` offline translation) runs **CLD2**
-(Compact Language Detector 2), compiled into `libmozhi_bergamot.so`, and
-falls back to the old heuristic where the engine cannot run (web, armv7
-without VFPv4) or the library has no identifier.
+(Compact Language Detector 2), compiled into `libmozhi_bergamot.so` (and
+into the web app's `bergamot-translator.wasm`), and falls back to the old
+heuristic where the engine cannot run (a browser without what the web
+engine needs, armv7 without VFPv4) or the library has no identifier.
 
 | Candidate | License | Size / dependencies | Short text | Verdict |
 | --- | --- | --- | --- | --- |
@@ -511,9 +515,9 @@ without models.
    and `path_provider` (BSD-3-Clause, already resolved transitively). The
    default `pubspec.yaml` has no ML Kit package any more.
 2. `lib/platform/offline_engine.dart` creates the engine for every variant
-   (`dart.library.io`; the web gets `offline_engine_web.dart`, an
-   `UnavailableOfflineTranslator`, so `dart:ffi` is never compiled for the
-   web: `flutter build web` passes). `createBergamotOfflineTranslator`:
+   (`dart.library.io`; the web gets `offline_engine_web.dart`, the
+   WebAssembly engine, see [Web app](#web-app); `dart:ffi` is never
+   compiled for the web). `createBergamotOfflineTranslator`:
    * `loadBundledCatalog()` and `getApplicationSupportDirectory()` in
      parallel; models go to `<support>/bergamot/models/<pair>/<version>/`
      (app-private, no backup: `allowBackup="false"` and
@@ -545,7 +549,8 @@ without models.
    (`OfflineModelImport`, see
    [above](#import-models-without-the-app-downloading-them)); tapping a
    language lists its files and download links. On a device whose CPU cannot run the engine (armv7 without
-   VFPv4) the screen says so; on the web it points to the Android app.
+   VFPv4) the screen says so; in a browser without what the web engine
+   needs it says what is missing.
 4. Licences page (`lib/app/third_party_licenses.dart`): *Firefox
    Translations engine (Bergamot)* lists every component of
    `native/THIRD_PARTY_NOTICES.md` with its licence and where the MPL-2.0
@@ -567,6 +572,198 @@ downloads only happen when the user taps *Download* or *Update*. They go
 through the app's proxy setting when one is set. Translation itself never
 touches the network; models stay on the device and are verified against
 the SHA-256 checksums bundled with the app.
+
+## Web app
+
+Wave 3: the web app translates on the device too, with the same engine,
+models, catalog, routing (pivots through English), chunking, batching,
+alignment, quality scores and CLD2 decision as the Android app. Only the
+engine binary, the file storage and the download path differ.
+
+```
+BergamotTranslator (unchanged)            lib/src/bergamot_translator.dart
+ ├─ OpfsModelManager    downloads through the app's  lib/src/engine/web/
+ │                      http.Client; files kept in the browser's OPFS
+ ├─ WorkerBergamotEngine  one request at a time,     lib/src/engine/web/
+ │                      aborts dropped while waiting
+ └─ WorkerLanguageIdentifier  CLD2                    lib/src/engine/web/
+        │  postMessage (dart:js_interop only: js_bergamot_worker.dart)
+        ▼
+web/bergamot/worker.js  (committed, hand-written, no build step)
+ ├─ bergamot-translator.{js,wasm}  Emscripten 3.1.8, built by
+ │     tool/build_wasm.sh (gitignored; CI builds it)
+ └─ navigator.storage.getDirectory()/bergamot/  models, downloads
+```
+
+`createWebBergamotTranslator` (`lib/src/engine/web/web_bergamot.dart`)
+assembles it; the app's `lib/platform/offline_engine_web.dart` calls it after
+`probeBergamotWorker`, and otherwise keeps an `UnavailableOfflineTranslator`
+whose `webRequirement` the Offline languages page explains (old browser,
+private window without site storage, plain `http`, a build without the
+engine files). With the engine available everything that depends on
+`OfflineTranslator.isAvailable` works as on Android: the engine list,
+Offline only / Offline first, the fallback to the on-device engine, Detect
+language with CLD2, onboarding's on-device choice.
+
+### Build
+
+`packages/bergamot_translator/tool/build_wasm.sh [output-dir]` (default
+`web/bergamot/`, next to `worker.js`, so `flutter build web` copies it):
+
+* sources: `fetch_native_deps.sh` (the pinned, shallow submodules of the
+  native build) plus the two only the WebAssembly build compiles:
+  marian-fork's `onnxjs` (float GEMM in WASM, MIT) and its Eigen (MPL-2.0,
+  built with `EIGEN_MPL2_ONLY`). Upstream's `inference/scripts/build-wasm.py`
+  is **not** used: it runs `git submodule update --init --recursive`
+  (Mozilla's whole training pipeline);
+* Emscripten at the version upstream pins (`EMSDK_VERSION = "3.1.8"` in
+  `build-wasm.py`, read by the script; "the latest version of emsdk had
+  errors building sentencepiece"), cloned at the commit of upstream's
+  `inference/3rd_party/emsdk` submodule into `$MOZHI_CACHE_DIR/emsdk`
+  (default `~/.cache/mozhi`, ~1.2 GB), never into the repository;
+* `native/wasm/CMakeLists.txt`: upstream's inference CMake with
+  `COMPILE_WASM` (single-threaded, `-msimd128 -mssse3`, no exception
+  catching, `ALLOW_MEMORY_GROWTH`, `FILESYSTEM=0`, `IMPORTED_MEMORY` for
+  mozIntGemm, no `eval`: `DYNAMIC_EXECUTION=0`), CLD2 with the same 24
+  files and "chrome" tables as Android, and `native/wasm/src/
+  mozhi_bergamot_wasm.cc`: **the native C API itself** (it compiles
+  `native/src/mozhi_bergamot.cc` in its translation unit, so ABI 2's
+  `translate_ex` JSON with alignment and quality scores and
+  `mozhi_bergamot_detect` cannot drift) plus loading a model from memory
+  (`mozhi_bergamot_buffer_create/data/destroy`,
+  `mozhi_bergamot_model_create_from_buffers`, which also registers the
+  languages: the WASM build splits sentences with the browser's
+  `Intl.Segmenter`). Upstream's embind module is not built;
+* upstream's import-gemm patch (`inference/wasm/patch-artifacts-import-
+  gemm-module.sh`): Firefox's privileged `WebAssembly.mozIntGemm` when the
+  page has it, else the int8 GEMM compiled into the module (every ordinary
+  page, so "fallback" in practice); then the glue is wrapped in
+  `function loadBergamot(Module) {...}` like upstream does;
+* `native/wasm/patches/0001-wasm-text-processor-max-length-break.patch`:
+  upstream's WASM `TextProcessor` never initialises `maxLengthBreak_` (the
+  native one reads `max-length-break`), so long sentences were wrapped at
+  whatever the heap held (0: never; 1: an endless loop). The patch reads
+  the option like the native build. Send upstream.
+
+Output: `bergamot-translator.wasm` 6.6 MB (3.0 MB gzipped),
+`bergamot-translator.js` 41 KB. A cold build takes ~25 minutes on 2 cores
+here (Marian is compiled with `-flto`). Bergamot ignores Marian's
+`workspace` option (`TranslationModel` reserves 5 MB and grows on demand),
+so there is nothing to lower there for browsers.
+
+CI: job **Build Bergamot WASM** (`.github/workflows/main.yaml`, emsdk
+cached by version and commit) uploads `bergamot-wasm`; **Build web** and
+**Web end-to-end tests** put it into `web/bergamot/` before
+`flutter build web`; the release workflow builds it from source again
+(job `bergamot-wasm`) for the web zip. A web build without it still works:
+the probe reports `engineFiles` and the app stays online-only.
+
+### Worker protocol
+
+`web/bergamot/worker.js` owns the WebAssembly instance, the loaded models
+and the OPFS. Messages: page → worker `{id, op, ...}`, worker → page
+`{id, ok: true, result}` or `{id, ok: false, error: {kind, message}}`
+with `kind` one of `engine` (the instance is dropped and restarts with the
+next request: C++ exceptions are not caught in this build, and an abort is
+final), `storage` (quota, private windows), `checksum`, `missing`,
+`unsupported`, `protocol`. Requests run strictly one after another; a
+translation is one synchronous WASM call and cannot be interrupted, so the
+Dart side keeps its own queue and sends one translation at a time (an
+aborted request that still waits never reaches the worker; a running one
+releases its caller at once, as on Android).
+
+| op | arguments | result |
+| --- | --- | --- |
+| `probe` | | `{simd, opfs, syncAccess, decompression, digest, segmenter, engine, secure, persisted}` (does not start the engine; `engine`: a `HEAD` of the `.wasm`) |
+| `configure` | `maxModels` (≥ 2, default 2), `idleSeconds` (default 300) | |
+| `init` | | `{abi, version, gemm}` (`gemm`: `mozIntGemm` or `fallback`) |
+| `translate` | `chain` (1 or 2 model specs: `key`, `source`, `target`, `model`, `shortlist`, `sourceVocab`, `targetVocab?`, OPFS paths), `texts`, `html`, `details` | the JSON string of `mozhi_bergamot_translate_ex` (alignment and quality with `details`) |
+| `identify` | `text`, `hints?` | `{precise, bestEffort}`, each `{language, languages: [{code, percent, score}], textBytes, reliable}` |
+| `preload` / `release` / `trim` / `dispose` | `chain` / `key` / – / – | |
+| `list` | | installed models: `{directory, manifest, sizeBytes}` |
+| `downloadOpen` / `downloadWrite` / `downloadClose` | `path`, `restart` / `path`, `at`, `bytes` / `path` | `{size}` |
+| `install` | `part`, `target`, `size`, `sha256`, `uncompressedSize`, `uncompressedSha256` | `{size}` |
+| `commit` | `directory`, `manifest`, `downloads` | |
+| `remove` / `cleanUp` / `usage` | `path` / – / – | `usage`: `{usage, quota, engineMemory}` |
+
+Models: up to `maxModels` loaded, least recently used unloaded first,
+before a new one loads. WebAssembly memory never shrinks (a pivot with two
+models peaks around 350 MB), so after `idleSeconds` without a request the
+worker drops the whole instance; the next request starts it again (~0.1 s:
+the compiled module is kept) and reloads the models from the OPFS (~0.5 s
+each).
+
+### Storage and downloads
+
+* **Where:** `navigator.storage.getDirectory()` → `bergamot/models/<pair>/
+  <version>/` (decompressed files and `manifest.json`, written last: a
+  model counts as installed only with it, and `cleanUp` removes versions
+  without one) and `bergamot/.downloads/<pair>/<version>/<file>.gz.part`
+  (kept when interrupted; the next download resumes with `Range`). Models
+  are read straight into WASM memory through synchronous access handles
+  (no extra copy).
+* **Downloads** go through the app's `http.Client` (`CurrentSessionClient`:
+  the session's network rules and its request log), not through the
+  worker's `fetch`, in 1 MiB writes. Where the files come from is the
+  model source in **Settings › Translation engines › Model source**
+  (original publishers, **this web server**, the web default,
+  `<base>/models/bergamot/<src>-<trg>/<version>/<name>.gz`, or a custom
+  mirror; see [self-hosting](self-hosting-mozhi.md#mirror-the-on-device-models)),
+  through the same `bergamotDownloadUrls` as Android.
+* **Verification** in the worker: size and `crypto.subtle.digest('SHA-256')`
+  of the gzip file against the catalog, then `DecompressionStream('gzip')`
+  and the size and SHA-256 of the decompressed file, before anything is
+  installed. A mismatch deletes the download (`ModelChecksumException`,
+  naming the mirror).
+* **Persistence:** before each download the app asks
+  `navigator.storage.persist()` (Window only, so from Dart) until the browser
+  agrees; without it the browser may evict the packs under storage
+  pressure (Chrome decides by itself, Firefox asks the user).
+* **Mozilla's bucket and CORS** (checked 2026-10-22 with
+  `curl -H 'Origin: …'`): `storage.googleapis.com/moz-fx-translations-data…`
+  sends `Access-Control-Allow-Origin` only for `http://localhost[:port]`
+  and `https://mozilla.github.io`; any other origin (a self-hosted web app,
+  `http://127.0.0.1:8080`) gets no CORS header, so the browser refuses the
+  download. Hence the web default "this web server" (a same-origin mirror,
+  `tool/mirror_models.py`); "original publishers" only works for a web app
+  served from `localhost`.
+* **Import from files** is Android-only: a browser has no file paths
+  (`OpfsModelManager.importFiles` throws `UnsupportedError`; the page hides
+  the action and the per-language file lists).
+* "Wi-Fi only" uses `navigator.connection` (`type == 'cellular'` or
+  `saveData`) where the browser has it; elsewhere the web app counts as not
+  metered (it cannot tell).
+
+### Browser support
+
+What the probe requires (`BergamotWebRequirement`, reported in this order):
+the engine files in the build, a secure context (`https` or localhost:
+OPFS and `crypto.subtle` exist only there), the OPFS with synchronous access
+handles in workers, WebAssembly SIMD, `DecompressionStream('gzip')` and
+`Intl.Segmenter`. That is Chrome/Edge 102+, Firefox 125+ (not in private
+windows, which have no OPFS), Safari 16.4+ (desktop and iOS). The CSP of
+`web/index.html` already allows it (`worker-src 'self'`, `script-src
+'self' 'wasm-unsafe-eval'`, `connect-src 'self'`); a server that sends its
+own CSP header must allow the same for `bergamot/worker.js`. No
+SharedArrayBuffer, so no COOP/COEP headers.
+
+### Measured (Chromium 141 headless here, Xeon 2.1 GHz shared by six builds)
+
+| Check | Result |
+| --- | --- |
+| probe, compile and start the engine | 80-630 ms (first compile of the 6.6 MB module, then cached) |
+| German (de-en + en-de, 51.2 MB) from a same-origin mirror: download, verify, decompress, install | 5-6 s; 70.6 MB on disk (74 MB OPFS usage) |
+| first translation after a reload (engine start + model load + "Hello, how are you? The weather is nice today.") | 1.1-1.9 s → "Hallo, wie geht es dir? Das Wetter ist heute schön." |
+| model load + first sentence (engine running) | 530-740 ms |
+| 492 words en->de, warm, with alignment and scores | 3.4-4.0 s: **120-150 words/s** (fallback int8 GEMM; native here: 780-980) |
+| es->en->de pivot "Hola, ¿cómo estás? Me gusta mucho este libro." | "Hi, wie geht's dir? Ich mag dieses Buch wirklich." (400 ms) |
+| HTML `<p>Hello <b>world</b>, how are you?</p>` | `<p>Hallo <b>Welt</b>, wie geht es dir?</p>` |
+| alignment / quality JSON | same shape as the native library (UTF-16 offsets, `p`, scores) |
+| CLD2 "Guten Morgen, wie geht es dir heute?" / "Bom dia" | `de` reliable / `un`, best effort `pt` (as native) |
+| WASM memory after a pivot with two models and a 6000-character batch | 357 MB |
+
+Not verified: Firefox and Safari (no browsers here), phones, memory limits
+of mobile browsers, `mozIntGemm` (Firefox's privileged pages only).
 
 ## Follow-ups
 

@@ -53,7 +53,7 @@ class FakeBergamotWorker implements BergamotWorkerChannel {
   /// Keys of the models the engine has loaded, least recently used first.
   final List<String> loaded = [];
   int maxModels = 2;
-  int? workspace;
+  int? idleSeconds;
   int terminated = 0;
 
   final Map<String, int> _open = {};
@@ -124,7 +124,7 @@ class FakeBergamotWorker implements BergamotWorkerChannel {
 
   Object? _configure(Map<String, Object?> arguments) {
     maxModels = arguments['maxModels']! as int;
-    workspace = arguments['workspace'] as int?;
+    idleSeconds = arguments['idleSeconds'] as int?;
     return null;
   }
 

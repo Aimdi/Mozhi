@@ -56,9 +56,12 @@ const ROOT_FOLDER = 'bergamot';
 const MANIFEST = 'manifest.json';
 
 let maxModels = 2;
-// Marian's workspace in MB (Firefox uses 128; a browser tab, especially on
-// a phone, has less memory to spare).
-let workspace = 32;
+// Seconds without a request after which the engine is dropped: WebAssembly
+// memory never shrinks (a pivot with two models peaks around 350 MB), so
+// an idle tab gives it all back; the next request starts the engine again
+// (~0.1 s with the compiled module kept, plus ~0.5 s per model).
+let idleSeconds = 300;
+let idleTimer = null;
 
 /* -------------------------------------------------------------------------- */
 /* Messages                                                                   */
@@ -68,8 +71,22 @@ let queue = Promise.resolve();
 
 self.onmessage = (event) => {
   const message = event.data;
-  queue = queue.then(() => handle(message));
+  if (idleTimer !== null) {
+    clearTimeout(idleTimer);
+    idleTimer = null;
+  }
+  queue = queue.then(() => handle(message)).then(scheduleIdleReset);
 };
+
+function scheduleIdleReset() {
+  if (idleTimer !== null) clearTimeout(idleTimer);
+  idleTimer = instance && idleSeconds > 0
+    ? setTimeout(() => {
+        idleTimer = null;
+        reset();
+      }, idleSeconds * 1000)
+    : null;
+}
 
 async function handle(message) {
   const id = message && message.id;
@@ -179,8 +196,8 @@ async function configure(message) {
   if (Number.isInteger(message.maxModels) && message.maxModels >= 2) {
     maxModels = message.maxModels;
   }
-  if (Number.isInteger(message.workspace) && message.workspace >= 8) {
-    workspace = message.workspace;
+  if (Number.isInteger(message.idleSeconds) && message.idleSeconds >= 0) {
+    idleSeconds = message.idleSeconds;
   }
   while (loaded.size > maxModels) evictOldest();
 }
@@ -402,7 +419,9 @@ async function loadModel(spec) {
     const pointers = [
       allocString(engine, locale(spec.source)),
       allocString(engine, locale(spec.target)),
-      allocString(engine, `workspace: ${workspace}\n`),
+      // No extra configuration: Bergamot ignores Marian's `workspace` (it
+      // reserves 5 MB and grows on demand).
+      allocString(engine, ''),
     ];
     try {
       const handle = api.mozhi_bergamot_model_create_from_buffers(

@@ -108,10 +108,11 @@ test.describe('on-device translation in the browser', () => {
       .getByRole('searchbox', { name: 'Search languages' })
       .fill('German');
     const download = page.getByRole('group', { name: /^Download German/ });
-    await expect(download).toHaveAccessibleName(/51\.2 MB download/);
+    await expect(download).toHaveAccessibleName(/48\.8 MB download/);
     await download.getByRole('button', { name: 'Download' }).click();
+    // The snack bar (its text is also announced to screen readers).
     await expect(
-      page.getByText('German is ready for offline use'),
+      page.locator('span', { hasText: 'German is ready for offline use' }),
     ).toBeVisible({ timeout: 120_000 });
     await expect(
       page.getByRole('group', { name: /^Delete German .*on this device/ }),

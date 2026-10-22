@@ -35,7 +35,7 @@ enum VoiceModelErrorKind {
 /// A failed model operation, classified for the user.
 @immutable
 class VoiceModelError extends Equatable {
-  const new(this.kind, {this.statusCode});
+  const new(this.kind, {this.statusCode, this.mirror});
 
   /// Classifies [error] (thrown by [OfflineSpeech.download] or
   /// [OfflineSpeech.delete]).
@@ -43,15 +43,19 @@ class VoiceModelError extends Equatable {
     VoiceModelMeteredException() => const VoiceModelError(
       VoiceModelErrorKind.metered,
     ),
-    WhisperChecksumException() => const VoiceModelError(
+    WhisperChecksumException(:final mirror) => VoiceModelError(
       VoiceModelErrorKind.checksum,
+      mirror: mirror?.host,
     ),
-    WhisperDownloadException(:final int statusCode) => VoiceModelError(
-      VoiceModelErrorKind.server,
-      statusCode: statusCode,
-    ),
-    WhisperDownloadException() => const VoiceModelError(
+    WhisperDownloadException(:final int statusCode, :final mirror) =>
+      VoiceModelError(
+        VoiceModelErrorKind.server,
+        statusCode: statusCode,
+        mirror: mirror?.host,
+      ),
+    WhisperDownloadException(:final mirror) => VoiceModelError(
       VoiceModelErrorKind.network,
+      mirror: mirror?.host,
     ),
     FileSystemException() => const VoiceModelError(VoiceModelErrorKind.storage),
     _ => const VoiceModelError(VoiceModelErrorKind.unknown),
@@ -62,8 +66,12 @@ class VoiceModelError extends Equatable {
   /// The HTTP status of a [VoiceModelErrorKind.server] error.
   final int? statusCode;
 
+  /// The host of the model mirror the failed download came from (the
+  /// model source setting); null for the default host.
+  final String? mirror;
+
   @override
-  List<Object?> get props => [kind, statusCode];
+  List<Object?> get props => [kind, statusCode, mirror];
 }
 
 /// A downloadable speech model as the settings show it.

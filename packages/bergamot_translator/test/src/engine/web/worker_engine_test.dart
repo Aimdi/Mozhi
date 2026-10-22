@@ -63,13 +63,17 @@ void main() {
   });
 
   test('configures the worker once, before the first request', () async {
-    engine = WorkerBergamotEngine(worker, maxLoadedModels: 3, workspaceMb: 16);
+    engine = WorkerBergamotEngine(
+      worker,
+      maxLoadedModels: 3,
+      idleTimeout: const Duration(seconds: 30),
+    );
     await engine.translate([_ende], 'hello');
     await engine.translate([_ende], 'again');
     expect(worker.ops.where((op) => op == 'configure'), hasLength(1));
     expect(worker.ops.first, 'configure');
     expect(worker.maxModels, 3);
-    expect(worker.workspace, 16);
+    expect(worker.idleSeconds, 30);
   });
 
   test('a failed configuration is tried again', () async {

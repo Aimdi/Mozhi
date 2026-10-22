@@ -20,16 +20,20 @@ import 'package:translation_repository/translation_repository.dart';
 /// already running finishes there (WebAssembly cannot be interrupted), but
 /// its caller gets [OfflineTranslationCancelledException] at once.
 ///
-/// Marian's workspace is [workspaceMb] (Firefox uses 128 MB; a browser
-/// tab, especially on a phone, has less memory to spare).
+/// WebAssembly memory never shrinks (a pivot with two models peaks around
+/// 350 MB), so the worker drops the engine after [idleTimeout] without a
+/// request (zero: never); the next request starts it again and reloads the
+/// models from the browser's storage (about 0.1 s plus 0.5 s per model).
 final class WorkerBergamotEngine implements BergamotBatchEngine {
-  new(this.channel, {this.maxLoadedModels = 2, this.workspaceMb = 32})
-    : assert(maxLoadedModels >= 2, 'A pivot needs two loaded models'),
-      assert(workspaceMb >= 8, 'Marian needs a workspace');
+  new(
+    this.channel, {
+    this.maxLoadedModels = 2,
+    this.idleTimeout = const Duration(minutes: 5),
+  }) : assert(maxLoadedModels >= 2, 'A pivot needs two loaded models');
 
   final BergamotWorkerChannel channel;
   final int maxLoadedModels;
-  final int workspaceMb;
+  final Duration idleTimeout;
 
   final Queue<_Job> _waiting = Queue();
   _Job? _running;
@@ -165,7 +169,7 @@ final class WorkerBergamotEngine implements BergamotBatchEngine {
     try {
       await channel.request('configure', {
         'maxModels': maxLoadedModels,
-        'workspace': workspaceMb,
+        'idleSeconds': idleTimeout.inSeconds,
       });
     } on Object {
       // Tried again before the next request.

@@ -643,7 +643,9 @@ class TranscribeCubit extends Cubit<TranscribeState> {
 
   @override
   Future<void> close() async {
+    print('DBG close start'); // DBG
     await _events?.cancel();
+    print('DBG events cancelled'); // DBG
     _events = null;
     final recording = _recording;
     if (recording != null && !recording.isCompleted) recording.complete();

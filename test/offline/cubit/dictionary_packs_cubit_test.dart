@@ -340,7 +340,7 @@ class _BrokenStorage extends MemoryDictionaryPackStorage {
 
   @override
   Future<List<StoredDictionaryPack>> list() async {
-    if (_lists++ < failAfter) return inner!.list();
+    if (_lists++ < failAfter) return await inner!.list();
     throw StateError('unreadable');
   }
 

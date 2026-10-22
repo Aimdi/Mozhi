@@ -205,15 +205,7 @@ class OfflineModelsCubit extends Cubit<OfflineModelsState> {
         outcome: () => null,
       ),
     );
-    OfflineModelError? failure;
-    try {
-      await action();
-    } on Object catch (error, stackTrace) {
-      failure = OfflineModelError.of(error);
-      if (failure.kind != OfflineModelErrorKind.metered) {
-        addError(error, stackTrace);
-      }
-    }
+    final failure = await _attempt(action);
     final succeeded = failure == null;
     // With details the engine knows best what is downloaded now; reading
     // the storage again also refreshes sizes and updates after a failure
@@ -238,6 +230,26 @@ class OfflineModelsCubit extends Cubit<OfflineModelsState> {
         ),
       ),
     );
+  }
+
+  /// Runs [action]: null when it succeeds, else why it failed (reported
+  /// through [addError] unless it only needs the metered-network consent).
+  ///
+  /// A separate method on purpose: with the result kept in a local declared
+  /// before a try/catch in `_run`, dart2js (Dart 3.13) reused that local's
+  /// JavaScript variable for another value on the success path, so every
+  /// successful download in the web app was reported as failed.
+  Future<OfflineModelError?> _attempt(Future<void> Function() action) async {
+    try {
+      await action();
+      return null;
+    } on Object catch (error, stackTrace) {
+      final failure = OfflineModelError.of(error);
+      if (failure.kind != OfflineModelErrorKind.metered) {
+        addError(error, stackTrace);
+      }
+      return failure;
+    }
   }
 
   OfflineImportOutcome _outcomeOf(OfflineImportReport report) =>
