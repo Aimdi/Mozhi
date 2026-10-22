@@ -1,6 +1,6 @@
 // Translating with the (mock) AI provider: instant translation, a
-// refinement chip and the meaning check (both in the "More" area under the
-// translation, closed by default).
+// refinement chip (always under an AI translation) and the meaning check
+// (in the "Tools" area under the translation, closed by default).
 const { expect } = require('@playwright/test');
 const {
   accessibilityTree,
@@ -22,11 +22,16 @@ test.beforeEach(async ({ page }) => {
   await openApp(page, '/translate');
 });
 
-/** Opens the "More" area under the translation. */
-async function openMore(page) {
-  const more = page.getByRole('button', { name: 'More', exact: true });
-  await more.click();
-  await expect(more).toHaveAttribute('aria-expanded', 'true');
+/** The "Tools" disclosure under the translation. */
+function toolsButton(page) {
+  return page.getByRole('button', { name: 'Tools', exact: true });
+}
+
+/** Opens the "Tools" area under the translation. */
+async function openTools(page) {
+  const tools = toolsButton(page);
+  await tools.click();
+  await expect(tools).toHaveAttribute('aria-expanded', 'true');
 }
 
 /** Types [TEXT] and waits until the AI translation is shown. */
@@ -59,26 +64,29 @@ test('typing translates with the AI provider', async ({ page }) => {
   expect(requests[0].model).toBe('mock-translator-8b');
   expect(requests[0].stream).toBe(true);
 
-  // One task on screen: the tools wait behind "More".
-  await expect(
-    page.getByRole('button', { name: 'More', exact: true }),
-  ).toHaveAttribute('aria-expanded', 'false');
-  await expect(page.getByRole('heading', { name: 'Refine & learn' }))
+  // One task on screen: the tools wait behind "Tools".
+  await expect(toolsButton(page)).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByRole('heading', { name: 'Learn', exact: true }))
     .toHaveCount(0);
   await expect(page.getByRole('checkbox', { name: 'Check meaning' }))
     .toHaveCount(0);
+  // The refinement chips are always under an AI translation.
+  const refine = page.getByRole('group', { name: 'Refine', exact: true });
+  for (const chip of ['More formal', 'More casual', 'Shorter', 'Simpler']) {
+    await expect(refine.getByRole('checkbox', { name: chip })).toBeVisible();
+  }
 });
 
 test('a refine chip refines the translation', async ({ page }) => {
   await translate(page);
-  await openMore(page);
+  await openTools(page);
 
-  const refine = page.getByRole('group', { name: 'Refine' });
+  const refine = page.getByRole('group', { name: 'Refine', exact: true });
   await refine.getByRole('checkbox', { name: 'More formal' }).click();
   // While the focused chip shows its tooltip, Flutter web drops the
   // chip's checkbox role (also before the redesign); moving the focus off
-  // it (a click on the section heading) brings the role back.
-  await page.getByRole('heading', { name: 'Refine & learn' }).click();
+  // it (a click on the Tools area's heading) brings the role back.
+  await page.getByRole('heading', { name: 'Learn', exact: true }).click();
 
   // Wait for the refinement first: copying also moves the focus off the
   // chip, which Flutter web may have refocused when it was rebuilt.
@@ -94,7 +102,7 @@ test('a refine chip refines the translation', async ({ page }) => {
 
 test('meaning check shows a verdict and its differences', async ({ page }) => {
   await translate(page);
-  await openMore(page);
+  await openTools(page);
 
   await page.getByRole('checkbox', { name: 'Check meaning' }).click();
 
@@ -112,21 +120,19 @@ test('meaning check shows a verdict and its differences', async ({ page }) => {
   ).toBeVisible();
 });
 
-test('the More area stays open for the next translation', async ({
+test('the Tools area stays open for the next translation', async ({
   page,
 }) => {
   await translate(page);
-  await openMore(page);
-  await expect(page.getByRole('heading', { name: 'Refine & learn' }))
+  await openTools(page);
+  await expect(page.getByRole('heading', { name: 'Learn', exact: true }))
     .toBeVisible();
 
   await typeSource(page, 'See you tomorrow');
   await expect
     .poll(() => copiedTranslation(page))
     .toBe('[AI→French (Français)] See you tomorrow');
-  await expect(
-    page.getByRole('button', { name: 'More', exact: true }),
-  ).toHaveAttribute('aria-expanded', 'true');
-  await expect(page.getByRole('heading', { name: 'Refine & learn' }))
+  await expect(toolsButton(page)).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByRole('heading', { name: 'Learn', exact: true }))
     .toBeVisible();
 });

@@ -32,7 +32,7 @@ goes anywhere else.
 
 ## Privacy modes
 
-**Settings > Privacy > Privacy mode** decides how willing the app is to
+**Settings > Privacy & data > Privacy mode** decides how willing the app is to
 send text over the network. The translation repository enforces it, not
 just the screens, and checks it before every request.
 
@@ -93,7 +93,7 @@ already allowed. A paid AI provider is never tried automatically.
 
 ### Personal data shield
 
-**Settings > Privacy > Hide personal data from online engines** (on by
+**Settings > Privacy & data > Hide personal data from online engines** (on by
 default) replaces e-mail addresses, phone numbers, IBANs (checked with
 their check digits), payment card numbers (checked with the Luhn
 algorithm) and IPv4 addresses with placeholders before the text goes to a
@@ -110,7 +110,7 @@ which receive the text as written. Names and addresses aren't detected.
 
 ### Network activity
 
-**Settings > Privacy > Network activity** lists every request the app made
+**Settings > Privacy & data > Network activity** lists every request the app made
 this session: when, to which host, why (translation, AI, speech, photo,
 catalogue, model download, web page), how many bytes went each way, the
 answer's status, and whether it went through your proxy. It groups them by
@@ -138,31 +138,32 @@ stores on the device and what the other party may keep.
 | DeepL API, LibreTranslate | The service you set up | Text, languages, formality, context or glossary (DeepL), the key | The service's policy. |
 | Offline translation | Nowhere | Nothing | History as above. |
 | Language detection (**Detect language**, an "auto" source with a translation-only AI model) | The device first; if it is unsure, the AI provider itself or, for translation-only models, your Mozhi instance's Google engine, when the privacy rules allow that destination | The text | As for that destination. |
-| Kagi-style extras, **Check meaning**, **Proofread** | The AI model for extras (**Settings > AI assistant for insights**) or the model you selected; **Check meaning** without one: the engine you translate with, to translate back | Source text, translation or both (the first 4,000 characters for **Check meaning**; the word for the dictionary) | The provider's policy. Results stay in memory only, except Dictionary tab look-ups: on the device, the word, its languages, the model's name, the detail level and a one-line summary go to the history unless incognito or **Save history** is off (or when you heart the entry). |
+| Kagi-style extras, **Check meaning**, **Proofread** | The AI model for extras (**Settings > AI > AI assistant for insights**) or the model you selected; **Check meaning** without one: the engine you translate with, to translate back | Source text, translation or both (the first 4,000 characters for **Check meaning**; the word for the dictionary) | The provider's policy. Results stay in memory only, except Dictionary tab look-ups: on the device, the word, its languages, the model's name, the detail level and a one-line summary go to the history unless incognito or **Save history** is off (or when you heart the entry). |
 | **Listen** (read aloud) | The device's text-to-speech voice. A Mozhi instance only when the device has no voice for the language: never in Offline only or with **Device voice only**, and in Offline first only after you agree (**Listen online**) | Device voice: the text to the system's speech engine (voices marked **Needs internet** use its online service). Mozhi: the text **in the request address** (`GET /api/tts?text=…`, up to 200 characters per part) | Mozhi: the address can end up in the server's and any reverse proxy's access logs. The app keeps the last 20 clips in memory until it closes. |
 | Image translation | **On-device text recognition** (Android, the default) sends the image nowhere: Tesseract reads it on the phone ([text recognition](text-recognition.md); ML Kit in the [Play variant](#google-code)), and only the recognised text follows the translation rows above. The AI model with **Supports images** gets the image itself; so does your Mozhi instance (experimental), which passes it to Google Translate (at most two instances are tried) | AI vision and Mozhi: the image, re-encoded first (no EXIF data such as the GPS location). On-device: nothing | The provider's or instance's policy. The app doesn't store the image. |
-| Dictation, conversation | **System speech recognition** (the default): the system's recogniser (Google or the phone maker on Android; the browser's maker in the web app). **Offline (Whisper)** (Android, **Settings > Voice input**): nobody, it runs on the phone. In **Offline only** always Whisper, never the system recogniser ([voice input](voice-input.md)) | System: your voice. Whisper: nothing leaves the phone | System: the recogniser's policy; **Prefer on-device speech recognition** (Android 12+) only asks to keep it on the phone. Whisper: the recording stays in memory until it is transcribed, and is never stored. |
+| Dictation, conversation | **System speech recognition** (the default): the system's recogniser (Google or the phone maker on Android; the browser's maker in the web app). **Offline (Whisper)** (Android, **Settings > Read aloud & voice > Voice input**): nobody, it runs on the phone. In **Offline only** always Whisper, never the system recogniser ([voice input](voice-input.md)) | System: your voice. Whisper: nothing leaves the phone | System: the recogniser's policy; **Prefer on-device speech recognition** (Android 12+) only asks to keep it on the phone. Whisper: the recording stays in memory until it is transcribed, and is never stored. |
 | Web page translator | The website you enter, then the translation engine | The page address and your IP address, with a desktop browser `User-Agent` and no cookies | The website's logs. The page text then follows the translation row above. |
-| Offline model download | `storage.googleapis.com`: Mozilla's Firefox Translations bucket (`moz-fx-translations-data--303e-prod-translations-data`), hosted on Google Cloud Storage | Plain file requests (HTTPS `GET`, `Range` to resume): Google as the host sees your IP address, the time and which model files, so which languages, you download. No text, identifiers or cookies | Google Cloud Storage's logs. The models stay on the device until you delete them. |
-| Text recognition data download (**Download German text recognition**, **Settings > Offline languages > Text recognition**) | `raw.githubusercontent.com`: Tesseract's [tessdata_fast](https://github.com/tesseract-ocr/tessdata_fast) on GitHub (owned by Microsoft), pinned to one commit | Plain file requests (HTTPS `GET`, `Range` to resume): GitHub sees your IP address, the time and which language files you download. No picture, text, identifiers or cookies | GitHub's logs. The data stays on the device until you delete it; **Import from files** contacts nothing. |
-| Offline speech model download (**Settings > Voice input**) | `huggingface.co` (the [whisper.cpp models](https://huggingface.co/ggerganov/whisper.cpp)), which may redirect to its download servers | Plain file requests (HTTPS `GET`, `Range` to resume): Hugging Face sees your IP address, the time and which model (Fast or Better) you download. No voice, text, identifiers or cookies | Hugging Face's logs. The model stays on the device until you delete it; **Import from files** contacts nothing. |
+| Offline model download (**Settings > Translation engines > Offline languages**, or a language's download button in the language picker) | `storage.googleapis.com`: Mozilla's Firefox Translations bucket (`moz-fx-translations-data--303e-prod-translations-data`), hosted on Google Cloud Storage | Plain file requests (HTTPS `GET`, `Range` to resume): Google as the host sees your IP address, the time and which model files, so which languages, you download. No text, identifiers or cookies | Google Cloud Storage's logs. The models stay on the device until you delete them. |
+| Text recognition data download (**Download German text recognition**, **Settings > Translation engines > Offline languages > Text recognition**) | `raw.githubusercontent.com`: Tesseract's [tessdata_fast](https://github.com/tesseract-ocr/tessdata_fast) on GitHub (owned by Microsoft), pinned to one commit | Plain file requests (HTTPS `GET`, `Range` to resume): GitHub sees your IP address, the time and which language files you download. No picture, text, identifiers or cookies | GitHub's logs. The data stays on the device until you delete it; **Import from files** contacts nothing. |
+| Offline speech model download (**Settings > Read aloud & voice > Voice input**) | `huggingface.co` (the [whisper.cpp models](https://huggingface.co/ggerganov/whisper.cpp)), which may redirect to its download servers | Plain file requests (HTTPS `GET`, `Range` to resume): Hugging Face sees your IP address, the time and which model (Fast or Better) you download. No voice, text, identifiers or cookies | Hugging Face's logs. The model stays on the device until you delete it; **Import from files** contacts nothing. |
 | Engine and language lists | The Mozhi instances in your list | Nothing about you except your IP address | The instance's logs. Stored on the device as a cache. |
-| **Check instances**, **Test**, **Test connection**, **Browse models** | Each instance or provider, only when you ask | A version request, or a model list request with your key | The server's logs. |
+| **Check instances**, **Find the fastest server** (setup), **Test**, **Test connection**, **Browse models** | Each instance or provider, only when you ask | A version request, or a model list request with your key | The server's logs. |
 | Web app fonts | The server that hosts the web app: the release zip and the CI builds include the fonts for scripts the bundled font lacks (for example Chinese or Devanagari) and emoji. Only a web build made without `tool/web_fallback_fonts.py` ([building](building.md#web-build-self-hosted-fonts-and-deferred-languages)) fetches them from Google's `fonts.gstatic.com` | The font file name, so which scripts you read, and your IP address; not your text | The browser caches the font. |
 
 Text from other apps (text selection, the share sheet, the Quick Settings
 tile and widget) and links (`/translate?text=…`, `mozhi://…`) is treated
 like typed text and follows the same rules and prompts. Shared text and
 links never start a paid AI request on their own, even with **Instant
-translate with AI** on (the quick-translate sheet of the selection menu translates
+translate** set to **Online engines and AI** (the quick-translate sheet of the selection menu translates
 right away, since you asked for it). Links to the dictionary, Proofread and
 the web page translator send nothing until you ask. In the web app, a
 translate link puts the text in the page address, which reaches the server
 that hosts the web app.
 
 Nothing else: no update checks, no analytics, no remote configuration.
-Opening **Settings > Mozhi instances** contacts nothing; instances are
-checked only when you ask.
+Opening **Settings > Translation engines > Mozhi instances** contacts
+nothing; instances are checked only when you ask, and so are the servers
+behind **Find the fastest server** during setup.
 
 ## On your device
 
@@ -170,11 +171,11 @@ checked only when you ask.
 | --- | --- | --- |
 | Settings (instances, provider settings, translation options, approved language pairs and providers, appearance, recent and pinned languages) | App preferences | No secrets: the parts below are kept apart. |
 | API keys, custom provider headers, user names and passwords in instance addresses (`https://user:password@host`) | Secure storage (Android Keystore; in the web app the browser's session storage) | Never in the settings, exports or history. Deleting a provider or an instance deletes its secrets. |
-| History and favourites | App preferences, **encrypted with AES-256-GCM**; the key is in secure storage (Android Keystore) | Translations (text, translation, languages, engine, time) and dictionary look-ups (word, languages, AI model, detail level, a one-line summary of the entry, time). Up to 1,000 entries plus favourites. **Settings > Delete history automatically** removes entries older than 1, 7 or 30 days (favourites are kept). |
+| History and favorites | App preferences, **encrypted with AES-256-GCM**; the key is in secure storage (Android Keystore) | Translations (text, translation, languages, engine, time) and dictionary look-ups (word, languages, AI model, detail level, a one-line summary of the entry, time). Up to 1,000 entries plus favorites. **Settings > Privacy & data > Delete history automatically** removes entries older than 1, 7 or 30 days (favorites are kept). |
 | Presets, glossaries, read-aloud settings, usage counters | App preferences | Usage counters are numbers only (requests, characters, estimated tokens per provider and month, for 13 months). |
 | Cached engine and language lists | App preferences | Lists only, keyed by instance address without any password. |
-| Offline language models | App storage (`<app files>/bergamot`) | About 50 MB to download and 73 MB on disk per language. Delete them under **Settings > Offline languages**. |
-| Text recognition data | App storage (`<app files>/tesseract`) | 0.4 to 12 MB per language (median 2.4 MB). Delete it under **Settings > Offline languages > Text recognition**. |
+| Offline language models | App storage (`<app files>/bergamot`) | About 50 MB to download and 73 MB on disk per language. Delete them under **Settings > Translation engines > Offline languages**. |
+| Text recognition data | App storage (`<app files>/tesseract`) | 0.4 to 12 MB per language (median 2.4 MB). Delete it under **Settings > Translation engines > Offline languages > Text recognition**. |
 
 **History encryption.** Each history value is encrypted with AES-256-GCM
 (a fresh nonce per write) under a 256-bit key generated on the device. On
@@ -183,7 +184,10 @@ key that never leaves the phone. In the **web app** the key has to be kept
 in the browser's storage next to the history (the web app's secure storage
 only lasts as long as the tab), so there the encryption protects little:
 anyone who can read the site's storage can read both. **Export history**
-writes plain, unencrypted JSON, and says so.
+writes plain, unencrypted JSON, and says so. **Export favorites** (on
+History's Favorites tab) writes a plain CSV file of your favorites; the
+app says that it isn't encrypted, and the file stays on the device unless
+you share it.
 
 **No backup, no device transfer.** The app opts out of cloud backup, and
 its backup rules exclude everything from Android 12+'s device-to-device
@@ -197,7 +201,7 @@ send it again. Memory also holds the last 20 read-aloud clips, the
 translations into extra target languages and the meaning check of the
 current translation. Closing the app clears them.
 
-**Delete all local data** (**Settings > Privacy**) deletes the history and
+**Delete all local data** (**Settings > Privacy & data**) deletes the history and
 its key, the settings with every key, header and password, presets,
 glossaries, usage counters, speech settings, cached lists and the whole
 offline models folder (partial downloads included), clears what the app
@@ -206,7 +210,7 @@ of it too. In the web app, clearing the site's data does the same.
 
 ## Screen, keyboard and clipboard
 
-- **Incognito** (**Settings > Privacy**): new translations and dictionary
+- **Incognito** (**Settings > Privacy & data**): new translations and dictionary
   look-ups are not saved to the history (one you heart is still saved),
   and keyboards are asked not to learn what you type (Android's
   `IME_FLAG_NO_PERSONALIZED_LEARNING`; keyboards may ignore it). API key
@@ -219,8 +223,13 @@ of it too. In the web app, clearing the site's data does the same.
   marked sensitive (`ClipDescription.EXTRA_IS_SENSITIVE`), so the system's
   copy preview and keyboard clipboard suggestions don't show it. The system
   then confirms the copy itself, so the app doesn't add its own "Copied"
-  message. Clipboard managers can still read it. The app reads the
-  clipboard only when you tap **Paste** or **Translate clipboard**.
+  message. Clipboard managers can still read it.
+- **Reading the clipboard.** The app reads the clipboard only when you tap
+  **Paste**, **Translate clipboard** or the start screen's **Paste and
+  translate** (**Paste copied text**) chip. To offer that chip, the Android
+  app asks the system whether the clipboard holds text when you come back
+  to it. That check doesn't read the text (so Android shows no "pasted"
+  notice), and the web app doesn't make it.
 
 ## Network
 
@@ -230,7 +239,8 @@ of it too. In the web app, clearing the site's data does the same.
   DeepL and AI provider clients never follow a redirect from `https` to
   `http`. The Android app's platform networking (Java/Kotlin code and
   plugins) doesn't allow plain `http` at all.
-- **HTTP proxy** (**Settings > Privacy > HTTP proxy**, Android): every
+- **HTTP proxy** (**Settings > Privacy & data > Network > HTTP proxy**,
+  Android): every
   request the app makes, including offline model downloads and the web
   page translator, goes through the proxy you set (`host:port`), as a
   `CONNECT` tunnel, plain `http` included. For Tor, use Orbot's HTTP proxy,
@@ -263,12 +273,14 @@ checked against the SHA-256 checksums bundled with the app, and are never
 sent your text. With **Download over Wi-Fi only** on (the default), the app
 asks before using mobile data or a metered network. To keep the phone from
 contacting Google's servers at all, download the files on another computer
-and use **Import from files** on **Settings > Offline languages** instead
+and use **Import from files** on **Settings > Translation engines > Offline
+languages** instead
 ([how](offline-engine.md#import-models-without-the-app-downloading-them)):
 an import contacts nothing, so it also works in **Offline only**.
 
 Voice input can run without Google too: **Offline (Whisper)** in
-**Settings > Voice input** recognises speech on the phone with OpenAI's
+**Settings > Read aloud & voice > Voice input** recognises speech on the
+phone with OpenAI's
 Whisper models on whisper.cpp (MIT), downloaded from Hugging Face or
 imported from files ([voice input](voice-input.md)). The default **System
 speech recognition** is the phone's own recogniser, on most phones Google's,
@@ -294,8 +306,9 @@ For translations that never leave hardware you control, use any of:
   instances from your list;
 - a local AI model ([guide](ai-providers.md#local-models)).
 
-Add **Incognito**, **Device voice only** (**Settings > Read aloud**) and
-**Offline (Whisper)** voice input (**Settings > Voice input**) to keep
+Add **Incognito**, **Device voice only** (**Settings > Read aloud & voice >
+Read aloud**) and **Offline (Whisper)** voice input (**Settings > Read aloud
+& voice > Voice input**) to keep
 history, speech and dictation on the device too. See [Security](security.md) for how the app
 protects keys and handles text from other apps and links.
 
