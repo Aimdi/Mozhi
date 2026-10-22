@@ -4,7 +4,8 @@
 /// is only used where `dart:ffi` exists).
 library;
 
-// The model catalogue, its sources and the model manager (W5-B).
+// The model catalogue, its sources and the model manager (W5-B); the
+// engine (src/engine, W5-A).
 export 'src/catalog.dart';
 export 'src/catalog_asset.dart';
 export 'src/engine/engine_factory.dart';
