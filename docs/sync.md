@@ -77,7 +77,7 @@ choosing its own:
 | Phrasebooks | Yes | Per phrase, collection and note, the newer copy wins; deletions win over older copies |
 | Practice progress | Yes | Per card, as the [practice](practice.md) section merges |
 | Presets, Glossaries | Yes | Per preset and glossary, the newer copy wins; a deletion (kept as a [deletion record](backup.md) for 180 days) wins over older copies; the order, and the default preset, of the device that changed them last |
-| Settings | **No** | This device keeps its own settings and gets the AI providers, Mozhi instances and pinned languages it doesn't have yet |
+| Settings | **No** | This device keeps its own settings and gets the AI providers and pinned languages it doesn't have yet. Mozhi instances are never added this way (they would get your text when your own instances fail), and new providers that would get text without asking first (on your network, LibreTranslate) arrive turned off |
 
 The settings are left out unless you choose them: some only make sense on
 one device (privacy mode, proxy, theme), and they change after every

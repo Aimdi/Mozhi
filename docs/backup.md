@@ -127,8 +127,10 @@ in the backup:
   backup's default when there is none here.
 - **Settings:** this device's settings stay, privacy choices included; the
   AI providers and pinned languages you don't have are added. A provider
-  added this way is used only once you choose it (and a cloud provider
-  still asks before your first text goes to it). The backup's API keys
+  added this way is used only once you choose it: a cloud provider still
+  asks before your first text goes to it, and one that wouldn't ask (an
+  AI server on your own network, a LibreTranslate server) comes turned
+  off until you turn it on in Settings. The backup's API keys
   and headers fill in those missing here only for the same provider on
   the same server (same service, provider type and address). **Mozhi
   instances are never added by a merge**: Mozhi switches to the next
@@ -187,7 +189,8 @@ memory-hungry, but only a long passphrase makes guessing hopeless:
   so restore only backups you made. A merge never adds a Mozhi instance
   (one would get your text without asking when your own instances fail),
   never moves this device's keys to another server, and the providers it
-  adds are only used once you choose them; the review and the result name
+  adds are only used once you choose them (those that wouldn't ask first
+  come turned off); the review and the result name
   every provider and instance a restore adds, by host. A custom header from
   a backup can't replace a provider's key header either: Mozhi always
   sends the key's own header (`Authorization`, `x-api-key`,

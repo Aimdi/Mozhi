@@ -461,6 +461,40 @@ void main() {
         expect(merged.consentedProviders, ['a']);
       });
 
+      test('adds the providers that would get text without asking first '
+          'turned off', () async {
+        await section.restore(
+          throughJson({
+            'settings': AppSettings(
+              providers: [
+                _provider('cloud'),
+                _provider('deepl', baseUrl: '', service: MtService.deepl),
+                _provider('lan', baseUrl: 'http://192.168.1.50:8080/v1'),
+                _provider('ollama', baseUrl: 'localhost:11434'),
+                _provider(
+                  'libre',
+                  baseUrl: 'https://libre.example',
+                  service: MtService.libreTranslate,
+                ),
+              ],
+            ).toJson(),
+          }),
+          version: 1,
+          mode: BackupRestoreMode.merge,
+        );
+
+        final merged = await repository.load();
+        expect(merged.providers.map((p) => (p.id, p.enabled)), [
+          ('a', true),
+          ('b', true),
+          ('cloud', true),
+          ('deepl', true),
+          ('lan', false),
+          ('ollama', false),
+          ('libre', false),
+        ]);
+      });
+
       test('adds a provider the backup repeats once', () async {
         await section.restore(
           throughJson({
@@ -553,7 +587,8 @@ void main() {
       final additions = await section.additions(throughJson(data), version: 1);
 
       final merge = additions[BackupRestoreMode.merge]!;
-      expect(merge.providers.map((p) => p.id), ['c']);
+      // c is on a private network: Merge adds it turned off.
+      expect(merge.providers.map((p) => (p.id, p.enabled)), [('c', false)]);
       expect(merge.instances, isEmpty);
       final replace = additions[BackupRestoreMode.replace]!;
       // b moves to another server.
@@ -626,6 +661,35 @@ void main() {
         'not a url',
       );
     });
+  });
+
+  test('asksBeforeFirstUse: cloud providers only', () {
+    for (final (provider, asks) in [
+      (_provider('a'), true),
+      (_provider('a', baseUrl: ''), true),
+      (_provider('a', baseUrl: '', service: MtService.deepl), true),
+      (
+        _provider('a', baseUrl: 'http://10.0.0.2', service: MtService.deepl),
+        true,
+      ),
+      (_provider('a', baseUrl: 'http://10.0.0.2:1234/v1'), false),
+      (_provider('a', baseUrl: 'mybox.local:11434'), false),
+      (_provider('a', baseUrl: 'http://abc.onion/v1'), false),
+      (
+        _provider(
+          'a',
+          baseUrl: 'https://libre.example',
+          service: MtService.libreTranslate,
+        ),
+        false,
+      ),
+    ]) {
+      expect(
+        SettingsBackupSection.asksBeforeFirstUse(provider),
+        asks,
+        reason: '$provider',
+      );
+    }
   });
 
   group('sameServer', () {

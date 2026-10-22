@@ -496,7 +496,7 @@ void main() {
       expect(translations.languageStates([french]).single.pending, 2);
     });
 
-    test('stops queued and running work for a language nobody reads', () {
+    test('stops queued and running work for a language nobody reads', () async {
       final changes = <void>[];
       translations.changes.listen(changes.add);
       translations.ensure(turns, [french, german]);
@@ -512,13 +512,20 @@ void main() {
         'mozhi:deepl>de:Hello',
         'mozhi:deepl>de:Bye',
       ]);
-      expect(translations.languageStates([french]), isEmpty);
+      expect(
+        [
+          for (final state in translations.languageStates([french, german]))
+            state.language,
+        ],
+        [german],
+      );
       expect(translations.textOf(turns.first, french).text, isEmpty);
 
       translations.ensure(turns, []);
       expect(streamOf(deepl, german).hasListener, isFalse);
       expect(streams, hasLength(3));
       expect(translations.languageStates([french, german]), isEmpty);
+      await settle();
       expect(changes, isNotEmpty);
     });
 
@@ -546,9 +553,9 @@ void main() {
     });
 
     test('keeps nothing unfinished of a language read before', () {
-      translations.ensure([turns.first], [french]);
-
-      translations.ensure([turns.first], [], keep: [french]);
+      translations
+        ..ensure([turns.first], [french])
+        ..ensure([turns.first], [], keep: [french]);
 
       expect(streamOf(deepl, french).hasListener, isFalse);
       expect(translations.languageStates([french]), isEmpty);

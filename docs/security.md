@@ -94,7 +94,9 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
   normalised base URL). Merge adds nothing that gets text by itself: it
   never adds Mozhi instances (the failover would send text to them
   without asking), and providers it adds are used only once chosen
-  (consents and engine choices left for their id are dropped). Replace
+  (consents and engine choices left for their id are dropped, and those
+  that need no consent of their own, on a private network or
+  LibreTranslate, come turned off). Replace
   takes the backup's providers and instances, as the user chose; the
   review and the result list every provider and instance a restore adds,
   by host. Custom headers can't replace the key's auth header

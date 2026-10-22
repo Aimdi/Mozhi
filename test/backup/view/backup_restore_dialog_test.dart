@@ -461,6 +461,50 @@ void main() {
       expect(restored!.instances.map((i) => i.url), ['https://evil.example']);
     });
 
+    testWidgets('Merge says which providers it added turned off', (
+      tester,
+    ) async {
+      final lan = BackupSnapshot(
+        createdAt: DateTime.utc(2026, 10),
+        appVersion: '1.4.0+12',
+        sections: {
+          'settings': BackupSectionData(
+            version: 1,
+            data: {
+              'settings': const AppSettings(
+                providers: [
+                  AiProviderConfig(
+                    id: 'l',
+                    name: 'Box',
+                    provider: LlmProvider.ollama,
+                    baseUrl: 'http://192.168.1.50:11434',
+                    model: 'm',
+                  ),
+                ],
+              ).toJson(),
+            },
+          ),
+        },
+      );
+      await open(tester, from: lan);
+
+      await run(
+        tester,
+        () => tester.tap(find.byKey(const Key('backup_restore_merge'))),
+      );
+
+      expect(
+        find.textContaining(
+          'Added but turned off until you turn them on in Settings, as they '
+          'would get your text without asking first: Box (192.168.1.50)',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Added AI'), findsNothing);
+      final restored = await tester.runAsync(settings.load);
+      expect(restored!.providers.single.enabled, isFalse);
+    });
+
     testWidgets('a backup of these settings lists nothing new', (tester) async {
       await open(tester, from: snapshot);
 

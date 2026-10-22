@@ -369,10 +369,14 @@ class ShareTranslations {
     ];
     if (settled.isEmpty) return;
     _grants.removeWhere(settled.contains);
+    final withdrawn = <ConsentRequiredException>[];
     for (final grant in settled) {
-      if (_grants.any((other) => _sameConsent(other.consent, grant.consent))) {
+      bool same(_Grant other) => _sameConsent(other.consent, grant.consent);
+      if (_grants.any(same) ||
+          withdrawn.any((consent) => _sameConsent(consent, grant.consent))) {
         continue;
       }
+      withdrawn.add(grant.consent);
       try {
         _repository.revokeOnce(grant.consent);
       } on Object {

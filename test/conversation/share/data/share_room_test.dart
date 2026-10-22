@@ -28,17 +28,44 @@ void main() {
   late DateTime now;
   late ShareRoom room;
 
-  ShareRoom roomWith({String? pin, int maxGuests = 8}) => ShareRoom(
+  ShareRoom roomWith({
+    String? pin,
+    int maxGuests = 8,
+    int maxExtraLanguages = ShareRoom.defaultMaxExtraLanguages,
+    List<Language> languages = const [english, spanish, french],
+  }) => ShareRoom(
     token: 'token',
-    languages: const [english, spanish, french],
+    languages: languages,
     translations: translations,
     onReply: (guest, text) => replies.add((guest, text)),
     pin: pin,
     maxGuests: maxGuests,
+    maxExtraLanguages: maxExtraLanguages,
+    conversationLanguages: () => const [english, spanish],
     secrets: ShareSecrets(Random(7)),
     clock: () => now,
     timer: timers.call,
   );
+
+  /// The arguments of the last `ensure`: turn ids, languages read, kept.
+  (List<int>, List<Language>, List<Language>) lastEnsure() {
+    final captured = verify(
+      () => translations.ensure(
+        captureAny(),
+        captureAny(),
+        keep: captureAny(named: 'keep'),
+      ),
+    ).captured;
+    final count = captured.length;
+    return (
+      [
+        for (final turn in captured[count - 3] as List)
+          (turn as ConversationTurn).id,
+      ],
+      [...captured[count - 2] as Iterable<Language>],
+      [...captured[count - 1] as Iterable<Language>],
+    );
+  }
 
   ShareGuest joinAs(ShareRoom room, String language) =>
       (room.join(languageCode: language, pin: room.pin) as ShareJoined).guest;
@@ -48,7 +75,8 @@ void main() {
     translationChanges = StreamController<void>.broadcast();
     when(() => translations.changes)
         .thenAnswer((_) => translationChanges.stream);
-    when(() => translations.ensure(any(), any())).thenReturn(null);
+    when(() => translations.ensure(any(), any(), keep: any(named: 'keep')))
+        .thenReturn(null);
     when(translations.dispose).thenAnswer((_) async {});
     when(() => translations.textOf(any(), any())).thenAnswer((invocation) {
       final turn = invocation.positionalArguments[0] as ConversationTurn;
@@ -146,6 +174,19 @@ void main() {
       );
     });
 
+    test('refuses too many joins in a short time', () {
+      for (var i = 0; i < ShareRoom.maxRoomJoinsPerMinute; i++) {
+        room.leave(joinAs(room, 'fr'));
+      }
+
+      expect(
+        (room.join(languageCode: 'fr') as ShareJoinRefused).error,
+        ShareJoinError.tooMany,
+      );
+      now = now.add(const Duration(minutes: 1));
+      expect(room.join(languageCode: 'fr'), isA<ShareJoined>());
+    });
+
     test('refuses everyone once ended', () async {
       await room.end();
 
@@ -169,6 +210,63 @@ void main() {
     });
   });
 
+  group('other languages', () {
+    const german = Language(code: 'de', name: 'German');
+    const italian = Language(code: 'it', name: 'Italian');
+
+    setUp(() async {
+      await room.end();
+      room = roomWith(
+        maxExtraLanguages: 2,
+        languages: const [english, spanish, french, german, italian],
+      );
+    });
+
+    test('are read by at most a few at a time', () {
+      final french1 = joinAs(room, 'fr');
+      joinAs(room, 'fr');
+      expect(room.canRead(italian), isTrue);
+      final german1 = joinAs(room, 'de');
+
+      expect(room.canRead(italian), isFalse);
+      expect(
+        (room.join(languageCode: 'it') as ShareJoinRefused).error,
+        ShareJoinError.languageLimit,
+      );
+      expect(room.readableLanguages, [english, spanish, french, german]);
+      // The conversation's languages always work.
+      expect(room.join(languageCode: 'en'), isA<ShareJoined>());
+      expect(room.setLanguage(french1, 'it'), isFalse);
+      expect(room.setLanguage(french1, 'de'), isTrue);
+      expect(room.setLanguage(german1, 'es'), isTrue);
+    });
+
+    test('keep their place for a while after their last guest left', () {
+      final first = joinAs(room, 'fr');
+      final second = joinAs(room, 'de');
+      room
+        ..leave(first)
+        ..leave(second);
+      var (_, read, kept) = lastEnsure();
+      expect(read, isEmpty);
+      expect(kept, [french, german]);
+      expect(room.canRead(italian), isFalse);
+
+      // Back again: nothing new to translate.
+      final again = joinAs(room, 'fr');
+      (_, read, kept) = lastEnsure();
+      expect(read, [french]);
+      expect(kept, [german]);
+
+      now = now.add(ShareRoom.languageKeep);
+      expect(room.canRead(italian), isTrue);
+      room.leave(again);
+      (_, read, kept) = lastEnsure();
+      expect(kept, [french]);
+      expect(joinAs(room, 'it').language, italian);
+    });
+  });
+
   group('setLanguage', () {
     test('changes the guest language within limits', () {
       final guest = joinAs(room, 'fr');
@@ -176,10 +274,25 @@ void main() {
       expect(room.setLanguage(guest, 'de'), isFalse);
       expect(room.setLanguage(guest, 'es'), isTrue);
       expect(room.guests.single.language, spanish);
-      for (var i = 1; i < 10; i++) {
+      for (var i = 1; i < ShareRoom.maxLanguageChangesPerMinute; i++) {
         room.setLanguage(guest, i.isEven ? 'es' : 'fr');
       }
       expect(room.setLanguage(guest, 'en'), isFalse);
+    });
+
+    test('limits the changes of all guests together', () {
+      final guests = [
+        for (var i = 0; i < 4; i++)
+          (room.join(
+            languageCode: 'fr',
+            client: 'phone $i',
+          ) as ShareJoined).guest,
+      ];
+      for (var i = 0; i < ShareRoom.maxRoomLanguageChangesPerMinute; i++) {
+        expect(room.setLanguage(guests[i % 4], i.isEven ? 'es' : 'fr'), isTrue);
+      }
+
+      expect(room.setLanguage(guests.first, 'en'), isFalse);
     });
   });
 
@@ -213,6 +326,41 @@ void main() {
       }
       now = now.add(ShareRoom.replyInterval);
       expect(room.reply(guest, 'more'), ShareReplyResult.tooFast);
+    });
+
+    test('limits a device also when it joins again', () {
+      var guest =
+          (room.join(languageCode: 'fr', client: 'phone') as ShareJoined).guest;
+      for (var i = 0; i < ShareRoom.maxRepliesPerMinute; i++) {
+        expect(room.reply(guest, '$i'), ShareReplyResult.sent);
+        now = now.add(ShareRoom.replyInterval);
+      }
+      room.leave(guest);
+      guest =
+          (room.join(languageCode: 'fr', client: 'phone') as ShareJoined).guest;
+
+      expect(room.reply(guest, 'again'), ShareReplyResult.tooFast);
+      final other = (room.join(
+        languageCode: 'fr',
+        client: 'tablet',
+      ) as ShareJoined).guest;
+      expect(room.reply(other, 'hi'), ShareReplyResult.sent);
+    });
+
+    test('limits the replies of all guests together', () {
+      final guests = [
+        for (var i = 0; i < 4; i++)
+          (room.join(
+            languageCode: 'fr',
+            client: 'phone $i',
+          ) as ShareJoined).guest,
+      ];
+      for (var i = 0; i < ShareRoom.maxRoomRepliesPerMinute; i++) {
+        expect(room.reply(guests[i % 4], '$i'), ShareReplyResult.sent);
+        if (i % 4 == 3) now = now.add(ShareRoom.replyInterval);
+      }
+
+      expect(room.reply(guests.first, 'more'), ShareReplyResult.tooFast);
     });
 
     test('refuses replies when turned off, and from gone guests', () async {
@@ -330,13 +478,28 @@ void main() {
       verify(() => translations.ensure(any(), any())).called(greaterThan(0));
     });
 
-    test('sends the last turns only', () {
+    test('sends and translates the last turns only', () {
       final guest = joinAs(room, 'fr');
       room.update([for (var i = 0; i < ShareRoom.maxTurns + 5; i++) turn(i)]);
 
       final turns = room.snapshotFor(guest)['turns']! as List;
       expect(turns, hasLength(ShareRoom.maxTurns));
       expect((turns.first as Map)['id'], 5);
+      final (ids, read, _) = lastEnsure();
+      expect(ids, [for (var i = 5; i < ShareRoom.maxTurns + 5; i++) i]);
+      expect(read, [french]);
+    });
+
+    test('stops translating for a guest who left', () {
+      final guest = joinAs(room, 'fr');
+      room
+        ..update([turn(0)])
+        ..leave(guest);
+
+      final (ids, read, kept) = lastEnsure();
+      expect(ids, [0]);
+      expect(read, isEmpty);
+      expect(kept, [french]);
     });
   });
 
@@ -398,13 +561,20 @@ void main() {
 
     translationChanges.add(null);
     await settle();
+    const consent = ConsentRequiredException(
+      kind: ConsentKind.pair,
+      destination: PublicInstanceDestination('mozhi.example.org'),
+      engineId: 'mozhi:deepl',
+      source: 'en',
+      target: 'fr',
+    );
     room
-      ..retryLanguage(french)
+      ..retryLanguage(french, consent: consent)
       ..languageStates();
 
     expect(changes, hasLength(1));
     expect(room.revision, revision + 1);
-    verify(() => translations.retry(french)).called(1);
+    verify(() => translations.retry(french, consent: consent)).called(1);
     verify(() => translations.languageStates(any())).called(1);
   });
 
