@@ -88,7 +88,6 @@ void main() {
 
     test('the end of a sentence: machine at once, AI after a moment', () {
       expect(delay(google, 'Hello', 'Hello.'), Duration.zero);
-      expect(delay(deeplApi, 'Wie geht', 'Wie geht?'), Duration.zero);
       expect(delay(claude, 'Hello', 'Hello.'), cubit.aiSentenceDebounce);
       expect(delay(_offline, 'Hallo', 'Hallo!'), Duration.zero);
       for (final end in ['。', '？', '！', '…', '؟', '۔', '।', '॥']) {
@@ -103,6 +102,16 @@ void main() {
       );
       // A second full stop is no new sentence.
       expect(delay(google, 'Hello.', 'Hello..'), cubit.boundaryDebounce);
+    });
+
+    test('the DeepL API waits like AI: it is billed by the character', () {
+      expect(delay(deeplApi, '', 'Wie geht es dir?'), Duration.zero);
+      expect(
+        delay(deeplApi, 'Wie geht', 'Wie geht?'),
+        cubit.aiSentenceDebounce,
+      );
+      expect(delay(deeplApi, 'Wie', 'Wie '), cubit.aiBoundaryDebounce);
+      expect(delay(deeplApi, 'Wi', 'Wie'), cubit.debounce);
     });
 
     test('Enter is like the end of a sentence', () {

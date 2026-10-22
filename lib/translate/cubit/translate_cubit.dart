@@ -1455,13 +1455,16 @@ class TranslateCubit extends Cubit<TranslateState> {
   ///   [aiSentenceDebounce] for AI engines, so that a sentence typed on
   ///   right away is not sent twice;
   /// * after a word (white space or punctuation at the end):
-  ///   [boundaryDebounce], [aiBoundaryDebounce] for AI engines;
+  ///   [boundaryDebounce], [aiBoundaryDebounce] for AI engines and the
+  ///   DeepL API (billed by the character, and every request sends the
+  ///   whole text);
   /// * within a word: [debounce], [aiDebounce] for AI engines.
   ///
   /// The on-device engine waits [offlineDebounce] at most. Typing at a
   /// normal pace never sends more requests to AI engines than one after
   /// the last key: [aiBoundaryDebounce] is longer than the pause between
-  /// two words.
+  /// two words. The DeepL API waits as long as before the shorter waits
+  /// after a word came in, except after a paste or at a sentence end.
   Duration instantDelay(
     TranslationEngine engine,
     String previous,
@@ -1473,13 +1476,14 @@ class TranslateCubit extends Cubit<TranslateState> {
       return Duration.zero;
     }
     final ai = engine.isAi;
+    final metered = ai || engine.mtService == MtService.deepl;
     final inserted = _insertion(previous, next);
     if ((endsSentence(next) && !endsSentence(previous)) || inserted == '\n') {
-      return ai ? aiSentenceDebounce : Duration.zero;
+      return metered ? aiSentenceDebounce : Duration.zero;
     }
     final Duration delay;
     if (_wordEnd.hasMatch(next)) {
-      delay = ai ? aiBoundaryDebounce : boundaryDebounce;
+      delay = metered ? aiBoundaryDebounce : boundaryDebounce;
     } else {
       delay = ai ? aiDebounce : debounce;
     }
