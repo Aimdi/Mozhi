@@ -9332,7 +9332,7 @@
   "@transcribeSavedHistory": {
     "description": "transcribeSavedHistory"
   },
-  "transcribeSavedFavorite": "History is paused, so the transcript was saved to your favourites",
+  "transcribeSavedFavorite": "History is paused, so the transcript was saved to your favorites",
   "@transcribeSavedFavorite": {
     "description": "transcribeSavedFavorite"
   },

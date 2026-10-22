@@ -26,6 +26,7 @@ class TranslationOptions {
     this.glossary = const {},
     this.instructions = '',
     this.formalityContext = '',
+    this.caseSensitiveGlossaryTerms = const {},
   });
 
   /// Tolerant counterpart of [toJson]: unknown or missing values fall back to
@@ -69,6 +70,7 @@ class TranslationOptions {
     formalityContext: _parseString(
       json['formalityContext'] ?? json['formality_context'],
     ),
+    caseSensitiveGlossaryTerms: _parseTerms(json['caseSensitiveGlossaryTerms']),
   );
 
   final TranslationStyle style;
@@ -85,6 +87,12 @@ class TranslationOptions {
 
   /// Source term -> required target term.
   final Map<String, String> glossary;
+
+  /// The terms of [glossary] that only match with their exact
+  /// capitalisation (a glossary entry marked case-sensitive). Other terms
+  /// match in any case, except acronyms (see `TranslationPrompts
+  /// .glossaryOccurrences`).
+  final Set<String> caseSensitiveGlossaryTerms;
 
   /// One-off refinement instruction (from suggestion chips), e.g.
   /// "Make it shorter". Not persisted by the app.
@@ -111,6 +119,7 @@ class TranslationOptions {
     Map<String, String>? glossary,
     String? instructions,
     String? formalityContext,
+    Set<String>? caseSensitiveGlossaryTerms,
   }) => TranslationOptions(
     style: style ?? this.style,
     formality: formality ?? this.formality,
@@ -122,6 +131,8 @@ class TranslationOptions {
     glossary: glossary ?? this.glossary,
     instructions: instructions ?? this.instructions,
     formalityContext: formalityContext ?? this.formalityContext,
+    caseSensitiveGlossaryTerms:
+        caseSensitiveGlossaryTerms ?? this.caseSensitiveGlossaryTerms,
   );
 
   /// Enum values serialise by `.name`; unknown values fall back to defaults.
@@ -129,7 +140,7 @@ class TranslationOptions {
   /// [instructions] is only written when non-empty (it is a one-off value the
   /// app normally strips before persisting); so is [formalityContext] (as
   /// `formalityContext`; [TranslationOptions.fromJson] also reads Kagi's
-  /// `formality_context`).
+  /// `formality_context`) and [caseSensitiveGlossaryTerms] (a list).
   Map<String, dynamic> toJson() => {
     'style': style.name,
     'formality': formality.name,
@@ -141,9 +152,12 @@ class TranslationOptions {
     'glossary': Map<String, String>.of(glossary),
     if (instructions.isNotEmpty) 'instructions': instructions,
     if (formalityContext.isNotEmpty) 'formalityContext': formalityContext,
+    if (caseSensitiveGlossaryTerms.isNotEmpty)
+      'caseSensitiveGlossaryTerms': caseSensitiveGlossaryTerms.toList(),
   };
 
   static const _glossaryEquality = MapEquality<String, String>();
+  static const _termsEquality = SetEquality<String>();
 
   @override
   bool operator ==(Object other) =>
@@ -158,7 +172,11 @@ class TranslationOptions {
           other.preserveFormatting == preserveFormatting &&
           other.instructions == instructions &&
           other.formalityContext == formalityContext &&
-          _glossaryEquality.equals(other.glossary, glossary);
+          _glossaryEquality.equals(other.glossary, glossary) &&
+          _termsEquality.equals(
+            other.caseSensitiveGlossaryTerms,
+            caseSensitiveGlossaryTerms,
+          );
 
   @override
   int get hashCode => Object.hash(
@@ -172,16 +190,22 @@ class TranslationOptions {
     instructions,
     formalityContext,
     _glossaryEquality.hash(glossary),
+    _termsEquality.hash(caseSensitiveGlossaryTerms),
   );
 
   @override
-  String toString() =>
-      'TranslationOptions(style: ${style.name}, '
-      'formality: ${formality.name}, readingLevel: ${readingLevel.name}, '
-      'speakerGender: ${speakerGender.name}, '
-      'addresseeGender: ${addresseeGender.name}, context: $context, '
-      'preserveFormatting: $preserveFormatting, glossary: $glossary, '
-      'instructions: $instructions, formalityContext: $formalityContext)';
+  String toString() {
+    final terms = caseSensitiveGlossaryTerms.isEmpty
+        ? ''
+        : ', caseSensitiveGlossaryTerms: $caseSensitiveGlossaryTerms';
+    return 'TranslationOptions(style: ${style.name}, '
+        'formality: ${formality.name}, readingLevel: ${readingLevel.name}, '
+        'speakerGender: ${speakerGender.name}, '
+        'addresseeGender: ${addresseeGender.name}, context: $context, '
+        'preserveFormatting: $preserveFormatting, glossary: $glossary, '
+        'instructions: $instructions, '
+        'formalityContext: $formalityContext$terms)';
+  }
 }
 
 /// Matches [value] against enum names ignoring case, `_` and `-`, so both
@@ -221,6 +245,13 @@ Gender _parseGender(Object? value) => _parseEnum(
 );
 
 String _parseString(Object? value) => value is String ? value : '';
+
+Set<String> _parseTerms(Object? value) => value is List
+    ? {
+        for (final term in value)
+          if (term is String && term.trim().isNotEmpty) term,
+      }
+    : const {};
 
 bool _parseBool(Object? value, {required bool fallback}) => switch (value) {
   final bool b => b,

@@ -2144,72 +2144,168 @@ final class _Prompt {
   String build() => _sections.join('\n\n');
 }
 
-/// Finds where glossary terms occur in one text (see `TranslationPrompts
-/// .glossaryOccurrences`): the text is folded like `TranslationPrompts
-/// .foldForMatching`, character by character, remembering where each
-/// folded character came from.
-final class _GlossaryLocator {
+/// A text folded like `TranslationPrompts.foldForMatching`, character by
+/// character, remembering for each code unit of the folded text where it
+/// came from, whether that character was upper case and whether it carried
+/// an accent: an accented letter that folds to its base letter, or one
+/// followed by combining marks (Russian `ё` counts as `е`, accented or
+/// not, as it is often written without its dots).
+final class _Folded {
   new(String text) {
     final buffer = StringBuffer();
-    final origin = <int>[];
     var index = 0;
+    var last = -1;
     for (final rune in text.runes) {
-      for (final lower in String.fromCharCode(rune).toLowerCase().runes) {
-        if (lower >= 0x300 && lower <= 0x36F) continue;
-        final folded = TranslationPrompts._folds[lower] ?? lower;
+      final char = String.fromCharCode(rune);
+      final lower = char.toLowerCase();
+      final isUpper = lower != char;
+      for (final unit in lower.runes) {
+        if (unit >= 0x300 && unit <= 0x36F) {
+          if (accented.isNotEmpty && !(unit == 0x308 && last == 0x435)) {
+            accented[accented.length - 1] = true;
+          }
+          continue;
+        }
+        final folded = TranslationPrompts._folds[unit] ?? unit;
         buffer.writeCharCode(folded);
-        origin.addAll(List.filled(folded > 0xFFFF ? 2 : 1, index));
+        for (var i = folded > 0xFFFF ? 2 : 1; i > 0; i--) {
+          origin.add(index);
+          upper.add(isUpper);
+          accented.add(folded != unit && unit != 0x451);
+        }
+        last = folded;
       }
       index += rune > 0xFFFF ? 2 : 1;
     }
-    _folded = buffer.toString();
-    _origin = [...origin, text.length];
+    this.text = buffer.toString();
+    origin.add(index);
   }
 
-  late final String _folded;
+  /// The folded text.
+  late final String text;
 
-  /// The index in the text of each code unit of [_folded], and the text's
-  /// length after the last one.
-  late final List<int> _origin;
+  /// The index in the original text of each code unit of [text], and the
+  /// original's length after the last one.
+  final List<int> origin = [];
 
-  /// The ranges of the text where [term] occurs.
-  Iterable<(int, int)> find(String term) sync* {
-    final folded = TranslationPrompts.foldForMatching(term).trim();
-    if (folded.isEmpty) return;
-    if (_GlossaryMatcher._unspaced.hasMatch(folded)) {
-      var from = 0;
-      while (true) {
-        final at = _folded.indexOf(folded, from);
-        if (at < 0) return;
-        yield (_origin[at], _origin[at + folded.length]);
-        from = at + folded.length;
-      }
-    }
-    for (final match in _GlossaryMatcher._patternFor(
-      folded,
-    ).allMatches(_folded)) {
-      if (match.end > match.start) {
-        yield (_origin[match.start], _origin[match.end]);
-      }
-    }
-  }
+  /// Whether the character of each code unit of [text] was upper case.
+  final List<bool> upper = [];
+
+  /// Whether the character of each code unit of [text] had an accent.
+  final List<bool> accented = [];
 }
 
-/// Finds glossary terms in one text (see `TranslationPrompts
-/// .glossaryMatches`).
-final class _GlossaryMatcher {
-  new(String text) : _text = TranslationPrompts.foldForMatching(text);
-
-  /// The text, folded (see `TranslationPrompts.foldForMatching`).
-  final String _text;
-
-  /// Whether [term] occurs in the text.
-  bool matches(String term) {
-    final folded = TranslationPrompts.foldForMatching(term).trim();
-    if (folded.isEmpty) return false;
-    if (_unspaced.hasMatch(folded)) return _text.contains(folded);
-    return _patternFor(folded).hasMatch(_text);
+/// A glossary term as [_GlossaryLocator.find] looks for it: [strict]ly as
+/// `TranslationPrompts.glossaryOccurrences` places terms, otherwise as
+/// `TranslationPrompts.glossaryMatches` selects them.
+final class _GlossaryTerm {
+  new(String term, {bool caseSensitive = false, this.strict = false})
+    : folded = _Folded(term.trim()),
+      exactCase = caseSensitive || _isAcronym(term) {
+    _lastWord = term.trim().split(_spaces).last;
   }
+
+  /// The term, folded.
+  final _Folded folded;
+
+  /// Whether only whole words in the same case (see [exactCase]), with the
+  /// same accents and at most a plural `s` or `es` match.
+  final bool strict;
+
+  /// Whether the term matches its exact capitalisation only: a
+  /// case-sensitive term or an acronym.
+  final bool exactCase;
+
+  late final String _lastWord;
+
+  /// Whether the term has characters of a script written without spaces
+  /// between words: it matches anywhere then.
+  bool get unspaced => _unspaced.hasMatch(folded.text);
+
+  /// Whether the occurrence `start`..`end` of [text] (indexes of its
+  /// folded text) has the capitalisation of the term (when [exactCase];
+  /// an ending after the term must be lower case then) and, when
+  /// [strict], its accents.
+  bool agreesWith(_Folded text, int start, int end) {
+    if (!exactCase && !strict) return true;
+    var at = start;
+    for (var i = 0; i < folded.text.length; i++) {
+      if (_isSpace(folded.text.codeUnitAt(i))) continue;
+      while (at < end && _isSpace(text.text.codeUnitAt(at))) {
+        at++;
+      }
+      // A stem shorter than the term (not strict) ends here.
+      if (at >= end) return true;
+      if (exactCase && text.upper[at] != folded.upper[i]) return false;
+      if (strict && text.accented[at] != folded.accented[i]) return false;
+      at++;
+    }
+    if (exactCase) {
+      for (; at < end; at++) {
+        if (text.upper[at]) return false;
+      }
+    }
+    return true;
+  }
+
+  /// The pattern of a term without unspaced characters, on folded text:
+  /// whole words, the last one possibly inflected (see `TranslationPrompts
+  /// .glossaryMatches` and, when [strict], `TranslationPrompts
+  /// .glossaryOccurrences`).
+  RegExp get pattern {
+    final words = folded.text.split(_spaces);
+    final last = words.removeLast();
+    var stem = last;
+    var ending = '';
+    if (_word.hasMatch(last)) {
+      final letters = last.runes.toList();
+      if (strict) {
+        final rest = _lastWord.substring(
+          String.fromCharCode(_lastWord.runes.first).length,
+        );
+        if (letters.length >= 4 && rest == rest.toLowerCase()) {
+          ending = '(?:e?s)?';
+        }
+      } else {
+        final (cut, more) = switch (letters.length) {
+          < 4 => (0, -1),
+          4 => (0, 4),
+          < 7 => (1, 5),
+          _ => (2, 6),
+        };
+        stem = String.fromCharCodes(letters.take(letters.length - cut));
+        ending = more < 0 ? '(?:e?s)?' : '\\p{L}{0,$more}';
+      }
+    }
+    const before = r'(?<![\p{L}\p{M}\p{N}])';
+    const after = r'(?![\p{L}\p{M}\p{N}])';
+    final body = [...words, stem].map(RegExp.escape).join(r'\s+');
+    final source = '$before$body$ending$after';
+    if (_patterns[source] case final pattern?) return pattern;
+    if (_patterns.length >= 4096) _patterns.clear();
+    return _patterns[source] = RegExp(source, unicode: true);
+  }
+
+  /// Whether [term] is an acronym: two or more letters, all upper case
+  /// (`IT`, `US`, `NASA`, `B2B`).
+  static bool _isAcronym(String term) =>
+      _letter.allMatches(term).length >= 2 &&
+      term == term.toUpperCase() &&
+      term != term.toLowerCase();
+
+  /// Whether [unit] is whitespace (as `\s` matches it).
+  static bool _isSpace(int unit) =>
+      unit == 0x20 ||
+      (unit >= 0x09 && unit <= 0x0D) ||
+      unit == 0xA0 ||
+      unit == 0x1680 ||
+      (unit >= 0x2000 && unit <= 0x200A) ||
+      unit == 0x2028 ||
+      unit == 0x2029 ||
+      unit == 0x202F ||
+      unit == 0x205F ||
+      unit == 0x3000 ||
+      unit == 0xFEFF;
 
   /// Characters of scripts written without spaces between words (or, for
   /// Korean, with particles attached to the words).
@@ -2222,37 +2318,43 @@ final class _GlossaryMatcher {
 
   static final _spaces = RegExp(r'\s+');
   static final _word = RegExp(r'^\p{L}+$', unicode: true);
+  static final _letter = RegExp(r'\p{L}', unicode: true);
 
-  /// Compiled patterns by folded term (cleared when it grows large).
+  /// Compiled patterns by source (cleared when it grows large).
   static final _patterns = <String, RegExp>{};
+}
 
-  /// The pattern of a folded term without unspaced characters: whole words,
-  /// the last one possibly inflected (see `TranslationPrompts
-  /// .glossaryMatches`).
-  static RegExp _patternFor(String folded) {
-    if (_patterns[folded] case final pattern?) return pattern;
-    if (_patterns.length >= 4096) _patterns.clear();
-    final words = folded.split(_spaces);
-    final last = words.removeLast();
-    var stem = last;
-    var ending = '';
-    if (_word.hasMatch(last)) {
-      final letters = last.runes.toList();
-      final (cut, more) = switch (letters.length) {
-        < 4 => (0, -1),
-        4 => (0, 4),
-        < 7 => (1, 5),
-        _ => (2, 6),
-      };
-      stem = String.fromCharCodes(letters.take(letters.length - cut));
-      ending = more < 0 ? '(?:e?s)?' : '\\p{L}{0,$more}';
+/// Finds where glossary terms occur in one text (see `TranslationPrompts
+/// .glossaryMatches` and `TranslationPrompts.glossaryOccurrences`).
+final class _GlossaryLocator {
+  new(String text) : _text = _Folded(text);
+
+  final _Folded _text;
+
+  /// The ranges of the text where [term] occurs.
+  Iterable<(int, int)> find(_GlossaryTerm term) sync* {
+    final folded = term.folded.text;
+    if (folded.isEmpty) return;
+    final origin = _text.origin;
+    if (term.unspaced) {
+      var from = 0;
+      while (true) {
+        final at = _text.text.indexOf(folded, from);
+        if (at < 0) return;
+        final end = at + folded.length;
+        if (term.agreesWith(_text, at, end)) {
+          yield (origin[at], origin[end]);
+          from = end;
+        } else {
+          from = at + 1;
+        }
+      }
     }
-    const before = r'(?<![\p{L}\p{M}\p{N}])';
-    const after = r'(?![\p{L}\p{M}\p{N}])';
-    final body = [...words, stem].map(RegExp.escape).join(r'\s+');
-    return _patterns[folded] = RegExp(
-      '$before$body$ending$after',
-      unicode: true,
-    );
+    for (final match in term.pattern.allMatches(_text.text)) {
+      if (match.end > match.start &&
+          term.agreesWith(_text, match.start, match.end)) {
+        yield (origin[match.start], origin[match.end]);
+      }
+    }
   }
 }

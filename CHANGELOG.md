@@ -83,6 +83,18 @@ in `-rc.N`).
   languages screen says what's missing otherwise. Self-hosted web apps
   serve the models from their own server (Mozilla's storage doesn't allow
   other websites).
+- **Transcribe** (More tools, and the Conversation menu): a running
+  transcript of a talk or lecture, phrase by phrase with timestamps, on
+  the device with the offline speech model on Android. Tap **Translate**
+  to translate each phrase as it comes (on the device in Offline only),
+  and copy, share, save as text or subtitles (.srt) or keep it in History.
+  It pauses when the app is hidden and keeps the screen on while it
+  listens.
+- **Offline voice input phrase by phrase:** with the 0.9 MB speech
+  detector (downloaded with the speech model, or on its own in Settings ›
+  Read aloud & voice › Voice input), text appears after each phrase
+  instead of at the end, sessions last up to a minute, and noise no longer
+  counts as speech. Conversation uses it too.
 - **Model source** (Settings › Translation engines, and the Offline
   languages screen): download offline languages, voice input and text
   recognition models from the original publishers, from the server that

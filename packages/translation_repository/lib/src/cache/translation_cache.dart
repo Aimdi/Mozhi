@@ -228,8 +228,9 @@ class _CacheKey {
     required this.recentSourceLanguages,
   });
 
-  /// Copies the glossary and the recent languages so later mutation of the
-  /// caller's collections cannot change a stored key.
+  /// Copies the glossary (and its case-sensitive terms) and the recent
+  /// languages so later mutation of the caller's collections cannot change
+  /// a stored key.
   factory of(TranslationEngine engine, TranslationRequest request) {
     final options = request.options;
     return _CacheKey(
@@ -238,10 +239,14 @@ class _CacheKey {
       sourceIsCustom: request.source.isCustom,
       targetCode: request.target.code,
       targetIsCustom: request.target.isCustom,
-      options: options.glossary.isEmpty
+      options:
+          options.glossary.isEmpty && options.caseSensitiveGlossaryTerms.isEmpty
           ? options
           : options.copyWith(
               glossary: Map<String, String>.unmodifiable(options.glossary),
+              caseSensitiveGlossaryTerms: Set<String>.unmodifiable(
+                options.caseSensitiveGlossaryTerms,
+              ),
             ),
       text: request.text,
       recentSourceLanguages:
