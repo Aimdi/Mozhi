@@ -80,7 +80,7 @@ class DictionaryEngineMessage extends StatelessWidget {
           spacing: 8,
           runSpacing: 8,
           children: [
-            DictionaryGetPacksButton(packs: packs, filled: true),
+            DictionaryGetPacksButton(packs: packs),
             OutlinedButton.icon(
               key: const Key('dictionary_set_up_providers'),
               style: OutlinedButton.styleFrom(shape: const StadiumBorder()),
@@ -321,7 +321,7 @@ class _NotFound extends StatelessWidget {
         body = l10n.dictionaryOfflineNotFoundBody;
       } else {
         body = l10n.dictionaryOfflineNoPack(state.source.name);
-        action = DictionaryGetPacksButton(packs: packs, filled: true);
+        action = DictionaryGetPacksButton(packs: packs);
       }
     }
     return Column(

@@ -302,6 +302,23 @@ void main() {
         );
       });
 
+      test('keys by the case-sensitive glossary terms, copied', () {
+        final terms = {'World'};
+        TranslationRequest withTerms(Set<String> terms) => request.copyWith(
+          options: TranslationOptions(
+            glossary: const {'World': 'Erde'},
+            caseSensitiveGlossaryTerms: terms,
+          ),
+        );
+        cache.store(claude, withTerms(terms), result('Hallo Erde'));
+        terms.clear();
+        expect(cache.lookup(claude, withTerms(terms)), isNull);
+        expect(
+          cache.lookup(claude, withTerms({'World'})),
+          result('Hallo Erde'),
+        );
+      });
+
       test('keys an auto source by the recent source languages', () {
         // They steer the detection of short text, so a result made for
         // other recent languages must not be served.

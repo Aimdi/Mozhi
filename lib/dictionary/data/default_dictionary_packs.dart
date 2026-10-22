@@ -26,17 +26,23 @@ DictionaryPacks? _shared;
 DictionaryPacks defaultDictionaryPacks() => _shared ??= DictionaryPacks(
   catalog: bundledDictionaryCatalog(),
   storage: createDictionaryPackStorage(),
-  httpClient: _SessionClient(),
+  httpClient: SessionHttpClient(),
   isMeteredConnection: MeteredNetwork.instance.isMetered,
-  downloadUrls: (pack) {
-    final source = ModelSource.current;
-    return dictionaryPackDownloadUrls(
-      pack,
-      mirror: source.mirror(),
-      fallbackToDefault: source.fallsBackToDefault,
-    );
-  },
+  downloadUrls: dictionaryPackUrls,
 );
+
+/// Where [pack] is downloaded from with [source] (default
+/// [ModelSource.current], the settings' model source): its mirror's
+/// `dictionary/<id>.mzd`, then the catalogue's URL when the source falls
+/// back to the original publishers; the catalogue's URL without a mirror.
+List<Uri> dictionaryPackUrls(DictionaryPackInfo pack, {ModelSource? source}) {
+  final model = source ?? ModelSource.current;
+  return dictionaryPackDownloadUrls(
+    pack,
+    mirror: model.mirror(),
+    fallbackToDefault: model.fallsBackToDefault,
+  );
+}
 
 /// The catalogue bundled with the app ([dictionaryCatalogJson]), or an
 /// empty one when it cannot be read.
@@ -62,8 +68,9 @@ DictionaryPacks? maybeDictionaryPacks(BuildContext context) {
 }
 
 /// Sends every request with the client of [NetworkSession.current] at that
-/// moment. Closing it does nothing: the session owns the client.
-class _SessionClient extends http.BaseClient {
+/// moment (its proxy, network rules and request log; also in a browser).
+/// Closing it does nothing: the session owns the client.
+class SessionHttpClient extends http.BaseClient {
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) =>
       NetworkSession.current.client.send(request);

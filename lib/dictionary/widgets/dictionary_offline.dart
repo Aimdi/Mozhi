@@ -145,33 +145,16 @@ class DictionarySuggestions extends StatelessWidget {
 
 /// "Get dictionaries": opens the dictionaries screen for [packs].
 class DictionaryGetPacksButton extends StatelessWidget {
-  const new({required this.packs, this.filled = false, super.key});
+  const new({required this.packs, super.key});
 
   final DictionaryPacks packs;
 
-  /// A filled button (the main action) rather than an outlined one.
-  final bool filled;
-
   @override
-  Widget build(BuildContext context) {
-    final label = Text(context.l10n.dictionaryGetDictionaries);
-    const icon = Icon(Icons.download_outlined);
-    void open() => unawaited(openDictionaryPacks(context, packs));
-    const shape = StadiumBorder();
-    return filled
-        ? FilledButton.icon(
-            key: const Key('dictionary_get_packs'),
-            style: FilledButton.styleFrom(shape: shape),
-            onPressed: open,
-            icon: icon,
-            label: label,
-          )
-        : OutlinedButton.icon(
-            key: const Key('dictionary_get_packs'),
-            style: OutlinedButton.styleFrom(shape: shape),
-            onPressed: open,
-            icon: icon,
-            label: label,
-          );
-  }
+  Widget build(BuildContext context) => FilledButton.icon(
+    key: const Key('dictionary_get_packs'),
+    style: FilledButton.styleFrom(shape: const StadiumBorder()),
+    onPressed: () => unawaited(openDictionaryPacks(context, packs)),
+    icon: const Icon(Icons.download_outlined),
+    label: Text(context.l10n.dictionaryGetDictionaries),
+  );
 }

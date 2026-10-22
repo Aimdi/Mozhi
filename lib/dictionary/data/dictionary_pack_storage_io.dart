@@ -14,12 +14,15 @@ const dictionaryPacksFolder = 'dictionary';
 /// The app's pack storage: [FileDictionaryPackStorage] in
 /// `<support>/dictionary` (not backed up, removed with the app).
 DictionaryPackStorage createDictionaryPackStorage() =>
-    FileDictionaryPackStorage(
-      root: () async => Directory(
-        '${(await getApplicationSupportDirectory()).path}'
-        '${Platform.pathSeparator}$dictionaryPacksFolder',
-      ),
-    );
+    FileDictionaryPackStorage(root: _supportFolder);
+
+// coverage:ignore-start
+// A platform call: only in the app.
+Future<Directory> _supportFolder() async => Directory(
+  '${(await getApplicationSupportDirectory()).path}'
+  '${Platform.pathSeparator}$dictionaryPacksFolder',
+);
+// coverage:ignore-end
 
 /// Dictionary packs as files in an app-private directory:
 ///
@@ -56,9 +59,11 @@ class FileDictionaryPackStorage implements DictionaryPackStorage {
         final pack = await _readRecord(entry);
         if (pack != null) packs.add(pack);
       }
+      // coverage:ignore-start
     } on FileSystemException {
       // Unreadable directory: nothing installed.
     }
+    // coverage:ignore-end
     return packs..sort((a, b) => a.id.compareTo(b.id));
   }
 
@@ -105,9 +110,11 @@ class FileDictionaryPackStorage implements DictionaryPackStorage {
           await _deleteQuietly(entry);
         }
       }
+      // coverage:ignore-start
     } on FileSystemException {
       // Best effort.
     }
+    // coverage:ignore-end
   }
 
   Future<void> _install(File part, StoredDictionaryPack pack) async {
@@ -179,9 +186,11 @@ class FileDictionaryPackStorage implements DictionaryPackStorage {
   static Future<void> _deleteQuietly(FileSystemEntity entity) async {
     try {
       if (entity.existsSync()) await entity.delete(recursive: true);
+      // coverage:ignore-start
     } on FileSystemException {
       // Best effort: leftovers are removed by the next cleanUp().
     }
+    // coverage:ignore-end
   }
 }
 
