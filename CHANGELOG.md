@@ -278,6 +278,9 @@ in `-rc.N`).
 
 ### Fixed
 
+- **Saving in the web app** (exporting favorites, a phrasebook collection
+  or flashcards, saving a document) now says it was saved: the browser's
+  download used to count as cancelled.
 - **Settings and API keys:** keys are no longer rewritten on every
   settings change, and a storage error no longer goes unnoticed: when the
   settings or a key can't be saved, the app says so. The change lasts

@@ -14,10 +14,10 @@ const {
   typeSource,
 } = require('./helpers');
 
-// A text the mock doesn't look up in its dictionary, so it answers
-// "[AI→French (Français)] <text>".
-const TEXT = 'Where is the station?';
-const TRANSLATION = `[AI→French (Français)] ${TEXT}`;
+// A phrase the mock really translates: an echo of the English text would be
+// flagged as the wrong language and translated by another engine.
+const TEXT = 'Thank you';
+const TRANSLATION = 'merci';
 const COLLECTION = 'Trip to Lisbon';
 
 test.beforeEach(async ({ page }) => {
@@ -42,7 +42,10 @@ test('a translation goes into a new collection, which exports as CSV', async ({
   const name = page.getByRole('textbox', { name: /^Name/ });
   await fillField(name, COLLECTION);
   await page.getByRole('button', { name: 'Create' }).click();
-  await expect(page.getByText(`Added to ${COLLECTION}`)).toBeVisible();
+  // A snack bar with an action is a group named by its message.
+  await expect(
+    page.getByRole('group', { name: `Added to ${COLLECTION}` }),
+  ).toBeVisible();
 
   // The phrasebook lists it, from More tools.
   await page.getByRole('button', { name: 'More tools' }).click();
@@ -53,8 +56,10 @@ test('a translation goes into a new collection, which exports as CSV', async ({
   await expect(row).toBeVisible();
   await expect(row).toHaveAccessibleName(/1 phrase/);
   await row.click();
-  await expect(page.getByText(TEXT, { exact: true })).toBeVisible();
-  await expect(page.getByText(TRANSLATION, { exact: true })).toBeVisible();
+  // The phrase and its translation read as one row.
+  await expect(
+    page.getByText(new RegExp(`^${TEXT}\\s+${TRANSLATION}$`)),
+  ).toBeVisible();
   await expect(
     page.getByRole('button', { name: 'Listen to the translation' }),
   ).toBeVisible();

@@ -29,7 +29,8 @@ abstract interface class DocumentFileService {
   Future<PickedFile?> pickFile({required List<String> extensions});
 
   /// Lets the user save [bytes] (a download on the web). Returns false when
-  /// the user cancelled.
+  /// the user cancelled (never on the web: a download can't be cancelled
+  /// before the browser takes it).
   Future<bool> saveFile({
     required String fileName,
     required Uint8List bytes,
@@ -91,7 +92,8 @@ class PlatformDocumentFileService implements DocumentFileService {
       bytes: bytes,
       mimeType: mimeType,
     );
-    return uri != null;
+    // On the web the picker starts a download and returns null.
+    return kIsWeb || uri != null;
   }
 
   @override
