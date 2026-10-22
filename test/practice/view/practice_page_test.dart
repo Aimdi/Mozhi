@@ -545,7 +545,8 @@ void main() {
     tester,
   ) async {
     final fixture = _fixture(favorites: 0);
-    await tester.runAsync(() async {
+    // In the test's zone: the stores only need microtasks.
+    await (() async {
       final trip = await fixture.phrasebook.createCollection('Trip');
       final addition = await fixture.phrasebook.addPhrase(
         const PhraseDraft(
@@ -564,7 +565,7 @@ void main() {
       await fixture.practice.saveSettings(
         const PracticeSettings(directions: {CardDirection.recognize}),
       );
-    });
+    })();
     final harness = _Harness(fixture);
     await harness.pump(tester);
     await tester.tap(find.byKey(const Key('practice_start')));

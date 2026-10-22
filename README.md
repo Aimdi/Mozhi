@@ -106,7 +106,7 @@ history anywhere.
 - Material 3 with Material You colours, dark mode and pure-black mode;
   four tabs (Translate, Dictionary, Proofread, Conversation) in a labelled
   bottom bar on phones and a sidebar on tablets and wide browser windows,
-  with **History** and **Settings** (searchable, in seven categories) as
+  with **History** and **Settings** (searchable, in eight categories) as
   buttons in every tab's top bar. Keyboard shortcuts, a visible focus ring
   and screen-reader support, also in the web app.
 

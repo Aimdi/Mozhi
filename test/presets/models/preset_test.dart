@@ -214,4 +214,97 @@ void main() {
       expect(PresetCollection.tryParse({'presets': 'x'}), isNull);
     });
   });
+
+  group('change times', () {
+    final at = DateTime.utc(2026, 10, 20, 9, 30);
+    final stamped = Preset(id: 'a', name: 'A', updatedAt: at);
+
+    test('a preset writes its updatedAt (UTC) only when it has one', () {
+      expect(const Preset(id: 'a').toJson(), isNot(contains('updatedAt')));
+      expect(
+        Preset(id: 'a', updatedAt: at.toLocal()).toJson()['updatedAt'],
+        '2026-10-20T09:30:00.000Z',
+      );
+    });
+
+    test('a preset reads its updatedAt back, ignoring invalid ones', () {
+      expect(Preset.fromJson(stamped.toJson()).updatedAt, at);
+      expect(
+        Preset.fromJson(const {'id': 'a', 'updatedAt': 'soon'}).updatedAt,
+        isNull,
+      );
+      expect(
+        Preset.fromJson(const {'id': 'a', 'updatedAt': 5}).updatedAt,
+        isNull,
+      );
+      expect(Preset.fromJson(const {'id': 'a'}).updatedAt, isNull);
+    });
+
+    test('modifiedAt falls back to the epoch', () {
+      expect(stamped.modifiedAt, at);
+      expect(const Preset(id: 'a').modifiedAt, DateTime.utc(1970));
+    });
+
+    test('are not part of equality', () {
+      expect(stamped, const Preset(id: 'a', name: 'A'));
+    });
+
+    test('copyWith keeps or sets updatedAt', () {
+      final later = at.add(const Duration(days: 1));
+      expect(stamped.copyWith(name: 'B').updatedAt, at);
+      expect(stamped.copyWith(updatedAt: later).updatedAt, later);
+    });
+
+    test('withoutChangeTime drops it', () {
+      const plain = Preset(id: 'a', name: 'A');
+      expect(stamped.withoutChangeTime().updatedAt, isNull);
+      expect(stamped.withoutChangeTime(), stamped);
+      expect(identical(plain.withoutChangeTime(), plain), isTrue);
+    });
+
+    test('a collection round-trips its change times', () {
+      final collection = PresetCollection(
+        presets: [stamped],
+        defaultId: 'a',
+        orderUpdatedAt: at,
+        defaultUpdatedAt: at.add(const Duration(hours: 1)),
+      );
+      final json = collection.toJson();
+      expect(json['orderUpdatedAt'], '2026-10-20T09:30:00.000Z');
+      expect(json['defaultUpdatedAt'], '2026-10-20T10:30:00.000Z');
+      final parsed = PresetCollection.tryParse(json)!;
+      expect(parsed.orderUpdatedAt, at);
+      expect(parsed.defaultUpdatedAt, at.add(const Duration(hours: 1)));
+      expect(parsed.presets.single.updatedAt, at);
+    });
+
+    test('a collection without change times writes and reads none', () {
+      const collection = PresetCollection(presets: [Preset(id: 'a')]);
+      final json = collection.toJson();
+      expect(json, isNot(contains('orderUpdatedAt')));
+      expect(json, isNot(contains('defaultUpdatedAt')));
+      final parsed = PresetCollection.tryParse({
+        ...json,
+        'orderUpdatedAt': 'later',
+      })!;
+      expect(parsed.orderUpdatedAt, isNull);
+      expect(parsed.defaultUpdatedAt, isNull);
+      expect(
+        PresetCollection.tryParse([const Preset(id: 'a').toJson()])!
+            .orderUpdatedAt,
+        isNull,
+      );
+    });
+
+    test('a collection compares without its change times', () {
+      expect(
+        PresetCollection(
+          presets: const [Preset(id: 'a')],
+          orderUpdatedAt: at,
+          defaultUpdatedAt: at,
+        ),
+        const PresetCollection(presets: [Preset(id: 'a')]),
+      );
+    });
+  });
 }

@@ -1394,7 +1394,7 @@ field, then eight categories, each on a page of its own:
 | Category | What it holds |
 | --- | --- |
 | **General** | App language, tab order, haptic feedback, multiline input |
-| **Privacy & data** | **Privacy** (privacy mode, incognito, screenshot blocking, hiding personal data), **History** (saving, automatic deletion, export and import, recent language pairs), **Network** (approved pairs and cloud providers, HTTP proxy, network activity) and **Data** (**Clear history** and **Delete all local data**, last and in red) |
+| **Privacy & data** | **Privacy** (privacy mode, incognito, screenshot blocking, hiding personal data), **History** (saving, automatic deletion, export and import, the phrasebook, recent language pairs), **Network** (approved pairs and cloud providers, HTTP proxy, network activity) and **Data** (**Clear history** and **Delete all local data**, last and in red) |
 | **Backup & sync** | **Encrypted backup** ([**Back up now**](#backup-and-restore) with the date of the last backup, **Restore from a backup**), then sync and phone to phone |
 | **Translation engines** | Offline languages, Mozhi instances, translation services (DeepL API, LibreTranslate), quality modes, **Remember quality selection** and **Instant translate** |
 | **AI** (marked **Advanced**) | AI providers, the AI assistant for insights, presets, glossaries, usage & costs |
