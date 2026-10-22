@@ -85,7 +85,8 @@ void main() {
       expect(_tool(TranslateTool.recentPairs), findsNothing);
       await tester.tap(_tool(TranslateTool.image));
       await tester.pumpAndSettle();
-      verify(() => harness.router.push<void>('/translate/image')).called(1);
+      verify(() => harness.router.push<void>(TranslateTool.image.route!))
+          .called(1);
     });
 
     testWidgets('opens documents and web pages', (tester) async {

@@ -125,6 +125,18 @@ void main() {
       expect(listTile.subtitle, isNull);
     });
 
+    testWidgets('a mode without an engine uses the usual one', (
+      tester,
+    ) async {
+      await pump(tester, state: const AppSettings(bestEngineId: 'ai:p1'));
+      expect(find.text('Not set'), findsOneWidget);
+      expect(
+        find.text('Uses your usual engine. Tap to choose another one.'),
+        findsOneWidget,
+      );
+      expect(find.text('Tap to choose an engine'), findsNothing);
+    });
+
     testWidgets('names unavailable engines', (tester) async {
       await pump(
         tester,

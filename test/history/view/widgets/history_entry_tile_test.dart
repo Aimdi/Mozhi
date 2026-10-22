@@ -92,8 +92,8 @@ void main() {
       // A short tag, read as the whole pair.
       expect(find.text('\u2068FR\u2069 → \u2068EN\u2069'), findsOneWidget);
       expect(
-        tester.getSemantics(find.byKey(HistoryEntryTile.pairTagKey)),
-        isSemantics(label: _pair),
+        tester.getSemantics(find.text('Bonjour')).label,
+        'Bonjour\nHello\n$_pair',
       );
       // The engine and the time are left to the details.
       expect(find.textContaining('Google'), findsNothing);

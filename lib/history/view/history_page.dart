@@ -749,7 +749,7 @@ class _HistoryViewState extends State<HistoryView>
         });
       for (final MapEntry(key: pair, value: entries) in groups) {
         rows
-          ..add((pair, entries.length))
+          ..add((pair, entries.length, entries.any((e) => e.isDictionary)))
           ..addAll(entries);
       }
     } else {
@@ -797,12 +797,13 @@ class _HistoryViewState extends State<HistoryView>
                 child: Text(_dayLabel(l10n, day), style: headerStyle),
               ),
             ),
-            (final HistoryPair pair, final int count) => _PairHeader(
-              key: ValueKey(pair),
-              pair: pair,
-              count: count,
-              lookUps: state.hasLookUps,
-            ),
+            (final HistoryPair pair, final int count, final bool lookUps) =>
+              _PairHeader(
+                key: ValueKey(pair),
+                pair: pair,
+                count: count,
+                lookUps: lookUps,
+              ),
             _ => const SizedBox.shrink(), // coverage:ignore-line
           },
         ),
