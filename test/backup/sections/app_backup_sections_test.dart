@@ -127,4 +127,86 @@ void main() {
     expect((await newPhone.settings.load()).providers.single.apiKey, isNull);
     expect(newPhone.secrets.values, isNot(contains('apikey.p')));
   });
+
+  group('historyMaxAge', () {
+    test('reads the stored retention', () async {
+      final device = _Device();
+      expect(await historyMaxAge(device.settings), isNull);
+
+      await device.settings.save(
+        const AppSettings(historyRetention: HistoryRetention.week),
+      );
+      expect(await historyMaxAge(device.settings), const Duration(days: 7));
+
+      device.prefs.values[SettingsRepository.settingsKey] = '{broken';
+      expect(await historyMaxAge(device.settings), isNull);
+
+      device.prefs.values[SettingsRepository.settingsKey] = '[]';
+      expect(await historyMaxAge(device.settings), isNull);
+    });
+  });
+
+  test("merging history applies this device's retention", () async {
+    final phone = _Device();
+    final old = HistoryEntry(
+      id: 'old',
+      text: 'Hallo',
+      translation: 'Hello',
+      source: const Language(code: 'de', name: 'German'),
+      target: const Language(code: 'en', name: 'English'),
+      engineId: 'mozhi:google',
+      engineName: 'Google',
+      createdAt: DateTime.now().subtract(const Duration(days: 30)),
+    );
+    await phone.history.add(old);
+    await phone.history.add(_entry);
+    final snapshot = await phone.registry.snapshot(includeSecrets: false);
+    final tablet = _Device();
+    await tablet.settings.save(
+      const AppSettings(historyRetention: HistoryRetention.week),
+    );
+
+    await tablet.registry.restore(
+      snapshot,
+      mode: BackupRestoreMode.merge,
+      only: {'history'},
+    );
+
+    expect(await tablet.history.load(), [_entry]);
+    final upload = await tablet.registry.snapshot(includeSecrets: false);
+    expect((upload.sections['history']!.data! as Map)['entries'], hasLength(1));
+  });
+
+  test('presets and glossaries deleted on one device stay deleted on the '
+      'other', () async {
+    final phone = _Device();
+    final tablet = _Device();
+    final phonePresets = PresetsRepository(store: phone.prefs);
+    final phoneGlossaries = GlossaryRepository(store: phone.prefs);
+    await phonePresets.save(
+      const PresetCollection(
+        presets: [Preset(id: 'x', name: 'Mine')],
+      ),
+    );
+    await phoneGlossaries.save([_glossary]);
+    await tablet.registry.restore(
+      await phone.registry.snapshot(includeSecrets: false),
+      mode: BackupRestoreMode.merge,
+    );
+
+    await phonePresets.save(const PresetCollection(), deleted: ['x']);
+    await phoneGlossaries.save(const [], deleted: ['g']);
+    await tablet.registry.restore(
+      await phone.registry.snapshot(includeSecrets: false),
+      mode: BackupRestoreMode.merge,
+    );
+
+    expect(
+      (await PresetsRepository(
+        store: tablet.prefs,
+      ).load()).presets.map((p) => p.id),
+      isNot(contains('x')),
+    );
+    expect(await GlossaryRepository(store: tablet.prefs).load(), isEmpty);
+  });
 }

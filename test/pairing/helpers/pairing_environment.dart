@@ -8,8 +8,9 @@ import 'package:mozhi/pairing/protocol/pairing_connection.dart';
 import 'loopback.dart';
 
 /// A [PairingEnvironment] on loopback: the given addresses (127.0.0.1),
-/// listeners and connections that allow loopback, files in [temp], and a
-/// record of the screen being kept on ([screen]).
+/// listeners and connections that allow loopback (with `maxFailures`
+/// wrong codes before one is burnt), files in [temp], and a record of the
+/// screen being kept on ([screen]).
 class TestPairingEnvironment {
   new(
     this.temp, {
@@ -17,6 +18,7 @@ class TestPairingEnvironment {
     List<String> addresses = const ['127.0.0.1'],
     Duration codeValidity = const Duration(minutes: 1),
     PairingTimeouts timeouts = const PairingTimeouts(),
+    int maxFailures = 30,
     Exception? bindError,
   }) {
     environment = PairingEnvironment(
@@ -28,6 +30,7 @@ class TestPairingEnvironment {
         final listener = await PairingListener.bind(
           address,
           validity: validity,
+          maxFailures: maxFailures,
           policy: loopbackPolicy,
         );
         listeners.add(listener);

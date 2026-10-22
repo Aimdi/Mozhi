@@ -12,7 +12,8 @@ import 'package:mozhi/pairing/protocol/pairing_handshake.dart';
 /// Version of the messages inside the channel (`hello`'s `v`).
 const pairingProtocolVersion = 1;
 
-/// Time for the key agreement and the first messages of a connection.
+/// Time for the key agreement and the `hello` messages of a connection,
+/// in all.
 const pairingHandshakeTimeout = Duration(seconds: 10);
 
 /// The receiving phone's side ([bind]): listens on one of its private
@@ -20,15 +21,25 @@ const pairingHandshakeTimeout = Duration(seconds: 10);
 /// validity, for one phone that knows [code].
 ///
 /// * Connections from addresses the [policy] does not allow (anything but
-///   private IPv4 addresses) are closed at once, and so are connections
-///   while another one is setting up or after one has succeeded.
+///   private IPv4 addresses) are closed at once, and so is every
+///   connection after one has succeeded.
 /// * A connection is set up when the [PairingHandshake] and the `hello`
-///   messages complete within [handshakeTimeout]; [connection] then
-///   completes with its channel and the listener stops listening.
-/// * A phone that does not know the secret fails the first encrypted
-///   frame; after [maxAttempts] of those the code is burnt and
-///   [connection] fails with [PairingExpiredException], as it does at
-///   [expiresAt].
+///   messages complete within [handshakeTimeout] (one deadline for all of
+///   it); [connection] then completes with its channel, and the listener
+///   closes the others and stops listening.
+/// * Up to [maxPending] connections set up at once, so that one that
+///   stalls cannot keep the real phone out. When another one arrives, the
+///   oldest connection of the address with the most of them is closed (a
+///   device that opens many loses its own first; a real phone needs well
+///   under a second).
+/// * Only a first encrypted frame that does not decrypt proves a wrong
+///   code (timeouts and malformed handshakes prove nothing, and anybody
+///   can cause them). After [maxAttempts] of those from one address, that
+///   address is refused for as long as the code works; after
+///   [maxFailures] in all, the code is burnt and [connection] fails with
+///   [PairingExpiredException], as it does at [expiresAt]. One device
+///   therefore cannot burn the code, and guesses stay few (the secret has
+///   64 bits).
 class PairingListener {
   new _(
     this._server,
@@ -36,6 +47,8 @@ class PairingListener {
     this.expiresAt, {
     required this.policy,
     required this.maxAttempts,
+    required this.maxFailures,
+    required this.maxPending,
     required this.handshakeTimeout,
     required Duration validity,
   }) {
@@ -53,6 +66,8 @@ class PairingListener {
     InternetAddress address, {
     Duration validity = const Duration(minutes: 5),
     int maxAttempts = 3,
+    int maxFailures = 30,
+    int maxPending = 4,
     PairingAddressPolicy policy = const PairingAddressPolicy(),
     Duration handshakeTimeout = pairingHandshakeTimeout,
     Random? random,
@@ -70,6 +85,8 @@ class PairingListener {
       now().add(validity),
       policy: policy,
       maxAttempts: maxAttempts,
+      maxFailures: maxFailures,
+      maxPending: maxPending,
       handshakeTimeout: handshakeTimeout,
       validity: validity,
     );
@@ -82,15 +99,29 @@ class PairingListener {
   final DateTime expiresAt;
 
   final PairingAddressPolicy policy;
+
+  /// Wrong codes from one address before it is refused.
   final int maxAttempts;
+
+  /// Wrong codes in all before the code is burnt.
+  final int maxFailures;
+
+  /// Connections that may set up at once.
+  final int maxPending;
+
   final Duration handshakeTimeout;
 
   final ServerSocket _server;
   late final StreamSubscription<Socket> _subscription;
   late final Timer _expiry;
   final Completer<PairingChannel> _result = Completer();
-  bool _busy = false;
-  int _failures = 0;
+
+  /// The connections setting up, oldest first.
+  final List<_Pending> _pending = [];
+
+  /// Wrong codes by address, and in all.
+  final Map<String, int> _failures = {};
+  int _totalFailures = 0;
 
   /// The channel to the first phone that knew [code].
   Future<PairingChannel> get connection => _result.future;
@@ -100,16 +131,40 @@ class PairingListener {
   Future<void> close() => _finish(const PairingClosedException());
 
   void _onSocket(Socket socket) {
-    if (_result.isCompleted || _busy || !policy.allows(socket.remoteAddress)) {
+    final address = socket.remoteAddress;
+    if (_result.isCompleted ||
+        !policy.allows(address) ||
+        (_failures[address.address] ?? 0) >= maxAttempts) {
       socket.destroy();
       return;
     }
-    _busy = true;
-    unawaited(_accept(socket));
+    final pending = _Pending(socket, address.address);
+    _pending.add(pending);
+    if (_pending.length > maxPending) _dropOne();
+    unawaited(_accept(pending));
   }
 
-  Future<void> _accept(Socket socket) async {
-    final input = PairingByteReader(socket);
+  /// Closes the oldest connection of the address with the most of them
+  /// (all of them counted, the one that just arrived included, which is
+  /// never the one closed).
+  void _dropOne() {
+    final counts = <String, int>{};
+    for (final pending in _pending) {
+      counts.update(pending.address, (count) => count + 1, ifAbsent: () => 1);
+    }
+    final most = counts.values.reduce(max);
+    _drop(_pending.firstWhere((pending) => counts[pending.address] == most));
+  }
+
+  void _drop(_Pending pending) {
+    _pending.remove(pending);
+    pending.drop();
+  }
+
+  Future<void> _accept(_Pending pending) async {
+    final socket = pending.socket;
+    final input = pending.input;
+    final deadline = Timer(handshakeTimeout, () => _drop(pending));
     try {
       final keys = await PairingHandshake.respond(
         input: input,
@@ -124,22 +179,41 @@ class PairingListener {
           expected: const {'hello'},
         ),
       );
-      await channel.send('hello', const {'v': pairingProtocolVersion});
-      if (_result.isCompleted) {
+      if (_result.isCompleted || pending.dropped) {
         channel.destroy();
         return;
       }
+      // This phone knows the code: it is the one (the others are closed),
+      // and its hello goes out first.
+      deadline.cancel();
+      _pending.remove(pending);
+      final hello = channel.send('hello', const {'v': pairingProtocolVersion});
       _result.complete(channel);
       await _stop();
+      await hello;
     } on Object catch (error) {
-      socket.destroy();
-      await input.cancel();
-      if (error is PairingAuthenticationException &&
-          ++_failures >= maxAttempts) {
-        await _finish(const PairingExpiredException(tooManyAttempts: true));
-      }
+      _drop(pending);
+      if (error is PairingAuthenticationException) _wrongCode(pending.address);
     } finally {
-      _busy = false;
+      deadline.cancel();
+      _pending.remove(pending);
+    }
+  }
+
+  /// Counts a wrong code from [address].
+  void _wrongCode(String address) {
+    final count = _failures.update(
+      address,
+      (count) => count + 1,
+      ifAbsent: () => 1,
+    );
+    if (count >= maxAttempts) {
+      for (final pending in [..._pending]) {
+        if (pending.address == address) _drop(pending);
+      }
+    }
+    if (++_totalFailures >= maxFailures) {
+      unawaited(_finish(const PairingExpiredException(tooManyAttempts: true)));
     }
   }
 
@@ -150,8 +224,30 @@ class PairingListener {
 
   Future<void> _stop() async {
     _expiry.cancel();
+    [..._pending].forEach(_drop);
     await _subscription.cancel();
     await _server.close();
+  }
+}
+
+/// A connection to a [PairingListener] that is setting up.
+class _Pending {
+  new(this.socket, this.address) : input = PairingByteReader(socket);
+
+  final Socket socket;
+
+  /// The other end's address (a closed socket no longer tells).
+  final String address;
+
+  final PairingByteReader input;
+  bool dropped = false;
+
+  /// Closes it at once; what it waits for fails.
+  void drop() {
+    if (dropped) return;
+    dropped = true;
+    socket.destroy();
+    unawaited(input.cancel());
   }
 }
 
@@ -161,8 +257,9 @@ class PairingListener {
 /// Throws [PairingAddressException] for a code whose address the [policy]
 /// does not allow (nothing is sent), [PairingUnreachableException] when
 /// nothing answers within [connectTimeout], and the [PairingException]s
-/// of the set-up: a receiver that does not take the code closes the
-/// connection ([PairingClosedException]).
+/// of the set-up, which must complete within [handshakeTimeout] in all
+/// ([PairingTimeoutException]): a receiver that does not take the code
+/// closes the connection ([PairingClosedException]).
 Future<PairingChannel> connectPairing(
   PairingCode code, {
   PairingAddressPolicy policy = const PairingAddressPolicy(),
@@ -179,6 +276,12 @@ Future<PairingChannel> connectPairing(
   }
   socket.setOption(SocketOption.tcpNoDelay, true);
   final input = PairingByteReader(socket);
+  var expired = false;
+  final deadline = Timer(handshakeTimeout, () {
+    expired = true;
+    socket.destroy();
+    unawaited(input.cancel());
+  });
   try {
     final keys = await PairingHandshake.initiate(
       input: input,
@@ -198,7 +301,10 @@ Future<PairingChannel> connectPairing(
   } on Object {
     socket.destroy();
     await input.cancel();
+    if (expired) throw const PairingTimeoutException();
     rethrow;
+  } finally {
+    deadline.cancel();
   }
 }
 

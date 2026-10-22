@@ -231,10 +231,12 @@ class PairingSender {
 /// waits for what the other phone offers and plans each item with the
 /// [PairingLibrary]; then [decline] or [accept].
 ///
-/// Files are written into [workDirectory] (which it creates and removes)
-/// while their size and hashes are checked against this phone's plan; a
-/// file that does not match fails its item ([PairingItemOutcome.damaged])
-/// and nothing of the item is installed.
+/// Offline files are written into [workDirectory] (which it creates and
+/// removes) while their size and hashes are checked against this phone's
+/// plan; a file that does not match fails its item
+/// ([PairingItemOutcome.damaged]) and nothing of the item is installed.
+/// The data item (at most [PairingBackupItem.maxSize]) stays in memory and
+/// is never written to storage.
 class PairingReceiver {
   new(
     this._channel,
@@ -315,6 +317,11 @@ class PairingReceiver {
         final id = offered.item.id;
         final folder = Directory('${workDirectory.path}/$index');
         final files = <File>[];
+        // The data (a backup, with secrets when included) is kept in
+        // memory rather than in the cache folder.
+        final data = offered.item.kind == PairingItemKind.data
+            ? BytesBuilder(copy: false)
+            : null;
         PairingItemOutcome? outcome;
         for (final expected in offered.plan.files) {
           final header = await _channel.receiveMessage(
@@ -326,11 +333,14 @@ class PairingReceiver {
               header.fields['size'] != expected.size) {
             throw const PairingProtocolException('Unexpected file');
           }
-          final file = File('${folder.path}/${expected.name}');
-          files.add(file);
+          final file = data == null
+              ? File('${folder.path}/${expected.name}')
+              : null;
+          if (file != null) files.add(file);
           final failure = await _receiveFile(
             expected,
-            outcome == null ? file : null,
+            file: outcome == null ? file : null,
+            memory: outcome == null ? data : null,
             onBytes: (bytes) {
               received += bytes;
               onProgress?.call(
@@ -349,7 +359,13 @@ class PairingReceiver {
               installing: true,
             ),
           );
-          outcome = await _library.install(offered.item, files, mode: mode);
+          outcome = data == null
+              ? await _library.install(offered.item, files, mode: mode)
+              : await _library.restore(
+                  offered.item,
+                  data.takeBytes(),
+                  mode: mode,
+                );
         }
         await _deleteQuietly(folder);
         await _channel.send('result', {'item': id, 'status': outcome.name});
@@ -373,13 +389,14 @@ class PairingReceiver {
   /// Closes the connection.
   Future<void> close() => _channel.close();
 
-  /// Receives the data of [expected] into [target] (or discards it when
-  /// null: its item failed already), checking its size and hashes. Null
-  /// when it matched; else why the item fails.
+  /// Receives the data of [expected] into [file] or [memory] (or discards
+  /// it with neither: its item failed already), checking its size and
+  /// hashes. Null when it matched; else why the item fails.
   Future<PairingItemOutcome?> _receiveFile(
-    PairingFile expected,
-    File? target, {
+    PairingFile expected, {
     required void Function(int bytes) onBytes,
+    File? file,
+    BytesBuilder? memory,
   }) async {
     final sha256 = expected.sha256 == null
         ? null
@@ -391,10 +408,10 @@ class PairingReceiver {
         ? null
         : PairingItemOutcome.failed;
     RandomAccessFile? output;
-    if (target != null && failure == null) {
+    if (file != null && failure == null) {
       try {
-        await target.parent.create(recursive: true);
-        output = await target.open(mode: FileMode.write);
+        await file.parent.create(recursive: true);
+        output = await file.open(mode: FileMode.write);
       } on FileSystemException catch (error) {
         failure = isNoSpace(error)
             ? PairingItemOutcome.noSpace
@@ -420,6 +437,7 @@ class PairingReceiver {
         }
         sha256?.add(bytes);
         sha1?.add(bytes);
+        if (failure == null) memory?.add(bytes);
         if (output != null && failure == null) {
           try {
             await output.writeFrom(bytes);

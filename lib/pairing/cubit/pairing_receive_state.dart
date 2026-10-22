@@ -20,10 +20,12 @@ enum PairingReceiveStep {
   expired,
 
   /// A phone connected; both show the numbers while it chooses what to
-  /// send.
+  /// send, and the user confirms they match
+  /// ([PairingReceiveState.numbersConfirmed]).
   connected,
 
-  /// The other phone's offer: the user picks what to take and accepts.
+  /// The other phone's offer: the user picks what to take and, once the
+  /// numbers are confirmed, accepts.
   offer,
 
   /// Receiving and installing.
@@ -48,6 +50,7 @@ class PairingReceiveState extends Equatable {
     this.code,
     this.expiresAt,
     this.sas,
+    this.numbersConfirmed = false,
     this.offered = const [],
     this.selected = const {},
     this.mode = BackupRestoreMode.merge,
@@ -68,6 +71,10 @@ class PairingReceiveState extends Equatable {
 
   /// The short authentication string of the connection.
   final String? sas;
+
+  /// Whether the user said both phones show [sas]; nothing can be
+  /// accepted before.
+  final bool numbersConfirmed;
 
   /// What the other phone offers, with what this phone makes of it.
   final List<PairingOfferedItem> offered;
@@ -109,6 +116,7 @@ class PairingReceiveState extends Equatable {
     PairingCode? code,
     DateTime? expiresAt,
     String? sas,
+    bool? numbersConfirmed,
     List<PairingOfferedItem>? offered,
     Set<String>? selected,
     BackupRestoreMode? mode,
@@ -122,6 +130,7 @@ class PairingReceiveState extends Equatable {
     code: code ?? this.code,
     expiresAt: expiresAt ?? this.expiresAt,
     sas: sas ?? this.sas,
+    numbersConfirmed: numbersConfirmed ?? this.numbersConfirmed,
     offered: offered ?? this.offered,
     selected: selected ?? this.selected,
     mode: mode ?? this.mode,
@@ -138,6 +147,7 @@ class PairingReceiveState extends Equatable {
     code,
     expiresAt,
     sas,
+    numbersConfirmed,
     offered,
     selected,
     mode,

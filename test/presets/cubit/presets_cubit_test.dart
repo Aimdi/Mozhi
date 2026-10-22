@@ -313,6 +313,104 @@ void main() {
     });
   });
 
+  group('PresetsCubit change times and tombstones', () {
+    final now = DateTime.utc(2026, 10, 20, 9);
+    final earlier = now.subtract(const Duration(days: 1));
+
+    PresetsCubit stamping() => PresetsCubit(
+      repository: PresetsRepository(
+        store: store,
+        generateId: () => 'new${counter++}',
+        clock: () => now,
+      ),
+      clock: () => now,
+    );
+
+    Map<String, Object?> tombstones() => Map.from(
+      jsonDecode(store.values[PresetsRepository.tombstonesStorageKey]!) as Map,
+    );
+
+    test('stamps what it creates', () async {
+      final cubit = stamping();
+      addTearDown(cubit.close);
+      cubit.emit(_ready([_a.copyWith(updatedAt: earlier)]));
+
+      final added = await cubit.add(
+        name: 'X',
+        options: const TranslationOptions(),
+      );
+      final copy = await cubit.duplicate('a');
+      await cubit.restoreExamples();
+      await cubit.importJson(jsonEncode([_c.toJson()]));
+
+      expect(added.updatedAt, now);
+      expect(copy!.updatedAt, now);
+      expect(cubit.state.presets.map((p) => (p.id, p.updatedAt)), [
+        ('a', earlier),
+        ('new1', now),
+        ('new0', now),
+        for (final builtIn in BuiltInPreset.values)
+          ('builtin-${builtIn.name}', now),
+        ('new2', now),
+      ]);
+      expect(stored().presets.map((p) => p.updatedAt), everyElement(isNotNull));
+    });
+
+    test('update stamps a changed preset only', () async {
+      final cubit = stamping();
+      addTearDown(cubit.close);
+      cubit.emit(_ready([_a.copyWith(updatedAt: earlier), _b]));
+
+      await cubit.update(_a.copyWith(name: ' A '));
+      expect(cubit.state.presets.first.updatedAt, earlier);
+
+      await cubit.update(_a.copyWith(name: 'Renamed'));
+      expect(cubit.state.presets.first.updatedAt, now);
+      expect(stored().presets.first.updatedAt, now);
+    });
+
+    test('restore stamps the preset put back', () async {
+      final cubit = stamping();
+      addTearDown(cubit.close);
+      cubit.emit(_ready(const [_b]));
+
+      await cubit.restore(_a.copyWith(updatedAt: earlier), index: 0);
+
+      expect(cubit.state.presets.first.updatedAt, now);
+    });
+
+    test('delete leaves a tombstone that restore drops', () async {
+      final cubit = stamping();
+      addTearDown(cubit.close);
+      cubit.emit(_ready(const [_a, _b], defaultId: 'a'));
+
+      await cubit.delete('a');
+      expect(tombstones(), {'a': now.millisecondsSinceEpoch});
+
+      await cubit.restore(_a, index: 0);
+      expect(
+        store.values,
+        isNot(contains(PresetsRepository.tombstonesStorageKey)),
+      );
+    });
+
+    test('move and setDefault stamp the order and the default', () async {
+      final cubit = stamping();
+      addTearDown(cubit.close);
+      cubit.emit(_ready(const [_a, _b]));
+      await cubit.setDefault(null);
+      await cubit.update(_a);
+      expect(stored().orderUpdatedAt, isNull);
+
+      await cubit.move(0, 1);
+      expect(stored().orderUpdatedAt, now);
+      expect(stored().defaultUpdatedAt, isNull);
+
+      await cubit.setDefault('b');
+      expect(stored().defaultUpdatedAt, now);
+    });
+  });
+
   group('PresetsState', () {
     test('defaultPreset, collection and byId', () {
       final state = _ready(const [_a, _b], defaultId: 'b');

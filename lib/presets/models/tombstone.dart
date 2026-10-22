@@ -65,8 +65,9 @@ DateTime? laterOf(DateTime? a, DateTime? b) {
   return b.isAfter(a) ? b : a;
 }
 
-/// A change time written as an ISO-8601 string; null for anything else.
+/// A change time written as an ISO-8601 string, in UTC; null for anything
+/// else.
 DateTime? parseChangeTime(Object? value) => switch (value) {
-  final String iso => DateTime.tryParse(iso)?.toLocal(),
+  final String iso => DateTime.tryParse(iso)?.toUtc(),
   _ => null,
 };

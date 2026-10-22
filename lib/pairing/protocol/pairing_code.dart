@@ -47,15 +47,22 @@ class PairingCode extends Equatable {
 
   /// The code in [input]: a pairing link (`mozhi://pair?code=…`, also the
   /// app location `/pair?code=…`) or the code itself; null when it is
-  /// neither, or its check character does not match (a typo).
+  /// neither, or its check character does not match (a typo). Never
+  /// throws, whatever [input] holds.
   static PairingCode? tryParse(String input) {
     var text = input.trim();
     if (text.isEmpty) return null;
     final uri = Uri.tryParse(text);
-    // The parameter in any case: a link typed in capitals still reads.
-    final parameter = uri?.queryParameters.entries
-        .where((entry) => entry.key.toLowerCase() == linkParameter)
-        .firstOrNull;
+    final MapEntry<String, String>? parameter;
+    try {
+      // The parameter in any case: a link typed in capitals still reads.
+      parameter = uri?.queryParameters.entries
+          .where((entry) => entry.key.toLowerCase() == linkParameter)
+          .firstOrNull;
+    } on FormatException {
+      // Bad percent-encoding (`%E0%A4`): not a link of ours, nor a code.
+      return null;
+    }
     if (uri != null && parameter != null) {
       final isLink =
           (uri.isScheme(linkScheme) && uri.host.toLowerCase() == linkHost) ||

@@ -30,3 +30,4 @@ export 'models/practice_settings.dart';
 export 'practice_routes.dart';
 export 'view/practice_page.dart';
 export 'widgets/practice_entry_points.dart';
+export 'widgets/practice_settings_tile.dart';

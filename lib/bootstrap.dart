@@ -24,6 +24,8 @@ import 'package:mozhi/phrasebook/data/phrasebook_backup_section.dart';
 import 'package:mozhi/platform/offline_engine.dart';
 import 'package:mozhi/platform/offline_speech.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
+import 'package:mozhi/practice/data/practice_backup_section.dart';
+import 'package:mozhi/practice/data/practice_repository.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/settings/models/app_languages.dart';
 import 'package:mozhi/speech/speech_service.dart';
@@ -197,12 +199,20 @@ Future<AppDependencies> createDependencies({
   final historyRepository = HistoryRepository(store: preferences);
   // The app gives it the history's favourites (App).
   final phrasebook = createPhrasebookRepository(preferences: preferences);
+  // Flashcards of the phrasebook (encrypted like the history).
+  final practice = PracticeRepository(
+    phrasebook: phrasebook,
+    store: preferences,
+  );
   // What backups, sync and pairing carry (docs/backup.md).
-  final backupRegistry = createAppBackupRegistry(
-    settings: settingsRepository,
-    history: historyRepository,
-    preferences: preferences,
-  )..register(PhrasebookBackupSection(phrasebook));
+  final backupRegistry =
+      createAppBackupRegistry(
+          settings: settingsRepository,
+          history: historyRepository,
+          preferences: preferences,
+        )
+        ..register(PhrasebookBackupSection(phrasebook))
+        ..register(PracticeBackupSection(practice));
 
   return AppDependencies(
     translationRepository: translationRepository,
@@ -218,6 +228,7 @@ Future<AppDependencies> createDependencies({
       privacyMode: () => translationRepository.privacyMode,
     ),
     phrasebookRepository: phrasebook,
+    practiceRepository: practice,
     speechService: SpeechService(
       repository: translationRepository,
       store: preferences,

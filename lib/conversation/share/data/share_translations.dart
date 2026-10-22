@@ -51,19 +51,25 @@ class ShareLanguageState extends Equatable {
     required this.mode,
     this.consent,
     this.waiting = 0,
+    this.pending = 0,
   });
 
   final Language language;
   final ShareLanguageMode mode;
 
-  /// What the host would allow ([ShareLanguageMode.needsConsent]).
+  /// What the host would allow ([ShareLanguageMode.needsConsent]): one
+  /// language pair (a language the guests read from both of the
+  /// conversation's languages asks once per pair).
   final ConsentRequiredException? consent;
 
-  /// Turns waiting for that consent.
+  /// Turns waiting for that consent (that pair only).
   final int waiting;
 
+  /// Turns being translated into it right now, or queued to be.
+  final int pending;
+
   @override
-  List<Object?> get props => [language, mode, consent, waiting];
+  List<Object?> get props => [language, mode, consent, waiting, pending];
 }
 
 /// Translates a shared conversation's turns into the guests' languages

@@ -162,7 +162,11 @@ void main() {
     await tester.tap(find.byKey(const Key('practice_end')));
     await settle(tester);
     expect(find.text('Nothing to review right now'), findsOneWidget);
-    expect(find.byKey(const Key('practice_keep_going')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('practice_keep_going')));
+    await settle(tester);
+    expect(find.text('2 cards left'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('practice_end')));
+    await settle(tester);
     await tester.tap(find.byKey(const Key('practice_done')));
     await settle(tester);
     expect(find.byKey(const Key('practice_start')), findsOneWidget);
@@ -579,15 +583,16 @@ void main() {
     // Easy: nothing else is due; the summary says when.
     await tester.tap(find.byKey(const Key('practice_rate_easy')));
     await settle(tester);
-    expect(find.text('Next cards due in 16 days'), findsOneWidget);
+    // Fuzz: about 16 days.
+    expect(find.textContaining('Next cards due in 1'), findsOneWidget);
     expect(find.byKey(const Key('practice_keep_going')), findsNothing);
     await tester.tap(find.byKey(const Key('practice_done')));
     await settle(tester);
     expect(find.text("You're all caught up"), findsOneWidget);
-    expect(find.text('Next cards due in 16 days'), findsOneWidget);
+    expect(find.textContaining('Next cards due in 1'), findsOneWidget);
   });
 
-  testWidgets('a typed answer nearly right, with extra words', skip: true, (tester) async {
+  testWidgets('a typed answer nearly right, with extra words', (tester) async {
     final fixture = _fixture(favorites: 1);
     await tester.runAsync(
       () => fixture.practice.saveSettings(
@@ -615,7 +620,7 @@ void main() {
     expect(find.text('Also said: mais'), findsOneWidget);
   });
 
-  testWidgets('speaking practice explains failures; keys toggle the mic', skip: true, (
+  testWidgets('speaking practice explains failures; keys toggle the mic', (
     tester,
   ) async {
     final fixture = _fixture(favorites: 1);

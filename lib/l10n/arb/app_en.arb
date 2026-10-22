@@ -11924,5 +11924,78 @@
   "onboardingRestoreBackup": "Restore from a backup",
   "@onboardingRestoreBackup": {
     "description": "onboardingRestoreBackup"
+  },
+  "practiceSettingsTileSubtitle": "Flashcards of your phrases, short review sessions, export to Anki",
+  "@practiceSettingsTileSubtitle": {
+    "description": "practiceSettingsTileSubtitle"
+  },
+  "practiceSearchKeywords": "Flashcards, spaced repetition, FSRS, Anki, pronunciation",
+  "@practiceSearchKeywords": {
+    "description": "practiceSearchKeywords"
+  },
+  "pairingAcceptAfterNumbers": "Check the numbers first: you can accept once you have confirmed that both phones show the same one.",
+  "@pairingAcceptAfterNumbers": {
+    "description": "pairingAcceptAfterNumbers"
+  },
+  "backupRestoreNewProviders": "New AI and translation providers: {providers}",
+  "@backupRestoreNewProviders": {
+    "description": "Under Settings when reviewing a backup: the providers in it that this device does not have (or has on another server). providers is a comma-separated list like \"Name (host)\".",
+    "placeholders": {
+      "providers": {
+        "type": "String"
+      }
+    }
+  },
+  "backupRestoreNewInstances": "New Mozhi instances, used only with Replace: {instances}",
+  "@backupRestoreNewInstances": {
+    "description": "Under Settings when reviewing a backup: Mozhi instance hosts in it that this device does not have; only Replace takes them over.",
+    "placeholders": {
+      "instances": {
+        "type": "String"
+      }
+    }
+  },
+  "backupRestoreAddedProviders": "Added AI and translation providers: {providers}",
+  "@backupRestoreAddedProviders": {
+    "description": "Restore result under Settings: providers that were added. providers is a comma-separated list like \"Name (host)\".",
+    "placeholders": {
+      "providers": {
+        "type": "String"
+      }
+    }
+  },
+  "backupRestoreAddedInstances": "Added Mozhi instances: {instances}",
+  "@backupRestoreAddedInstances": {
+    "description": "Restore result under Settings: Mozhi instance hosts that were added (Replace).",
+    "placeholders": {
+      "instances": {
+        "type": "String"
+      }
+    }
+  },
+  "backupRestoreSkippedInstances": "Not added, because Merge never adds Mozhi instances: {instances}",
+  "@backupRestoreSkippedInstances": {
+    "description": "Restore result under Settings after Merge: Mozhi instance hosts in the backup that were left out.",
+    "placeholders": {
+      "instances": {
+        "type": "String"
+      }
+    }
+  },
+  "backupRestoreProviderHost": "{name} ({host})",
+  "@backupRestoreProviderHost": {
+    "description": "A provider in the backup lists: its name and the server host it sends text to.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "backupRestoreSettingsModesBody": "Settings: Merge adds the backup's AI providers (used only once you choose them) but not its Mozhi instances, since Mozhi can send your text to any instance in your list by itself. Replace uses the backup's providers and instances.",
+  "@backupRestoreSettingsModesBody": {
+    "description": "Shown when a backup holds settings, below what Merge and Replace do."
   }
 }

@@ -76,7 +76,7 @@ choosing its own:
 | History and favorites | Yes | Per entry, the newer copy wins; a deletion (kept as a [deletion record](backup.md) for 180 days) wins over older copies |
 | Phrasebooks | Yes | Per phrase, collection and note, the newer copy wins; deletions win over older copies |
 | Practice progress | Yes | Per card, as the [practice](practice.md) section merges |
-| Presets, Glossaries | Yes | New ones are added; each device keeps its own copy of one it already has (see [Limits](#limits)) |
+| Presets, Glossaries | Yes | Per preset and glossary, the newer copy wins; a deletion (kept as a [deletion record](backup.md) for 180 days) wins over older copies; the order, and the default preset, of the device that changed them last |
 | Settings | **No** | This device keeps its own settings and gets the AI providers, Mozhi instances and pinned languages it doesn't have yet |
 
 The settings are left out unless you choose them: some only make sense on
@@ -334,13 +334,20 @@ parameters run as JavaScript).
 - One file holds everything synced, so each change uploads the whole
   (compressed, encrypted) snapshot, usually tens to a few hundred
   kilobytes. Mozhi reads at most 64 MiB.
-- **Presets, glossaries and settings** carry no change times yet: a new
-  one reaches your other devices, but editing or deleting one does not (a
-  deleted preset comes back from a device that still has it). Change them
-  on each device, or sync them only from one.
-- **Delete history automatically** works on each device alone: what it
-  removes here isn't deleted on your other devices (and a sync brings it
-  back until the next clean-up). Deleting entries yourself, or **Clear
+- **Settings** carry no change times: a new AI provider, instance or
+  pinned language reaches your other devices, but editing or removing one
+  does not. Change them on each device, or sync them only from one.
+- **Presets and glossaries** saved before this version have no change
+  time: when two devices hold different copies of one, each keeps its own
+  until one of them changes it again (the change then wins everywhere).
+  Presets and glossaries sync in a newer format: a device with an older
+  version of Mozhi stops with **Another device synced with a newer version
+  of Mozhi** until it is updated.
+- **Delete history automatically** works on each device: a sync never
+  brings back the entries it would delete here, and they are left out of
+  what this device uploads. It doesn't delete them on your other devices:
+  one that keeps its history longer keeps them and syncs them again (this
+  device just doesn't take them in). Deleting entries yourself, or **Clear
   history**, does travel.
 - Sync isn't instant: other devices pick changes up when they start, when
   something changes there, or on **Sync now**.

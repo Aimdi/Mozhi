@@ -20,6 +20,8 @@ import 'package:mozhi/phrasebook/widgets/csv_import_dialog.dart';
 import 'package:mozhi/phrasebook/widgets/phrase_tile.dart';
 import 'package:mozhi/phrasebook/widgets/phrasebook_labels.dart';
 import 'package:mozhi/phrasebook/widgets/starter_phrasebooks_sheet.dart';
+import 'package:mozhi/practice/widgets/practice_entry_points.dart'
+    show PracticeCollectionButton, maybePracticeRepository;
 import 'package:mozhi/settings/view/widgets/empty_state_view.dart';
 import 'package:mozhi/settings/view/widgets/link_launcher.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
@@ -532,6 +534,9 @@ class _PhrasebookViewState extends State<PhrasebookView> {
     final user = state.userCollections;
     final index = user.indexWhere((c) => c.id == collection.id);
     return [
+      // Practice: flashcards of this collection (W4-E).
+      if (phrases.isNotEmpty && maybePracticeRepository(context) != null)
+        PracticeCollectionButton(collectionId: collection.id, compact: true),
       if (phrases.length > 1)
         PopupMenuButton<PhraseSort>(
           key: const Key('phrasebook_sort'),

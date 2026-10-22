@@ -23,6 +23,8 @@ void main() {
   Future<PairingListener> listen({
     Duration validity = const Duration(minutes: 1),
     int maxAttempts = 3,
+    int maxFailures = 30,
+    int maxPending = 4,
     Duration handshakeTimeout = const Duration(seconds: 5),
     PairingAddressPolicy policy = loopbackPolicy,
   }) async {
@@ -30,6 +32,8 @@ void main() {
       loopback,
       validity: validity,
       maxAttempts: maxAttempts,
+      maxFailures: maxFailures,
+      maxPending: maxPending,
       handshakeTimeout: handshakeTimeout,
       policy: policy,
     );
@@ -45,6 +49,69 @@ void main() {
 
   PairingCode withPort(PairingCode code, int port) =>
       PairingCode(address: code.address, port: port, secret: code.secret);
+
+  PairingCode wrongSecret(PairingCode code) => PairingCode(
+    address: code.address,
+    port: code.port,
+    secret: List.filled(8, 7),
+  );
+
+  /// A raw connection from [source] (another loopback address), closed
+  /// with the test.
+  Future<Socket> rawSocket(int port, {String source = '127.0.0.1'}) async {
+    final socket = await Socket.connect(
+      loopback,
+      port,
+      sourceAddress: InternetAddress(source),
+    );
+    addTearDown(socket.destroy);
+    return socket;
+  }
+
+  /// [connectPairing] from [source], with the sender's writes after the
+  /// first one held back by [keyDelay] and its hello by [helloDelay].
+  Future<PairingChannel> connectFrom(
+    PairingCode code, {
+    String source = '127.0.0.1',
+    Duration keyDelay = Duration.zero,
+    Duration helloDelay = Duration.zero,
+  }) async {
+    final socket = await rawSocket(code.port, source: source);
+    final input = PairingByteReader(socket);
+    var writes = 0;
+    final keys = await PairingHandshake.initiate(
+      input: input,
+      output: (bytes) {
+        if (writes++ == 0) {
+          socket.add(bytes);
+        } else {
+          Timer(keyDelay, () => socket.add(bytes));
+        }
+      },
+      code: code,
+      timeout: timeout,
+    );
+    await Future<void>.delayed(keyDelay + helloDelay);
+    final channel = PairingChannel(input: input, socket: socket, keys: keys);
+    channels.add(channel);
+    await channel.send('hello', const {'v': pairingProtocolVersion});
+    checkHello(await channel.receiveMessage(timeout: timeout));
+    return channel;
+  }
+
+  /// Completes when the other end closes [socket].
+  Future<void> closedByPeer(Socket socket) {
+    final closed = Completer<void>();
+    socket.listen(
+      null,
+      onDone: closed.complete,
+      onError: (Object _) {
+        if (!closed.isCompleted) closed.complete();
+      },
+      cancelOnError: true,
+    );
+    return closed.future.timeout(timeout);
+  }
 
   tearDown(() async {
     for (final channel in channels) {
@@ -106,11 +173,7 @@ void main() {
 
     test('a phone without the secret cannot connect', () async {
       final listener = await listen(maxAttempts: 2);
-      final wrong = PairingCode(
-        address: listener.code.address,
-        port: listener.code.port,
-        secret: List.filled(8, 7),
-      );
+      final wrong = wrongSecret(listener.code);
       await expectLater(
         connectPairing(wrong, policy: loopbackPolicy),
         throwsA(isA<PairingClosedException>()),
@@ -122,13 +185,31 @@ void main() {
       expect(receiver.sas, sender.sas);
     });
 
-    test('too many wrong attempts burn the code', () async {
+    test('wrong codes from one address shut out that address', () async {
       final listener = await listen(maxAttempts: 2);
-      final wrong = PairingCode(
-        address: listener.code.address,
-        port: listener.code.port,
-        secret: List.filled(8, 7),
+      final wrong = wrongSecret(listener.code);
+      for (var i = 0; i < 2; i++) {
+        await expectLater(
+          connectPairing(wrong, policy: loopbackPolicy),
+          throwsA(isA<PairingClosedException>()),
+        );
+      }
+      // Even with the right code, that address is closed at once…
+      await expectLater(
+        connectPairing(listener.code, policy: loopbackPolicy),
+        throwsA(_refused),
       );
+      // …but the code still works for another phone.
+      final sender = await connectFrom(listener.code, source: '127.0.0.2');
+      final receiver = await listener.connection;
+      channels.add(receiver);
+      expect(receiver.sas, sender.sas);
+      expect(receiver.remoteAddress.address, '127.0.0.2');
+    });
+
+    test('too many wrong codes in all burn the code', () async {
+      final listener = await listen(maxAttempts: 10, maxFailures: 2);
+      final wrong = wrongSecret(listener.code);
       for (var i = 0; i < 2; i++) {
         await expectLater(
           connectPairing(wrong, policy: loopbackPolicy),
@@ -149,6 +230,28 @@ void main() {
         connectPairing(listener.code, policy: loopbackPolicy),
         throwsA(_refused),
       );
+    });
+
+    test('garbage and timeouts do not count as wrong codes', () async {
+      final listener = await listen(
+        maxAttempts: 1,
+        maxFailures: 1,
+        handshakeTimeout: const Duration(milliseconds: 200),
+      );
+      // Not the magic, a key that does not match its commitment, silence.
+      final garbage = await rawSocket(listener.code.port);
+      garbage.add(List.filled(36, 65));
+      await closedByPeer(garbage);
+      final silent = await rawSocket(listener.code.port);
+      await closedByPeer(silent);
+      final cheat = await rawSocket(listener.code.port);
+      cheat
+        ..add([...PairingHandshake.magic, ...List.filled(32, 1)])
+        ..add(List.filled(32, 2));
+      await closedByPeer(cheat);
+      final sender = await connect(listener.code);
+      channels.add(await listener.connection);
+      expect(sender.sas, hasLength(6));
     });
 
     test('the code expires', () async {
@@ -172,21 +275,117 @@ void main() {
       );
     });
 
-    test('a silent connection times out and frees the listener', () async {
-      final listener = await listen(
-        handshakeTimeout: const Duration(milliseconds: 100),
-      );
-      final silent = await Socket.connect(loopback, listener.code.port);
-      // Another phone is refused while the first one sets up.
-      final second = await Socket.connect(loopback, listener.code.port);
-      await expectLater(second.isEmpty, completion(isTrue));
-      second.destroy();
-      // The silent one is closed after the timeout.
-      await expectLater(silent.isEmpty, completion(isTrue));
-      silent.destroy();
+    test('a stalled connection does not keep the real phone out', () async {
+      final listener = await listen();
+      final silent = await rawSocket(listener.code.port);
+      final silentClosed = closedByPeer(silent);
+      // The real phone gets through while the other one stalls…
       final sender = await connect(listener.code);
       channels.add(await listener.connection);
       expect(sender.sas, hasLength(6));
+      // …which is then closed: one connection per code.
+      await silentClosed;
+    });
+
+    test('a connection that stalls is closed after the timeout', () async {
+      final listener = await listen(
+        handshakeTimeout: const Duration(milliseconds: 100),
+      );
+      final silent = await rawSocket(listener.code.port);
+      await closedByPeer(silent);
+      final sender = await connect(listener.code);
+      channels.add(await listener.connection);
+      expect(sender.sas, hasLength(6));
+    });
+
+    test('the key agreement and hello have one deadline', () async {
+      final listener = await listen(
+        handshakeTimeout: const Duration(milliseconds: 400),
+      );
+      var connected = false;
+      unawaited(listener.connection.then((_) => connected = true));
+      // Each step comes in time, all of them together do not.
+      await expectLater(
+        connectFrom(
+          listener.code,
+          keyDelay: const Duration(milliseconds: 250),
+          helloDelay: const Duration(milliseconds: 300),
+        ),
+        throwsA(isA<PairingClosedException>()),
+      );
+      expect(connected, isFalse);
+      final sender = await connect(listener.code);
+      final receiver = await listener.connection;
+      channels.add(receiver);
+      expect(receiver.sas, sender.sas);
+    });
+
+    test('the sender gives up on a receiver that stalls', () async {
+      final server = await ServerSocket.bind(loopback, 0);
+      final accepted = <Socket>[];
+      addTearDown(() async {
+        for (final socket in accepted) {
+          socket.destroy();
+        }
+        await server.close();
+      });
+      // Answers the commitment, then never the hello.
+      server.listen((socket) async {
+        accepted.add(socket);
+        final input = PairingByteReader(socket);
+        try {
+          await PairingHandshake.respond(
+            input: input,
+            output: socket.add,
+            code: PairingCode(
+              address: loopback.rawAddress,
+              port: server.port,
+              secret: List.filled(8, 1),
+            ),
+            timeout: timeout,
+          );
+        } on Object {
+          // The sender hung up.
+        }
+      });
+      final code = PairingCode(
+        address: loopback.rawAddress,
+        port: server.port,
+        secret: List.filled(8, 1),
+      );
+      await expectLater(
+        connectPairing(
+          code,
+          policy: loopbackPolicy,
+          handshakeTimeout: const Duration(milliseconds: 200),
+        ),
+        throwsA(isA<PairingTimeoutException>()),
+      );
+    });
+
+    test('too many connections close the oldest first', () async {
+      final listener = await listen(maxPending: 2);
+      final first = await rawSocket(listener.code.port);
+      final firstClosed = closedByPeer(first);
+      final second = await rawSocket(listener.code.port);
+      final secondClosed = closedByPeer(second);
+      final sender = await connect(listener.code);
+      channels.add(await listener.connection);
+      expect(sender.sas, hasLength(6));
+      await firstClosed;
+      await secondClosed;
+    });
+
+    test('a device opening many connections loses its own first', () async {
+      final listener = await listen(maxPending: 2);
+      var otherClosed = false;
+      final other = await rawSocket(listener.code.port, source: '127.0.0.2');
+      unawaited(closedByPeer(other).then((_) => otherClosed = true));
+      final first = await rawSocket(listener.code.port);
+      final firstClosed = closedByPeer(first);
+      await rawSocket(listener.code.port);
+      await firstClosed;
+      expect(otherClosed, isFalse);
     });
 
     test('refuses phones outside the private network', () async {

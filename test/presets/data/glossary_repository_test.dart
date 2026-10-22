@@ -251,4 +251,208 @@ void main() {
       expect(GlossaryExportFormat.tsv.extension, 'tsv');
     });
   });
+
+  group('GlossaryRepository for backups and sync', () {
+    var now = DateTime.utc(2026, 10, 20, 9);
+    late MemoryStore store;
+    late GlossaryRepository repository;
+
+    GlossaryRepository build([KeyValueStore? on]) =>
+        GlossaryRepository(store: on ?? store, clock: () => now);
+
+    Map<String, Object?> storedDocument() => Map.from(
+      jsonDecode(store.values[GlossaryRepository.storageKey]!) as Map,
+    );
+
+    Map<String, Object?> storedTombstones() =>
+        switch (store.values[GlossaryRepository.tombstonesStorageKey]) {
+          final String raw => Map.from(jsonDecode(raw) as Map),
+          null => const {},
+        };
+
+    Glossary at(Glossary glossary, int minutes) => glossary.copyWith(
+      updatedAt: DateTime.utc(2026, 10, 20).add(Duration(minutes: minutes)),
+    );
+
+    setUp(() {
+      now = DateTime.utc(2026, 10, 20, 9);
+      store = MemoryStore();
+      repository = build();
+    });
+
+    test('save records tombstones and drops them for saved ones', () async {
+      await repository.save(const [tech, names]);
+      await repository.save(const [names], deleted: ['tech']);
+
+      expect(storedTombstones(), {'tech': now.millisecondsSinceEpoch});
+      expect((await repository.backupData()).tombstones, [
+        Tombstone(id: 'tech', deletedAt: now),
+      ]);
+
+      await repository.save(const [names, tech]);
+      expect(storedTombstones(), isEmpty);
+    });
+
+    test('save stamps a new order only', () async {
+      await repository.save(const [tech, names]);
+      expect(storedDocument(), isNot(contains('orderUpdatedAt')));
+
+      // Added and removed glossaries are no reorder.
+      await repository.save(const [tech, Glossary(id: 'x')]);
+      expect(storedDocument(), isNot(contains('orderUpdatedAt')));
+
+      final reordered = now = now.add(const Duration(minutes: 1));
+      await repository.save(const [Glossary(id: 'x'), tech]);
+      expect(storedDocument()['orderUpdatedAt'], reordered.toIso8601String());
+
+      now = now.add(const Duration(minutes: 1));
+      await repository.save(const [Glossary(id: 'x'), tech, names]);
+      expect((await repository.backupData()).orderUpdatedAt, reordered);
+    });
+
+    test('save writes the glossaries when the stored ones cannot be '
+        'read', () async {
+      final failing = _FailingReadsStore();
+
+      await build(failing).save(const [tech], deleted: ['names']);
+
+      expect(
+        GlossaryRepository.parseGlossaries(
+          jsonDecode(failing.values[GlossaryRepository.storageKey]!),
+        ),
+        const [tech],
+      );
+    });
+
+    test('backupData holds the glossaries with their change times', () async {
+      await repository.replaceAll([at(tech, 1)], orderUpdatedAt: now);
+
+      final data = await repository.backupData();
+
+      expect(data.glossaries.single.updatedAt, at(tech, 1).updatedAt);
+      expect(data.orderUpdatedAt, now);
+      expect(data.tombstones, isEmpty);
+    });
+
+    test('replaceAll makes the backup the glossaries and tombstones', () async {
+      await repository.save(const [], deleted: ['old']);
+
+      await repository.replaceAll(
+        const [names],
+        tombstones: [
+          Tombstone(id: 'gone', deletedAt: now),
+          Tombstone(id: 'names', deletedAt: now),
+        ],
+      );
+
+      expect(repository.glossaries, const [names]);
+      expect(await repository.load(), const [names]);
+      expect(storedTombstones().keys, ['gone']);
+      expect(storedDocument(), isNot(contains('orderUpdatedAt')));
+    });
+
+    group('mergeBackup', () {
+      test('keeps the newer copy, this one on a tie', () async {
+        await repository.replaceAll([
+          at(tech.copyWith(name: 'mine'), 1),
+          at(names.copyWith(name: 'mine'), 5),
+        ]);
+
+        final merged = await repository.mergeBackup([
+          at(tech.copyWith(name: 'theirs'), 2),
+          at(names.copyWith(name: 'theirs'), 5),
+        ]);
+
+        expect(merged.map((g) => g.name), ['theirs', 'mine']);
+        expect(repository.glossaries, merged);
+        expect(await build().load(), merged);
+      });
+
+      test('tombstones of either copy delete older glossaries', () async {
+        await repository.save(const [tech, names]);
+        await repository.save(const [names], deleted: ['tech']);
+
+        final merged = await repository.mergeBackup(
+          const [tech, names, Glossary(id: 'theirs')],
+          tombstones: [Tombstone(id: 'names', deletedAt: now)],
+        );
+
+        expect(merged.map((g) => g.id), ['theirs']);
+        expect(storedTombstones().keys, unorderedEquals(['tech', 'names']));
+      });
+
+      test('a glossary changed after its tombstone stays', () async {
+        await repository.save(const [], deleted: ['tech']);
+
+        final merged = await repository.mergeBackup([at(tech, 24 * 60)]);
+
+        expect(merged.map((g) => g.id), ['tech']);
+        expect(storedTombstones(), isEmpty);
+      });
+
+      test('keeps the order of the copy reordered last', () async {
+        final earlier = now.subtract(const Duration(hours: 1));
+        await repository.replaceAll(const [
+          tech,
+          names,
+        ], orderUpdatedAt: earlier);
+
+        var merged = await repository.mergeBackup(const [
+          names,
+          tech,
+        ], orderUpdatedAt: now);
+        expect(merged.map((g) => g.id), ['names', 'tech']);
+        expect((await repository.backupData()).orderUpdatedAt, now);
+
+        merged = await repository.mergeBackup(const [
+          tech,
+          names,
+        ], orderUpdatedAt: earlier);
+        expect(merged.map((g) => g.id), ['names', 'tech']);
+      });
+
+      test('merging the same backup twice changes nothing', () async {
+        await repository.save(const [tech]);
+        final backup = [at(names, 1), at(tech, 2)];
+
+        final first = await repository.mergeBackup(backup);
+        final firstJson = store.values[GlossaryRepository.storageKey];
+        final second = await repository.mergeBackup(backup);
+
+        expect(second, first);
+        expect(store.values[GlossaryRepository.storageKey], firstJson);
+      });
+    });
+
+    test('encode writes when the glossaries were reordered', () {
+      final document = GlossaryRepository.encode(const [
+        tech,
+      ], orderUpdatedAt: now);
+
+      expect(document['orderUpdatedAt'], '2026-10-20T09:00:00.000Z');
+      expect(GlossaryRepository.parseOrderUpdatedAt(document), now);
+      expect(
+        GlossaryRepository.parseOrderUpdatedAt(
+          GlossaryRepository.encode(const [tech]),
+        ),
+        isNull,
+      );
+      expect(GlossaryRepository.parseOrderUpdatedAt(const <Object?>[]), isNull);
+    });
+
+    test('exportJson leaves out the change times', () {
+      final json = GlossaryRepository.exportJson([at(tech, 1)]);
+
+      expect(json, isNot(contains('updatedAt')));
+      expect(GlossaryRepository.parseGlossaries(jsonDecode(json)), const [
+        tech,
+      ]);
+    });
+  });
+}
+
+/// A store whose reads fail.
+class _FailingReadsStore extends MemoryStore {
+  @override
+  Future<String?> read(String key) async => throw StateError('io');
 }

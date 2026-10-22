@@ -273,6 +273,91 @@ void main() {
         }
         expect(server.requests.first.headers['Accept'], 'text/plain');
       });
+
+      group('with a key, custom headers never replace its header', () {
+        // The header each provider sends the key in.
+        const keyHeaders = {
+          LlmProvider.openAiCompatible: ('Authorization', 'Bearer sk-mine'),
+          LlmProvider.anthropic: ('x-api-key', 'sk-mine'),
+          LlmProvider.gemini: ('x-goog-api-key', 'sk-mine'),
+          LlmProvider.ollama: ('Authorization', 'Bearer sk-mine'),
+        };
+
+        test('covers every provider', () {
+          expect(keyHeaders.keys, unorderedEquals(LlmProvider.values));
+        });
+
+        for (final MapEntry(key: provider, value: (name, value))
+            in keyHeaders.entries) {
+          test(provider.name, () async {
+            final server = FakeServer([
+              FakeResponse.json({}, statusCode: 401),
+              FakeResponse.json({}, statusCode: 401),
+            ]);
+            final client = LlmClient(
+              LlmEndpoint(
+                provider: provider,
+                baseUrl: Uri.parse('https://api.example.com/v1'),
+                apiKey: ' sk-mine ',
+                // Another case than the client's, as a backup or a user
+                // might write it.
+                headers: {
+                  name.toUpperCase(): 'Bearer sk-theirs',
+                  'X-Org': 'org',
+                },
+              ),
+              httpClient: server.client,
+              retryPolicy: LlmRetryPolicy.none,
+            );
+
+            await expectLater(
+              client.streamChat(_request),
+              emitsError(isA<LlmApiException>()),
+            );
+            await expectLater(
+              client.listModels(),
+              throwsA(isA<LlmApiException>()),
+            );
+
+            expect(server.requests, hasLength(2));
+            for (final request in server.requests) {
+              expect(request.headers[name], value, reason: '${request.url}');
+              expect(
+                request.headers.values,
+                isNot(contains('Bearer sk-theirs')),
+              );
+              expect(request.headers['x-org'], 'org');
+            }
+          });
+        }
+      });
+
+      test('without a key, a custom Authorization header is sent (a '
+          'gateway)', () async {
+        for (final provider in LlmProvider.values) {
+          final server = FakeServer([FakeResponse.json({}, statusCode: 401)]);
+          final client = LlmClient(
+            LlmEndpoint(
+              provider: provider,
+              baseUrl: Uri.parse('https://gateway.example.com/v1'),
+              headers: const {'Authorization': 'Bearer gateway-token'},
+            ),
+            httpClient: server.client,
+            retryPolicy: LlmRetryPolicy.none,
+          );
+
+          await expectLater(
+            client.listModels(),
+            throwsA(isA<LlmApiException>()),
+          );
+
+          expect(
+            server.lastRequest.headers['authorization'],
+            'Bearer gateway-token',
+            reason: provider.name,
+          );
+        }
+      });
     });
 
     group('timeouts', () {

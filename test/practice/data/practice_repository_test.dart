@@ -266,7 +266,7 @@ void main() {
           );
         }
         final deck = await practice.deck(appLanguage: 'en');
-        expect(deck.items.single.phrase.id, 's:pt:1');
+        expect(deck.items.map((item) => item.phrase.id).toSet(), {'s:pt:1'});
         expect((await practice.cards()).keys.toSet(), {
           's:pt:1#r',
           's:de:1#r',

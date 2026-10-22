@@ -23,8 +23,8 @@ Sync and phone-to-phone transfer use the same format and the same parts
 | Part | What it holds |
 | --- | --- |
 | **History and favorites** | Your translations and dictionary look-ups, favorites included, and a record of the entries you deleted (so that merging another copy doesn't bring them back, see below) |
-| **Presets** | Your translation presets and which one is the default |
-| **Glossaries** | Your saved glossaries and their terms |
+| **Presets** | Your translation presets, their order and which one is the default, when each was last changed, and a record of the presets you deleted |
+| **Glossaries** | Your saved glossaries and their terms, their order, when each was last changed, and a record of the glossaries you deleted |
 | **Settings** | Everything under Settings: engines and instances, AI providers (without their keys), languages, privacy choices, appearance |
 | **API keys and passwords** | Only when you turn on **Include API keys and passwords**: the API keys and custom headers of your AI and translation providers, and the user names and passwords of instance addresses (`https://user:password@host`). Off by default |
 | **Phrasebook** | Your phrasebook collections, their phrases and notes (notes on favorites too), and a record of what you deleted. Not the starter phrasebooks: they download again |
@@ -47,7 +47,18 @@ another copy of your history doesn't bring deleted entries back. They are
 kept for 180 days, at most the newest 10,000, encrypted on the device like
 the history, and removed by **Delete all local data**. Entries removed by
 the size limit or by **Delete history automatically** leave no record:
-each device keeps its own limits.
+each device keeps its own limits (and merging never brings back what they
+would remove here, see below).
+
+**Presets and glossaries** work the same way. Each remembers when it was
+last created or changed (renamed, edited, turned on or off, terms added or
+removed), the presets when their order and default last changed and the
+glossaries when their order did, and deleting one keeps its id and when it
+was deleted: for 180 days, at most the newest 10,000. Like the presets and
+glossaries themselves, these are kept unencrypted in the app's storage on
+the device, and **Delete all local data** removes them. Presets and
+glossaries saved by older versions have no change time yet: they count as
+older than any change or deletion.
 
 ## Making a backup
 
@@ -94,12 +105,20 @@ in the backup:
 - **History and favorites:** entries are matched by id; of an entry on both
   sides the newer copy stays (the one starred or changed last), and an
   entry deleted on either side stays deleted unless it changed after it
-  was deleted. Two look-ups of the same word become one. **Delete history
-  automatically** then applies as usual.
-- **Presets** and **glossaries:** yours stay as they are, and the backup's
-  presets and glossaries that you don't have are added. They carry no
-  dates, so a preset you edited on both devices keeps this device's
-  version, and one you deleted here comes back if the backup still has it.
+  was deleted. Two look-ups of the same word become one. This device's
+  **Delete history automatically** and size limit apply to the result:
+  what they would delete is neither brought in nor kept (favorites always
+  stay), so merging never brings back entries they removed.
+- **Presets** and **glossaries:** matched by id; of one on both sides the
+  newer copy stays (the one changed last; this device's when neither is
+  newer), and one deleted on either side stays deleted unless it was
+  changed (or put back with **Undo**) after it was deleted. The order is
+  that of the copy reordered last, with the presets or glossaries only in
+  the other copy placed after the one they followed there; the default
+  preset is the one chosen (or cleared) last, and a default that was
+  deleted is cleared. When neither copy says when its order or default
+  changed (older backups), this device's order and default stay, or the
+  backup's default when there is none here.
 - **Settings:** this device's settings stay, privacy choices included; the
   AI providers, Mozhi instances and pinned languages you don't have are
   added, and the backup's API keys fill in keys missing here.
@@ -200,8 +219,8 @@ The header:
     "appVersion": "1.4.0+12",
     "sections": {
       "history": {"version": 1, "data": {"entries": [], "tombstones": []}},
-      "presets": {"version": 1, "data": {"version": 1, "presets": []}},
-      "glossaries": {"version": 1, "data": {"version": 1, "glossaries": []}},
+      "presets": {"version": 2, "data": {"version": 1, "presets": [], "tombstones": []}},
+      "glossaries": {"version": 2, "data": {"version": 1, "glossaries": [], "tombstones": []}},
       "settings": {"version": 1, "data": {"settings": {}, "secrets": {}}}
     }
   }
@@ -209,7 +228,11 @@ The header:
 
   Each part (`sections`) has its own version, so a newer app can read every
   older part and refuses a part newer than it knows. `secrets` is only
-  there when API keys and passwords were included.
+  there when API keys and passwords were included. Presets and glossaries
+  are at version 2: each carries its `updatedAt`, the document its
+  `orderUpdatedAt` (and the presets' `defaultUpdatedAt`) once they changed,
+  and `tombstones` lists the deleted ones (`{"id": …, "deletedAt": …}`);
+  version 1, without any of these, is still restored.
 - **Versions:** a file with a format byte above 1, or a snapshot with a
   `formatVersion` above 1, is refused with "made by a newer version of
   Mozhi". Unknown header fields are ignored.

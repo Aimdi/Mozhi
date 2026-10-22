@@ -177,14 +177,14 @@ class _MoreToolsButtonState extends State<MoreToolsButton> {
         final hasEngines = state.engines.isNotEmpty;
         final shortcuts = _offersShortcuts();
         final hasPhrasebook = maybePhrasebookRepository(context) != null;
-        final hasPractice = maybePracticeRepository(context) != null;
+        final practice = maybePracticeRepository(context);
         bool offered(TranslateTool tool) => switch (tool) {
           TranslateTool.image => !hasEngines,
           TranslateTool.recentPairs => hasEngines,
           TranslateTool.shortcuts => shortcuts,
           // Where the app provides one.
           TranslateTool.phrasebook => hasPhrasebook,
-          TranslateTool.practice => hasPractice,
+          TranslateTool.practice => practice != null,
           TranslateTool.documents ||
           TranslateTool.webPage ||
           TranslateTool.transcribe => true,
@@ -211,7 +211,7 @@ class _MoreToolsButtonState extends State<MoreToolsButton> {
                   Flexible(
                     // Practice counts the cards due in a badge.
                     child: tool == TranslateTool.practice
-                        ? const PracticeMenuLabel()
+                        ? PracticeMenuLabel(repository: practice)
                         : Text(tool.label(l10n)),
                   ),
                 ],

@@ -103,6 +103,69 @@ void main() {
     ]);
   });
 
+  group('retention', () {
+    final fresh = HistoryEntry(
+      id: 'fresh',
+      text: 'text',
+      translation: 'translation',
+      source: const Language(code: 'en', name: 'English'),
+      target: const Language(code: 'fr', name: 'French'),
+      engineId: 'mozhi:google',
+      engineName: 'Engine',
+      createdAt: now.subtract(const Duration(hours: 1)),
+    );
+    final backup = _throughJson({
+      'entries': [_entry('old').toJson(), fresh.toJson()],
+    });
+    var asked = 0;
+
+    setUp(() => asked = 0);
+
+    HistoryBackupSection withRetention(Future<Duration?> Function() maxAge) =>
+        HistoryBackupSection(
+          repository,
+          maxAge: () {
+            asked++;
+            return maxAge();
+          },
+        );
+
+    test("merge leaves out what this device's retention deletes", () async {
+      await withRetention(() async => const Duration(days: 1))
+          .restore(backup, version: 1, mode: BackupRestoreMode.merge);
+
+      expect((await repository.backupData()).entries.map((e) => e.id), [
+        'fresh',
+      ]);
+      expect(asked, 1);
+    });
+
+    test('merge keeps everything without a retention, or when it cannot '
+        'be read', () async {
+      await withRetention(() async => null)
+          .restore(backup, version: 1, mode: BackupRestoreMode.merge);
+      expect((await repository.backupData()).entries, hasLength(2));
+
+      // Another device (clearing would leave tombstones).
+      repository = HistoryRepository(
+        store: MemoryStore(),
+        keyStore: MemoryStore(),
+        clock: () => now,
+      );
+      await withRetention(() async => throw StateError('io'))
+          .restore(backup, version: 1, mode: BackupRestoreMode.merge);
+      expect((await repository.backupData()).entries, hasLength(2));
+    });
+
+    test('replace does not ask (the next load applies it)', () async {
+      await withRetention(() async => const Duration(days: 1))
+          .restore(backup, version: 1, mode: BackupRestoreMode.replace);
+
+      expect((await repository.backupData()).entries, hasLength(2));
+      expect(asked, 0);
+    });
+  });
+
   test('skips invalid entries and tombstones', () async {
     await section.restore(
       _throughJson({

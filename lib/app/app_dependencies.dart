@@ -6,6 +6,7 @@ import 'package:mozhi/dictionary/data/dictionary_packs.dart';
 import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/phrasebook/data/phrasebook_repository.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
+import 'package:mozhi/practice/data/practice_repository.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/speech/speech_service.dart';
@@ -35,6 +36,7 @@ class AppDependencies {
     this.backupRegistry,
     this.syncService,
     this.phrasebookRepository,
+    this.practiceRepository,
     this._network,
   });
 
@@ -89,6 +91,11 @@ class AppDependencies {
   /// history's favourites. Null in tests that don't need it (its entry
   /// points are then hidden).
   final PhrasebookRepository? phrasebookRepository;
+
+  /// Practice: flashcards of the [phrasebookRepository]'s phrases (their
+  /// progress, encrypted). Null in tests that don't need it (its entry
+  /// points are then hidden).
+  final PracticeRepository? practiceRepository;
 
   final NetworkSession? _network;
 

@@ -68,6 +68,38 @@ void main() {
       }
     });
 
+    test('never throws on what it cannot read', () {
+      final plain = code.link.split('=').last;
+      for (final input in [
+        'mozhi://pair?code=%E0%A4',
+        'a?code=%E0%A4',
+        '/pair?code=%',
+        'mozhi://pair?code=%ZZ',
+        '%ZZ',
+        'mozhi://pair?code=$plain&x=%E0%A4',
+        'mozhi://[::1?code=$plain',
+        '?code=$plain',
+        '%',
+        '\u0000',
+      ]) {
+        expect(PairingCode.tryParse(input), isNull, reason: input);
+      }
+      // Nor on random text and links.
+      final random = Random(7);
+      const characters = 'mozhi:/?&=%#[]@!0123456789ABCDEFGHJKMNPQRSTVWXYZ é';
+      for (var i = 0; i < 2000; i++) {
+        final input = String.fromCharCodes([
+          for (var j = random.nextInt(40); j > 0; j--)
+            characters.codeUnitAt(random.nextInt(characters.length)),
+        ]);
+        expect(() => PairingCode.tryParse(input), returnsNormally);
+        expect(
+          () => PairingCode.tryParse('mozhi://pair?code=$input'),
+          returnsNormally,
+        );
+      }
+    });
+
     test('refuses other lengths, characters and an empty port', () {
       final plain = code.link.split('=').last;
       expect(PairingCode.tryParse(''), isNull);

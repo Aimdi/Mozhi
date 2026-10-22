@@ -90,7 +90,7 @@ class PairingReceiveView extends StatelessWidget {
             ),
             PairingReceiveStep.connected => PairingBody(
               children: [
-                PairingNumber(sas: state.sas!, title: l10n.pairingCheckNumber),
+                _Numbers(state: state),
                 const SizedBox(height: AppSpacing.xl),
                 Row(
                   spacing: AppSpacing.md,
@@ -323,6 +323,53 @@ class _CountdownState extends State<_Countdown> {
   }
 }
 
+/// The numbers to compare: with the question and the answers until the
+/// user confirms they match (nothing can be accepted before), then for
+/// the person at the other phone.
+class _Numbers extends StatelessWidget {
+  const new({required this.state});
+
+  final PairingReceiveState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final sas = state.sas!;
+    if (state.numbersConfirmed) {
+      return PairingNumber(sas: sas, title: l10n.pairingCheckNumber);
+    }
+    final theme = Theme.of(context);
+    final cubit = context.read<PairingReceiveCubit>();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        PairingNumber(sas: sas, title: l10n.pairingConfirmTitle),
+        const SizedBox(height: AppSpacing.md),
+        Text(
+          l10n.pairingConfirmBody,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        PairingActions(
+          children: [
+            OutlinedButton(
+              key: const Key('pairing_mismatch'),
+              onPressed: () => unawaited(cubit.confirm(match: false)),
+              child: Text(l10n.pairingConfirmMismatch),
+            ),
+            FilledButton(
+              key: const Key('pairing_match'),
+              onPressed: () => unawaited(cubit.confirm(match: true)),
+              child: Text(l10n.pairingConfirmMatch),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
 /// The numbers to compare and the other phone's offer.
 class _Offer extends StatelessWidget {
   const new({required this.state});
@@ -340,7 +387,7 @@ class _Offer extends StatelessWidget {
     final data = state.dataItem;
     return PairingBody(
       children: [
-        PairingNumber(sas: state.sas!, title: l10n.pairingCheckNumber),
+        _Numbers(state: state),
         const SizedBox(height: AppSpacing.xl),
         Text(l10n.pairingOfferTitle, style: theme.textTheme.titleLarge),
         const SizedBox(height: AppSpacing.sm),
@@ -364,6 +411,14 @@ class _Offer extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           Text(l10n.pairingModesBody, style: secondary),
         ],
+        if (!state.numbersConfirmed) ...[
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            l10n.pairingAcceptAfterNumbers,
+            key: const Key('pairing_accept_hint'),
+            style: secondary,
+          ),
+        ],
         PairingActions(
           children: [
             OutlinedButton(
@@ -373,7 +428,10 @@ class _Offer extends StatelessWidget {
             ),
             FilledButton(
               key: const Key('pairing_accept'),
-              onPressed: () => unawaited(cubit.accept()),
+              // Only once the user said both phones show the same number.
+              onPressed: state.numbersConfirmed
+                  ? () => unawaited(cubit.accept())
+                  : null,
               child: Text(l10n.pairingAccept),
             ),
           ],

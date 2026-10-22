@@ -41,7 +41,7 @@ class BackupKdf extends Equatable {
 
   /// Parses [toJson] output. Throws a [BackupFormatException] for other
   /// algorithms and parameters outside the bounds this app accepts
-  /// ([maxMemory], [maxIterations], [maxParallelism]).
+  /// ([maxMemory], [maxIterations], [maxParallelism], [maxWork]).
   factory fromJson(Object? json) {
     if (json case {
       'algorithm': 'argon2id',
@@ -55,7 +55,8 @@ class BackupKdf extends Equatable {
           memory < 8 * parallelism ||
           memory > maxMemory ||
           iterations < 1 ||
-          iterations > maxIterations) {
+          iterations > maxIterations ||
+          memory * iterations > maxWork) {
         throw const BackupFormatException(
           message: 'Unsupported KDF parameters',
         );
@@ -90,14 +91,27 @@ class BackupKdf extends Equatable {
   /// [browser] in the web app, [standard] elsewhere.
   static BackupKdf get platformDefault => kIsWeb ? browser : standard;
 
-  /// The largest [memory] a backup may ask for (KiB): 256 MiB.
-  static const maxMemory = 262144;
+  // The bounds below are checked before the passphrase can be: whoever
+  // crafts a file chooses how much work opening it takes. They leave room
+  // above [standard] (and so [browser]), which every device must open
+  // (sync files use these parameters too), but not much more: the most
+  // they allow is under three times [standard]'s work, about 3 s on a
+  // mid-range phone and half a minute in its browser.
+
+  /// The largest [memory] a backup may ask for (KiB): 128 MiB, twice
+  /// [standard]'s.
+  static const maxMemory = 131072;
 
   /// The most [iterations] a backup may ask for.
-  static const maxIterations = 16;
+  static const maxIterations = 8;
 
   /// The most lanes ([parallelism]) a backup may ask for.
-  static const maxParallelism = 8;
+  static const maxParallelism = 4;
+
+  /// The most work ([memory] × [iterations], KiB passes) a backup may ask
+  /// for: [maxMemory] with 4 passes, or 64 MiB with [maxIterations]
+  /// (about 2.7 times [standard]'s).
+  static const int maxWork = maxMemory * 4;
 
   /// Memory in KiB.
   final int memory;

@@ -373,8 +373,8 @@ where the sync file stays), then deletes the history
 with its deletion records and its key, the date of the last backup (the
 backup files you saved are yours and stay where you put them), the
 phrasebook with its key and the starter phrasebooks, the
-settings with every key, header and password, presets,
-glossaries, usage counters, speech settings, cached lists and the whole
+settings with every key, header and password, presets and
+glossaries (with their deletion records), usage counters, speech settings, cached lists and the whole
 offline models folder (partial downloads included), clears what the app holds
 in memory, and starts setup again. Uninstalling the app removes all of it too.
 In the web app, clearing the site's data does the same.

@@ -108,7 +108,9 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
 - **Deletion records:** to merge copies of the history (backups, sync), a
   deleted entry leaves its id and deletion time (never its text) for 180
   days, at most 10,000, encrypted like the history (AES-256-GCM, its own
-  associated data) and removed by **Delete all local data**.
+  associated data) and removed by **Delete all local data**. Deleted
+  presets and glossaries leave the same (id and time only), unencrypted
+  like the presets and glossaries themselves.
 - **Incognito** stops saving new translations to the history and asks
   keyboards not to learn what you type.
 - **Screenshots:** **Hide content in recents & block screenshots** sets

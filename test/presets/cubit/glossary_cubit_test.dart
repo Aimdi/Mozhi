@@ -382,6 +382,99 @@ void main() {
     });
   });
 
+  group('GlossaryCubit change times and tombstones', () {
+    final now = DateTime.utc(2026, 10, 20, 9);
+    final earlier = now.subtract(const Duration(days: 1));
+
+    GlossaryCubit stamping() => GlossaryCubit(
+      repository: GlossaryRepository(
+        store: store,
+        generateId: () => 'new${counter++}',
+        clock: () => now,
+      ),
+      clock: () => now,
+    );
+
+    test('stamps what it creates and changes', () async {
+      final cubit = stamping();
+      addTearDown(cubit.close);
+      cubit.emit(
+        _ready([
+          _pets.copyWith(updatedAt: earlier),
+          _any.copyWith(updatedAt: earlier),
+        ]),
+      );
+
+      final created = await cubit.create(name: 'New');
+      await cubit.addTerm('pets', const GlossaryTerm(source: 'a', target: 'b'));
+      // Unchanged: not stamped.
+      await cubit.setEnabled('any', enabled: true);
+      await cubit.importJson(GlossaryRepository.exportJson(const [_pets]));
+
+      expect(created.updatedAt, now);
+      expect(cubit.state.glossaries.map((g) => (g.id, g.updatedAt)), [
+        ('pets', now),
+        ('any', earlier),
+        ('new0', now),
+        ('new1', now),
+      ]);
+      expect(stored().first.updatedAt, now);
+    });
+
+    test('each kind of change stamps the glossary', () async {
+      final changes = <Future<void> Function(GlossaryCubit cubit)>[
+        (cubit) => cubit.rename('pets', 'Animals'),
+        (cubit) => cubit.setScope('pets', sourceCode: 'fr', targetCode: 'de'),
+        (cubit) => cubit.setEnabled('pets', enabled: false),
+        (cubit) => cubit.save(_pets.copyWith(name: 'Saved')),
+        (cubit) => cubit.updateTerm(
+          'pets',
+          0,
+          const GlossaryTerm(source: 'cat', target: 'Kater'),
+        ),
+        (cubit) => cubit.removeTerm('pets', 0),
+        (cubit) => cubit.insertTerm('pets', 0, _bird),
+        (cubit) => cubit.importTerms('pets', 'fish,Fisch'),
+      ];
+      for (final change in changes) {
+        final cubit = stamping()
+          ..emit(_ready([_pets.copyWith(updatedAt: earlier)]));
+        await change(cubit);
+        expect(cubit.state.glossaries.single.updatedAt, now);
+        await cubit.close();
+      }
+    });
+
+    test('restore stamps the glossary put back', () async {
+      final cubit = stamping();
+      addTearDown(cubit.close);
+      cubit.emit(_ready(const [_any]));
+
+      await cubit.restore(_pets.copyWith(updatedAt: earlier), index: 0);
+
+      expect(cubit.state.glossaries.first.updatedAt, now);
+    });
+
+    test('delete leaves a tombstone, move stamps the order', () async {
+      final cubit = stamping();
+      addTearDown(cubit.close);
+      cubit.emit(_ready(const [_pets, _any, Glossary(id: 'cats')]));
+
+      await cubit.delete('cats');
+      expect(
+        jsonDecode(store.values[GlossaryRepository.tombstonesStorageKey]!),
+        {'cats': now.millisecondsSinceEpoch},
+      );
+      expect((await repository.backupData()).orderUpdatedAt, isNull);
+
+      await cubit.move(0, 1);
+      expect(
+        jsonDecode(store.values[GlossaryRepository.storageKey]!),
+        containsPair('orderUpdatedAt', now.toIso8601String()),
+      );
+    });
+  });
+
   group('GlossaryState', () {
     test('byId and copyWith', () {
       final state = _ready(const [_pets]);

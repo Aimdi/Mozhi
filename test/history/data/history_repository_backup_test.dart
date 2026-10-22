@@ -584,4 +584,88 @@ void main() {
       expect(second, first);
     });
   });
+
+  group('mergeBackup with a retention', () {
+    late HistoryRepository repository;
+
+    /// A non-favourite created [ago] before now.
+    HistoryEntry recent(String id, Duration ago, {bool isFavorite = false}) =>
+        HistoryEntry(
+          id: id,
+          text: 'text $id',
+          translation: 'translation $id',
+          source: _english,
+          target: _french,
+          engineId: 'mozhi:google',
+          engineName: 'Engine',
+          createdAt: now.subtract(ago),
+          isFavorite: isFavorite,
+        );
+
+    setUp(() => repository = build());
+
+    test('leaves out what it would delete, from both sides, without '
+        'tombstones', () async {
+      await repository.add(_entry('old here'));
+      await repository.add(_entry('old favourite here', isFavorite: true));
+      await repository.add(recent('new here', const Duration(hours: 1)));
+
+      final entries = await repository.mergeBackup([
+        _entry('old there', minute: 1),
+        _entry('old favourite there', minute: 1, isFavorite: true),
+        recent('new there', const Duration(hours: 2)),
+      ], maxAge: const Duration(days: 1));
+
+      expect(entries.map((e) => e.id), [
+        'new here',
+        'new there',
+        'old favourite there',
+        'old favourite here',
+      ]);
+      expect(await storedTombstones(), isEmpty);
+      expect((await build().load()).map((e) => e.id), [
+        'new here',
+        'new there',
+        'old favourite there',
+        'old favourite here',
+      ]);
+    });
+
+    test('never brings back what the retention deleted here', () async {
+      final backup = [
+        _entry('expired'),
+        recent('kept', const Duration(minutes: 5)),
+      ];
+      await repository.mergeBackup(backup);
+      // "Delete history automatically" deletes it here.
+      await repository.prune(const Duration(days: 1));
+
+      // The next sync brings the same copy again.
+      final entries = await repository.mergeBackup(
+        backup,
+        maxAge: const Duration(days: 1),
+      );
+
+      expect(entries.map((e) => e.id), ['kept']);
+      // What this device uploads next leaves it out too.
+      expect((await repository.backupData()).entries.map((e) => e.id), [
+        'kept',
+      ]);
+      expect(await storedTombstones(), isEmpty);
+    });
+
+    test('caps keep the newest', () async {
+      final repository = build(maxEntries: 2);
+      await repository.add(recent('oldest kept out', const Duration(hours: 3)));
+
+      final entries = await repository.mergeBackup([
+        recent('newer', const Duration(hours: 2)),
+        recent('newest', const Duration(hours: 1)),
+        _entry('expired'),
+      ], maxAge: const Duration(days: 1));
+
+      expect(entries.map((e) => e.id), ['newest', 'newer']);
+      expect(await storedTombstones(), isEmpty);
+    });
+  });
 }

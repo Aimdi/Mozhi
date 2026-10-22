@@ -15,8 +15,9 @@ import 'package:mozhi/pairing/protocol/pairing_exception.dart';
 export 'pairing_receive_state.dart';
 
 /// **Receive on this phone**: listens on this phone's private address
-/// with a fresh code ([start]), waits for the other phone, shows its
-/// offer, and receives and installs what the user accepts ([accept]).
+/// with a fresh code ([start]), waits for the other phone, lets the user
+/// compare the numbers ([confirm]), shows its offer, and receives and
+/// installs what the user accepts ([accept]) once the numbers matched.
 ///
 /// One connection per code; a new code ([start] again) or another address
 /// ([useAddress]) starts over. Closing the cubit stops listening and any
@@ -52,7 +53,7 @@ class PairingReceiveCubit extends Cubit<PairingReceiveState> {
         _environment.codeValidity,
       );
     } on Object catch (error) {
-      if (run == _run && !isClosed) _fail(error);
+      if (run == _run && !isClosed) _fail(PairingFailure.of(error));
       return;
     }
     if (run != _run || isClosed) {
@@ -89,10 +90,37 @@ class PairingReceiveCubit extends Cubit<PairingReceiveState> {
   /// How the data item is restored.
   void setMode(BackupRestoreMode mode) => emit(state.copyWith(mode: mode));
 
-  /// Receives and installs the selected items.
+  /// The user compared the numbers (while the other phone chooses, or
+  /// with its offer): when they [match], the offer can be accepted; else
+  /// the connection stops (someone may be in the middle, or another phone
+  /// connected first).
+  Future<void> confirm({required bool match}) async {
+    final receiver = _receiver;
+    if (receiver == null ||
+        state.numbersConfirmed ||
+        (state.step != PairingReceiveStep.connected &&
+            state.step != PairingReceiveStep.offer)) {
+      return;
+    }
+    if (match) {
+      emit(state.copyWith(numbersConfirmed: true));
+      return;
+    }
+    // What the connection still brings is dropped.
+    _run++;
+    _receiver = null;
+    await receiver.cancel();
+    if (!isClosed) _fail(PairingFailure.sasMismatch);
+  }
+
+  /// Receives and installs the selected items, once the numbers matched.
   Future<void> accept() async {
     final receiver = _receiver;
-    if (receiver == null || state.step != PairingReceiveStep.offer) return;
+    if (receiver == null ||
+        state.step != PairingReceiveStep.offer ||
+        !state.numbersConfirmed) {
+      return;
+    }
     emit(
       state.copyWith(
         step: PairingReceiveStep.transferring,
@@ -110,7 +138,7 @@ class PairingReceiveCubit extends Cubit<PairingReceiveState> {
         emit(state.copyWith(step: PairingReceiveStep.done, results: results));
       }
     } on Object catch (error) {
-      if (!isClosed) _fail(error);
+      if (!isClosed) _fail(PairingFailure.of(error));
     } finally {
       _receiver = null;
       await _environment.keepScreenOn(enabled: false);
@@ -145,7 +173,7 @@ class PairingReceiveCubit extends Cubit<PairingReceiveState> {
     } on PairingExpiredException catch (error) {
       if (run != _run || isClosed) return;
       if (error.tooManyAttempts) {
-        _fail(error);
+        _fail(PairingFailure.of(error));
       } else {
         emit(state.copyWith(step: PairingReceiveStep.expired));
       }
@@ -164,8 +192,11 @@ class PairingReceiveCubit extends Cubit<PairingReceiveState> {
       workDirectory: await _environment.workDirectory(),
       timeouts: _environment.timeouts,
     );
+    if (run != _run || isClosed) {
+      channel.destroy();
+      return;
+    }
     _receiver = receiver;
-    if (run != _run || isClosed) return;
     emit(state.copyWith(step: PairingReceiveStep.connected, sas: channel.sas));
     try {
       final offered = await receiver.offer();
@@ -181,7 +212,7 @@ class PairingReceiveCubit extends Cubit<PairingReceiveState> {
         ),
       );
     } on Object catch (error) {
-      if (run == _run && !isClosed) _fail(error);
+      if (run == _run && !isClosed) _fail(PairingFailure.of(error));
     }
   }
 
@@ -197,14 +228,9 @@ class PairingReceiveCubit extends Cubit<PairingReceiveState> {
     emit(state.copyWith(progress: progress));
   }
 
-  void _fail(Object error) {
+  void _fail(PairingFailure failure) {
     _receiver = null;
-    emit(
-      state.copyWith(
-        step: PairingReceiveStep.failed,
-        failure: PairingFailure.of(error),
-      ),
-    );
+    emit(state.copyWith(step: PairingReceiveStep.failed, failure: failure));
   }
 
   Future<void> _stop() async {

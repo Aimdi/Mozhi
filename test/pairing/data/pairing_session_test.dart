@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mozhi/backup/data/backup_registry.dart';
@@ -631,6 +633,13 @@ void main() {
   });
 
   group('PairingBackupItem', () {
+    const everything = PairingItem(
+      kind: PairingItemKind.data,
+      key: 'backup',
+      files: [PairingFile(name: 'backup.json', size: 1)],
+      sections: ['history', 'settings'],
+    );
+
     PairingItem dataItem(int size, {String name = 'backup.json'}) =>
         PairingItem(
           kind: PairingItemKind.data,
@@ -655,65 +664,158 @@ void main() {
       );
     });
 
-    Future<PairingItemOutcome> restore(String contents) async {
-      final file = File('${temp.path}/backup.json')
-        ..writeAsStringSync(contents);
-      return await PairingBackupItem.restore(
-        receiverBackup,
-        file,
-        mode: BackupRestoreMode.replace,
+    const history = PairingItem(
+      kind: PairingItemKind.data,
+      key: 'backup',
+      files: [PairingFile(name: 'backup.json', size: 1)],
+      sections: ['history'],
+    );
+
+    Future<PairingItemOutcome> restore(
+      List<int> bytes, {
+      PairingItem item = history,
+      BackupRegistry? registry,
+    }) => PairingBackupItem.restore(
+      registry ?? receiverBackup,
+      item,
+      Uint8List.fromList(bytes),
+      mode: BackupRestoreMode.replace,
+    );
+
+    Future<List<int>> snapshotOf(
+      Map<String, BackupSectionData> sections,
+    ) async {
+      final snapshot = await senderBackup.snapshot(includeSecrets: false);
+      return PairingBackupItem.snapshotBytes(
+        BackupSnapshot(
+          createdAt: snapshot.createdAt,
+          appVersion: snapshot.appVersion,
+          sections: sections,
+        ),
       );
     }
 
     test('refuses what is not a backup', () async {
-      expect(await restore('[1]'), PairingItemOutcome.damaged);
-      expect(await restore('{"format": "zip"}'), PairingItemOutcome.damaged);
-      expect(await restore('{'), PairingItemOutcome.damaged);
-      final file = File('${temp.path}/bad.json')
-        ..writeAsBytesSync([0xff, 0xfe, 0xfd]);
+      expect(await restore(utf8.encode('[1]')), PairingItemOutcome.damaged);
       expect(
-        await PairingBackupItem.restore(
-          receiverBackup,
-          file,
-          mode: BackupRestoreMode.replace,
-        ),
+        await restore(utf8.encode('{"format": "zip"}')),
         PairingItemOutcome.damaged,
       );
+      expect(await restore(utf8.encode('{')), PairingItemOutcome.damaged);
+      expect(await restore([0xff, 0xfe, 0xfd]), PairingItemOutcome.damaged);
+      // Nested too deeply for the parser.
+      expect(
+        await restore(utf8.encode('[' * 100000)),
+        PairingItemOutcome.damaged,
+      );
+      expect(
+        await restore(List.filled(PairingBackupItem.maxSize + 1, 32)),
+        PairingItemOutcome.damaged,
+      );
+      expect(receiverHistory.restores, isEmpty);
     });
 
     test('refuses a backup from a newer version', () async {
       expect(
         await restore(
-          '{"format":"mozhi-backup","formatVersion":99,'
-          '"createdAt":"2026-10-22T00:00:00Z","appVersion":"9",'
-          '"sections":{}}',
+          utf8.encode(
+            '{"format":"mozhi-backup","formatVersion":99,'
+            '"createdAt":"2026-10-22T00:00:00Z","appVersion":"9",'
+            '"sections":{}}',
+          ),
         ),
         PairingItemOutcome.incompatible,
       );
+    });
+
+    test('restores the sections the offer listed', () async {
+      final snapshot = await senderBackup.snapshot(includeSecrets: false);
+      expect(
+        await restore(await snapshotOf(snapshot.sections), item: everything),
+        PairingItemOutcome.installed,
+      );
+      expect(receiverHistory.restores.single.$1, {
+        'value': ['hola'],
+      });
+    });
+
+    test('refuses sections the offer did not list', () async {
+      final snapshot = await senderBackup.snapshot(includeSecrets: false);
+      // The offer says history; the file holds the settings too.
+      expect(
+        await restore(await snapshotOf(snapshot.sections)),
+        PairingItemOutcome.damaged,
+      );
+      expect(receiverHistory.restores, isEmpty);
+    });
+
+    test('takes less than the offer listed', () async {
+      final snapshot = await senderBackup.snapshot(includeSecrets: false);
+      expect(
+        await restore(
+          await snapshotOf({'history': snapshot.sections['history']!}),
+          item: everything,
+        ),
+        PairingItemOutcome.installed,
+      );
+      expect(receiverHistory.restores, hasLength(1));
     });
 
     test('reports a section that fails', () async {
       final registry = BackupRegistry(appVersion: () async => '1')
         ..register(_FailingSection());
       final snapshot = await senderBackup.snapshot(includeSecrets: false);
-      final file = File('${temp.path}/backup.json')
-        ..writeAsBytesSync(
-          PairingBackupItem.snapshotBytes(
-            BackupSnapshot(
-              createdAt: snapshot.createdAt,
-              appVersion: snapshot.appVersion,
-              sections: {'history': snapshot.sections['history']!},
-            ),
-          ),
-        );
       expect(
-        await PairingBackupItem.restore(
-          registry,
-          file,
-          mode: BackupRestoreMode.merge,
+        await restore(
+          await snapshotOf({'history': snapshot.sections['history']!}),
+          registry: registry,
         ),
         PairingItemOutcome.noSpace,
       );
+    });
+
+    test('restores from a file through the library', () async {
+      final library = PairingLibrary(backup: receiverBackup);
+      final snapshot = await senderBackup.snapshot(includeSecrets: false);
+      final file = File('${temp.path}/backup.json')
+        ..writeAsBytesSync(
+          await snapshotOf({'history': snapshot.sections['history']!}),
+        );
+      expect(
+        await library.install(history, [file], mode: BackupRestoreMode.merge),
+        PairingItemOutcome.installed,
+      );
+      expect(
+        await library.install(
+          history,
+          [File('${temp.path}/missing.json')],
+          mode: BackupRestoreMode.merge,
+        ),
+        PairingItemOutcome.failed,
+      );
+      final big = File('${temp.path}/big.json')
+        ..writeAsBytesSync(List.filled(PairingBackupItem.maxSize + 1, 32));
+      expect(
+        await library.install(history, [big], mode: BackupRestoreMode.merge),
+        PairingItemOutcome.damaged,
+      );
+      expect(
+        await library.restore(
+          senderPacks.item('fr'),
+          Uint8List(0),
+          mode: BackupRestoreMode.merge,
+        ),
+        PairingItemOutcome.incompatible,
+      );
+      expect(
+        await PairingLibrary().restore(
+          history,
+          Uint8List(0),
+          mode: BackupRestoreMode.merge,
+        ),
+        PairingItemOutcome.incompatible,
+      );
+      expect(receiverHistory.restores, hasLength(1));
     });
   });
 

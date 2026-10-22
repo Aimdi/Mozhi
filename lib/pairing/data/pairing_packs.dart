@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:mozhi/backup/data/backup_registry.dart';
+import 'package:mozhi/backup/sections/settings_backup_section.dart';
 import 'package:mozhi/pairing/models/pairing_item.dart';
 
 /// Reads one file of an outgoing item, from the start.
@@ -76,22 +78,27 @@ class PairingLibrary {
   }
 
   /// Installs [item] from its verified [files]; a data item is restored
-  /// with [mode].
+  /// from its one file with [mode] (see [restore]).
   Future<PairingItemOutcome> install(
     PairingItem item,
     List<File> files, {
     required BackupRestoreMode mode,
   }) async {
     if (item.kind == PairingItemKind.data) {
-      final registry = backup;
-      if (registry == null || files.length != 1) {
+      if (backup == null || files.length != 1) {
         return PairingItemOutcome.incompatible;
       }
-      return await PairingBackupItem.restore(
-        registry,
-        files.single,
-        mode: mode,
-      );
+      final Uint8List bytes;
+      try {
+        final file = files.single;
+        if (await file.length() > PairingBackupItem.maxSize) {
+          return PairingItemOutcome.damaged;
+        }
+        bytes = await file.readAsBytes();
+      } on FileSystemException {
+        return PairingItemOutcome.failed;
+      }
+      return await restore(item, bytes, mode: mode);
     }
     final kind = packs[item.kind];
     if (kind == null) return PairingItemOutcome.incompatible;
@@ -100,6 +107,21 @@ class PairingLibrary {
     } on Object catch (error) {
       return pairingOutcomeOf(error);
     }
+  }
+
+  /// Restores the data item [item] from its verified [bytes] (the
+  /// receiving phone keeps them in memory) with [mode]: only the sections
+  /// the offer listed (see [PairingBackupItem.restore]).
+  Future<PairingItemOutcome> restore(
+    PairingItem item,
+    Uint8List bytes, {
+    required BackupRestoreMode mode,
+  }) async {
+    final registry = backup;
+    if (registry == null || item.kind != PairingItemKind.data) {
+      return PairingItemOutcome.incompatible;
+    }
+    return await PairingBackupItem.restore(registry, item, bytes, mode: mode);
   }
 
   static Future<List<PairingOutgoingItem>> _quietly(
@@ -169,30 +191,53 @@ abstract final class PairingBackupItem {
     ]);
   }
 
-  /// Restores the snapshot in [file] into [registry] with [mode].
+  /// Restores the snapshot in [bytes] (UTF-8 JSON, the file of [item])
+  /// into [registry] with [mode].
+  ///
+  /// Only what the receiving phone showed is restored: the sections the
+  /// offer listed ([PairingItem.sections]). A snapshot that holds any
+  /// other section, or secrets when the offer said it has none
+  /// ([PairingItem.secrets]), is [PairingItemOutcome.damaged] and nothing
+  /// of it is restored. The JSON is parsed on a background isolate (in a
+  /// browser, where nothing is received, on the same one).
   static Future<PairingItemOutcome> restore(
     BackupRegistry registry,
-    File file, {
+    PairingItem item,
+    Uint8List bytes, {
     required BackupRestoreMode mode,
   }) async {
-    final BackupSnapshot snapshot;
-    try {
-      final json = jsonDecode(await file.readAsString());
-      if (json is! Map<String, Object?>) return PairingItemOutcome.damaged;
-      snapshot = BackupSnapshot.fromJson(json);
-    } on BackupSnapshotVersionException {
-      return PairingItemOutcome.incompatible;
-    } on FormatException {
+    if (bytes.length > maxSize) return PairingItemOutcome.damaged;
+    final (snapshot, failure) = await compute(_parse, bytes);
+    if (snapshot == null) return failure ?? PairingItemOutcome.damaged;
+    final offered = item.sections.toSet();
+    if (!snapshot.sections.keys.every(offered.contains)) {
       return PairingItemOutcome.damaged;
-    } on FileSystemException {
-      // Not UTF-8 text.
+    }
+    final settings = snapshot.sections[SettingsBackupSection.sectionId];
+    if (!item.secrets && SettingsBackupSection.hasSecrets(settings?.data)) {
       return PairingItemOutcome.damaged;
     }
     try {
-      await registry.restore(snapshot, mode: mode);
+      await registry.restore(snapshot, mode: mode, only: offered);
       return PairingItemOutcome.installed;
     } on Object catch (error) {
       return pairingOutcomeOf(error);
+    }
+  }
+
+  /// The snapshot in [bytes], or why there is none.
+  static (BackupSnapshot?, PairingItemOutcome?) _parse(Uint8List bytes) {
+    try {
+      final json = jsonDecode(utf8.decode(bytes));
+      if (json is! Map<String, Object?>) {
+        return (null, PairingItemOutcome.damaged);
+      }
+      return (BackupSnapshot.fromJson(json), null);
+    } on BackupSnapshotVersionException {
+      return (null, PairingItemOutcome.incompatible);
+    } on Object {
+      // Not UTF-8, not JSON, not a snapshot, or JSON nested too deeply.
+      return (null, PairingItemOutcome.damaged);
     }
   }
 }

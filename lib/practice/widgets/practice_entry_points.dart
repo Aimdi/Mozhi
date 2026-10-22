@@ -23,7 +23,12 @@ PracticeRepository? maybePracticeRepository(BuildContext context) {
 /// without a [PracticeRepository] or with nothing due; new cards are not
 /// counted, so it never nags.
 class PracticeMenuLabel extends StatefulWidget {
-  const new({super.key});
+  const new({this.repository, super.key});
+
+  /// The practice to count (default: the one above the label). A menu
+  /// passes its own: its items are built in an overlay, away from the
+  /// providers around the menu button.
+  final PracticeRepository? repository;
 
   @override
   State<PracticeMenuLabel> createState() => _PracticeMenuLabelState();
@@ -35,7 +40,7 @@ class _PracticeMenuLabelState extends State<PracticeMenuLabel> {
   @override
   void initState() {
     super.initState();
-    _repository = maybePracticeRepository(context);
+    _repository = widget.repository ?? maybePracticeRepository(context);
     unawaited(_repository?.refreshDueCount());
   }
 

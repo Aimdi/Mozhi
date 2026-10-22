@@ -26,6 +26,7 @@ import 'package:mozhi/platform/android_device.dart';
 import 'package:mozhi/platform/secure_screen_listener.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
 import 'package:mozhi/platform/system_bars.dart';
+import 'package:mozhi/practice/data/practice_repository.dart';
 import 'package:mozhi/presets/view/presets_providers.dart';
 import 'package:mozhi/presets/widgets/saved_glossaries_binding.dart';
 import 'package:mozhi/quick_translate/quick_translate_host.dart';
@@ -173,6 +174,7 @@ class _AppState extends State<App> {
     unawaited(_deps.offlineTranslator.dispose());
     unawaited(_deps.backupRegistry?.dispose());
     unawaited(_deps.syncService?.dispose());
+    unawaited(_deps.practiceRepository?.dispose());
     unawaited(_deps.phrasebookRepository?.dispose());
     super.dispose();
   }
@@ -296,6 +298,9 @@ class _AppState extends State<App> {
         // The phrasebook (`maybePhrasebookRepository` finds it).
         if (_deps.phrasebookRepository case final phrasebook?)
           RepositoryProvider<PhrasebookRepository>.value(value: phrasebook),
+        // Practice (`maybePracticeRepository` finds it).
+        if (_deps.practiceRepository case final practice?)
+          RepositoryProvider<PracticeRepository>.value(value: practice),
         // Preferences only: secrets are never handed to the widget tree.
         RepositoryProvider<KeyValueStore>.value(value: _deps.preferences),
         RepositoryProvider<SharedTextService>.value(
