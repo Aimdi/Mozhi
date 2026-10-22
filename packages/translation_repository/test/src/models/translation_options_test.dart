@@ -14,6 +14,7 @@ void main() {
       glossary: {'server': 'serveur', 'cloud': 'nuage'},
       instructions: 'Make it shorter.',
       formalityContext: 'My boss, but we are on first-name terms',
+      caseSensitiveGlossaryTerms: {'cloud'},
     );
 
     test('defaults', () {
@@ -28,6 +29,7 @@ void main() {
       expect(options.glossary, isEmpty);
       expect(options.instructions, isEmpty);
       expect(options.formalityContext, isEmpty);
+      expect(options.caseSensitiveGlossaryTerms, isEmpty);
       expect(options.isDefault, isTrue);
     });
 
@@ -65,6 +67,7 @@ void main() {
           custom.copyWith(glossary: const {}),
           custom.copyWith(instructions: ''),
           custom.copyWith(formalityContext: ''),
+          custom.copyWith(caseSensitiveGlossaryTerms: const {}),
         ];
         for (final variant in variants) {
           expect(variant, isNot(equals(custom)));
@@ -74,6 +77,14 @@ void main() {
         expect(
           custom.copyWith(formalityContext: 'other').hashCode,
           isNot(custom.hashCode),
+        );
+        expect(
+          custom.copyWith(caseSensitiveGlossaryTerms: {'cloud'}),
+          equals(custom),
+        );
+        expect(
+          custom.copyWith(caseSensitiveGlossaryTerms: {'cloud'}).hashCode,
+          custom.hashCode,
         );
         expect(custom, isNot(equals('not options')));
       });
@@ -205,6 +216,28 @@ void main() {
         expect(parse('?'), Gender.unknown);
       });
 
+      test('writes caseSensitiveGlossaryTerms only when non-empty', () {
+        expect(
+          const TranslationOptions().toJson().containsKey(
+            'caseSensitiveGlossaryTerms',
+          ),
+          isFalse,
+        );
+        expect(custom.toJson()['caseSensitiveGlossaryTerms'], ['cloud']);
+        expect(
+          TranslationOptions.fromJson(const {
+            'caseSensitiveGlossaryTerms': ['IT', ' ', 3, 'Apple'],
+          }).caseSensitiveGlossaryTerms,
+          {'IT', 'Apple'},
+        );
+        expect(
+          TranslationOptions.fromJson(const {
+            'caseSensitiveGlossaryTerms': 'IT',
+          }).caseSensitiveGlossaryTerms,
+          isEmpty,
+        );
+      });
+
       test('parses tolerant glossaries', () {
         final fromMap = TranslationOptions.fromJson(const {
           'glossary': {'a': 'b', ' ': 'blank', 'n': 1, 2: 'x'},
@@ -241,6 +274,14 @@ void main() {
       expect(
         custom.toString(),
         contains('formalityContext: My boss, but we are on first-name terms'),
+      );
+      expect(
+        custom.toString(),
+        contains('caseSensitiveGlossaryTerms: {cloud}'),
+      );
+      expect(
+        const TranslationOptions().toString(),
+        isNot(contains('caseSensitiveGlossaryTerms')),
       );
     });
   });

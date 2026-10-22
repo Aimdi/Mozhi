@@ -32,6 +32,17 @@ void main() {
         expect(TextMasker.formatSpans(''), isEmpty);
       });
 
+      test('formatSpans keeps e-mail addresses of any script whole', () {
+        const text = 'Mail info@müller.de or jürgen@example.de.';
+        expect(
+          [
+            for (final span in TextMasker.formatSpans(text))
+              text.substring(span.start, span.end),
+          ],
+          ['info@müller.de', 'jürgen@example.de'],
+        );
+      });
+
       test('formatSpans leaves percentages and ICU messages alone', () {
         expect(TextMasker.formatSpans('100% done, 50%off'), isEmpty);
         expect(TextMasker.formatSpans('{count, plural, one{# item}}'), isEmpty);
@@ -219,6 +230,56 @@ void main() {
         expect(restored.isComplete, isTrue);
         expect(xml.restore('A B').missing, {0, 1});
       });
+    });
+  });
+
+  group(ProtectedPatterns, () {
+    List<String> all(RegExp pattern, String text) => [
+      for (final match in pattern.allMatches(text)) match.group(0)!,
+    ];
+
+    test('every combined pattern compiles as a Unicode pattern', () {
+      for (final pattern in [
+        ProtectedPatterns.plainText,
+        ProtectedPatterns.subtitle,
+        ProtectedPatterns.markdown,
+        ProtectedPatterns.json,
+        ProtectedPatterns.placeholders,
+        ProtectedPatterns.translation,
+        ProtectedPatterns.combine([r'\{[^{}]*\}', ProtectedPatterns.email]),
+      ]) {
+        expect(pattern.isUnicode, isTrue);
+      }
+      expect(all(ProtectedPatterns.plainText, 'See www.x.de or jürgen@x.de'), [
+        'www.x.de',
+        'jürgen@x.de',
+      ]);
+      expect(
+        all(ProtectedPatterns.markdown, '`code` [a](https://x.de) ö@ü.de'),
+        ['`code`', '(https://x.de)', 'ö@ü.de'],
+      );
+      expect(all(ProtectedPatterns.subtitle, r'{\an8}<i>Hi</i> &amp;'), [
+        r'{\an8}',
+        '<i>',
+        '</i>',
+        '&amp;',
+      ]);
+      expect(all(ProtectedPatterns.json, r'Hi {{n}} %1$s <b> a@b.de 😀'), [
+        '{{n}}',
+        r'%1$s',
+        '<b>',
+        'a@b.de',
+      ]);
+    });
+
+    test('email: whole addresses of any script, not inside words', () {
+      final email = RegExp(ProtectedPatterns.email, unicode: true);
+      expect(all(email, 'jürgen@example.de, info@müller.de.'), [
+        'jürgen@example.de',
+        'info@müller.de',
+      ]);
+      expect(all(email, '请发邮件至info@example.com获取'), ['info@example.com']);
+      expect(all(email, 'a@b, @x.de, x@.de'), isEmpty);
     });
   });
 
