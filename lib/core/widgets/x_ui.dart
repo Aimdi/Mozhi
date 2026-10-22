@@ -322,39 +322,45 @@ class _XActionButtonState extends State<XActionButton>
     );
 
     final label = widget.label;
-    return Tooltip(
-      message: widget.tooltip,
-      child: Semantics(
-        button: true,
-        enabled: enabled,
-        toggled: widget.activeIcon != null ? active : null,
-        // No label: like IconButton, the tooltip names the button (a label
-        // as well would be announced twice, "Copy Copy").
-        onTap: widget.onPressed,
-        excludeSemantics: true,
-        child: InkResponse(
+    // Its own node (with the tooltip as its name): inside a group (a
+    // container) it would otherwise merge into the group and turn the
+    // whole group into this button.
+    return Semantics(
+      container: true,
+      child: Tooltip(
+        message: widget.tooltip,
+        child: Semantics(
+          button: true,
+          enabled: enabled,
+          toggled: widget.activeIcon != null ? active : null,
+          // No label: like IconButton, the tooltip names the button (a label
+          // as well would be announced twice, "Copy Copy").
           onTap: widget.onPressed,
-          radius: 22,
-          highlightColor: activeColor.withValues(alpha: 0.1),
-          splashColor: activeColor.withValues(alpha: 0.16),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                icon,
-                if (label != null) ...[
-                  const SizedBox(width: 6),
-                  Text(
-                    label,
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: color,
-                      fontWeight: FontWeight.w500,
+          excludeSemantics: true,
+          child: InkResponse(
+            onTap: widget.onPressed,
+            radius: 22,
+            highlightColor: activeColor.withValues(alpha: 0.1),
+            splashColor: activeColor.withValues(alpha: 0.16),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  icon,
+                  if (label != null) ...[
+                    const SizedBox(width: 6),
+                    Text(
+                      label,
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: color,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                  ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),

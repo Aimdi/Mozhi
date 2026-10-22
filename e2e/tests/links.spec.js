@@ -15,8 +15,9 @@ for (const [fixture, setting] of [
   ['settings-ai', 'on'],
 ]) {
   test(`a translate link prefills without an automatic AI request (instant AI ${setting})`, async ({ page }) => {
-    // AI engine selected. "Instant translate with AI" covers typing only,
-    // never a link, so neither setting may send a request here.
+    // AI engine selected. Instant translate with AI ("Online engines and
+    // AI") covers typing only, never a link, so neither setting may send a
+    // request here.
     await seedSettings(page, fixture);
     const requests = recordAiRequests(page);
 

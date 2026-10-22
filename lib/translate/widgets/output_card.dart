@@ -1554,7 +1554,9 @@ class _RefinementTag extends StatelessWidget {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final label = refinementLabel(l10n, suggestion);
-    return InputChip(
+    // A plain chip with a delete button: an InputChip without onPressed
+    // reads as disabled to screen readers.
+    return Chip(
       avatar: Icon(
         refinementIcon(suggestion.icon),
         size: 16,

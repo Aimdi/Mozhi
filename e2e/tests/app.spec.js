@@ -1,13 +1,15 @@
-// Smoke tests: the app starts with its four tabs, History and Settings open
-// from the app bar, the More tools menu opens and the main (including
-// deferred, separately downloaded) routes render.
+// Smoke tests: the app starts with its four tabs, the first run on the web,
+// History and Settings open from the app bar, the More tools menu opens and
+// the main (including deferred, separately downloaded) routes render.
 const { expect } = require('@playwright/test');
 const {
   collectPageErrors,
+  escapeRegExp,
   goBack,
   openApp,
   openHistory,
   openSettings,
+  openSettingsCategory,
   scrollTo,
   seedSettings,
   test,
@@ -42,14 +44,18 @@ test('app loads on the translate tab', async ({ page }) => {
   // Screen readers get the tree from the start: Flutter's hidden "Enable
   // accessibility" button is gone (lib/bootstrap.dart).
   await expect(page.locator('flt-semantics-placeholder')).toHaveCount(0);
-  // The seeded AI provider is the selected engine.
+  // The seeded AI provider is the selected engine; the app bar names it
+  // without its model id (that is in the engine sheet).
   await expect(
     page.getByRole('button', { name: /Local AI \(mock\)/ }).first(),
   ).toBeVisible();
+  await expect(page.getByText(/mock-translator-8b/)).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
-test('first run: at most three steps after the welcome', async ({ page }) => {
+test('first run on the web: three steps, no privacy step', async ({
+  page,
+}) => {
   const errors = collectPageErrors(page);
   await openApp(page, '/translate');
   // Turn the seeded settings into a first run (the seed only applies once
@@ -65,29 +71,59 @@ test('first run: at most three steps after the welcome', async ({ page }) => {
   await expect(
     page.getByRole('heading', { name: 'Welcome to Mozhi' }),
   ).toBeVisible();
+  await expect(page.getByText('Step 1 of 3', { exact: true })).toBeVisible();
   const next = page.getByRole('button', { name: 'Next' });
-
-  await next.click();
-  await expect(
-    page.getByRole('heading', { name: 'How private should translations be?' }),
-  ).toBeVisible();
+  // A browser has no on-device engine, so there is no privacy step: its
+  // choice is one switch on the service step.
+  const privacyStep = page.getByRole('heading', {
+    name: 'How private should translations be?',
+  });
 
   await next.click();
   await expect(
     page.getByRole('heading', { name: 'Pick your languages' }),
   ).toBeVisible();
+  await expect(page.getByText('Step 2 of 3', { exact: true })).toBeVisible();
+  await expect(privacyStep).toHaveCount(0);
   await expect(
     page.getByRole('button', { name: /^Translate into\s+French/ }),
   ).toBeVisible();
-  // A browser has no on-device engine: nothing to download.
+  // Nothing to download.
   await expect(page.getByText(/can’t translate on its own/)).toBeVisible();
 
   await next.click();
   await expect(
     page.getByRole('heading', { name: /^Online translation/ }),
   ).toBeVisible();
+  await expect(page.getByText('Step 3 of 3', { exact: true })).toBeVisible();
+  await expect(privacyStep).toHaveCount(0);
   await expect(next).toBeHidden();
   await expect(page.getByRole('button', { name: 'Skip' })).toBeHidden();
+  // The online service is the only engine here: not "Optional".
+  await expect(page.getByText('Optional', { exact: true })).toHaveCount(0);
+
+  // The server in use, with the list of servers behind "Change".
+  const server = page.getByRole('group', {
+    name: /^Using Local test instance/,
+  });
+  await expect(server).toBeVisible();
+  await expect(page.getByRole('radio')).toHaveCount(0);
+  await server.getByRole('button', { name: 'Change' }).click();
+  const instance = page.getByRole('radio', { name: /^Local test instance/ });
+  await expect(instance).toBeChecked();
+  await server.getByRole('button', { name: 'Done' }).click();
+  await expect(instance).toHaveCount(0);
+  // One button measures the servers' speed (they are contacted only then).
+  await page.getByRole('button', { name: /^Find the fastest server/ }).click();
+  await expect(page.getByRole('button', { name: /^Test again/ })).toBeVisible();
+
+  // In a browser text goes online without asking unless this is turned
+  // on (Offline first).
+  const ask = page.getByRole('switch', { name: /^Ask before sending text/ });
+  await expect(ask).not.toBeChecked();
+  await ask.click();
+  await expect(ask).toBeChecked();
+
   const aiLink = page.getByRole('button', { name: 'Open AI provider settings' });
   await scrollTo(page, aiLink);
   await expect(aiLink).toBeVisible();
@@ -97,6 +133,14 @@ test('first run: at most three steps after the welcome', async ({ page }) => {
     'aria-selected',
     'true',
   );
+  // The switch chose the privacy mode.
+  await openSettings(page);
+  await openSettingsCategory(page, 'Privacy & data');
+  await expect(
+    page
+      .getByRole('group', { name: 'Privacy mode' })
+      .getByRole('radio', { name: /^Offline first/ }),
+  ).toBeChecked();
   expect(errors).toEqual([]);
 });
 
@@ -109,11 +153,11 @@ test('the tabs switch and keep History and Settings at hand', async ({
   // Dictionary and Conversation are deferred: loaded on first open.
   await page.getByRole('tab', { name: 'Dictionary' }).click();
   await expect(
-    page.getByRole('heading', { name: 'What does this mean?' }),
+    page.getByRole('heading', { name: 'Look up a word' }),
   ).toBeVisible();
   await page.getByRole('tab', { name: 'Proofread' }).click();
   await expect(
-    page.getByRole('heading', { name: 'Does this look right?' }),
+    page.getByRole('heading', { name: 'Check your writing' }),
   ).toBeVisible();
   await page.getByRole('tab', { name: 'Conversation' }).click();
   await expect(page.getByRole('heading', { name: "Let's talk!" }))
@@ -141,7 +185,7 @@ test('More tools menu opens and closes', async ({ page }) => {
 
   const menu = page.getByRole('menu');
   await expect(menu).toBeVisible();
-  for (const item of ['Documents', 'Web page']) {
+  for (const item of ['Documents', 'Web page', 'Recent language pairs']) {
     await expect(menu.getByRole('menuitem', { name: item })).toBeVisible();
   }
   // The dictionary and conversation mode are tabs now.
@@ -162,42 +206,140 @@ test.describe('routes render', () => {
     await expect(
       page.getByRole('button', { name: 'Back', exact: true }),
     ).toBeVisible();
-    // Privacy comes first; the other sections follow below it (scroll them
-    // into the semantics tree).
+    // A search field, then the categories in this order, each with a
+    // summary; AI is marked as advanced.
     await expect(
-      page.getByRole('heading', { name: 'Privacy', exact: true }),
+      page.getByRole('searchbox', { name: 'Search settings' }),
     ).toBeVisible();
-    for (const name of ['Offline languages', 'Online engines']) {
+    const categories = [
+      'General',
+      'Privacy & data',
+      'Translation engines',
+      'AI',
+      'Appearance',
+      'Read aloud & voice',
+      'About',
+    ];
+    const listed = page.getByRole('button', {
+      name: new RegExp(`^(${categories.join('|')}) `),
+    });
+    await expect(listed).toHaveCount(categories.length);
+    for (const [index, name] of categories.entries()) {
+      await expect(listed.nth(index)).toHaveAccessibleName(
+        new RegExp(`^${escapeRegExp(name)} `),
+      );
+    }
+    await expect(
+      page.getByRole('button', { name: /^AI\s+Advanced\s+AI providers/ }),
+    ).toBeVisible();
+
+    // Each category is a page of its own; back returns to the list.
+    // Privacy & data: four groups, the destructive actions last.
+    await openSettingsCategory(page, 'Privacy & data');
+    const privacyGroups = ['Privacy', 'History', 'Network', 'Data'];
+    for (const name of privacyGroups) {
+      const heading = page.getByRole('heading', { name, exact: true });
+      await scrollTo(page, heading);
+      await expect(heading).toBeVisible();
+    }
+    const groups = page.getByRole('heading', {
+      name: new RegExp(`^(${privacyGroups.join('|')})$`),
+    });
+    await expect(groups).toHaveCount(privacyGroups.length);
+    for (const [index, name] of privacyGroups.entries()) {
+      await expect(groups.nth(index)).toHaveAccessibleName(name);
+    }
+    await expect(
+      page.getByRole('button', { name: /^Delete all local data/ }),
+    ).toBeVisible();
+    await goBack(page);
+
+    // Translation engines: the offline languages, the online engines and
+    // how they translate.
+    await openSettingsCategory(page, 'Translation engines');
+    for (const name of ['Offline languages', 'Online engines', 'Translating']) {
       const heading = page.getByRole('heading', { name, exact: true });
       await scrollTo(page, heading);
       await expect(heading).toBeVisible();
     }
     // The browser has no on-device engine.
     await expect(
-      page.getByLabel(/On-device translation needs the Android app\./),
+      page.getByText(/On-device translation needs the Android app\./),
     ).toBeVisible();
-    // AI providers are marked as advanced.
-    const ai = page.getByRole('heading', { name: /^AI providers\s+Advanced/ });
-    await scrollTo(page, ai);
-    await expect(ai).toBeVisible();
-    const providers = page.getByRole('button', { name: /^AI providers/ });
-    await scrollTo(page, providers);
-    await expect(providers).toBeVisible();
-    const instantAi = page.getByRole('switch', {
-      name: /^Instant translate with AI/,
+    // Instant translation is one setting with three choices.
+    const instant = page.getByRole('button', {
+      name: /^Instant translate\s+Online engines and AI$/,
     });
-    await scrollTo(page, instantAi);
-    await expect(instantAi).toBeVisible();
-    for (const name of ['Appearance', 'About']) {
-      const heading = page.getByRole('heading', { name, exact: true });
-      await scrollTo(page, heading);
-      await expect(heading).toBeVisible();
+    await scrollTo(page, instant);
+    await instant.click();
+    const dialog = page.getByRole('alertdialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('radio')).toHaveCount(3);
+    for (const name of [/^Off /, /^Online engines Mozhi/]) {
+      await expect(dialog.getByRole('radio', { name })).not.toBeChecked();
     }
+    await expect(
+      dialog.getByRole('radio', { name: /^Online engines and AI / }),
+    ).toBeChecked();
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
+    await expect(dialog).toBeHidden();
+    await goBack(page);
+
+    // AI, marked as advanced: the providers come first.
+    await openSettingsCategory(page, 'AI');
+    await expect(
+      page.getByRole('heading', { name: /^AI\s+Advanced$/ }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: /^AI providers\s+1 of 1 enabled/ }),
+    ).toBeVisible();
+    await goBack(page);
+
+    await openSettingsCategory(page, 'Appearance');
+    await expect(
+      page.getByRole('group', { name: 'Theme', exact: true }),
+    ).toBeVisible();
+    await goBack(page);
+
+    // About, with the licenses.
+    await openSettingsCategory(page, 'About');
     const licenses = page.getByRole('button', {
       name: /^Open-source licenses/,
     });
     await scrollTo(page, licenses);
     await expect(licenses).toHaveAccessibleName(/MPL-2\.0/);
+    await goBack(page);
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+    await expect(
+      page.getByRole('searchbox', { name: 'Search settings' }),
+    ).toBeVisible();
+  });
+
+  test('settings on a wide screen: the list beside the category', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await openApp(page, '/settings');
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+    // General is shown beside the list.
+    await expect(
+      page.getByRole('heading', { name: 'General', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: /^App language/ }),
+    ).toBeVisible();
+    // Picking a category changes the pane, not the location.
+    await page.getByRole('button', { name: /^Appearance / }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Appearance', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('group', { name: 'Theme', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: /^General / }),
+    ).toBeVisible();
+    expect(new URL(page.url()).hash).toBe('#/settings');
   });
 
   test('quality modes', async ({ page }) => {
@@ -229,10 +371,23 @@ test.describe('routes render', () => {
       if (r.url().includes('/v1/chat/completions')) aiCalls.push(r.url());
     });
     await openApp(page, '/dictionary?word=hello&from=en&to=fr');
-    await expect(page.getByRole('heading', { name: 'Dictionary' })).toBeVisible();
-    // A tab of its own.
+    await expect(
+      page.getByRole('heading', { name: 'Look up a word' }),
+    ).toBeVisible();
+    // A tab of its own; on a phone the app bar shows the AI model (which
+    // opens the model choice) instead of a title.
     await expect(page.getByRole('tab', { name: 'Dictionary' }))
       .toHaveAttribute('aria-selected', 'true');
+    await expect(
+      page
+        .getByRole('banner')
+        .getByRole('button', { name: 'AI model: Local AI (mock)' }),
+    ).toBeVisible();
+    // The word is filled in (Flutter web mirrors a field's text into the
+    // DOM while it is being edited: focus it to read the value).
+    const word = page.getByRole('textbox', { name: /^Look up a word or phrase/ });
+    await word.click();
+    await expect(word).toHaveValue('hello');
     await expect(
       page.getByRole('button', { name: 'Language of the word: English' }),
     ).toBeVisible();

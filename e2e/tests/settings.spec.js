@@ -1,13 +1,16 @@
-// Settings round trips: turning history off and switching to the dark
-// theme and its Lights out look (which must survive a reload).
+// Settings round trips: turning history off (Privacy & data) and switching
+// to the dark theme and its Lights out look (Appearance, found with the
+// settings search), which must survive a reload.
 const { expect } = require('@playwright/test');
 const {
   copiedTranslation,
+  fillField,
   goBack,
   meanLuminance,
   openApp,
   openHistory,
   openSettings,
+  openSettingsCategory,
   scrollTo,
   seedSettings,
   test,
@@ -22,14 +25,18 @@ test('with Save history off, translations are not saved', async ({
   page,
 }) => {
   await openApp(page, '/settings');
-  // Save history is in the Privacy section (the first one).
+  // Save history is in Privacy & data, in its History group.
+  await openSettingsCategory(page, 'Privacy & data');
   const saveHistory = page.getByRole('switch', { name: /^Save history/ });
   await scrollTo(page, saveHistory);
   await expect(saveHistory).toBeChecked();
   await saveHistory.click();
   await expect(saveHistory).not.toBeChecked();
 
-  // Opened on its own, Settings goes back to the translate tab.
+  // Back to the list of categories, then (Settings was opened on its own)
+  // to the translate tab.
+  await goBack(page);
+  await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
   await goBack(page);
   await typeSource(page, 'Good evening');
   await expect
@@ -47,19 +54,27 @@ test('with Save history off, translations are not saved', async ({
     .toBeVisible();
   await expect(page.getByRole('group', { name: /Good evening/ })).toBeHidden();
 
-  // The setting is stored: still off after a reload.
+  // The setting is stored: still off after a reload. A link can open the
+  // row directly.
   await page.reload();
-  await openApp(page, '/settings');
+  await openApp(page, '/settings/privacy?row=save_history');
+  await expect(
+    page.getByRole('heading', { name: 'Privacy & data' }),
+  ).toBeVisible();
   await scrollTo(page, saveHistory);
   await expect(saveHistory).not.toBeChecked();
 
-  // The banner turns it back on.
+  // The banner turns it back on. Opened on its own, the category goes
+  // back to the list of categories first.
+  await goBack(page);
+  await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
   await goBack(page);
   await openHistory(page);
   await banner.getByRole('button', { name: 'Turn on' }).click();
   await expect(banner).toBeHidden();
   await goBack(page);
   await openSettings(page);
+  await openSettingsCategory(page, 'Privacy & data');
   await scrollTo(page, saveHistory);
   await expect(saveHistory).toBeChecked();
 });
@@ -68,7 +83,26 @@ test('the dark theme and its look persist after a reload', async ({
   page,
 }) => {
   await openApp(page, '/settings');
-  const theme = page.getByRole('group', { name: 'Theme' });
+  // The search finds the row by its name and opens its category.
+  await fillField(
+    page.getByRole('searchbox', { name: 'Search settings' }),
+    'dark theme',
+  );
+  const result = page.getByRole('button', { name: /^Dark theme\s+Appearance/ });
+  await expect(result).toBeVisible();
+  // Screen readers hear how many rows match (a polite live region).
+  await expect(page.locator('flt-announcement-polite')).toHaveText(
+    /^\d+ settings? found$/,
+  );
+  // Only the matching rows are listed, not the categories.
+  await expect(
+    page.getByRole('button', { name: /^Privacy & data / }),
+  ).toHaveCount(0);
+  await result.click();
+  await expect(
+    page.getByRole('heading', { name: 'Appearance', exact: true }),
+  ).toBeVisible();
+  const theme = page.getByRole('group', { name: 'Theme', exact: true });
   await scrollTo(page, theme);
   // The seeded settings use the light theme; the dark look (Dim or
   // Lights out) only applies to the dark one.
@@ -93,7 +127,7 @@ test('the dark theme and its look persist after a reload', async ({
   await expect.poll(() => meanLuminance(page)).toBeLessThan(dimLuminance);
 
   await page.reload();
-  await openApp(page, '/settings');
+  await openApp(page, '/settings/appearance');
   const lightsOutAfterReload = page
     .getByRole('group', { name: 'Dark theme' })
     .getByRole('radio', { name: 'Lights out' });
@@ -101,7 +135,11 @@ test('the dark theme and its look persist after a reload', async ({
   await expect(lightsOutAfterReload).toBeChecked();
   await expect.poll(() => meanLuminance(page)).toBeLessThan(100);
 
-  // Other screens use it too.
+  // Other screens use it too: the list of categories, then the translate
+  // tab.
+  await goBack(page);
+  await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+  await expect.poll(() => meanLuminance(page)).toBeLessThan(100);
   await goBack(page);
   await expect(
     page.getByRole('textbox', { name: 'Text to translate' }),

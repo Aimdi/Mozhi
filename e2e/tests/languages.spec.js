@@ -11,8 +11,8 @@ const {
   typeSource,
 } = require('./helpers');
 
-// AI engine selected, "Instant translate with AI" off: every translation
-// is started with the Translate button.
+// AI engine selected, Instant translate without AI ("Online engines"):
+// every translation is started with the Translate button.
 test.beforeEach(async ({ page }) => {
   await seedSettings(page, 'settings-ai-manual');
   await openApp(page, '/translate?text=Good%20night&from=en&to=de');

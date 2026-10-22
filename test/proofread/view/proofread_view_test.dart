@@ -1169,6 +1169,22 @@ void main() {
         expect(clipboard.copied, 'I have an apple.');
       });
 
+      testWidgets('share is its own button, not the whole result', (
+        tester,
+      ) async {
+        final semantics = tester.ensureSemantics();
+        await pumpView(tester, successState(accepted: {0}));
+        final share = tester.getSemantics(find.byTooltip('Share').first);
+        // Named by its tooltip, like an IconButton.
+        expect(share.getSemanticsData().tooltip, 'Share');
+        expect(share.getSemanticsData().label, isEmpty);
+        expect(share.getSemanticsData().flagsCollection.isButton, isTrue);
+        // The result group keeps its heading and text, and is no button.
+        final group = share.parent!;
+        expect(group.getSemanticsData().flagsCollection.isButton, isFalse);
+        semantics.dispose();
+      });
+
       testWidgets('tapping a change opens its details', (tester) async {
         await pumpView(tester, successState(accepted: {0}));
         final removed = _diffSpans(tester).singleWhere((s) => s.text == 'has');

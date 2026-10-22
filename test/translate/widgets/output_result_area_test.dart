@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show Tristate;
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/gestures.dart';
@@ -176,6 +177,29 @@ void main() {
       );
       await tester.tap(find.byTooltip('Undo “More formal”').first);
       verify(() => harness.translate.applySuggestion(_formal)).called(1);
+    });
+
+    testWidgets('the tag and its undo button read as enabled', (tester) async {
+      final handle = tester.ensureSemantics();
+      final harness = TranslateHarness(state: _refined());
+      await harness.pump(tester, child: const OutputCard());
+      final undo = tester.getSemantics(
+        find.byTooltip('Undo “More formal”').first,
+      );
+      expect(undo, isSemantics(isButton: true, hasTapAction: true));
+      expect(
+        undo.getSemanticsData().flagsCollection.isEnabled,
+        isNot(Tristate.isFalse),
+      );
+      final tag = tester.getSemantics(
+        find.byKey(const ValueKey('translate_refinement_tag:0')),
+      );
+      expect(
+        tag.getSemanticsData().flagsCollection.isEnabled,
+        isNot(Tristate.isFalse),
+        reason: 'the tag itself is not a disabled control',
+      );
+      handle.dispose();
     });
 
     testWidgets('no tag while the translation is out of date', (tester) async {

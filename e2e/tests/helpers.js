@@ -109,19 +109,29 @@ function sourceInput(page) {
 /**
  * The text of the current translation.
  *
- * The output is a read-only field whose text is not part of the semantics
- * tree (CanvasKit draws it), so this presses the result card's Copy button
+ * Reads it the way a user takes it: presses the result card's Copy button
  * and reads the clipboard (the context grants clipboard permissions).
- * [scope] narrows the search for the button (e.g. the proofread result).
+ * [scope] narrows the search for the button (e.g. a history entry);
+ * [button] is its name (e.g. the proofread result's "Copy corrected
+ * text").
  */
-async function copiedTranslation(page, scope = page) {
+async function copiedTranslation(
+  page,
+  scope = page,
+  button = /^Copy( Copy)?$/,
+) {
   await page.evaluate(() => navigator.clipboard.writeText(''));
   // While the pointer rests on the button its tooltip ("Copy") is merged
   // into the label; move the pointer away afterwards so the next call
   // finds the plain label again.
-  await scope.getByRole('button', { name: /^Copy( Copy)?$/ }).click();
+  await scope.getByRole('button', { name: button }).click();
   await page.mouse.move(0, 0);
   return page.evaluate(() => navigator.clipboard.readText());
+}
+
+/** [text] with the characters a regular expression gives a meaning escaped. */
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**
@@ -235,11 +245,28 @@ async function takeMockDown(page) {
 }
 
 /**
+ * Clicks the app bar button [name], then moves the pointer off it.
+ *
+ * While the pointer rests on a button its tooltip is merged into its name
+ * ("Back Back"), so the button is matched with or without it; moving the
+ * pointer away keeps it from resting on the button that the next screen
+ * shows at the same place (both pages' Back arrows).
+ */
+async function clickAppBarButton(page, name) {
+  const label = escapeRegExp(name);
+  await page
+    .getByRole('button', { name: new RegExp(`^${label}( ${label})?$`) })
+    .first()
+    .click();
+  await page.mouse.move(0, 0);
+}
+
+/**
  * Opens History or Settings with its button in the current tab's app bar
  * (they are pages above the tabs, not tabs) and waits for its heading.
  */
 async function openPage(page, name) {
-  await page.getByRole('button', { name, exact: true }).first().click();
+  await clickAppBarButton(page, name);
   await expect(
     page.getByRole('heading', { name, exact: true }).first(),
   ).toBeVisible();
@@ -256,12 +283,27 @@ function openSettings(page) {
 }
 
 /**
+ * Opens the settings category [name] ("Privacy & data", "Appearance", …)
+ * from the list of categories on the settings page and waits for its
+ * title. In a phone-sized window the category is a page of its own
+ * (`/settings/<category>`), above the list: [goBack] returns to the list.
+ */
+async function openSettingsCategory(page, name) {
+  const pattern = new RegExp(`^${escapeRegExp(name)}(\\s|$)`);
+  await page.getByRole('button', { name: pattern }).first().click();
+  await expect(page.getByRole('heading', { name: pattern }).first())
+    .toBeVisible();
+}
+
+/**
  * Leaves History or Settings with the app bar's back arrow: back to the
  * tab it was opened from, or the translate tab when it was opened on its
- * own (e.g. `openApp(page, '/settings')`).
+ * own (e.g. `openApp(page, '/settings')`). A settings category goes back
+ * to the list of categories first, also when it was opened on its own
+ * (`/settings/privacy` stacks on `/settings`).
  */
 async function goBack(page) {
-  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  await clickAppBarButton(page, 'Back');
 }
 
 module.exports = {
@@ -269,6 +311,7 @@ module.exports = {
   collectPageErrors,
   accessibilityTree,
   copiedTranslation,
+  escapeRegExp,
   fillField,
   goBack,
   loadSettings,
@@ -276,6 +319,7 @@ module.exports = {
   openApp,
   openHistory,
   openSettings,
+  openSettingsCategory,
   recordAiRequests,
   scrollTo,
   seedSettings,
