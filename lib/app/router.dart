@@ -318,9 +318,9 @@ typedef LaunchRedirect = String? Function(String location);
 /// Files shared from other apps open `/image?shared=<token>` and
 /// `/documents?shared=<token>` ([SharedFiles]): the document is loaded
 /// into the document translator (which waits for Translate); the image is
-/// read on the device first, and only translated right away when the
+/// shown on the image screen and only translated right away when the
 /// translator's engine is not an AI model (as for shared text, see
-/// [mayAutoTranslateShared]); otherwise the image screen opens empty.
+/// [mayAutoTranslateShared]); otherwise it waits for Translate.
 ///
 /// In the quick translate window ([quickTranslateWindow], default
 /// [QuickTranslateHost.isActive] of [QuickTranslateHost.instance]) every
@@ -406,11 +406,11 @@ GoRouter createAppRouter({
             token: token!,
             // On-device text recognition reads the file.
             keep: true,
-            builder: (context, file) =>
-                file == null || !mayAutoTranslateShared(context)
+            builder: (context, file) => file == null
                 ? image_page.ImageTranslatePage()
                 : image_page.ImageTranslatePage(
                     picker: shared_image.SharedImagePicker(file),
+                    autoTranslate: mayAutoTranslateShared(context),
                   ),
           );
         }

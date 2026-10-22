@@ -169,12 +169,17 @@ void main() {
         failure: EgressFailure.timeout,
       );
       record(_lan, outcome: EgressOutcome.pending);
+      record(
+        _lan,
+        purpose: EgressPurpose.catalog,
+        outcome: EgressOutcome.cancelled,
+      );
       await pump(tester, size: const Size(400, 4000));
 
       final headline = tester.widget<Text>(
         find.byKey(const Key('network_activity_headline')),
       );
-      expect(headline.data, startsWith('5 requests since'));
+      expect(headline.data, startsWith('6 requests since'));
       expect(find.text(l10n.settingsNetworkContentSummary(2)), findsOneWidget);
       expect(find.text(l10n.settingsNetworkDestinations), findsOneWidget);
       expect(find.text('OpenAI'), findsWidgets);
@@ -191,6 +196,7 @@ void main() {
       expect(find.text(l10n.settingsNetworkLog), findsOneWidget);
       expect(find.text(l10n.settingsNetworkStatusPending), findsOneWidget);
       expect(find.text(l10n.settingsNetworkStatusTimeout), findsOneWidget);
+      expect(find.text(l10n.settingsNetworkStatusCancelled), findsOneWidget);
       expect(
         find.text(l10n.settingsNetworkStatusHttpError(401)),
         findsOneWidget,

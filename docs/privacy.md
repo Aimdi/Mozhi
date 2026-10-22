@@ -23,6 +23,12 @@ goes anywhere else.
 - **Your text is sent only to the back end you choose** for that
   translation: a Mozhi instance, an AI provider, a DeepL or LibreTranslate
   service, or nowhere at all with the offline engine and local models.
+- **Personal data stays behind.** E-mail addresses, phone numbers, IBANs,
+  card numbers and IP addresses are [replaced before text goes
+  online](#personal-data-shield) and put back into the translation.
+- **You can check what left the device.** [Network
+  activity](#network-activity) lists every request of this session, without
+  its text.
 
 ## Privacy modes
 
@@ -78,6 +84,46 @@ The **destination chip** under a translation names who received the text:
 The chip names the instance that actually answered, so a failover is
 visible. The engine list shows the same categories as a badge: **On
 device**, **Self-hosted**, **Public server** or **Cloud**.
+
+When an engine's result is clearly wrong (the original text, the wrong
+language, a garbled or chat-style reply), Mozhi may translate again with
+another engine, and the result says so. It only uses engines that need no
+new consent: the on-device engine first, then servers and providers you
+already allowed. A paid AI provider is never tried automatically.
+
+### Personal data shield
+
+**Settings > Privacy > Hide personal data from online engines** (on by
+default) replaces e-mail addresses, phone numbers, IBANs (checked with
+their check digits), payment card numbers (checked with the Luhn
+algorithm) and IPv4 addresses with placeholders before the text goes to a
+Mozhi instance, an AI provider or a DeepL or LibreTranslate service, and
+puts them back into the translation on the device. The result says how
+many items stayed on the device. Language detection and back-translation
+for the meaning check are covered too. If an engine damages a placeholder,
+the text is **not** sent again unmasked: the result is marked instead.
+
+It doesn't apply to the on-device engine, which never sends anything. Not
+yet covered: the AI extras (alternatives, word insights, explanations,
+dictionary, alignment, proofreading, romanization) and text-to-speech,
+which receive the text as written. Names and addresses aren't detected.
+
+### Network activity
+
+**Settings > Privacy > Network activity** lists every request the app made
+this session: when, to which host, why (translation, AI, speech, photo,
+catalogue, model download, web page), how many bytes went each way, the
+answer's status, and whether it went through your proxy. It groups them by
+destination with a line on who can read what was sent, and has Clear and
+Copy summary actions.
+
+The log never records text, paths, query strings, request bodies or
+headers. It lives in memory only (the last 500 requests), is never saved
+and is gone when the app closes. Requests the app refuses (for example
+plain `http` to a public server) are never sent, so they don't appear.
+Network use outside the app's own connections isn't listed: the system's
+speech recognition and text-to-speech, links you open in the browser, and
+in the web app the browser's own loading of the app's files.
 
 ## What is sent, to whom, and how long it is kept
 

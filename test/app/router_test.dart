@@ -130,6 +130,49 @@ void main() {
     });
   });
 
+  group('mayAutoTranslateShared', () {
+    Future<bool> decide(
+      WidgetTester tester,
+      Widget Function(Widget) wrap,
+    ) async {
+      late bool result;
+      await tester.pumpWidget(
+        wrap(
+          Builder(
+            builder: (context) {
+              result = mayAutoTranslateShared(context);
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+      return result;
+    }
+
+    testWidgets('only for an engine that is not an AI model', (tester) async {
+      final env = TestEnvironment();
+      expect(await decide(tester, env.wrap), isTrue);
+
+      when(() => env.translateCubit.state).thenReturn(
+        TranslateState(
+          enginesStatus: EnginesStatus.ready,
+          engines: testEngines,
+          engine: testEngines.first,
+          compareMode: true,
+        ),
+      );
+      expect(await decide(tester, env.wrap), isFalse);
+
+      when(() => env.translateCubit.state)
+          .thenReturn(const TranslateState(enginesStatus: EnginesStatus.ready));
+      expect(await decide(tester, env.wrap), isFalse);
+    });
+
+    testWidgets('never without a translator', (tester) async {
+      expect(await decide(tester, (child) => child), isFalse);
+    });
+  });
+
   group('homeRedirect', () {
     test('opens the translate tab in the default order', () {
       expect(homeRedirect(const AppSettings(), '/'), AppRoutes.translate);
@@ -603,7 +646,9 @@ void main() {
         final page = tester.widget<ImageTranslatePage>(
           find.byType(ImageTranslatePage),
         );
-        expect(page.picker, isNull);
+        // The image is shown, and only the user's Translate sends it on.
+        expect(page.picker, isA<SharedImagePicker>());
+        expect(page.autoTranslate, isFalse);
       });
     });
 

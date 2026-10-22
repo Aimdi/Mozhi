@@ -23,6 +23,7 @@ import 'package:mozhi/platform/secure_screen_listener.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
 import 'package:mozhi/platform/system_bars.dart';
 import 'package:mozhi/presets/view/presets_providers.dart';
+import 'package:mozhi/quick_translate/quick_translate_host.dart';
 import 'package:mozhi/quick_translate/view/quick_translate_sheet.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
@@ -131,7 +132,9 @@ class _AppState extends State<App> {
   /// Android may end the app while the camera is open (it needs a lot of
   /// memory): a photo taken then opens on the image screen.
   Future<void> _recoverLostPhoto() async {
-    if (!runsOnAndroid) return;
+    // The quick translate window shows only its sheet: the photo is left
+    // for the main window.
+    if (!runsOnAndroid || QuickTranslateHost.instance.isActive) return;
     // coverage:ignore-start
     try {
       await lost_image.loadLibrary();

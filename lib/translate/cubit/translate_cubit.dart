@@ -241,6 +241,10 @@ class TranslateCubit extends Cubit<TranslateState> {
   /// the first [loadEngines]).
   bool? _shieldPushed;
 
+  /// The on-device pair last preloaded (`engine|source>target`), so that
+  /// [onChange] asks for each pair once.
+  String? _preloadedPair;
+
   Timer? _debounceTimer;
 
   /// Engine-list loads ([loadEngines]).
@@ -779,6 +783,33 @@ class TranslateCubit extends Cubit<TranslateState> {
       );
     } on Object {
       // A repository test double without warm-up.
+    }
+  }
+
+  @override
+  void onChange(Change<TranslateState> change) {
+    super.onChange(change);
+    _preloadOffline(change.nextState);
+  }
+
+  /// Loads the on-device models of the current pair in the background
+  /// (`TranslationRepository.preloadOffline`) once the on-device engine is
+  /// selected with a known source language, so that the first translation
+  /// doesn't wait for them. Errors are ignored.
+  void _preloadOffline(TranslateState state) {
+    final engine = state.engine;
+    if (engine == null || !engine.isOffline || state.source.isAuto) return;
+    final pair = '${engine.id}|${state.source.code}>${state.target.code}';
+    if (pair == _preloadedPair) return;
+    _preloadedPair = pair;
+    try {
+      unawaited(
+        _repository
+            .preloadOffline(engine, source: state.source, target: state.target)
+            .then((_) {}, onError: (Object _) {}),
+      );
+    } on Object {
+      // A repository test double without preloading.
     }
   }
 
@@ -3441,8 +3472,10 @@ class TranslateCubit extends Cubit<TranslateState> {
   }
 
   /// Finds the corresponding phrases of the input and the output
-  /// ([TranslateState.alignment], on demand) with the AI
-  /// [TranslateState.assistEngine] (`TranslationRepository.align`; only the
+  /// ([TranslateState.alignment], on demand) with
+  /// [TranslateState.alignmentEngine] (`TranslationRepository.align`): the
+  /// on-device engine for its own translations (free, nothing is recorded
+  /// in the usage), else the AI [TranslateState.assistEngine] (only the
   /// beginning of long texts is aligned). Needs a finished, current output
   /// ([TranslateState.canAlign]); does nothing while it is loading or
   /// loaded. Errors end up in [TranslateState.alignmentError]; nothing is
@@ -3453,7 +3486,7 @@ class TranslateCubit extends Cubit<TranslateState> {
         state.alignmentStatus == ExtraStatus.ready) {
       return;
     }
-    final engine = state.assistEngine!;
+    final engine = state.alignmentEngine!;
     final result = state.result!;
     final source = state.input;
     final translation = result.text;
@@ -3473,11 +3506,13 @@ class TranslateCubit extends Cubit<TranslateState> {
         sourceLanguage: _effectiveSource(),
         targetLanguage: state.target,
       );
-      _recordUsage(
-        engine,
-        input: '$source\n$translation',
-        output: _alignmentText(spans, source, translation),
-      );
+      if (!engine.isOffline) {
+        _recordUsage(
+          engine,
+          input: '$source\n$translation',
+          output: _alignmentText(spans, source, translation),
+        );
+      }
       if (!_isCurrentResultExtra(_Extra.alignment, token, result)) return;
       emit(
         state.copyWith(

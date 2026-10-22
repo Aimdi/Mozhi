@@ -3234,6 +3234,31 @@ class TranslationRepository {
     }
   }
 
+  /// Loads the on-device models for [source] → [target] before the first
+  /// translation (`DetailedOfflineTranslator.preload`), so that it doesn't
+  /// wait for them. Nothing is downloaded and nothing leaves the device.
+  /// Returns false, without throwing, when [engine] is not the on-device
+  /// engine, the source is [Language.auto], the pair isn't installed or
+  /// the translator cannot preload.
+  Future<bool> preloadOffline(
+    TranslationEngine engine, {
+    required Language source,
+    required Language target,
+  }) async {
+    final offline = _offline;
+    if (!engine.isOffline || offline == null || source.isAuto) return false;
+    final translator = offline.translator;
+    if (translator is! DetailedOfflineTranslator) return false;
+    final from = offline.codeFor(source);
+    final to = offline.codeFor(target, isTarget: true);
+    if (from == null || to == null || from == to) return false;
+    try {
+      return await translator.preload(source: from, target: to);
+    } on Object {
+      return false;
+    }
+  }
+
   /// The models of an AI provider; machine translation services have none
   /// (an empty list).
   Future<List<LlmModel>> listModels(AiProviderConfig config) async {

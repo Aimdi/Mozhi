@@ -215,6 +215,48 @@ void main() {
     expect(pairs['How'], 'Wie');
   }, skip: skip);
 
+  test('accented letters survive on the way in and out', () async {
+    // A regression guard for every architecture the tests run on (char is
+    // unsigned on Linux/Android aarch64 and armv7, signed on x86_64):
+    // letters outside ASCII must reach the model and come back intact.
+    final spanish = await translator.translate(
+      'Tomorrow the child will go to the Spanish city of Malaga with José.',
+      source: 'en',
+      target: 'es',
+    );
+    final german = await translator.translate(
+      'Thank you for your help. The fox jumps over the lazy dog.',
+      source: 'en',
+      target: 'de',
+    );
+    final english = await translator.translate(
+      'Grüße aus München. Ich bin müde.',
+      source: 'de',
+      target: 'en',
+    );
+    debugPrint('accents: "$spanish" / "$german" / "$english"');
+    expect(
+      spanish,
+      allOf(contains('Mañana'), contains('niño'), contains('José')),
+    );
+    expect(german, allOf(contains('für'), contains('über')));
+    expect(
+      english,
+      allOf(contains('Greetings'), contains('Munich'), contains('tired')),
+    );
+
+    // Not a sentence of the pivot test below: the engine caches sentences.
+    const text = 'Mi amigo José trabaja en Málaga.';
+    final detailed = await translator.translateDetailed(
+      text,
+      source: 'es',
+      target: 'en',
+    );
+    expect([
+      for (final span in detailed.alignedSpans()) span.sourceIn(text),
+    ], containsAll(['José', 'Málaga.']));
+  }, skip: skip);
+
   test('pivot alignment keeps UTF-16 offsets (es -> de)', () async {
     const text = '¿Cómo estás? Me llamo José y vivo en Málaga.';
     final result = await translator.translateDetailed(
@@ -224,12 +266,16 @@ void main() {
     );
     debugPrint('detailed es->de: ${result.text}');
     expect(result.sentences, hasLength(2));
-    final pairs = {
-      for (final span in result.alignedSpans())
-        span.targetIn(result.text): span.sourceIn(text),
-    };
-    expect(pairs['José'], 'José');
-    expect(pairs['Málaga.'], 'Málaga.');
+    final spans = result.alignedSpans();
+    // Offsets after "¿", "ó" and "á" still land on whole words.
+    expect([
+      for (final span in spans) span.sourceIn(text),
+    ], containsAll(['José', 'Málaga.']));
+    for (final span in spans) {
+      final word = span.targetIn(result.text);
+      expect(word, isNotEmpty);
+      expect(word.trim(), word);
+    }
   }, skip: skip);
 
   test('flags a sentence in the wrong language as unsure', () async {

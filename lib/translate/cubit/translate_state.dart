@@ -544,9 +544,24 @@ class TranslateState extends Equatable {
 
   // Alignment ---------------------------------------------------------------
 
+  /// The engine that finds the corresponding phrases
+  /// (`TranslateCubit.loadAlignment`): the on-device engine when it
+  /// translated the current result, or is selected and there is no result
+  /// yet (free and instant, and nothing leaves the device), else the AI
+  /// [assistEngine]; null when neither can align.
+  TranslationEngine? get alignmentEngine {
+    final resultEngineId = result?.engineId;
+    final wanted = resultEngineId ?? engine?.id;
+    for (final candidate in engines) {
+      if (candidate.isOffline && candidate.id == wanted) return candidate;
+    }
+    final assist = assistEngine;
+    return assist != null && assist.supportsExtras ? assist : null;
+  }
+
   /// Whether phrase alignment can be requested for the input and output.
   bool get canAlign =>
-      (assistEngine?.supportsExtras ?? false) &&
+      alignmentEngine != null &&
       status != TranslateStatus.translating &&
       _finishedOutput != null;
 

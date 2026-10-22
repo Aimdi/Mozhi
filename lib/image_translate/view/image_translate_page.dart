@@ -37,6 +37,7 @@ class ImageTranslatePage extends StatelessWidget {
     this.picker,
     this.encoder,
     this.recognizer,
+    this.autoTranslate = true,
     super.key,
   });
 
@@ -71,6 +72,12 @@ class ImageTranslatePage extends StatelessWidget {
 
   /// Opens the picker for this source once the page is shown.
   final ImagePickSource? initialSource;
+
+  /// Whether an image the page starts with (from [picker]'s
+  /// `retrieveLost`, e.g. one shared from another app) is translated right
+  /// away with on-device recognition; false shows it and waits for
+  /// Translate (`ImageTranslateCubit.setImage`).
+  final bool autoTranslate;
   final ImagePickerService? picker;
   final ImageEncoder? encoder;
   final TextRecognitionService? recognizer;
@@ -103,19 +110,25 @@ class ImageTranslatePage extends StatelessWidget {
             store: _maybeRead<KeyValueStore>(context),
           );
         },
-        child: ImageTranslateView(initialSource: initialSource),
+        child: ImageTranslateView(
+          initialSource: initialSource,
+          autoTranslate: autoTranslate,
+        ),
       ),
     );
   }
 }
 
 class ImageTranslateView extends StatefulWidget {
-  const new({this.initialSource, super.key});
+  const new({this.initialSource, this.autoTranslate = true, super.key});
 
   /// Width from which image and results are shown side by side.
   static const wideBreakpoint = 840.0;
 
   final ImagePickSource? initialSource;
+
+  /// See [ImageTranslatePage.autoTranslate].
+  final bool autoTranslate;
 
   @override
   State<ImageTranslateView> createState() => _ImageTranslateViewState();
@@ -144,7 +157,7 @@ class _ImageTranslateViewState extends State<ImageTranslateView> {
     if (source != null) {
       await cubit.pickImage(source);
     } else {
-      await cubit.recoverLostImage();
+      await cubit.recoverLostImage(autoTranslate: widget.autoTranslate);
     }
   }
 

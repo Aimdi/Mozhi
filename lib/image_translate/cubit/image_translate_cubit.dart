@@ -246,8 +246,8 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
   /// Continues with a photo the picker could not deliver because Android
   /// ended the app meanwhile (see [ImagePickerService.retrieveLost]), when
   /// there is one and no image is shown yet. A failed pick is reported in
-  /// [ImageTranslateState.pickError].
-  Future<void> recoverLostImage() async {
+  /// [ImageTranslateState.pickError]. [autoTranslate] as for [setImage].
+  Future<void> recoverLostImage({bool autoTranslate = true}) async {
     final PickedImage? image;
     try {
       image = await _picker.retrieveLost();
@@ -256,12 +256,14 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
       return;
     }
     if (image == null || isClosed || state.hasImage) return;
-    await setImage(image);
+    await setImage(image, autoTranslate: autoTranslate);
   }
 
   /// Shows [image]; translates it right away with on-device recognition
-  /// (an uploading method waits for [translate]).
-  Future<void> setImage(PickedImage image) {
+  /// (an uploading method waits for [translate]). Without [autoTranslate]
+  /// (an image shared from another app while the translator is an AI
+  /// model) it always waits for [translate].
+  Future<void> setImage(PickedImage image, {bool autoTranslate = true}) {
     _cancelRun();
     emit(
       state.copyWith(
@@ -273,7 +275,7 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
         showOriginal: false,
       ),
     );
-    return _translateUnlessUpload();
+    return autoTranslate ? _translateUnlessUpload() : Future.value();
   }
 
   /// [translate] unless the selected method sends the photo off the device,

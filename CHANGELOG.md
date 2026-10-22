@@ -5,10 +5,74 @@ in `-rc.N`).
 
 ## Unreleased
 
+### Added
+
+- **Translation checks.** Every translation is checked on the device:
+  placeholders, tags, links, e-mail addresses, numbers and glossary terms
+  that went missing are flagged under the result, and AI engines get one
+  corrected attempt. Machine-translation engines (Mozhi, DeepL,
+  LibreTranslate) no longer see placeholders and markup at all; they are
+  protected and put back.
+- **Automatic fallback.** When an engine returns the original text, the
+  wrong language, a garbled result or a chat-style reply instead of a
+  translation, Mozhi tries another engine you already allowed, on this
+  device first, and says so. Paid AI providers are never tried on their
+  own.
+- **Hide personal data from online engines** (on by default, Settings ›
+  Privacy). E-mail addresses, phone numbers, IBANs, card numbers and IP
+  addresses are replaced before text leaves the device and put back into
+  the translation; the result says how many items stayed on the device.
+- **Network activity** (Settings › Privacy). A log of every request this
+  session: where it went, why, how much was sent and received, and whether
+  it went through your proxy. It never records text, and it is never
+  saved.
+- **Share images and files with Mozhi** on Android. Images open on the
+  image screen (read on the device first), and subtitles, text and JSON
+  files open in Documents. Neither starts an AI request by itself. The web
+  app accepts shared text.
+- **Translate on this device** is offered when the network fails and the
+  language pair can be translated offline.
+- **Offline alignment.** Tap-to-highlight works with the on-device engine:
+  free, instant and without a network.
+- **DeepL:** glossaries now apply to the DeepL API, and an option prefers
+  DeepL's quality-optimised model.
+
 ### Changed
 
-- Android builds use the Android Gradle Plugin 9.4.1 and Gradle 9.6.0
-  (see [Building](docs/building.md) for every pinned tool).
+- **Quick translate** opens as a sheet over the app you are in, instead of
+  opening the whole app.
+- **Faster and sturdier.**
+  - An instance that doesn't answer is given up after 7 s (20 s through a
+    proxy), and the next one is tried.
+  - Startup reads run in parallel.
+  - The offline engine preloads its models, can be cancelled and
+    translates a text in one go.
+  - AI requests are retried once after a temporary error (before any text
+    has arrived).
+  - Long texts keep their finished parts if a later part fails, and carry
+    the previous part's translation and names for consistency.
+- **Long texts** are split into parts for every engine, not only AI.
+- **Short texts** are identified on the device first, which saves a second
+  AI request.
+- **AI translations** use a low temperature where the model allows it, for
+  steadier results.
+- **Glossaries** match whole words and common inflections (for example
+  *Haus*/*Häuser*), and short glossaries are always sent whole.
+- **Web app:**
+  - about a third smaller: languages load on demand;
+  - its fallback fonts are served with the app, so Google's font service
+    no longer sees which scripts you type.
+- **Memory:** the offline voice model is unloaded when idle or in the
+  background, and the offline translator keeps fewer models on low-memory
+  phones.
+- **Build:** Android builds use the Android Gradle Plugin 9.4.1 and Gradle
+  9.6.0 (see [Building](docs/building.md) for every pinned tool), and the
+  NDK download is retried.
+
+### Fixed
+
+- **API keys:** they are no longer rewritten on every settings change, and
+  a passing storage error no longer silently keeps keys in memory only.
 
 ## 0.1.0-rc.2
 

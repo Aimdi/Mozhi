@@ -1116,7 +1116,7 @@ class _OutputCardState extends State<OutputCard> {
           shown: romanizationShown,
           onPressed: () => _toggleRomanization(state, shown: romanizationShown),
         ),
-      if (state.assistEngine?.supportsExtras ?? false)
+      if (state.alignmentEngine != null)
         TranslateToolChip(
           key: const Key('translate_alignment_button'),
           icon: Icons.sync_alt,
