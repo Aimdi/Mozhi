@@ -43,13 +43,25 @@ class PracticeCubit extends Cubit<PracticeState> {
        super(const PracticeState());
 
   final PracticeRepository _repository;
+
+  /// The user's language (which side of a phrase is theirs).
+  // Immutable configuration passed to the constructor, not state.
+  // ignore: avoid_public_fields
   final String appLanguage;
+
+  /// The one collection practised, or null for all practised ones.
+  // Immutable configuration passed to the constructor, not state.
+  // ignore: avoid_public_fields
   final String? onlyCollection;
 
   /// The most cards a session starts with.
+  // Immutable configuration passed to the constructor, not state.
+  // ignore: avoid_public_fields
   final int sessionLimit;
 
   /// How early learning cards may be shown again.
+  // Immutable configuration passed to the constructor, not state.
+  // ignore: avoid_public_fields
   final Duration learnAhead;
   final DateTime Function() _clock;
   final FsrsScheduler Function(PracticeSettings settings) _schedulerOf;

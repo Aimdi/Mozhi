@@ -18,24 +18,45 @@ class SyncCubit extends Cubit<SyncState> {
   late final StreamSubscription<SyncState> _subscription;
 
   /// The service's state now ([state] follows it a moment later).
+  // Read-only query of the service; it changes nothing.
+  // ignore: prefer_void_public_cubit_methods
   SyncState get current => _service.state;
 
   /// The ids of the sections this app can sync, in the registry's order.
+  // Read-only query of the service; it changes nothing.
+  // ignore: prefer_void_public_cubit_methods
   List<String> get sectionIds => _service.sectionIds;
 
+  /// Syncs now; the failure, or null when it worked.
+  // Returns the failure for the row or dialog to show; the state follows
+  // the service.
+  // ignore: prefer_void_public_cubit_methods
   Future<SyncFailure?> syncNow() => _service.syncNow();
 
+  /// Unlocks sync with the server [password] and/or the [passphrase].
+  // Returns the failure for the row or dialog to show; the state follows
+  // the service.
+  // ignore: prefer_void_public_cubit_methods
   Future<SyncFailure?> unlock({String? password, String? passphrase}) =>
       _failureOf(
         () => _service.unlock(password: password, passphrase: passphrase),
       );
 
+  /// Re-encrypts the sync file with a new [passphrase].
+  // Returns the failure for the row or dialog to show; the state follows
+  // the service.
+  // ignore: prefer_void_public_cubit_methods
   Future<SyncFailure?> changePassphrase(String passphrase) =>
       _failureOf(() => _service.changePassphrase(passphrase));
 
+  /// Saves what to sync and when.
   Future<void> updateOptions(SyncConfig config) =>
       _service.updateOptions(config);
 
+  /// Turns sync off, deleting the sync file too with [deleteRemote].
+  // Returns the failure for the row or dialog to show; the state follows
+  // the service.
+  // ignore: prefer_void_public_cubit_methods
   Future<SyncFailure?> turnOff({bool deleteRemote = false}) =>
       _failureOf(() => _service.turnOff(deleteRemote: deleteRemote));
 
