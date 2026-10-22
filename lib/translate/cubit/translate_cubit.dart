@@ -3988,7 +3988,8 @@ class TranslateCubit extends Cubit<TranslateState> {
   /// `AppSettings.showTransliteration` is on and that costs nothing: the
   /// result has a transliteration, or the extras engine runs locally
   /// (`TranslationEngine.isLocal`; on-device AI not after an instant
-  /// translation while the device is strained). The romanization is reset
+  /// translation while the device is strained; for a translation made on
+  /// this device only an engine on this device). The romanization is reset
   /// whenever the result changes.
   Future<void> loadRomanization() async {
     if (!state.canRomanize ||

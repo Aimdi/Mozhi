@@ -164,13 +164,17 @@ Carried over to later waves:
   before a download; hashing and import checks off the UI thread; an
   import that doesn't first copy the file into the cache; the loading
   notice for the extras too; a guard that falls back to the baseline
-  library if a phone misreports its CPU features.
+  library if a phone misreports its CPU features; pausing a long
+  translation that is already running (a document or web page, part by
+  part) when the phone gets hot.
 - **Voice:** measure the CPU variants and the quantized models on phones,
   and try q8_0 models.
 - **Not done on purpose:** measuring instance speed automatically during
-  setup; on-device AI as an automatic fallback (it would load a 1-3 GB
-  model unasked). It contacts every listed volunteer server, so it stays a button
-  ("Find the fastest server").
+  setup (it contacts every listed volunteer server, so it stays a button:
+  "Find the fastest server"); on-device AI as an automatic fallback (it
+  would load a 1-3 GB model unasked); sending text translated on this
+  device to a server or provider on its own (as a fallback, or for the
+  automatic romanization).
 
 ## Later, or with owner sign-off
 
