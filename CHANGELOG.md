@@ -190,6 +190,10 @@ in `-rc.N`).
 - **Screen readers in the web app** work from the start (there is no
   hidden "Enable accessibility" button any more) and can read the
   translation.
+- **Screen readers:** a translation's header, with its "Sent to …" chip,
+  no longer reads as one button; the proofreading result no longer reads
+  as its Share button; a refinement's undo tag no longer reads as
+  disabled.
 - **The splash screen and system bars** match the default light and dark
   looks on Android and the web.
 
