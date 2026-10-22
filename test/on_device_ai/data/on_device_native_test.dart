@@ -20,8 +20,8 @@ import 'helpers.dart';
 /// grammar), after a Gemma 4 or Hunyuan prompt digits without end. The
 /// "Hy-MT2" here is the Qwen3-template model with Hy-MT2's prompt profile,
 /// so that its translation ends.
-final _package = p.absolute('packages', 'llama_engine');
-final _library = p.join(
+final String _package = p.absolute('packages', 'llama_engine');
+final String _library = p.join(
   _package,
   'build',
   'native',

@@ -338,10 +338,14 @@ test.describe('routes render', () => {
     await expect(dialog).toBeHidden();
     await goBack(page);
 
-    // AI, marked as advanced: the providers come first.
+    // AI, marked as advanced: on-device AI first (unavailable in a
+    // browser), then the providers.
     await openSettingsCategory(page, 'AI');
     await expect(
       page.getByRole('heading', { name: /^AI\s+Advanced$/ }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/^On-device AI\s+Needs the Android app/),
     ).toBeVisible();
     await expect(
       page.getByRole('button', { name: /^AI providers\s+1 of 1 enabled/ }),

@@ -289,7 +289,10 @@ with the app and kept on this device.''';
 const whisperEngineLicenseText = '''
 Offline voice input runs OpenAI's Whisper speech recognition with
 whisper.cpp and its ggml tensor library (CPU only), compiled into one
-native library (libmozhi_whisper.so).
+native library (libmozhi_whisper.so; on 64-bit ARM also
+libmozhi_whisper_dotprod.so and libmozhi_whisper_i8mm.so, the same code
+built for newer processors, of which the app loads the fastest one the
+phone supports).
 
 Source code: https://github.com/ggml-org/whisper.cpp (tag v1.9.5), pinned
 as a git submodule in packages/whisper_speech/native/third_party/ of the
