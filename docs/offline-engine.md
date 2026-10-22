@@ -656,7 +656,14 @@ cached by version and commit) uploads `bergamot-wasm`; **Build web** and
 **Web end-to-end tests** put it into `web/bergamot/` before
 `flutter build web`; the release workflow builds it from source again
 (job `bergamot-wasm`) for the web zip. A web build without it still works:
-the probe reports `engineFiles` and the app stays online-only.
+the probe reports `engineFiles` and the app stays online-only. The
+end-to-end spec `e2e/tests/offline_engine.spec.js` downloads the real
+German pair (51 MB, fetched and checked by `e2e/fetch_models.py`, cached by
+CI) from the page, cuts the model host off, translates, reloads and
+translates again without a download, and translates an `auto` source
+identified by CLD2; it is skipped without `$E2E_MODELS_DIR` or without the
+engine in the build. `e2e/mock_server.py` also serves that directory as a
+model mirror (`/models/`, with `Range`) for specs of a custom mirror.
 
 ### Worker protocol
 
@@ -767,6 +774,15 @@ of mobile browsers, `mozIntGemm` (Firefox's privileged pages only).
 
 ## Follow-ups
 
+* Web: *Import from files* in the browser (read the picked files' bytes
+  into the worker instead of paths; useful where no mirror is set up and
+  Mozilla's bucket refuses the site's origin), a run on Firefox and Safari
+  and on phones (memory: ~350 MB of WASM memory with a pivot), and
+  multi-threading once the app can send COOP/COEP headers.
+* Web: report the `dart2js` miscompilation found here upstream
+  (dart-lang/sdk): a nullable local assigned in a `catch` and read by a
+  closure afterwards keeps a stale value on the success path of an `async`
+  method (`OfflineModelsCubit._attempt` documents the workaround).
 * Upstream `0001-marian-unaligned-quant-mult.patch` and the ARM CMake fixes
   to mozilla/translations.
 * Language identification: `OfflineTranslator.identifyLanguage` returns one
