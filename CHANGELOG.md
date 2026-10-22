@@ -3,7 +3,7 @@
 All notable changes to Mozhi, by release tag on GitHub (pre-releases end
 in `-rc.N`).
 
-## Unreleased
+## 0.1.0-rc.3
 
 ### Added
 
