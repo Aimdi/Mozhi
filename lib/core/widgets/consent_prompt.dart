@@ -704,6 +704,9 @@ class DestinationChip extends StatelessWidget {
     final palette = AppPalette.of(context);
     final label = destinationLabel(l10n, destination, engineId: engineId);
     return Semantics(
+      // Its own node: in a row of texts (a result's header) it would
+      // otherwise merge into them and make the whole header this button.
+      container: true,
       button: true,
       label: l10n.commonDestinationChipSemantics(label),
       excludeSemantics: true,

@@ -304,6 +304,7 @@ class _ContinueButton extends StatelessWidget {
         maxWidth: TranslateLayout.maxColumnWidth,
       ),
       child: Semantics(
+        container: true,
         button: true,
         label: l10n.translateHeroContinueSemantics(text, pair),
         excludeSemantics: true,
