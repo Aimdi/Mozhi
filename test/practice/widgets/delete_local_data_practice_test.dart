@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/practice/data/fsrs.dart';
 import 'package:mozhi/practice/data/practice_repository.dart';
 import 'package:mozhi/practice/models/practice_settings.dart';
 import 'package:mozhi/settings/view/widgets/delete_local_data.dart';
@@ -36,5 +37,29 @@ void main() {
       (await fixture.practice.settings()).newCardsPerDay,
       PracticeSettings.defaultNewCardsPerDay,
     );
+  });
+
+  test('the confirmation counts the cards with progress', () async {
+    final fixture = PracticeFixture(favorites: [favorite('1')]);
+    final eraser = LocalDataEraser(
+      history: settings_helpers.createHistoryCubit(),
+      settings: settings_helpers.createSettingsCubit(),
+      practice: fixture.practice,
+    );
+    expect((await eraser.summarize()).practiceCards, 0);
+
+    final card = (await fixture.practice.deck(appLanguage: 'en'))
+        .items
+        .first
+        .card;
+    final now = fixture.clock.now;
+    await fixture.practice.saveCard(
+      card.reviewed(
+        FsrsRating.good,
+        FsrsScheduler().review(card.fsrs, FsrsRating.good, now),
+        now,
+      ),
+    );
+    expect((await eraser.summarize()).practiceCards, 1);
   });
 }

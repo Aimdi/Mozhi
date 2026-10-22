@@ -713,6 +713,31 @@ void main() {
       verify(() => repository.revokeOnce(any())).called(1);
     });
 
+    test('sends the turns the host allowed first', () async {
+      when(
+        () => repository.needsConsent(
+          deepl,
+          source: any(named: 'source'),
+          target: french,
+        ),
+      ).thenReturn(true);
+      translations.ensure(
+        [
+          fromEnglish,
+          _turn(id: 2, original: 'Bye'),
+          _turn(id: 3, original: 'Thanks'),
+        ],
+        [german, french],
+      );
+      expect(streams.keys, ['mozhi:deepl>de:Hello', 'mozhi:deepl>de:Bye']);
+
+      translations.retry(french);
+      await streamOf(deepl, german).close();
+      await settle();
+
+      expect(streams.keys.last, 'mozhi:deepl>fr:Hello');
+    });
+
     test('a failed withdrawal does not break the sharing', () {
       when(() => repository.revokeOnce(any())).thenThrow(StateError('x'));
 

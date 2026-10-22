@@ -151,6 +151,13 @@ in `-rc.N`).
   pronunciation and topics, CSV export and import, and offline starter
   phrasebooks for travellers from Wikivoyage (CC BY-SA). Open it from
   History › Favorites or More tools. See [Phrasebook](docs/phrasebook.md).
+- **Practice:** flashcards of your phrasebook collections, scheduled with
+  FSRS (the spaced-repetition algorithm Anki uses) and asked a few at a
+  time, both ways round. Say the phrase aloud and on-device Whisper checks
+  it, or type it; the app suggests a rating and you decide. Export a
+  collection to Anki. Nothing leaves the device and there are no streaks.
+  Open it from More tools (with the number of cards due), a phrasebook
+  collection or the settings. See [Practice](docs/practice.md).
 - **Shared conversation** (Android, the Conversation tab's menu › Share on
   this network): everyone in the room follows the conversation on their
   own phone, in their own language, and can reply by typing. Your phone

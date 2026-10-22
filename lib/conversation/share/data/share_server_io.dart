@@ -828,12 +828,6 @@ class _CountedSocket extends Stream<Uint8List> implements Socket {
   }
 
   @override
-  Future<void> close() {
-    _close();
-    return _socket.close();
-  }
-
-  @override
   void add(List<int> data) => _socket.add(data);
 
   @override
@@ -841,9 +835,6 @@ class _CountedSocket extends Stream<Uint8List> implements Socket {
 
   @override
   Future<void> flush() => _socket.flush();
-
-  @override
-  Future<void> get done => _socket.done;
 
   @override
   InternetAddress get address => _socket.address;
@@ -862,6 +853,15 @@ class _CountedSocket extends Stream<Uint8List> implements Socket {
       _socket.setOption(option, enabled);
 
   // The HTTP server uses none of these. coverage:ignore-start
+  @override
+  Future<void> close() {
+    _close();
+    return _socket.close();
+  }
+
+  @override
+  Future<void> get done => _socket.done;
+
   @override
   Encoding get encoding => _socket.encoding;
 

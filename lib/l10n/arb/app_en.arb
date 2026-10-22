@@ -12033,5 +12033,9 @@
         "type": "String"
       }
     }
+  },
+  "settingsDeleteAllDataPractice": "{count, plural, =1{Practice progress of 1 card} other{Practice progress of {count} cards}}",
+  "@settingsDeleteAllDataPractice": {
+    "description": "settingsDeleteAllDataPractice"
   }
 }

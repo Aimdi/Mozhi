@@ -140,6 +140,13 @@ List<SettingsSearchEntry> settingsSearchIndex(
       subtitle: l10n.settingsPhrasebookSubtitle,
       keywords: [l10n.phrasebookStarterTitle],
     ),
+    entry(
+      privacy,
+      PrivacyAnchors.practice,
+      l10n.practiceTitle,
+      subtitle: l10n.practiceSettingsTileSubtitle,
+      keywords: [l10n.practiceSearchKeywords],
+    ),
     entry(privacy, PrivacyAnchors.recentPairs, l10n.settingsClearRecentPairs),
     entry(privacy, PrivacyAnchors.networkPairs, l10n.settingsNetworkPairs),
     entry(

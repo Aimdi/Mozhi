@@ -380,6 +380,7 @@ void main() {
           historyLength: 3 * 1024,
           apiKeys: 1,
           offlineModels: 2,
+          practiceCards: 3,
         ),
       );
 
@@ -396,6 +397,7 @@ void main() {
       );
       expect(find.text('1 API key'), findsOneWidget);
       expect(find.text('2 downloaded offline languages'), findsOneWidget);
+      expect(find.text('Practice progress of 3 cards'), findsOneWidget);
       expect(find.textContaining("can't be undone"), findsOneWidget);
     });
 
@@ -405,6 +407,7 @@ void main() {
       expect(find.text('Translation history: 1 translation'), findsOneWidget);
       expect(find.text('API keys (none saved)'), findsOneWidget);
       expect(find.textContaining('offline language'), findsNothing);
+      expect(find.textContaining('Practice progress'), findsNothing);
     });
   });
 

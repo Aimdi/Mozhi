@@ -8,6 +8,7 @@ import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/view/widgets/clear_history_dialog.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/phrasebook/widgets/phrasebook_settings_tile.dart';
+import 'package:mozhi/practice/widgets/practice_settings_tile.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/widgets/choice_dialog.dart';
@@ -38,6 +39,7 @@ abstract final class PrivacyAnchors {
   static const exportHistory = 'export_history';
   static const importHistory = 'import_history';
   static const String phrasebook = PhrasebookSettingsTile.anchor;
+  static const String practice = PracticeSettingsTile.anchor;
   static const recentPairs = 'recent_pairs';
   static const networkPairs = 'network_pairs';
   static const consentedProviders = 'consented_providers';
@@ -176,6 +178,11 @@ class PrivacySettingsSection extends StatelessWidget {
             const SettingsAnchor(
               id: PrivacyAnchors.phrasebook,
               child: PhrasebookSettingsTile(),
+            ),
+            // Flashcards of those collections.
+            const SettingsAnchor(
+              id: PrivacyAnchors.practice,
+              child: PracticeSettingsTile(),
             ),
             SettingsAnchor(
               id: PrivacyAnchors.recentPairs,

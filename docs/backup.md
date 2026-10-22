@@ -1,7 +1,8 @@
 # Backup and restore
 
 A Mozhi backup is **one encrypted file** that holds what you would hate to
-lose: your history and favorites, presets, glossaries and settings. Only
+lose: your history and favorites, phrasebook, practice progress, presets,
+glossaries and settings. Only
 your passphrase opens it. There is no Mozhi account and no server: the
 file is made on your device and you decide where it goes (another phone, a
 computer, a USB stick, a Syncthing folder or a cloud folder of your choice).
@@ -28,7 +29,7 @@ Sync and phone-to-phone transfer use the same format and the same parts
 | **Settings** | Everything under Settings: engines and instances, AI providers (without their keys), languages, privacy choices, appearance |
 | **API keys and passwords** | Only when you turn on **Include API keys and passwords**: the API keys and custom headers of your AI and translation providers, and the user names and passwords of instance addresses (`https://user:password@host`). Off by default |
 | **Phrasebook** | Your phrasebook collections, their phrases and notes (notes on favorites too), and a record of what you deleted. Not the starter phrasebooks: they download again |
-| **Practice progress** | Your flashcard progress, in versions that have it |
+| **Practice progress** | Your flashcard progress (when each card is due, its memory state and the last review) and your practice settings, with a record of the cards that went away. The cards' texts come from the phrasebook |
 
 You choose which parts go into a backup, and later which parts to restore.
 
@@ -142,10 +143,15 @@ in the backup:
   on both sides the newer copy stays, and one deleted on either side stays
   deleted unless it changed after it was deleted. A collection keeps the
   phrases of both copies.
+- **Practice progress:** cards are matched by phrase and direction; of a
+  card on both sides the one reviewed last stays, a card that went away on
+  either side stays gone unless it was reviewed after, and the practice
+  settings changed last win.
 
 **Replace my data** makes each chosen part exactly what the backup holds:
 history and favorites (with their deletion records), presets, glossaries,
-settings (its providers and Mozhi instances included) and the phrasebook.
+settings (its providers and Mozhi instances included), the phrasebook and
+practice progress.
 Two things are kept: setup stays finished, and a provider or instance
 keeps this device's key or password when the backup has none for it. A
 provider keeps it only when the backup's provider of that id is on the
@@ -250,11 +256,15 @@ The header:
       "history": {"version": 1, "data": {"entries": [], "tombstones": []}},
       "presets": {"version": 2, "data": {"version": 1, "presets": [], "tombstones": []}},
       "glossaries": {"version": 2, "data": {"version": 1, "glossaries": [], "tombstones": []}},
-      "settings": {"version": 1, "data": {"settings": {}, "secrets": {}}}
+      "settings": {"version": 1, "data": {"settings": {}, "secrets": {}}},
+      "phrasebook": {"version": 1, "data": {}},
+      "practice": {"version": 1, "data": {}}
     }
   }
   ```
 
+  (The phrasebook's and practice's `data` are their stores' documents:
+  collections, phrases and notes; cards, settings and deletion records.)
   Each part (`sections`) has its own version, so a newer app can read every
   older part and refuses a part newer than it knows. `secrets` is only
   there when API keys and passwords were included. Presets and glossaries

@@ -304,10 +304,11 @@ class ShareTranslations {
           ..status = _JobStatus.queued
           ..forced = true
           ..consent = null;
-        _queue.add(job);
         jobs.add(job);
       }
     }
+    // First in line: the approval does not wait long for its turns.
+    _queue.insertAll(0, jobs);
     _grants.add(_Grant(granted, jobs));
     _notify();
     _pump();

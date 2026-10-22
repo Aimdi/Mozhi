@@ -46,6 +46,7 @@ class LocalDataSummary {
     this.historyLength,
     this.offlineModels = 0,
     this.phrasebookCollections = 0,
+    this.practiceCards = 0,
   });
 
   /// Translations in the history.
@@ -62,6 +63,9 @@ class LocalDataSummary {
 
   /// The user's phrasebook collections.
   final int phrasebookCollections;
+
+  /// Cards with practice progress (reviewed at least once).
+  final int practiceCards;
 }
 
 /// Deletes everything the app keeps on the device: the history (with its
@@ -235,8 +239,15 @@ class LocalDataEraser {
     } on Object {
       collections = 0;
     }
+    var cards = 0;
+    try {
+      cards = await practice?.reviewedCount() ?? 0;
+    } on Object {
+      cards = 0;
+    }
     return LocalDataSummary(
       phrasebookCollections: collections,
+      practiceCards: cards,
       historyEntries: history.state.entries.length,
       historyLength: historyLength,
       apiKeys: settings.state.providers
@@ -415,6 +426,11 @@ class DeleteLocalDataDialog extends StatelessWidget {
         (
           Icons.collections_bookmark_outlined,
           l10n.settingsDeleteAllDataPhrasebook(summary.phrasebookCollections),
+        ),
+      if (summary.practiceCards > 0)
+        (
+          Icons.school_outlined,
+          l10n.settingsDeleteAllDataPractice(summary.practiceCards),
         ),
     ];
     return AlertDialog(
