@@ -9526,12 +9526,48 @@
       }
     }
   },
-  "glossariesIntroAllEngines": "Translations use your glossary terms the way you define them, with every engine except the on-device one. Enabled glossaries apply to their language pair.",
+  "glossariesIntroAllEngines": "Translations use your glossary terms the way you define them, with every engine except the on-device one and translation-only AI models. Enabled glossaries apply to their language pair.",
   "@glossariesIntroAllEngines": {
     "description": "glossariesIntroAllEngines"
   },
-  "settingsGlossariesSubtitleAllEngines": "Terms translated your way, except on this device",
+  "settingsGlossariesSubtitleAllEngines": "Terms translated your way, with most engines",
   "@settingsGlossariesSubtitleAllEngines": {
     "description": "settingsGlossariesSubtitleAllEngines"
+  },
+  "voiceModelErrorChecksumMirror": "The {model} speech model didn’t download correctly from {mirror}, so it was discarded. The mirror may be out of date.",
+  "@voiceModelErrorChecksumMirror": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      },
+      "mirror": {
+        "type": "String"
+      }
+    }
+  },
+  "voiceModelErrorServerMirror": "Couldn’t download the {model} speech model from {mirror}: it answered with error {status}. The mirror may not have it yet; ask its owner or change the model source.",
+  "@voiceModelErrorServerMirror": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      },
+      "mirror": {
+        "type": "String"
+      },
+      "status": {
+        "type": "int"
+      }
+    }
+  },
+  "voiceModelErrorNetworkMirror": "Couldn’t reach {mirror} to download the {model} speech model. Check your connection or the model source.",
+  "@voiceModelErrorNetworkMirror": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      },
+      "mirror": {
+        "type": "String"
+      }
+    }
   }
 }

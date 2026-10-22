@@ -69,6 +69,33 @@ in `-rc.N`).
   - "/" goes to the text box;
   - a focus ring shows where the keyboard is (never after a touch);
   - the shortcuts list has an "Anywhere in the app" section.
+- **Photo translation over the picture** (Android): the translation is
+  drawn over the original text, paragraph by paragraph, in matching size
+  and colours. Hold to see the original, tap a paragraph to see and copy
+  both, and **Save image** or **Share image** keeps the translated
+  picture. **Text** shows the plain text as before.
+- **Model source** (Settings › Translation engines, and the Offline
+  languages screen): download offline languages, voice input and text
+  recognition models from the original publishers, from the server that
+  hosts the web app, or from your own mirror (https, your network or a
+  .onion address), optionally falling back to the publishers. Every file
+  is still checked against the fingerprint built into Mozhi.
+  `tool/mirror_models.py` fills a mirror, and the Caddy setup in `deploy/`
+  serves it.
+- **Glossaries with Mozhi and LibreTranslate:** the terms are protected
+  on the device, translated your way and put back, matching inflections;
+  a term that couldn't be placed is flagged. Every engine but the
+  on-device one now applies glossaries.
+- **Personal data stays hidden in the AI extras too:** alternatives,
+  explanations, refining, meaning checks, dictionary look-ups, Proofread
+  and image and document translation get placeholders instead of e-mail
+  addresses, phone numbers and account numbers, and Proofread says how
+  many items stayed on the device.
+- **Online voices are labelled.** Voices that send the text to a speech
+  service (such as Chrome's "Google …" voices) say so in the voice picker,
+  local voices come first, and Mozhi asks once per voice before one reads
+  aloud (Settings › Read aloud & voice › Allowed online voices). In
+  offline-only mode they are not used.
 
 ### Changed
 
@@ -196,6 +223,13 @@ in `-rc.N`).
   disabled.
 - **The splash screen and system bars** match the default light and dark
   looks on Android and the web.
+- **HTTPS through a proxy** (Android): the connection timeout now covers
+  the proxy's `CONNECT` answer and the TLS handshake too, so a server that
+  never answers through Tor fails over in seconds instead of hanging until
+  the request times out. Tor `.onion` and I2P sites in plain http go
+  through a tunnel too, which Tor's HTTP tunnel port requires.
+- **Voice models** are checked against their SHA-256 fingerprint as well
+  as their SHA-1 one.
 
 ## 0.1.0-rc.2
 

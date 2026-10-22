@@ -367,12 +367,16 @@ options**.
 | Preserve formatting | Keep line breaks, Markdown, HTML tags, links, `{placeholders}`, `%s` and emoji intact (on by default) |
 | Glossary | Term pairs that must always be translated the same way, e.g. product names |
 
-Mozhi engines ignore these options. The DeepL API applies the tone, the
-context, formatting and the glossary; translation-only models
-(TranslateGemma, Hy-MT) ignore them. With such an engine the sheet says so
-at the top and offers **Choose an AI translator** (or **Add AI provider**
-when you have none), and each option the engine ignores is greyed out with
-**AI engines only** or **AI engines and DeepL only**. Your choices are kept
+Mozhi engines and LibreTranslate apply only the glossary, on the device:
+its terms go to the engine as placeholders it keeps, are replaced by your
+renderings (matching inflections) and a term that couldn't be placed is
+flagged under the result. The DeepL API applies the tone, the context,
+formatting and the glossary; translation-only models (TranslateGemma,
+Hy-MT) and the on-device engine ignore them all. With such an engine the
+sheet says so at the top and offers **Choose an AI translator** (or **Add
+AI provider** when you have none), and each option the engine ignores is
+greyed out with **AI engines only**, **AI engines and DeepL only** or, for
+the glossary, **Not with this engine**. Your choices are kept
 for when you use an AI model, and changing them doesn't translate again
 with an engine that ignores them.
 
@@ -913,7 +917,13 @@ The sound comes from one of two places:
 
 - **Device voices** (first): the text-to-speech voices of your phone,
   computer or browser read every language they have a voice for, and work
-  offline when the voice is installed.
+  offline when the voice is installed. Some of them are **online voices**
+  that send the text to a speech service (Chrome's "Google …" voices, for
+  example): the voice picker labels them **Online voice: the text goes to
+  …**, a voice on the device is preferred, and before an online voice
+  reads for the first time Mozhi asks (your answer is kept per voice;
+  **Allowed online voices > Forget** asks again). In **Offline only** they
+  never read. See [Online voices](privacy.md#online-voices).
 - **Mozhi voices**: only for a language the device has no voice for, your
   Mozhi instance fetches the audio from Google (with Reverso as a fallback).
   Mozhi receives the text in the request address, which can end up in its
