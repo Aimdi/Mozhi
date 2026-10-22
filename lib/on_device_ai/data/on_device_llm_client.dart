@@ -12,8 +12,9 @@ import 'package:mozhi/on_device_ai/data/on_device_runtime.dart';
 /// Follows the [LlmClient] contract without the HTTP parts:
 /// * [streamChat] maps the request to the engine
 ///   ([LlamaGenerateRequest]): system messages joined first (blank lines
-///   between them; Qwen3 also gets `/no_think`, so it answers without
-///   reasoning first), the other messages in order, the request's
+///   between them), the other messages in order (Qwen3's last user
+///   message ends with [noThinkSwitch], so it answers without reasoning
+///   first), the request's
 ///   sampling where set and else the catalogue entry's (else the
 ///   engine's), [LlmRequest.jsonOutput] as a JSON grammar and
 ///   [LlmRequest.stop]. The reply may use what the prompt leaves of the
@@ -188,7 +189,10 @@ class OnDeviceLlmClient implements LlmClient {
   void close() {}
 
   /// The chat of [request] for the model's template: every system message
-  /// first, joined by blank lines.
+  /// first, joined by blank lines, then the others in order. Qwen3's last
+  /// user message ends with `/no_think`: it reasons before it answers
+  /// unless told not to (its soft switch), and a phone has no time for
+  /// that (the empty reasoning block it still writes is filtered out).
   static List<LlamaChatMessage> _messages(
     LlmRequest request,
     LlamaCatalogModel model,
@@ -197,21 +201,34 @@ class OnDeviceLlmClient implements LlmClient {
       for (final message in request.messages)
         if (message.role == LlmRole.system && message.content.isNotEmpty)
           message.content,
-      // Qwen3 reasons before it answers unless told not to (its soft
-      // switch); a phone has no time for that.
-      if (model.family == 'qwen3') '/no_think',
     ];
+    final others = [
+      for (final message in request.messages)
+        if (message.role != LlmRole.system) message,
+    ];
+    final last = others.lastIndexWhere((m) => m.role == LlmRole.user);
+    final noThink = model.family == qwen3Family;
     return [
       if (system.isNotEmpty)
         LlamaChatMessage(LlamaRole.system, system.join('\n\n')),
-      for (final message in request.messages)
-        if (message.role != LlmRole.system)
-          LlamaChatMessage(switch (message.role) {
-            LlmRole.assistant => LlamaRole.assistant,
-            LlmRole.user || LlmRole.system => LlamaRole.user,
-          }, message.content),
+      for (final (index, message) in others.indexed)
+        if (message.role == LlmRole.assistant)
+          LlamaChatMessage(LlamaRole.assistant, message.content)
+        else
+          LlamaChatMessage(
+            LlamaRole.user,
+            noThink && index == last
+                ? '${message.content} $noThinkSwitch'
+                : message.content,
+          ),
     ];
   }
+
+  /// The catalogue family of Qwen3 models.
+  static const qwen3Family = 'qwen3';
+
+  /// What Qwen3's last user message ends with (see [streamChat]).
+  static const noThinkSwitch = '/no_think';
 
   /// The request's sampling where it sets it, else [catalog]'s, else the
   /// engine's defaults.

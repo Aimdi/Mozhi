@@ -26,6 +26,7 @@ import 'package:mozhi/image_translate/models/picked_image.dart';
 import 'package:mozhi/image_translate/view/image_translate_page.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/view/offline_models_page.dart';
+import 'package:mozhi/on_device_ai/view/on_device_ai_page.dart';
 import 'package:mozhi/onboarding/view/onboarding_page.dart';
 import 'package:mozhi/presets/view/glossaries_page.dart';
 import 'package:mozhi/presets/view/presets_page.dart';
@@ -460,6 +461,7 @@ void main() {
       '/settings/tabs': TabOrderPage,
       '/settings/network': NetworkActivityPage,
       AppRoutes.voiceSettings: VoiceInputSettingsPage,
+      AppRoutes.onDeviceAi: OnDeviceAiPage,
     };
     for (final MapEntry(key: path, value: page) in fullScreenPages.entries) {
       testWidgets('builds $path full screen', (tester) async {

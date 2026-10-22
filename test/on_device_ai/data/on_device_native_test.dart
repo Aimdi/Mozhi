@@ -15,8 +15,11 @@ import 'helpers.dart';
 
 /// The Linux build of the engine and its scripted test models
 /// (packages/llama_engine: `tool/build_native_linux.sh`,
-/// `tool/make_test_model.py --all build/test_models`): every model answers
-/// the alphabet and 中, whatever it is asked.
+/// `tool/make_test_model.py --all build/test_models`): after a ChatML or
+/// Qwen3 prompt they answer the alphabet and 中 (or `{}` with the JSON
+/// grammar), after a Gemma 4 or Hunyuan prompt digits without end. The
+/// "Hy-MT2" here is the Qwen3-template model with Hy-MT2's prompt profile,
+/// so that its translation ends.
 final _package = p.absolute('packages', 'llama_engine');
 final _library = p.join(
   _package,
@@ -50,7 +53,7 @@ void main() {
           catalogModel(
             'hy-test',
             role: LlamaModelRole.translation,
-            family: 'hunyuan-dense',
+            family: 'qwen3',
             contextSize: 2048,
           ),
           catalogModel('qwen-test', family: 'qwen3', contextSize: 2048),
@@ -61,7 +64,7 @@ void main() {
         models: FakeOnDeviceModels(
           catalog: catalog,
           paths: {
-            'hy-test': _model('hunyuan-dense'),
+            'hy-test': _model('qwen3'),
             'qwen-test': _model('qwen3'),
             'gemma-test': _model('gemma4'),
           },
@@ -137,26 +140,35 @@ void main() {
     });
 
     test('JSON replies follow the grammar; models switch', () async {
-      final client = ai.client(
-        AiProviderConfig(
-          id: 'device-gemma-test',
-          name: 'Gemma',
-          provider: LlmProvider.onDevice,
-          baseUrl: '',
-          model: 'gemma-test',
-        ).toEndpoint(),
-      );
+      final client = ai.client(ai.providers.last.toEndpoint());
       final answer = await client.chat(
         const LlmRequest(
-          model: 'gemma-test',
+          model: 'qwen-test',
           messages: [LlmMessage.user('JSON please')],
           jsonOutput: true,
         ),
       );
-      expect(jsonDecode(answer), isA<Map<String, Object?>>());
-      expect(ai.runtime.loadedModelId, 'gemma-test');
-      expect(await client.warmUp('qwen-test'), isTrue);
+      expect(jsonDecode(answer), <String, Object?>{});
       expect(ai.runtime.loadedModelId, 'qwen-test');
+      expect(await client.warmUp('gemma-test'), isTrue);
+      expect(ai.runtime.loadedModelId, 'gemma-test');
+      // Gemma 4's template: digits until the limit.
+      await expectLater(
+        client.chat(
+          const LlmRequest(
+            model: 'gemma-test',
+            messages: [LlmMessage.user('Count')],
+            maxTokens: 12,
+          ),
+        ),
+        throwsA(
+          isA<LlmTruncatedException>().having(
+            (e) => e.partialText,
+            'partialText',
+            '012345678901',
+          ),
+        ),
+      );
     });
 
     test('a prompt longer than the context fails clearly', () async {

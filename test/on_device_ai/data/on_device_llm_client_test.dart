@@ -130,23 +130,24 @@ void main() {
 
     test('Qwen3 is asked not to reason first', () async {
       await clientFor('qwen')
-          .streamChat(request([const LlmMessage.user('Hi')]))
-          .drain<void>();
-      final messages = engine.requests.single.messages;
-      expect(messages.first.role, LlamaRole.system);
-      expect(messages.first.content, '/no_think');
-      await clientFor('qwen')
           .streamChat(
             request([
               const LlmMessage.system('Translate.'),
               const LlmMessage.user('Hi'),
+              const LlmMessage.assistant('Hallo'),
+              const LlmMessage.user('Again'),
             ]),
           )
           .drain<void>();
       expect(
-        engine.requests.last.messages.first.content,
-        'Translate.\n\n/no_think',
+        [for (final m in engine.requests.single.messages) m.content],
+        ['Translate.', 'Hi', 'Hallo', 'Again /no_think'],
       );
+      // Other families are asked as they are.
+      await client
+          .streamChat(request([const LlmMessage.user('Again')]))
+          .drain<void>();
+      expect(engine.requests.last.messages.single.content, 'Again');
     });
 
     test('drops reasoning blocks', () async {
