@@ -31,8 +31,8 @@ function entry(page, text) {
 }
 
 /**
- * The open backup or restore dialog (texts it announces are also copied
- * into the page's live region, outside the dialog).
+ * The open backup or restore dialog. Texts it announces are copied into a
+ * live region too: match them with `.first()`.
  */
 function dialog(page) {
   return page.getByRole('dialog');
@@ -93,7 +93,7 @@ test('a backup brings the history back after the site data is cleared', async ({
   // Encrypted: neither the text nor the passphrase is in the file.
   expect(bytes.toString('latin1')).not.toContain(TEXT);
   expect(bytes.toString('latin1')).not.toContain('horse');
-  await expect(dialog(page).getByText(/^Backup saved/)).toBeVisible({
+  await expect(dialog(page).getByText(/^Backup saved/).first()).toBeVisible({
     timeout: CRYPTO_TIMEOUT,
   });
   await page.getByRole('button', { name: 'Done' }).click();
@@ -138,7 +138,9 @@ test('a backup brings the history back after the site data is cleared', async ({
     page.getByRole('checkbox', { name: /History and favorites/ }),
   ).toHaveAccessibleName(/1 item/);
   await page.getByRole('button', { name: 'Replace my data' }).click();
-  await expect(dialog(page).getByText(/^Backup restored/)).toBeVisible();
+  await expect(
+    dialog(page).getByText(/^Backup restored/).first(),
+  ).toBeVisible();
   await page.getByRole('button', { name: 'Done' }).click();
 
   // The history is back, and stays after a reload.

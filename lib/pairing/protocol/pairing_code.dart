@@ -52,12 +52,16 @@ class PairingCode extends Equatable {
     var text = input.trim();
     if (text.isEmpty) return null;
     final uri = Uri.tryParse(text);
-    if (uri != null && uri.queryParameters.containsKey(linkParameter)) {
+    // The parameter in any case: a link typed in capitals still reads.
+    final parameter = uri?.queryParameters.entries
+        .where((entry) => entry.key.toLowerCase() == linkParameter)
+        .firstOrNull;
+    if (uri != null && parameter != null) {
       final isLink =
           (uri.isScheme(linkScheme) && uri.host.toLowerCase() == linkHost) ||
-          (!uri.hasScheme && uri.path == '/$linkHost');
+          (!uri.hasScheme && uri.path.toLowerCase() == '/$linkHost');
       if (!isLink) return null;
-      text = uri.queryParameters[linkParameter]!;
+      text = parameter.value;
     }
     final values = <int>[];
     for (final unit in text.toUpperCase().codeUnits) {

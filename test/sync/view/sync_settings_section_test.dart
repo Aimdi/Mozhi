@@ -189,7 +189,7 @@ void main() {
         'a much better passphrase',
       );
       await tester.pump();
-      await tester.tap(find.byKey(const Key('sync_new_passphrase_submit')));
+      await tester.testTextInput.receiveAction(TextInputAction.done);
       await _settle(tester);
       await tester.pumpAndSettle();
       expect(find.text('Sync passphrase changed'), findsOneWidget);
@@ -316,11 +316,20 @@ void main() {
         find.text("The server didn't accept the user name or app password."),
         findsWidgets,
       );
+      // A server error shows under the field; Enter submits too.
+      harness.server.intercept = (_) => http.Response('', 503);
       await tester.enterText(
         find.byKey(const Key('sync_unlock_password')),
         'app-password',
       );
       await tester.pump();
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await _settle(tester);
+      expect(
+        find.text('The server had a problem. Try again later.'),
+        findsWidgets,
+      );
+      harness.server.intercept = null;
       await tester.tap(find.byKey(const Key('sync_unlock_submit')));
       await _settle(tester);
       await tester.pumpAndSettle();

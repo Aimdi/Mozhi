@@ -105,6 +105,12 @@ synced: download them on each device.
 - **Sync on Wi-Fi only** (Android) keeps the automatic syncs off mobile
   data and metered Wi-Fi; **Sync now** still runs.
 
+- After an error only you can fix (the server refuses the app password,
+  the passphrase was changed elsewhere, a newer app version wrote the file),
+  changes no longer start a sync until you fix it; each app start still
+  tries once. This also keeps Nextcloud's protection against password
+  guessing from locking your address out.
+
 There is no background service: nothing syncs while the app is closed.
 
 ## How it works

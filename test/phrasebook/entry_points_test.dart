@@ -58,7 +58,7 @@ void main() {
           for (final id
               in node.getSemanticsData().customSemanticsActionIds ??
                   const <int>[]) {
-            actions.add(CustomSemanticsAction.getAction(id)!.label!);
+            actions.add(CustomSemanticsAction.getAction(id)?.label ?? '');
           }
           node.visitChildren((child) {
             visit(child);
@@ -178,6 +178,7 @@ void main() {
       await tester.tap(find.byKey(const Key('phrasebook_choose_new')));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).last, 'Trip');
+      await tester.pump();
       await tester.tap(find.text('Create'));
       await tester.pumpAndSettle();
       final phrases = await repository.phrases();

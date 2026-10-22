@@ -112,11 +112,12 @@ void main() {
       }
     });
 
-    test('transient failures are about the connection', () {
-      expect(SyncFailure.offline.isTransient, isTrue);
-      expect(SyncFailure.conflict.isTransient, isTrue);
-      expect(SyncFailure.wrongPassphrase.isTransient, isFalse);
-      expect(SyncFailure.authFailed.isTransient, isFalse);
+    test('some failures need the user', () {
+      expect(SyncFailure.authFailed.needsUser, isTrue);
+      expect(SyncFailure.passphraseChanged.needsUser, isTrue);
+      expect(SyncFailure.newerVersion.needsUser, isTrue);
+      expect(SyncFailure.offline.needsUser, isFalse);
+      expect(SyncFailure.conflict.needsUser, isFalse);
     });
 
     test('SyncException from a WebDAV failure, without details', () {

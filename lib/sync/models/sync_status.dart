@@ -105,16 +105,18 @@ enum SyncFailure {
     WebDavFailure.policy => policy,
   };
 
-  /// Whether the failure is about the connection or the server (worth
-  /// trying again later as it is), not about the passphrase or the data.
-  bool get isTransient => switch (this) {
-    offline ||
-    timeout ||
-    server ||
-    locked ||
-    tooManyRequests ||
-    conflict ||
-    blockedByBrowser => true,
+  /// Whether only the user can fix it (a new app password or passphrase,
+  /// an update, a damaged file to delete): automatic syncs after a change
+  /// wait for that instead of failing again, and against Nextcloud's
+  /// password-guessing protection. A sync at app start still tries once.
+  bool get needsUser => switch (this) {
+    authFailed ||
+    wrongPassphrase ||
+    passphraseChanged ||
+    damaged ||
+    notSyncFile ||
+    newerVersion ||
+    needsUnlock => true,
     _ => false,
   };
 }

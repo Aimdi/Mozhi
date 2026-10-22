@@ -124,7 +124,9 @@ class SyncState extends Equatable {
 ///   server nothing when the synced data did not change), or sooner when
 ///   the app goes to the background with a change pending ([flush]),
 ///
-/// and only while sync is set up and unlocked, never in Offline only
+/// and only while sync is set up and unlocked (after a change, not while
+/// the last failure needs the user: [SyncFailure.needsUser]), never in
+/// Offline only
 /// (`privacyMode`), and automatically not over a metered network when the
 /// user chose Wi-Fi only ([SyncConfig.wifiOnly]; `isMetered`, default
 /// [MeteredNetwork.isMetered]). There is no background service: nothing
@@ -268,6 +270,9 @@ class SyncService {
 
   Future<void> _automatic({bool onlyIfChanged = false}) async {
     if (_closed || !_state.isSetUp || !_state.unlocked || _offlineOnly) {
+      return;
+    }
+    if (onlyIfChanged && (_state.status.lastFailure?.needsUser ?? false)) {
       return;
     }
     if (_state.config!.wifiOnly && await _isMetered()) return;
@@ -463,7 +468,11 @@ class SyncService {
           status: const SyncStatus().succeeded(_clock(), run.result),
         ),
       );
-      await _store.writeState(_state.status, _cursor);
+      try {
+        await _store.writeState(_state.status, _cursor);
+      } on Object {
+        // Kept in memory; written with the next sync.
+      }
     } finally {
       if (generation == _generation) _emit(_state.copyWith(running: false));
     }
@@ -647,7 +656,11 @@ class SyncService {
       includeSecrets: config.includeSecrets,
       wifiOnly: config.wifiOnly,
     );
-    await _store.writeConfig(updated);
+    try {
+      await _store.writeConfig(updated);
+    } on Object {
+      // Used from now on; stored with the next change of the setup.
+    }
     _emit(_state.copyWith(config: () => updated));
     notifyChanged();
   }

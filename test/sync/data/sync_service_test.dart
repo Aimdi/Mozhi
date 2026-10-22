@@ -350,6 +350,24 @@ void main() {
       },
     );
 
+    test(
+      'after a failure only the user can fix, changes wait for them',
+      () async {
+        final device = _Device(_server());
+        await device.setUp();
+        device.server.intercept = (_) => http.Response('', 401);
+        expect(await device.service.syncNow(), SyncFailure.authFailed);
+        device.history.set('a', 'x', 2);
+        device.server.requests.clear();
+        device.service.notifyChanged();
+        await device.service.flush();
+        expect(device.server.requests, isEmpty);
+        // A start still tries once.
+        await device.restart().start();
+        expect(device.server.requests, hasLength(1));
+      },
+    );
+
     test('flush runs a pending change now', () async {
       final device = _Device(_server(), debounce: const Duration(hours: 1));
       await device.setUp();

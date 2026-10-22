@@ -38,6 +38,7 @@ void main() {
       expect(code.link, isNot(contains('-')));
       expect(PairingCode.tryParse(code.link), code);
       expect(PairingCode.tryParse('MOZHI://PAIR?code=${code.text}'), code);
+      expect(PairingCode.tryParse(code.link.toUpperCase()), code);
       expect(PairingCode.tryParse('/pair?code=${code.text}'), code);
     });
 
