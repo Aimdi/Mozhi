@@ -37,33 +37,98 @@ alone.
 
 - **Start screen.** With no text, the tab greets you (**Good morning**,
   **Good afternoon** or **Good evening**) with chips for **Camera** (image
-  translation) and **Document**, and your recent language pairs. The
-  composer waits at the bottom, as on Kagi Translate: a card with the text
-  box (the microphone, and paste, at its top right) and the language bar.
-  Tap it to type: the screen turns into the usual thread, your text with
-  its language at the top and the translation under it, and the language
-  bar stays docked at the bottom of the screen, right above the keyboard
-  while it is open. Leave the empty text box to get the start screen back.
-  On wide screens the composer sits under the greeting, and your text and
-  the translation open side by side.
-- **Language bar.** At the bottom of the screen, as on Kagi Translate:
-  **Translation options** (the tune icon) on the left, the source and
-  target languages with the swap button in the middle, and the go button
-  (the rocket, **Translate**) on the right. The go button translates right
-  away, or again; in compare mode it runs the comparison. While a
-  translation is running it turns into **Stop translating**.
-- **Instant translate.** The translation updates shortly after you stop
-  typing, with Mozhi engines and AI engines alike. Each pause sends an AI
-  model a request, which costs tokens with a paid provider; turn off
-  **Settings > Instant translate with AI** to translate only when you press
-  the go button. Text shared from other apps and links wait for the go
-  button with an AI model either way (see [Links](#links)).
-- **Output actions:** copy, share, listen, add to favourites,
-  [**Check meaning**](#meaning-check), and the elapsed time per engine. With
-  an AI model available, the output also offers **Insights**, **Show
-  romanization** and **Show matching phrases** (see below). **Show matching
+  translation) and **Document**. Below them:
+  - **Continue** with your last translation (its text and language pair,
+    such as *EN → FR*), from the history on this device: one tap shows it
+    again, without a new request. It is hidden while history is off or in
+    incognito.
+  - **Paste and translate** (Android), when you come back to the app with
+    text on the clipboard. The app only asks Android whether the clipboard
+    holds text, and reads it when you tap the chip. With instant
+    translation off, the chip says **Paste copied text** and only pastes.
+    Not in the web app.
+  - your **Recent pairs**, and on large screens a hint that **?** shows the
+    keyboard shortcuts.
+- **Phones.** The composer waits at the bottom, as on Kagi Translate: a
+  card with the text box (the microphone, and paste, at its top right) and
+  the language bar. Tap it to type: the screen turns into the usual thread,
+  your text with its language at the top and the translation under it, and
+  the language bar stays docked at the bottom of the screen, right above
+  the keyboard while it is open. Tap outside the empty text box, or press
+  Back on Android, to get the start screen back; the next Back leaves the
+  app. Windows narrower than 840 dp use this layout too.
+- **Wide screens** (840 dp and wider: tablets, foldables, desktop
+  browsers). Two panes from the start: your text and the translation, with
+  the languages in a header above them (the source over your text, the
+  target over the translation, the swap button between them).
+  **Translation options**, the chips of the options in use and the go
+  button sit under your text; there is no language bar at the bottom. The
+  empty text pane says **Type or paste text**, with the greeting,
+  **Camera**, **Document** and your recent pairs under it, and the empty
+  translation pane a muted **Translation**. Nothing moves when you click
+  into the text box. On a foldable the panes split at the hinge.
+- **Language bar** (phones). At the bottom of the screen, as on Kagi
+  Translate: **Translation options** (the tune icon) on the left, the
+  source and target languages with the swap button in the middle, and the
+  go button (an arrow, **Translate**) on the right. The go button
+  translates right away, or again; in compare mode it runs the comparison.
+  While instant translation is on it is quieter, since typing translates
+  anyway. While a translation is running it turns into **Stop
+  translating**.
+- **Instant translate.** The translation updates as you type: right after
+  a paste or the end of a sentence, otherwise shortly after each word (a
+  little later with AI models). AI models and the DeepL API wait a moment
+  at the end of a sentence, so that a text of several sentences is sent
+  once, and the DeepL API, which bills per character, waits for a pause in
+  typing. Each pause sends an AI model a request, which costs tokens with a
+  paid provider. **Settings > Translation engines > Instant translate**
+  chooses which engines translate while you type: **Online engines and AI**
+  (the default), **Online engines** (Mozhi, translation services and
+  on-device translation; AI waits for the go button) or **Off** (only the
+  go button translates). Text shared from other apps and links wait for the
+  go button with an AI model either way (see [Links](#links)).
+- **The translation** sits on a raised surface under a header with the
+  target language, the engine (and, once done, the time) and where the
+  text went. As soon as a translation starts, its header and three
+  placeholder lines show (screen readers hear **Translating…**); while a
+  new translation of a shown result runs, the old one stays, dimmed. The
+  actions keep their place while the text streams in and fade in once it
+  is complete; on Android a light tick says it is done (with **Haptic
+  feedback** on).
+- **Output actions,** at the start edge: **Copy** (the icon turns into a
+  check mark, and screen readers hear **Copied to clipboard**; there is no
+  extra message on Android 13 and later, which confirms copies itself, or
+  in the web app), **Listen** (long-press it to [listen
+  slowly](#text-to-speech)), the heart (**Add to favorites**), **Share**
+  and **Show full screen**.
+- **Show full screen** shows the translation as large as it fits, black on
+  white (white on black in the dark theme), to show it to someone across a
+  counter. It lays itself out again when you turn the device, and has a
+  **Copy** button; tap anywhere, press Back or Escape to close it.
+- **Tools.** **Tools**, under the actions, unfolds the other tools as one
+  list: **Check meaning** ([meaning check](#meaning-check)), **Insights**,
+  **Romanization** and **Matching phrases** switch on and off (a check mark
+  shows which are on), and **Compare engines** opens
+  [compare mode](#engines-and-compare-mode). Under **Learn**,
+  **Alternatives** unfolds other translations and **Explain** opens an
+  explanation (see [Kagi-style extras](#kagi-style-extras)). For longer
+  texts, **Definitions** unfolds the definitions the engine sent along.
+  **Also translate into…** is there too. Which rows show depends on the
+  engine: Insights, Alternatives and Explain need an AI model; **Matching
   phrases** also works with the on-device engine, for free and without a
-  network.
+  network. Whether Tools is open is remembered until the app closes.
+- **Short words and phrases.** For one to three words, a panel under the
+  translation shows what the engine sent along with it, without a new
+  request: up to four **Other translations** (tap one to use it), up to two
+  **Definitions** with an example, and **Synonyms** (Google through Mozhi
+  sends the most). **Open in Dictionary** opens the word on the
+  [Dictionary](#dictionary) tab, and with an AI model for extras **More
+  detail** loads the AI dictionary entry right there (one request).
+- **Unsure sentences** (on-device engine). Sentences the offline engine is
+  unsure about get a dotted underline (tap or point at one: **The on-device
+  engine is unsure about this sentence**), and a note under the
+  translation counts them and offers **Compare with another engine**, which
+  runs [compare mode](#engines-and-compare-mode).
 - **Translation checks.** Every result is checked on the device. A note
   under it says when placeholders (`{name}`, `%s`), tags, links, e-mail
   addresses, numbers or glossary terms went missing, when the result looks
@@ -76,16 +141,22 @@ alone.
   with another engine you already allowed (on this device first) and says
   which one ("Google returned the original text. Translated on this
   device."). Paid AI providers are never tried automatically.
-- **When the network fails**, the error offers **Translate on this device**
-  if the language pair is installed, or its download.
-- **More languages at once:** **Also translate into…** under the translation
-  adds up to four more target languages; see
+- **Errors** have a short title in the error colour (**Couldn't connect**,
+  **AI provider problem**, **Mozhi instance problem**, ...) above what to
+  do; with no network on the device the title is **You're offline**. When
+  there is a one-tap way out it comes first, with **Retry** next to it:
+  **Translate with Google** (an engine you already allowed for this
+  language pair, never a cloud provider) or **Try next instance** (makes
+  the next instance of your list the preferred one and translates again).
+  When the network fails, the error also offers **Translate on this
+  device** if the language pair is installed, or its download.
+- **More languages at once:** **Also translate into…** in **Tools** adds up
+  to four more target languages; see
   [Extra target languages](#extra-target-languages).
-- **Definitions.** For single words, Google and Reverso results from Mozhi
-  include definitions with examples and synonyms.
 - **Same language in and out** (AI): choose the same source and target
   language to have the text improved and rephrased instead of translated.
-- **Long texts:** the input holds up to 20,000 characters.
+- **Long texts:** the input holds up to 20,000 characters; a counter shows
+  up from 16,000 (**16,000 / 20,000**).
   - **AI models** get texts longer than 6,000 characters in parts (2,500
     characters for local models, which usually have small context windows).
     Parts are cut at paragraph boundaries where possible (else at line
@@ -102,19 +173,35 @@ alone.
 ## Languages and detection
 
 - **Picking languages.** Tap the source or target language to open the
-  picker: search by English or native name or by code, pick from **Recent**
-  (your last eight languages) or **Pinned** languages (use the pin button
-  next to a language), or browse **All languages**. Mozhi engines show the
+  picker: full screen on phones; on wide screens it drops down under the
+  language button, with the languages in columns (Esc or a click outside
+  closes it). Search by English or native name or by code (accents don't
+  matter: *francais* finds Français), pick from **Recent** (your last eight
+  languages), **Pinned** or **Downloaded (offline)**, or browse **All
+  languages**. The search field is ready to type in on wide screens and
+  after you used the keyboard; on a phone, a key typed on a hardware
+  keyboard starts the search. Recent and pinned languages have a pin
+  button; other languages show it while you point at them or focus them,
+  and a long press pins or unpins any language. Mozhi engines show the
   languages that engine supports; AI engines offer about 290 languages and
   variants, from Brazilian Portuguese and Cantonese to Latin and Toki Pona.
+- **Works offline** (Android). A language that the on-device engine can
+  translate together with the other language of the pair is marked
+  **Works offline**. A language it supports that isn't on the device yet
+  has a download button in its row (for example **Download German (24.0
+  MB)**). It downloads only that language, with the same **Download over
+  Wi-Fi only** setting and mobile-data question as
+  [Offline translation](#offline-translation).
 - **Detect language.** With the source set to **Detect language**, the
-  detected language is shown under the translation (**Detected: Dutch**);
-  tap it to choose another source language.
+  source button in the language bar (on wide screens, above your text)
+  names the detected language (**Detected: Dutch**), and the source picker
+  lists it under **Detected**; tap it to choose another source language.
 - **Uncertain detection.** Short texts are hard to detect: "Gift", "Bank" or
   "Hallo" are words in several languages. For a single short word, or when
-  the engine says it isn't sure, the label reads **Detected: Dutch?** and
+  the engine says it isn't sure, the label reads **Detected: Dutch?**, and
   chips for the other likely languages (for example German or Afrikaans)
-  appear next to it; tap one to translate from that language instead. With a
+  appear under the translation's actions; tap one to translate from that
+  language instead. With a
   cloud AI model, input of up to three words also gets a second, small
   detection request, so that a doubtful guess is caught.
 - **Your languages count** (AI): for short texts the model is told which
@@ -122,8 +209,9 @@ alone.
   language pairs) and prefers them when a word could be in several
   languages.
 - **Swap languages** (the arrows between the two languages) exchanges them
-  and moves the translation into the input. While detecting, it uses the
-  detected language.
+  and moves the translation into the input; the two language names slide
+  across and trade places (no motion when the system asks for reduced
+  motion). While detecting, it uses the detected language.
 - **Smart swap.** If the detected language is the target language (you
   typed English while translating into English), Mozhi translates into
   another language you use instead: a recent or pinned language, then your
@@ -134,11 +222,12 @@ alone.
   yourself, or went back to with **Undo**, isn't swapped away again until
   you restart the app.
 - **Recent language pairs.** Long-press the swap button (or choose **More
-  tools > Recent language pairs**) to see the last eight pairs you
-  translated with, such as *Spanish → English*, and pick one to set both
-  languages at once. Pairs with a custom style are greyed out while the
-  engine can't take one. **Clear recent language pairs** is in the sheet and
-  under **Settings**.
+  tools > Recent language pairs** in the ⋮ menu) to see the last eight
+  pairs you translated with, such as *Spanish → English*, and pick one to
+  set both languages at once; the start screen shows the latest ones too.
+  Pairs with a custom style are greyed out while the engine can't take one.
+  **Clear recent language pairs** is in the sheet and under **Settings >
+  Privacy & data**.
 - **Pinned target shortcuts.** On a keyboard, Alt+1 to Alt+9 translate into
   your first nine pinned target languages, in the order the picker lists them
   under **Pinned** (in a desktop browser the picker shows each one's
@@ -148,8 +237,9 @@ alone.
 ## Extra target languages
 
 Translate one text into several languages at once: **Also translate into…**
-under the translation adds up to four more target languages next to the
-main one.
+in **Tools** under the translation adds up to four more target languages
+next to the main one. Their cards stay under the translation when Tools is
+closed.
 
 - **Picking them.** The sheet lists the engine's target languages; search by
   English or native name, or by code. The languages you picked are listed
@@ -169,8 +259,8 @@ main one.
 - **Same engine, same rules.** The extra languages are translated with the
   same engine and translation options as the main translation, one request
   per language. They follow the main translation: while you type when
-  instant translation is on for the engine (**Instant translate**, or
-  **Instant translate with AI**), otherwise when you press **Translate**. A language you add while a translation is shown is
+  **Instant translate** covers the engine, otherwise when you press
+  **Translate**. A language you add while a translation is shown is
   translated right away. Translations of text you have since edited are
   dimmed until the new ones arrive.
 - **Skipped languages.** The main target language, your source language (the
@@ -206,20 +296,29 @@ The engine button lists:
 - **AI models**: every enabled AI provider, with its model name.
 
 Your own [DeepL API and LibreTranslate](ai-providers.md#deepl-and-libretranslate)
-services are listed too.
+services are listed too. Each engine has a short note on what it is good
+for (for example **Good for European languages** for DeepL); an AI model's
+id is shown there, not on the engine button.
 
 A badge tells you who receives your text: **On device** (offline
 translation), **Self-hosted** (a server on this device, your network, or a
 Tor or I2P address), **Public server** (a public Mozhi or LibreTranslate
 instance run by someone else) or **Cloud** (an AI provider or DeepL's API).
-After a translation, a chip under it names the exact destination ("Google
-via mozhi.example.org"); tap it to see what that party can read. See
+When every engine of a section sends text to the same kind of place, the
+badge is shown once, in the section's header. After a translation, a chip
+under it names the exact destination ("Google via mozhi.example.org"); tap
+it to see what that party can read. See
 [Privacy](privacy.md#where-your-text-goes).
 
-**Compare mode** (**Compare engines** in the toolbar) translates with all your
-engines at once and shows the results side by side as they arrive, each with
-its time, a copy button and **Use this** to make it the translation. Mozhi
-engines are sent to the instance in a single request.
+**Compare mode** (**Compare engines** in **Tools** under a translation)
+translates with all your engines at once and starts right away. The
+current translation is the first card (**Current translation**); the
+others follow in the order of the engine list, each with its time, a copy
+button and **Use this** to make it the translation. Engines with the same
+result share one card (**DeepL and Google agree**), and the words in which
+a card differs from the current translation are highlighted. **Done**
+leaves compare mode; after you edit the text, **Compare** runs it again.
+Mozhi engines are sent to the instance in a single request.
 
 ## Quality modes: Fast and Best
 
@@ -227,46 +326,55 @@ Like Kagi Translate's Standard and Best, you can keep two engines at hand: a
 quick, cheap one for everyday text and your strongest one for text that
 matters.
 
-1. Open **Settings > Quality modes** (or **Quality modes** at the bottom of
-   the engine list) and choose a **Fast engine** (for example Google or DeepL
-   through Mozhi) and a **Best engine** (for example your best AI model).
-2. A **Fast** / **Best** toggle appears next to the engine button. Choosing
-   one translates the current text again with that engine; tapping the
-   selected one again goes back to your **Usual engine**. On narrow screens
-   the toggle shrinks to icons or a menu.
+1. Open **Settings > Translation engines > Quality modes** (or **Quality
+   modes** at the bottom of the engine list) and choose a **Fast engine**
+   (for example Google or DeepL through Mozhi) and a **Best engine** (for
+   example your best AI model).
+2. A **Fast** / **Best** toggle appears next to the engine button (on the
+   start screen, a chip such as **Fast · Google**). One of the two is always
+   selected; choosing the other translates the current text again with its
+   engine. On narrow screens the toggle shrinks to icons or a menu.
 
-The translate screen remembers the mode you used last. Picking an engine from
-the engine button turns the mode off. A link that carries text can ask for a
-mode for that text with `quality=fast`, `quality=best` or `quality=standard`
-(the usual engine); the link doesn't change your saved mode. See
-[Links](#links).
+With Fast and Best set up, the engine list starts with the two modes.
+Picking an engine there (**Custom engine…** opens the whole list) makes it
+the engine of the selected mode; picking the other mode's engine switches
+to that mode. The translate screen remembers the mode you used last
+(**Remember quality selection**, next to Quality modes; when it is off, the
+app starts in Fast). A link that carries text can ask for a mode for that
+text with `quality=fast` or `quality=best`; `quality=standard` means Fast
+once Fast and Best are set up, and your usual engine before that. The link
+doesn't change your saved mode. See [Links](#links).
 
 ## AI translation options
 
 Open **Translation options** (the tune icon at the left of the language
-bar) to shape AI translations. The icon changes when any option differs
-from the defaults. **Done**, at the top right, closes the sheet, and
-**Reset to defaults**, at the bottom, clears them. Options are remembered,
-and the ones in use are shown as chips right above the language bar;
-remove one with its chip, or all of them with **Reset options**.
+bar; on wide screens under your text) to shape AI translations. On wide
+windows the options open as a side sheet. The icon changes when any option
+differs from the defaults. **Done**, at the top right, closes the sheet,
+and **Reset to defaults**, at the bottom, clears them. Options are
+remembered, and the ones in use are shown as chips right above the
+language bar; remove one with its chip, or all of them with **Reset
+options**.
 
 | Option | Choices |
 | --- | --- |
 | Style | **Natural** (idiomatic, as a native speaker would say it) or **Literal** (close to the original wording) |
-| Formality | Default, More formal, Less formal, Prefer formal, Prefer informal |
-| Formality notes | Shown once a formality is chosen: free text such as "my boss, but we're on first-name terms" |
+| Tone | **Formal**, **Neutral** (the default) or **Casual**; under **Advanced**, the softer **Prefer formal** and **Prefer informal** (only where it sounds natural) |
+| Formality notes | Shown once a tone is chosen: free text such as "my boss, but we're on first-name terms" |
 | Reading level | Standard, or a CEFR level from A1 (beginner) to C2 (proficient) to simplify the output for learners |
 | Speaker gender / Addressee gender | Not specified, Masculine, Feminine, Neutral: for languages where grammar depends on who speaks or is spoken to |
 | Context | Free text such as "a text message to my landlord" or "UI strings of a banking app" |
 | Preserve formatting | Keep line breaks, Markdown, HTML tags, links, `{placeholders}`, `%s` and emoji intact (on by default) |
 | Glossary | Term pairs that must always be translated the same way, e.g. product names |
 
-Mozhi engines ignore these options. The DeepL API applies the formality and
-the context; translation-only models (TranslateGemma, Hy-MT) ignore them.
-With such an engine the sheet says so at the top and offers **Choose an AI
-translator** (or **Add AI provider** when you have none). Your choices are
-kept for when you use an AI model, and changing them doesn't translate
-again with an engine that ignores them.
+Mozhi engines ignore these options. The DeepL API applies the tone, the
+context, formatting and the glossary; translation-only models
+(TranslateGemma, Hy-MT) ignore them. With such an engine the sheet says so
+at the top and offers **Choose an AI translator** (or **Add AI provider**
+when you have none), and each option the engine ignores is greyed out with
+**AI engines only** or **AI engines and DeepL only**. Your choices are kept
+for when you use an AI model, and changing them doesn't translate again
+with an engine that ignores them.
 
 ## Presets
 
@@ -291,7 +399,9 @@ language search and choose **Use "…" as custom language**: *Pirate speak*,
 *Shakespearean English*, *Gen Z slang*, *Plain English (explain like I am
 five)*, *LinkedIn Speak*, *Corporate jargon*, *Formal business email*,
 *Emoji*, or a dialect such as *Bavarian* or *Scots*. Popular ones are listed
-under **Styles**. Custom targets appear in your recent languages.
+under **Styles**: the target picker of an AI engine switches between
+**Languages** and **Styles** at the top, and a search lists matching styles
+after the languages. Custom targets appear in your recent languages.
 
 The source can be custom too: type a dialect, or a style such as *LinkedIn
 speak*, *Corporate jargon* or *Gen Z slang*, into the source language search

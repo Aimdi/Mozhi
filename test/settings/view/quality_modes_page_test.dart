@@ -125,9 +125,7 @@ void main() {
       expect(listTile.subtitle, isNull);
     });
 
-    testWidgets('a mode without an engine uses the usual one', (
-      tester,
-    ) async {
+    testWidgets('a mode without an engine uses the usual one', (tester) async {
       await pump(tester, state: const AppSettings(bestEngineId: 'ai:p1'));
       expect(find.text('Not set'), findsOneWidget);
       expect(

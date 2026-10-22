@@ -708,9 +708,8 @@ void main() {
       'compares once, as asked',
       setUp: () {
         mocks.stubTranslate();
-        when(
-          () => mocks.repository.compare(any(), any()),
-        ).thenAnswer((_) => const Stream.empty());
+        when(() => mocks.repository.compare(any(), any()))
+            .thenAnswer((_) => const Stream.empty());
       },
       build: () => mocks.build(),
       seed: readyState,

@@ -49,6 +49,8 @@ class SettingsCubit extends Cubit<AppSettings> {
   /// Every failed save, as it happens (e.g. the Keystore refusing an API
   /// key): the state keeps the change, which lasts until the app closes.
   /// Shown to the user by `SettingsSaveFailureListener`.
+  // Events, not state: the state stays the settings in use.
+  // ignore: prefer_void_public_cubit_methods
   Stream<SettingsSaveFailure> get saveFailures => _saveFailures.stream;
 
   /// Reloads from storage.

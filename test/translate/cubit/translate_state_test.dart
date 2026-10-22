@@ -418,10 +418,9 @@ void main() {
           claude,
         ]);
         expect(state.compareEnginesFor(const ['gone']), allEngines);
-        expect(
-          state.copyWith(target: pirate).compareEnginesFor(const []),
-          [claude],
-        );
+        expect(state.copyWith(target: pirate).compareEnginesFor(const []), [
+          claude,
+        ]);
       });
     });
   });
