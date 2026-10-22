@@ -29,7 +29,7 @@ Ready-to-use server files are in [`deploy/`](../deploy/README.md).
 | --- | --- |
 | [Architecture](architecture.md) | Packages and layers, data flow, how to add an AI provider |
 | [Contributing](contributing.md) | Toolchain, flavors, tests, localisation, adding a UI language |
-| [Offline engine](offline-engine.md) | Mozilla Bergamot: why it was chosen, native build, models and catalogue |
+| [Offline engine](offline-engine.md) | Mozilla Bergamot: why it was chosen, the native and WebAssembly (web app) builds, models and catalogue |
 | [Building](building.md) | Pinned toolchain, build variants (default, Play, F-Droid), reproducible builds, checking an APK for Google code |
 | [Dependencies](dependencies.md) | Every dependency with version, licence and purpose |
 | [Releasing](release.md) | Release checklist, signing, tracker scan, verifying a release |
