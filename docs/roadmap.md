@@ -38,17 +38,30 @@ gaps that matter:
   unchanged, drop placeholders or answer instead of translating are shown
   as if they were right.
 - **Offline everywhere:** no offline engine in the web app, no on-device
-  AI, dictionary data only from AI.
+  AI, dictionary data only from AI (the first and last closed in wave 3).
 - **Reach:** no image or file share target, quick translate opens the full
-  app, no camera overlay, no continuous transcription.
+  app, no camera overlay, no continuous transcription (all but a live
+  camera overlay closed in waves 1 to 3).
 - **Continuity:** no encrypted backup or sync, favorites aren't a
   phrasebook, no learning tools.
 
-## Done: waves 1 and 2
+## Done: waves 1 to 3
 
-Wave 1 (trust, speed and transparency) and wave 2 (feel like the best
-app) are built; the [changelog](../CHANGELOG.md) lists what changed
-(Unreleased).
+Wave 1 (trust, speed and transparency), wave 2 (feel like the best app)
+and wave 3 (offline everywhere) are built; the
+[changelog](../CHANGELOG.md) lists what changed (Unreleased). Wave 3
+brought offline translation to the web app (Bergamot and CLD2 as
+WebAssembly in a worker, models in the browser's private storage), a model
+source setting with self-hosted mirrors, the translation drawn over photos,
+speech detection with phrase-by-phrase voice input and a Transcribe screen,
+Wiktionary dictionaries that work without AI or a network, and the privacy
+follow-ups: the personal data shield for every AI extra, glossaries for
+Mozhi and LibreTranslate (and saved glossaries that finally apply),
+labelled online voices, and a proxy connection timeout that covers HTTPS.
+A security review of the new code led to stricter redirects (a Mozhi
+instance can't move your text to another server; downloads never follow a
+redirect into your network or around your proxy), whole-word glossary
+matching and better personal data detection.
 
 Carried over to later waves:
 
@@ -57,31 +70,36 @@ Carried over to later waves:
   word in the translation.
 - **Store presence:** fresh screenshots, an accurate store text in all
   listing languages, F-Droid per-ABI builds and changelogs.
-- **Privacy follow-ups:** the personal data shield for the AI extras
-  (alternatives, insights, explain) and for read-aloud; on-device language
-  identification in the web app; glossary terms for Mozhi and
-  LibreTranslate engines; a connection timeout that also covers HTTPS
-  through a proxy.
+- **Web app offline, the rest of it:** an app-shell service worker so a
+  self-hosted web app opens with no network at all; **Import from files**
+  for language packs and dictionaries in a browser; checks in Firefox,
+  Safari and phone browsers (only Chromium was tested); Transcribe and the
+  screen wake lock in a real browser.
+- **Photos:** the overlay along tilted text lines (baselines, deskew),
+  scene text (PP-OCR), and the overlay in the Play variant's ML Kit text
+  recognition.
+- **Voice:** Conversation picking the speaker from the spoken language and
+  ending a turn at a real pause instead of after 3 seconds; long
+  transcripts are cut at History's 20,000 characters.
+- **Dictionaries:** WikDict translations and Tatoeba example sentences;
+  resuming interrupted downloads; the first pack release (the workflow is
+  ready: its sizes and the kaikki.org URL pattern are checked on the first
+  run); glosses in the pack's own language for non-English packs.
+- **Mirrors:** the manual download lists still show the publishers' links;
+  `tool/check_model_downloads.py --mirror`; the nginx example in the docs is
+  untested.
+- **Privacy follow-ups:** the "kept on this device" note for photo and
+  document translations; the personal data shield can't apply to speech
+  (documented); Tailscale `.ts.net` names count as private (no proxy),
+  which also covers public Funnel addresses.
+- **Engineering:** report the dart2js miscompile found in wave 3 (a
+  nullable local assigned in `catch`, captured by a closure, read stale on
+  the success path) to the Dart SDK; a connection given up during the TLS
+  handshake through the proxy stays open until the server closes it;
+  Documents' own placeholder tokens are still limited to four digits.
 - **Not done on purpose:** measuring instance speed automatically during
   setup. It contacts every listed volunteer server, so it stays a button
   ("Find the fastest server").
-
-## Wave 3: offline everywhere
-
-- **Offline translation in the web app:** Bergamot WASM in a Web Worker,
-  models stored in the browser (OPFS) and served from the same origin or a
-  configured mirror, plus an app-shell service worker so a self-hosted
-  Mozhi works with no network at all. No mainstream app offers this.
-- **Model mirror setting:** for Bergamot, Whisper and Tesseract files,
-  keeping the SHA-256 checks.
-- **Photos:** OCR line and word boxes, with the translation drawn over the
-  photo (Tesseract boxes first; PP-OCR later for scene text).
-- **Voice:** a transcribe mode for lectures and tours (rolling transcript
-  and translation, on-device Whisper with VAD), and Conversation picking the
-  speaker from the spoken language.
-- **Offline dictionary packs:** from Wiktionary (wiktextract, CC BY-SA) and
-  WikDict, with real example sentences from Tatoeba, as downloads that also
-  work on the web.
 
 ## Wave 4: continuity and learning
 
