@@ -164,6 +164,7 @@ Documentation:
 - [FAQ](docs/faq.md)
 - [Architecture](docs/architecture.md): packages, layers and data flow (for
   contributors)
+- [Roadmap](docs/roadmap.md): what comes next, and why
 
 ---
 

@@ -33,6 +33,7 @@ Ready-to-use server files are in [`deploy/`](../deploy/README.md).
 | [Dependencies](dependencies.md) | Every dependency with version, licence and purpose |
 | [Releasing](release.md) | Release checklist, signing, tracker scan, verifying a release |
 | [Privacy audit](audit/2026-audit.md) | The 2026 privacy audit and [progress log](audit/progress.md) |
+| [Roadmap](roadmap.md) | What comes next and why: the plan to make Mozhi the best translator that stays private |
 
 Mozhi (this app) is an independent, unofficial client. The Mozhi translation
 front-end is a separate project by its own authors.
