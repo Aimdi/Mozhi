@@ -47,12 +47,28 @@ void main() {
       jsonEncode({'schemaVersion': schema, 'models': models});
 
   group(WhisperModelCatalog, () {
-    test('the bundled catalog lists tiny and base with the published '
+    test('the bundled catalog lists the speech models with the published '
         'checksums', () {
       final parsed = WhisperModelCatalog.parse(
         File('assets/models.json').readAsStringSync(),
       );
-      expect(parsed.models.map((m) => m.id), ['tiny', 'base']);
+      expect(parsed.models.map((m) => m.id), [
+        'tiny',
+        'base-q5_1',
+        'base',
+        'small-q5_1',
+        'large-v3-turbo-q5_0',
+      ]);
+      // whisper.cpp v1.9.5 models/README.md lists the turbo q5_0 SHA-1.
+      final turbo = parsed.model('large-v3-turbo-q5_0')!;
+      expect(turbo.sha1, 'e050f7970618a659205450ad97eb95a18d69c9ee');
+      expect(turbo.minRamMb, 7000);
+      expect(parsed.model('small-q5_1')!.minRamMb, 3000);
+      // The quantized files are pinned to a commit of the repository.
+      expect(
+        parsed.model('base-q5_1')!.url.path,
+        contains('/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/'),
+      );
       final tiny = parsed.model('tiny')!;
       final base = parsed.model('base')!;
       // whisper.cpp v1.9.5 models/README.md.
@@ -94,16 +110,29 @@ void main() {
       final parsed = WhisperModelCatalog.parse(
         File('assets/models.json').readAsStringSync(),
       );
+      // The README lists some models (the quantized base and small are
+      // checked by tool/whisper_catalog.py, which hashes the files): each
+      // one it lists must have its SHA-1.
+      final listed = <String>[];
       for (final model in parsed.models) {
+        if (!RegExp(
+          '^\\| ${RegExp.escape(model.id)} +\\|',
+          multiLine: true,
+        ).hasMatch(text)) {
+          continue;
+        }
+        listed.add(model.id);
         expect(
           RegExp(
-            '^\\| ${model.id} +\\| [^|]+\\| `${model.sha1}` \\|',
+            '^\\| ${RegExp.escape(model.id)} +\\| [^|]+\\| '
+            '`${model.sha1}` \\|',
             multiLine: true,
           ).hasMatch(text),
           isTrue,
           reason: model.id,
         );
       }
+      expect(listed, ['tiny', 'base', 'large-v3-turbo-q5_0']);
     });
 
     test('loads the bundled asset', () async {
@@ -111,7 +140,7 @@ void main() {
       final loaded = await loadBundledWhisperCatalog(
         bundle: _StringBundle({WhisperModelCatalog.assetKey: source}),
       );
-      expect(loaded.models, hasLength(2));
+      expect(loaded.models, hasLength(5));
     });
 
     test('parses optional fields', () {

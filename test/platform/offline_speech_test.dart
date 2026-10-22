@@ -77,7 +77,13 @@ void main() {
     );
     expect(speech, isNotNull);
     expect(speech!.isAvailable, isTrue);
-    expect(speech.models.map((m) => m.id), ['tiny', 'base']);
+    expect(speech.models.map((m) => m.id), [
+      'tiny',
+      'base-q5_1',
+      'base',
+      'small-q5_1',
+      'large-v3-turbo-q5_0',
+    ]);
     expect(
       speech.whisper.models.root.path,
       p.join(support.path, offlineSpeechFolder),

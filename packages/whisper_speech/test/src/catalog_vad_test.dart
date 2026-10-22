@@ -23,7 +23,13 @@ void main() {
       final parsed = WhisperModelCatalog.parse(
         File('assets/models.json').readAsStringSync(),
       );
-      expect(parsed.models.map((m) => m.id), ['tiny', 'base']);
+      expect(parsed.models.map((m) => m.id), [
+        'tiny',
+        'base-q5_1',
+        'base',
+        'small-q5_1',
+        'large-v3-turbo-q5_0',
+      ]);
       final vad = parsed.vad!;
       expect(vad.id, 'silero-vad');
       expect(vad.name, 'ggml-silero-v6.2.0.bin');
