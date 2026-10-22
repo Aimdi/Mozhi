@@ -2341,10 +2341,6 @@
   "@glossariesTitle": {
     "description": "glossariesTitle"
   },
-  "glossariesIntro": "AI translators always translate glossary terms the way you define them. Enabled glossaries apply to their language pair.",
-  "@glossariesIntro": {
-    "description": "glossariesIntro"
-  },
   "glossariesNew": "New glossary",
   "@glossariesNew": {
     "description": "glossariesNew"
@@ -3593,10 +3589,6 @@
   "settingsPresetsSubtitle": "Saved combinations of tone, formality and context",
   "@settingsPresetsSubtitle": {
     "description": "settingsPresetsSubtitle"
-  },
-  "settingsGlossariesSubtitle": "Terms that AI translators always translate your way",
-  "@settingsGlossariesSubtitle": {
-    "description": "settingsGlossariesSubtitle"
   },
   "settingsUsageTitle": "Usage & costs",
   "@settingsUsageTitle": {
@@ -9533,5 +9525,13 @@
         "type": "String"
       }
     }
+  },
+  "glossariesIntroAllEngines": "Translations use your glossary terms the way you define them, with every engine except the on-device one. Enabled glossaries apply to their language pair.",
+  "@glossariesIntroAllEngines": {
+    "description": "glossariesIntroAllEngines"
+  },
+  "settingsGlossariesSubtitleAllEngines": "Terms translated your way, except on this device",
+  "@settingsGlossariesSubtitleAllEngines": {
+    "description": "settingsGlossariesSubtitleAllEngines"
   }
 }

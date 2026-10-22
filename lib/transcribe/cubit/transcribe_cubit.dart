@@ -299,18 +299,16 @@ class TranscribeCubit extends Cubit<TranscribeState> {
     final pausing = _pausing;
     _pausing = null;
     unawaited(_keepAwake(enabled: false));
-    emit(
-      state.copyWith(
-        status: pausing != null
-            ? TranscribeStatus.paused
-            : state.status == TranscribeStatus.paused
-            ? TranscribeStatus.paused
-            : TranscribeStatus.idle,
-        pending: 0,
-        partial: '',
-        level: 0,
-      ),
-    );
+    // A start that waited for this recording goes on.
+    final TranscribeStatus? status;
+    if (state.status == TranscribeStatus.starting) {
+      status = null;
+    } else if (pausing != null || state.status == TranscribeStatus.paused) {
+      status = TranscribeStatus.paused;
+    } else {
+      status = TranscribeStatus.idle;
+    }
+    emit(state.copyWith(status: status, pending: 0, partial: '', level: 0));
   }
 
   /// The app went to the background: it can only listen on screen.

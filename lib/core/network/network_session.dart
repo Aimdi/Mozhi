@@ -39,7 +39,7 @@ class NetworkSession {
 
   /// The requests this session sent (in memory only; see [EgressLedger]):
   /// every backend, the web page translator and the model downloads (which
-  /// use [current]'s [client]). Requests the [policy] refuses are not sent
+  /// use [current]'s [modelClient]). Requests the [policy] refuses are not sent
   /// and not recorded.
   final EgressLedger ledger;
 
@@ -54,8 +54,8 @@ class NetworkSession {
   NetworkPolicy get policy =>
       NetworkPolicy(hasProxy: hasProxy, hiddenServicesNeedProxy: !kIsWeb);
 
-  /// The platform client (with the proxy) under [client] and [webClient];
-  /// created on first use.
+  /// The platform client (with the proxy) under [client], [webClient] and
+  /// [modelClient]; created on first use.
   late final http.Client _platform = () {
     _clientCreated = true;
     return _platformClient ?? createHttpClient(proxy: proxy);
@@ -92,6 +92,20 @@ class NetworkSession {
       ledger: ledger,
       purpose: EgressPurpose.webPage,
       viaProxy: usesProxyFor,
+    ),
+    policy: policy,
+  );
+
+  /// The client of the model downloads (offline languages, speech, text
+  /// recognition, from the publishers or a mirror): [client]'s rules, with
+  /// every request listed as a model download, whatever its host.
+  late final http.Client modelClient = BackendHttpClient(
+    EgressRecordingClient(
+      _platform,
+      ledger: ledger,
+      purpose: EgressPurpose.modelDownload,
+      viaProxy: usesProxyFor,
+      closesInner: false,
     ),
     policy: policy,
   );

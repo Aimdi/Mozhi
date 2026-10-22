@@ -35,8 +35,11 @@ import 'package:translation_repository/translation_repository.dart';
 /// neither is known.
 ///
 /// The meaning page ends with [footer], by default "AI-generated" (an
-/// entry from an offline dictionary credits its source instead); [header]
-/// goes above the part of speech (e.g. "“went” is a form of “go”").
+/// entry from an offline dictionary credits its source instead) and, for
+/// an AI entry whose look-up kept personal data on the device
+/// ([DictionaryEntry.maskedPersonalData]), how many items it kept, as
+/// the translation's notes say it; [header] goes above the part of speech
+/// (e.g. "“went” is a form of “go”").
 class DictionaryEntryTabs extends StatelessWidget {
   const new({
     required this.entry,
@@ -481,6 +484,47 @@ class _MeaningPage extends StatelessWidget {
                     ),
                   ),
                 ],
+              ),
+            // Personal data the shield kept on the device (AI entries only:
+            // entries of offline dictionaries never leave it).
+            if (footer == null && entry.maskedPersonalData > 0)
+              Padding(
+                key: const Key('dictionary_personal_data'),
+                padding: const EdgeInsets.only(top: 4),
+                child: MergeSemantics(
+                  child: Semantics(
+                    hint: l10n.translatePersonalDataKeptHint,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsetsDirectional.only(
+                            top: 1,
+                            end: 6,
+                          ),
+                          child: ExcludeSemantics(
+                            child: Icon(
+                              Icons.shield_outlined,
+                              size: 16,
+                              color: muted,
+                            ),
+                          ),
+                        ),
+                        Flexible(
+                          child: Text(
+                            l10n.translatePersonalDataKept(
+                              entry.maskedPersonalData,
+                            ),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: muted,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
           ],
         ),

@@ -261,8 +261,19 @@ class WhisperTranscriber implements Transcriber {
 /// recogniser's business (the browser's maker, usually); it is not used in
 /// Offline only (the service refuses).
 class SystemTranscriber implements Transcriber {
-  new(this._service, {DateTime Function()? clock})
-    : _clock = clock ?? DateTime.now;
+  new(
+    this._service, {
+    DateTime Function()? clock,
+    this.restartDelay = const Duration(milliseconds: 300),
+    this.stopTimeout = const Duration(seconds: 3),
+  }) : _clock = clock ?? DateTime.now;
+
+  /// How long the end of an utterance waits for its final result before
+  /// the next utterance is listened for.
+  final Duration restartDelay;
+
+  /// How long [stop] waits for the last final result.
+  final Duration stopTimeout;
 
   final SpeechInputService _service;
   final DateTime Function() _clock;
@@ -316,6 +327,11 @@ class SystemTranscriber implements Transcriber {
     final owner = session.owner;
     switch (state) {
       case SpeechInputListening() when state.isOwnedBy(owner):
+        if (!session.announced) {
+          session
+            ..announced = true
+            ..add(const TranscriberListening());
+        }
         session.add(
           TranscriberLevel(state.level, heardSpeech: state.heardSpeech),
         );
@@ -364,7 +380,7 @@ class SystemTranscriber implements Transcriber {
     final owner = session.owner;
     if (owner == null || session.closed) return;
     // Give a final result that follows the end of listening its moment.
-    await Future<void>.delayed(const Duration(milliseconds: 300));
+    await Future<void>.delayed(restartDelay);
     if (!identical(session.owner, owner) || session.closed) return;
     session.owner = null;
     if (session.stopping) {
@@ -387,10 +403,7 @@ class SystemTranscriber implements Transcriber {
     // The final result arrives, then the session closes (see _restart);
     // a recogniser that never sends it is given up on.
     unawaited(
-      Future<void>.delayed(
-        const Duration(seconds: 3),
-        () => _close(session, cancel: true),
-      ),
+      Future<void>.delayed(stopTimeout, () => _close(session, cancel: true)),
     );
   }
 

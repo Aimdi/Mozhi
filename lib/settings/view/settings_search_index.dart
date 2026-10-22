@@ -220,7 +220,7 @@ List<SettingsSearchEntry> settingsSearchIndex(
       ai,
       AiAnchors.glossaries,
       l10n.glossariesTitle,
-      subtitle: l10n.settingsGlossariesSubtitle,
+      subtitle: l10n.settingsGlossariesSubtitleAllEngines,
     ),
     entry(
       ai,

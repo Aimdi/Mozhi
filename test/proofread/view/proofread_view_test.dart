@@ -1146,6 +1146,32 @@ void main() {
         expect(spans.every((s) => s.recognizer == null), isTrue);
       });
 
+      testWidgets('says how much personal data stayed on the device', (
+        tester,
+      ) async {
+        await pumpView(
+          tester,
+          successState().copyWith(
+            result: () => sampleResult.withMaskedPersonalData(2),
+          ),
+        );
+        expect(
+          find.byKey(const Key('proofread_personal_data_kept')),
+          findsOneWidget,
+        );
+        expect(find.text('2 items kept on this device'), findsOneWidget);
+      });
+
+      testWidgets('has no personal data note when nothing was masked', (
+        tester,
+      ) async {
+        await pumpView(tester, successState());
+        expect(
+          find.byKey(const Key('proofread_personal_data_kept')),
+          findsNothing,
+        );
+      });
+
       testWidgets('output only contains changes that have an edit', (
         tester,
       ) async {

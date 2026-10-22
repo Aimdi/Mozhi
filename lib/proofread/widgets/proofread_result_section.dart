@@ -308,6 +308,37 @@ class _ProofreadResultCardState extends State<ProofreadResultCard> {
                 ),
               ),
             ),
+          // Personal data the shield kept on this device, like a
+          // translation's note.
+          if ((state.result?.maskedPersonalData ?? 0) > 0)
+            Padding(
+              key: const Key('proofread_personal_data_kept'),
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Semantics(
+                container: true,
+                hint: l10n.translatePersonalDataKeptHint,
+                child: Row(
+                  spacing: 8,
+                  children: [
+                    Icon(
+                      Icons.shield_outlined,
+                      size: 18,
+                      color: palette.secondaryText,
+                    ),
+                    Expanded(
+                      child: Text(
+                        l10n.translatePersonalDataKept(
+                          state.result!.maskedPersonalData,
+                        ),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: palette.secondaryText,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           // The actions wrap below each other when they do not fit
           // (narrow screens, large text).
           Wrap(

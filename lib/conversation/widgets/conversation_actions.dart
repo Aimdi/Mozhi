@@ -213,6 +213,17 @@ class ConversationMenuButton extends StatelessWidget {
             title: Text(l10n.conversationClear),
           ),
         ),
+        if (GoRouter.maybeOf(context) != null) ...[
+          const PopupMenuDivider(),
+          PopupMenuItem(
+            key: const Key('conversation_menu_transcribe'),
+            value: _MenuAction.transcribe,
+            child: ListTile(
+              leading: const Icon(Icons.subtitles_outlined),
+              title: Text(l10n.conversationTranscribe),
+            ),
+          ),
+        ],
       ],
     );
   }

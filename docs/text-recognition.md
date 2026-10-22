@@ -134,6 +134,11 @@ interrupted download resumes where it stopped. The data is kept in the
 app's private storage (`<app files>/tesseract/tessdata`), is not backed up,
 and is removed with the app or by deleting the language.
 
+To keep GitHub out of it, download the data from your own server instead:
+**Settings > Translation engines > Model source > Custom mirror** serves
+the same files from `<base>/tesseract/<code>.traineddata`, still checked
+against the bundled checksums. See [Mirror the on-device models](self-hosting-mozhi.md#mirror-the-on-device-models).
+
 ### Import from files (no network)
 
 To keep the phone offline (for example in **Offline only**), download the
