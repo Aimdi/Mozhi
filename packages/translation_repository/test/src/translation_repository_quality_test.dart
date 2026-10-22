@@ -37,10 +37,12 @@ void main() {
     List<AiProviderConfig> providers = const [
       claudeConfig,
       plainOpenAi,
+      ollamaConfig,
       deeplConfig,
       libreConfig,
     ],
     FakeOfflineTranslator? device,
+    int aiChunkThreshold = TranslationRepository.defaultAiChunkThreshold,
   }) {
     final repository = allowNetwork(
       TranslationRepository(
@@ -50,6 +52,7 @@ void main() {
         libreTranslateClientFactory: (_) => libre,
         offline: device,
         snapshotInterval: Duration.zero,
+        aiChunkThreshold: aiChunkThreshold,
       ),
     )..updateConfiguration(instances: const [instanceA], providers: providers);
     addTearDown(repository.dispose);
@@ -59,7 +62,7 @@ void main() {
   setUp(() {
     mozhi = MockMozhiApiClient();
     llm = {
-      for (final config in [claudeConfig, plainOpenAi])
+      for (final config in [claudeConfig, plainOpenAi, ollamaConfig])
         Uri.parse(config.baseUrl).host: MockLlmClient(),
     };
     deepl = MockDeeplClient();
@@ -832,6 +835,62 @@ void main() {
       });
     });
 
+    group('long input', () {
+      final paragraphs = [
+        'Write to jane@x.org about the plan.',
+        'Then call +49 30 1234567 about it.',
+      ];
+      final long = TranslationRequest(
+        text: paragraphs.join('\n\n'),
+        source: english,
+        target: german,
+      );
+
+      void stubParts() {
+        requests.clear();
+        when(() => llmOf(plainOpenAi).streamChat(any())).thenAnswer((
+          invocation,
+        ) {
+          final request = invocation.positionalArguments.single as LlmRequest;
+          requests.add(request);
+          return Stream.value('DE ${sourceOf(request)}');
+        });
+      }
+
+      test('restores the personal data of every part', () async {
+        repository = newRepository(aiChunkThreshold: 40);
+        stubParts();
+        final result = await repository.translate(openAi, long).last;
+        expect(requests.map(sourceOf), [
+          'Write to ⟨1⟩ about the plan.',
+          'Then call ⟨2⟩ about it.',
+        ]);
+        expect(result.text, paragraphs.map((p) => 'DE $p').join('\n\n'));
+        expect(result.maskedPersonalData, 2);
+        expect(result.warnings, isEmpty);
+      });
+
+      test('parts come from the part cache unless refreshed', () async {
+        repository = newRepository(aiChunkThreshold: 40);
+        stubParts();
+        await repository.translate(openAi, long).drain<void>();
+        expect(requests, hasLength(2));
+        // Only the changed part goes again.
+        final edited = long.copyWith(
+          text: '${paragraphs[0]}\n\nThen call us about it soon.',
+        );
+        await repository.translate(openAi, edited).drain<void>();
+        expect(requests, hasLength(3));
+        // Regenerate sends every part.
+        await repository.translate(openAi, edited, refresh: true).drain<void>();
+        expect(requests, hasLength(5));
+        // So does a cleared cache.
+        repository.clearCache();
+        await repository.translate(openAi, edited).drain<void>();
+        expect(requests, hasLength(7));
+      });
+    });
+
     test('refine masks personal data of both texts', () async {
       stubAnswers(llmOf(plainOpenAi), ['Schreiben Sie an ⟨1⟩.']);
       final result = await repository
@@ -946,6 +1005,51 @@ void main() {
     });
   });
 
+  group('warmUp', () {
+    final local = aiEngine(ollamaConfig);
+
+    test('warms the model of local AI engines up', () async {
+      when(() => llmOf(ollamaConfig).warmUp(any()))
+          .thenAnswer((_) async => true);
+      expect(await repository.warmUp(local), isTrue);
+      verify(() => llmOf(ollamaConfig).warmUp('qwen3')).called(1);
+    });
+
+    test('engines marked local count as local', () async {
+      when(() => llmOf(plainOpenAi).warmUp(any()))
+          .thenAnswer((_) async => true);
+      const marked = TranslationEngine(
+        id: 'ai:openai',
+        kind: EngineKind.ai,
+        name: 'OpenAI',
+        providerId: 'openai',
+        isLocal: true,
+      );
+      expect(await repository.warmUp(marked), isTrue);
+    });
+
+    test('does nothing for other engines and in offline-only mode', () async {
+      expect(await repository.warmUp(aiEngine(plainOpenAi)), isFalse);
+      expect(await repository.warmUp(googleEngine), isFalse);
+      expect(
+        await repository.warmUp(
+          aiEngine(ollamaConfig.copyWith(name: 'x')).withProvider('gone'),
+        ),
+        isFalse,
+      );
+      repository.updatePrivacy(mode: PrivacyMode.offlineOnly);
+      expect(await repository.warmUp(local), isFalse);
+      verifyNever(() => llmOf(plainOpenAi).warmUp(any()));
+      verifyNever(() => llmOf(ollamaConfig).warmUp(any()));
+    });
+
+    test('a failure is false', () async {
+      when(() => llmOf(ollamaConfig).warmUp(any()))
+          .thenThrow(const LlmApiException('down'));
+      expect(await repository.warmUp(local), isFalse);
+    });
+  });
+
   group('needsConsent', () {
     test('follows the privacy settings without using anything up', () {
       repository.updatePrivacy(mode: PrivacyMode.offlineFirst);
@@ -1029,6 +1133,14 @@ void main() {
 }
 
 extension on TranslationEngine {
+  TranslationEngine withProvider(String providerId) => TranslationEngine(
+    id: 'ai:$providerId',
+    kind: kind,
+    name: name,
+    providerId: providerId,
+    isLocal: isLocal,
+  );
+
   TranslationEngine copyWithId(String id) => TranslationEngine(
     id: id,
     kind: kind,

@@ -2,14 +2,18 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:bergamot_translator/bergamot_translator.dart';
+// The engine createBergamotEngine makes, to check its cache size.
+import 'package:bergamot_translator/src/engine/ffi/isolate_engine.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:mozhi/core/network/network_session.dart';
 import 'package:mozhi/offline/data/unavailable_offline_translator.dart';
+import 'package:mozhi/platform/native_memory.dart';
 import 'package:mozhi/platform/offline_engine.dart' as engine;
 import 'package:mozhi/platform/offline_engine_io.dart';
+import 'package:translation_repository/translation_repository.dart';
 
 /// The app's real catalog (assets of packages/bergamot_translator).
 final String _catalog = File('packages/bergamot_translator/assets/catalog.json')
@@ -47,6 +51,26 @@ class _Engine implements BergamotEngine {
 
   @override
   Future<void> dispose() async {}
+}
+
+/// A [BergamotBatchEngine] counting [trim] calls.
+class _BatchEngine extends _Engine implements BergamotBatchEngine {
+  int trims = 0;
+
+  @override
+  Future<List<OfflineTranslation>> translateBatch(
+    List<ModelPaths> chain,
+    List<String> texts, {
+    bool html = false,
+    bool details = false,
+    Future<void>? abort,
+  }) async => [for (final text in texts) OfflineTranslation(text: text)];
+
+  @override
+  Future<void> preload(List<ModelPaths> chain) async {}
+
+  @override
+  Future<void> trim() async => trims++;
 }
 
 void main() {
@@ -207,6 +231,72 @@ void main() {
         translator.downloadLanguage('de'),
         throwsA(isA<ModelDownloadException>()),
       );
+    });
+
+    group('memory', () {
+      const gib = 1024 * 1024 * 1024;
+
+      Future<BergamotTranslator> sized(DeviceMemory? memory) async =>
+          await createBergamotOfflineTranslator(
+            bundle: bundle,
+            supportDirectory: () async => support,
+            isMeteredConnection: () async => false,
+            isAvailable: true,
+            deviceMemory: () async => memory,
+            memoryBudget: NativeMemoryBudget(),
+          ) as BergamotTranslator;
+
+      Matcher caching(int models) => isA<IsolateBergamotEngine>().having(
+        (engine) => engine.maxLoadedModels,
+        'maxLoadedModels',
+        models,
+      );
+
+      test('sizes the model cache from the device memory', () async {
+        expect(
+          (await sized(const DeviceMemory(totalBytes: 8 * gib))).engine,
+          caching(4),
+        );
+        expect(
+          (await sized(const DeviceMemory(isLowRam: true))).engine,
+          caching(2),
+        );
+        expect((await sized(null)).engine, caching(3));
+      });
+
+      test('trims the engine on memory pressure', () async {
+        final budget = NativeMemoryBudget();
+        final batches = _BatchEngine();
+        await createBergamotOfflineTranslator(
+          bundle: bundle,
+          supportDirectory: () async => support,
+          isAvailable: true,
+          engine: batches,
+          memoryBudget: budget,
+        );
+
+        budget.didHaveMemoryPressure();
+        await pumpEventQueue();
+
+        expect(batches.trims, 1);
+      });
+
+      test('registers nothing where the engine cannot run', () async {
+        final budget = NativeMemoryBudget();
+        final batches = _BatchEngine();
+        await createBergamotOfflineTranslator(
+          bundle: bundle,
+          supportDirectory: () async => support,
+          isAvailable: false,
+          engine: batches,
+          memoryBudget: budget,
+        );
+
+        budget.didHaveMemoryPressure();
+        await pumpEventQueue();
+
+        expect(batches.trims, 0);
+      });
     });
 
     test('is unavailable when the catalog cannot be loaded', () async {

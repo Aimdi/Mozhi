@@ -162,6 +162,9 @@ class TranslationRepository {
   final MtEngines _mt;
   final OfflineEngine? _offline;
   final TranslationCache _cache;
+
+  /// Translations of the parts of long AI inputs (see [translate]).
+  final MemoryChunkCache _chunkCache = MemoryChunkCache();
   final Duration _snapshotInterval;
   final int _aiChunkThreshold;
   final int _localAiChunkThreshold;
@@ -226,6 +229,8 @@ class TranslationRepository {
     _cache
       ..invalidateEngine('ai:$id')
       ..invalidateEngine('mt:$id');
+    // Parts are not kept by engine: all of them go.
+    _chunkCache.clear();
   }
 
   List<MozhiInstance> get instances => _mozhi.instances;
@@ -243,8 +248,11 @@ class TranslationRepository {
   /// injected and is available on this platform).
   bool get hasOfflineEngine => _offline?.isAvailable ?? false;
 
-  /// Removes every cached translation.
-  void clearCache() => _cache.clear();
+  /// Removes every cached translation (also of the parts of long texts).
+  void clearCache() {
+    _cache.clear();
+    _chunkCache.clear();
+  }
 
   // ---------------------------------------------------------------------
   // Privacy
@@ -1125,7 +1133,8 @@ class TranslationRepository {
       target: safe.target.code,
     );
     if (denied != null) return Stream.error(denied);
-    Stream<TranslationResult> fetch() => _translateUncached(engine, safe);
+    Stream<TranslationResult> fetch() =>
+        _translateUncached(engine, safe, refresh: refresh);
     final key = _cacheKeyOf(engine, safe);
     if (refresh) _cache.remove(engine, key);
     if (!_wantsDetectionHint(engine, safe)) {
@@ -1250,10 +1259,13 @@ class TranslationRepository {
 
   /// The engine's translation of [request], every result with its
   /// [TranslationResult.destination].
+  /// With [refresh], the parts of a long AI input are translated again too
+  /// (not served from the part cache).
   Stream<TranslationResult> _translateUncached(
     TranslationEngine engine,
-    TranslationRequest request,
-  ) {
+    TranslationRequest request, {
+    bool refresh = false,
+  }) {
     final destination = _destinationFor(engine);
     final shield = _shields(destination);
     final results = switch (engine.kind) {
@@ -1267,7 +1279,12 @@ class TranslationRepository {
         send: (part, {required masked, abort, original}) =>
             _translateMozhi(engine, part, abort: abort),
       ),
-      EngineKind.ai => _translateAi(engine, request, shield: shield),
+      EngineKind.ai => _translateAi(
+        engine,
+        request,
+        shield: shield,
+        refresh: refresh,
+      ),
       // Cancelling the subscription stops the work on the device.
       EngineKind.offline => _abortable(
         (abort) => translateOffline(
@@ -1642,6 +1659,7 @@ class TranslationRepository {
     TranslationEngine engine,
     TranslationRequest request, {
     bool shield = false,
+    bool refresh = false,
   }) {
     final config = _configFor(engine, 'ai:');
     if (config == null || config.isMtService) {
@@ -1653,22 +1671,31 @@ class TranslationRepository {
     final work = masked == null ? request : request.copyWith(text: masked.text);
     final profile = config.resolvedPromptProfile;
     final results = profile.isTranslationOnly
-        ? _translateWithMtProfile(engine, config, profile, work)
+        ? _translateWithMtProfile(
+            engine,
+            config,
+            profile,
+            work,
+            refresh: refresh,
+          )
         : _inChunks(
             engine,
             config,
             work,
-            (chunk, preceding) => _retriedOnce(
+            (chunk, context) => _retriedOnce(
               engine: engine,
               chunk: chunk,
               open: (extra) => _streamTranslation(config, [
                 ...TranslationPrompts.translate(
                   chunk,
-                  precedingText: preceding,
+                  precedingText: context.precedingText,
+                  precedingTranslation: context.precedingTranslation,
+                  earlierTerms: context.terms,
                 ),
                 ...extra,
               ]),
             ),
+            refresh: refresh,
           );
     return masked == null ? results : _unmasked(results, masked);
   }
@@ -1895,29 +1922,36 @@ class TranslationRepository {
       ? _localAiChunkThreshold
       : _aiChunkThreshold;
 
-  /// [translate] applied to [request] (with no preceding text), or to the
+  /// [translate] applied to [request] (with an empty context), or to the
   /// parts of its text when it is longer than the chunk threshold of
-  /// [config] (see the constructor and [chunkedTranslation]).
+  /// [config] (see the constructor and [chunkedTranslation]: each part with
+  /// its [ChunkContext], parts served from and stored in the part cache
+  /// unless [refresh]).
   Stream<TranslationResult> _inChunks(
     TranslationEngine engine,
     AiProviderConfig config,
     TranslationRequest request,
     Stream<TranslationResult> Function(
       TranslationRequest chunk,
-      String precedingText,
+      ChunkContext context,
     )
-    translate,
-  ) {
+    translate, {
+    bool refresh = false,
+  }) {
     final limit = _chunkLimit(engine, config);
-    if (request.text.length <= limit) return translate(request, '');
+    if (request.text.length <= limit) {
+      return translate(request, const ChunkContext());
+    }
     final chunks = ParagraphChunker.split(request.text, maxChars: limit);
-    if (chunks.length < 2) return translate(request, '');
+    if (chunks.length < 2) return translate(request, const ChunkContext());
     return chunkedTranslation(
       engine: engine,
       request: request,
       chunks: chunks,
-      translate: translate,
+      translateInContext: translate,
       languageFor: _languageFor,
+      cache: _chunkCache,
+      refresh: refresh,
     );
   }
 
@@ -1925,8 +1959,9 @@ class TranslationRepository {
     TranslationEngine engine,
     AiProviderConfig config,
     PromptProfile profile,
-    TranslationRequest request,
-  ) async* {
+    TranslationRequest request, {
+    bool refresh = false,
+  }) async* {
     if (request.source.isCustom || request.target.isCustom) {
       final custom = request.source.isCustom ? request.source : request.target;
       throw ArgumentError.value(
@@ -1980,6 +2015,7 @@ class TranslationRepository {
         parseMarker: false,
         detectedSource: detected,
       ),
+      refresh: refresh,
     );
   }
 
@@ -3171,6 +3207,33 @@ class TranslationRepository {
   Future<Duration> pingInstance(MozhiInstance instance) =>
       _mozhi.withClient(instance, (client) => client.ping());
 
+  /// Loads the model of a local AI [engine] (Ollama, LM Studio, llama.cpp:
+  /// [TranslationEngine.isLocal] or a local provider) into memory, so that
+  /// the first translation does not wait for it (`LlmClient.warmUp`; no
+  /// user text is sent). Returns whether the server warmed the model up;
+  /// false without a request for other engines, unknown providers and
+  /// providers whose destination the privacy settings keep the device from
+  /// contacting ([PrivacyMode.offlineOnly]), and false when the request
+  /// fails.
+  Future<bool> warmUp(TranslationEngine engine) async {
+    if (!engine.isAi) return false;
+    final config = _configFor(engine, 'ai:');
+    if (config == null ||
+        config.isMtService ||
+        !(engine.isLocal || config.isLocal)) {
+      return false;
+    }
+    if (_privacyMode == PrivacyMode.offlineOnly &&
+        _providerDestination(config).leavesDevice) {
+      return false;
+    }
+    try {
+      return await _llm.clientFor(config).warmUp(config.model);
+    } on Object {
+      return false;
+    }
+  }
+
   /// The models of an AI provider; machine translation services have none
   /// (an empty list).
   Future<List<LlmModel>> listModels(AiProviderConfig config) async {
@@ -3224,6 +3287,7 @@ class TranslationRepository {
     _clearMozhiCaches();
     unawaited(_metadataChanges.close());
     _cache.clear();
+    _chunkCache.clear();
     _mozhi.dispose();
     _llm.dispose();
     _mt.dispose();

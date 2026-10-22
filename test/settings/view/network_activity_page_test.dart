@@ -126,6 +126,7 @@ void main() {
         tester.getSemantics(find.text(l10n.settingsNetworkNothingTitle)),
         matchesSemantics(
           isHeader: true,
+          isLiveRegion: true,
           label: l10n.settingsNetworkNothingTitle,
         ),
       );
@@ -168,7 +169,7 @@ void main() {
         failure: EgressFailure.timeout,
       );
       record(_lan, outcome: EgressOutcome.pending);
-      await pump(tester);
+      await pump(tester, size: const Size(400, 4000));
 
       final headline = tester.widget<Text>(
         find.byKey(const Key('network_activity_headline')),
@@ -187,17 +188,12 @@ void main() {
       expect(find.text(l10n.settingsNetworkViaProxy), findsWidgets);
       expect(find.text(l10n.settingsNetworkUnencrypted), findsWidgets);
 
-      await tester.scrollUntilVisible(
-        find.text(l10n.settingsNetworkLog),
-        300,
-        scrollable: find.byType(Scrollable).first,
-      );
+      expect(find.text(l10n.settingsNetworkLog), findsOneWidget);
       expect(find.text(l10n.settingsNetworkStatusPending), findsOneWidget);
       expect(find.text(l10n.settingsNetworkStatusTimeout), findsOneWidget);
-      await tester.scrollUntilVisible(
+      expect(
         find.text(l10n.settingsNetworkStatusHttpError(401)),
-        300,
-        scrollable: find.byType(Scrollable).first,
+        findsOneWidget,
       );
       expect(
         find.text(l10n.settingsNetworkRedirected('cdn-lfs.huggingface.co')),
@@ -290,18 +286,23 @@ void main() {
       final session = NetworkSession(ledger: ledger);
       NetworkSession.current = session;
       record(_openAi);
+      tester.view
+        ..physicalSize = const Size(400, 3000)
+        ..devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
 
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: const NetworkActivityPage(),
+          home: NetworkActivityPage(),
         ),
       );
       await tester.pump();
 
       expect(find.text('OpenAI'), findsWidgets);
       record(_models, purpose: EgressPurpose.modelDownload);
+      await tester.pump();
       await tester.pump();
       expect(find.text('Hugging Face'), findsWidgets);
     });

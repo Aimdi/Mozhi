@@ -379,7 +379,7 @@ class _Headline extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: Semantics(
         container: true,
-        liveRegion: true,
+        explicitChildNodes: true,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -398,6 +398,8 @@ class _Headline extends StatelessWidget {
             const SizedBox(height: 16),
             Semantics(
               header: true,
+              // Announced when the first request goes out (or on Clear).
+              liveRegion: true,
               child: Text(
                 nothingLeft
                     ? l10n.settingsNetworkNothingTitle

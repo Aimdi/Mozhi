@@ -239,6 +239,9 @@ void main() {
         requests[2].messages.last.content,
         '<context>\nA novel\n</context>\n'
         '<preceding_text>\n${paragraphs[1]}\n</preceding_text>\n'
+        // The translation of the part that had finished when it started.
+        '<preceding_translation>\n${fakeGerman(paragraphs[0])}\n'
+        '</preceding_translation>\n'
         '<source>\n${paragraphs[2]}\n</source>',
       );
       expect(
@@ -337,6 +340,7 @@ void main() {
         TranslationPrompts.translate(
           auto.copyWith(text: paragraphs[1], source: pinned),
           precedingText: paragraphs[0],
+          precedingTranslation: fakeGerman(paragraphs[0]),
         ),
       );
     });
@@ -374,6 +378,7 @@ void main() {
           TranslationPrompts.translate(
             toEnglish.copyWith(text: paragraphs[1]),
             precedingText: paragraphs[0],
+            precedingTranslation: fakeGerman(paragraphs[0]),
           ),
         );
       },

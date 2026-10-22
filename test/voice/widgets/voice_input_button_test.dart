@@ -531,7 +531,7 @@ void main() {
       await tester.pumpWidget(
         WidgetsApp(
           color: const Color(0xFF000000),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           pageRouteBuilder: <T>(settings, builder) => PageRouteBuilder<T>(
             settings: settings,

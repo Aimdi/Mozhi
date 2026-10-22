@@ -71,7 +71,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         scaffoldMessengerKey: messengerKey,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (context, child) => UsageWarningListener(
           tracker: tracker,
@@ -92,7 +92,7 @@ void main() {
     await tester.pumpWidget(
       Localizations(
         locale: const Locale('en'),
-        delegates: AppLocalizations.localizationsDelegates,
+        delegates: appLocalizationsDelegates,
         child: UsageWarningListener(
           tracker: tracker,
           onWarning: received.add,

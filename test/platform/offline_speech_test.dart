@@ -1,14 +1,39 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleState;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mozhi/core/key_value_store.dart';
+import 'package:mozhi/platform/native_memory.dart';
 import 'package:mozhi/platform/offline_speech_io.dart';
 import 'package:mozhi/platform/offline_speech_web.dart' as web;
 import 'package:mozhi/voice/voice.dart' show VoiceModelMeteredException;
 import 'package:path/path.dart' as p;
 import 'package:whisper_speech/whisper_speech.dart';
+
+/// A [WhisperEngine] counting [dispose] calls (unloading the model).
+class _Engine implements WhisperEngine {
+  int disposed = 0;
+
+  @override
+  Future<WhisperTranscription> transcribe(
+    String modelPath,
+    Float32List samples, {
+    String? language,
+    int threads = 0,
+  }) async => const WhisperTranscription('');
+
+  @override
+  Future<void> cancel() async {}
+
+  @override
+  Future<void> release(String modelPath) async {}
+
+  @override
+  Future<void> dispose() async => disposed++;
+}
 
 class _Bundle extends CachingAssetBundle {
   new(this.values);
@@ -64,6 +89,29 @@ void main() {
       speech.download('tiny'),
       throwsA(isA<VoiceModelMeteredException>()),
     );
+    await speech.dispose();
+  });
+
+  test('unloads the model in the background and on memory pressure', () async {
+    final budget = NativeMemoryBudget();
+    final engine = _Engine();
+    final speech = await createOfflineSpeech(
+      store: MemoryStore(),
+      bundle: _Bundle({WhisperModelCatalog.assetKey: catalog}),
+      supportDirectory: () async => support,
+      isAvailable: true,
+      engine: engine,
+      memoryBudget: budget,
+    );
+    expect(speech!.whisper.idleUnloadAfter, speechModelIdleTimeout);
+
+    budget.didChangeAppLifecycleState(AppLifecycleState.paused);
+    await pumpEventQueue();
+    expect(engine.disposed, 1);
+
+    budget.didHaveMemoryPressure();
+    await pumpEventQueue();
+    expect(engine.disposed, 2);
     await speech.dispose();
   });
 

@@ -3,7 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mozhi/platform/native_memory.dart';
 
-const _gib = 1024 * 1024 * 1024;
+const int _gib = 1024 * 1024 * 1024;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -118,20 +118,17 @@ void main() {
         budget
           ..onMemoryPressure(() async => events.add('trim'))
           ..onMemoryPressure(() async => events.add('unload'))
-          ..onBackground(() async => events.add('background'));
-
-        budget.didHaveMemoryPressure();
+          ..onBackground(() async => events.add('background'))
+          ..didHaveMemoryPressure();
         await pumpEventQueue();
         expect(events, ['trim', 'unload']);
 
         events.clear();
-        for (final state in [
+        [
           AppLifecycleState.inactive,
           AppLifecycleState.hidden,
           AppLifecycleState.resumed,
-        ]) {
-          budget.didChangeAppLifecycleState(state);
-        }
+        ].forEach(budget.didChangeAppLifecycleState);
         await pumpEventQueue();
         expect(events, isEmpty);
 
@@ -146,9 +143,8 @@ void main() {
       var ran = false;
       budget
         ..onMemoryPressure(() async => throw StateError('engine gone'))
-        ..onMemoryPressure(() async => ran = true);
-
-      budget.didHaveMemoryPressure();
+        ..onMemoryPressure(() async => ran = true)
+        ..didHaveMemoryPressure();
       await pumpEventQueue();
 
       expect(ran, isTrue);

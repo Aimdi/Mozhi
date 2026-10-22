@@ -58,6 +58,8 @@ void main() {
     final cubit = mocks.build();
     addTearDown(cubit.close);
     await cubit.loadEngines();
+    // Offline first picks the on-device engine by default.
+    await cubit.selectEngine(google);
     cubit
       ..setSource(en)
       ..setTarget(de);
@@ -242,6 +244,7 @@ void main() {
       );
       when(() => mocks.repository.getEngines(refresh: any(named: 'refresh')))
           .thenAnswer((_) async => [claude, localAi]);
+      allowWithoutConsent({localAi.id});
       answer(
         claude,
         suspect(claude, kind: TranslationWarningKind.notATranslation),

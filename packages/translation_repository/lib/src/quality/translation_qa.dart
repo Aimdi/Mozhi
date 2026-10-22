@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:translation_repository/src/language_matcher.dart';
 import 'package:translation_repository/src/models/language.dart';
 import 'package:translation_repository/src/models/translation_warning.dart';
+import 'package:translation_repository/src/prompts/translation_prompts.dart';
 import 'package:translation_repository/src/quality/protected_patterns.dart';
 import 'package:translation_repository/src/quality/text_masker.dart';
 import 'package:translation_repository/src/quality/writing_script.dart';
@@ -178,23 +179,27 @@ abstract final class TranslationQa {
   }
 
   /// The targets of [glossary] entries whose source term occurs in
-  /// [source] (ignoring case) but that do not occur in [output] (ignoring
-  /// case; an inflected ending of a term of five or more characters is
-  /// accepted).
+  /// [source] (as `TranslationPrompts.glossaryMatches` finds it, so that
+  /// the check agrees with what the prompt sent) but that do not occur in
+  /// [output] (matched the same way, which accepts inflected forms, or
+  /// ignoring case).
   static List<String> missingGlossaryTargets(
     String source,
     String output,
     Map<String, String> glossary,
   ) {
     if (glossary.isEmpty) return const [];
-    final lowerSource = source.toLowerCase();
     final lowerOutput = output.toLowerCase();
     return [
-      for (final MapEntry(key: term, value: wanted) in glossary.entries)
-        if (term.trim().isNotEmpty &&
-            wanted.trim().isNotEmpty &&
-            lowerSource.contains(term.trim().toLowerCase()) &&
-            !_containsTerm(lowerOutput, wanted.trim().toLowerCase()))
+      for (final MapEntry(value: wanted) in TranslationPrompts.glossaryMatches(
+        glossary,
+        source,
+      ).entries)
+        if (wanted.trim().isNotEmpty &&
+            !_containsTerm(lowerOutput, wanted.trim().toLowerCase()) &&
+            TranslationPrompts.glossaryMatches({
+              wanted.trim(): wanted.trim(),
+            }, output).isEmpty)
           wanted.trim(),
     ];
   }
