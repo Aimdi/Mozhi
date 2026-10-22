@@ -14,9 +14,9 @@ typedef MergedCopies<T> = ({List<T> items, Map<String, DateTime> tombstones});
 ///   (edited, or put back) stays, and its tombstone goes;
 /// * items only in one copy are kept otherwise;
 /// * the order is the [local] one, or the [other] one when [otherOrder]
-///   (the copy reordered last): the items only in the other list go right
-///   after the item before them there (first when nothing is before
-///   them);
+///   (the copy reordered last); the items only in the other list go right
+///   after the item before them there, or before the item after them when
+///   no item is before them, or at the end;
 /// * of two tombstones of one id the later stays.
 ///
 /// Items of a copy with an id given twice are kept once (the first).
@@ -35,37 +35,45 @@ MergedCopies<T> mergeCopies<T>({
     if (known == null || value.isAfter(known)) tombstones[key] = value;
   }
 
-  final winners = <String, T>{};
-  for (final item in local) {
-    winners.putIfAbsent(idOf(item), () => item);
+  List<T> unique(List<T> items) {
+    final ids = <String>{};
+    return [
+      for (final item in items)
+        if (ids.add(idOf(item))) item,
+    ];
   }
-  final fromOther = <String>{};
-  for (final item in other) {
+
+  final mine = unique(local);
+  final theirs = unique(other);
+  final winners = {for (final item in mine) idOf(item): item};
+  for (final item in theirs) {
     final id = idOf(item);
-    if (!fromOther.add(id)) continue;
-    final mine = winners[id];
-    if (mine == null || modifiedAt(item).isAfter(modifiedAt(mine))) {
+    final kept = winners[id];
+    if (kept == null || modifiedAt(item).isAfter(modifiedAt(kept))) {
       winners[id] = item;
     }
   }
 
-  final (base, rest) = otherOrder ? (other, local) : (local, other);
-  final order = <String>[];
-  final placed = <String>{};
-  for (final item in base) {
-    final id = idOf(item);
-    if (placed.add(id)) order.add(id);
-  }
-  var at = 0;
+  final (base, rest) = otherOrder ? (theirs, mine) : (mine, theirs);
+  final order = [for (final item in base) idOf(item)];
+  // Where the next new item goes: after the last item of both seen.
+  int? at;
+  // New items before the first item of both: they go before it.
+  final leading = <String>[];
   for (final item in rest) {
     final id = idOf(item);
     final index = order.indexOf(id);
     if (index != -1) {
-      at = index + 1;
+      order.insertAll(index, leading);
+      at = index + leading.length + 1;
+      leading.clear();
+    } else if (at == null) {
+      leading.add(id);
     } else {
       order.insert(at++, id);
     }
   }
+  order.addAll(leading);
 
   final items = <T>[];
   for (final id in order) {

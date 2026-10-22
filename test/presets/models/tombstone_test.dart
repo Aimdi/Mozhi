@@ -12,10 +12,10 @@ void main() {
         'id': 'p1',
         'deletedAt': '2026-10-20T09:00:00.000Z',
       });
-      expect(Tombstone.fromJson(tombstone.toJson()), Tombstone(
-        id: 'p1',
-        deletedAt: at,
-      ));
+      expect(
+        Tombstone.fromJson(tombstone.toJson()),
+        Tombstone(id: 'p1', deletedAt: at),
+      );
     });
 
     test('fromJson refuses missing or invalid fields', () {

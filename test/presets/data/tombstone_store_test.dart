@@ -11,7 +11,7 @@ const _key = 'things.tombstones';
 /// [quotaLimit] is set and the value is longer).
 class _Store extends MemoryStore {
   int writes = 0;
-  Object? failure;
+  Error? failure;
   int? quotaLimit;
 
   @override

@@ -49,6 +49,24 @@ void main() {
       expect(merged.tombstones, isEmpty);
     });
 
+    test('puts new items before the next one, or last', () {
+      expect(_ids(_merge([_item('a'), _item('b')], [_item('x'), _item('y')])), [
+        'a',
+        'b',
+        'x',
+        'y',
+      ]);
+      expect(
+        _ids(
+          _merge(
+            [_item('a'), _item('b')],
+            [_item('x'), _item('y'), _item('b'), _item('z')],
+          ),
+        ),
+        ['a', 'x', 'y', 'b', 'z'],
+      );
+    });
+
     test('takes the order of the other copy when told', () {
       final merged = _merge(
         [_item('a'), _item('mine'), _item('b')],

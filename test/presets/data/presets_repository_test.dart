@@ -429,7 +429,8 @@ void main() {
           ),
         );
 
-        expect(theirs.presets.map((p) => p.id), ['b', 'theirs', 'a', 'mine']);
+        // Mine came after b here.
+        expect(theirs.presets.map((p) => p.id), ['b', 'mine', 'theirs', 'a']);
         expect(theirs.orderUpdatedAt, now);
 
         final mine = await repository.mergeBackup(
@@ -443,7 +444,7 @@ void main() {
           ),
         );
 
-        expect(mine.presets.map((p) => p.id), ['b', 'theirs', 'a', 'mine']);
+        expect(mine.presets.map((p) => p.id), ['b', 'mine', 'theirs', 'a']);
         expect(mine.orderUpdatedAt, now);
       });
 
