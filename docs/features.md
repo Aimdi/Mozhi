@@ -748,26 +748,45 @@ In the web app this only works for sites that allow cross-origin requests
 
 ## Offline translation
 
-On Android, Mozhi can translate without any network with Mozilla's
-**Bergamot** engine and the **Firefox Translations** models (MPL-2.0), the
-ones Firefox uses for its built-in translation: about 55 languages, each to
-and from English, and between other languages through English. In **Settings >
-Translation engines > Offline languages** (or with the download button in the
-[language picker](#languages-and-detection)), download the languages you need
-once (about 50 MB to download and 73 MB on disk each; English is built in),
-update them when a newer model is out, and delete them when you no longer need
-them. With **Download over Wi-Fi only** on (the default), Mozhi asks before
-using mobile data or a metered network. Models come from Mozilla's storage
-(`storage.googleapis.com`) and are checked against bundled checksums before
-use; none of your text is sent. To keep the app from contacting that server at
-all (for example in **Offline only**), tap a language to copy the links of its
-files, download them on another device, copy them to the phone and use
-**Import from files**
+On Android and in the web app, Mozhi can translate without any network
+with Mozilla's **Bergamot** engine and the **Firefox Translations** models
+(MPL-2.0), the ones Firefox uses for its built-in translation: about 55
+languages, each to and from English, and between other languages through
+English. In **Settings > Translation engines > Offline languages** (or with the
+download button in the [language picker](#languages-and-detection)), download
+the languages you need once (about 50 MB to download and 73 MB on disk each;
+English is built in), update them when a newer model is out, and delete them
+when you no longer need them. With **Download over Wi-Fi only** on (the
+default), Mozhi asks before using mobile data or a metered network. Models are
+checked against bundled checksums before use; none of your text is sent.
+
+**Where models come from** (**Settings > Translation engines > Model source**,
+also on the Offline languages screen, for offline languages, voice input and
+text recognition alike): the **Original publishers** (Mozilla's storage at
+`storage.googleapis.com`, GitHub and Hugging Face; the Android default),
+**This web server** (a copy next to the web app; the web app's default, since
+Mozilla's storage doesn't let other websites download from it) or a **Custom
+mirror** (your server, a computer on your network or a `.onion` address),
+optionally falling back to the publishers when the mirror lacks a file. A
+mirror can't change a file: each one is checked against the fingerprint built
+into Mozhi. How to set one up: [Mirror the on-device
+models](self-hosting-mozhi.md#mirror-the-on-device-models).
+
+To keep the Android app from contacting any server at all (for example in
+**Offline only**), tap a language to copy the links of its files, download
+them on another device, copy them to the phone and use **Import from files**
 ([details](offline-engine.md#import-models-without-the-app-downloading-them)).
-After that, translation runs entirely on the phone, and results are marked
+After that, translation runs entirely on the device, and results are marked
 **Offline**. Quality is below the best online engines, but it works on a plane
-and nothing leaves the device. Offline translation is not available on the
-web.
+and nothing leaves the device.
+
+**In the web app** the engine runs as WebAssembly in a background worker of
+the browser, and the models are kept in the browser's private storage for this
+site (they stay after a reload and are removed with the site's data). It
+needs a recent browser (Chrome or Edge 102, Firefox 125, Safari 16.4 or
+later), `https` (or `localhost`) and the site's storage (Firefox's private
+windows have none); the Offline languages screen says what is missing. It is slower than on Android (about 120 to 150 words a
+second on a desktop computer) and **Import from files** isn't available.
 
 ## History and favorites
 

@@ -247,7 +247,12 @@ translations, for example with **Check meaning**.
   needs them. A `<meta>` policy can't set `frame-ancestors`: if you host
   the web app, send `Content-Security-Policy: frame-ancestors 'none'` (or
   `X-Frame-Options: DENY`) as an HTTP header to stop other sites framing
-  it. Debug web runs (`flutter run` in debug mode) are blocked by the
+  it. A policy sent as a header applies on top of the page's own, so it
+  must still allow the offline engine: `script-src 'self'
+  'wasm-unsafe-eval'`, `worker-src 'self'` and `connect-src 'self'` (the
+  worker loads `bergamot/` and the models from the same server); serve
+  `.wasm` files as `application/wasm` (Caddy and nginx do by default).
+  Debug web runs (`flutter run` in debug mode) are blocked by the
   policy; see [Contributing](contributing.md).
 - Android release builds made without a signing key (forks, local builds)
   are signed with the debug key. Official releases must use the release

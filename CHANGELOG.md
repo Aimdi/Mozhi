@@ -74,6 +74,15 @@ in `-rc.N`).
   and colours. Hold to see the original, tap a paragraph to see and copy
   both, and **Save image** or **Share image** keeps the translated
   picture. **Text** shows the plain text as before.
+- **Offline translation in the web app.** The same on-device engine and
+  models as on Android run in the browser (WebAssembly in a background
+  worker), with downloads kept in the browser's storage for the site:
+  translation, language detection, alignment and unsure-sentence marks
+  work without a network, and Offline only and Offline first work in the
+  web app too. It needs a recent browser over `https`; the Offline
+  languages screen says what's missing otherwise. Self-hosted web apps
+  serve the models from their own server (Mozilla's storage doesn't allow
+  other websites).
 - **Model source** (Settings › Translation engines, and the Offline
   languages screen): download offline languages, voice input and text
   recognition models from the original publishers, from the server that

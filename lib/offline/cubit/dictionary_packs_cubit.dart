@@ -107,18 +107,7 @@ class DictionaryPacksCubit extends Cubit<DictionaryPacksState> {
         outcome: () => null,
       ),
     );
-    OfflineModelError? failure;
-    try {
-      await action();
-    } on Object catch (error, stackTrace) {
-      failure = dictionaryPackError(
-        error,
-        catalogUrl: state.item(id)?.pack.url,
-      );
-      if (failure.kind != OfflineModelErrorKind.metered) {
-        addError(error, stackTrace);
-      }
-    }
+    final failure = await _attempt(id, action);
     final installed = await _readInstalled();
     if (isClosed) return;
     emit(
@@ -134,6 +123,29 @@ class DictionaryPacksCubit extends Cubit<DictionaryPacksState> {
         ),
       ),
     );
+  }
+
+  /// Runs [action] for the pack [id]: the error it failed with, classified
+  /// ([dictionaryPackError]; also sent to `addError` unless the network is
+  /// metered), or null. A method of its own so that no nullable local is
+  /// assigned in a `catch` and read in a closure (dart2js got that wrong).
+  Future<OfflineModelError?> _attempt(
+    String id,
+    Future<void> Function() action,
+  ) async {
+    try {
+      await action();
+      return null;
+    } on Object catch (error, stackTrace) {
+      final failure = dictionaryPackError(
+        error,
+        catalogUrl: state.item(id)?.pack.url,
+      );
+      if (failure.kind != OfflineModelErrorKind.metered) {
+        addError(error, stackTrace);
+      }
+      return failure;
+    }
   }
 
   OfflineLanguage _display(DictionaryPackInfo pack) {

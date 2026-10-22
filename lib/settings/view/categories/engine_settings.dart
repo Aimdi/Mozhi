@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -33,8 +34,11 @@ class EngineSettings extends StatelessWidget {
   final AppSettings settings;
 
   /// Whether on-device (offline) translation can run on this platform:
-  /// Mozilla's Bergamot engine is in every build, but not on the web.
-  static bool get offlineSupported => onDeviceMlSupported;
+  /// Mozilla's Bergamot engine is in every build, natively on Android and
+  /// as WebAssembly in the web app. A browser that can't run it is
+  /// explained on the Offline languages screen.
+  static bool get offlineSupported =>
+      offlineEngineIncluded && (onDeviceMlPlatform || kIsWeb);
 
   @override
   Widget build(BuildContext context) {

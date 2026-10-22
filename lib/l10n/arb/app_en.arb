@@ -7788,10 +7788,6 @@
   "@translateOfflineOnlyNoLanguagePacks": {
     "description": "Privacy mode is Offline only and no offline language pack is downloaded (Android)"
   },
-  "translateOfflineOnlyWebUnavailable": "Offline translation isn’t available in the web app. Switch to Offline first or Online in Settings › Privacy & data.",
-  "@translateOfflineOnlyWebUnavailable": {
-    "description": "Privacy mode is Offline only in the web app, which has no on-device engine"
-  },
   "translateOfflineOnlyDeviceUnsupported": "This device can’t run offline translation. Switch to Offline first or Online in Settings › Privacy & data.",
   "@translateOfflineOnlyDeviceUnsupported": {
     "description": "Privacy mode is Offline only on an Android device whose processor cannot run the offline engine"
@@ -9569,5 +9565,9 @@
         "type": "String"
       }
     }
+  },
+  "translateOfflineOnlyBrowserUnsupported": "This browser can’t run offline translation (Settings › Translation engines › Languages on this device says why). Switch to Offline first or Online in Settings › Privacy & data.",
+  "@translateOfflineOnlyBrowserUnsupported": {
+    "description": "translateOfflineOnlyBrowserUnsupported"
   }
 }

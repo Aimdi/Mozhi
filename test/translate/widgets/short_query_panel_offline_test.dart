@@ -6,6 +6,7 @@ import 'package:mozhi/translate/widgets/widgets.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 import '../../dictionary/data/dictionary_pack_fixtures.dart';
+import '../../helpers/helpers.dart';
 import '../helpers/helpers.dart';
 import 'output_stubs.dart';
 
@@ -129,17 +130,17 @@ void main() {
           heading: const Text('Definitions'),
         ),
       );
-      await tester.pumpWidget(MaterialApp(home: panel('gato', packs)));
+      await tester.pumpApp(panel('gato', packs));
       await tester.pump();
       expect(find.text('El gato duerme.'), findsOneWidget);
-      await tester.pumpWidget(MaterialApp(home: panel('perro', packs)));
+      await tester.pumpApp(panel('perro', packs));
       await tester.pump();
       expect(find.text('El gato duerme.'), findsNothing);
       final failing = DictionaryPacks(
         catalog: DictionaryPackCatalog(const []),
         storage: _FailingStorage(),
       );
-      await tester.pumpWidget(MaterialApp(home: panel('gato', failing)));
+      await tester.pumpApp(panel('gato', failing));
       await tester.pump();
       expect(find.text('Definitions'), findsNothing);
     });

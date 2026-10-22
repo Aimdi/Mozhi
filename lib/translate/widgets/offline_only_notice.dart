@@ -13,8 +13,10 @@ import 'package:translation_repository/translation_repository.dart';
 /// Why the privacy mode "Offline only" leaves nothing to translate with on
 /// this device.
 enum OfflineOnlyGap {
-  /// The web app has no on-device engine.
-  webApp,
+  /// The web app's on-device engine can't run in this browser (the
+  /// Offline languages screen says why: no WebAssembly SIMD, plain http,
+  /// no storage...).
+  unsupportedBrowser,
 
   /// The Android app's on-device engine can't run on this device (its
   /// processor).
@@ -30,12 +32,15 @@ bool get _androidApp =>
     !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
 /// What keeps the device's offline engine [translator] (null: none) from
-/// translating anything, at once: no engine ([OfflineOnlyGap.webApp] or,
-/// in the Android app, [OfflineOnlyGap.unsupportedDevice]); null when it
+/// translating anything, at once: no engine
+/// ([OfflineOnlyGap.unsupportedBrowser] or, in the Android app,
+/// [OfflineOnlyGap.unsupportedDevice]); null when it
 /// is available (its language packs are checked by [offlineOnlyGap]).
 OfflineOnlyGap? offlineEngineGap(OfflineTranslator? translator) {
   if (translator != null && translator.isAvailable) return null;
-  return _androidApp ? OfflineOnlyGap.unsupportedDevice : OfflineOnlyGap.webApp;
+  return _androidApp
+      ? OfflineOnlyGap.unsupportedDevice
+      : OfflineOnlyGap.unsupportedBrowser;
 }
 
 /// What keeps the device's offline engine [translator] (null: none) from
@@ -58,8 +63,8 @@ Future<OfflineOnlyGap?> offlineOnlyGap(OfflineTranslator? translator) async {
 ///   this device yet…" with "Download German (25 MB)" (the pair of
 ///   [consent], when the engine supports it) or "Download languages", which
 ///   opens the offline languages; back here, the device is checked again.
-/// * The web app (and an Android device that can't run the engine):
-///   offline translation isn't available, switch the privacy mode, with
+/// * A browser (or an Android device) that can't run the engine: offline
+///   translation can't run here, switch the privacy mode, with
 ///   "Change privacy mode", which opens the settings.
 ///
 /// Otherwise (some language pack is downloaded) it shows [fallback], the
@@ -150,7 +155,8 @@ class _OfflineOnlyNoticeState extends State<OfflineOnlyNotice> {
     final message = switch (gap) {
       OfflineOnlyGap.noLanguagePacks =>
         l10n.translateOfflineOnlyNoLanguagePacks,
-      OfflineOnlyGap.webApp => l10n.translateOfflineOnlyWebUnavailable,
+      OfflineOnlyGap.unsupportedBrowser =>
+        l10n.translateOfflineOnlyBrowserUnsupported,
       OfflineOnlyGap.unsupportedDevice =>
         l10n.translateOfflineOnlyDeviceUnsupported,
     };

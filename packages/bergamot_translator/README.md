@@ -61,6 +61,31 @@ await translator.identifyLanguage('Guten Morgen'); // 'de' (CLD2, background iso
 await translator.identifyLanguage('OK'); // null: too little to tell
 ```
 
+### In a browser
+
+The same `BergamotTranslator` runs in the web app with the engine compiled
+to WebAssembly (`tool/build_wasm.sh` -> `web/bergamot/bergamot-translator.{js,wasm}`)
+in a worker (`web/bergamot/worker.js`) and the models in the browser's
+Origin Private File System:
+
+```dart
+final worker = openBergamotWorker()!; // null outside a browser
+final support = await probeBergamotWorker(worker); // SIMD, OPFS, https, ...
+if (support.isSupported) {
+  final translator = createWebBergamotTranslator(
+    catalog: await loadBundledCatalog(),
+    channel: worker,
+    httpClient: client, // downloads go through the app's client
+    isAvailable: true,
+    requestPersistence: requestPersistentBrowserStorage,
+  );
+}
+```
+
+Everything else (pivots, batches, alignment, CLD2) is the same as on
+Android; *Import from files* is not available in a browser. Protocol,
+storage and limits: [`docs/offline-engine.md`](../../docs/offline-engine.md#web-app).
+
 ## Layout
 
 | Path | What |
@@ -71,6 +96,9 @@ await translator.identifyLanguage('OK'); // null: too little to tell
 | `android/` | Gradle `externalNativeBuild` (NDK 28.2.13676358, arm64-v8a / armeabi-v7a / x86_64) |
 | `tool/fetch_native_deps.sh` | checks out the native sources (only what the engine needs) and applies the patches |
 | `tool/build_native_linux.sh` | builds `build/native/linux/libmozhi_bergamot.so` for desktop tests |
+| `tool/build_wasm.sh` | builds the web engine (`bergamot-translator.{js,wasm}`, Emscripten 3.1.8 in `~/.cache/mozhi`) into `web/bergamot/` |
+| `native/wasm/` | the WebAssembly build: CMake, the C API's memory loading (`src/`), `patches/`, notices |
+| `lib/src/engine/web/` | the web engine: worker protocol (`dart:js_interop` only in `js_bergamot_worker.dart`), OPFS model manager, browser probe |
 
 The C API (ABI 2) adds `mozhi_bergamot_translate_ex` to ABI 1's calls: a
 batch of texts in one call, returning JSON with the sentences, each

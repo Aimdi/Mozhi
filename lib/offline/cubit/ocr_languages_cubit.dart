@@ -168,15 +168,7 @@ class OcrLanguagesCubit extends Cubit<OcrLanguagesState> {
         outcome: () => null,
       ),
     );
-    OfflineModelError? failure;
-    try {
-      await action();
-    } on Object catch (error, stackTrace) {
-      failure = OfflineModelError.of(error);
-      if (failure.kind != OfflineModelErrorKind.metered) {
-        addError(error, stackTrace);
-      }
-    }
+    final failure = await _attempt(action);
     final installed = await _readInstalled();
     if (isClosed) return;
     emit(
@@ -192,6 +184,23 @@ class OcrLanguagesCubit extends Cubit<OcrLanguagesState> {
         ),
       ),
     );
+  }
+
+  /// Runs [action]; the error it failed with (reported unless it is
+  /// [OfflineModelErrorKind.metered]), or null. A helper rather than a
+  /// local assigned in `catch`, which dart2js can miscompile (see
+  /// `OfflineModelsCubit`).
+  Future<OfflineModelError?> _attempt(Future<void> Function() action) async {
+    try {
+      await action();
+      return null;
+    } on Object catch (error, stackTrace) {
+      final failure = OfflineModelError.of(error);
+      if (failure.kind != OfflineModelErrorKind.metered) {
+        addError(error, stackTrace);
+      }
+      return failure;
+    }
   }
 
   Future<void> _refreshInstalled() async {

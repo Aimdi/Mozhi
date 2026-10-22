@@ -545,16 +545,7 @@ class TranscribeCubit extends Cubit<TranscribeState> {
       detectedSource: state.source.isAuto ? detected : null,
       isFavorite: paused,
     );
-    TranscribeHistoryOutcome outcome;
-    try {
-      await history.add(entry);
-      outcome = paused
-          ? TranscribeHistoryOutcome.savedAsFavorite
-          : TranscribeHistoryOutcome.saved;
-    } on Object catch (error, stackTrace) {
-      addError(error, stackTrace);
-      outcome = TranscribeHistoryOutcome.failed;
-    }
+    final outcome = await _addToHistory(history, entry);
     if (isClosed) return;
     emit(
       state.copyWith(
@@ -562,6 +553,21 @@ class TranscribeCubit extends Cubit<TranscribeState> {
         historySaves: state.historySaves + 1,
       ),
     );
+  }
+
+  Future<TranscribeHistoryOutcome> _addToHistory(
+    HistoryCubit history,
+    HistoryEntry entry,
+  ) async {
+    try {
+      await history.add(entry);
+      return entry.isFavorite
+          ? TranscribeHistoryOutcome.savedAsFavorite
+          : TranscribeHistoryOutcome.saved;
+    } on Object catch (error, stackTrace) {
+      addError(error, stackTrace);
+      return TranscribeHistoryOutcome.failed;
+    }
   }
 
   String? _dominantLanguage() {
@@ -609,22 +615,16 @@ class TranscribeCubit extends Cubit<TranscribeState> {
         voiceDetectionError: () => null,
       ),
     );
-    VoiceModelError? failure;
-    try {
-      await offline.downloadVoiceDetection(
+    final failure = await _attempt(
+      () => offline.downloadVoiceDetection(
         overMeteredNetwork: overMeteredNetwork,
         onProgress: (fraction) {
           if (!isClosed) {
             emit(state.copyWith(voiceDetectionProgress: () => fraction));
           }
         },
-      );
-    } on Object catch (error, stackTrace) {
-      failure = VoiceModelError.of(error);
-      if (failure.kind != VoiceModelErrorKind.metered) {
-        addError(error, stackTrace);
-      }
-    }
+      ),
+    );
     if (isClosed) return;
     emit(
       state.copyWith(
@@ -633,6 +633,22 @@ class TranscribeCubit extends Cubit<TranscribeState> {
         voiceDetectionMissing: failure != null,
       ),
     );
+  }
+
+  /// Runs [action]; why it failed, or null. Errors other than a metered
+  /// network go to `addError`. (A helper, not a local assigned in a
+  /// `catch` and read by a closure: dart2js gets that wrong.)
+  Future<VoiceModelError?> _attempt(Future<void> Function() action) async {
+    try {
+      await action();
+      return null;
+    } on Object catch (error, stackTrace) {
+      final failure = VoiceModelError.of(error);
+      if (failure.kind != VoiceModelErrorKind.metered) {
+        addError(error, stackTrace);
+      }
+      return failure;
+    }
   }
 
   Future<void> _keepAwake({required bool enabled}) async {

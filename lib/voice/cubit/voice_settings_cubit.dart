@@ -195,15 +195,7 @@ class VoiceSettingsCubit extends Cubit<VoiceSettingsState> {
         outcome: () => null,
       ),
     );
-    VoiceModelError? failure;
-    try {
-      await action();
-    } on Object catch (error, stackTrace) {
-      failure = VoiceModelError.of(error);
-      if (failure.kind != VoiceModelErrorKind.metered) {
-        addError(error, stackTrace);
-      }
-    }
+    final failure = await _attempt(action);
     await _refresh();
     if (isClosed) return;
     emit(
@@ -218,6 +210,22 @@ class VoiceSettingsCubit extends Cubit<VoiceSettingsState> {
         ),
       ),
     );
+  }
+
+  /// Runs [action]; why it failed, or null. Errors other than a metered
+  /// network go to `addError`. (A helper, not a local assigned in a
+  /// `catch` and read by a closure: dart2js gets that wrong.)
+  Future<VoiceModelError?> _attempt(Future<void> Function() action) async {
+    try {
+      await action();
+      return null;
+    } on Object catch (error, stackTrace) {
+      final failure = VoiceModelError.of(error);
+      if (failure.kind != VoiceModelErrorKind.metered) {
+        addError(error, stackTrace);
+      }
+      return failure;
+    }
   }
 
   /// Reads the installed models again and tells the voice input service.

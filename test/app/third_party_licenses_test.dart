@@ -77,6 +77,24 @@ void main() {
       expect(text, contains('Google Play services'));
     });
 
+    test('lists the web engine only in the web app', () async {
+      registerThirdPartyLicenses();
+      var packages = {for (final e in await _entries()) ...e.packages};
+      expect(packages, isNot(contains(bergamotWebEngineLicensePackage)));
+
+      LicenseRegistry.reset();
+      resetThirdPartyLicensesForTesting();
+      registerThirdPartyLicenses(includeWebEngine: true);
+
+      final entries = await _entries();
+      packages = {for (final e in entries) ...e.packages};
+      expect(packages, contains(bergamotWebEngineLicensePackage));
+      final text = _text(entries, bergamotWebEngineLicensePackage);
+      expect(text, contains('WebAssembly'));
+      expect(text, contains('ONNX.js'));
+      expect(text, contains('EIGEN_MPL2_ONLY'));
+    });
+
     test('registers only once', () async {
       registerThirdPartyLicenses();
       registerThirdPartyLicenses();

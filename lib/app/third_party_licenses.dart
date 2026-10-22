@@ -13,6 +13,12 @@ const nativeLibrariesLicensePackage = 'Native platform libraries';
 /// (`libmozhi_bergamot.so`, packages/bergamot_translator).
 const bergamotEngineLicensePackage = 'Firefox Translations engine (Bergamot)';
 
+/// Package name of the web app's offline translation engine's notice
+/// (`bergamot-translator.wasm`, built by
+/// packages/bergamot_translator/tool/build_wasm.sh).
+const bergamotWebEngineLicensePackage =
+    'Firefox Translations engine for the web (WebAssembly)';
+
 /// Package name of the notice of the offline translation models.
 const bergamotModelsLicensePackage = 'Firefox Translations models';
 
@@ -223,8 +229,38 @@ The text recognition language data is Tesseract's tessdata_fast
 Apache License 2.0 (https://www.apache.org/licenses/LICENSE-2.0).
 
 It is not part of the app: each language is downloaded only when you
-choose it, from GitHub (raw.githubusercontent.com), checked against the
+choose it, from GitHub (raw.githubusercontent.com) or the mirror chosen
+in Settings > Translation engines > Model source, checked against the
 SHA-256 checksums bundled with the app and kept on this device.''';
+
+/// The notices of the web app's engine (`bergamot-translator.{js,wasm}`),
+/// from `packages/bergamot_translator/native/wasm/THIRD_PARTY_NOTICES.md`:
+/// the native engine's components it compiles, plus these.
+const bergamotWebEngineLicenseText = '''
+In the web app, offline translation runs the same Firefox Translations
+engine (bergamot-translator, Marian, SentencePiece, intgemm, CLD2 and the
+other components listed under "Firefox Translations engine (Bergamot)",
+except ssplit-cpp, PCRE2, ruy, cpuinfo, simd_utils, zlib, faiss and the
+Android NDK's libc++) compiled to WebAssembly with Emscripten 3.1.8, in a
+Web Worker on this device. Sentences are split by the browser.
+
+Source code and build: packages/bergamot_translator/tool/build_wasm.sh and
+packages/bergamot_translator/native/wasm/ of the Mozhi repository
+(https://github.com/Aimdi/Mozhi).
+
+Additional components and their licenses:
+- import-gemm-module.js and the Emscripten glue patch (Mozilla, inference/wasm): Mozilla Public License 2.0
+- ONNX.js wasm-ops (browsermt/onnxjs; the float matrix multiplication): MIT, Copyright (c) Microsoft Corporation
+- Eigen (used by ONNX.js, built with EIGEN_MPL2_ONLY): Mozilla Public License 2.0
+- Emscripten runtime (JavaScript glue): MIT / University of Illinois NCSA Open Source License
+- musl libc: MIT
+- LLVM libc++, libc++abi and compiler-rt: Apache License 2.0 with LLVM exception
+
+License texts:
+- Mozilla Public License 2.0: https://mozilla.org/MPL/2.0/
+- Apache License 2.0: https://www.apache.org/licenses/LICENSE-2.0
+- MIT: https://opensource.org/license/mit
+- University of Illinois/NCSA: https://opensource.org/license/uoi-ncsa''';
 
 /// The license of the Firefox Translations models (downloaded at run time,
 /// never bundled).
@@ -235,7 +271,8 @@ the Mozilla Public License 2.0 (https://mozilla.org/MPL/2.0/).
 
 They are not part of the app: each language is downloaded only when you
 choose it, from Mozilla's Firefox Translations storage
-(storage.googleapis.com), checked against the SHA-256 checksums bundled
+(storage.googleapis.com) or the mirror chosen in Settings > Translation
+engines > Model source, checked against the SHA-256 checksums bundled
 with the app and kept on this device.''';
 
 /// The notices of `libmozhi_whisper.so`, from
@@ -284,9 +321,10 @@ whisper.cpp project, licensed under the MIT License, Copyright (c) 2022
 OpenAI.
 
 They are not part of the app: a model is downloaded only when you choose
-it, from Hugging Face (huggingface.co/ggerganov/whisper.cpp), or imported
-from a file, checked against the SHA-1 checksums bundled with the app and
-kept on this device.''';
+it, from Hugging Face (huggingface.co/ggerganov/whisper.cpp) or the mirror
+chosen in Settings > Translation engines > Model source, or imported from a
+file, checked against the SHA-256 and SHA-1 checksums bundled with the app
+and kept on this device.''';
 
 bool _registered = false;
 
@@ -298,8 +336,12 @@ bool _registered = false;
 /// repeatedly.
 ///
 /// The ML Kit notice is only added with [includeMlKit] (the Play variant;
-/// `bootstrap` passes `mlKitIncluded`).
-void registerThirdPartyLicenses({bool includeMlKit = false}) {
+/// `bootstrap` passes `mlKitIncluded`), and the web engine's with
+/// [includeWebEngine] (default: in the web app).
+void registerThirdPartyLicenses({
+  bool includeMlKit = false,
+  bool includeWebEngine = kIsWeb,
+}) {
   if (_registered) return;
   _registered = true;
   LicenseRegistry.addLicense(
@@ -308,6 +350,10 @@ void registerThirdPartyLicenses({bool includeMlKit = false}) {
       const LicenseEntryWithLineBreaks([
         bergamotEngineLicensePackage,
       ], bergamotEngineLicenseText),
+      if (includeWebEngine)
+        const LicenseEntryWithLineBreaks([
+          bergamotWebEngineLicensePackage,
+        ], bergamotWebEngineLicenseText),
       const LicenseEntryWithLineBreaks([
         bergamotModelsLicensePackage,
       ], bergamotModelsLicenseText),

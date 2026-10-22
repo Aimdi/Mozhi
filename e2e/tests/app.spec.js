@@ -312,10 +312,12 @@ test.describe('routes render', () => {
       await scrollTo(page, heading);
       await expect(heading).toBeVisible();
     }
-    // The browser has no on-device engine.
-    await expect(
-      page.getByText(/On-device translation needs the Android app\./),
-    ).toBeVisible();
+    // The web app translates on the device too (WebAssembly).
+    const offlineLanguages = page.getByRole('button', {
+      name: /^Languages on this device/,
+    });
+    await scrollTo(page, offlineLanguages);
+    await expect(offlineLanguages).toBeVisible();
     // Instant translation is one setting with three choices.
     const instant = page.getByRole('button', {
       name: /^Instant translate\s+Online engines and AI$/,
