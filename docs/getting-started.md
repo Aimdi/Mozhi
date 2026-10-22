@@ -52,7 +52,7 @@ manager to "install unknown apps" the first time; allow it, then tap
 > (for example from a fork or a pull request) are signed with a throwaway debug
 > key, so to switch between such builds and official releases you have to
 > uninstall first, which deletes your history. Export it first under
-> **Settings > Export history** if you want to keep it.
+> **Settings > Privacy & data > Export history** if you want to keep it.
 
 To get notified about new releases you can add the repository URL to an
 update tracker such as [Obtainium](https://github.com/ImranR98/Obtainium).
@@ -79,7 +79,8 @@ providers directly, which has a few consequences; see
 
 When you open Mozhi for the first time, a short setup takes you through three
 steps after the welcome screen (you can **Skip** at any point; everything is
-also available in **Settings** later):
+also available in **Settings** later, and **Settings > About > Run setup
+again** starts it over):
 
 1. **Welcome**: what Mozhi does and how it handles your privacy.
 2. **How private should translations be?**: pick the privacy mode.
@@ -96,49 +97,65 @@ also available in **Settings** later):
    the offline engine doesn't support yet are named, because they need an
    online service.
 4. **Online translation** (optional): for languages that aren't on the
-   device. The built-in public instances (run by volunteers, none behind
-   Cloudflare) are used as they are, or **Find the fastest public instance**
-   tests them and moves the fastest to the top (**Sort by speed** orders them
-   all by response time). **Use my own instance** lets you enter your
-   server's address and **Test & add** it. AI translators are optional:
-   **Open AI provider settings** finishes the setup and opens
-   **Settings > AI providers**.
+   device. Mozhi uses one of the built-in public instances, run by
+   volunteers, and tries the next one if it is down: **Using
+   mozhi.example** names it, and **Change** lists the others to pick one.
+   **Find the fastest server** contacts every listed server once to measure
+   its speed and puts the fastest first; it only runs when you tap it.
+   **Use my own instance** lets you enter your server's address and **Test &
+   add** it. AI translators are optional: **Open AI provider settings**
+   finishes the setup and opens **Settings > AI > AI providers**.
 
 Then tap **Start translating**.
+
+**In the web app** the setup skips the privacy step: a browser can't
+translate on its own, so your text always goes to a server. **Pick your
+languages** has no downloads, and the **Online translation** step has an
+**Ask before sending text** switch instead. It is off at first (the
+**Online** privacy mode: the server is used without asking, and cloud AI
+providers still ask once); turned on, Mozhi asks once for each language
+pair before text goes to the server.
 
 After that you land on the **Translate** tab:
 
 1. The **language bar** at the bottom shows the source language (Detect
-   language by default) and the target language. Tap either one to search
-   all languages, pin favourites or pick a recent one. The arrows in the
-   middle swap them; long-press them for your recent language pairs. With
-   no text yet, the bar sits in a card with the text box under a greeting
-   and chips for **Camera** and **Document**; once you type, it stays
-   docked at the bottom of the screen, right above the keyboard.
+   language by default; once it has detected one, **Detected: German**)
+   and the target language. Tap either one to search all languages, pin
+   the ones you use or pick a recent one. The arrows in the middle swap
+   them; long-press them for your recent language pairs. With no text yet,
+   the bar sits in a card with the text box under a greeting and chips for
+   **Camera** and **Document**; once you type, it stays docked at the
+   bottom of the screen, right above the keyboard. On wide screens the
+   languages sit above two panes instead, and the options and the go button
+   under your text.
 2. The **engine button** chooses who translates: one of the engines your
    Mozhi instance offers (Google, DeepL, ...) or one of your AI models. Once
-   you have chosen a Fast and a Best engine under **Settings > Quality
-   modes**, a **Fast** / **Best** toggle next to it switches between them.
-3. Type or paste text. With instant translation on (the default, for
-   Mozhi and AI engines) the translation appears as you type; otherwise
-   press the go button at the right of the language bar (the rocket,
-   **Translate**) or Ctrl+Enter on a keyboard. The tune icon at the left of
-   the language bar opens the translation options.
-4. The screen shows only the languages, your text and the translation.
-   **More**, under the translation, opens the other tools: check meaning,
-   insights, romanization, compare, **Refine & learn** (the **More formal**,
-   **Shorter**, ... chips), definitions and **Also translate into**. Most of
-   them need an AI model; see the [feature tour](features.md). When the
-   privacy mode stops a translation before your text leaves the device, the
-   prompt also offers **Translate on this device** (or, first, the download
-   that language pair needs) if the offline engine supports the pair.
+   you have chosen a Fast and a Best engine under **Settings > Translation
+   engines > Quality modes**, a **Fast** / **Best** toggle next to it
+   switches between them, and one of the two is always selected.
+3. Type or paste text. With instant translation on (the default, for every
+   engine) the translation appears as you type; otherwise press the go
+   button at the right of the language bar (the arrow, **Translate**) or
+   Ctrl+Enter on a keyboard. The tune icon at the left of the language bar
+   opens the translation options.
+4. The screen shows only the languages, your text and the translation,
+   with its actions (copy, listen, favorite, share, full screen). Under an
+   AI translation, the refinement chips (**More formal**, **Shorter**, ...)
+   are always there. **Tools**, under the translation, opens the other
+   tools: check meaning, insights, romanization, matching phrases, compare
+   engines, alternatives and explanations (under **Learn**), definitions
+   and **Also translate into**. Most of them need an AI model; see the
+   [feature tour](features.md). When the privacy mode stops a translation
+   before your text leaves the device, the prompt also offers **Translate
+   on this device** (or, first, the download that language pair needs) if
+   the offline engine supports the pair.
 
 The other tabs are **Dictionary** (definitions, examples and translations of
 a word) and **Proofread** (grammar and style checks), which use an AI model,
 and **Conversation** (two people, two languages). **History** and
 **Settings** are the clock and gear buttons at the top of every tab; their
 back arrow returns to the tab. On wide screens, such as tablets and wide
-browser windows, the tabs move into a side rail and input and output sit side
+browser windows, the tabs move into a sidebar and input and output sit side
 by side.
 
 ## Choose where translations come from
@@ -159,11 +176,11 @@ Mozhi can use several kinds of back ends, and you can mix them:
 
 Mozhi ships with the public instances listed in the
 [Mozhi README](https://codeberg.org/aryak/mozhi#instances), so it works out of
-the box. Open **Settings > Mozhi instances** to see them with their response
-times. Instances are tried from top to bottom: if the first one is down, slow
-or rate limited, the app quietly moves on to the next. Drag an instance to
-reorder the list, or use **Make preferred** to move it to the top. **Reset to
-public list** restores the built-in list.
+the box. Open **Settings > Translation engines > Mozhi instances** to see
+them with their response times. Instances are tried from top to bottom: if
+the first one is down, slow or rate limited, the app quietly moves on to the
+next. Drag an instance to reorder the list, or use **Make preferred** to move
+it to the top. **Reset to public list** restores the built-in list.
 
 Public instances are run by volunteers. Be kind to them, and keep in mind
 that their operators could see what you translate.
@@ -177,7 +194,8 @@ docker run -d --name mozhi --restart unless-stopped \
   -p 3000:3000 codeberg.org/aryak/mozhi:latest
 ```
 
-Then, in **Settings > Mozhi instances > Add instance**, enter
+Then, in **Settings > Translation engines > Mozhi instances > Add
+instance**, enter
 `http://<your-server-ip>:3000`, tap **Test**, save, and move it to the top.
 Plain `http` works on your home network. The full guide, with HTTPS,
 LibreTranslate and troubleshooting, is
@@ -192,7 +210,7 @@ An AI provider unlocks the Kagi-style features: translation options
 romanization and phrase alignment, the meaning check, the dictionary and the
 Proofread tab.
 
-1. Open **Settings > AI providers** and tap **Add provider**.
+1. Open **Settings > AI > AI providers** and tap **Add provider**.
 2. Choose a preset: OpenAI, Anthropic, Google Gemini, OpenRouter, Groq,
    DeepSeek, Mistral AI, xAI, Together AI, Ollama, LM Studio, llama.cpp
    server, or **Custom (OpenAI-compatible)** for anything else. (**Machine
@@ -218,8 +236,8 @@ hardware.
 **Mozhi engines plus AI.** You do not have to give up Google or DeepL to get
 the AI extras: while a Mozhi engine translates, an AI model can still provide
 alternatives, word insights, explanations, romanization, alignment, the
-meaning check and the dictionary. Choose which model under **Settings > AI
-assistant for insights** (by default the first enabled provider).
+meaning check and the dictionary. Choose which model under **Settings > AI >
+AI assistant for insights** (by default the first enabled provider).
 
 ## Translate from other apps (Android)
 
@@ -237,7 +255,8 @@ replaces your selection in the other app.
 selection with the [offline engine](offline-engine.md) only, whatever your
 privacy mode: the text never leaves your phone. If a language isn't
 downloaded yet, the sheet names it with its size, and its **Download**
-button opens **Settings > Offline languages**; select the text again once
+button opens **Settings > Translation engines > Offline languages**; select
+the text again once
 it's there. **Replace** works the same; **Open in app** continues in the
 full translator with your usual engine.
 
@@ -257,6 +276,7 @@ engines and other engines that aren't AI models. With an AI model, press
 ## Next steps
 
 - Take the [feature tour](features.md).
-- Choose a Fast and a Best engine under **Settings > Quality modes**.
+- Choose a Fast and a Best engine under **Settings > Translation engines >
+  Quality modes**.
 - Pick a model with the help of [AI providers](ai-providers.md).
 - Read what each back end can see in [Privacy](privacy.md).

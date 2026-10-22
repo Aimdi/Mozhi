@@ -84,10 +84,11 @@ Translations models) covers about 55 languages.
 
 ### Can I use it completely offline?
 
-On Android, yes: download offline languages (**Settings > Offline
-languages**) and translate without any network. Set **Settings > Privacy >
-Privacy mode** to **Offline only** to make sure nothing you type leaves the
-phone. A local AI model on a laptop also works without internet, as long as
+On Android, yes: download offline languages (**Settings > Translation
+engines > Offline languages**, or the download button next to a language in
+the language picker) and translate without any network. Set **Settings >
+Privacy & data > Privacy mode** to **Offline only** to make sure nothing you
+type leaves the phone. A local AI model on a laptop also works without internet, as long as
 the phone can reach the laptop (the same Wi-Fi, or the laptop's hotspot).
 
 ## AI
@@ -104,7 +105,9 @@ other providers have free API tiers.
 Formality, reading level, context, glossary, custom styles and the other
 options only work with AI engines. Mozhi engines (Google, DeepL, ...) don't
 support them; your own [DeepL API](ai-providers.md#deepl-and-libretranslate)
-service applies only the formality and the context. Translation-specialised
+service applies only the tone, the context, formatting and the glossary.
+The options sheet greys out what the selected engine ignores (**AI engines
+only**). Translation-specialised
 local models such as Hy-MT2 and TranslateGemma also ignore most of them; use
 a general model for those
 ([details](ai-providers.md#which-local-model)).
@@ -131,15 +134,16 @@ for local models) fixes this in almost all cases.
 
 ### What do Fast and Best do?
 
-They are Kagi Translate's quality modes. Under **Settings > Quality modes**
-you choose a **Fast engine** (quick and free or cheap, such as Google or
-DeepL through Mozhi) and a **Best engine** (your strongest model). The
-**Fast** / **Best** toggle next to the engine button then switches between
-them in one tap and translates the text again; tap the selected one again to
-go back to your usual engine. The app remembers the mode, and a link with
-text can ask for one for that text with `quality=fast`, `quality=best` or
-`quality=standard` (without changing your saved mode). See
-[Quality modes](features.md#quality-modes-fast-and-best).
+They are Kagi Translate's quality modes. Under **Settings > Translation
+engines > Quality modes** you choose a **Fast engine** (quick and free or
+cheap, such as Google or DeepL through Mozhi) and a **Best engine** (your
+strongest model). The **Fast** / **Best** toggle next to the engine button
+then switches between them in one tap and translates the text again. One of
+the two is always selected: picking another engine in the engine list makes
+it the engine of the selected mode. The app remembers the mode, and a link
+with text can ask for one for that text with `quality=fast` or
+`quality=best` (`quality=standard` means Fast), without changing your saved
+mode. See [Quality modes](features.md#quality-modes-fast-and-best).
 
 ### Why is romanization not shown automatically?
 
@@ -147,18 +151,18 @@ Because it would cost money. Romanization (the Latin-script line under, say,
 a Japanese translation) appears on its own only when it is free: when the
 Mozhi engine sends one with the translation (Google does) or when the AI
 model for extras runs locally. With a cloud AI model, every romanization is a
-separate request, so it waits until you press **Show romanization** (the
-*abc* button under the translation). Automatic romanization also needs
-**Settings > Show romanization** on (the default), and romanization only
-applies to translations in a non-Latin script. See
+separate request, so it waits until you turn on **Romanization** (the *abc*
+row in **Tools** under the translation). Automatic romanization also needs
+**Settings > Appearance > Show romanization** on (the default), and
+romanization only applies to translations in a non-Latin script. See
 [Romanization and alignment](features.md#romanization-and-alignment).
 
 ### How do I keep an eye on what AI costs me?
 
-**Settings > Usage & costs** counts requests, characters and estimated tokens
-per provider and month: translations (also into extra target languages),
-refinements, extras, meaning checks, proofreading, documents and the
-dictionary. Results the app already had in memory aren't counted, because
+**Settings > AI > Usage & costs** counts requests, characters and estimated
+tokens per provider and month: translations (also into extra target
+languages), refinements, extras, meaning checks, proofreading, documents and
+the dictionary. Results the app already had in memory aren't counted, because
 they cost nothing. Set a **Monthly budget** on a provider to be warned at
 80 % and at 100 %. The counts are estimates kept on your device;
 your provider's dashboard has the real bill.
@@ -170,8 +174,9 @@ your provider's dashboard has the real bill.
 A link (like text shared from another app) never starts a paid AI request
 on its own, so that anyone who can send you a link can't spend your credit.
 It fills in the text and languages and applies its options; with an AI model
-you then press **Translate** (the go button), even with **Settings > Instant
-translate with AI** on, which covers typing only. Mozhi engines, the DeepL
+you then press **Translate** (the go button), even with **Settings >
+Translation engines > Instant translate** set to **Online engines and AI**,
+which covers typing only. Mozhi engines, the DeepL
 API, LibreTranslate and offline translation translate straight away. Links to the
 dictionary, Proofread and the web page translator only fill in the word,
 text or address. See [Links](features.md#links).
@@ -188,16 +193,17 @@ until you restart the app. Choosing the target yourself has the same effect.
 
 Short words often exist in several languages ("Gift" is English and German,
 "Hallo" German and Dutch), so a single short word, or a text the engine is
-unsure about, gets **Detected: Dutch?** with chips for the other likely
-languages. Tap the right one, or set the source language yourself. With AI
+unsure about, gets **Detected: Dutch?** in the language bar, with chips for
+the other likely languages under the translation. Tap the right one, or set
+the source language yourself. With AI
 models, the languages you recently translated from are preferred for short
 texts.
 
 ### How do I check that a translation kept the meaning?
 
-Press **Check meaning** (the checklist button under the translation). With an
-AI model for extras (the model you translate with, or the one under
-**Settings > AI assistant for insights**), the model translates the
+Press **Check meaning** (in **Tools** under the translation). With an AI
+model for extras (the model you translate with, or the one under
+**Settings > AI > AI assistant for insights**), the model translates the
 translation back into your language and lists the real differences in
 meaning: omissions, additions, a lost or added negation, wrong numbers or
 tense, and mistranslated words. Each difference is highlighted in both texts
@@ -206,19 +212,19 @@ differences** or **Meaning differs**. Without an AI model you get a plain
 back-translation from the engine you translate with, to compare yourself.
 
 The check runs only when you press the button, and each check is a request
-(counted under **Settings > Usage & costs**). Of long texts, only the first
-4,000 characters of each text are compared. A meaning check is a good hint,
+(counted under **Settings > AI > Usage & costs**). Of long texts, only the
+first 4,000 characters of each text are compared. A meaning check is a good hint,
 not proof: a model can miss a difference or report one that isn't
 there. See [Meaning check](features.md#meaning-check).
 
 ### Can I translate into several languages at once?
 
-Yes: **Also translate into…** under the translation adds up to four more
-languages. Each gets its own card with copy, listen and use-as-input
+Yes: **Also translate into…** (in **Tools** under the translation) adds up
+to four more languages. Each gets its own card with copy, listen and use-as-input
 buttons. They are translated with the same engine and options as the main
 translation, one request per language, and only when the main translation
-runs: instantly while you type with free engines (or with **Instant
-translate with AI** on), otherwise when you press **Translate**. That
+runs: instantly while you type when **Instant translate** covers the engine,
+otherwise when you press **Translate**. That
 includes text shared into the app or opened from a link, which the DeepL API
 and LibreTranslate translate straight away: with a paid plan, each extra
 language is billed too. The app remembers your extra languages; one the
@@ -230,13 +236,12 @@ translation only. See
 ### How do I make text-to-speech slower or use another voice?
 
 To hear one text slowly, long-press **Listen**: it reads the text again from
-the start at 0.6× your speech rate. **More tools > Listen to the translation
-slowly** does the same for the translation; with a mouse, right-click
-**Listen** and choose **Listen slowly**; with a keyboard, press Shift+Enter
-on a focused **Listen** button; screen readers offer a **Listen slowly**
-action.
+the start at 0.6× your speech rate. With a mouse, right-click **Listen** and
+choose **Listen slowly**; with a keyboard, press Shift+Enter on a focused
+**Listen** button; screen readers offer a **Listen slowly** action.
 
-To change the speed for good, open **Settings > Read aloud**. **Speech
+To change the speed for good, open **Settings > Read aloud & voice > Read
+aloud**. **Speech
 rate** goes from 0.5× to 1.5×, with a preview button. Under **Voice per
 language** you can pick one of your device's voices for each language you
 use. The device's voices always read first (they also work offline once
@@ -251,16 +256,17 @@ player can change the speed. See [Text-to-speech](features.md#text-to-speech).
 ### Why does it say it couldn't reach the Mozhi instance?
 
 Every instance in your list failed. Public instances go down or get rate
-limited from time to time: open **Settings > Mozhi instances** to see which
-ones respond, reorder them, or **Reset to public list** to restore the
-built-in list. For your own instance, see
+limited from time to time: open **Settings > Translation engines > Mozhi
+instances** to see which ones respond, reorder them, or **Reset to public
+list** to restore the built-in list. For your own instance, see
 [Troubleshooting](self-hosting-mozhi.md#troubleshooting).
 
 ### Why does Reverso (or DeepL) fail?
 
 Reverso blocks many server IP addresses, and DeepL and others rate-limit busy
-instances. Try another engine or instance, or host your own instance at
-home. See [Troubleshooting](self-hosting-mozhi.md#troubleshooting).
+instances. Try another engine or instance (with more than one instance in
+your list, the error offers **Try next instance**), or host your own
+instance at home. See [Troubleshooting](self-hosting-mozhi.md#troubleshooting).
 
 ### What do the badges in the engine list mean?
 
@@ -303,13 +309,15 @@ each adds its own entry.
 
 The new APK is signed with a different key than the installed one, usually
 because one of them came from a fork, a pull request build or a local build.
-Export your history (**Settings > Export history**), uninstall, install the
+Export your history (**Settings > Privacy & data > Export history**),
+uninstall, install the
 new APK and import the history again.
 
 ### How do I move my history to a new device?
 
-**Settings > Export history** on the old device (copy the JSON or share it as
-a file), then **Settings > Import history** on the new one. Nothing moves by
+**Settings > Privacy & data > Export history** on the old device (copy the
+JSON or share it as a file), then **Import history** in the same place on
+the new one. Nothing moves by
 itself: the app is left out of backups and of Android's device-to-device
 transfer. The export is plain, unencrypted JSON, so delete the file once it
 is imported. Provider API keys are not exported; enter them again. If

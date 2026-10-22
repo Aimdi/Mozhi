@@ -140,9 +140,10 @@ Things worth knowing:
 
 ## Connect the app
 
-Open **Settings > Mozhi instances > Add instance**, enter the address, tap
-**Test** (it shows the response time), optionally give it a label, and save.
-Then drag it to the top of the list, or tap **Make preferred**.
+Open **Settings > Translation engines > Mozhi instances > Add instance**,
+enter the address, tap **Test** (it shows the response time), optionally give
+it a label, and save. Then drag it to the top of the list, or tap **Make
+preferred**.
 
 What you can type:
 

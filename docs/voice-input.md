@@ -2,7 +2,8 @@
 
 Tap the microphone next to the source text (or in conversation mode) and
 speak: Mozhi turns your speech into text. Two recognizers can do that;
-choose one in **Settings > Voice input > Speech recognition**.
+choose one in **Settings > Read aloud & voice > Voice input > Speech
+recognition**.
 
 | | System speech recognition (default) | Offline (Whisper) |
 | --- | --- | --- |
@@ -40,8 +41,9 @@ transcribed at all, so silence does not turn into made-up words.
 
 ### Models
 
-Download one in **Settings > Voice input > Offline speech models**. Both
-are multilingual (99 languages); with both installed, tap the one to use.
+Download one in **Settings > Read aloud & voice > Voice input > Offline speech
+models**. Both are multilingual (99 languages); with both installed, tap the
+one to use.
 
 | Model | Whisper model | Download | SHA-1 | Notes |
 | --- | --- | --- | --- | --- |
@@ -65,14 +67,14 @@ format whisper.cpp reads by the whisper.cpp project, downloaded from
 - `https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin`
 - `https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin`
 
-A model is downloaded only when you tap its download button. With
-**Download over Wi-Fi only** on (the setting on **Settings > Offline
-languages**, on by default) Mozhi asks first on mobile data or a metered
-network. An interrupted download resumes where it stopped. Every file is
-checked against its size and the SHA-1 published by whisper.cpp (bundled
+A model is downloaded only when you tap its download button. With **Download
+over Wi-Fi only** on (the setting on **Settings > Translation engines >
+Offline languages**, on by default) Mozhi asks first on mobile data or a
+metered network. An interrupted download resumes where it stopped. Every file
+is checked against its size and the SHA-1 published by whisper.cpp (bundled
 with the app) before it is used, and installed in one step, so a model is
-either complete or absent. Hugging Face sees your IP address and which
-model you download, nothing else (see [Privacy](privacy.md)).
+either complete or absent. Hugging Face sees your IP address and which model
+you download, nothing else (see [Privacy](privacy.md)).
 
 ### Import from files
 
@@ -109,7 +111,8 @@ language.
 | **Online**, **Offline first** | The recognizer you chose. With **System speech recognition** on a phone without any recognizer, Whisper is used automatically when a model is installed |
 | **Offline only** | Whisper only, whatever you chose: the system recognizer is never used, because it may send your voice to Google (Android cannot promise on-device recognition). Without a model, the microphone explains how to get one; in the web app there is no voice input in this mode |
 
-**Settings > Voice input** says so when Offline only is on.
+**Settings > Read aloud & voice > Voice input** says so when Offline only is
+on.
 
 ## Good to know
 
@@ -136,7 +139,8 @@ language.
   once more, or allow it in Android's app settings), or the phone has no
   speech recognition service (common without Google apps). Then use
   **Download model** to get the offline Whisper model
-  (**Settings > Voice input**); it works on every supported phone.
+  (**Settings > Read aloud & voice > Voice input**); it works on every
+  supported phone.
 
 ## For contributors
 

@@ -45,7 +45,11 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
 - If secure storage doesn't work when the app starts, keys are kept in
   memory only and the app says so; they are never written to plain storage
   instead. A later failure (after a working start) is retried once and then
-  reported; keys are never moved to memory silently.
+  reported: **Couldn't store your API key or password securely. It works
+  until you close Mozhi and is never saved unprotected.** Keys are never
+  moved to memory silently. Settings that can't be saved are reported the
+  same way (**Couldn't save your settings. Changes stay until you close
+  Mozhi.**).
 - Keys are sent only in the provider's auth header, never in URLs. Error
   messages and server responses shown in the app have keys removed. Error
   descriptions (`toString`) leave out credentials and query strings in URLs.
@@ -93,11 +97,11 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
 - **Android platform networking** (Java/Kotlin code and plugins) allows no
   plain `http` at all (`network_security_config.xml`). Dart's HTTP client
   ignores that file, which is why the app's own policy above exists.
-- **Proxy:** with **Settings > Privacy > HTTP proxy** (for example Orbot,
-  `127.0.0.1:8118`) every request goes through a `CONNECT` tunnel; a proxy
-  setting that can't be parsed never falls back to a direct connection.
-  Without a proxy, `.onion` and `.i2p` addresses are refused before a DNS
-  lookup.
+- **Proxy:** with **Settings > Privacy & data > Network > HTTP proxy** (for
+  example Orbot, `127.0.0.1:8118`) every request goes through a `CONNECT`
+  tunnel; a proxy setting that can't be parsed never falls back to a direct
+  connection. Without a proxy, `.onion` and `.i2p` addresses are refused
+  before a DNS lookup.
 - **Headers:** requests carry `User-Agent: Mozhi`, no cookies and no
   `Referer`; the web app's page sets `referrer` to `no-referrer`.
 - **Certificates:** the app never disables certificate checks. Release
@@ -192,7 +196,7 @@ translations, for example with **Check meaning**.
   sends usage metrics to Google; see [Privacy](privacy.md#google-code).
 - Third-party licences, including the native engine's components (and ML
   Kit in the Play variant), are listed under **Settings > About >
-  Licences**.
+  Open-source licenses**.
 - **Release builds:** Android APKs and the app bundle are built with
   `--obfuscate --split-debug-info`; the debug symbols are kept as a private
   workflow artifact (90 days), not attached to the public release.

@@ -35,17 +35,18 @@ running on your own computer.
   chips and suggestions, romanization, alignment, meaning checks) are
   separate requests, made only when you ask for them (a romanization also
   loads by itself when the model runs locally, since that is free).
-  **Instant translate with AI** is on by default: every pause in typing
-  sends a request. Turn it off under **Settings** to translate only when you
-  press the go button. Links and text shared from other apps never start an
-  AI request on their own.
+  **Instant translate** is set to **Online engines and AI** by default:
+  every pause in typing sends a request. Choose **Online engines** (or
+  **Off**) under **Settings > Translation engines > Instant translate** to
+  translate with AI only when you press the go button. Links and text
+  shared from other apps never start an AI request on their own.
 - Texts longer than 6,000 characters (2,500 for providers on your device or
   network) are translated in parts, split at paragraph boundaries, each with
   the end of the part before it as context.
 
 ## Adding a provider
 
-1. **Settings > AI providers > Add provider**, then choose a preset.
+1. **Settings > AI > AI providers > Add provider**, then choose a preset.
 2. Fill in the editor:
 
    | Field | Notes |
@@ -184,7 +185,8 @@ and 300 output tokens. With Anthropic's prices as of October 2026 that is:
 Other providers' small and mid-sized models are in the same range as the
 cheaper rows. What adds up:
 
-- **Instant translate with AI** sends a request every time you pause typing.
+- **Instant translate** set to **Online engines and AI** sends a request
+  every time you pause typing.
 - **Compare mode** runs all your engines at once.
 - **Also translate into…** sends one more translation request for each
   extra target language, every time the main translation runs.
@@ -198,12 +200,12 @@ cheaper rows. What adds up:
 
 What helps:
 
-- **Quality modes** (**Settings > Quality modes**): translate everyday text
-  with a free Mozhi engine (**Fast**) and switch to your strongest model
-  (**Best**) with one tap when it matters.
+- **Quality modes** (**Settings > Translation engines > Quality modes**):
+  translate everyday text with a free Mozhi engine (**Fast**) and switch to
+  your strongest model (**Best**) with one tap when it matters.
 - Translating the same text again with the same settings while the app is
   open costs nothing: the result comes from memory.
-- **Settings > Usage & costs** counts requests, characters and estimated
+- **Settings > AI > Usage & costs** counts requests, characters and estimated
   tokens per provider and month, and warns you when a provider nears the
   **Monthly budget** you set for it. The counts are estimates; your
   provider's dashboard has the actual bill.
@@ -329,7 +331,8 @@ A practical setup is to add both as providers: translate with the
 translation model day to day and switch to the general model when you want
 options or extras (with an AI engine selected, extras use that same model).
 When you translate with a Mozhi engine, extras use the model chosen under
-**Settings > AI assistant for insights**, so pick the general model there.
+**Settings > AI > AI assistant for insights**, so pick the general model
+there.
 
 | Your hardware | Translation model | General model (extras) |
 | --- | --- | --- |
@@ -371,9 +374,10 @@ again instead of editing the translation.
 
 ## DeepL and LibreTranslate
 
-Besides AI models, **Settings > AI providers > Add provider** lists, under
-**Machine translation**, two classic translation services that you use with
-your own account or server:
+Besides AI models, **Settings > AI > AI providers > Add provider** lists,
+under **Machine translation**, two classic translation services that you
+use with your own account or server (**Settings > Translation engines >
+Translation services** opens the same list):
 
 - **DeepL API**: paste your DeepL API key (Free or Pro; keys ending in
   `:fx` use the free API). Leave the server URL empty to use DeepL directly,
@@ -386,9 +390,9 @@ They appear in the engine list next to Mozhi and the AI providers, work in
 compare mode and can be your **Fast** or **Best** engine
 ([quality modes](features.md#quality-modes-fast-and-best)). Links and shared
 text are translated with them straight away, as with Mozhi engines. DeepL
-also applies the formality and the context of your translation options; the
-other options and the Kagi-style extras need an AI model. Their usage is
-counted under **Settings > Usage & costs** too.
+also applies the tone, the context, formatting and the glossary of your
+translation options; the other options and the Kagi-style extras need an AI
+model. Their usage is counted under **Settings > AI > Usage & costs** too.
 
 ## Privacy: local vs cloud
 

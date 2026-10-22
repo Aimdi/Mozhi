@@ -222,13 +222,13 @@ Spanish to German needs Spanish and German. English needs nothing.
 https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/<source>-<target>/<version>/exported/<file>.gz
 ```
 
-`<version>` is the training run in the catalog bundled with your app
-version (`packages/bergamot_translator/assets/catalog.json`, the `url`
-of each file). The easiest way: on **Settings > Offline languages**, tap
-a language. **Files for German** lists its files with their sizes; copy
-one link, or **Copy all links** and send them to the other computer. Use
-the links of your app version: files of another model version don't
-match the checksums and are rejected.
+`<version>` is the training run in the catalog bundled with your app version
+(`packages/bergamot_translator/assets/catalog.json`, the `url` of each file).
+The easiest way: on **Settings > Translation engines > Offline languages**,
+tap a language. **Files for German** lists its files with their sizes; copy
+one link, or **Copy all links** and send them to the other computer. Use the
+links of your app version: files of another model version don't match the
+checksums and are rejected.
 
 **Download them** in a browser, or with `wget -i links.txt` (one link
 per line). Keep the names. Decompressing them (`gunzip`) is fine too:
@@ -238,15 +238,15 @@ recognised by its size and checksum.
 **Copy them to the phone** over USB (file transfer mode), on an SD card
 or from a network share: anywhere the Android file picker can open.
 
-**Import them:** **Settings > Offline languages > Import from files**,
-then select all the files at once. Every file is checked against the
-SHA-256 bundled with the app, like a download. Every complete direction
-is installed; nothing else changes. A summary follows, for example
-**Installed German → English**, **Missing 1 file for English → German**
-(with the missing file names), **2 files didn't match any model** or
-**A file for German → English is damaged (checksum mismatch)**. Import
-the missing files later; directions already installed are skipped. You
-can delete the copies afterwards: the app keeps its own.
+**Import them:** **Settings > Translation engines > Offline languages > Import
+from files**, then select all the files at once. Every file is checked against
+the SHA-256 bundled with the app, like a download. Every complete direction is
+installed; nothing else changes. A summary follows, for example **Installed
+German → English**, **Missing 1 file for English → German** (with the missing
+file names), **2 files didn't match any model** or **A file for German →
+English is damaged (checksum mismatch)**. Import the missing files later;
+directions already installed are skipped. You can delete the copies
+afterwards: the app keeps its own.
 
 How it works (`BergamotModelManager.importFiles(files, catalog:)`): each
 file is matched to a catalog file by name (`<name>.gz` as published,
