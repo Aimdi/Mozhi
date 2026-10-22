@@ -143,7 +143,7 @@ void main() {
       await tester.tap(
         find.descendant(
           of: find.byKey(const ValueKey('proofread_edit_0')),
-          matching: find.byType(Checkbox),
+          matching: find.byKey(const Key('proofread_edit_reject')),
         ),
       );
       await tester.pump();

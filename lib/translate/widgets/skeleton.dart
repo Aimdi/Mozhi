@@ -68,10 +68,7 @@ class TranslateOutputSkeleton extends StatelessWidget {
         SizedBox(height: 10),
         SkeletonBox(height: 18),
         SizedBox(height: 10),
-        FractionallySizedBox(
-          widthFactor: 0.6,
-          child: SkeletonBox(height: 18),
-        ),
+        FractionallySizedBox(widthFactor: 0.6, child: SkeletonBox(height: 18)),
       ],
     );
     final label = this.label;

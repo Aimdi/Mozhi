@@ -319,22 +319,18 @@ class _InputCardState extends State<InputCard> {
     );
   }
 
-  /// A tap outside the focused field: an empty field gives up the focus,
-  /// so the empty screen's greeting comes back (on Android a touch outside
-  /// keeps the focus otherwise); with text the platform's default applies.
-  void _onTapOutside(PointerDownEvent event) {
+  /// A tap outside the card while the field has the focus and is empty:
+  /// the field gives up the focus, so the empty screen's greeting comes
+  /// back (on Android a touch outside keeps the focus otherwise). With text
+  /// the field's own default applies.
+  void _onTapOutside(PointerDownEvent _) {
     final value = _controller.value;
-    if (value.text.isEmpty && !value.composing.isValid) {
-      _focusNode.unfocus();
+    if (!_focusNode.hasFocus ||
+        value.text.isNotEmpty ||
+        value.composing.isValid) {
       return;
     }
-    Actions.maybeInvoke(
-      context,
-      EditableTextTapOutsideIntent(
-        focusNode: _focusNode,
-        pointerDownEvent: event,
-      ),
-    );
+    _focusNode.unfocus();
   }
 
   /// Whether the empty composer's placeholder ([_PastePrompt]) shows for
@@ -476,6 +472,7 @@ class _InputCardState extends State<InputCard> {
         );
         return TapRegion(
           groupId: _tapGroup,
+          onTapOutside: _onTapOutside,
           child: TranslateFlatCard(
             key: const Key('translate_input_card'),
             look: TranslateCardLook.plain,
@@ -512,7 +509,6 @@ class _InputCardState extends State<InputCard> {
                                     controller: _controller,
                                     focusNode: _focusNode,
                                     groupId: _tapGroup,
-                                    onTapOutside: _onTapOutside,
                                     contextMenuBuilder: _contextMenu,
                                     enableIMEPersonalizedLearning:
                                         imeLearningAllowed(context),

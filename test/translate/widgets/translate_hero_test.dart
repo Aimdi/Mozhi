@@ -207,6 +207,25 @@ void main() {
       handle.dispose();
     });
 
+    testWidgets('names an undetected source by its sparkle', (tester) async {
+      final harness = harnessWith(
+        entries: [
+          HistoryEntry(
+            id: '5',
+            text: 'Hallo',
+            translation: 'Bonjour',
+            source: Language.auto,
+            target: french,
+            engineId: deepl.id,
+            engineName: deepl.name,
+            createdAt: DateTime(2026, 10, 22),
+          ),
+        ],
+      );
+      await harness.pump(tester, child: const TranslateHero());
+      expect(find.text('\u2068✦\u2069 → \u2068FR\u2069'), findsOneWidget);
+    });
+
     testWidgets('is hidden while history is off or paused', (tester) async {
       for (final harness in [
         harnessWith(settings: const AppSettings(saveHistory: false)),
@@ -290,6 +309,22 @@ void main() {
     late String? clipboard;
     late int asked;
     late int read;
+    final defaults = (
+      has: TranslatePasteOffer.hasClipboardText,
+      read: TranslatePasteOffer.readClipboardText,
+      asks: TranslatePasteOffer.asksOnResume,
+    );
+
+    test('asks only on Android, through the platform clipboard', () async {
+      // Tests run as Android.
+      expect(defaults.asks(), isTrue);
+      expect(defaults.has, same(Clipboard.hasStrings));
+    });
+
+    testWidgets('reads the platform clipboard', (tester) async {
+      FakeClipboard(tester, pasteText: 'Hallo');
+      expect(await defaults.read(), 'Hallo');
+    });
 
     setUp(() {
       hasText = true;
@@ -308,8 +343,9 @@ void main() {
     });
 
     tearDown(() {
-      TranslatePasteOffer.hasClipboardText = Clipboard.hasStrings;
-      TranslatePasteOffer.asksOnResume = () => false;
+      TranslatePasteOffer.hasClipboardText = defaults.has;
+      TranslatePasteOffer.readClipboardText = defaults.read;
+      TranslatePasteOffer.asksOnResume = defaults.asks;
     });
 
     final offer = find.byKey(const Key('translate_paste_offer'));

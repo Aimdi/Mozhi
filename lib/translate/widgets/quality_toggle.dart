@@ -263,7 +263,7 @@ class QualityChip extends StatelessWidget {
           padding: const EdgeInsetsDirectional.only(start: 14, end: 18),
           style: ButtonStyle(
             shape: WidgetStatePropertyAll(
-              StadiumBorder(side: BorderSide(color: scheme.outlineVariant)),
+              StadiumBorder(side: BorderSide(color: scheme.outline)),
             ),
             foregroundColor: WidgetStatePropertyAll(scheme.onSurface),
             textStyle: WidgetStatePropertyAll(

@@ -100,9 +100,7 @@ class TranslateToolRow extends StatelessWidget {
     final expanded = this.expanded;
     final Widget? trailing;
     if (selected != null) {
-      trailing = on
-          ? Icon(Icons.check, color: scheme.primary, size: 20)
-          : null;
+      trailing = on ? Icon(Icons.check, color: scheme.primary, size: 20) : null;
     } else if (expanded != null) {
       trailing = AnimatedRotation(
         turns: expanded ? 0.5 : 0,

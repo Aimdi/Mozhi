@@ -87,8 +87,9 @@ Future<void> readAloud(
 ///   (TalkBack / VoiceOver actions menu); TalkBack also announces the long
 ///   press as "listen slowly".
 ///
-/// The translate screen's "More tools" menu offers the same for the
-/// translation, visibly. Failures show the same snack bar as a normal
+/// Tap for the normal speed, long press for the slow one: the speed choice
+/// of the translation's Listen button (the translate screen's menu has no
+/// "Listen slowly" entry). Failures show the same snack bar as a normal
 /// listen ([readAloud]).
 class ListenButton extends StatefulWidget {
   const new({

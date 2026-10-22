@@ -8,7 +8,6 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/privacy/ime_learning.dart';
-import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/cubit/offline_models_cubit.dart';
 import 'package:mozhi/offline/data/bergamot_model_details.dart'
@@ -163,6 +162,7 @@ class _LanguageDropdownRoute extends PopupRoute<Language> {
         builder: (context) {
           final media = MediaQuery.of(context);
           final theme = Theme.of(context);
+          final menu = theme.popupMenuTheme;
           return CustomSingleChildLayout(
             delegate: LanguageDropdownLayout(
               anchor: anchor,
@@ -176,14 +176,20 @@ class _LanguageDropdownRoute extends PopupRoute<Language> {
               namesRoute: true,
               explicitChildNodes: true,
               label: title,
+              // Like the app's menus: their colour, outline and shadow.
               child: Material(
                 key: const Key('translate_language_dropdown'),
-                elevation: 3,
-                color: theme.colorScheme.surfaceContainerHigh,
-                shape: RoundedRectangleBorder(
-                  borderRadius: AppRadius.cardBorderRadius,
-                  side: BorderSide(color: AppPalette.of(context).hairline),
-                ),
+                elevation: menu.elevation ?? 3,
+                color: menu.color ?? theme.colorScheme.surfaceContainer,
+                surfaceTintColor: menu.surfaceTintColor,
+                shape:
+                    menu.shape ??
+                    RoundedRectangleBorder(
+                      borderRadius: const BorderRadius.all(
+                        Radius.circular(AppRadius.menu),
+                      ),
+                      side: BorderSide(color: theme.colorScheme.outline),
+                    ),
                 clipBehavior: Clip.antiAlias,
                 child: builder(context),
               ),
@@ -736,6 +742,7 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
             gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
               maxCrossAxisExtent: 240,
               mainAxisExtent: extent.toDouble(),
+              crossAxisSpacing: 8,
             ),
             delegate: SliverChildListDelegate([
               for (final tile in tiles) _itemWidget(tile, other, dense: true),
@@ -1284,6 +1291,18 @@ class _LanguageTileState extends State<_LanguageTile> {
           end: end,
         ),
         visualDensity: dense ? VisualDensity.compact : null,
+        // A cell of the grid is a rounded box, tinted while selected, so
+        // its check mark is not read as the next cell's.
+        shape: dense
+            ? const RoundedRectangleBorder(
+                borderRadius: BorderRadius.all(
+                  Radius.circular(AppRadius.badge),
+                ),
+              )
+            : null,
+        selectedTileColor: dense
+            ? theme.colorScheme.primary.withValues(alpha: 0.08)
+            : null,
         selected: widget.selected,
         leading: language.isCustom ? const Icon(Icons.auto_awesome) : null,
         title: title,

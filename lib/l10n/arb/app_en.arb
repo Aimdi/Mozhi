@@ -324,10 +324,6 @@
   "@translateInsights": {
     "description": "translateInsights"
   },
-  "translateInsightsHide": "Hide insights",
-  "@translateInsightsHide": {
-    "description": "translateInsightsHide"
-  },
   "translateInsightsEmpty": "No insights for this translation.",
   "@translateInsightsEmpty": {
     "description": "translateInsightsEmpty"
@@ -786,14 +782,6 @@
       }
     }
   },
-  "proofreadAcceptAll": "Accept all",
-  "@proofreadAcceptAll": {
-    "description": "proofreadAcceptAll"
-  },
-  "proofreadRejectAll": "Reject all",
-  "@proofreadRejectAll": {
-    "description": "proofreadRejectAll"
-  },
   "proofreadEditApply": "Apply edit",
   "@proofreadEditApply": {
     "description": "proofreadEditApply"
@@ -959,18 +947,6 @@
   "settingsInstantTranslate": "Instant translate",
   "@settingsInstantTranslate": {
     "description": "settingsInstantTranslate"
-  },
-  "settingsInstantTranslateSubtitle": "Translate as you type with Mozhi engines",
-  "@settingsInstantTranslateSubtitle": {
-    "description": "settingsInstantTranslateSubtitle"
-  },
-  "settingsInstantTranslateAi": "Instant translate with AI",
-  "@settingsInstantTranslateAi": {
-    "description": "settingsInstantTranslateAi"
-  },
-  "settingsInstantTranslateAiSubtitle": "Translate as you type with AI providers. Uses more tokens and may cost money.",
-  "@settingsInstantTranslateAiSubtitle": {
-    "description": "settingsInstantTranslateAiSubtitle"
   },
   "settingsSaveHistory": "Save history",
   "@settingsSaveHistory": {
@@ -1476,10 +1452,6 @@
   "@settingsProviderUrlInvalid": {
     "description": "settingsProviderUrlInvalid"
   },
-  "settingsAboutTitle": "About",
-  "@settingsAboutTitle": {
-    "description": "settingsAboutTitle"
-  },
   "settingsAboutVersion": "Version {version}",
   "@settingsAboutVersion": {
     "placeholders": {
@@ -1587,10 +1559,6 @@
   "historyNoFavoritesTitle": "No favorites yet",
   "@historyNoFavoritesTitle": {
     "description": "historyNoFavoritesTitle"
-  },
-  "historyNoFavoritesBody": "Tap the star on a translation to keep it here.",
-  "@historyNoFavoritesBody": {
-    "description": "historyNoFavoritesBody"
   },
   "historyDisabledBanner": "History is off. New translations aren't saved.",
   "@historyDisabledBanner": {
@@ -1722,10 +1690,6 @@
   "@onboardingWelcomePrivacyNote": {
     "description": "onboardingWelcomePrivacyNote"
   },
-  "onboardingServiceFindFastest": "Find the fastest public instance",
-  "@onboardingServiceFindFastest": {
-    "description": "onboardingServiceFindFastest"
-  },
   "onboardingServiceTesting": "Testing instances…",
   "@onboardingServiceTesting": {
     "description": "onboardingServiceTesting"
@@ -1733,14 +1697,6 @@
   "onboardingServiceTestAgain": "Test again",
   "@onboardingServiceTestAgain": {
     "description": "onboardingServiceTestAgain"
-  },
-  "onboardingServiceSortBySpeed": "Sort by speed",
-  "@onboardingServiceSortBySpeed": {
-    "description": "onboardingServiceSortBySpeed"
-  },
-  "onboardingServiceSortBySpeedHint": "Try the fastest instances first and fall back in order of speed.",
-  "@onboardingServiceSortBySpeedHint": {
-    "description": "onboardingServiceSortBySpeedHint"
   },
   "onboardingServiceFastest": "Fastest",
   "@onboardingServiceFastest": {
@@ -4369,10 +4325,6 @@
   "@dictionaryPickerNoMatches": {
     "description": "dictionaryPickerNoMatches"
   },
-  "dictionaryEmptyBody": "See definitions, pronunciation, examples and translations, written by your AI provider.",
-  "@dictionaryEmptyBody": {
-    "description": "dictionaryEmptyBody"
-  },
   "dictionaryNoEngineTitle": "The dictionary needs an AI provider",
   "@dictionaryNoEngineTitle": {
     "description": "dictionaryNoEngineTitle"
@@ -4652,10 +4604,6 @@
   "translateRomanizationShow": "Show romanization",
   "@translateRomanizationShow": {
     "description": "translateRomanizationShow"
-  },
-  "translateRomanizationHide": "Hide romanization",
-  "@translateRomanizationHide": {
-    "description": "translateRomanizationHide"
   },
   "translateRomanizationLabel": "Romanization",
   "@translateRomanizationLabel": {
@@ -4969,10 +4917,6 @@
         "type": "String"
       }
     }
-  },
-  "translateQualityOff": "Usual engine",
-  "@translateQualityOff": {
-    "description": "Quality mode menu entry that turns Fast / Best off and goes back to the usual engine"
   },
   "translateQualityMenuTooltip": "Quality mode: {mode}",
   "@translateQualityMenuTooltip": {
@@ -5435,10 +5379,6 @@
   "@translateShortcutListenSlowly": {
     "description": "Keyboard shortcut cheat sheet: Shift+Enter on a read-aloud button reads the text slowly"
   },
-  "translateToolListenSlowly": "Listen to the translation slowly",
-  "@translateToolListenSlowly": {
-    "description": "More tools menu entry: reads the translation aloud slowly from the start (the same as a long press on its Listen button)"
-  },
   "translateExtraTargetsKept": "Not offered by this engine; kept for one that does",
   "@translateExtraTargetsKept": {
     "description": "Subtitle of a picked extra target language that the selected engine does not offer: it stays picked (and is used again with an engine that offers it); unchecking it removes it"
@@ -5522,10 +5462,6 @@
   "@settingsInstanceInsecureTitle": {
     "description": "settingsInstanceInsecureTitle"
   },
-  "translateRefineAndLearn": "Refine & learn",
-  "@translateRefineAndLearn": {
-    "description": "Heading of the group under a translation with refinement chips, alternatives, explanations and definitions"
-  },
   "translateToolsLabel": "Translation tools",
   "@translateToolsLabel": {
     "description": "Screen reader name of the row of secondary tools under the translation"
@@ -5569,28 +5505,6 @@
   "historyNewTranslation": "New translation",
   "@historyNewTranslation": {
     "description": "historyNewTranslation"
-  },
-  "historyTimeNow": "now",
-  "@historyTimeNow": {
-    "description": "Relative time of a history entry made less than a minute ago."
-  },
-  "historyTimeMinutes": "{minutes}m",
-  "@historyTimeMinutes": {
-    "description": "Short relative time: minutes ago (X style, e.g. 5m).",
-    "placeholders": {
-      "minutes": {
-        "type": "int"
-      }
-    }
-  },
-  "historyTimeHours": "{hours}h",
-  "@historyTimeHours": {
-    "description": "Short relative time: hours ago (X style, e.g. 3h).",
-    "placeholders": {
-      "hours": {
-        "type": "int"
-      }
-    }
   },
   "offlineDownloadAction": "Download",
   "@offlineDownloadAction": {
@@ -6609,10 +6523,6 @@
   "@onboardingOnlineTitle": {
     "description": "onboardingOnlineTitle"
   },
-  "onboardingOnlineBody": "For languages that aren’t on this device, Mozhi can use a Mozhi server. These public servers are run by volunteers and don’t use Cloudflare. Mozhi uses the first one and falls back to the next if it’s down.",
-  "@onboardingOnlineBody": {
-    "description": "onboardingOnlineBody"
-  },
   "onboardingOnlineOfflineOnly": "Offline only is on, so Mozhi won’t contact any of these servers. You can change the privacy mode later in Settings.",
   "@onboardingOnlineOfflineOnly": {
     "description": "onboardingOnlineOfflineOnly"
@@ -6707,18 +6617,6 @@
   "historyClearFilters": "Clear filters",
   "@historyClearFilters": {
     "description": "historyClearFilters"
-  },
-  "translateMore": "More",
-  "@translateMore": {
-    "description": "Label of the toggle under a translation that shows or hides the extra tools (refine, check meaning, insights, compare, more languages)."
-  },
-  "translateMoreShow": "Show more tools",
-  "@translateMoreShow": {
-    "description": "Tooltip of the More toggle while the extra tools are hidden."
-  },
-  "translateMoreHide": "Hide more tools",
-  "@translateMoreHide": {
-    "description": "Tooltip of the More toggle while the extra tools are shown."
   },
   "translateOfflineDownload": "Download {language} ({size})",
   "@translateOfflineDownload": {
@@ -7525,14 +7423,6 @@
       }
     }
   },
-  "dictionaryHeroTitle": "What does this mean?",
-  "@dictionaryHeroTitle": {
-    "description": "Big headline above the dictionary search before the first look-up"
-  },
-  "proofreadHeroTitle": "Does this look right?",
-  "@proofreadHeroTitle": {
-    "description": "Big headline above the proofreading input before the first check"
-  },
   "settingsColorLavender": "Lavender",
   "@settingsColorLavender": {
     "description": "settingsColorLavender"
@@ -7647,10 +7537,6 @@
   "@dictionaryTabMeaning": {
     "description": "dictionaryTabMeaning"
   },
-  "dictionaryTabMore": "More",
-  "@dictionaryTabMore": {
-    "description": "dictionaryTabMore"
-  },
   "dictionaryTabExamples": "Examples",
   "@dictionaryTabExamples": {
     "description": "dictionaryTabExamples"
@@ -7670,10 +7556,6 @@
         "type": "String"
       }
     }
-  },
-  "dictionaryNewLookUp": "New look-up",
-  "@dictionaryNewLookUp": {
-    "description": "dictionaryNewLookUp"
   },
   "dictionaryListenNeedsLanguage": "Choose the word’s language to listen to it",
   "@dictionaryListenNeedsLanguage": {
@@ -8512,7 +8394,7 @@
   "@onboardingServiceAskFirst": {
     "description": "Onboarding switch where the device can't translate on its own: on = ask once for each language pair before text goes to a server (Offline first mode), off = Online mode."
   },
-  "onboardingServiceAskFirstBody": "This device can’t translate on its own, so your text goes to this server. Turn this on to be asked once for each language pair.",
+  "onboardingServiceAskFirstBody": "This device can’t translate on its own, so your text goes to the server below. Turn this on to be asked once for each language pair.",
   "@onboardingServiceAskFirstBody": {
     "description": "Subtitle of onboardingServiceAskFirst."
   },

@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/view/app_shell.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
@@ -73,15 +74,19 @@ void main() {
   });
 
   group('appShortcutHelp', () {
-    test('lists the tabs and History', () {
+    test('lists the tabs and History, as the app shell binds them', () {
       final rows = appShortcutHelp(l10n, command: false);
       expect(rows.map((r) => (r.keys, r.keysSemantics, r.description)), [
-        ('Alt + 1…4', 'Alt 1 to 4', 'Switch to tab 1 to 4'),
+        ('Ctrl + Shift + 1…4', 'Control Shift 1 to 4', 'Switch to tab 1 to 4'),
         ('Ctrl + Shift + H', 'Control Shift H', 'Open History'),
       ]);
+      expect(AppShell.tabShortcuts, hasLength(4));
+      // Ctrl, also on Apple platforms (what the shell asks for).
       final apple = appShortcutHelp(l10n, command: true);
-      expect(apple.map((r) => r.keys), ['⌥ + 1…4', '⌘ + Shift + H']);
-      expect(apple.first.keysSemantics, 'Option 1 to 4');
+      expect(apple.map((r) => r.keys), [
+        'Ctrl + Shift + 1…4',
+        'Ctrl + Shift + H',
+      ]);
     });
   });
 
@@ -128,7 +133,7 @@ void main() {
         tester.getRect(find.text('Go to the text box')).top,
         allOf(greaterThan(translate.top), lessThan(app.top)),
       );
-      for (final keys in ['Alt + 1…4', 'Ctrl + Shift + H']) {
+      for (final keys in ['Ctrl + Shift + 1…4', 'Ctrl + Shift + H']) {
         expect(tester.getRect(find.text(keys)).top, greaterThan(app.top));
       }
       expect(find.text('Open History'), findsOneWidget);

@@ -16,7 +16,6 @@ import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/history/view/history_page.dart';
 import 'package:mozhi/history/view/widgets/history_entry_details.dart';
 import 'package:mozhi/history/view/widgets/history_entry_tile.dart';
-import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -868,6 +867,30 @@ void main() {
         handle.dispose();
       });
 
+      testWidgets('screen readers copy and share without the menu', (
+        tester,
+      ) async {
+        final handle = tester.ensureSemantics();
+        final shared = <String?>[];
+        final previous = HistoryShare.share;
+        HistoryShare.share = (params) async => shared.add(params.text);
+        addTearDown(() => HistoryShare.share = previous);
+        await pump(tester);
+        final node = find.semantics.byLabel(RegExp('Good morning'));
+        tester.semantics.customAction(
+          node,
+          const CustomSemanticsAction(label: 'Share'),
+        );
+        tester.semantics.customAction(
+          node,
+          const CustomSemanticsAction(label: 'Copy'),
+        );
+        await tester.pump();
+        expect(shared, ['Guten Morgen']);
+        await tester.pumpAndSettle(HistoryEntryTile.copiedDuration);
+        handle.dispose();
+      });
+
       testWidgets('a favourite offers Remove from favorites', (tester) async {
         final handle = tester.ensureSemantics();
         await pump(
@@ -1178,6 +1201,14 @@ void main() {
         expect(find.byIcon(Icons.check_rounded), findsNothing);
         expect(find.byTooltip('Copy'), findsOneWidget);
         await tester.pumpAndSettle();
+
+        // Share sits next to it.
+        final shared = <String?>[];
+        final previous = HistoryShare.share;
+        HistoryShare.share = (params) async => shared.add(params.text);
+        addTearDown(() => HistoryShare.share = previous);
+        await tester.tap(find.byTooltip('Share'));
+        expect(shared, ['Guten Morgen']);
       });
 
       testWidgets('a copied row can go away while it shows the check', (
@@ -1217,46 +1248,6 @@ void main() {
         await tester.tap(find.byTooltip('New translation'));
         verify(() => router.go('/translate', extra: any(named: 'extra')))
             .called(1);
-      });
-    });
-
-    group('relativeHistoryTime', () {
-      final now = DateTime(2026, 5, 6, 12);
-      late AppLocalizations l10n;
-
-      setUpAll(() async {
-        l10n = await AppLocalizations.delegate.load(const Locale('en'));
-      });
-
-      test('is X-style short for the last day', () {
-        expect(relativeHistoryTime(l10n, now, now), 'now');
-        expect(
-          relativeHistoryTime(l10n, now.add(const Duration(minutes: 1)), now),
-          'now',
-        );
-        expect(
-          relativeHistoryTime(
-            l10n,
-            now.subtract(const Duration(minutes: 5)),
-            now,
-          ),
-          '5m',
-        );
-        expect(
-          relativeHistoryTime(
-            l10n,
-            now.subtract(const Duration(hours: 3)),
-            now,
-          ),
-          '3h',
-        );
-      });
-
-      test('is the clock time for older entries', () {
-        expect(
-          relativeHistoryTime(l10n, now.subtract(const Duration(days: 2)), now),
-          '12:00\u202fPM',
-        );
       });
     });
 
@@ -2014,6 +2005,41 @@ void main() {
         // The details open it in the translator.
         await tester.tap(find.byKey(HistoryEntryDetails.openKey));
         verify(() => translate.setInputAndTranslate('Bonjour')).called(1);
+      });
+
+      testWidgets('the details copy and share', (tester) async {
+        final shared = <String?>[];
+        final previous = HistoryShare.share;
+        HistoryShare.share = (params) async => shared.add(params.text);
+        addTearDown(() => HistoryShare.share = previous);
+        final copied = <String?>[];
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          (call) async {
+            if (call.method == 'Clipboard.setData') {
+              copied.add((call.arguments as Map)['text'] as String?);
+            }
+            return null;
+          },
+        );
+        addTearDown(
+          () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SystemChannels.platform,
+            null,
+          ),
+        );
+        await pump(tester, size: size);
+        final details = find.byType(HistoryEntryDetails);
+        await tester.tap(
+          find.descendant(of: details, matching: find.byTooltip('Copy')),
+        );
+        await tester.tap(
+          find.descendant(of: details, matching: find.byTooltip('Share')),
+        );
+        await tester.pump();
+        expect(copied, ['Guten Morgen']);
+        expect(shared, ['Guten Morgen']);
+        await tester.pumpAndSettle();
       });
 
       testWidgets('the details favourite and delete', (tester) async {

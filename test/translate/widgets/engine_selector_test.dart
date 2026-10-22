@@ -46,7 +46,10 @@ const _offline = TranslationEngine(
 );
 
 void main() {
-  setUpAll(registerTranslateFallbacks);
+  setUpAll(() {
+    registerTranslateFallbacks();
+    registerFallbackValue(QualityMode.off);
+  });
 
   group('EngineSelectorButton', () {
     testWidgets('shows the current engine, without its details', (
@@ -58,6 +61,15 @@ void main() {
       // A model id or host stays in the sheet.
       expect(find.text('mozhi.example.org'), findsNothing);
       expect(find.byTooltip('Choose translation engine'), findsOneWidget);
+      // An interactive outline: the 3:1 control outline, not a hairline.
+      final button = tester.widget<TextButton>(
+        find.byKey(const Key('translate_engine_selector')),
+      );
+      final shape = button.style!.shape!.resolve({})! as StadiumBorder;
+      expect(
+        shape.side.color,
+        Theme.of(tester.element(find.byType(TextButton))).colorScheme.outline,
+      );
     });
 
     testWidgets('is quieter, secondary text once Fast and Best are set up', (

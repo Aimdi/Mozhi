@@ -162,13 +162,36 @@ void main() {
         find.byKey(const Key('conversation_keyboard_toggle')),
         findsNothing,
       );
-      // In the app bar and in the hero.
-      expect(find.text('Beta'), findsNWidgets(2));
+      // Once: in the hero while the conversation is empty.
+      expect(find.text('Beta'), findsOneWidget);
+      expect(
+        find.descendant(of: find.byType(AppBar), matching: find.text('Beta')),
+        findsNothing,
+      );
       expect(
         find.descendant(
           of: find.byType(AppBar),
           matching: find.text('Conversation'),
         ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('wide: Beta moves next to the title once there are turns', (
+      tester,
+    ) async {
+      await pumpPage(tester, size: const Size(1000, 800));
+      await tester.enterText(
+        find.byKey(const Key('conversation_input_a')),
+        'Hello',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.send);
+      await pumpFor(tester);
+      await pumpFor(tester);
+
+      expect(find.text('Beta'), findsOneWidget);
+      expect(
+        find.descendant(of: find.byType(AppBar), matching: find.text('Beta')),
         findsOneWidget,
       );
     });

@@ -118,8 +118,7 @@ const maxAnnouncedOutputLength = 400;
 const staleOutputOpacity = 0.6;
 
 /// `SpeechService` clip id of the translation (the output card's Listen
-/// button; "More tools > Listen to the translation slowly" reads the same
-/// clip).
+/// button, which also reads it slowly on a long press).
 const translateOutputSpeechId = 'target';
 
 /// Direction of the translated text: the target language's, or (custom

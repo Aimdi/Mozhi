@@ -356,8 +356,9 @@ String formatSeconds(Duration duration) =>
 bool isOfflineEngineId(String? engineId) =>
     engineId?.startsWith('offline:') ?? false;
 
-/// Styles the chips below it as X topic pills: hairline-outlined
-/// stadiums without fill, bold labels and accent icons; selected pills
+/// Styles the chips below it as X topic pills: stadiums outlined like
+/// every control (`ColorScheme.outline`) without fill, bold labels and
+/// accent icons; selected pills
 /// take an accent outline and a faint accent tint (plus their check mark,
 /// so selection is not shown by colour alone).
 class TranslatePills extends StatelessWidget {
@@ -369,7 +370,6 @@ class TranslatePills extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final palette = AppPalette.of(context);
     final accent = scheme.primary;
     return Theme(
       data: theme.copyWith(
@@ -377,11 +377,12 @@ class TranslatePills extends StatelessWidget {
         canvasColor: Colors.transparent,
         chipTheme: theme.chipTheme.copyWith(
           shape: const StadiumBorder(),
+          // Control outlines (3:1 against the page), not hairlines.
           side: WidgetStateBorderSide.resolveWith(
             (states) => BorderSide(
               color: states.contains(WidgetState.selected)
                   ? accent
-                  : palette.hairline,
+                  : scheme.outline,
             ),
           ),
           color: WidgetStateProperty.resolveWith(

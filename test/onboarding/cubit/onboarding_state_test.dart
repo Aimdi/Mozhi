@@ -27,6 +27,23 @@ void main() {
       );
     });
 
+    test('steps leave out the privacy step without an on-device engine', () {
+      expect(const OnboardingState().steps, OnboardingStep.values);
+      expect(const OnboardingState(onDevice: false).steps, [
+        OnboardingStep.welcome,
+        OnboardingStep.languages,
+        OnboardingStep.service,
+      ]);
+      expect(
+        const OnboardingState(onDevice: false).copyWith(),
+        const OnboardingState(onDevice: false),
+      );
+      expect(
+        const OnboardingState().copyWith(onDevice: false).onDevice,
+        isFalse,
+      );
+    });
+
     test('fastestUrl picks the lowest latency among answers', () {
       const state = OnboardingState(
         pings: {

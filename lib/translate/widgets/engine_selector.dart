@@ -41,13 +41,13 @@ class EngineSelectorButton extends StatelessWidget {
           message: l10n.translateEngineSelectorTooltip,
           child: TextButton(
             key: const Key('translate_engine_selector'),
-            // A hairline-outlined pill: clearly tappable, calm next to the
-            // title.
+            // An outlined pill (the control outline, 3:1): clearly tappable,
+            // calm next to the title.
             style: TextButton.styleFrom(
               minimumSize: const Size(48, 48),
               padding: const EdgeInsetsDirectional.only(start: 12, end: 8),
               shape: StadiumBorder(
-                side: BorderSide(color: AppPalette.of(context).hairline),
+                side: BorderSide(color: theme.colorScheme.outline),
               ),
               backgroundColor: Colors.transparent,
               foregroundColor: theme.colorScheme.onSurface,
@@ -444,11 +444,7 @@ class _EngineTile extends StatelessWidget {
                 runSpacing: 4,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  if (badge)
-                    if (isOnDeviceEngine(engine))
-                      const OfflineEngineBadge()
-                    else
-                      PrivacyBadge(engine: engine),
+                  if (badge) PrivacyBadge(engine: engine),
                   if (details.isNotEmpty) Text(details.join(' · ')),
                 ],
               ),

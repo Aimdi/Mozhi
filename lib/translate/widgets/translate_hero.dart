@@ -73,17 +73,14 @@ class TranslateHero extends StatelessWidget {
     final scheme = theme.colorScheme;
     final muted = AppPalette.of(context).secondaryText;
     final state = context.watch<TranslateCubit>().state;
-    final recent = context.select<SettingsCubit, List<LanguagePair>>(
-      (cubit) => cubit.state.recentPairs,
-    );
+    final settings = context.watch<SettingsCubit>().state;
     final pairs = [
-      for (final pair in recent)
+      for (final pair in settings.recentPairs)
         if (!isCurrentLanguagePair(pair, state)) pair,
     ].take(translateHeroMaxPairs).toList();
     final wide =
         MediaQuery.sizeOf(context).width >= TranslateLayout.wideBreakpoint;
     final router = GoRouter.maybeOf(context);
-    final settings = context.watch<SettingsCubit>().state;
     final history = _historyOf(context);
     final last = translateHeroContinueEntry(
       settings: settings,
@@ -315,7 +312,7 @@ class _ContinueButton extends StatelessWidget {
           style: OutlinedButton.styleFrom(
             minimumSize: const Size(48, 48),
             shape: const StadiumBorder(),
-            side: BorderSide(color: theme.colorScheme.outlineVariant),
+            side: BorderSide(color: theme.colorScheme.outline),
             padding: const EdgeInsetsDirectional.only(start: 16, end: 12),
           ),
           onPressed: () =>

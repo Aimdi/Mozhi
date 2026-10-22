@@ -288,13 +288,12 @@ void main() {
       );
       states.add(_refined());
       await tester.pump();
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      // Its top (under the 2 px progress line) is at the top of the screen.
       expect(
         tester.getTopLeft(find.byKey(const Key('translate_output_card'))).dy,
-        greaterThanOrEqualTo(0),
+        inInclusiveRange(-8, 0),
       );
-      await tester.pump(OutputCard.refinementFlash);
     });
   });
 
@@ -422,7 +421,17 @@ void main() {
         find.byKey(const Key('translate_output_semantics')),
       );
       expect(node.label, 'Translation');
-      expect(node.value, isEmpty);
+      // From the selectable text, not set on the container.
+      expect(
+        tester
+            .widget<Semantics>(
+              find.byKey(const Key('translate_output_semantics')),
+            )
+            .properties
+            .attributedValue,
+        isNull,
+      );
+      expect(node.value, 'Bonjour le monde');
       handle.dispose();
     });
   });

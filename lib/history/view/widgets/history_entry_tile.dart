@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
-import 'package:intl/intl.dart' show Bidi, DateFormat;
+import 'package:intl/intl.dart' show Bidi;
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/bidi.dart';
@@ -525,22 +525,6 @@ class _DictionaryMarker extends StatelessWidget {
     color: AppPalette.of(context).secondaryText,
     semanticLabel: context.l10n.historyDictionaryMarker,
   );
-}
-
-/// X-style short relative time of [time] as seen at [now]: "now", "5m",
-/// "3h"; older than a day (the list's day headers give the date) it is the
-/// clock time.
-@visibleForTesting
-String relativeHistoryTime(AppLocalizations l10n, DateTime time, DateTime now) {
-  final age = now.difference(time);
-  if (age.isNegative || age < const Duration(minutes: 1)) {
-    return l10n.historyTimeNow;
-  }
-  if (age < const Duration(hours: 1)) {
-    return l10n.historyTimeMinutes(age.inMinutes);
-  }
-  if (age < const Duration(days: 1)) return l10n.historyTimeHours(age.inHours);
-  return DateFormat.jm(l10n.localeName).format(time.toLocal());
 }
 
 /// User or translated text in its own language: laid out in that

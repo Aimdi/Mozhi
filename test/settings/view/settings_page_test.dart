@@ -27,6 +27,7 @@ import 'package:mozhi/settings/view/widgets/settings_search.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:mozhi/settings/view/widgets/speech_settings_section.dart';
 import 'package:mozhi/speech/speech_service.dart';
+import 'package:mozhi/voice/speech_input_service.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -41,6 +42,8 @@ const _claude = AiProviderConfig(
 );
 
 class _MockSpeechService extends Mock implements SpeechService;
+
+class _MockSpeechInputService extends Mock implements SpeechInputService;
 
 const _local = AiProviderConfig(
   id: 'p2',
@@ -2065,6 +2068,80 @@ void main() {
           greaterThan(0),
         );
         await tester.pumpAndSettle(const Duration(seconds: 2));
+      });
+
+      testWidgets('a new row or category of the open page jumps again', (
+        tester,
+      ) async {
+        await pump(
+          tester,
+          category: SettingsCategory.privacy,
+          highlight: 'incognito',
+          size: const Size(1400, 900),
+        );
+        await pump(
+          tester,
+          category: SettingsCategory.engines,
+          highlight: 'instant_translate',
+          size: const Size(1400, 900),
+        );
+        await tester.pump();
+        expect(
+          tester
+              .widget<ListTile>(
+                find.byKey(SettingsView.categoryKey(SettingsCategory.engines)),
+              )
+              .selected,
+          isTrue,
+        );
+        final highlight = tester.widget<AnimatedContainer>(
+          find.byKey(SettingsAnchor.highlightKey('instant_translate')),
+        );
+        expect(
+          (highlight.foregroundDecoration! as BoxDecoration).color?.a,
+          greaterThan(0),
+        );
+        await tester.pump(SettingsAnchor.highlightDuration);
+        await tester.pumpAndSettle();
+      });
+
+      testWidgets('the AI heading beside the list says advanced', (
+        tester,
+      ) async {
+        await pump(
+          tester,
+          category: SettingsCategory.ai,
+          size: const Size(1400, 900),
+        );
+        expect(find.text('Advanced'), findsNWidgets(2));
+      });
+
+      testWidgets('the index follows the platform and the services', (
+        tester,
+      ) async {
+        debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+        final voice = _MockSpeechInputService();
+        when(() => voice.isPlatformSupported).thenReturn(true);
+        late List<SettingsSearchEntry> entries;
+        await tester.pumpView(
+          RepositoryProvider<SpeechInputService>.value(
+            value: voice,
+            child: Builder(
+              builder: (context) {
+                entries = settingsSearchIndex(context, const AppSettings());
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+          settings: settings,
+          history: history,
+          router: router,
+        );
+        final anchors = {for (final e in entries) e.anchor: e};
+        expect(anchors['offline_languages']?.title, 'Offline languages');
+        expect(anchors['voice_input']?.category, SettingsCategory.speech);
+        expect(anchors, isNot(contains('read_aloud')));
+        debugDefaultTargetPlatformOverride = null;
       });
 
       testWidgets('a link with a row scrolls to it on a phone', (tester) async {

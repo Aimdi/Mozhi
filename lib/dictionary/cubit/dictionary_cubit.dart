@@ -279,15 +279,15 @@ class DictionaryCubit extends Cubit<DictionaryState> {
     return lookUp();
   }
 
-  /// Adds the shown entry to the favourites, or takes it out: toggles the
-  /// favourite of its look-up in the history (`HistoryState.lookUpOf`), or
-  /// saves the look-up as a favourite when the history does not have it
+  /// Adds the shown entry to the favorites, or takes it out: toggles the
+  /// favorite of its look-up in the history (`HistoryState.lookUpOf`), or
+  /// saves the look-up as a favorite when the history does not have it
   /// (also with history off or in incognito: starring is an explicit save,
   /// as for translations). Does nothing without a shown entry (or a
   /// history).
   ///
   /// A toggle starts once the previous one is done, so a quick second tap
-  /// (before the new favourite is in the history) takes it out again
+  /// (before the new favorite is in the history) takes it out again
   /// rather than saving it twice.
   Future<void> toggleFavorite() {
     final next = _favorite.then((_) => _toggleFavorite());

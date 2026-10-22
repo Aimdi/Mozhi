@@ -192,14 +192,13 @@ class _ServerChoiceState extends State<ServerChoice> {
                       ),
                   ],
                 ),
-                trailing: Semantics(
-                  expanded: _open,
-                  child: TextButton(
-                    key: const Key('onboarding_server_change'),
-                    style: TextButton.styleFrom(
-                      minimumSize: const Size(64, 48),
-                    ),
-                    onPressed: () => setState(() => _open = !_open),
+                trailing: TextButton(
+                  key: const Key('onboarding_server_change'),
+                  style: TextButton.styleFrom(minimumSize: const Size(64, 48)),
+                  onPressed: () => setState(() => _open = !_open),
+                  // On the button's own node: it shows and hides the list.
+                  child: Semantics(
+                    expanded: _open,
                     child: Text(
                       _open
                           ? l10n.onboardingServiceChangeDone

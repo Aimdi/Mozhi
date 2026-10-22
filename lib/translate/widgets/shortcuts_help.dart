@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/view/app_shell.dart' show AppShell;
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
@@ -140,31 +141,64 @@ List<TranslateShortcutHelp> translateShortcutHelp(
   ];
 }
 
-/// Number of tabs with a shortcut of their own (Alt+1 to Alt+4).
-const appTabShortcutCount = 4;
+/// The keys of [activator] for the cheat sheet, shown and spoken (Ctrl
+/// is Control everywhere, as the shortcut asks for it; Alt is ⌥ Option
+/// with [command]).
+({List<String> keys, List<String> spoken}) _activatorKeys(
+  SingleActivator activator, {
+  required bool command,
+  String? trigger,
+}) {
+  final key = trigger ?? activator.trigger.keyLabel;
+  return (
+    keys: [
+      if (activator.control) 'Ctrl',
+      if (activator.meta) '⌘',
+      if (activator.alt && command) '⌥' else if (activator.alt) 'Alt',
+      if (activator.shift) 'Shift',
+      key,
+    ],
+    spoken: [
+      if (activator.control) 'Control',
+      if (activator.meta) 'Command',
+      if (activator.alt && command) 'Option' else if (activator.alt) 'Alt',
+      if (activator.shift) 'Shift',
+      key,
+    ],
+  );
+}
 
-/// The shortcuts that work on every tab (the app shell's): Alt+1 … Alt+4
-/// switch to a tab and Ctrl+Shift+H opens History (⌥ and ⌘ with
-/// [command]), as shown in the cheat sheet.
+/// The shortcuts that work on every tab, as the app shell binds them
+/// ([AppShell.tabShortcuts]: Ctrl+Shift+1 … 4 switch to a tab;
+/// [AppShell.historyShortcut]: Ctrl+Shift+H opens History), for the cheat
+/// sheet. With [command] (Apple platforms) Alt reads ⌥.
 List<TranslateShortcutHelp> appShortcutHelp(
   AppLocalizations l10n, {
   required bool command,
 }) {
-  final tabs = _row(['{alt}', '1…$appTabShortcutCount'], '', command: command);
-  final alt = _row(['{alt}'], '', command: command);
+  const tabs = AppShell.tabShortcuts;
+  final last = '${tabs.length}';
+  final range = _activatorKeys(
+    tabs.first,
+    command: command,
+    trigger: '1…$last',
+  );
+  final spokenRange = _activatorKeys(
+    tabs.first,
+    command: command,
+    trigger: l10n.translateShortcutKeyRange('1', last),
+  );
+  final history = _activatorKeys(AppShell.historyShortcut, command: command);
   return [
     (
-      keys: tabs.keys,
-      keysSemantics: [
-        alt.keysSemantics,
-        l10n.translateShortcutKeyRange('1', '$appTabShortcutCount'),
-      ].join(' '),
+      keys: range.keys.join(' + '),
+      keysSemantics: spokenRange.spoken.join(' '),
       description: l10n.translateShortcutTabs,
     ),
-    _row(
-      ['{mod}', 'Shift', 'H'],
-      l10n.translateShortcutHistory,
-      command: command,
+    (
+      keys: history.keys.join(' + '),
+      keysSemantics: history.spoken.join(' '),
+      description: l10n.translateShortcutHistory,
     ),
   ];
 }
@@ -231,11 +265,9 @@ class TranslateShortcutsDialog extends StatelessWidget {
     }
     // The dialog's content width: the window less the dialog's insets
     // (40 dp each side) and padding (24 dp each side), at most 560 dp.
-    final content =
-        math.min(MediaQuery.sizeOf(context).width - 80, 560) - 48.0;
+    final content = math.min(MediaQuery.sizeOf(context).width - 80, 560) - 48.0;
     final table =
-        content - keysWidth - columnGap >=
-        scaler.scale(minDescriptionWidth);
+        content - keysWidth - columnGap >= scaler.scale(minDescriptionWidth);
     Widget section(String title, List<TranslateShortcutHelp> rows) => Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -301,11 +333,7 @@ class _ShortcutRow extends StatelessWidget {
     final theme = Theme.of(context);
     final keysWidth = this.keysWidth;
     // Stacked (a narrow window), long keys may wrap.
-    final keys = _KeysChip(
-      row: row,
-      style: keysStyle,
-      wrap: keysWidth == null,
-    );
+    final keys = _KeysChip(row: row, style: keysStyle, wrap: keysWidth == null);
     final description = Text(
       row.description,
       style: theme.textTheme.bodyMedium,
@@ -329,9 +357,7 @@ class _ShortcutRow extends StatelessWidget {
                       child: keys,
                     ),
                   ),
-                  const SizedBox(
-                    width: TranslateShortcutsDialog.columnGap,
-                  ),
+                  const SizedBox(width: TranslateShortcutsDialog.columnGap),
                   Expanded(
                     child: Padding(
                       // Lines the first line up with the keys' text.

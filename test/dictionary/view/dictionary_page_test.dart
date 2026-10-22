@@ -1262,7 +1262,7 @@ void main() {
         expect(tester.takeException(), isNull);
       });
 
-      testWidgets('Clear in the search bar empties it and keeps the entry', (
+      testWidgets('Clear in the search bar starts a new look-up', (
         tester,
       ) async {
         await pumpPage(
@@ -1274,6 +1274,7 @@ void main() {
         await tester.tap(find.byKey(const Key('dictionary_clear')));
         await tester.pump();
         expect(dictionaryState(tester).word, isEmpty);
+        expect(find.byKey(const Key('dictionary_hero')), findsOneWidget);
         expect(
           tester.widget<EditableText>(searchEditable()).focusNode,
           same(FocusManager.instance.primaryFocus),

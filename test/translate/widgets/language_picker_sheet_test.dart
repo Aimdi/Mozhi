@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bergamot_translator/bergamot_translator.dart'
     show MeteredConnectionException;
 import 'package:flutter/foundation.dart';
@@ -12,17 +14,28 @@ import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/widgets/widgets.dart';
 import 'package:translation_repository/translation_repository.dart';
 
+import '../helpers/fake_offline.dart';
 import '../helpers/helpers.dart';
 
 /// An offline engine with English, German, French and Japanese that
 /// records its downloads; with [metered] a Wi-Fi-only download fails like
 /// Bergamot's on mobile data.
 class _RecordingOffline implements OfflineTranslator {
-  new({Set<String> downloaded = const {}, this.metered = false})
-    : downloaded = {'en', ...downloaded};
+  new({
+    Set<String> downloaded = const {},
+    this.metered = false,
+    this.slow = false,
+  }) : downloaded = {'en', ...downloaded};
 
   final Set<String> downloaded;
   final bool metered;
+
+  /// Whether downloads wait for [finish].
+  final bool slow;
+  final _finished = Completer<void>();
+
+  /// Lets the downloads of a [slow] engine finish.
+  void finish() => _finished.complete();
 
   /// The downloads asked for: the code and whether Wi-Fi only.
   final downloads = <(String, bool)>[];
@@ -40,6 +53,7 @@ class _RecordingOffline implements OfflineTranslator {
   Future<void> downloadLanguage(String code, {bool wifiOnly = true}) async {
     downloads.add((code, wifiOnly));
     if (metered && wifiOnly) throw const MeteredConnectionException();
+    if (slow) await _finished.future;
     downloaded.add(code);
   }
 
@@ -424,6 +438,36 @@ void main() {
       await tester.pumpAndSettle();
       expect(offline.downloads, [('fr', true)]);
       expect(_download('fr'), findsWidgets);
+    });
+
+    testWidgets('names the download size when the engine knows it', (
+      tester,
+    ) async {
+      await open(tester, TranslateHarness(), offline: fakeBergamot());
+      await tester.pump();
+      expect(find.byTooltip('Download German (24.0 MB)'), findsOneWidget);
+    });
+
+    testWidgets('shows the progress of a download', (tester) async {
+      final offline = _RecordingOffline(slow: true);
+      await open(
+        tester,
+        TranslateHarness(),
+        offline: offline,
+        store: MemoryStore(),
+      );
+      await tester.tap(_download('fr'));
+      await tester.pump();
+      await tester.pump();
+      final progress = find.byKey(
+        const ValueKey('translate_language_downloading:fr'),
+      );
+      expect(progress, findsWidgets);
+      expect(find.bySemanticsLabel('Downloading…'), findsWidgets);
+      offline.finish();
+      await tester.pumpAndSettle();
+      expect(progress, findsNothing);
+      expect(_offlineMark('fr'), findsWidgets);
     });
 
     testWidgets('offers no download outside the Android app', (tester) async {

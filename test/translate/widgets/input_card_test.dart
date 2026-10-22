@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:bloc_test/bloc_test.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -973,6 +974,19 @@ void main() {
         );
         await tester.pump();
         expect(focus.hasFocus, isTrue);
+      });
+
+      testWidgets('a field with text keeps the default for a mouse', (
+        tester,
+      ) async {
+        final harness = TranslateHarness(state: readyState(input: 'Hello'));
+        final focus = await pumpFocused(tester, harness);
+        await tester.tapAt(
+          tester.getCenter(find.byKey(const Key('outside'))),
+          kind: PointerDeviceKind.mouse,
+        );
+        await tester.pump();
+        expect(focus.hasFocus, isFalse);
       });
 
       testWidgets('a tap on the card itself is not outside', (tester) async {

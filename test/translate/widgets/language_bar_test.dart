@@ -189,6 +189,57 @@ void main() {
       expect(find.text('Japanese'), findsOneWidget);
     });
 
+    testWidgets('TranslateLanguageAnchors find their buttons', (tester) async {
+      final source = GlobalKey();
+      final target = GlobalKey();
+      final anchors = TranslateLanguageAnchors(
+        source: source,
+        target: target,
+        child: const SizedBox(),
+      );
+      // Not on the screen.
+      expect(anchors.rectOf(source: true), isNull);
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: Stack(
+            children: [
+              Positioned(
+                left: 10,
+                top: 20,
+                width: 30,
+                height: 40,
+                child: SizedBox(key: source),
+              ),
+            ],
+          ),
+        ),
+      );
+      expect(anchors.rectOf(source: true), const Rect.fromLTWH(10, 20, 30, 40));
+      expect(anchors.rectOf(source: false), isNull);
+      expect(anchors.keyOf(source: false), target);
+      expect(
+        anchors.updateShouldNotify(
+          TranslateLanguageAnchors(
+            source: source,
+            target: target,
+            child: const SizedBox(),
+          ),
+        ),
+        isFalse,
+      );
+      expect(
+        anchors.updateShouldNotify(
+          TranslateLanguageAnchors(
+            source: GlobalKey(),
+            target: target,
+            child: const SizedBox(),
+          ),
+        ),
+        isTrue,
+      );
+    });
+
     test('translateLanguagesSwapped', () {
       final before = readyState(source: english, target: german);
       expect(
@@ -200,18 +251,12 @@ void main() {
       );
       // One language picked, or nothing changed: not a swap.
       expect(
-        translateLanguagesSwapped(
-          before,
-          readyState(source: english),
-        ),
+        translateLanguagesSwapped(before, readyState(source: english)),
         isFalse,
       );
       expect(translateLanguagesSwapped(before, before), isFalse);
       expect(
-        translateLanguagesSwapped(
-          before,
-          readyState(source: german),
-        ),
+        translateLanguagesSwapped(before, readyState(source: german)),
         isFalse,
       );
       // From "Detect language": the detected language becomes the target.

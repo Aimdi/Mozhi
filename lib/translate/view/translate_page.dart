@@ -843,7 +843,7 @@ class _TranslateBody extends StatefulWidget {
   /// Height of the screen's content (without the keyboard).
   final double height;
 
-  /// The input's focus node.
+  /// The input's focus node (the screen's, the same for its lifetime).
   final FocusNode focusNode;
 
   /// Told on every build whether the greeting holds the quality chip.
@@ -873,15 +873,6 @@ class _TranslateBodyState extends State<_TranslateBody> {
   void initState() {
     super.initState();
     widget.focusNode.addListener(_onFocusChanged);
-  }
-
-  @override
-  void didUpdateWidget(_TranslateBody oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.focusNode != widget.focusNode) {
-      oldWidget.focusNode.removeListener(_onFocusChanged);
-      widget.focusNode.addListener(_onFocusChanged);
-    }
   }
 
   @override
