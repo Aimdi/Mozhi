@@ -73,6 +73,26 @@ void main() {
       expect(of('offline'), HistoryDestination.onDevice);
     });
 
+    test('on-device AI models stay on the device', () {
+      // Their providers (`device-<model>`) are made at runtime and are
+      // never in the settings' providers.
+      expect(of('ai:device-hy-mt2-1.8b-q4'), HistoryDestination.onDevice);
+      expect(of('ai:device-qwen3-4b'), HistoryDestination.onDevice);
+      // Even next to a provider of the settings with such an id (imported
+      // or crafted; the app leaves it out and runs the model on the
+      // device).
+      expect(
+        historyDestinationOf(
+          'ai:device-x',
+          providers: [_provider('device-x', 'https://api.openai.com/v1')],
+        ),
+        HistoryDestination.onDevice,
+      );
+      // Only AI engine ids with a model.
+      expect(of('ai:device-'), HistoryDestination.cloud);
+      expect(of('mt:device-x'), HistoryDestination.cloud);
+    });
+
     test('Mozhi engines go to the preferred instance', () {
       expect(of('mozhi:google'), HistoryDestination.publicServer);
       expect(
@@ -167,7 +187,22 @@ void main() {
       engineId: TranslationEngine.offlineId,
       isFavorite: true,
     );
+    final onDeviceAi = _entry('4', engineId: 'ai:device-hy-mt2-1.8b-q4');
     final entries = [englishFrench, englishGerman, detected];
+
+    test('the on-device filter finds on-device AI translations', () {
+      final state = HistoryState(
+        entries: [...entries, onDeviceAi],
+        destination: HistoryDestination.onDevice,
+      );
+      expect(state.visibleWith(historyDestinationOf), [detected, onDeviceAi]);
+      expect(
+        state
+            .copyWith(destination: () => HistoryDestination.cloud)
+            .visibleWith(historyDestinationOf),
+        [englishGerman],
+      );
+    });
 
     test('filter by language pair', () {
       final state = HistoryState(

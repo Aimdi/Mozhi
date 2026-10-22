@@ -95,13 +95,14 @@ jobs:
           CCACHE_COMPRESS: "true"
           CCACHE_MAXSIZE: 500M
         run: |
-          sudo apt-get install -y -q ccache ninja-build > /dev/null
+          # numpy (gguf-py's only dependency) from Ubuntu's signed archive,
+          # not an unpinned PyPI download: this job saves the caches that
+          # release builds restore.
+          sudo apt-get install -y -q ccache ninja-build python3-numpy > /dev/null
           bash packages/llama_engine/tool/build_native_linux.sh
-          python3 -m venv "$RUNNER_TEMP/gguf-py"
-          "$RUNNER_TEMP/gguf-py/bin/pip" install --quiet "numpy>=1.26"
-          "$RUNNER_TEMP/gguf-py/bin/python" packages/llama_engine/tool/make_test_model.py \
+          /usr/bin/python3 packages/llama_engine/tool/make_test_model.py \
             --all packages/llama_engine/build/test_models
-          "$RUNNER_TEMP/gguf-py/bin/python" packages/llama_engine/tool/make_test_model_test.py
+          /usr/bin/python3 packages/llama_engine/tool/make_test_model_test.py
           ccache --show-stats || true
 
       # Every package under packages/ (bergamot_translator, llama_engine,
@@ -787,7 +788,9 @@ jobs:
       # come from Hugging Face's API, which only CI can reach: print the
       # catalogue resolved from tool/llm_catalog.json (commit-pinned URLs,
       # sizes, SHA-256) for a maintainer to commit, then check the
-      # committed one is still served as it says.
+      # committed one is still served as it says. Models already committed
+      # keep their files; a warning says when Hugging Face now resolves
+      # another file (resolve --update <id> takes it).
       - name: Resolve the on-device AI catalogue
         if: ${{ !cancelled() }}
         run: python3 tool/llm_catalog.py resolve --print

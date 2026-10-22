@@ -11,6 +11,7 @@ import copy
 import hashlib
 import io
 import json
+import os
 import sys
 import tempfile
 import threading
@@ -19,6 +20,7 @@ import urllib.parse
 from contextlib import redirect_stderr, redirect_stdout
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from unittest import mock
 
 TOOL = Path(__file__).resolve().parent / "llm_catalog.py"
 sys.path.insert(0, str(TOOL.parent))
@@ -271,6 +273,89 @@ class LlmCatalogTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(len(json.loads(out)["models"]), 3)
         self.assertFalse((self.tmp / "models.json").exists())
+
+    def test_keeps_the_committed_files_until_updated(self) -> None:
+        code, _, err = self.resolve()
+        self.assertEqual(code, 0, err)
+        first = self.resolved()
+        # Upstream moves on: new weights at a new commit.
+        self.hub.add(
+            "tencent/Hy-MT2-1.8B-GGUF",
+            {"Hy-MT2-1.8B-Q4_K_M.gguf": b"retrained " * 40},
+            commit=COMMIT_B,
+        )
+        self.sources["models"][0]["displayName"] = "Hy-MT2 1.8B (new name)"
+        self.write_sources()
+
+        code, out, err = self.resolve()
+        self.assertEqual(code, 0, err)
+        second = self.resolved()
+        hy_before, hy_after = first["models"][0], second["models"][0]
+        for key in catalog.FILE_KEYS:
+            self.assertEqual(hy_after[key], hy_before[key], key)
+        # The other fields follow the sources.
+        self.assertEqual(hy_after["displayName"], "Hy-MT2 1.8B (new name)")
+        self.assertEqual(second["_provenance"], first["_provenance"])
+        self.assertEqual(second["models"][1:], first["models"][1:])
+        self.assertIn("CHANGED hy-mt2-1.8b-q4: kept Hy-MT2-1.8B-Q4_K_M.gguf", err)
+        self.assertIn("--update hy-mt2-1.8b-q4 takes it", err)
+        self.assertEqual(err.count("CHANGED"), 1, err)
+        self.assertNotIn("::warning::", out)
+
+        # --print says the same and keeps the files too.
+        code, out, err = self.resolve("--print")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(json.loads(out)["models"][0]["sha256"], hy_before["sha256"])
+        self.assertIn("CHANGED hy-mt2-1.8b-q4", err)
+
+        # --update takes the new file of that model only.
+        code, _, err = self.resolve("--update", "hy-mt2-1.8b-q4")
+        self.assertEqual(code, 0, err)
+        third = self.resolved()
+        hy = third["models"][0]
+        self.assertEqual(hy["sha256"], hashlib.sha256(b"retrained " * 40).hexdigest())
+        self.assertIn(f"/resolve/{COMMIT_B}/", hy["url"])
+        self.assertIn(
+            f"hy-mt2-1.8b-q4: tencent/Hy-MT2-1.8B-GGUF at {COMMIT_B}",
+            third["_provenance"][1],
+        )
+        self.assertNotIn("CHANGED", err)
+
+    def test_update_all_and_github_warnings(self) -> None:
+        code, _, err = self.resolve()
+        self.assertEqual(code, 0, err)
+        self.hub.add(
+            "ggml-org/Qwen3-1.7B-GGUF",
+            {"Qwen3-1.7B-Q4_K_M.gguf": b"qwen again " * 30},
+            commit=COMMIT_B,
+        )
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
+            code, out, err = self.resolve("--print")
+        self.assertEqual(code, 0, err)
+        document, _, warnings = out.partition("\n}\n")
+        self.assertEqual(
+            json.loads(document + "\n}")["models"][2]["sha256"],
+            self.resolved()["models"][2]["sha256"],
+        )
+        self.assertIn("::warning::On-device AI catalogue: qwen3-1.7b-q4: kept", warnings)
+
+        code, _, err = self.resolve("--update-all")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(
+            self.resolved()["models"][2]["sha256"],
+            hashlib.sha256(b"qwen again " * 30).hexdigest(),
+        )
+        self.assertNotIn("CHANGED", err)
+
+    def test_refuses_an_unreadable_committed_catalogue(self) -> None:
+        (self.tmp / "models.json").write_text("{not json")
+        code, _, err = self.resolve()
+        self.assertEqual(code, 2)
+        self.assertIn("cannot read", err)
+        (self.tmp / "models.json").write_text("[]")
+        code, _, err = self.resolve()
+        self.assertEqual(code, 2)
+        self.assertIn("is not a catalogue", err)
 
     def test_picks_the_quantization_when_the_name_differs(self) -> None:
         self.hub.add(

@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:mozhi/core/on_device_ai_engine.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -14,7 +15,10 @@ typedef HistoryDestinationOf = HistoryDestination? Function(String engineId);
 /// `TranslationRepository.destinationOf` (entries do not store where their
 /// text went):
 ///
-/// - `offline:*`: [HistoryDestination.onDevice];
+/// - `offline:*` and on-device AI models (`ai:device-<model>`,
+///   [isOnDeviceAiEngineId]: the app only ever runs such an engine on this
+///   device, and its providers are never in [providers]):
+///   [HistoryDestination.onDevice];
 /// - `mozhi:*`: the preferred (first) of [instances]:
 ///   [HistoryDestination.selfHosted] on this machine, a private network,
 ///   Tor or I2P, else (also without instances)
@@ -33,7 +37,9 @@ HistoryDestination? historyDestinationOf(
   bool isPrivate(String url) =>
       DataDestination.isPrivateHost(DataDestination.hostOf(url));
 
-  if (engineId.startsWith('offline:') || engineId == 'offline') {
+  if (engineId.startsWith('offline:') ||
+      engineId == 'offline' ||
+      isOnDeviceAiEngineId(engineId)) {
     return HistoryDestination.onDevice;
   }
   if (engineId.startsWith('mozhi:')) {

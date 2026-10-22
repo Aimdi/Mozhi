@@ -18,6 +18,12 @@ resolve   asks Hugging Face's API, for each model of the sources, for the
           or private and has the file. Sizes and checksums are never typed
           by hand. --print prints the catalogue instead of writing it (CI
           prints it to the log; it is then committed by hand).
+          A model already in models.json keeps its file (name, URL, size,
+          SHA-256) and provenance: a moved branch or another candidate repo
+          never re-pins it silently. Its other fields follow the sources.
+          The tool says CHANGED when Hugging Face now resolves another file
+          (a GitHub warning in CI); --update <id> (repeatable) or
+          --update-all takes the new one.
 check     HEADs every URL of models.json (following redirects; nothing is
           downloaded) and compares the size and the SHA-256 Hugging Face
           sends (X-Linked-Etag) with the catalogue, because the app rejects
@@ -507,6 +513,51 @@ def resolve(sources: list[dict], endpoint: str) -> tuple[dict, list[str]]:
     return document, failures
 
 
+FILE_KEYS = ("name", "url", "size", "sha256")
+
+
+def keep_committed(
+    document: dict, committed: dict | None, update: set[str] | None
+) -> tuple[dict, list[str]]:
+    """[document] with the file of every model already in [committed] kept
+    (its FILE_KEYS and provenance line), except the ids in [update] (None:
+    all of them are updated); and one note per kept model that now resolves
+    to another file."""
+    if not committed or update is None:
+        return document, []
+    kept = {
+        model["id"]: model
+        for model in committed.get("models", [])
+        if isinstance(model, dict) and isinstance(model.get("id"), str)
+    }
+    lines = {
+        line.split(": ", 1)[0]: line
+        for line in committed.get("_provenance", [])[1:]
+        if isinstance(line, str) and ": " in line
+    }
+    models, notes = [], []
+    for model in document["models"]:
+        old = kept.get(model["id"])
+        if old is None or model["id"] in update:
+            models.append(model)
+            continue
+        if any(old.get(key) != model[key] for key in FILE_KEYS):
+            notes.append(
+                f"{model['id']}: kept {old.get('name')} (SHA-256 "
+                f"{str(old.get('sha256'))[:12]}..., {old.get('url')}); Hugging "
+                f"Face now resolves {model['name']} (SHA-256 "
+                f"{model['sha256'][:12]}..., {model['url']}). --update "
+                f"{model['id']} takes it."
+            )
+        models.append({**model, **{key: old[key] for key in FILE_KEYS if key in old}})
+    provenance = [document["_provenance"][0]]
+    for model, line in zip(document["models"], document["_provenance"][1:]):
+        if model["id"] in kept and model["id"] not in update and model["id"] in lines:
+            line = lines[model["id"]]
+        provenance.append(line)
+    return {**document, "_provenance": provenance, "models": models}, notes
+
+
 def dumps(document: dict) -> str:
     return json.dumps(document, indent=2, ensure_ascii=False) + "\n"
 
@@ -602,6 +653,18 @@ def main(argv: list[str] | None = None) -> int:
         help="Hugging Face's address (tests use a local server)",
     )
     resolve_parser.add_argument("--languages", type=Path, default=LANGUAGES)
+    resolve_parser.add_argument(
+        "--update",
+        action="append",
+        default=[],
+        metavar="ID",
+        help="take the newly resolved file of this model (repeatable)",
+    )
+    resolve_parser.add_argument(
+        "--update-all",
+        action="store_true",
+        help="take the newly resolved file of every model",
+    )
     check_parser = commands.add_parser("check", help="HEAD every model URL")
     check_parser.add_argument("--catalog", type=Path, default=MODELS)
     validate_parser = commands.add_parser("validate", help="offline checks")
@@ -660,14 +723,30 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {error}", file=sys.stderr)
         return 2
 
+    committed = None
+    if args.out.exists():
+        try:
+            committed = _load(args.out)
+        except CatalogError as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 2
+        if not isinstance(committed, dict):
+            print(f"error: {args.out} is not a catalogue", file=sys.stderr)
+            return 2
+
     endpoint = args.hf_endpoint.rstrip("/")
     document, failures = resolve(sources, endpoint)
+    document, notes = keep_committed(
+        document, committed, None if args.update_all else set(args.update)
+    )
     try:
         validate_catalog(document, languages, insecure_ok=endpoint != HUGGING_FACE)
     except CatalogError as error:
         # A file name or answer the app would refuse.
         print(f"error: {error}", file=sys.stderr)
         return 2
+    for note in notes:
+        print(f"CHANGED {note}", file=sys.stderr)
     for failure in failures:
         print(f"FAILED {failure}", file=sys.stderr)
     if args.print:
@@ -675,6 +754,10 @@ def main(argv: list[str] | None = None) -> int:
     elif not failures:
         args.out.write_text(dumps(document), encoding="utf-8")
         print(f"wrote {len(document['models'])} model(s) to {args.out}")
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        # Workflow commands are read from stdout, after the catalogue.
+        for note in notes:
+            print(f"::warning::On-device AI catalogue: {note}")
     return 1 if failures else 0
 
 
