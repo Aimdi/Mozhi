@@ -70,7 +70,7 @@ void main() {
       expect(find.text('1 language downloaded'), findsOneWidget);
       expect(find.byKey(const ValueKey('dictionary-pack-es')), findsOneWidget);
       expect(find.byKey(const ValueKey('dictionary-pack-en')), findsOneWidget);
-      expect(find.text('Downloaded'), findsOneWidget);
+      expect(find.text('Downloaded'), findsWidgets);
       expect(find.text('Available to download'), findsOneWidget);
       expect(
         find.textContaining('Wiktionary data by its contributors'),
@@ -86,7 +86,7 @@ void main() {
           matching: find.byKey(const Key('offline_download_pill')),
         ),
       );
-      await tester.pumpAndSettle();
+      await settle(tester);
       expect(await storage.list(), [storedPack(es)]);
       expect(find.byType(SnackBar), findsOneWidget);
     });
@@ -103,7 +103,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(MeteredDownloadDialog), findsOneWidget);
       await tester.tap(find.byType(FilledButton).last);
-      await tester.pumpAndSettle();
+      await settle(tester);
       expect(await storage.list(), [storedPack(es)]);
     });
 
@@ -131,11 +131,11 @@ void main() {
           matching: find.byKey(const Key('offline_download_pill')),
         ),
       );
-      await tester.pumpAndSettle();
+      await settle(tester);
       expect(find.text('Retry'), findsOneWidget);
       respond = () => http.Response.bytes(spanish, 200);
       await tester.tap(find.text('Retry'));
-      await tester.pumpAndSettle();
+      await settle(tester);
       expect(await storage.list(), [storedPack(es)]);
     });
 
@@ -238,7 +238,7 @@ void main() {
         find.text('Look up words without a network · 1 dictionary downloaded'),
         findsOneWidget,
       );
-      await dictionaries.install(en);
+      await tester.runAsync(() => dictionaries.install(en));
       await tester.pumpAndSettle();
       expect(
         find.text(

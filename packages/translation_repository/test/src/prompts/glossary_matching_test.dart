@@ -26,6 +26,29 @@ void main() {
         expect(occurs('Café', 'meet me at the cafe'), isTrue);
       });
 
+      test('matches acronyms only in their exact case', () {
+        expect(occurs('IT', 'Is it ready?'), isFalse);
+        expect(occurs('IT', 'Ask the IT department.'), isTrue);
+        expect(occurs('US', 'Tell us more.'), isFalse);
+        expect(occurs('US', 'Made in the US.'), isTrue);
+        expect(occurs('NASA', 'Nasa is no acronym here.'), isFalse);
+        expect(occurs('NASA', "NASA's rocket"), isTrue);
+      });
+
+      test('matches case-sensitive terms only in their exact case', () {
+        bool exact(String term, String text) =>
+            TranslationPrompts.glossaryMatches(
+              {term: 'x'},
+              text,
+              caseSensitive: {term},
+            ).isNotEmpty;
+        expect(exact('Apple', 'An apple a day.'), isFalse);
+        expect(exact('Apple', 'Apple shares rose.'), isTrue);
+        expect(exact('Apple', 'APPLE SHARES'), isFalse);
+        // Without the flag, case does not matter.
+        expect(occurs('Apple', 'An apple a day.'), isTrue);
+      });
+
       test('matches plurals and inflections', () {
         expect(occurs('cat', 'Two cats.'), isTrue);
         expect(occurs('box', 'Some boxes.'), isTrue);
@@ -173,13 +196,128 @@ void main() {
         '${text.substring(o.start, o.end)} -> ${o.rendering}',
     ];
 
-    test('finds every occurrence, inflected forms included', () {
-      expect(found({'Haus': 'house'}, 'Das Haus und die Häuser, HAUS.'), [
-        'Haus -> house',
-        'Häuser -> house',
-        'HAUS -> house',
+    test('finds every occurrence in any case, with a plural s or es', () {
+      expect(
+        found({'Haus': 'house'}, 'Das Haus, des Hauses, die Häuser, HAUS.'),
+        ['Haus -> house', 'Hauses -> house', 'HAUS -> house'],
+      );
+      expect(found({'server': 'serveur'}, 'Two servers, one Server.'), [
+        'servers -> serveur',
+        'Server -> serveur',
       ]);
-      expect(found({'cat': 'Katze'}, 'Cats and a category'), ['Cats -> Katze']);
+      expect(found({'class': 'classe'}, 'All classes.'), ['classes -> classe']);
+      // Terms of at most three letters get no ending.
+      expect(found({'cat': 'Katze'}, 'Cats and a category'), isEmpty);
+      expect(found({'cat': 'Katze'}, 'A cat, a CAT.'), [
+        'cat -> Katze',
+        'CAT -> Katze',
+      ]);
+    });
+
+    group('matches strictly', () {
+      test('acronyms: exact case only, no ending', () {
+        expect(found({'IT': 'TI'}, 'Is it ready? It is.'), isEmpty);
+        expect(found({'IT': 'TI'}, 'The IT department'), ['IT -> TI']);
+        expect(found({'IT': 'TI'}, 'ITs and ITEMS'), isEmpty);
+        expect(found({'US': 'EE. UU.'}, 'Tell us more, Us two.'), isEmpty);
+        expect(found({'US': 'EE. UU.'}, 'The US economy'), ['US -> EE. UU.']);
+        expect(found({'EU': 'UE'}, 'EU law, eu, Europe'), ['EU -> UE']);
+        expect(found({'B2B': 'B2B'}, 'b2b and B2B'), ['B2B -> B2B']);
+      });
+
+      test('whole words: no word that merely starts with the term', () {
+        expect(found({'Apple': 'Apple'}, 'He applied for it.'), isEmpty);
+        expect(found({'Paris': 'París'}, 'Parity in the parish.'), isEmpty);
+        expect(found({'car': 'coche'}, 'He cares for cars.'), isEmpty);
+        expect(found({'Mail': 'correo'}, 'Ich fahre nach Mailand.'), isEmpty);
+        expect(found({'Bank': 'banco'}, 'Ein Bankett.'), isEmpty);
+        expect(found({'art': 'arte'}, 'Start the party.'), isEmpty);
+        expect(found({'line': 'línea'}, 'A lineage.'), isEmpty);
+      });
+
+      test('ignores the case of other terms', () {
+        expect(
+          found({'glossary': 'glosario'}, 'Glossary: the glossary, GLOSSARY'),
+          [
+            'Glossary -> glosario',
+            'glossary -> glosario',
+            'GLOSSARY -> glosario',
+          ],
+        );
+        expect(found({'Paris': 'París'}, 'paris, Paris and PARIS.'), [
+          'paris -> París',
+          'Paris -> París',
+          'PARIS -> París',
+        ]);
+        expect(found({'Apple': 'Apple'}, 'An apple, two Apples.'), [
+          'apple -> Apple',
+          'Apples -> Apple',
+        ]);
+      });
+
+      test('case-sensitive terms: exact case, a lower-case ending', () {
+        List<String> exact(String text) => [
+          for (final o in TranslationPrompts.glossaryOccurrences(
+            {'Apple': 'Apple Inc.'},
+            text,
+            caseSensitive: {'Apple'},
+          ))
+            text.substring(o.start, o.end),
+        ];
+        expect(exact('An apple, Apple, Apples, APPLE, APPLEs'), [
+          'Apple',
+          'Apples',
+        ]);
+      });
+
+      test('phrases, possessives and terms with symbols', () {
+        expect(
+          found(
+            {'machine learning': 'ML'},
+            'Machine\n  learning and '
+            'machine-learning',
+          ),
+          ['Machine\n  learning -> ML'],
+        );
+        expect(found({'pull request': 'PR'}, 'two pull requests'), [
+          'pull requests -> PR',
+        ]);
+        expect(found({'Mozhi': 'Mozhi'}, "Mozhi's settings"), [
+          'Mozhi -> Mozhi',
+        ]);
+        expect(found({'C++': 'C++'}, 'C++ and C++11'), ['C++ -> C++']);
+        expect(found({'Node.js': 'Node'}, 'Runs on node.js.'), [
+          'node.js -> Node',
+        ]);
+        expect(found({'4K': '4K'}, 'A 4K screen, 4Ks'), ['4K -> 4K']);
+      });
+
+      test('accents must agree; decomposed ones are the same', () {
+        expect(found({'té': 'tea'}, 'Te quiero. Un té.'), ['té -> tea']);
+        expect(found({'résumé': 'CV'}, 'Resume the résumé.'), ['résumé -> CV']);
+        expect(found({'resume': 'reprendre'}, 'Resume the résumé.'), [
+          'Resume -> reprendre',
+        ]);
+        expect(found({'año': 'year'}, 'Un ano, un año'), ['año -> year']);
+        expect(found({'café': 'x'}, 'Cafe\u0301 or cafe'), ['Cafe\u0301 -> x']);
+        expect(found({'cafe\u0301': 'x'}, 'café or cafe'), ['café -> x']);
+        // Russian ё is often written as е.
+        expect(found({'берёза': 'birch'}, 'береза, берёза, бере\u0308за'), [
+          'береза -> birch',
+          'берёза -> birch',
+          'бере\u0308за -> birch',
+        ]);
+      });
+
+      test('is what glossaryMatches finds, minus its lenient guesses', () {
+        const glossary = {'Haus': 'house', 'IT': 'TI', 'Kraków': 'Cracow'};
+        const text = 'Häuser in Krakowie, it';
+        expect(TranslationPrompts.glossaryMatches(glossary, text).keys, [
+          'Haus',
+          'Kraków',
+        ]);
+        expect(found(glossary, text), isEmpty);
+      });
     });
 
     test('places longer terms first and never overlaps', () {

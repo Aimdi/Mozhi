@@ -134,8 +134,6 @@ class MemoryDictionaryPackStorage implements DictionaryPackStorage {
 
   final Map<String, (StoredDictionaryPack, Uint8List)> _packs = {};
 
-  List<String> get debugIds => _packs.keys.toList();
-
   /// Adds [bytes] as the installed pack [pack] (tests).
   void put(StoredDictionaryPack pack, Uint8List bytes) =>
       _packs[pack.id] = (pack, bytes);
