@@ -8,8 +8,9 @@ your phone or in your browser: there is no account, nothing is sent
 anywhere, and there are no streaks to keep up.
 
 Open it from the translate screen's **More tools** menu (**Practice**,
-with the number of cards due for review), or with **Practice** on a
-phrasebook collection to practise that collection alone.
+with the number of cards due for review), with **Practice** (the school
+cap) on a phrasebook collection to practise that collection alone, or from
+the settings (search for "practice", "flashcards" or "Anki").
 
 ## Cards
 

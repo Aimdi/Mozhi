@@ -84,8 +84,15 @@ class ShareLanguageState extends Equatable {
 /// * Otherwise the device's offline engine translates it when there is
 ///   one (it may not have the pair installed).
 /// * Otherwise nothing is sent: the language waits for the host's consent
-///   ([ShareLanguageMode.needsConsent]; [retry] after it) and the guests
-///   read the original.
+///   ([ShareLanguageMode.needsConsent], one language pair at a time;
+///   [retry] after it) and the guests read the original. What the host
+///   let through once and the retried turns did not use is withdrawn
+///   (`TranslationRepository.revokeOnce`) as soon as they all started or
+///   were dropped, so it can't let anything else through.
+///
+/// Only what guests can see is translated ([ensure]: the turns given, for
+/// the languages guests read now); the work for a language nobody reads
+/// any more stops at once.
 ///
 /// Answered translations by bring-your-own-key providers are counted with
 /// the `usageTracker` like the conversation's own. At most
@@ -113,6 +120,9 @@ class ShareTranslations {
 
   final Map<(int, String), _Job> _jobs = {};
   final List<_Job> _queue = [];
+
+  /// Turns the host let through once ([retry]) that have not started yet.
+  final List<_Grant> _grants = [];
   int _running = 0;
   bool _disposed = false;
   final _changes = StreamController<void>.broadcast();
@@ -123,8 +133,7 @@ class ShareTranslations {
   /// Whether [a] and [b] are the same language for the guests (variants
   /// of one language are not: `pt-BR` and `pt-PT` read differently).
   static bool sameLanguage(Language a, Language b) =>
-      LanguageMatcher.normalize(a.code).toLowerCase() ==
-      LanguageMatcher.normalize(b.code).toLowerCase();
+      _codeOf(a) == _codeOf(b);
 
   /// [turn] as guests reading [language] see it.
   ShareText textOf(ConversationTurn turn, Language language) {
@@ -161,19 +170,38 @@ class ShareTranslations {
     };
   }
 
-  /// Starts the translations [turns] still need for [languages] (the
-  /// guests' languages); forgets those of turns that are gone.
-  void ensure(List<ConversationTurn> turns, Iterable<Language> languages) {
+  /// Starts the translations [turns] (what guests can see) still need for
+  /// [languages] (what guests read now), and stops everything else: the
+  /// work for turns that are gone and for languages nobody reads any more
+  /// is cancelled, queued or running. Finished translations of [keep]
+  /// (languages read a moment ago) stay, so a guest coming back to one
+  /// does not have them translated again; nothing new starts for them.
+  void ensure(
+    List<ConversationTurn> turns,
+    Iterable<Language> languages, {
+    Iterable<Language> keep = const [],
+  }) {
     if (_disposed) return;
     final ids = {for (final turn in turns) turn.id};
-    final gone = [
-      for (final key in _jobs.keys)
-        if (!ids.contains(key.$1)) key,
+    final read = {for (final language in languages) _codeOf(language)};
+    final kept = {for (final language in keep) _codeOf(language)};
+    final dropped = [
+      for (final MapEntry(:key, value: job) in _jobs.entries)
+        if (!ids.contains(key.$1) ||
+            (!read.contains(key.$2) &&
+                !(kept.contains(key.$2) && job.status == _JobStatus.done)))
+          key,
     ];
-    for (final key in gone) {
-      unawaited(_jobs.remove(key)?.cancel());
+    final stopped = [for (final key in dropped) _jobs.remove(key)!];
+    // All marked first: freeing a running one's place must not start
+    // another one that is dropped too.
+    for (final job in stopped) {
+      job.cancelled = true;
     }
     _queue.removeWhere((job) => job.cancelled);
+    for (final job in stopped) {
+      unawaited(job.cancel());
+    }
     for (final turn in turns) {
       for (final language in languages) {
         if (sameLanguage(language, turn.source) ||
@@ -187,13 +215,27 @@ class ShareTranslations {
       }
     }
     _pump();
+    if (stopped.isNotEmpty) _notify();
   }
 
   /// The state of each extra language of [languages] for the host, in
-  /// that order (languages without translations yet are left out).
-  List<ShareLanguageState> languageStates(Iterable<Language> languages) => [
-    for (final language in languages) ?_stateOf(language),
-  ];
+  /// that order (languages without translations yet are left out), then
+  /// of any other language still being translated (there is none once
+  /// [ensure] stopped what nobody reads).
+  List<ShareLanguageState> languageStates(Iterable<Language> languages) {
+    final requested = languages.toList();
+    final others = <String, Language>{};
+    for (final job in _jobs.values) {
+      if (job.active &&
+          !requested.any((language) => sameLanguage(language, job.language))) {
+        others[_codeOf(job.language)] ??= job.language;
+      }
+    }
+    return [
+      for (final language in [...requested, ...others.values])
+        ?_stateOf(language),
+    ];
+  }
 
   ShareLanguageState? _stateOf(Language language) {
     final jobs = [
@@ -201,16 +243,22 @@ class ShareTranslations {
         if (sameLanguage(job.language, language)) job,
     ];
     if (jobs.isEmpty) return null;
+    final pending = jobs.where((job) => job.active).length;
     final waiting = [
       for (final job in jobs)
         if (job.status == _JobStatus.consent) job,
     ];
     if (waiting.isNotEmpty) {
+      // One pair at a time: an approval covers one pair only.
+      final consent = waiting.first.consent!;
       return ShareLanguageState(
         language: language,
         mode: ShareLanguageMode.needsConsent,
-        consent: waiting.last.consent,
-        waiting: waiting.length,
+        consent: consent,
+        waiting: waiting
+            .where((job) => _sameConsent(job.consent, consent))
+            .length,
+        pending: pending,
       );
     }
     final finished = [
@@ -222,6 +270,7 @@ class ShareTranslations {
       return ShareLanguageState(
         language: language,
         mode: ShareLanguageMode.engine,
+        pending: pending,
       );
     }
     final last = finished.last;
@@ -232,24 +281,34 @@ class ShareTranslations {
           : last.onDevice
           ? ShareLanguageMode.onDevice
           : ShareLanguageMode.engine,
+      pending: pending,
     );
   }
 
-  /// Translates again the turns of [language] that waited for the host's
-  /// consent, which the host just gave (the repository lets through what
-  /// the consent covers; turns it does not cover wait again).
-  void retry(Language language) {
+  /// Translates again the turns of [language] that waited for [consent]
+  /// (by default the one its [ShareLanguageState] shows), which the host
+  /// just gave: the repository lets through what the consent covers;
+  /// turns it does not cover wait again. Once all of them started (or
+  /// were dropped), what the consent would still let through is
+  /// withdrawn.
+  void retry(Language language, {ConsentRequiredException? consent}) {
     if (_disposed) return;
+    final granted = consent ?? _stateOf(language)?.consent;
+    if (granted == null) return;
+    final jobs = <_Job>[];
     for (final job in _jobs.values) {
       if (job.status == _JobStatus.consent &&
-          sameLanguage(job.language, language)) {
+          sameLanguage(job.language, language) &&
+          _sameConsent(job.consent, granted)) {
         job
           ..status = _JobStatus.queued
           ..forced = true
           ..consent = null;
         _queue.add(job);
+        jobs.add(job);
       }
     }
+    _grants.add(_Grant(granted, jobs));
     _notify();
     _pump();
   }
@@ -260,12 +319,31 @@ class ShareTranslations {
     _queue.clear();
     final jobs = _jobs.values.toList();
     _jobs.clear();
+    for (final job in jobs) {
+      job.cancelled = true;
+    }
+    _settleGrants();
     await Future.wait([for (final job in jobs) job.cancel()]);
     await _changes.close();
   }
 
+  static String _codeOf(Language language) =>
+      LanguageMatcher.normalize(language.code).toLowerCase();
+
   static (int, String) _key(int turnId, Language language) =>
-      (turnId, LanguageMatcher.normalize(language.code).toLowerCase());
+      (turnId, _codeOf(language));
+
+  /// Whether [a] is the same consent as [b] (what one approval covers).
+  static bool _sameConsent(
+    ConsentRequiredException? a,
+    ConsentRequiredException b,
+  ) =>
+      a != null &&
+      a.kind == b.kind &&
+      a.engineId == b.engineId &&
+      a.destination == b.destination &&
+      a.source == b.source &&
+      a.target == b.target;
 
   void _notify() {
     if (!_disposed) _changes.add(null);
@@ -276,6 +354,30 @@ class ShareTranslations {
       final job = _queue.removeAt(0);
       if (job.cancelled || job.status != _JobStatus.queued) continue;
       _start(job);
+    }
+    _settleGrants();
+  }
+
+  /// Withdraws the one-off approvals whose turns all started or were
+  /// dropped (the repository checks the approval when a request starts),
+  /// unless another retry of the same consent still waits for it.
+  void _settleGrants() {
+    if (_grants.isEmpty) return;
+    final settled = [
+      for (final grant in _grants)
+        if (_disposed || grant.settled) grant,
+    ];
+    if (settled.isEmpty) return;
+    _grants.removeWhere(settled.contains);
+    for (final grant in settled) {
+      if (_grants.any((other) => _sameConsent(other.consent, grant.consent))) {
+        continue;
+      }
+      try {
+        _repository.revokeOnce(grant.consent);
+      } on Object {
+        // Withdrawing must never break the sharing.
+      }
     }
   }
 
@@ -471,6 +573,11 @@ class _Job {
   /// Frees the translation's place in the queue (once).
   void Function()? onStop;
 
+  /// Queued or running.
+  bool get active =>
+      !cancelled &&
+      (status == _JobStatus.queued || status == _JobStatus.running);
+
   Future<void> cancel() async {
     cancelled = true;
     final stop = onStop;
@@ -478,4 +585,16 @@ class _Job {
     stop?.call();
     await subscription?.cancel();
   }
+}
+
+/// What the host let through once for [consent], for [jobs].
+class _Grant {
+  new(this.consent, this.jobs);
+
+  final ConsentRequiredException consent;
+  final List<_Job> jobs;
+
+  /// Every job started (and so used the approval, or did not need it) or
+  /// was dropped.
+  bool get settled => jobs.every((job) => job.cancelled || !job.forced);
 }
