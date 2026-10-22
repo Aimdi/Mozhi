@@ -58,7 +58,9 @@ void main() {
   }
 
   group('ProofreadComposerBar', () {
-    testWidgets('is [options | go | language]', (tester) async {
+    testWidgets('is [options | language | go], like every composer', (
+      tester,
+    ) async {
       await pumpBar(tester, readyState.copyWith(input: 'text'));
 
       final options = tester.getCenter(
@@ -68,8 +70,16 @@ void main() {
       final language = tester.getCenter(
         find.byKey(const Key('proofread_language_button')),
       );
-      expect(options.dx, lessThan(go.dx));
-      expect(go.dx, lessThan(language.dx));
+      expect(options.dx, lessThan(language.dx));
+      expect(language.dx, lessThan(go.dx));
+      // The language button looks like the other composers' (a chevron).
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('proofread_language_button')),
+          matching: find.byIcon(Icons.expand_more),
+        ),
+        findsOneWidget,
+      );
       for (final key in [
         'proofread_options_button',
         'proofread_button',

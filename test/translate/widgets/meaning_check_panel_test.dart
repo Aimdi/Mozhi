@@ -413,7 +413,9 @@ void main() {
       /// The focus node of the button found by [key].
       FocusNode focusOf(WidgetTester tester, Key key) => Focus.of(
         tester.element(
-          find.descendant(of: find.byKey(key), matching: find.byType(Icon)),
+          find
+              .descendant(of: find.byKey(key), matching: find.byType(Icon))
+              .first,
         ),
       );
 
@@ -663,7 +665,7 @@ void main() {
         ),
       );
       await harness.pump(tester, child: const OutputCard(), more: true);
-      final button = tester.widget<TranslateToolChip>(
+      final button = tester.widget<TranslateToolRow>(
         find.byKey(const Key('translate_meaning_button')),
       );
       expect(button.onPressed, isNull);
@@ -672,7 +674,14 @@ void main() {
     testWidgets('hides a shown check', (tester) async {
       final harness = _harness(_checked());
       await harness.pump(tester, child: const OutputCard(), more: true);
-      expect(find.byTooltip('Hide meaning check'), findsOneWidget);
+      expect(
+        tester
+            .widget<TranslateToolRow>(
+              find.byKey(const Key('translate_meaning_button')),
+            )
+            .selected,
+        isTrue,
+      );
       await tester.tap(find.byKey(const Key('translate_meaning_button')));
       verify(harness.translate.clearMeaningCheck).called(1);
       verifyNever(

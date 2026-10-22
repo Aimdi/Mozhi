@@ -10,9 +10,15 @@ import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/data/bergamot_model_details.dart'
     show offlineModelDetailsOf;
+import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/translate/widgets/instance_switcher.dart'
+    show currentInstanceUrl;
 import 'package:mozhi/translate/widgets/offline_offer.dart';
 import 'package:mozhi/translate/widgets/offline_only_notice.dart';
+import 'package:mozhi/translate/widgets/translate_error_offline_io.dart'
+    if (dart.library.js_interop) 'package:mozhi/translate/widgets/translate_error_offline_web.dart'
+    as platform;
 import 'package:translation_repository/translation_repository.dart';
 
 /// Where the user can go to fix an error.
@@ -27,10 +33,20 @@ class TranslateErrorInfo {
     this.offlineModels = false,
     this.chooseSourceLanguage = false,
     this.consent,
+    this.title,
+    this.anotherInstanceMayHelp = false,
   });
 
   final String message;
   final TranslateErrorFix fix;
+
+  /// A short title above [message] (e.g. "Couldn't connect"); null when
+  /// the message says it all.
+  final String? title;
+
+  /// A Mozhi instance failed in a way another instance of the user's list
+  /// may not (it is down, overloaded, its engine broke).
+  final bool anotherInstanceMayHelp;
 
   /// The privacy settings stopped the request before anything was sent:
   /// ask for consent (e.g. with `askConsent`) instead of retrying.
@@ -125,7 +141,28 @@ TranslateErrorInfo describeTranslateError(
     offlineModels: info.offlineModels,
     chooseSourceLanguage: info.chooseSourceLanguage,
     details: details == null || details == info.message ? null : details,
+    title: _titleOf(l10n, error, info),
+    anotherInstanceMayHelp: info.anotherInstanceMayHelp,
   );
+}
+
+/// The short title of [error] described by [info]: what kind of problem
+/// it is, so the message can say what to do.
+String? _titleOf(
+  AppLocalizations l10n,
+  Object? error,
+  TranslateErrorInfo info,
+) {
+  if (info.chooseSourceLanguage) return l10n.translateErrorTitleLanguage;
+  if (info.offlineModels) return l10n.translateErrorTitleDownload;
+  if (isNetworkFailure(error)) return l10n.translateErrorTitleConnection;
+  return switch (error) {
+    LlmApiException() ||
+    LlmRefusalException() ||
+    MtApiException() => l10n.translateErrorTitleProvider,
+    MozhiApiException() => l10n.translateErrorTitleInstance,
+    _ => null,
+  };
 }
 
 String _languageName(String code) => LanguageCatalog.byCode(code)?.name ?? code;
@@ -191,10 +228,16 @@ TranslateErrorInfo _describeMozhi(
   final status = error.statusCode;
   final host = error.uri?.host ?? '';
   if (status == 429 || _rateLimited.hasMatch(message)) {
-    return TranslateErrorInfo(l10n.translateErrorRateLimited);
+    return TranslateErrorInfo(
+      l10n.translateErrorRateLimited,
+      anotherInstanceMayHelp: true,
+    );
   }
   if (_engineUnavailable.hasMatch(message)) {
-    return TranslateErrorInfo(l10n.translateErrorEngineUnavailable);
+    return TranslateErrorInfo(
+      l10n.translateErrorEngineUnavailable,
+      anotherInstanceMayHelp: true,
+    );
   }
   if (_targetInvalid.hasMatch(message)) {
     return TranslateErrorInfo(l10n.translateErrorTargetUnsupported);
@@ -203,13 +246,17 @@ TranslateErrorInfo _describeMozhi(
     return TranslateErrorInfo(l10n.translateErrorSourceUnsupported);
   }
   if (_crashed.hasMatch(message)) {
-    return TranslateErrorInfo(l10n.translateErrorEngineCrashed);
+    return TranslateErrorInfo(
+      l10n.translateErrorEngineCrashed,
+      anotherInstanceMayHelp: true,
+    );
   }
   if (status != null && _upstream.hasMatch(raw)) {
     return TranslateErrorInfo(
       host.isEmpty
           ? l10n.translateErrorUpstream
           : l10n.translateErrorUpstreamHost(host),
+      anotherInstanceMayHelp: true,
     );
   }
   if (status == 413 ||
@@ -219,17 +266,22 @@ TranslateErrorInfo _describeMozhi(
     return TranslateErrorInfo(l10n.translateErrorTooLong);
   }
   if (_emptyResult.hasMatch(message)) {
-    return TranslateErrorInfo(l10n.translateErrorEmptyResult);
+    return TranslateErrorInfo(
+      l10n.translateErrorEmptyResult,
+      anotherInstanceMayHelp: true,
+    );
   }
   if (status == null) {
     return TranslateErrorInfo(
       l10n.translateErrorUnreachableInstance,
       fix: TranslateErrorFix.instances,
+      anotherInstanceMayHelp: true,
     );
   }
   return TranslateErrorInfo(
     l10n.translateErrorInstance('$status'),
     fix: TranslateErrorFix.instances,
+    anotherInstanceMayHelp: true,
   );
 }
 
@@ -272,13 +324,87 @@ String _redactUrl(String url) {
   return '${uri.scheme}://${uri.host}${rest ? '/…' : ''}';
 }
 
-/// Error message with a retry button and, when useful, a shortcut to the
-/// relevant settings page and an expandable "Details" section. A
-/// [ConsentRequiredException] is shown as a [ConsentInlinePrompt] instead
-/// (its actions record the consent, then `onRetry` runs); one of
+/// Whether the device has no network connection right now: the browser's
+/// `navigator.onLine`, else none of the device's network interfaces has
+/// an address. Asks the platform only (nothing is sent); tests replace it.
+@visibleForTesting
+Future<bool> Function() deviceOfflineCheck = platform.deviceSeemsOffline;
+
+/// The engine to offer after the Translate screen's translation with
+/// `state.engine` failed: the first other engine of [state] that the
+/// automatic fallback of `TranslateCubit` could use too, so text never
+/// goes anywhere the user has not already allowed for this language
+/// pair. That is an engine that is not the on-device one (it has its own
+/// offer, [OfflinePairOffer]), not a cloud provider, and that the privacy
+/// settings allow for the pair without a new consent
+/// ([TranslationRepository.needsConsent]). Null when there is none, or
+/// without a [repository] to ask.
+TranslationEngine? translateAlternativeEngine(
+  TranslateState state,
+  TranslationRepository? repository,
+) {
+  final failed = state.engine;
+  if (failed == null || repository == null) return null;
+  bool cloud(TranslationEngine engine) {
+    try {
+      return repository.destinationOf(engine.id) is CloudProviderDestination;
+    } on Object {
+      return (engine.isAi || engine.isMt) && !engine.isLocal;
+    }
+  }
+
+  bool allowed(TranslationEngine engine) {
+    try {
+      return !repository.needsConsent(
+        engine,
+        source: state.source,
+        target: state.target,
+      );
+    } on Object {
+      return false;
+    }
+  }
+
+  for (final engine in state.engines) {
+    if (engine.id == failed.id || engine.isOffline) continue;
+    if (!cloud(engine) && allowed(engine)) return engine;
+  }
+  return null;
+}
+
+/// The instance after the one in use ([current]) in [instances], wrapping
+/// around; null with fewer than two.
+String? nextInstanceUrl(String? current, List<MozhiInstance> instances) {
+  if (instances.length < 2) return null;
+  final index = instances.indexWhere((i) => i.url == current);
+  return instances[(index + 1) % instances.length].url;
+}
+
+/// An error with a way forward: a short error-coloured title ("Couldn't
+/// connect", "AI provider problem", [TranslateErrorInfo.title]) above the
+/// message in normal text, then the actions. When the device has no
+/// network ([deviceOfflineCheck], checked for network failures) it says
+/// "You're offline" instead.
+///
+/// A [ConsentRequiredException] is shown as a [ConsentInlinePrompt]
+/// instead (its actions record the consent, then `onRetry` runs); one of
 /// [ConsentKind.offlineOnly] as an [OfflineOnlyNotice] when the device has
 /// nothing to translate with either (no on-device engine, no language
 /// pack).
+///
+/// For the Translate screen's own translation (the [TranslateCubit]
+/// above has [error]; not [dense]) the main action is a one-tap
+/// alternative when there is one, with Retry next to it:
+///
+/// * an AI provider or translation service failed: "Translate with
+///   Google", an engine the user already allowed for the language pair
+///   ([translateAlternativeEngine], chosen with
+///   `TranslateCubit.selectEngine`);
+/// * a Mozhi instance failed in a way another may not
+///   ([TranslateErrorInfo.anotherInstanceMayHelp]) and the user has more
+///   than one: "Try next instance", which makes the next instance of
+///   their list the preferred one (`SettingsCubit.preferInstance`) and
+///   translates again. Their consent covers every instance of the list.
 ///
 /// Missing offline models are offered as "Download German (25 MB)" (the
 /// size when the device's offline engine knows it), which opens the
@@ -357,6 +483,11 @@ class TranslateErrorView extends StatelessWidget {
           ? OfflineOnlyNotice(consent: consent, fallback: prompt)
           : prompt;
     }
+    if (!isNetworkFailure(error)) return _build(context, offline: false);
+    return _DeviceOffline(key: ObjectKey(error), builder: _build);
+  }
+
+  Widget _build(BuildContext context, {required bool offline}) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final info = describeTranslateError(l10n, error);
@@ -383,7 +514,8 @@ class TranslateErrorView extends StatelessWidget {
         fixRoute != null &&
         fixLabel != null &&
         !dense &&
-        switchInstance == null;
+        switchInstance == null &&
+        !offline;
     final chooseSource = info.chooseSourceLanguage
         ? onChooseSourceLanguage
         : null;
@@ -398,6 +530,11 @@ class TranslateErrorView extends StatelessWidget {
       ),
       _ => null,
     };
+    // Another engine or instance (none while the device is offline: they
+    // need the network too; the on-device engine has its own offer).
+    final alternative = chooseSource != null || offline || dense
+        ? null
+        : _alternative(context, info);
     // Retrying a detection that found nothing to go on (no failed request
     // behind it) fails the same way: choosing the language is the way out.
     final retry = switch (error) {
@@ -405,7 +542,24 @@ class TranslateErrorView extends StatelessWidget {
         null,
       _ => onRetry,
     };
+    final title = offline ? l10n.translateErrorTitleOffline : info.title;
+    final message = offline ? l10n.translateErrorOfflineBody : info.message;
     final details = info.details;
+    final retryButton = retry == null
+        ? null
+        : chooseSource != null || alternative != null
+        ? TextButton.icon(
+            key: const Key('translate_error_retry'),
+            onPressed: retry,
+            icon: const Icon(Icons.refresh),
+            label: Text(l10n.commonRetry, semanticsLabel: retrySemanticsLabel),
+          )
+        : FilledButton.tonalIcon(
+            key: const Key('translate_error_retry'),
+            onPressed: retry,
+            icon: const Icon(Icons.refresh),
+            label: Text(l10n.commonRetry, semanticsLabel: retrySemanticsLabel),
+          );
     return Column(
       key: const Key('translate_error_view'),
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -414,19 +568,37 @@ class TranslateErrorView extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.error_outline, color: theme.colorScheme.error),
+            Icon(
+              offline ? Icons.wifi_off_rounded : Icons.error_outline,
+              color: theme.colorScheme.error,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Semantics(
                 liveRegion: true,
-                child: Text(
-                  info.message,
-                  key: const Key('translate_error_message'),
-                  style:
-                      (dense
-                              ? theme.textTheme.bodyMedium
-                              : theme.textTheme.bodyLarge)
-                          ?.copyWith(color: theme.colorScheme.error),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: 2,
+                  children: [
+                    if (title != null && !dense)
+                      Text(
+                        title,
+                        key: const Key('translate_error_title'),
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          color: theme.colorScheme.error,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    Text(
+                      message,
+                      key: const Key('translate_error_message'),
+                      style:
+                          (dense
+                                  ? theme.textTheme.bodyMedium
+                                  : theme.textTheme.bodyLarge)
+                              ?.copyWith(color: theme.colorScheme.onSurface),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -434,6 +606,7 @@ class TranslateErrorView extends StatelessWidget {
         ),
         if (retry != null ||
             chooseSource != null ||
+            alternative != null ||
             showFix ||
             switchInstance != null ||
             details != null) ...[
@@ -465,26 +638,14 @@ class TranslateErrorView extends StatelessWidget {
                     icon: const Icon(Icons.language),
                     label: Text(l10n.translateChooseSourceLanguage),
                   ),
-                if (retry != null)
-                  TextButton.icon(
-                    key: const Key('translate_error_retry'),
-                    onPressed: retry,
-                    icon: const Icon(Icons.refresh),
-                    label: Text(
-                      l10n.commonRetry,
-                      semanticsLabel: retrySemanticsLabel,
-                    ),
-                  ),
-              ] else if (retry != null)
+              ] else if (alternative != null)
                 FilledButton.tonalIcon(
-                  key: const Key('translate_error_retry'),
-                  onPressed: retry,
-                  icon: const Icon(Icons.refresh),
-                  label: Text(
-                    l10n.commonRetry,
-                    semanticsLabel: retrySemanticsLabel,
-                  ),
+                  key: alternative.key,
+                  onPressed: alternative.onPressed,
+                  icon: Icon(alternative.icon),
+                  label: Text(alternative.label),
                 ),
+              ?retryButton,
               if (switchInstance != null)
                 TextButton.icon(
                   key: const Key('translate_error_switch_instance'),
@@ -505,6 +666,83 @@ class TranslateErrorView extends StatelessWidget {
         if (details != null) TranslateErrorDetails(details: details),
       ],
     );
+  }
+
+  /// The [TranslateCubit] above when its translation failed with [error]
+  /// (the Translate screen's own error), else null.
+  TranslateCubit? _translateOf(BuildContext context) {
+    try {
+      final cubit = context.read<TranslateCubit>();
+      return identical(cubit.state.error, error) ? cubit : null;
+    } on ProviderNotFoundException {
+      return null;
+    }
+  }
+
+  /// "Translate with Google" or "Try next instance" for the Translate
+  /// screen's failed translation (see the class docs), or null.
+  ({Key key, String label, IconData icon, VoidCallback onPressed})?
+  _alternative(BuildContext context, TranslateErrorInfo info) {
+    final cubit = _translateOf(context);
+    final failed = cubit?.state.engine;
+    if (cubit == null || failed == null) return null;
+    final l10n = context.l10n;
+    if (error is MozhiApiException && failed.isMozhi) {
+      if (!info.anotherInstanceMayHelp) return null;
+      final SettingsCubit settings;
+      try {
+        settings = context.read<SettingsCubit>();
+      } on ProviderNotFoundException {
+        return null;
+      }
+      final instances = settings.state.instances;
+      final next = nextInstanceUrl(
+        currentInstanceUrl(context, instances),
+        instances,
+      );
+      if (next == null) return null;
+      return (
+        key: const Key('translate_error_next_instance'),
+        label: l10n.translateErrorTryNextInstance,
+        icon: Icons.dns_outlined,
+        onPressed: () => unawaited(_tryInstance(settings, cubit, next)),
+      );
+    }
+    if (!failed.isAi && !failed.isMt) return null;
+    final engine = translateAlternativeEngine(
+      cubit.state,
+      _repositoryOf(context),
+    );
+    if (engine == null) return null;
+    return (
+      key: const Key('translate_error_use_engine'),
+      label: l10n.translateErrorUseEngine(engine.name),
+      icon: Icons.translate,
+      onPressed: () => unawaited(cubit.selectEngine(engine)),
+    );
+  }
+
+  /// Makes [url] the preferred instance and translates again once the app
+  /// handed the new order to the repository (like `switchInstanceAndRetry`).
+  static Future<void> _tryInstance(
+    SettingsCubit settings,
+    TranslateCubit cubit,
+    String url,
+  ) async {
+    settings.preferInstance(url);
+    // The app applies the new order to the repository when the settings
+    // stream delivers it (a microtask): retry after that.
+    await Future<void>.delayed(Duration.zero);
+    if (cubit.isClosed) return;
+    await cubit.translate();
+  }
+
+  static TranslationRepository? _repositoryOf(BuildContext context) {
+    try {
+      return context.read<TranslationRepository>();
+    } on ProviderNotFoundException {
+      return null;
+    }
   }
 
   /// The [OfflinePairOffer] for a network failure of the translation of
@@ -553,6 +791,41 @@ class TranslateErrorView extends StatelessWidget {
         ),
     ]);
   }
+}
+
+/// Builds with whether the device is offline ([deviceOfflineCheck], asked
+/// once when it is first built; false until it answers).
+class _DeviceOffline extends StatefulWidget {
+  const new({required this.builder, super.key});
+
+  final Widget Function(BuildContext context, {required bool offline}) builder;
+
+  @override
+  State<_DeviceOffline> createState() => _DeviceOfflineState();
+}
+
+class _DeviceOfflineState extends State<_DeviceOffline> {
+  bool _offline = false;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_check());
+  }
+
+  Future<void> _check() async {
+    bool offline;
+    try {
+      offline = await deviceOfflineCheck();
+    } on Object {
+      offline = false;
+    }
+    if (mounted && offline != _offline) setState(() => _offline = offline);
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      widget.builder(context, offline: _offline);
 }
 
 /// "Details" toggle revealing the sanitized technical message.

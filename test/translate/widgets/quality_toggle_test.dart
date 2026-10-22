@@ -60,11 +60,16 @@ void main() {
       expect(find.bySemanticsLabel('Quality mode'), findsOneWidget);
     });
 
-    testWidgets('offers only the configured mode', (tester) async {
+    testWidgets('shows nothing until Fast and Best are set up', (tester) async {
       final harness = _harness(_state(fast: false));
       await harness.pump(tester, child: const QualityToggle());
-      expect(find.text('Fast'), findsNothing);
-      expect(find.text('Best'), findsOneWidget);
+      expect(_toggle, findsNothing);
+      // The same engine for both modes is no choice either.
+      harness.setState(
+        _state(mode: QualityMode.fast).copyWith(bestEngine: () => google),
+      );
+      await harness.pump(tester, child: const QualityToggle(key: Key('same')));
+      expect(_toggle, findsNothing);
     });
 
     testWidgets('selecting a mode calls setQualityMode', (tester) async {
@@ -78,15 +83,21 @@ void main() {
           .called(1);
     });
 
-    testWidgets('tapping the selected mode turns it off', (tester) async {
+    testWidgets('one mode is always selected: tapping it changes nothing', (
+      tester,
+    ) async {
       final harness = _harness(_state(mode: QualityMode.fast));
       await harness.pump(tester, child: const QualityToggle());
       final toggle = tester.widget<SegmentedButton<QualityMode>>(_toggle);
       expect(toggle.selected, {QualityMode.fast});
+      expect(toggle.emptySelectionAllowed, isFalse);
       // The check mark shows the selection without relying on colour.
       expect(find.byIcon(Icons.check), findsOneWidget);
       await tester.tap(find.text('Fast'));
-      verify(() => harness.translate.setQualityMode(QualityMode.off)).called(1);
+      verifyNever(() => harness.translate.setQualityMode(any()));
+      await tester.tap(find.text('Best'));
+      verify(() => harness.translate.setQualityMode(QualityMode.best))
+          .called(1);
     });
 
     testWidgets('compact shows icons with spoken names', (tester) async {
@@ -138,9 +149,10 @@ void main() {
       return harness;
     }
 
-    testWidgets('lists the modes with their engines', (tester) async {
+    testWidgets('lists Fast and Best with their engines', (tester) async {
       await open(tester, _state(mode: QualityMode.best));
-      expect(find.text('Usual engine'), findsOneWidget);
+      expect(find.text('Usual engine'), findsNothing);
+      expect(find.byKey(const ValueKey('translate_quality_off')), findsNothing);
       expect(find.text('Fast'), findsOneWidget);
       expect(find.text('Google'), findsOneWidget);
       expect(find.text('Best'), findsOneWidget);
@@ -149,22 +161,19 @@ void main() {
         find.byKey(const ValueKey('translate_quality_best')),
       );
       expect(best.checked, isTrue);
-      final off = tester.widget<CheckedPopupMenuItem<QualityMode>>(
-        find.byKey(const ValueKey('translate_quality_off')),
-      );
-      expect(off.checked, isFalse);
     });
 
     testWidgets('choosing a mode calls setQualityMode', (tester) async {
       final harness = await open(tester, _state(mode: QualityMode.best));
-      await tester.tap(find.byKey(const ValueKey('translate_quality_off')));
+      await tester.tap(find.byKey(const ValueKey('translate_quality_fast')));
       await tester.pumpAndSettle();
-      verify(() => harness.translate.setQualityMode(QualityMode.off)).called(1);
+      verify(() => harness.translate.setQualityMode(QualityMode.fast))
+          .called(1);
     });
 
     testWidgets('choosing the current mode does nothing', (tester) async {
-      final harness = await open(tester, _state());
-      await tester.tap(find.byKey(const ValueKey('translate_quality_off')));
+      final harness = await open(tester, _state(mode: QualityMode.fast));
+      await tester.tap(find.byKey(const ValueKey('translate_quality_fast')));
       await tester.pumpAndSettle();
       verifyNever(() => harness.translate.setQualityMode(any()));
     });
@@ -178,7 +187,7 @@ void main() {
       expect(find.byTooltip('Quality mode: Fast'), findsOneWidget);
       expect(find.byIcon(Icons.bolt), findsOneWidget);
 
-      harness.setState(_state());
+      harness.setState(_state(mode: QualityMode.best));
       await harness.pump(
         tester,
         child: const QualityToggle(
@@ -186,13 +195,14 @@ void main() {
           layout: QualityToggleLayout.menu,
         ),
       );
-      expect(find.byTooltip('Quality mode: Usual engine'), findsOneWidget);
-      expect(find.byIcon(Icons.speed), findsOneWidget);
+      expect(find.byTooltip('Quality mode: Best'), findsOneWidget);
+      expect(find.byIcon(Icons.workspace_premium_outlined), findsOneWidget);
     });
 
     test('translateQualityLabel', () async {
       final l10n = await AppLocalizations.delegate.load(const Locale('en'));
-      expect(translateQualityLabel(l10n, QualityMode.off), 'Usual engine');
+      // The usual engine is no mode of its own any more.
+      expect(translateQualityLabel(l10n, QualityMode.off), 'Quality mode');
       expect(translateQualityLabel(l10n, QualityMode.fast), 'Fast');
       expect(translateQualityLabel(l10n, QualityMode.best), 'Best');
     });
@@ -207,13 +217,21 @@ void main() {
       expect(chip(), findsNothing);
     });
 
-    testWidgets('shows the mode with its icon', (tester) async {
+    testWidgets('shows the mode with its icon and engine', (tester) async {
       final harness = _harness(_state(mode: QualityMode.fast));
       await harness.pump(tester, child: const QualityChip());
       expect(
-        find.descendant(of: chip(), matching: find.text('Fast')),
+        find.descendant(of: chip(), matching: find.text('Fast · Google')),
         findsOneWidget,
       );
+      // The engine is secondary text.
+      final label = tester.widget<Text>(
+        find.byKey(const Key('translate_quality_chip_label')),
+      );
+      final span = label.textSpan! as TextSpan;
+      final engine = span.children!.single as TextSpan;
+      expect(engine.text, ' · Google');
+      expect(engine.style?.color, isNotNull);
       expect(
         find.descendant(of: chip(), matching: find.byIcon(Icons.bolt)),
         findsOneWidget,
@@ -222,7 +240,7 @@ void main() {
 
       harness.setState(_state(mode: QualityMode.best));
       await harness.pump(tester, child: const QualityChip(key: Key('best')));
-      expect(find.text('Best'), findsOneWidget);
+      expect(find.text('Best · Claude'), findsOneWidget);
       expect(find.byIcon(Icons.workspace_premium_outlined), findsOneWidget);
     });
 
@@ -239,7 +257,7 @@ void main() {
       );
       await harness.pump(tester, child: const QualityChip());
       await tester.pump();
-      expect(find.text('Best'), findsOneWidget);
+      expect(find.text('Best · Claude'), findsOneWidget);
       expect(find.byTooltip('Quality mode: Best'), findsOneWidget);
     });
 
@@ -264,7 +282,7 @@ void main() {
       await harness.pump(tester, child: const QualityChip());
       await tester.tap(chip());
       await tester.pumpAndSettle();
-      expect(find.text('Usual engine'), findsOneWidget);
+      expect(find.text('Usual engine'), findsNothing);
       expect(find.text('Google'), findsOneWidget);
       expect(find.text('Claude'), findsOneWidget);
       final best = tester.widget<CheckedPopupMenuItem<QualityMode>>(
@@ -325,7 +343,8 @@ void main() {
         find.byKey(const Key('translate_engine_selector')),
       );
       final toggle = tester.getRect(_toggle);
-      expect(toggle.left, greaterThanOrEqualTo(selector.right));
+      // Fast | Best is the primary engine control: it comes first.
+      expect(toggle.right, lessThanOrEqualTo(selector.left));
     });
 
     testWidgets('uses the menu on narrow phones', (tester) async {

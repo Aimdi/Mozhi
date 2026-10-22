@@ -13,11 +13,18 @@ import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/view/widgets/insecure_http_warning.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-/// Step 4 (optional, the last one): the online service for languages that
-/// are not on the device: the bundled public Mozhi instances (none behind
-/// Cloudflare; the first one is used) with "find the fastest", or the
-/// user's own instance. Ends with a note that AI providers can be added in
-/// the settings ([onOpenAiSettings] opens them).
+/// The last step: the online service. On a device that translates on its
+/// own it is for the languages that are not on the device ("Optional");
+/// where the device can't (the web) it is how Mozhi translates, so the
+/// badge is left out and a switch keeps the privacy choice ("Ask before
+/// sending text", off: [PrivacyMode.online], see `OnboardingCubit`).
+///
+/// One row says which server is used ("Using mozhi.example · Change"); the
+/// bundled public Mozhi instances (run by volunteers) are behind
+/// "Change". "Find the fastest server" measures them, but only when
+/// tapped: it contacts every listed server, so it is never automatic.
+/// Then the user's own instance, and a note that AI providers can be
+/// added in the settings ([onOpenAiSettings] opens them).
 class ServiceStep extends StatelessWidget {
   const new({this.onOpenAiSettings, super.key});
 
@@ -32,14 +39,21 @@ class ServiceStep extends StatelessWidget {
     final offlineOnly = context.select<SettingsCubit, bool>(
       (c) => c.state.privacyMode == PrivacyMode.offlineOnly,
     );
+    final onDevice = context.select<OnboardingCubit, bool>(
+      (c) => c.state.onDevice,
+    );
     return OnboardingStepLayout(
       icon: Icons.dns_outlined,
       title: l10n.onboardingOnlineTitle,
-      titleTrailing: OnboardingBadge(
-        label: l10n.onboardingAiOptional,
-        color: colors.secondary,
-      ),
-      subtitle: l10n.onboardingOnlineBody,
+      titleTrailing: onDevice
+          ? OnboardingBadge(
+              label: l10n.onboardingAiOptional,
+              color: colors.secondary,
+            )
+          : null,
+      subtitle: onDevice
+          ? l10n.onboardingServiceBody
+          : l10n.onboardingServiceBodyNoDevice,
       children: [
         if (offlineOnly) ...[
           OnboardingNote(
@@ -51,12 +65,154 @@ class ServiceStep extends StatelessWidget {
           ),
           const SizedBox(height: 16),
         ],
-        const _FindFastest(),
-        const SizedBox(height: 8),
-        const _InstanceList(),
+        if (!onDevice) ...[
+          const _AskBeforeSending(),
+          const SizedBox(height: 8),
+        ],
+        const ServerChoice(),
         const SizedBox(height: 24),
         const OwnInstanceForm(),
         _AiLater(onOpenAiSettings: onOpenAiSettings),
+      ],
+    );
+  }
+}
+
+/// "Ask before sending text" on a device without an on-device engine: the
+/// privacy step's choice in one switch (on: Offline first, off: Online).
+class _AskBeforeSending extends StatelessWidget {
+  const new();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final ask = context.select<SettingsCubit, bool>(
+      (c) => c.state.privacyMode != PrivacyMode.online,
+    );
+    return SwitchListTile(
+      key: const Key('onboarding_ask_before_sending'),
+      contentPadding: EdgeInsets.zero,
+      secondary: const Icon(Icons.shield_outlined),
+      title: Text(l10n.onboardingServiceAskFirst),
+      subtitle: Text(l10n.onboardingServiceAskFirstBody),
+      value: ask,
+      onChanged: (value) =>
+          context.read<OnboardingCubit>().setAskBeforeSending(ask: value),
+    );
+  }
+}
+
+/// The server Mozhi uses first, in one row: "Using mozhi.example" with its
+/// address (and its speed once measured), "Change" opening the list of
+/// the configured instances to pick another
+/// ([OnboardingCubit.selectInstance]), and below it "Find the fastest
+/// server" ([OnboardingCubit.findFastestInstance], which also orders the
+/// list by speed): a one-tap action that says it contacts every listed
+/// server.
+class ServerChoice extends StatefulWidget {
+  const new({super.key});
+
+  @override
+  State<ServerChoice> createState() => _ServerChoiceState();
+}
+
+class _ServerChoiceState extends State<ServerChoice> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final instances = context.select<SettingsCubit, List<MozhiInstance>>(
+      (c) => c.state.instances,
+    );
+    final state = context.watch<OnboardingCubit>().state;
+    if (instances.isEmpty) {
+      return OnboardingNote(
+        icon: Icons.info_outline,
+        text: l10n.onboardingServiceEmpty,
+      );
+    }
+    final first = instances.first;
+    final host = Uri.tryParse(first.url)?.host ?? first.url;
+    final ping = state.pings[first.url];
+    final fastest =
+        state.serviceStatus == ServiceStatus.done &&
+        first.url == state.fastestUrl;
+    // Its rows are controls: the control outline (3:1).
+    final shape = RoundedRectangleBorder(
+      borderRadius: AppRadius.cardBorderRadius,
+      side: BorderSide(color: colors.outline),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (state.noneReachable) ...[
+          OnboardingNote(
+            icon: Icons.wifi_off,
+            text: l10n.onboardingServiceNoneReachable,
+            background: colors.errorContainer,
+            foreground: colors.onErrorContainer,
+          ),
+          const SizedBox(height: 12),
+        ],
+        Card.outlined(
+          margin: EdgeInsets.zero,
+          color: colors.surface,
+          clipBehavior: Clip.antiAlias,
+          shape: shape,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ListTile(
+                key: const Key('onboarding_server_row'),
+                leading: Icon(
+                  first.isCustom ? Icons.dns_outlined : Icons.public,
+                  color: colors.primary,
+                ),
+                title: Text(
+                  l10n.onboardingServiceUsing(first.displayName),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (first.displayName != host)
+                      Text(host, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    if (ping != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: PingIndicator(
+                          ping: ping,
+                          isFastest: fastest,
+                          inline: true,
+                        ),
+                      ),
+                  ],
+                ),
+                trailing: TextButton(
+                  key: const Key('onboarding_server_change'),
+                  style: TextButton.styleFrom(minimumSize: const Size(64, 48)),
+                  onPressed: () => setState(() => _open = !_open),
+                  // On the button's own node: it shows and hides the list.
+                  child: Semantics(
+                    expanded: _open,
+                    child: Text(
+                      _open
+                          ? l10n.onboardingServiceChangeDone
+                          : l10n.onboardingServiceChange,
+                    ),
+                  ),
+                ),
+              ),
+              if (_open) ...[const Hairline(), const _InstanceList()],
+              const Hairline(),
+              const _FindFastest(),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -97,18 +253,20 @@ class _AiLater extends StatelessWidget {
   }
 }
 
+/// "Find the fastest server": measures every configured instance (only
+/// when tapped, as its subtitle says) and puts the fastest first, the
+/// others in order of speed; a bar shows the progress, then it offers to
+/// measure again.
 class _FindFastest extends StatelessWidget {
   const new();
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final colors = Theme.of(context).colorScheme;
     final cubit = context.read<OnboardingCubit>();
     final status = context.select<OnboardingCubit, ServiceStatus>(
       (c) => c.state.serviceStatus,
-    );
-    final sortBySpeed = context.select<OnboardingCubit, bool>(
-      (c) => c.state.sortBySpeed,
     );
     final progress = context.select<OnboardingCubit, double>((c) {
       final pings = c.state.pings.values;
@@ -120,99 +278,64 @@ class _FindFastest extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        FilledButton.tonalIcon(
-          style: FilledButton.styleFrom(minimumSize: const Size(64, 48)),
-          onPressed: pinging ? null : cubit.findFastestInstance,
-          icon: Icon(
-            status == ServiceStatus.done ? Icons.refresh : Icons.speed,
-          ),
-          label: Text(switch (status) {
-            ServiceStatus.idle => l10n.onboardingServiceFindFastest,
+        ListTile(
+          key: const Key('onboarding_find_fastest'),
+          enabled: !pinging,
+          leading: Icon(Icons.speed, color: colors.primary),
+          title: Text(switch (status) {
+            ServiceStatus.idle => l10n.onboardingServiceFindFastestTitle,
             ServiceStatus.pinging => l10n.onboardingServiceTesting,
             ServiceStatus.done => l10n.onboardingServiceTestAgain,
           }),
+          subtitle: Text(l10n.onboardingServiceFindFastestHint),
+          trailing: status == ServiceStatus.done
+              ? const Icon(Icons.refresh)
+              : null,
+          onTap: pinging ? null : cubit.findFastestInstance,
         ),
-        if (pinging) ...[
-          const SizedBox(height: 12),
+        if (pinging)
           LinearProgressIndicator(
             value: progress,
             semanticsLabel: l10n.onboardingServiceTesting,
           ),
-        ],
-        const SizedBox(height: 8),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: Text(l10n.onboardingServiceSortBySpeed),
-          subtitle: Text(l10n.onboardingServiceSortBySpeedHint),
-          value: sortBySpeed,
-          onChanged: (enabled) => cubit.setSortBySpeed(enabled: enabled),
-        ),
       ],
     );
   }
 }
 
+/// The configured instances to choose the one used first (behind
+/// "Change"), each with its speed once measured.
 class _InstanceList extends StatelessWidget {
   const new();
 
   @override
   Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    final colors = Theme.of(context).colorScheme;
     final cubit = context.read<OnboardingCubit>();
     final instances = context.select<SettingsCubit, List<MozhiInstance>>(
       (c) => c.state.instances,
     );
     final state = context.watch<OnboardingCubit>().state;
     final fastest = state.fastestUrl;
-    if (instances.isEmpty) {
-      return OnboardingNote(
-        icon: Icons.info_outline,
-        text: l10n.onboardingServiceEmpty,
-      );
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (state.noneReachable) ...[
-          OnboardingNote(
-            icon: Icons.wifi_off,
-            text: l10n.onboardingServiceNoneReachable,
-            background: colors.errorContainer,
-            foreground: colors.onErrorContainer,
-          ),
-          const SizedBox(height: 12),
-        ],
-        Card.outlined(
-          margin: EdgeInsets.zero,
-          color: colors.surface,
-          clipBehavior: Clip.antiAlias,
-          shape: RoundedRectangleBorder(
-            borderRadius: AppRadius.cardBorderRadius,
-            side: BorderSide(color: AppPalette.of(context).hairline),
-          ),
-          child: RadioGroup<String>(
-            // The first instance is the preferred one.
-            groupValue: instances.first.url,
-            onChanged: (url) {
-              if (url != null) cubit.selectInstance(url);
-            },
-            child: Column(
-              children: [
-                for (final instance in instances)
-                  InstanceTile(
-                    key: ValueKey(instance.url),
-                    instance: instance,
-                    ping: state.pings[instance.url],
-                    isFastest:
-                        state.serviceStatus == ServiceStatus.done &&
-                        instance.url == fastest,
-                  ),
-              ],
+    return RadioGroup<String>(
+      // The first instance is the preferred one.
+      groupValue: instances.first.url,
+      onChanged: (url) {
+        if (url != null) cubit.selectInstance(url);
+      },
+      child: Column(
+        key: const Key('onboarding_instance_list'),
+        children: [
+          for (final instance in instances)
+            InstanceTile(
+              key: ValueKey(instance.url),
+              instance: instance,
+              ping: state.pings[instance.url],
+              isFastest:
+                  state.serviceStatus == ServiceStatus.done &&
+                  instance.url == fastest,
             ),
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

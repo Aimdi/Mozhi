@@ -592,6 +592,19 @@ jobs:
         working-directory: e2e
         run: npx playwright test
 
+      # The accessibility snapshot of each failed test, in the log itself:
+      # readable without downloading the report.
+      - name: Print the failed tests' page snapshots
+        if: failure()
+        working-directory: e2e
+        run: |
+          find test-results -name error-context.md -print0 2>/dev/null |
+            while IFS= read -r -d '' file; do
+              echo "::group::$file"
+              cat "$file"
+              echo "::endgroup::"
+            done
+
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

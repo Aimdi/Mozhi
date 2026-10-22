@@ -135,16 +135,18 @@ void main() {
         ),
       );
       expect(rotation.turns, 0.5);
-      expect(rotation.duration, const Duration(milliseconds: 250));
+      expect(rotation.duration, const Duration(milliseconds: 200));
     });
 
-    testWidgets('swapped names slide along the bar', (tester) async {
+    testWidgets('swapped names trade places', (tester) async {
       final states = StreamController<TranslateState>();
       addTearDown(states.close);
       final initial = readyState(source: english, target: german);
       final harness = TranslateHarness(state: initial);
       whenListen(harness.translate, states.stream, initialState: initial);
       await harness.pump(tester, child: const LanguageBar());
+      final source = tester.getTopLeft(find.text('English')).dx;
+      final target = tester.getTopLeft(find.text('German')).dx;
       states.add(readyState(source: german, target: english));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
@@ -152,11 +154,141 @@ void main() {
       // ones: the buttons are labelled).
       expect(find.text('German'), findsNWidgets(2));
       expect(find.text('English'), findsNWidgets(2));
-      expect(find.byType(SlideTransition), findsWidgets);
+      // The names trade places: every copy of each is on its way across,
+      // between the two buttons.
+      for (final name in ['German', 'English']) {
+        for (var i = 0; i < 2; i++) {
+          final x = tester.getTopLeft(find.text(name).at(i)).dx;
+          expect(x, greaterThan(source + 1), reason: '$name $i');
+          expect(x, lessThan(target - 1), reason: '$name $i');
+        }
+      }
       await tester.pumpAndSettle();
+      expect(
+        tester.getTopLeft(find.text('German')).dx,
+        lessThan(tester.getTopLeft(find.text('English')).dx),
+      );
       expect(find.text('German'), findsOneWidget);
       expect(find.text('English'), findsOneWidget);
       expect(find.bySemanticsLabel('Source language: German'), findsOneWidget);
+    });
+
+    testWidgets('a picked name slides in a little way', (tester) async {
+      final states = StreamController<TranslateState>();
+      addTearDown(states.close);
+      final initial = readyState(source: english, target: german);
+      final harness = TranslateHarness(state: initial);
+      whenListen(harness.translate, states.stream, initialState: initial);
+      await harness.pump(tester, child: const LanguageBar());
+      states.add(readyState(source: english, target: japanese));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.byType(SlideTransition), findsWidgets);
+      expect(find.text('English'), findsOneWidget);
+      await tester.pumpAndSettle();
+      expect(find.text('Japanese'), findsOneWidget);
+    });
+
+    testWidgets('TranslateLanguageAnchors find their buttons', (tester) async {
+      final source = GlobalKey();
+      final target = GlobalKey();
+      final anchors = TranslateLanguageAnchors(
+        source: source,
+        target: target,
+        child: const SizedBox(),
+      );
+      // Not on the screen.
+      expect(anchors.rectOf(source: true), isNull);
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: Stack(
+            children: [
+              Positioned(
+                left: 10,
+                top: 20,
+                width: 30,
+                height: 40,
+                child: SizedBox(key: source),
+              ),
+            ],
+          ),
+        ),
+      );
+      expect(anchors.rectOf(source: true), const Rect.fromLTWH(10, 20, 30, 40));
+      expect(anchors.rectOf(source: false), isNull);
+      expect(anchors.keyOf(source: false), target);
+      expect(
+        anchors.updateShouldNotify(
+          TranslateLanguageAnchors(
+            source: source,
+            target: target,
+            child: const SizedBox(),
+          ),
+        ),
+        isFalse,
+      );
+      expect(
+        anchors.updateShouldNotify(
+          TranslateLanguageAnchors(
+            source: GlobalKey(),
+            target: target,
+            child: const SizedBox(),
+          ),
+        ),
+        isTrue,
+      );
+    });
+
+    test('translateLanguagesSwapped', () {
+      final before = readyState(source: english, target: german);
+      expect(
+        translateLanguagesSwapped(
+          before,
+          readyState(source: german, target: english),
+        ),
+        isTrue,
+      );
+      // One language picked, or nothing changed: not a swap.
+      expect(
+        translateLanguagesSwapped(before, readyState(source: english)),
+        isFalse,
+      );
+      expect(translateLanguagesSwapped(before, before), isFalse);
+      expect(
+        translateLanguagesSwapped(before, readyState(source: german)),
+        isFalse,
+      );
+      // From "Detect language": the detected language becomes the target.
+      final detected = translatedState();
+      expect(
+        translateLanguagesSwapped(
+          detected,
+          readyState(source: french, target: english),
+        ),
+        isTrue,
+      );
+      expect(
+        translateLanguagesSwapped(
+          readyState(),
+          readyState(source: french, target: english),
+        ),
+        isFalse,
+      );
+      expect(
+        translateLanguagesSwapped(
+          translatedState(
+            result: const TranslationResult(
+              engineId: 'mozhi:deepl',
+              engineName: 'DeepL',
+              text: 'x',
+              detectedSource: 'de',
+            ),
+          ),
+          readyState(source: french, target: english),
+        ),
+        isFalse,
+      );
     });
 
     testWidgets('swapped names switch at once with reduced motion', (
@@ -916,7 +1048,18 @@ void main() {
       final harness = TranslateHarness(state: readyState(engine: claude));
       await harness.pump(tester, child: const LanguageBar());
       await openTarget(tester);
-      expect(find.text('Styles'), findsOneWidget);
+      // Languages first: the styles are behind their segment.
+      expect(find.text('All languages'), findsOneWidget);
+      expect(find.text('LinkedIn Speak'), findsNothing);
+      await tester.tap(find.text('Styles'));
+      await tester.pumpAndSettle();
+      expect(find.text('All languages'), findsNothing);
+      expect(
+        find.text(
+          'AI models can translate into any dialect or style you describe.',
+        ),
+        findsOneWidget,
+      );
       await tester.tap(find.text('LinkedIn Speak'));
       await tester.pumpAndSettle();
       verify(
@@ -959,7 +1102,10 @@ void main() {
       expect(find.text('Japanese'), findsNWidgets(2));
       // Custom recents are hidden for Mozhi engines.
       expect(find.text('Pirate speak'), findsNothing);
-      expect(find.byTooltip('Unpin Japanese'), findsNWidgets(2));
+      // The pin button shows on the Recent and Pinned rows, not in All
+      // languages (only while hovered or focused there).
+      expect(find.byTooltip('Unpin Japanese'), findsOneWidget);
+      expect(find.byTooltip('Pin German'), findsOneWidget);
     });
 
     testWidgets('lists the pins the engine offers, numbered on desktop', (
@@ -1020,7 +1166,9 @@ void main() {
     });
 
     testWidgets('pin button and long press toggle pins', (tester) async {
-      final harness = TranslateHarness();
+      final harness = TranslateHarness(
+        settings: const AppSettings(recentLanguages: [french]),
+      );
       await harness.pump(tester, child: const LanguageBar());
       await openTarget(tester);
       await tester.tap(find.byTooltip('Pin French'));

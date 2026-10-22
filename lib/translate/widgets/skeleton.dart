@@ -46,26 +46,37 @@ class _DelayedRevealState extends State<DelayedReveal> {
       _shown ? widget.child : const SizedBox.shrink();
 }
 
-/// Placeholder lines for a translation that has not produced text yet
-/// (decorative: the progress bar above it says "Translating…").
+/// Placeholder lines for a translation that has not produced text yet: two
+/// full lines and a shorter third one, shown as soon as a translation is
+/// queued or running (no reveal delay on top of the typing pause).
+///
+/// Decorative unless [label] is given: then screen readers hear it
+/// ("Translating…") instead of the lines.
 class TranslateOutputSkeleton extends StatelessWidget {
-  const new({super.key});
+  const new({this.label, super.key});
+
+  /// What screen readers hear for the placeholder, or null (decorative).
+  final String? label;
 
   @override
   Widget build(BuildContext context) {
-    return const ExcludeSemantics(
-      child: Column(
-        key: Key('translate_output_skeleton'),
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SkeletonBox(height: 18),
-          SizedBox(height: 10),
-          FractionallySizedBox(
-            widthFactor: 0.6,
-            child: SkeletonBox(height: 18),
-          ),
-        ],
-      ),
+    const lines = Column(
+      key: Key('translate_output_skeleton'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SkeletonBox(height: 18),
+        SizedBox(height: 10),
+        SkeletonBox(height: 18),
+        SizedBox(height: 10),
+        FractionallySizedBox(widthFactor: 0.6, child: SkeletonBox(height: 18)),
+      ],
+    );
+    final label = this.label;
+    if (label == null) return const ExcludeSemantics(child: lines);
+    return Semantics(
+      container: true,
+      label: label,
+      child: const ExcludeSemantics(child: lines),
     );
   }
 }

@@ -3,7 +3,7 @@
 This page lists every direct dependency of the app and its packages and
 every native component compiled into the offline engine: the version, the
 licence, and why it's there. Transitive Dart packages appear on the app's
-licences page (**Settings > About Mozhi > Open-source licenses**) and in
+licences page (**Settings > About > Open-source licenses**) and in
 `flutter pub deps`.
 
 - [Licence summary](#licence-summary)

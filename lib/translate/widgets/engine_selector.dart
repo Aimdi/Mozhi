@@ -9,15 +9,17 @@ import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/offline.dart' show OfflineEngineBadge;
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/translate/widgets/quality_toggle.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart'
     show isOfflineEngineId;
 import 'package:translation_repository/translation_repository.dart';
 
-/// Above this text scale the selector drops its subtitle so the two lines
-/// still fit the fixed-height app bar (the subtitle is also in the sheet).
-const engineSubtitleMaxTextScale = 1.3;
-
-/// App bar button showing the current engine; opens [EngineSheet].
+/// App bar button showing the engine translating; opens [EngineSheet].
+///
+/// It names the engine only (a model id stays in the sheet). Once Fast
+/// and Best are set up (`TranslateState.hasQualityModes`) the Fast | Best
+/// toggle is the engine control and this button shows the engine of the
+/// active mode as quieter, secondary text.
 class EngineSelectorButton extends StatelessWidget {
   const new({super.key});
 
@@ -25,27 +27,27 @@ class EngineSelectorButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    final largeText =
-        MediaQuery.textScalerOf(context).scale(1) > engineSubtitleMaxTextScale;
+    final muted = AppPalette.of(context).secondaryText;
     return BlocBuilder<TranslateCubit, TranslateState>(
       buildWhen: (previous, current) =>
           previous.engine != current.engine ||
-          previous.engines != current.engines,
+          previous.engines != current.engines ||
+          previous.hasQualityModes != current.hasQualityModes,
       builder: (context, state) {
         final engine = state.engine;
         final name = engine?.name ?? l10n.translateEngineSheetTitle;
-        final subtitle = largeText ? null : engine?.subtitle;
+        final secondary = state.hasQualityModes;
         return Tooltip(
           message: l10n.translateEngineSelectorTooltip,
           child: TextButton(
             key: const Key('translate_engine_selector'),
-            // A hairline-outlined pill: clearly tappable, calm next to the
-            // title.
+            // An outlined pill (the control outline, 3:1): clearly tappable,
+            // calm next to the title.
             style: TextButton.styleFrom(
               minimumSize: const Size(48, 48),
               padding: const EdgeInsetsDirectional.only(start: 12, end: 8),
               shape: StadiumBorder(
-                side: BorderSide(color: AppPalette.of(context).hairline),
+                side: BorderSide(color: theme.colorScheme.outline),
               ),
               backgroundColor: Colors.transparent,
               foregroundColor: theme.colorScheme.onSurface,
@@ -58,42 +60,34 @@ class EngineSelectorButton extends StatelessWidget {
               children: [
                 if (engine != null) ...[
                   IconTheme.merge(
-                    data: IconThemeData(color: theme.colorScheme.primary),
-                    child: EngineIcon(engine: engine, size: 20),
+                    data: IconThemeData(
+                      color: secondary ? muted : theme.colorScheme.primary,
+                    ),
+                    child: EngineIcon(
+                      engine: engine,
+                      size: secondary ? 18 : 20,
+                    ),
                   ),
                   const SizedBox(width: 8),
                 ],
                 Flexible(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      if (subtitle != null && subtitle.isNotEmpty)
-                        Text(
-                          subtitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: AppPalette.of(context).secondaryText,
+                  child: Text(
+                    name,
+                    key: const Key('translate_engine_selector_name'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: secondary
+                        ? theme.textTheme.labelLarge?.copyWith(
+                            color: muted,
+                            fontWeight: FontWeight.w500,
+                          )
+                        : theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
                           ),
-                        ),
-                    ],
                   ),
                 ),
                 const SizedBox(width: 4),
-                Icon(
-                  Icons.expand_more,
-                  size: 20,
-                  color: AppPalette.of(context).secondaryText,
-                ),
+                Icon(Icons.expand_more, size: 20, color: muted),
               ],
             ),
           ),
@@ -103,10 +97,9 @@ class EngineSelectorButton extends StatelessWidget {
   }
 }
 
-/// Opens the engine picker as a modal bottom sheet.
-/// The engine picker. In offline-first mode, opening it lets the app load
-/// the Mozhi engine list it has deferred (`TranslateCubit
-/// .loadDeferredEngines`).
+/// The engine picker as a modal bottom sheet. In offline-first mode,
+/// opening it lets the app load the Mozhi engine list it has deferred
+/// (`TranslateCubit.loadDeferredEngines`).
 Future<void> showEngineSheet(BuildContext context) {
   final cubit = context.read<TranslateCubit>();
   unawaited(cubit.loadDeferredEngines());
@@ -123,14 +116,63 @@ Future<void> showEngineSheet(BuildContext context) {
 /// Location of the quality modes settings (Fast / Best engines).
 const String translateQualityLocation = AppRoutes.quality;
 
-/// Engines grouped by kind: "On this device" (offline engines, with the
-/// offline badge), "Mozhi engines (via host)", "Machine translation"
-/// (DeepL API, LibreTranslate) and "AI models" (each with a privacy badge),
-/// followed by links to the provider, instance and quality mode settings.
-/// The quality modes entry explains how to get the Fast / Best toggle while
-/// no quality engine is configured.
-class EngineSheet extends StatelessWidget {
+/// A one-line note on what [engine] is good for (modest claims), or null
+/// when there is nothing reliable to say (an unknown Mozhi engine).
+String? translateEngineDescriptor(
+  AppLocalizations l10n,
+  TranslationEngine engine,
+) {
+  if (isOnDeviceEngine(engine)) return l10n.translateEngineAboutOnDevice;
+  if (engine.isAi) {
+    return engine.usesMtProfile
+        ? l10n.translateEngineAboutAiTranslationModel
+        : l10n.translateEngineAboutAi;
+  }
+  return switch (engine.mtService) {
+    MtService.deepl => l10n.translateEngineAboutDeepl,
+    MtService.libreTranslate => l10n.translateEngineAboutLibre,
+    MtService.llm => null,
+    null => switch (engine.mozhiEngine?.toLowerCase()) {
+      'google' => l10n.translateEngineAboutGoogle,
+      'deepl' => l10n.translateEngineAboutDeepl,
+      'duckduckgo' || 'bing' => l10n.translateEngineAboutBing,
+      'mymemory' => l10n.translateEngineAboutMyMemory,
+      'reverso' => l10n.translateEngineAboutReverso,
+      'yandex' => l10n.translateEngineAboutYandex,
+      'libre' => l10n.translateEngineAboutLibre,
+      _ => null,
+    },
+  };
+}
+
+/// The engine picker.
+///
+/// Once Fast and Best are set up (`TranslateState.hasQualityModes`) it
+/// starts with the two modes, each with its engine (choosing one calls
+/// `TranslateCubit.setQualityMode`), and "Custom engine…" opens the
+/// engine list to pick the engine of the active mode
+/// (`TranslateCubit.selectEngine`). Otherwise the list is shown right away
+/// and picks the engine.
+///
+/// The list groups engines by kind: "On this device" (offline engines),
+/// "Mozhi engines (via host)", "Machine translation" (DeepL API,
+/// LibreTranslate) and "AI models". Each engine has a one-line note on
+/// what it is good for ([translateEngineDescriptor]) and its details (an AI
+/// model's id). Where the text goes ([PrivacyBadge]) is shown once in a
+/// section's header when every engine of the section sends it to the same
+/// kind of place (e.g. the Mozhi instance), else on each row. Links to the
+/// provider, instance and quality mode settings follow; the quality modes
+/// entry explains how to get the Fast / Best toggle while it is not set up.
+class EngineSheet extends StatefulWidget {
   const new({super.key});
+
+  @override
+  State<EngineSheet> createState() => _EngineSheetState();
+}
+
+class _EngineSheetState extends State<EngineSheet> {
+  /// Whether the engine list shows while Fast and Best are set up.
+  bool _custom = false;
 
   @override
   Widget build(BuildContext context) {
@@ -146,6 +188,9 @@ class EngineSheet extends StatelessWidget {
     final mt = ofKind(EngineKind.mt);
     final ai = ofKind(EngineKind.ai);
     final host = _instanceHost(mozhi);
+    final modes = state.hasQualityModes;
+    final mode = state.qualityMode;
+    final showList = !modes || _custom;
 
     void select(TranslationEngine engine) {
       final cubit = context.read<TranslateCubit>();
@@ -153,11 +198,34 @@ class EngineSheet extends StatelessWidget {
       if (engine.id != state.engine?.id) unawaited(cubit.selectEngine(engine));
     }
 
+    void selectMode(QualityMode chosen) {
+      final cubit = context.read<TranslateCubit>();
+      Navigator.of(context).pop();
+      if (chosen != mode) unawaited(cubit.setQualityMode(chosen));
+    }
+
     // Pushed above the tabs, so back returns to the translate screen.
     void open(String location) {
       final router = GoRouter.of(context);
       Navigator.of(context).pop();
       unawaited(router.push<void>(location));
+    }
+
+    List<Widget> section(String title, List<TranslationEngine> engines) {
+      if (engines.isEmpty) return const [];
+      final shared = _sharedBadge(context, engines);
+      return [
+        _SectionHeader(title, badge: shared),
+        for (final engine in engines)
+          _EngineTile(
+            engine: engine,
+            selected: engine.id == state.engine?.id,
+            badge: shared == null,
+            // The instance is in the header already.
+            showSubtitle: !engine.isMozhi,
+            onTap: () => select(engine),
+          ),
+      ];
     }
 
     return DraggableScrollableSheet(
@@ -178,49 +246,40 @@ class EngineSheet extends StatelessWidget {
               ),
             ),
           ),
-          if (offline.isNotEmpty) ...[
-            _SectionHeader(l10n.translateOfflineEnginesHeader),
-            for (final engine in offline)
-              _EngineTile(
-                engine: engine,
-                selected: engine.id == state.engine?.id,
-                showSubtitle: true,
-                onTap: () => select(engine),
+          if (modes) ...[
+            _SectionHeader(l10n.translateQualityMode),
+            for (final option in const [QualityMode.fast, QualityMode.best])
+              if (state.qualityEngine(option) case final engine?)
+                _ModeTile(
+                  mode: option,
+                  engine: engine,
+                  selected: option == mode,
+                  onTap: () => selectMode(option),
+                ),
+            ListTile(
+              key: const Key('translate_engine_custom'),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 24),
+              leading: const Icon(Icons.tune),
+              title: Text(l10n.translateEngineCustom),
+              subtitle: Text(
+                mode == QualityMode.best
+                    ? l10n.translateEngineCustomBest
+                    : l10n.translateEngineCustomFast,
               ),
+              trailing: Icon(_custom ? Icons.expand_less : Icons.expand_more),
+              onTap: () => setState(() => _custom = !_custom),
+            ),
           ],
-          if (mozhi.isNotEmpty) ...[
-            _SectionHeader(
+          if (showList) ...[
+            ...section(l10n.translateOfflineEnginesHeader, offline),
+            ...section(
               host == null
                   ? l10n.translateMozhiEnginesHeaderNoInstance
                   : l10n.translateMozhiEnginesHeader(host),
+              mozhi,
             ),
-            for (final engine in mozhi)
-              _EngineTile(
-                engine: engine,
-                selected: engine.id == state.engine?.id,
-                showSubtitle: false,
-                onTap: () => select(engine),
-              ),
-          ],
-          if (mt.isNotEmpty) ...[
-            _SectionHeader(l10n.translateMtServicesHeader),
-            for (final engine in mt)
-              _EngineTile(
-                engine: engine,
-                selected: engine.id == state.engine?.id,
-                showSubtitle: true,
-                onTap: () => select(engine),
-              ),
-          ],
-          if (ai.isNotEmpty) ...[
-            _SectionHeader(l10n.translateAiModelsHeader),
-            for (final engine in ai)
-              _EngineTile(
-                engine: engine,
-                selected: engine.id == state.engine?.id,
-                showSubtitle: true,
-                onTap: () => select(engine),
-              ),
+            ...section(l10n.translateMtServicesHeader, mt),
+            ...section(l10n.translateAiModelsHeader, ai),
           ],
           const Divider(height: 24),
           ListTile(
@@ -249,6 +308,22 @@ class EngineSheet extends StatelessWidget {
     );
   }
 
+  /// The badge every engine of [engines] shares (the on-device badge, or
+  /// where their text goes), or null when they differ.
+  static Widget? _sharedBadge(
+    BuildContext context,
+    List<TranslationEngine> engines,
+  ) {
+    if (engines.every(isOnDeviceEngine)) return const OfflineEngineBadge();
+    if (engines.any(isOnDeviceEngine)) return null;
+    final destination = PrivacyBadge.destinationFor(context, engines.first);
+    for (final engine in engines.skip(1)) {
+      final other = PrivacyBadge.destinationFor(context, engine);
+      if (other.runtimeType != destination.runtimeType) return null;
+    }
+    return PrivacyBadge(engine: engines.first, destination: destination);
+  }
+
   static String? _instanceHost(List<TranslationEngine> mozhi) {
     for (final engine in mozhi) {
       final subtitle = engine.subtitle?.trim();
@@ -261,24 +336,69 @@ class EngineSheet extends StatelessWidget {
 }
 
 class _SectionHeader extends StatelessWidget {
-  const new(this.title);
+  const new(this.title, {this.badge});
 
   final String title;
+
+  /// Where the text of every engine of the section goes, when it is the
+  /// same for all of them.
+  final Widget? badge;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Semantics(
-      header: true,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 4),
-        child: Text(
-          title,
-          style: theme.textTheme.labelLarge?.copyWith(
-            color: theme.colorScheme.primary,
+    final badge = this.badge;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 4),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 4,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Semantics(
+            header: true,
+            child: Text(
+              title,
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
+            ),
           ),
-        ),
+          ?badge,
+        ],
       ),
+    );
+  }
+}
+
+/// Fast or Best ([mode]) in the engine sheet, with its [engine] and what
+/// it is good for.
+class _ModeTile extends StatelessWidget {
+  const new({
+    required this.mode,
+    required this.engine,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final QualityMode mode;
+  final TranslationEngine engine;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final about = translateEngineDescriptor(l10n, engine);
+    return ListTile(
+      key: ValueKey('translate_engine_mode_${mode.name}'),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 24),
+      selected: selected,
+      leading: Icon(translateQualityIcon(mode)),
+      title: Text(translateQualityLabel(l10n, mode)),
+      subtitle: Text(about == null ? engine.name : '${engine.name} · $about'),
+      trailing: selected ? const Icon(Icons.check) : null,
+      onTap: onTap,
     );
   }
 }
@@ -287,39 +407,48 @@ class _EngineTile extends StatelessWidget {
   const new({
     required this.engine,
     required this.selected,
+    required this.badge,
     required this.showSubtitle,
     required this.onTap,
   });
 
   final TranslationEngine engine;
   final bool selected;
+
+  /// Whether the row shows where the text goes (its section does not).
+  final bool badge;
+
+  /// Whether the engine's details (an AI model's id, a server) show.
   final bool showSubtitle;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final subtitle = engine.subtitle;
+    final about = translateEngineDescriptor(context.l10n, engine);
+    final subtitle = showSubtitle ? engine.subtitle?.trim() : null;
+    final details = [
+      ?about,
+      if (subtitle != null && subtitle.isNotEmpty) subtitle,
+    ];
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 24),
       selected: selected,
       leading: EngineIcon(engine: engine),
       title: Text(engine.name),
-      subtitle: Padding(
-        padding: const EdgeInsets.only(top: 4),
-        child: Wrap(
-          spacing: 8,
-          runSpacing: 4,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            if (isOnDeviceEngine(engine))
-              const OfflineEngineBadge()
-            else
-              PrivacyBadge(engine: engine),
-            if (showSubtitle && subtitle != null && subtitle.isNotEmpty)
-              Text(subtitle),
-          ],
-        ),
-      ),
+      subtitle: details.isEmpty && !badge
+          ? null
+          : Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  if (badge) PrivacyBadge(engine: engine),
+                  if (details.isNotEmpty) Text(details.join(' · ')),
+                ],
+              ),
+            ),
       trailing: selected ? const Icon(Icons.check) : null,
       onTap: onTap,
     );

@@ -14,6 +14,7 @@ import 'package:mozhi/proofread/widgets/proofread_diff_text.dart';
 import 'package:mozhi/proofread/widgets/proofread_edit_tile.dart';
 import 'package:mozhi/proofread/widgets/proofread_labels.dart';
 import 'package:mozhi/proofread/widgets/proofread_stats_panel.dart';
+import 'package:mozhi/translate/widgets/translate_layout.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -121,8 +122,9 @@ class ProofreadResultSection extends StatelessWidget {
   }
 }
 
-/// The corrected text (with or without highlighted changes), summary and
-/// copy/share/"use as input" actions.
+/// The corrected text (with or without highlighted changes, toggled with
+/// the eye button) at the input's text size, the summary, and the actions:
+/// "Copy corrected text" first, then share and "Use as input".
 class ProofreadResultCard extends StatefulWidget {
   const new({required this.state, super.key});
 
@@ -196,8 +198,12 @@ class _ProofreadResultCardState extends State<ProofreadResultCard> {
     final state = widget.state;
     final output = state.outputText;
     final summary = state.result?.summary.trim() ?? '';
-    // Taller lines keep the highlighted changes from touching.
-    final textStyle = theme.textTheme.bodyLarge?.copyWith(height: 1.45);
+    // The input's size; taller lines keep the highlighted changes from
+    // touching.
+    final textStyle = TranslateLayout.textStyle(
+      context,
+      state.proofreadInput.length,
+    )?.copyWith(height: 1.45);
     final colors = theme.colorScheme;
 
     final palette = AppPalette.of(context);
@@ -241,14 +247,15 @@ class _ProofreadResultCardState extends State<ProofreadResultCard> {
                 ),
               ),
               IconButton(
+                key: const Key('proofread_show_changes'),
                 tooltip: _showChanges
                     ? l10n.proofreadHideChanges
                     : l10n.proofreadShowChanges,
                 isSelected: _showChanges,
                 color: colors.primary,
                 onPressed: () => setState(() => _showChanges = !_showChanges),
-                icon: const Icon(Icons.difference_outlined),
-                selectedIcon: const Icon(Icons.difference),
+                icon: const Icon(Icons.visibility_off_outlined),
+                selectedIcon: const Icon(Icons.visibility_outlined),
               ),
             ],
           ),
@@ -301,30 +308,27 @@ class _ProofreadResultCardState extends State<ProofreadResultCard> {
                 ),
               ),
             ),
-          // "Use as input" moves below the icons when it does not fit
-          // beside them (narrow screens, large text).
+          // The actions wrap below each other when they do not fit
+          // (narrow screens, large text).
           Wrap(
-            alignment: WrapAlignment.spaceBetween,
+            spacing: 8,
+            runSpacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  XActionButton(
-                    icon: Icons.copy_rounded,
-                    tooltip: l10n.commonCopy,
-                    onPressed: output.isEmpty ? null : () => _copy(output),
-                  ),
-                  Builder(
-                    builder: (buttonContext) => XActionButton(
-                      icon: Icons.ios_share_rounded,
-                      tooltip: l10n.commonShare,
-                      onPressed: output.isEmpty
-                          ? null
-                          : () => unawaited(_share(buttonContext, output)),
-                    ),
-                  ),
-                ],
+              FilledButton.icon(
+                key: const Key('proofread_copy_corrected'),
+                onPressed: output.isEmpty ? null : () => _copy(output),
+                icon: const Icon(Icons.copy_rounded),
+                label: Text(l10n.proofreadCopyCorrected),
+              ),
+              Builder(
+                builder: (buttonContext) => XActionButton(
+                  icon: Icons.ios_share_rounded,
+                  tooltip: l10n.commonShare,
+                  onPressed: output.isEmpty
+                      ? null
+                      : () => unawaited(_share(buttonContext, output)),
+                ),
               ),
               OutlinedButton.icon(
                 // Replacing newer input with an older result would silently
@@ -364,9 +368,7 @@ class ProofreadPill extends StatelessWidget {
       decoration: ShapeDecoration(
         color: filled ? colors.primaryContainer : null,
         shape: StadiumBorder(
-          side: filled
-              ? BorderSide.none
-              : BorderSide(color: colors.outlineVariant),
+          side: filled ? BorderSide.none : BorderSide(color: colors.outline),
         ),
       ),
       child: Padding(
@@ -472,7 +474,9 @@ Future<void> showProofreadEditSheet(BuildContext context, int index) {
   );
 }
 
-/// Header with accept/reject all, followed by one tile per edit.
+/// The suggested edits: a header with how many apply and, once one was
+/// rejected, "Reset" (every suggestion again), then one tile per edit with
+/// its own accept and reject buttons.
 class ProofreadEditsList extends StatelessWidget {
   const new({required this.state, super.key});
 
@@ -517,19 +521,16 @@ class ProofreadEditsList extends StatelessWidget {
                 ),
               ],
             ),
-            Wrap(
-              spacing: 8,
-              children: [
-                TextButton(
-                  onPressed: accepted == edits.length ? null : cubit.acceptAll,
-                  child: Text(l10n.proofreadAcceptAll),
+            if (accepted < edits.length)
+              Tooltip(
+                message: l10n.proofreadEditsResetTooltip,
+                excludeFromSemantics: true,
+                child: TextButton(
+                  key: const Key('proofread_edits_reset'),
+                  onPressed: cubit.acceptAll,
+                  child: Text(l10n.proofreadEditsReset),
                 ),
-                TextButton(
-                  onPressed: accepted == 0 ? null : cubit.rejectAll,
-                  child: Text(l10n.proofreadRejectAll),
-                ),
-              ],
-            ),
+              ),
           ],
         ),
         for (var i = 0; i < edits.length; i++)

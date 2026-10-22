@@ -2,20 +2,27 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/onboarding/cubit/onboarding_state.dart';
 import 'package:mozhi/onboarding/widgets/progress_dots.dart';
+import 'package:mozhi/onboarding/widgets/step_layout.dart';
 
 /// Bottom bar of the onboarding in the style of X's sign-up: progress
 /// dots, a full-width inverse pill for Next (or "Start translating" on the
-/// last step) and, after the first step, an outlined pill for Back.
+/// last step) and, after the first step, an outlined pill for Back. The
+/// buttons are as wide as the steps' content column
+/// ([onboardingContentPadding]).
 class OnboardingNavBar extends StatelessWidget {
   const new({
     required this.step,
     required this.onBack,
     required this.onNext,
     required this.onFinish,
+    this.steps = OnboardingStep.values,
     super.key,
   });
 
   final OnboardingStep step;
+
+  /// The steps of the flow (see `OnboardingState.steps`).
+  final List<OnboardingStep> steps;
   final VoidCallback onBack;
   final VoidCallback onNext;
   final VoidCallback onFinish;
@@ -25,24 +32,24 @@ class OnboardingNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final isFirst = step.index == 0;
-    final isLast = step.index == OnboardingStep.values.length - 1;
+    final index = steps.indexOf(step);
+    final isFirst = index <= 0;
+    final isLast = index == steps.length - 1;
     return SafeArea(
       top: false,
-      child: Center(
-        heightFactor: 1,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 640),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final side = onboardingContentPadding(constraints.maxWidth);
+          return Padding(
+            padding: EdgeInsets.fromLTRB(side, 8, side, 12),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Center(
                   child: OnboardingProgressDots(
-                    count: OnboardingStep.values.length,
-                    current: step.index,
+                    count: steps.length,
+                    current: index < 0 ? 0 : index,
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -75,8 +82,8 @@ class OnboardingNavBar extends StatelessWidget {
                 ],
               ],
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }

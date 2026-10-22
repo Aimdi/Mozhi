@@ -112,46 +112,68 @@ void main() {
   });
 
   group('reading order', () {
-    for (final (name, size) in [
-      ('phone', const Size(400, 1400)),
-      ('two panes', const Size(1200, 1400)),
-    ]) {
-      testWidgets('input and tools, then the result, then the docked bar '
-          '($name)', (tester) async {
-        final handle = tester.ensureSemantics();
-        final harness = TranslateHarness(state: translatedState());
-        await harness.pump(tester, size: size);
-        final labels = _readingOrder(tester, find.byType(Scaffold).first);
-        final input = _indexOf(labels, 'Text to translate');
-        final clear = labels.indexOf('Clear');
-        final result = labels.indexOf('Translation');
-        final copy = _indexOf(labels, 'Copy');
-        final more = labels.indexOf('More');
-        final options = labels.indexOf('Translation options');
-        final source = _indexOf(labels, 'Source language');
-        final swap = labels.indexOf('Swap languages');
-        final target = _indexOf(labels, 'Target language');
-        // The app bar's title also reads "Translate".
-        final go = labels.lastIndexOf('Translate');
-        final order = [
-          input,
-          clear,
-          result,
-          copy,
-          more,
-          options,
-          source,
-          swap,
-          target,
-          go,
-        ];
-        expect(order.every((i) => i >= 0), isTrue, reason: '$labels');
-        for (var i = 1; i < order.length; i++) {
-          expect(order[i], greaterThan(order[i - 1]), reason: '$labels');
-        }
-        handle.dispose();
-      });
-    }
+    testWidgets('input and tools, then the result, then the docked bar '
+        '(phone)', (tester) async {
+      final handle = tester.ensureSemantics();
+      final harness = TranslateHarness(state: translatedState());
+      await harness.pump(tester, size: const Size(400, 1400));
+      final labels = _readingOrder(tester, find.byType(Scaffold).first);
+      final input = _indexOf(labels, 'Text to translate');
+      final clear = labels.indexOf('Clear');
+      final result = labels.indexOf('Translation');
+      final copy = _indexOf(labels, 'Copy');
+      final tools = labels.indexOf('Tools');
+      final options = labels.indexOf('Translation options');
+      final source = _indexOf(labels, 'Source language');
+      final swap = labels.indexOf('Swap languages');
+      final target = _indexOf(labels, 'Target language');
+      // The app bar's title also reads "Translate".
+      final go = labels.lastIndexOf('Translate');
+      final order = [
+        input,
+        clear,
+        result,
+        copy,
+        tools,
+        options,
+        source,
+        swap,
+        target,
+        go,
+      ];
+      expect(order.every((i) => i >= 0), isTrue, reason: '$labels');
+      for (var i = 1; i < order.length; i++) {
+        expect(order[i], greaterThan(order[i - 1]), reason: '$labels');
+      }
+      handle.dispose();
+    });
+
+    testWidgets('the result reads in order (two panes)', (tester) async {
+      final handle = tester.ensureSemantics();
+      final harness = TranslateHarness(state: translatedState());
+      await harness.pump(tester, size: const Size(1200, 1400));
+      final labels = _readingOrder(tester, find.byType(Scaffold).first);
+      final order = [
+        _indexOf(labels, 'Text to translate'),
+        labels.indexOf('Translation'),
+        _indexOf(labels, 'Copy'),
+        labels.indexOf('Show full screen'),
+        labels.indexOf('Tools'),
+      ];
+      expect(order.every((i) => i >= 0), isTrue, reason: '$labels');
+      for (var i = 1; i < order.length; i++) {
+        expect(order[i], greaterThan(order[i - 1]), reason: '$labels');
+      }
+      final languages = [
+        _indexOf(labels, 'Source language'),
+        labels.indexOf('Swap languages'),
+        _indexOf(labels, 'Target language'),
+      ];
+      expect(languages.every((i) => i >= 0), isTrue, reason: '$labels');
+      expect(languages[1], greaterThan(languages[0]));
+      expect(languages[2], greaterThan(languages[1]));
+      handle.dispose();
+    });
   });
 
   group('200% text on a 360 dp phone', () {

@@ -12,9 +12,10 @@ import 'package:mozhi/proofread/widgets/proofread_labels.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-/// The bar of the proofreading composer, like Kagi's: the options button
-/// ([ProofreadOptionsButton]), the go button ([ProofreadButton]) and the
-/// language ([ProofreadLanguageButton]).
+/// The bar of the proofreading composer, in the order of every composer
+/// (Translate, Dictionary): the options button ([ProofreadOptionsButton]),
+/// the language ([ProofreadLanguageButton]) and the go button
+/// ([ProofreadButton]) at the trailing end.
 class ProofreadComposerBar extends StatelessWidget {
   const new({super.key});
 
@@ -24,10 +25,10 @@ class ProofreadComposerBar extends StatelessWidget {
       key: Key('proofread_bar'),
       children: [
         ProofreadOptionsButton(key: Key('proofread_options_button')),
-        ProofreadButton(key: Key('proofread_button')),
         Expanded(
           child: ProofreadLanguageButton(key: Key('proofread_language_button')),
         ),
+        ProofreadButton(key: Key('proofread_button')),
       ],
     );
   }
@@ -126,10 +127,11 @@ class ProofreadOptionsSheet extends StatelessWidget {
   return (l10n.proofreadLanguageAuto, false);
 }
 
-/// The language of the proofreading composer, like Kagi's "Automatic ↕":
-/// "Detect language" (the author's language and spelling are kept; once
-/// checked, the detected language with a sparkle) or the chosen regional
-/// variety ("English (UK)"). It opens the list ([showProofreadLanguages]).
+/// The language of the proofreading composer, in the look of the other
+/// composers' language buttons (the name and a small chevron): "Detect
+/// language" (the author's language and spelling are kept; once checked,
+/// the detected language with a sparkle) or the chosen regional variety
+/// ("English (UK)"). It opens the list ([showProofreadLanguages]).
 class ProofreadLanguageButton extends StatelessWidget {
   const new({super.key});
 
@@ -153,7 +155,7 @@ class ProofreadLanguageButton extends StatelessWidget {
       child: TextButton(
         style: TextButton.styleFrom(
           minimumSize: const Size(48, 48),
-          padding: const EdgeInsetsDirectional.only(start: 12, end: 10),
+          padding: const EdgeInsetsDirectional.only(start: 10, end: 6),
           shape: const StadiumBorder(),
           foregroundColor: scheme.onSurface,
         ),
@@ -165,30 +167,30 @@ class ProofreadLanguageButton extends StatelessWidget {
               : l10n.proofreadLanguageButton(description),
           excludeSemantics: true,
           child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (detected) ...[
                 Icon(
                   Icons.auto_awesome_outlined,
-                  size: 18,
+                  size: 16,
                   color: scheme.primary,
                 ),
                 const SizedBox(width: 6),
               ],
-              Expanded(
+              Flexible(
                 child: Text(
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
-              const SizedBox(width: 4),
+              const SizedBox(width: 2),
               Icon(
-                Icons.unfold_more,
-                size: 20,
+                Icons.expand_more,
+                size: 16,
                 color: AppPalette.of(context).secondaryText,
               ),
             ],

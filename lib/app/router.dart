@@ -42,6 +42,7 @@ import 'package:mozhi/proofread/view/proofread_page.dart'
 import 'package:mozhi/quick_translate/quick_translate_host.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
+import 'package:mozhi/settings/models/settings_category.dart';
 import 'package:mozhi/settings/view/about_page.dart' deferred as about_page;
 import 'package:mozhi/settings/view/instances_page.dart'
     deferred as instances_page;
@@ -542,8 +543,23 @@ GoRouter createAppRouter({
           deferredRoute(
             'about',
             DeferredFeatures.settings,
-            (context, state) => about_page.AboutPage(),
+            (context, state) => about_page.AboutPage(
+              highlight:
+                  state.uri.queryParameters[SettingsCategory.rowParameter],
+            ),
           ),
+          // The settings categories (`/settings/privacy?row=incognito`
+          // scrolls to a row).
+          for (final category in SettingsCategory.routed)
+            deferredRoute(
+              category.path,
+              DeferredFeatures.settings,
+              (context, state) => settings_page.SettingsCategoryPage(
+                category: category,
+                highlight:
+                    state.uri.queryParameters[SettingsCategory.rowParameter],
+              ),
+            ),
         ],
       ),
       StatefulShellRoute.indexedStack(

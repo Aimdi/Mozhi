@@ -114,6 +114,82 @@ void main() {
       handle.dispose();
     });
 
+    group('without an on-device engine (the web)', () {
+      setUp(() => when(() => repository.hasOfflineEngine).thenReturn(false));
+
+      testWidgets('has three steps: no privacy step', (tester) async {
+        final handle = tester.ensureSemantics();
+        await pumpPage(tester);
+        expect(find.bySemanticsLabel('Step 1 of 3'), findsOneWidget);
+
+        await tapNext(tester);
+        expect(find.byType(LanguagesStep), findsOneWidget);
+        expect(find.byType(PrivacyStep), findsNothing);
+        expect(find.bySemanticsLabel('Step 2 of 3'), findsOneWidget);
+
+        await tapNext(tester);
+        expect(find.byType(ServiceStep), findsOneWidget);
+        expect(find.bySemanticsLabel('Step 3 of 3'), findsOneWidget);
+        expect(find.text('Start translating'), findsOneWidget);
+
+        await tester.tap(find.text('Back'));
+        await tester.pumpAndSettle();
+        expect(find.byType(LanguagesStep), findsOneWidget);
+        handle.dispose();
+      });
+
+      testWidgets('selects Online on the service step, with a switch back', (
+        tester,
+      ) async {
+        await pumpPage(tester, size: const Size(420, 2400));
+        expect(settings.state.privacyMode, PrivacyMode.offlineFirst);
+
+        await tapNext(tester);
+        // Not before the step that says where the text goes.
+        expect(settings.state.privacyMode, PrivacyMode.offlineFirst);
+        await tapNext(tester);
+        expect(settings.state.privacyMode, PrivacyMode.online);
+        expect(find.text('Optional'), findsNothing);
+
+        final ask = find.byKey(const Key('onboarding_ask_before_sending'));
+        await tapVisible(tester, ask);
+        expect(settings.state.privacyMode, PrivacyMode.offlineFirst);
+
+        // Back and forth keeps the user's choice.
+        await tester.tap(find.text('Back'));
+        await tester.pumpAndSettle();
+        await tapNext(tester);
+        expect(settings.state.privacyMode, PrivacyMode.offlineFirst);
+      });
+
+      testWidgets('never contacts a server by itself', (tester) async {
+        await pumpPage(tester);
+        await tapNext(tester);
+        await tapNext(tester);
+
+        verifyNever(() => repository.pingInstance(any()));
+      });
+    });
+
+    testWidgets('the buttons are as wide as the content on large screens', (
+      tester,
+    ) async {
+      await pumpPage(tester, size: const Size(1280, 800));
+      await tapNext(tester);
+
+      final next = tester.getRect(
+        find.ancestor(
+          of: find.text('Next'),
+          matching: find.byWidgetPredicate((w) => w is ButtonStyleButton),
+        ),
+      );
+      final title = tester.getRect(
+        find.text('How private should translations be?'),
+      );
+      expect(next.width, onboardingMaxContentWidth);
+      expect(next.left, title.left);
+    });
+
     testWidgets('Start translating completes onboarding', (tester) async {
       await pumpPage(tester);
       for (var i = 0; i < 3; i++) {
@@ -330,8 +406,10 @@ void main() {
       await tapNext(tester);
       await tapNext(tester);
 
-      await tapVisible(tester, find.text('Find the fastest public instance'));
+      await tapVisible(tester, find.text('Find the fastest server'));
 
+      // The fastest one is now the one in use.
+      expect(find.text('Using Charlie'), findsOneWidget);
       expect(find.text('Fastest'), findsOneWidget);
       expect(urlsOf(settings).first, instanceC.url);
     });
@@ -344,7 +422,7 @@ void main() {
       expect(
         find.text(
           'AI translators are optional. You can add one later in '
-          'Settings › AI providers.',
+          'Settings › AI › AI providers.',
         ),
         findsOneWidget,
       );
@@ -413,9 +491,13 @@ void main() {
       await tapNext(tester);
       await reveal(find.text('Download over Wi-Fi only'), LanguagesStep);
       await tapNext(tester);
-      final findFastest = find.text('Find the fastest public instance');
+      final findFastest = find.text('Find the fastest server');
       await reveal(findFastest, ServiceStep);
       await tester.tap(findFastest);
+      await tester.pumpAndSettle();
+      final change = find.byKey(const Key('onboarding_server_change'));
+      await reveal(change, ServiceStep);
+      await tester.tap(change);
       await tester.pumpAndSettle();
       await reveal(find.text('Unreachable'), ServiceStep);
       expect(find.text('Unreachable'), findsOneWidget);

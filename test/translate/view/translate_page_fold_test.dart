@@ -200,10 +200,21 @@ void main() {
       expect(input.width, output.width);
       expect(output.left - input.right, 1);
       expect(tester.getSize(_paneHairline).width, 1);
-      // The language bar docks at the bottom, across both panes.
-      final languages = tester.getRect(find.byType(LanguageBar));
+      // The languages sit above the panes, across both; no bottom bar.
+      final languages = tester.getRect(
+        find.byKey(const Key('translate_language_header')),
+      );
       expect(languages.width, 1114 - 48);
-      expect(languages.top, greaterThanOrEqualTo(output.bottom));
+      expect(languages.bottom, lessThanOrEqualTo(output.top));
+      expect(find.byType(LanguageBar), findsNothing);
+    });
+
+    testWidgets('keeps one column between 600 and 840 dp', (tester) async {
+      await pumpWithFeatures(tester, size: const Size(760, 900), features: []);
+      expect(find.byKey(const Key('translate_narrow_layout')), findsOneWidget);
+      expect(find.byKey(const Key('translate_wide_layout')), findsNothing);
+      expect(find.byType(LanguageBar), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 

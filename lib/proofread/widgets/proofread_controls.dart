@@ -358,7 +358,7 @@ class ProofreadOptionTile extends StatelessWidget {
     final label = this.label;
     final shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(28),
-      side: BorderSide(color: colors.outlineVariant),
+      side: BorderSide(color: colors.outline),
     );
     return Material(
       type: MaterialType.transparency,

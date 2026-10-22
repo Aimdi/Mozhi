@@ -101,7 +101,7 @@ class _Swatch extends StatelessWidget {
                   color: color,
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: selected ? colors.onSurface : colors.outlineVariant,
+                    color: selected ? colors.onSurface : colors.outline,
                     width: selected ? 3 : 1,
                   ),
                 ),

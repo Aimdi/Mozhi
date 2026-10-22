@@ -11,7 +11,7 @@ import 'package:translation_repository/translation_repository.dart';
 
 import '../helpers/helpers.dart';
 
-/// Keys of everything the "More" area holds.
+/// Keys of everything the "Tools" area holds.
 const _moreKeys = [
   'translate_meaning_button',
   'translate_insights_button',
@@ -23,7 +23,8 @@ const _moreKeys = [
 ];
 
 /// A Google (Mozhi) result with word choices, translated with Claude as
-/// the assist engine: every tool of the "More" area applies.
+/// the assist engine: every tool of the "Tools" area applies (the input is
+/// longer than a short query, whose word data shows outside the area).
 const _result = TranslationResult(
   engineId: 'mozhi:google',
   engineName: 'Google',
@@ -32,15 +33,19 @@ const _result = TranslationResult(
   wordChoices: [WordChoice(word: 'monde', definition: 'world')],
 );
 
-TranslateState _translated() =>
-    translatedState(engine: google, assistEngine: claude, result: _result);
+TranslateState _translated() => translatedState(
+  engine: google,
+  assistEngine: claude,
+  input: 'Hello to the whole world',
+  result: _result,
+);
 
 Finder _key(String key) => find.byKey(Key(key));
 
 void main() {
   setUpAll(registerTranslateFallbacks);
 
-  group('the More area', () {
+  group('the Tools area', () {
     testWidgets('is closed at first: languages, input and translation only', (
       tester,
     ) async {
@@ -56,14 +61,21 @@ void main() {
       expect(
         tester.getSemantics(_key('translate_more_toggle')),
         isSemantics(
-          label: 'More',
+          label: 'Tools',
           isButton: true,
           hasExpandedState: true,
           isExpanded: false,
           hasTapAction: true,
         ),
       );
-      expect(findTooltipMessage('Show more tools'), findsOneWidget);
+      // No tooltip: it would cover the first tool.
+      expect(
+        find.ancestor(
+          of: _key('translate_more_toggle'),
+          matching: find.byType(Tooltip),
+        ),
+        findsNothing,
+      );
       handle.dispose();
     });
 
@@ -78,14 +90,13 @@ void main() {
       expect(
         tester.getSemantics(_key('translate_more_toggle')),
         isSemantics(
-          label: 'More',
+          label: 'Tools',
           isButton: true,
           hasExpandedState: true,
           isExpanded: true,
           hasTapAction: true,
         ),
       );
-      expect(findTooltipMessage('Hide more tools'), findsOneWidget);
 
       await tester.tap(_key('translate_more_toggle'));
       await tester.pumpAndSettle();
@@ -93,6 +104,26 @@ void main() {
         expect(_key(key), findsNothing, reason: key);
       }
       handle.dispose();
+    });
+
+    testWidgets('leaves the refinement chips of AI engines in view', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(
+        state: translatedState(
+          engine: claude,
+          input: 'Hello to the whole world',
+          result: const TranslationResult(
+            engineId: 'ai:claude',
+            engineName: 'Claude',
+            text: 'Bonjour à tout le monde',
+          ),
+        ),
+      );
+      await harness.pump(tester, size: const Size(400, 1600));
+      expect(_key('translate_more_toggle'), findsOneWidget);
+      expect(_key('translate_refinement_chips'), findsOneWidget);
+      expect(_key('translate_refine_and_learn'), findsNothing);
     });
 
     testWidgets('is two taps from any tool', (tester) async {

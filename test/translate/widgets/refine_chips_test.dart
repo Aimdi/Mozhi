@@ -129,10 +129,74 @@ void main() {
     testWidgets('are filter chips when they revise the output', (tester) async {
       final harness = TranslateHarness(state: _aiState());
       await harness.pump(tester, child: RefinementChips(state: _aiState()));
-      expect(find.byType(FilterChip), findsNWidgets(6));
+      // The four everyday chips; the others are in the "+" menu.
+      expect(find.byType(FilterChip), findsNWidgets(4));
+      expect(find.byType(Wrap), findsOneWidget);
       expect(_filterChip(tester, _formal).selected, isFalse);
       await tester.tap(find.text('More formal'));
       verify(() => harness.translate.applySuggestion(_formal)).called(1);
+    });
+
+    testWidgets('the "+" menu holds the other chips and more suggestions', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final harness = TranslateHarness(state: _aiState());
+      await harness.pump(tester, child: RefinementChips(state: _aiState()));
+      expect(find.text('More fluent'), findsNothing);
+      expect(find.byTooltip('More refinements'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('translate_refinement_more')));
+      await tester.pumpAndSettle();
+      expect(find.text('More fluent'), findsOneWidget);
+      expect(find.text('More literal'), findsOneWidget);
+      // "More suggestions" keeps the menu open.
+      await tester.tap(find.byKey(const Key('translate_more_suggestions')));
+      await tester.pumpAndSettle();
+      verify(harness.translate.loadSuggestions).called(1);
+      expect(find.text('More fluent'), findsOneWidget);
+      await tester.tap(find.text('More fluent'));
+      await tester.pumpAndSettle();
+      verify(
+        () =>
+            harness.translate.applySuggestion(RefinementSuggestion.defaults[4]),
+      ).called(1);
+      expect(find.text('More literal'), findsNothing);
+      // The "+" toggles the menu.
+      await tester.tap(find.byKey(const Key('translate_refinement_more')));
+      await tester.pumpAndSettle();
+      expect(find.text('More literal'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('translate_refinement_more')));
+      await tester.pumpAndSettle();
+      expect(find.text('More literal'), findsNothing);
+      handle.dispose();
+    });
+
+    testWidgets('an applied chip from the menu stays in view', (tester) async {
+      final literal = RefinementSuggestion.defaults[5];
+      final state = _aiState().copyWith(
+        result: () => _formalResult,
+        appliedRefinements: [
+          AppliedRefinement(suggestion: literal, previous: _aiResult),
+        ],
+      );
+      final harness = TranslateHarness(state: state);
+      await harness.pump(tester, child: RefinementChips(state: state));
+      expect(find.byType(FilterChip), findsNWidgets(5));
+      expect(_filterChip(tester, literal).selected, isTrue);
+      expect(RefinementChips.visibleSuggestions(state), [
+        ...RefinementSuggestion.defaults.take(4),
+        literal,
+      ]);
+    });
+
+    testWidgets('no "+" once everything is in view', (tester) async {
+      final state = _aiState().copyWith(
+        suggestionsStatus: ExtraStatus.ready,
+        suggestions: RefinementSuggestion.defaults.take(3).toList(),
+      );
+      final harness = TranslateHarness(state: state);
+      await harness.pump(tester, child: RefinementChips(state: state));
+      expect(find.byKey(const Key('translate_refinement_more')), findsNothing);
     });
 
     testWidgets('are one-off action chips for translation-only models', (
@@ -232,7 +296,7 @@ void main() {
       final state = _applied().copyWith(status: TranslateStatus.translating);
       final harness = TranslateHarness(state: state);
       await harness.pump(tester, child: RefinementChips(state: state));
-      expect(find.byType(FilterChip), findsNWidgets(6));
+      expect(find.byType(FilterChip), findsNWidgets(4));
     });
 
     testWidgets('the chip in flight shows a spinner and cancels on tap', (
@@ -278,17 +342,21 @@ void main() {
       final state = _aiState().copyWith(suggestionsStatus: ExtraStatus.loading);
       final harness = TranslateHarness(state: state);
       await harness.pump(tester, child: RefinementChips(state: state));
-      final more = tester.widget<ActionChip>(
-        find.byKey(const Key('translate_more_suggestions')),
-      );
-      expect(more.onPressed, isNull);
+      // On the "+" chip, and in its menu.
       expect(
         find.descendant(
-          of: find.byKey(const Key('translate_more_suggestions')),
+          of: find.byKey(const Key('translate_refinement_more')),
           matching: find.byType(CircularProgressIndicator),
         ),
         findsOneWidget,
       );
+      await tester.tap(find.byKey(const Key('translate_refinement_more')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      final item = tester.widget<MenuItemButton>(
+        find.byKey(const Key('translate_more_suggestions_loading')),
+      );
+      expect(item.onPressed, isNull);
     });
 
     testWidgets('work in dark mode and right to left', (tester) async {
@@ -301,7 +369,27 @@ void main() {
         locale: const Locale('ar'),
       );
       expect(tester.takeException(), isNull);
-      expect(find.byType(FilterChip), findsNWidgets(6));
+      expect(find.byType(FilterChip), findsNWidgets(4));
+    });
+  });
+
+  group('changedWordRanges', () {
+    test('marks the new and changed words of the refined text', () {
+      const before = 'Bonjour le monde';
+      const after = 'Bonjour à tout le monde !';
+      final ranges = changedWordRanges(before, after);
+      expect([for (final r in ranges) r.textInside(after)], ['à tout', '!']);
+    });
+
+    test('marks nothing for the same text or a removal only', () {
+      expect(changedWordRanges('Bonjour', 'Bonjour'), isEmpty);
+      expect(changedWordRanges('Bonjour le monde', 'Bonjour monde'), isEmpty);
+    });
+
+    test('marks a replaced word', () {
+      const after = 'Salut le monde';
+      final ranges = changedWordRanges('Bonjour le monde', after);
+      expect([for (final r in ranges) r.textInside(after)], ['Salut']);
     });
   });
 

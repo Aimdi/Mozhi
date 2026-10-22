@@ -1,11 +1,13 @@
 import 'dart:async';
 
 import 'package:bloc_test/bloc_test.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/image_translate/view/image_translate_page.dart';
 import 'package:mozhi/l10n/gen/app_localizations_en.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -66,7 +68,8 @@ void main() {
       await harness.pump(tester, child: const InputCard());
       await tester.tap(find.byTooltip('Paste'));
       await tester.pump();
-      verify(() => harness.translate.setInput('Guten Tag')).called(1);
+      verify(() => harness.translate.setInput('Guten Tag', pasted: true))
+          .called(1);
       final field = tester.widget<TextField>(
         find.byKey(const Key('translate_input_field')),
       );
@@ -375,10 +378,12 @@ void main() {
 
         speech.say('wor');
         await tester.pump();
-        verify(() => harness.translate.setInput('Hello wor')).called(1);
+        verify(() => harness.translate.setInput('Hello wor', dictated: true))
+            .called(1);
         speech.say('world', isFinal: true);
         await tester.pump();
-        verify(() => harness.translate.setInput('Hello world')).called(1);
+        verify(() => harness.translate.setInput('Hello world', dictated: true))
+            .called(1);
         final field = tester.widget<TextField>(
           find.byKey(const Key('translate_input_field')),
         );
@@ -387,7 +392,9 @@ void main() {
         // A later utterance of the same session follows the first.
         speech.say('again', isFinal: true);
         await tester.pump();
-        verify(() => harness.translate.setInput('Hello world again')).called(1);
+        verify(
+          () => harness.translate.setInput('Hello world again', dictated: true),
+        ).called(1);
         speech.finish();
         await tester.pump();
         expect(find.byTooltip('Speak'), findsOneWidget);
@@ -406,7 +413,8 @@ void main() {
         verifyNever(() => harness.translate.setInput(any()));
         speech.say('Bonjour', isFinal: true);
         await tester.pump();
-        verify(() => harness.translate.setInput('Bonjour')).called(1);
+        verify(() => harness.translate.setInput('Bonjour', dictated: true))
+            .called(1);
       });
 
       testWidgets('does not add a space after trailing whitespace', (
@@ -422,7 +430,8 @@ void main() {
         await tester.pump();
         speech.say('two', isFinal: true);
         await tester.pump();
-        verify(() => harness.translate.setInput('Line\ntwo')).called(1);
+        verify(() => harness.translate.setInput('Line\ntwo', dictated: true))
+            .called(1);
       });
     });
 
@@ -679,7 +688,8 @@ void main() {
         await harness.pump(tester, child: const InputCard(compact: true));
         await tester.tap(link());
         await tester.pump();
-        verify(() => harness.translate.setInput('Guten Tag')).called(1);
+        verify(() => harness.translate.setInput('Guten Tag', pasted: true))
+            .called(1);
         expect(
           tester.widget<TextField>(field()).controller!.text,
           clipboard.pasteText,
@@ -704,7 +714,8 @@ void main() {
         await tester.pump();
         await tester.sendKeyEvent(LogicalKeyboardKey.enter);
         await tester.pump();
-        verify(() => harness.translate.setInput('Guten Tag')).called(1);
+        verify(() => harness.translate.setInput('Guten Tag', pasted: true))
+            .called(1);
         expect(fieldFocused(tester), isTrue);
       });
 
@@ -802,7 +813,8 @@ void main() {
         expect(tester.getCenter(link()).dx, closeTo(centre.dx, 0.5));
         await tester.tap(link());
         await tester.pump();
-        verify(() => harness.translate.setInput('Guten Tag')).called(1);
+        verify(() => harness.translate.setInput('Guten Tag', pasted: true))
+            .called(1);
       });
     });
 
@@ -882,6 +894,141 @@ void main() {
           expect(size.width, greaterThanOrEqualTo(48), reason: key);
           expect(size.height, greaterThanOrEqualTo(48), reason: key);
         }
+      });
+    });
+  });
+
+  group('InputCard (wave 2)', () {
+    group('character count', () {
+      const limit = TranslateCubit.maxInputLength;
+
+      testWidgets('shows only the count, without a ring, far from the limit', (
+        tester,
+      ) async {
+        final harness = TranslateHarness(state: readyState(input: 'Hello'));
+        await harness.pump(tester, child: const InputCard());
+        expect(find.text('5 characters'), findsOneWidget);
+        expect(find.byType(CountRing), findsNothing);
+      });
+
+      testWidgets('shows the count with the limit and the ring near it', (
+        tester,
+      ) async {
+        final handle = tester.ensureSemantics();
+        final near = 'a' * (limit * 4 ~/ 5);
+        final harness = TranslateHarness(state: readyState(input: near));
+        await harness.pump(tester, child: const InputCard());
+        expect(find.text('16,000 / 20,000'), findsOneWidget);
+        expect(
+          find.bySemanticsLabel('16,000 of 20,000 characters'),
+          findsOneWidget,
+        );
+        final ring = tester.widget<CountRing>(find.byType(CountRing));
+        expect(ring.count, near.length);
+        expect(ring.limit, limit);
+        handle.dispose();
+      });
+    });
+
+    group('tapping outside', () {
+      Future<FocusNode> pumpFocused(
+        WidgetTester tester,
+        TranslateHarness harness,
+      ) async {
+        final focus = FocusNode();
+        addTearDown(focus.dispose);
+        await harness.pump(
+          tester,
+          child: Column(
+            children: [
+              InputCard(focusNode: focus),
+              const SizedBox(key: Key('outside'), width: 200, height: 200),
+            ],
+          ),
+        );
+        focus.requestFocus();
+        await tester.pump();
+        expect(focus.hasFocus, isTrue);
+        return focus;
+      }
+
+      testWidgets('an empty field gives up the focus', (tester) async {
+        final harness = TranslateHarness();
+        final focus = await pumpFocused(tester, harness);
+        await tester.tapAt(
+          // A touch, as on Android.
+          tester.getCenter(find.byKey(const Key('outside'))),
+        );
+        await tester.pump();
+        expect(focus.hasFocus, isFalse);
+      });
+
+      testWidgets('a field with text keeps it on Android (touch)', (
+        tester,
+      ) async {
+        final harness = TranslateHarness(state: readyState(input: 'Hello'));
+        final focus = await pumpFocused(tester, harness);
+        await tester.tapAt(
+          // A touch, as on Android.
+          tester.getCenter(find.byKey(const Key('outside'))),
+        );
+        await tester.pump();
+        expect(focus.hasFocus, isTrue);
+      });
+
+      testWidgets('a field with text keeps the default for a mouse', (
+        tester,
+      ) async {
+        final harness = TranslateHarness(state: readyState(input: 'Hello'));
+        final focus = await pumpFocused(tester, harness);
+        await tester.tapAt(
+          tester.getCenter(find.byKey(const Key('outside'))),
+          kind: PointerDeviceKind.mouse,
+        );
+        await tester.pump();
+        expect(focus.hasFocus, isFalse);
+      });
+
+      testWidgets('a tap on the card itself is not outside', (tester) async {
+        final harness = TranslateHarness();
+        final focus = await pumpFocused(tester, harness);
+        await tester.tap(find.byKey(const Key('translate_paste_button')));
+        await tester.pump();
+        expect(focus.hasFocus, isTrue);
+      });
+    });
+
+    group("the field's own paste", () {
+      testWidgets('Ctrl+V marks the edit as a paste', (tester) async {
+        FakeClipboard(tester, pasteText: 'Guten Tag');
+        final harness = TranslateHarness();
+        await harness.pump(tester, child: const InputCard());
+        await tester.tap(find.byKey(const Key('translate_input_field')));
+        await tester.pump();
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.keyV);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+        await tester.pumpAndSettle();
+        verify(() => harness.translate.setInput('Guten Tag', pasted: true))
+            .called(1);
+      });
+
+      testWidgets('the context menu Paste marks the edit as a paste', (
+        tester,
+      ) async {
+        FakeClipboard(tester, pasteText: 'Guten Tag');
+        final harness = TranslateHarness();
+        await harness.pump(tester, child: const InputCard());
+        final field = find.byKey(const Key('translate_input_field'));
+        await tester.longPress(field);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Paste'));
+        await tester.pumpAndSettle();
+        verify(() => harness.translate.setInput('Guten Tag', pasted: true))
+            .called(1);
+        // Typing afterwards is typing again.
+        await tester.enterText(field, 'Guten Tag!');
+        verify(() => harness.translate.setInput('Guten Tag!')).called(1);
       });
     });
   });

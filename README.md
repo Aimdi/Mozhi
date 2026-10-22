@@ -23,7 +23,8 @@ history anywhere.
   LibreTranslate, DuckDuckGo, MyMemory, ...), with automatic failover across
   your ordered list of instances.
 - **Compare mode**: run all engines (or the ones you pick) side by side and
-  keep the best result.
+  keep the best result; engines that agree share a card, and differences
+  from the current translation are highlighted.
 - **AI providers**: OpenAI, Anthropic (Claude), Google Gemini, OpenRouter,
   Groq, DeepSeek, Mistral, xAI, Together, and local runtimes (Ollama,
   LM Studio, llama.cpp server) or any OpenAI-compatible URL. Local engines
@@ -33,7 +34,8 @@ history anywhere.
   **offline** translation on Android with Mozilla's Bergamot engine and the
   Firefox Translations models (MPL-2.0, about 55 languages).
 - **Quality modes**: a Fast and a Best engine you pick once, switched with
-  one tap and remembered (Kagi's Standard / Best).
+  one tap and remembered (Kagi's Standard / Best); once set up, they are the
+  engine control.
 - Long texts are split at paragraph boundaries and translated in parallel
   with context from the preceding part.
 
@@ -45,9 +47,10 @@ history anywhere.
   *LinkedIn speak*.
 - Alternatives (for the whole text or a selected span), word insights with
   variations, *Explain this translation*.
-- Refinement chips (*More formal*, *More casual*, *Shorter*, ...) edit the
-  current translation instead of starting over; they stack, exclude each
-  other within a group and can be undone.
+- Refinement chips (*More formal*, *More casual*, *Shorter*, ...), always in
+  view under an AI translation, edit it instead of starting over; they
+  stack, exclude each other within a group, show what changed and can be
+  undone.
 - **Alignment**: tap a phrase to highlight it in both the source and the
   translation. **Romanization** under non-Latin output (Hepburn, Pinyin,
   Revised Romanization, IAST, ...).
@@ -60,7 +63,9 @@ history anywhere.
   alternatives; a free-form *source* style (e.g. *LinkedIn speak*) can be
   decoded into plain language.
 - **Dictionary** tab and card: senses, pronunciation, examples, related
-  words, *Did you mean ...?*, three levels of detail.
+  words, *Did you mean ...?*, three levels of detail. Short inputs (one to
+  three words) show other translations, definitions and synonyms right
+  under the translation, without an extra request.
 - AI engines can still assist while a Mozhi engine translates.
 - **Proofread** tab: corrections with explanations, writing style,
   correction level, target reading level, regional variety (keeps or
@@ -69,19 +74,22 @@ history anywhere.
 
 **Everyday use**
 
-- Instant translation while typing (debounced, also for AI engines; can be
-  turned off), a Kagi-style start screen and a language bar docked at the
-  bottom with a go button,
-  detected source language with smart swap, transliteration.
+- Instant translation while typing (right away after a paste or a
+  sentence, also for AI engines; can be limited or turned off), a
+  Kagi-style start screen (with *Continue* and, on Android, *Paste and
+  translate*), a language bar docked at the bottom on phones and two fixed
+  panes on wide screens, detected source language with smart swap,
+  transliteration, and a full-screen *Show* mode.
 - **Also translate into…** up to four more languages at once (remembered),
   with the same engine and options, each with copy, listen and
   use-as-input.
 - **Read aloud** with Mozhi or device voices: speech rate from 0.5× to 1.5×
   with a preview, a device voice per language, or device voices for
-  everything (offline once installed). Long-press **Listen** (or More tools,
-  right click, Shift+Enter) to hear a text again slowly.
-- **History and favourites**, searchable, with JSON export and import and
-  optional automatic deletion after 1, 7 or 30 days (favourites are kept).
+  everything (offline once installed). Long-press **Listen** (or right
+  click, Shift+Enter) to hear a text again slowly.
+- **History and favorites**: compact, searchable rows, JSON export and
+  import, optional automatic deletion after 1, 7 or 30 days (favorites are
+  kept), and favorites as a phrasebook with CSV export for Anki.
 - Recent language pairs (long-press the swap button), Alt+1...9 for pinned
   target languages, and an undo when the app swaps languages for you.
 - **Usage & costs**: characters and estimated tokens per AI provider per
@@ -96,9 +104,11 @@ history anywhere.
   is ignored), plus
   `/proofread?text=...`, `/dictionary?word=...` and `mozhi://` deep links.
 - Material 3 with Material You colours, dark mode and pure-black mode;
-  four tabs (Translate, Dictionary, Proofread, Conversation) in a bottom
-  bar on phones and a navigation rail on tablets and wide browser windows,
-  with **History** and **Settings** as buttons in every tab's top bar.
+  four tabs (Translate, Dictionary, Proofread, Conversation) in a labelled
+  bottom bar on phones and a sidebar on tablets and wide browser windows,
+  with **History** and **Settings** (searchable, in seven categories) as
+  buttons in every tab's top bar. Keyboard shortcuts, a visible focus ring
+  and screen-reader support, also in the web app.
 
 **Privacy**
 
@@ -151,14 +161,14 @@ of every tab):
 
 | Screen | Where | What it does |
 | --- | --- | --- |
-| Onboarding | first start | Privacy mode, your languages (with offline downloads on Android) and, optionally, a public or your own Mozhi instance |
-| Image | Translate > More tools | Photos and screenshots: on-device text recognition (Tesseract, the default on Android; ML Kit in the Play variant), AI vision, or Mozhi via Google Translate (experimental) |
-| Documents | Translate > More tools | `.txt`, Markdown, SRT/VTT subtitles and JSON/ARB string tables, saved or shared when done |
+| Onboarding | first start | Privacy mode and your languages with offline downloads (Android), and a public or your own Mozhi instance |
+| Image | Translate: the Camera chip or the text box's camera button | Photos and screenshots: on-device text recognition (Tesseract, the default on Android; ML Kit in the Play variant), AI vision, or Mozhi via Google Translate (experimental) |
+| Documents | Translate: the Document chip or More tools | `.txt`, Markdown, SRT/VTT subtitles and JSON/ARB string tables, saved or shared when done |
 | Web page | Translate > More tools | Reader view of a page, translated block by block |
 | Voice input | microphone buttons | Dictation, optionally on-device only |
-| Offline languages | Settings | Firefox Translations models for translating without a network (Android) |
-| Presets and glossaries | Settings | Named option sets and term lists for AI translation |
-| Usage | Settings | Requests and characters per AI provider this month, with optional budgets |
+| Offline languages | Settings > Translation engines | Firefox Translations models for translating without a network (Android) |
+| Presets and glossaries | Settings > AI | Named option sets and term lists for AI translation |
+| Usage | Settings > AI | Requests and characters per AI provider this month, with optional budgets |
 | Quick translate | Android selection menu | Translate a selection in place without leaving the other app |
 
 Documentation:
@@ -208,8 +218,8 @@ docker run -d --name mozhi --restart unless-stopped \
 ```
 
 (or use the `compose.yml` from the [Mozhi repository][mozhi]). Then open
-**Settings > Mozhi instances**, add `http://<your-server-ip>:3000` and move it to
-the top. Plain `http` on your LAN is allowed.
+**Settings > Translation engines > Mozhi instances**, add
+`http://<your-server-ip>:3000` and move it to the top. Plain `http` on your LAN is allowed.
 
 The web build calls instances from the browser, so a self-hosted instance used
 from the web app must send CORS headers (for example via your reverse proxy).
@@ -217,7 +227,7 @@ The Android app does not need this.
 
 ## Connect an AI provider
 
-Open **Settings > AI providers > Add** and pick a preset:
+Open **Settings > AI > AI providers > Add provider** and pick a preset:
 
 | Provider | Base URL | Notes |
 | --- | --- | --- |
@@ -231,7 +241,8 @@ Open **Settings > AI providers > Add** and pick a preset:
 | llama.cpp server | `http://<pc-ip>:8080/v1` | local, no key |
 | Custom | any OpenAI-compatible URL | optional key and headers |
 
-Use **Test** in the editor to send a tiny translation before saving.
+Use **Test connection** in the editor to send a tiny translation before
+saving.
 
 **Local models on another computer.** `localhost` on a phone is the phone
 itself; use your computer's LAN address instead (for example

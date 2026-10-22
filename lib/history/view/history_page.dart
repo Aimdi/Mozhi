@@ -16,7 +16,10 @@ import 'package:mozhi/dictionary/view/dictionary_request.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/history/view/widgets/clear_history_dialog.dart';
+import 'package:mozhi/history/view/widgets/history_entry_details.dart';
 import 'package:mozhi/history/view/widgets/history_entry_tile.dart';
+import 'package:mozhi/history/view/widgets/phrasebook_export.dart'
+    deferred as phrasebook;
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/view/widgets/empty_state_view.dart';
@@ -37,10 +40,20 @@ enum HistoryTab {
       values.where((tab) => tab.name == name).firstOrNull;
 }
 
-/// On-device history of translations and dictionary look-ups with search,
-/// favorites, filters by language pair and by where the text went, and
-/// swipe actions (delete, favourite; see [HistoryEntryTile]). Reads the
-/// app-wide [HistoryCubit], [SettingsCubit] and [TranslateCubit].
+/// On-device history of translations and dictionary look-ups with search
+/// (matches highlighted), favorites, filters by language pair and by where
+/// the text went, and compact rows with swipe actions (delete, favourite;
+/// see [HistoryEntryTile]). Reads the app-wide [HistoryCubit],
+/// [SettingsCubit] and [TranslateCubit].
+///
+/// The Favorites tab is a phrasebook: grouped by language pair, with chips
+/// to show one pair, and "Export favorites" to a CSV file for Anki and
+/// spreadsheets (`showPhrasebookExport`).
+///
+/// From [HistoryView.twoPaneBreakpoint] the list sits beside the selected
+/// entry's details ([HistoryEntryDetails]): tapping a row selects it, and
+/// the details open it in the translator. On phones tapping a row opens it
+/// and "Details" (in its menu) shows them in a sheet.
 ///
 /// A full page above the tabs, opened from their app bars
 /// ([TopLevelActions]; a long press on the History button opens it on the
@@ -85,6 +98,35 @@ class HistoryView extends StatefulWidget {
   /// Key of the language pair filter chip.
   static const pairFilterKey = Key('history_filter_pair');
 
+  /// Key of "Export favorites".
+  static const exportKey = Key('history_export');
+
+  /// Key of the language pair chips of the Favorites tab.
+  static const favoritePairsKey = Key('history_favorite_pairs');
+
+  /// Width from which the list and the selected entry are side by side.
+  static const twoPaneBreakpoint = 840.0;
+
+  /// Width of the list beside the selected entry.
+  static const listPaneWidth = 440.0;
+
+  /// Exports the favourites shown as a CSV file; replaceable in tests.
+  /// Loads the export (and the file pickers) on first use.
+  @visibleForTesting
+  static Future<void> Function(BuildContext context, List<HistoryEntry> entries)
+  exportFavorites = _exportFavorites;
+
+  // coverage:ignore-start
+  static Future<void> _exportFavorites(
+    BuildContext context,
+    List<HistoryEntry> entries,
+  ) async {
+    await phrasebook.loadLibrary();
+    if (!context.mounted) return;
+    await phrasebook.showPhrasebookExport(context, entries);
+  }
+  // coverage:ignore-end
+
   @override
   State<HistoryView> createState() => _HistoryViewState();
 }
@@ -104,6 +146,12 @@ class _HistoryViewState extends State<HistoryView>
 
   /// Tiles by entry id (see [_tile]).
   final Map<String, HistoryEntryTile> _tiles = {};
+
+  /// The entry shown beside the list on wide screens (null: the first).
+  String? _selectedId;
+
+  /// Whether each cached tile was built for a wide screen.
+  final Map<String, bool> _tileWide = {};
 
   /// The All / Favorites tabs, kept in step with the cubit's filter.
   late final TabController _tabs = TabController(
@@ -212,6 +260,24 @@ class _HistoryViewState extends State<HistoryView>
     );
   }
 
+  /// Shows [entry]'s details: beside the list on wide screens ([wide]),
+  /// in a sheet otherwise.
+  void _showDetails(HistoryEntry entry, {required bool wide}) {
+    if (wide) {
+      setState(() => _selectedId = entry.id);
+      return;
+    }
+    unawaited(
+      showHistoryEntryDetails(
+        context,
+        entry: entry,
+        onOpen: () => _open(entry),
+        onToggleFavorite: () => _toggleFavorite(entry),
+        onDelete: () => _delete(entry),
+      ),
+    );
+  }
+
   void _onSearch(String query) {
     setState(() {});
     context.read<HistoryCubit>().search(query);
@@ -272,7 +338,6 @@ class _HistoryViewState extends State<HistoryView>
           ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     final hasEntries = state.entries.any((e) => !_dismissed.contains(e.id));
 
-    final cubit = context.read<HistoryCubit>();
     return MultiBlocListener(
       listeners: [
         BlocListener<HistoryCubit, HistoryState>(
@@ -292,6 +357,16 @@ class _HistoryViewState extends State<HistoryView>
           leading: topLevelBackButton(context),
           title: Text(l10n.historyTitle),
           actions: [
+            if (state.favoritesOnly && visible.isNotEmpty)
+              Builder(
+                builder: (context) => IconButton(
+                  key: HistoryView.exportKey,
+                  tooltip: l10n.historyExportFavorites,
+                  icon: const Icon(Icons.file_download_outlined),
+                  onPressed: () =>
+                      unawaited(HistoryView.exportFavorites(context, visible)),
+                ),
+              ),
             if (hasEntries)
               IconButton(
                 tooltip: l10n.historyClearMenu,
@@ -309,64 +384,198 @@ class _HistoryViewState extends State<HistoryView>
             : null,
         body: LayoutBuilder(
           builder: (context, constraints) {
-            final padding = centeredPadding(
-              constraints.maxWidth,
-              maxWidth: 760,
+            final wide =
+                constraints.maxWidth >= HistoryView.twoPaneBreakpoint &&
+                hasEntries;
+            if (!wide) {
+              return _list(
+                context,
+                state: state,
+                visible: visible,
+                hasEntries: hasEntries,
+                maxAge: maxAge,
+                saveHistory: saveHistory,
+                incognito: incognito,
+                destinationOf: destinationOf,
+                padding: centeredPadding(constraints.maxWidth, maxWidth: 760),
+                wide: false,
+              );
+            }
+            final selected =
+                visible.where((e) => e.id == _selectedId).firstOrNull ??
+                visible.firstOrNull;
+            // Each pane is its own focus traversal group and semantics
+            // container: the list is finished before the details.
+            Widget pane(Widget child) => Semantics(
+              container: true,
+              explicitChildNodes: true,
+              child: FocusTraversalGroup(child: child),
             );
-            return CustomScrollView(
-              slivers: [
-                SliverPadding(
-                  padding: padding.copyWith(bottom: 8),
-                  sliver: SliverList.list(
-                    children: [
-                      if (incognito || !saveHistory)
-                        _HistoryPausedBanner(incognito: incognito),
-                      _HistorySearchField(
-                        controller: _search,
-                        onChanged: _onSearch,
-                        onClear: _clearSearch,
-                      ),
-                      if (hasEntries)
-                        _HistoryFilterBar(
-                          state: state,
-                          destinations: state.destinationsWith(destinationOf),
-                          onPickPair: () => unawaited(_pickPair(state)),
-                        ),
-                    ],
-                  ),
-                ),
-                // X-style tabs that stay on top of the timeline.
-                PinnedHeaderSliver(
-                  child: BlurBar(
-                    bottom: true,
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: padding.left - 16,
-                      ),
-                      child: TabBar(
-                        controller: _tabs,
-                        dividerHeight: 0,
-                        onTap: (index) =>
-                            cubit.setFavoritesOnly(enabled: index == 1),
-                        tabs: [
-                          Tab(text: l10n.historyFilterAll),
-                          Tab(text: l10n.historyFilterFavorites),
-                        ],
-                      ),
+            return Row(
+              key: const Key('history_panes'),
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  width: HistoryView.listPaneWidth,
+                  child: pane(
+                    _list(
+                      context,
+                      state: state,
+                      visible: visible,
+                      hasEntries: hasEntries,
+                      maxAge: maxAge,
+                      saveHistory: saveHistory,
+                      incognito: incognito,
+                      destinationOf: destinationOf,
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+                      wide: true,
+                      selectedId: selected?.id,
                     ),
                   ),
                 ),
-                if (maxAge != null)
-                  SliverPadding(
-                    padding: padding.copyWith(top: 0, bottom: 0),
-                    sliver: SliverToBoxAdapter(
-                      child: _RetentionNote(days: maxAge.inDays),
-                    ),
-                  ),
-                ..._content(context, state, visible, hasEntries, padding),
+                const Hairline(vertical: true),
+                Expanded(child: pane(_detailPane(selected))),
               ],
             );
           },
+        ),
+      ),
+    );
+  }
+
+  /// The search, filters, tabs and entries; on wide screens beside the
+  /// details of [selectedId].
+  Widget _list(
+    BuildContext context, {
+    required HistoryState state,
+    required List<HistoryEntry> visible,
+    required bool hasEntries,
+    required Duration? maxAge,
+    required bool saveHistory,
+    required bool incognito,
+    required HistoryDestinationOf destinationOf,
+    required EdgeInsets padding,
+    required bool wide,
+    String? selectedId,
+  }) {
+    final l10n = context.l10n;
+    final cubit = context.read<HistoryCubit>();
+    final favoritePairs = state.favoritesOnly
+        ? _favoritePairs(state.entries)
+        : const <(HistoryPair, int)>[];
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: padding.copyWith(bottom: 8),
+          sliver: SliverList.list(
+            children: [
+              if (incognito || !saveHistory)
+                _HistoryPausedBanner(incognito: incognito),
+              _HistorySearchField(
+                controller: _search,
+                onChanged: _onSearch,
+                onClear: _clearSearch,
+              ),
+              if (hasEntries)
+                _HistoryFilterBar(
+                  state: state,
+                  destinations: state.destinationsWith(destinationOf),
+                  // The Favorites tab has its pair chips.
+                  showPairs: !state.favoritesOnly,
+                  onPickPair: () => unawaited(_pickPair(state)),
+                ),
+            ],
+          ),
+        ),
+        // X-style tabs that stay on top of the timeline.
+        PinnedHeaderSliver(
+          child: BlurBar(
+            bottom: true,
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: padding.left - 16),
+              child: TabBar(
+                controller: _tabs,
+                dividerHeight: 0,
+                onTap: (index) => cubit.setFavoritesOnly(enabled: index == 1),
+                tabs: [
+                  Tab(text: l10n.historyFilterAll),
+                  Tab(text: l10n.historyFilterFavorites),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (favoritePairs.length > 1 ||
+            (state.favoritesOnly && state.pair != null))
+          SliverPadding(
+            padding: padding.copyWith(top: 8, bottom: 0),
+            sliver: SliverToBoxAdapter(
+              child: _FavoritePairChips(
+                pairs: favoritePairs,
+                selected: state.pair,
+                onSelected: cubit.filterByPair,
+              ),
+            ),
+          ),
+        if (maxAge != null)
+          SliverPadding(
+            padding: padding.copyWith(top: 0, bottom: 0),
+            sliver: SliverToBoxAdapter(
+              child: _RetentionNote(days: maxAge.inDays),
+            ),
+          ),
+        ..._content(
+          context,
+          state,
+          visible,
+          hasEntries,
+          padding,
+          wide: wide,
+          selectedId: selectedId,
+        ),
+      ],
+    );
+  }
+
+  /// The language pairs of the favourites in [entries], with how many
+  /// favourites each has, most first.
+  static List<(HistoryPair, int)> _favoritePairs(List<HistoryEntry> entries) =>
+      HistoryState(
+        entries: [
+          for (final entry in entries)
+            if (entry.isFavorite) entry,
+        ],
+      ).pairs;
+
+  /// The details of [entry] beside the list, or a hint without one.
+  Widget _detailPane(HistoryEntry? entry) {
+    final l10n = context.l10n;
+    if (entry == null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            l10n.historyDetailEmpty,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyLarge
+                ?.copyWith(color: AppPalette.of(context).secondaryText),
+          ),
+        ),
+      );
+    }
+    return SingleChildScrollView(
+      key: const Key('history_detail_pane'),
+      padding: const EdgeInsets.fromLTRB(32, 24, 32, 96),
+      child: Align(
+        alignment: AlignmentDirectional.topStart,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: HistoryEntryDetails(
+            entry: entry,
+            onOpen: () => _open(entry),
+            onToggleFavorite: () => _toggleFavorite(entry),
+            onDelete: () => _delete(entry),
+          ),
         ),
       ),
     );
@@ -381,6 +590,7 @@ class _HistoryViewState extends State<HistoryView>
     _dismissed.removeWhere((id) => !byId.containsKey(id));
     _unfavorited.removeWhere((id) => !(byId[id]?.isFavorite ?? false));
     _tiles.removeWhere((id, _) => !byId.containsKey(id));
+    _tileWide.removeWhere((id, _) => !byId.containsKey(id));
   }
 
   List<Widget> _content(
@@ -388,8 +598,10 @@ class _HistoryViewState extends State<HistoryView>
     HistoryState state,
     List<HistoryEntry> visible,
     bool hasEntries,
-    EdgeInsets padding,
-  ) {
+    EdgeInsets padding, {
+    required bool wide,
+    String? selectedId,
+  }) {
     final l10n = context.l10n;
     if (!hasEntries &&
         (state.status == HistoryStatus.initial ||
@@ -517,18 +729,43 @@ class _HistoryViewState extends State<HistoryView>
       ];
     }
 
+    // Favourites are a phrasebook, grouped by language pair; the history
+    // is a timeline, grouped by day.
     final rows = <Object>[];
-    DateTime? lastDay;
-    for (final entry in visible) {
-      final day = _day(entry.createdAt);
-      if (day != lastDay) rows.add(lastDay = day);
-      rows.add(entry);
+    if (state.favoritesOnly) {
+      final byPair = <HistoryPair, List<HistoryEntry>>{};
+      for (final entry in visible) {
+        (byPair[HistoryPair.of(entry)] ??= []).add(entry);
+      }
+      // The biggest group first; groups of the same size in the order of
+      // their newest entry (List.sort is not stable).
+      final order = [for (final pair in byPair.keys) pair];
+      final groups = byPair.entries.toList()
+        ..sort((a, b) {
+          final bySize = b.value.length.compareTo(a.value.length);
+          return bySize != 0
+              ? bySize
+              : order.indexOf(a.key).compareTo(order.indexOf(b.key));
+        });
+      for (final MapEntry(key: pair, value: entries) in groups) {
+        rows
+          ..add((pair, entries.length, entries.any((e) => e.isDictionary)))
+          ..addAll(entries);
+      }
+    } else {
+      DateTime? lastDay;
+      for (final entry in visible) {
+        final day = _day(entry.createdAt);
+        if (day != lastDay) rows.add(lastDay = day);
+        rows.add(entry);
+      }
     }
     final theme = Theme.of(context);
     // The days are section headings, like the settings sections.
     final headerStyle = theme.textTheme.titleLarge?.copyWith(
       color: theme.colorScheme.onSurface,
     );
+    final query = state.query.trim();
     return [
       SliverPadding(
         // Room below the last row for the floating action button.
@@ -548,6 +785,9 @@ class _HistoryViewState extends State<HistoryView>
             final HistoryEntry entry => _tile(
               entry,
               unfavoriteRemoves: state.favoritesOnly,
+              query: query,
+              wide: wide,
+              selected: wide && entry.id == selectedId,
             ),
             final DateTime day => Padding(
               key: ValueKey(day),
@@ -557,6 +797,13 @@ class _HistoryViewState extends State<HistoryView>
                 child: Text(_dayLabel(l10n, day), style: headerStyle),
               ),
             ),
+            (final HistoryPair pair, final int count, final bool lookUps) =>
+              _PairHeader(
+                key: ValueKey(pair),
+                pair: pair,
+                count: count,
+                lookUps: lookUps,
+              ),
             _ => const SizedBox.shrink(), // coverage:ignore-line
           },
         ),
@@ -596,18 +843,29 @@ class _HistoryViewState extends State<HistoryView>
   HistoryEntryTile _tile(
     HistoryEntry entry, {
     required bool unfavoriteRemoves,
+    required String query,
+    required bool wide,
+    required bool selected,
   }) {
     final cached = _tiles[entry.id];
     if (cached != null &&
         cached.entry == entry &&
-        cached.unfavoriteRemoves == unfavoriteRemoves) {
+        cached.unfavoriteRemoves == unfavoriteRemoves &&
+        cached.query == query &&
+        cached.selected == selected &&
+        _tileWide[entry.id] == wide) {
       return cached;
     }
+    _tileWide[entry.id] = wide;
     return _tiles[entry.id] = HistoryEntryTile(
       key: ValueKey(entry.id),
       entry: entry,
       unfavoriteRemoves: unfavoriteRemoves,
-      onTap: () => _open(entry),
+      query: query,
+      selected: selected,
+      // Wide screens show the details beside the list: a tap selects.
+      onTap: wide ? () => _showDetails(entry, wide: true) : () => _open(entry),
+      onShowDetails: () => _showDetails(entry, wide: wide),
       onToggleFavorite: () => _toggleFavorite(entry),
       onDelete: () => _delete(entry),
     );
@@ -676,9 +934,13 @@ class _HistoryFilterBar extends StatelessWidget {
     required this.state,
     required this.destinations,
     required this.onPickPair,
+    this.showPairs = true,
   });
 
   final HistoryState state;
+
+  /// Whether the language pair filter is offered here.
+  final bool showPairs;
 
   /// The destinations of the entries, in display order.
   final List<HistoryDestination> destinations;
@@ -699,7 +961,8 @@ class _HistoryFilterBar extends StatelessWidget {
     final cubit = context.read<HistoryCubit>();
     final pair = state.pair;
     final destination = state.destination;
-    final showPairs = pair != null || state.pairs.length > 1;
+    final showPairs =
+        this.showPairs && (pair != null || state.pairs.length > 1);
     final shown = [
       ...destinations,
       if (destination != null && !destinations.contains(destination))
@@ -735,7 +998,7 @@ class _HistoryFilterBar extends StatelessWidget {
                       ? colors.onSurfaceVariant
                       : colors.onSecondaryContainer,
                   side: pair == null
-                      ? BorderSide(color: colors.outlineVariant)
+                      ? BorderSide(color: colors.outline)
                       : BorderSide.none,
                 ),
                 onPressed: onPickPair,
@@ -774,6 +1037,108 @@ class _HistoryFilterBar extends StatelessWidget {
                 onPressed: cubit.clearFilters,
                 child: Text(l10n.historyClearFilters),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The heading of a language pair's group in the Favorites tab: the pair
+/// and how many favourites it has.
+class _PairHeader extends StatelessWidget {
+  const new({
+    required this.pair,
+    required this.count,
+    required this.lookUps,
+    super.key,
+  });
+
+  final HistoryPair pair;
+  final int count;
+
+  /// Whether to count entries rather than translations.
+  final bool lookUps;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final counted = lookUps
+        ? l10n.historyFilterPairEntries(count)
+        : l10n.historyFilterPairCount(count);
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(4, 16, 4, 4),
+      child: Semantics(
+        header: true,
+        child: Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(text: historyPairLabel(l10n, pair)),
+              TextSpan(
+                text: ' · $counted',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: AppPalette.of(context).secondaryText,
+                ),
+              ),
+            ],
+          ),
+          style: theme.textTheme.titleMedium?.copyWith(
+            color: theme.colorScheme.onSurface,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Chips that show one language pair of the favourites (or all of them),
+/// in a row that scrolls sideways.
+class _FavoritePairChips extends StatelessWidget {
+  const new({
+    required this.pairs,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final List<(HistoryPair, int)> pairs;
+  final HistoryPair? selected;
+  final ValueChanged<HistoryPair?> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final selected = this.selected;
+    final shown = [
+      ...pairs,
+      if (selected != null && !pairs.any((p) => p.$1 == selected))
+        (selected, 0),
+    ];
+    return Semantics(
+      key: HistoryView.favoritePairsKey,
+      container: true,
+      explicitChildNodes: true,
+      label: l10n.historyPairFilters,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            ChoiceChip(
+              materialTapTargetSize: MaterialTapTargetSize.padded,
+              label: Text(l10n.historyFilterAll),
+              selected: selected == null,
+              onSelected: (_) => onSelected(null),
+            ),
+            for (final (pair, _) in shown) ...[
+              const SizedBox(width: 8),
+              ChoiceChip(
+                materialTapTargetSize: MaterialTapTargetSize.padded,
+                label: Text(historyPairLabel(l10n, pair)),
+                selected: selected == pair,
+                onSelected: (on) => onSelected(on ? pair : null),
+              ),
+            ],
           ],
         ),
       ),
@@ -970,7 +1335,6 @@ class _HistoryPausedBanner extends StatelessWidget {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final palette = AppPalette.of(context);
     final settings = context.read<SettingsCubit>();
     final (icon, body, action, onPressed) = incognito
         ? (
@@ -992,7 +1356,7 @@ class _HistoryPausedBanner extends StatelessWidget {
         container: true,
         child: DecoratedBox(
           decoration: BoxDecoration(
-            border: Border.all(color: palette.hairline),
+            border: Border.all(color: colors.outline),
             borderRadius: AppRadius.cardBorderRadius,
           ),
           child: Padding(

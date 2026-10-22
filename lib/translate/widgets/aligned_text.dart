@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/focus_ring.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/widgets/status_announcer.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -27,10 +28,11 @@ enum AlignedSide {
 /// tapped one. The [focus]ed phrase is drawn with [focusStyle]; the other
 /// aligned phrases are underlined with [phraseStyle].
 ///
-/// Keyboard: the text is one stop in the focus traversal (outlined while
-/// focused). The arrow keys then focus the next or previous phrase (in
-/// reading order, so Left and Right follow [textDirection]), Enter or Space
-/// focuses the first phrase or clears the focus, and Escape clears it.
+/// Keyboard: the text is one stop in the focus traversal (the app's focus
+/// ring, [FocusRing], outlines it while focused). The arrow keys then
+/// focus the next or previous phrase (in reading order, so Left and Right
+/// follow [textDirection]), Enter or Space focuses the first phrase or
+/// clears the focus, and Escape clears it.
 ///
 /// Screen readers read the text in its language ([locale]), each phrase as
 /// a link of its own in reading order; whitespace between two phrases is
@@ -144,9 +146,6 @@ class AlignedText extends StatefulWidget {
 class _AlignedTextState extends State<AlignedText> {
   final _recognizers = <TapGestureRecognizer>[];
   final _focusNode = FocusNode(debugLabel: 'AlignedText');
-
-  /// Whether the text has the keyboard focus (outlined).
-  bool _focused = false;
 
   /// The phrase ranges of the last build ([AlignedText.ranges]).
   List<(int, int, int)> _ranges = const [];
@@ -320,26 +319,18 @@ class _AlignedTextState extends State<AlignedText> {
     }
     return StatusAnnouncer(
       message: announcement,
-      child: Focus(
-        focusNode: _focusNode,
-        canRequestFocus: ranges.isNotEmpty,
-        // Screen readers move through the phrases (links) instead.
-        includeSemantics: false,
-        onFocusChange: (focused) => setState(() => _focused = focused),
-        onKeyEvent: _onKey,
-        child: DecoratedBox(
-          key: const Key('translate_aligned_text_focus'),
-          position: DecorationPosition.foreground,
-          decoration: _focused
-              ? BoxDecoration(
-                  border: Border.all(
-                    color: scheme.primary,
-                    width: 2,
-                    strokeAlign: BorderSide.strokeAlignOutside,
-                  ),
-                  borderRadius: const BorderRadius.all(Radius.circular(4)),
-                )
-              : const BoxDecoration(),
+      // The app's keyboard focus ring (it is not an ink well).
+      child: FocusRing(
+        key: const Key('translate_aligned_text_focus'),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(4)),
+        ),
+        child: Focus(
+          focusNode: _focusNode,
+          canRequestFocus: ranges.isNotEmpty,
+          // Screen readers move through the phrases (links) instead.
+          includeSemantics: false,
+          onKeyEvent: _onKey,
           child: Text.rich(
             key: const Key('translate_aligned_text'),
             TextSpan(children: spans, locale: widget.locale),

@@ -43,8 +43,8 @@ Each language needs its data file (`<code>.traineddata`), downloaded once
   **Download German text recognition (1.5 MB)**. With **Detect language**
   and no data at all, the app asks which language the text is in and
   offers your language's data.
-- **Settings > Offline languages > Text recognition**: every language,
-  with its size, download, delete and **Import from files**.
+- **Settings > Translation engines > Offline languages > Text recognition**:
+  every language, with its size, download, delete and **Import from files**.
 
 **Download over Wi-Fi only** (on the Offline languages screen, shared with
 the offline translation models) applies: on mobile data or a metered

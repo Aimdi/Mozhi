@@ -106,15 +106,16 @@ lib/
 - **Routing.** `go_router` with a `StatefulShellRoute` that keeps the four
   tabs (Translate, Dictionary, Proofread, Conversation) alive; Dictionary and
   Conversation are deferred libraries, loaded when first opened. History and
-  Settings are top-level routes outside the tabs, pushed above them from
-  every tab's app bar (`TopLevelActions`); opened on their own (a link or an
-  app shortcut) their back arrow and system back go to `/translate`.
-  Settings sub-pages are nested routes (`/settings/instances`,
+  Settings are top-level routes outside the tabs, pushed above them from every
+  tab's app bar (`TopLevelActions`); opened on their own (a link or an app
+  shortcut) their back arrow and system back go to `/translate`. Settings has
+  a page per category (`/settings/general`, `/settings/privacy`, ...; `?row=`
+  scrolls to a setting) and nested sub-pages (`/settings/instances`,
   `/settings/providers/edit?id=…`, ...). Conversation's face-to-face mode is
   pushed on the root navigator, above the tabs.
-- **Layout.** `AppShell` shows a bottom navigation bar on phones and a
-  navigation rail from 840 dp; the translate screen puts input and output
-  side by side on wide screens.
+- **Layout.** `AppShell` shows a labelled bottom navigation bar on phones
+  and a navigation rail from 840 dp; the translate screen puts input and
+  output side by side on wide screens, with the languages above the panes.
 
 ## Data flow of a translation
 
@@ -199,8 +200,8 @@ Details worth knowing:
   `FallbackKeyValueStore` that falls back to memory when secure storage is
   unavailable) and injected into `AiProviderConfig.apiKey` at load time.
 - `HistoryRepository` stores history as a JSON list in the preferences store
-  (key `history.v1`): newest first, at most 1,000 non-favourite entries,
-  favourites never evicted. Export/import use the same JSON.
+  (key `history.v1`): newest first, at most 1,000 non-favorite entries,
+  favorites never evicted. Export/import use the same JSON.
 
 ## Errors, failover and caching
 

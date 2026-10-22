@@ -14,15 +14,18 @@ import 'package:translation_repository/translation_repository.dart';
 bool detectionLooksUncertain(TranslateState state) =>
     state.detectionUncertain || detectionIsUncertain(state);
 
-/// "Detected: Dutch" under the translation (auto source only; nothing
-/// otherwise). Tapping it opens the source language picker to correct the
-/// detection.
+/// "Detected: Dutch" (auto source only; nothing otherwise). Tapping it
+/// opens the source language picker to correct the detection.
 ///
 /// An uncertain detection ([detectionLooksUncertain]) reads "Detected:
 /// Dutch?" and is followed by a chip for each other language the input
 /// may be in ([TranslateState.detectedAlternativeLanguages], e.g. German,
 /// Afrikaans); choosing one translates from it
 /// ([TranslateCubit.useDetectedAlternative]).
+///
+/// The output shows it only for an uncertain detection with other likely
+/// languages, under the translation's actions; the language bar always
+/// names the detected language.
 class DetectedLanguageChips extends StatelessWidget {
   const new({required this.state, super.key});
 

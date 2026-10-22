@@ -8,7 +8,7 @@ import 'package:mozhi/core/widgets/composer_card.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/proofread/cubit/proofread_cubit.dart';
 
-/// The go button of the proofreading composer (the rocket of the
+/// The go button of the proofreading composer (the go arrow of the
 /// translate screen): proofreads the input; disabled without input or an
 /// engine and while checking. Its accessible name is "Proofread"
 /// ("Checking…" while a check runs, with a progress ring around it); the

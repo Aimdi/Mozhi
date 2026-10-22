@@ -78,7 +78,7 @@ void main() {
       expect(find.text('Translation options'), findsWidgets);
       for (final label in [
         'Style',
-        'Formality',
+        'Tone',
         'Reading level',
         'Speaker gender',
         'Addressee gender',
@@ -96,10 +96,58 @@ void main() {
       expect(_captured(harness).style, TranslationStyle.literal);
     });
 
-    testWidgets('formality chips set formality', (tester) async {
+    testWidgets('tone segments set the formality', (tester) async {
       final harness = await _open(tester);
+      final tone = tester.widget<SegmentedButton<Formality>>(
+        find.byKey(const Key('translate_options_tone')),
+      );
+      expect(tone.selected, {Formality.automatic});
+      await tester.tap(find.text('Casual'));
+      expect(_captured(harness).formality, Formality.less);
+      await tester.tap(find.text('Formal'));
+      expect(_captured(harness).formality, Formality.more);
+    });
+
+    testWidgets('the softer tones are under Advanced', (tester) async {
+      final harness = await _open(tester);
+      expect(find.text('Prefer informal'), findsNothing);
+      await tester.tap(find.byKey(const Key('translate_options_advanced')));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Prefer informal'));
       expect(_captured(harness).formality, Formality.preferLess);
+    });
+
+    testWidgets('a softer tone opens Advanced and selects no segment', (
+      tester,
+    ) async {
+      final harness = await _open(
+        tester,
+        const TranslationOptions(formality: Formality.preferMore),
+      );
+      final tone = tester.widget<SegmentedButton<Formality>>(
+        find.byKey(const Key('translate_options_tone')),
+      );
+      expect(tone.selected, isEmpty);
+      final chip = tester.widget<ChoiceChip>(
+        find.ancestor(
+          of: find.text('Prefer formal'),
+          matching: find.byType(ChoiceChip),
+        ),
+      );
+      expect(chip.selected, isTrue);
+      // Choosing it again goes back to Neutral.
+      await tester.tap(find.text('Prefer formal'));
+      expect(_captured(harness).formality, Formality.automatic);
+      // Advanced closes again.
+      await tester.tap(find.byKey(const Key('translate_options_advanced')));
+      await tester.pumpAndSettle();
+      expect(find.text('Prefer formal'), findsNothing);
+    });
+
+    testWidgets('options the engine applies carry no reason', (tester) async {
+      await _open(tester);
+      expect(find.text('AI engines only'), findsNothing);
+      expect(find.text('AI engines and the DeepL API only'), findsNothing);
     });
 
     testWidgets('reading level dropdown sets the level', (tester) async {
@@ -322,7 +370,7 @@ void main() {
 
     testWidgets('are not offered without a presets cubit', (tester) async {
       await _open(tester);
-      expect(find.byType(PresetPicker), findsNothing);
+      expect(find.byKey(const Key('translate_options_presets')), findsNothing);
       expect(find.text('Preset'), findsNothing);
     });
 
@@ -453,14 +501,20 @@ void main() {
       );
       await tester.tap(find.byKey(const Key('translate_options_button')));
       await tester.pumpAndSettle();
-      expect(find.byType(PresetPicker), findsOneWidget);
+      expect(
+        find.byKey(const Key('translate_options_presets')),
+        findsOneWidget,
+      );
       expect(find.byKey(const Key('translate_options_ai_note')), findsNothing);
 
       final mozhi = readyState();
       harness.setState(mozhi);
       states.add(mozhi);
       await tester.pumpAndSettle();
-      expect(find.byType(PresetPicker), findsOneWidget);
+      expect(
+        find.byKey(const Key('translate_options_presets')),
+        findsOneWidget,
+      );
       // The note now says the options wait for an AI translator.
       expect(
         find.byKey(const Key('translate_options_ai_note')),
@@ -483,7 +537,85 @@ void main() {
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
       expect(find.byType(TranslationOptionsSheet), findsOneWidget);
-      expect(find.byType(PresetPicker), findsOneWidget);
+      expect(
+        find.byKey(const Key('translate_options_presets')),
+        findsOneWidget,
+      );
+    });
+  });
+
+  group('wide layouts', () {
+    testWidgets('open a side sheet that is never cut off', (tester) async {
+      final harness = TranslateHarness(state: _state());
+      await harness.pump(
+        tester,
+        child: const OptionsButton(),
+        size: const Size(1200, 700),
+      );
+      await tester.tap(find.byKey(const Key('translate_options_button')));
+      await tester.pumpAndSettle();
+      final sheet = find.byKey(const Key('translate_options_side_sheet'));
+      expect(sheet, findsOneWidget);
+      final rect = tester.getRect(sheet);
+      expect(rect.right, 1200);
+      expect(rect.width, 420);
+      expect(rect.top, 0);
+      expect(rect.bottom, 700);
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(find.byType(DraggableScrollableSheet), findsNothing);
+      // Everything scrolls into view.
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('translate_options_reset')),
+        200,
+        scrollable: find
+            .descendant(of: sheet, matching: find.byType(Scrollable))
+            .first,
+      );
+      expect(find.byKey(const Key('translate_options_reset')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('translate_options_done')));
+      await tester.pumpAndSettle();
+      expect(sheet, findsNothing);
+      expect(harness.translate.state.options, const TranslationOptions());
+    });
+
+    testWidgets('slides in from the start in right-to-left layouts', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(state: _state());
+      await harness.pump(
+        tester,
+        child: const OptionsButton(),
+        size: const Size(1200, 700),
+        locale: const Locale('ar'),
+      );
+      await tester.tap(find.byKey(const Key('translate_options_button')));
+      await tester.pumpAndSettle();
+      final rect = tester.getRect(
+        find.byKey(const Key('translate_options_side_sheet')),
+      );
+      expect(rect.left, 0);
+    });
+
+    testWidgets('a tap beside the side sheet closes it', (tester) async {
+      final harness = TranslateHarness(state: _state());
+      await harness.pump(
+        tester,
+        child: const OptionsButton(),
+        size: const Size(1200, 700),
+        disableAnimations: true,
+      );
+      await tester.tap(find.byKey(const Key('translate_options_button')));
+      await tester.pump();
+      expect(
+        find.byKey(const Key('translate_options_side_sheet')),
+        findsOneWidget,
+      );
+      await tester.tapAt(const Offset(100, 350));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('translate_options_side_sheet')),
+        findsNothing,
+      );
     });
   });
 
@@ -512,9 +644,19 @@ void main() {
         ),
         findsOneWidget,
       );
-      for (final label in ['Style', 'Formality', 'Speaker gender', 'Context']) {
+      for (final label in ['Style', 'Tone', 'Speaker gender', 'Context']) {
         expect(find.text(label), findsOneWidget, reason: label);
       }
+      // Each ignored option is greyed with the reason.
+      expect(find.text('AI engines only'), findsNWidgets(4));
+      expect(find.text('AI engines and the DeepL API only'), findsNWidgets(3));
+      expect(
+        find.text(
+          'Keep line breaks, Markdown, links and placeholders\n'
+          'AI engines and the DeepL API only',
+        ),
+        findsOneWidget,
+      );
       // The choices are still saved.
       await tester.tap(find.text('Literal'));
       expect(_captured(harness).style, TranslationStyle.literal);
@@ -541,6 +683,17 @@ void main() {
           'Your choices are saved and apply when you use one.',
         ),
         findsOneWidget,
+      );
+      // Only what DeepL ignores is greyed.
+      expect(find.text('AI engines only'), findsNWidgets(4));
+      expect(find.text('AI engines and the DeepL API only'), findsNothing);
+      expect(
+        find.byKey(const ValueKey('translate_options_ignored:Style')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('translate_options_ignored:Tone')),
+        findsNothing,
       );
     });
 

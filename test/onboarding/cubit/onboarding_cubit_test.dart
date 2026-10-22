@@ -62,6 +62,72 @@ void main() {
     });
   });
 
+  group('devices without an on-device engine', () {
+    OnboardingCubit web() => OnboardingCubit(
+      repository: repository,
+      settings: settings,
+      onDevice: false,
+    );
+
+    test('skip the privacy step', () {
+      final cubit = web();
+      expect(cubit.state.onDevice, isFalse);
+      expect(cubit.state.steps, [
+        OnboardingStep.welcome,
+        OnboardingStep.languages,
+        OnboardingStep.service,
+      ]);
+      cubit.next();
+      expect(cubit.state.step, OnboardingStep.languages);
+      cubit.goTo(OnboardingStep.privacy);
+      expect(cubit.state.step, OnboardingStep.languages);
+      cubit.back();
+      expect(cubit.state.step, OnboardingStep.welcome);
+    });
+
+    test('select Online on arriving at the service step, once', () {
+      final cubit = web()..next();
+      expect(settings.state.privacyMode, PrivacyMode.offlineFirst);
+      cubit.next();
+      expect(cubit.state.isLastStep, isTrue);
+      expect(settings.state.privacyMode, PrivacyMode.online);
+
+      cubit.setAskBeforeSending(ask: true);
+      expect(settings.state.privacyMode, PrivacyMode.offlineFirst);
+      cubit
+        ..back()
+        ..next();
+      expect(settings.state.privacyMode, PrivacyMode.offlineFirst);
+      cubit.setAskBeforeSending(ask: false);
+      expect(settings.state.privacyMode, PrivacyMode.online);
+    });
+
+    test('keep a mode other than the default', () {
+      settings.setPrivacyMode(PrivacyMode.offlineOnly);
+      web()
+        ..next()
+        ..next();
+      expect(settings.state.privacyMode, PrivacyMode.offlineOnly);
+    });
+
+    test('follow the repository by default', () {
+      when(() => repository.hasOfflineEngine).thenReturn(false);
+      expect(build().state.onDevice, isFalse);
+      when(() => repository.hasOfflineEngine).thenReturn(true);
+      expect(build().state.onDevice, isTrue);
+    });
+
+    test('on a device with an engine, the service step changes nothing', () {
+      final cubit = OnboardingCubit(
+        repository: repository,
+        settings: settings,
+        onDevice: true,
+      )..goTo(OnboardingStep.service);
+      expect(cubit.state.step, OnboardingStep.service);
+      expect(settings.state.privacyMode, PrivacyMode.offlineFirst);
+    });
+  });
+
   group('navigation', () {
     test('starts on the welcome step', () {
       expect(build().state, const OnboardingState());

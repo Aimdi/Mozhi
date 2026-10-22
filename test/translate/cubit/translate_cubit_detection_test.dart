@@ -456,12 +456,12 @@ void main() {
       },
       verify: (cubit) {
         expect(cubit.state.target, en);
-        final request =
-            verify(() => mocks.repository.compare(any(), captureAny()))
-                    .captured
-                    .single
-                as TranslationRequest;
-        expect(request.target, en);
+        // Turning compare mode on compares into the swapped target, the
+        // undo compares into English.
+        final requests = verify(
+          () => mocks.repository.compare(any(), captureAny()),
+        ).captured.cast<TranslationRequest>();
+        expect(requests.map((r) => r.target), [es, en]);
       },
     );
 

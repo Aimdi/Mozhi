@@ -121,9 +121,14 @@ class ConversationView extends StatelessWidget {
     final handsFree = context.select<ConversationCubit, bool>(
       (cubit) => cubit.state.handsFree,
     );
+    // "Beta" once: the empty hands-free conversation's greeting shows it
+    // ([ConversationHero]), so the title only does once there are turns.
+    final heroShowsBeta = context.select<ConversationCubit, bool>(
+      (cubit) => cubit.state.turns.isEmpty && micBuilder != null,
+    );
     final title = [
       Text(l10n.conversationTitle),
-      if (handsFree) ...[
+      if (handsFree && !heroShowsBeta) ...[
         const SizedBox(width: 8),
         const ConversationBetaBadge(),
       ],

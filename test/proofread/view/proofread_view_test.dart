@@ -9,7 +9,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/app/view/top_level_actions.dart';
-import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/proofread/proofread.dart';
 import 'package:mozhi/proofread/widgets/widgets.dart';
@@ -215,13 +214,84 @@ void main() {
       ).called(1);
     });
 
+    group('AI model chip', () {
+      testWidgets('shows the model beside the title and switches it', (
+        tester,
+      ) async {
+        when(() => cubit.setEngine(any())).thenReturn(null);
+        await pumpView(
+          tester,
+          readyState.copyWith(availableEngines: [openAiEngine, ollamaEngine]),
+          size: const Size(1000, 1200),
+        );
+
+        final chip = find.byKey(const Key('proofread_engine_chip'));
+        expect(chip, findsOneWidget);
+        expect(find.text('Proofread'), findsOneWidget);
+        expect(
+          find.descendant(of: chip, matching: find.text('OpenAI')),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(of: chip, matching: find.text('gpt-4o')),
+          findsOneWidget,
+        );
+
+        await tester.tap(find.byKey(const Key('composer_engine_chip')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('composer_engine:ai:ollama')));
+        await tester.pumpAndSettle();
+        verify(() => cubit.setEngine(ollamaEngine)).called(1);
+      });
+
+      testWidgets('takes the place of the title on phones', (tester) async {
+        await pumpView(tester, readyState, size: const Size(400, 800));
+
+        expect(find.byKey(const Key('proofread_engine_chip')), findsOneWidget);
+        expect(find.text('Proofread'), findsNothing);
+      });
+
+      testWidgets('opens the AI provider settings', (tester) async {
+        when(() => router.push<void>(any())).thenAnswer((_) async {});
+        await pumpView(tester, readyState);
+
+        await tester.tap(find.byKey(const Key('composer_engine_chip')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('composer_engine_manage')));
+        await tester.pumpAndSettle();
+        verify(() => router.push<void>('/settings/providers')).called(1);
+      });
+
+      testWidgets('is left out without a model', (tester) async {
+        await pumpView(
+          tester,
+          readyState.copyWith(engine: () => null),
+          size: const Size(1000, 1200),
+        );
+
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('proofread_engine_chip')),
+            matching: find.byType(TextButton),
+          ),
+          findsNothing,
+        );
+      });
+    });
+
     group('hero', () {
       testWidgets('greets above the input until the first check', (
         tester,
       ) async {
         await pumpView(tester, readyState);
         expect(find.byKey(const Key('proofread_hero')), findsOneWidget);
-        expect(find.text('Does this look right?'), findsOneWidget);
+        expect(find.text('Check your writing'), findsOneWidget);
+        expect(
+          find.text(
+            'Fix grammar, spelling and style, one suggestion at a time.',
+          ),
+          findsOneWidget,
+        );
         expect(
           find.descendant(
             of: find.byKey(const Key('proofread_hero')),
@@ -230,7 +300,7 @@ void main() {
           findsOneWidget,
         );
         expect(
-          tester.getCenter(find.text('Does this look right?')).dy,
+          tester.getCenter(find.text('Check your writing')).dy,
           lessThan(tester.getCenter(find.byType(ProofreadInputCard)).dy),
         );
       });
@@ -957,46 +1027,81 @@ void main() {
         expect(find.byIcon(Icons.arrow_forward), findsNWidgets(3));
       });
 
-      testWidgets('toggles, accepts and rejects edits', (tester) async {
+      Finder editButton(int index, {required bool accept}) => find.descendant(
+        of: find.byKey(ValueKey('proofread_edit_$index')),
+        matching: find.byKey(
+          Key(accept ? 'proofread_edit_accept' : 'proofread_edit_reject'),
+        ),
+      );
+
+      testWidgets('accepts and rejects each edit, and resets them', (
+        tester,
+      ) async {
         await pumpView(tester, successState(accepted: {0}));
         expect(find.text('1 of 3 applied'), findsOneWidget);
+        expect(find.text('Accept all'), findsNothing);
+        expect(find.text('Reject all'), findsNothing);
 
-        await tester.tap(
-          find.descendant(
-            of: find.byKey(const ValueKey('proofread_edit_1')),
-            matching: find.byType(Checkbox),
-          ),
-        );
+        // Edit 1 is not applied: its check mark applies it.
+        await tester.tap(editButton(1, accept: true));
         verify(() => cubit.toggleEdit(1)).called(1);
+        // Edit 0 is applied: its cross leaves it out.
+        await tester.tap(editButton(0, accept: false));
+        verify(() => cubit.toggleEdit(0)).called(1);
+        // The chosen button stays chosen.
+        await tester.tap(editButton(0, accept: true));
+        await tester.tap(editButton(1, accept: false));
+        verifyNever(() => cubit.toggleEdit(any()));
 
-        await tester.tap(find.text('Accept all'));
+        await tester.tap(find.byKey(const Key('proofread_edits_reset')));
         verify(() => cubit.acceptAll()).called(1);
-        await tester.tap(find.text('Reject all'));
-        verify(() => cubit.rejectAll()).called(1);
+        expect(find.text('Reset'), findsOneWidget);
       });
 
-      testWidgets('disables accept all when everything is applied', (
+      testWidgets('marks the choice of each edit as selected', (tester) async {
+        final semantics = tester.ensureSemantics();
+        await pumpView(tester, successState(accepted: {0}));
+
+        expect(
+          tester.widget<IconButton>(editButton(0, accept: true)).isSelected,
+          isTrue,
+        );
+        expect(
+          tester.widget<IconButton>(editButton(0, accept: false)).isSelected,
+          isFalse,
+        );
+        expect(
+          tester.widget<IconButton>(editButton(1, accept: false)).isSelected,
+          isTrue,
+        );
+        expect(find.byTooltip('Accept'), findsNWidgets(3));
+        expect(find.byTooltip('Reject'), findsNWidgets(3));
+        for (final key in ['proofread_edit_accept', 'proofread_edit_reject']) {
+          expect(
+            tester.getSize(find.byKey(Key(key)).first).height,
+            greaterThanOrEqualTo(48),
+          );
+        }
+        semantics.dispose();
+      });
+
+      testWidgets('offers Reset only once an edit was rejected', (
         tester,
       ) async {
         await pumpView(tester, successState());
-        final accept = tester.widget<TextButton>(
-          find.widgetWithText(TextButton, 'Accept all'),
-        );
-        expect(accept.onPressed, isNull);
-      });
-
-      testWidgets('disables reject all when nothing is applied', (
-        tester,
-      ) async {
-        await pumpView(tester, successState(accepted: {}));
-        final reject = tester.widget<TextButton>(
-          find.widgetWithText(TextButton, 'Reject all'),
-        );
-        expect(reject.onPressed, isNull);
+        expect(find.byKey(const Key('proofread_edits_reset')), findsNothing);
       });
 
       testWidgets('hides changes to show the clean output', (tester) async {
         await pumpView(tester, successState(accepted: {0}));
+        // An eye, not a paste-like icon.
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('proofread_show_changes')),
+            matching: find.byIcon(Icons.visibility_outlined),
+          ),
+          findsOneWidget,
+        );
         await tester.tap(find.byTooltip('Hide changes'));
         await tester.pump();
         expect(find.byKey(const Key('proofread_diff')), findsNothing);
@@ -1059,9 +1164,25 @@ void main() {
         );
         final spans = _diffSpans(tester);
         expect(spans.map((s) => s.text), ['I ', 'has', 'have', ' an apple.']);
-        await tester.tap(find.byTooltip('Copy'));
+        await tester.tap(find.text('Copy corrected text'));
         await tester.pump();
         expect(clipboard.copied, 'I have an apple.');
+      });
+
+      testWidgets('share is its own button, not the whole result', (
+        tester,
+      ) async {
+        final semantics = tester.ensureSemantics();
+        await pumpView(tester, successState(accepted: {0}));
+        final share = tester.getSemantics(find.byTooltip('Share').first);
+        // Named by its tooltip, like an IconButton.
+        expect(share.getSemanticsData().tooltip, 'Share');
+        expect(share.getSemanticsData().label, isEmpty);
+        expect(share.getSemanticsData().flagsCollection.isButton, isTrue);
+        // The result group keeps its heading and text, and is no button.
+        final group = share.parent!;
+        expect(group.getSemanticsData().flagsCollection.isButton, isFalse);
+        semantics.dispose();
       });
 
       testWidgets('tapping a change opens its details', (tester) async {
@@ -1148,10 +1269,17 @@ void main() {
         expect(find.byType(BottomSheet), findsOneWidget);
       });
 
-      testWidgets('copies the output', (tester) async {
+      testWidgets('copies the output with its main button', (tester) async {
         final clipboard = FakeClipboard()..install(tester);
         await pumpView(tester, successState());
-        await tester.tap(find.byTooltip('Copy'));
+        // The first action, a filled button.
+        final copy = find.byKey(const Key('proofread_copy_corrected'));
+        expect(tester.widget(copy), isA<FilledButton>());
+        expect(
+          tester.getRect(copy).left,
+          lessThan(tester.getRect(find.text('Use as input')).left),
+        );
+        await tester.tap(copy);
         await tester.pump();
         expect(clipboard.copied, 'I have an apple and an orange.');
         expect(find.text('Copied to clipboard'), findsOneWidget);
@@ -1254,8 +1382,8 @@ void main() {
             proofreadInput: 'x',
           ),
         );
-        final copy = tester.widget<XActionButton>(
-          find.widgetWithIcon(XActionButton, Icons.copy_rounded),
+        final copy = tester.widget<FilledButton>(
+          find.byKey(const Key('proofread_copy_corrected')),
         );
         expect(copy.onPressed, isNull);
       });
@@ -1425,21 +1553,17 @@ void main() {
         );
         expect(tester.takeException(), isNull);
         final title = tester.getRect(find.text('Suggested edits'));
-        final accept = tester.getRect(find.text('Accept all'));
-        expect(accept.top, greaterThan(title.bottom));
-        await tester.tap(find.text('Accept all'));
+        final reset = tester.getRect(find.text('Reset'));
+        expect(reset.top, greaterThan(title.bottom));
+        await tester.tap(find.text('Reset'));
         verify(() => cubit.acceptAll()).called(1);
-        await tester.tap(find.text('Reject all'));
-        verify(() => cubit.rejectAll()).called(1);
       });
 
-      testWidgets('edits header keeps the buttons beside the title', (
-        tester,
-      ) async {
+      testWidgets('edits header keeps Reset beside the title', (tester) async {
         await pumpView(tester, successState(accepted: {0}));
         final title = tester.getRect(find.text('Suggested edits'));
-        final accept = tester.getRect(find.text('Accept all'));
-        expect(accept.left, greaterThan(title.right));
+        final reset = tester.getRect(find.text('Reset'));
+        expect(reset.left, greaterThan(title.right));
       });
 
       testWidgets('lays out right to left', (tester) async {
@@ -1467,11 +1591,46 @@ void main() {
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
         final title = tester.getRect(find.text('Suggested edits'));
-        final accept = tester.getRect(find.text('Accept all'));
-        expect(accept.right, lessThan(title.left));
+        final reset = tester.getRect(find.text('Reset'));
+        expect(reset.right, lessThan(title.left));
         final label = tester.getRect(find.text('Words'));
         final value = tester.getRect(find.text('7'));
         expect(value.left, lessThan(label.left));
+      });
+
+      testWidgets('the input shrinks to its text once there is a result', (
+        tester,
+      ) async {
+        await pumpView(tester, successState(), size: const Size(400, 2400));
+        expect(
+          tester
+              .widget<TextField>(find.byKey(const Key('proofread_input')))
+              .minLines,
+          1,
+        );
+      });
+
+      testWidgets('the input shrinks on wide screens too', (tester) async {
+        await pumpView(tester, successState(), size: const Size(1200, 1600));
+        expect(
+          tester
+              .widget<TextField>(find.byKey(const Key('proofread_input')))
+              .minLines,
+          1,
+        );
+      });
+
+      testWidgets('the corrected text is as large as the input', (
+        tester,
+      ) async {
+        await pumpView(tester, successState(), size: const Size(400, 2400));
+        final input = tester.widget<TextField>(
+          find.byKey(const Key('proofread_input')),
+        );
+        final diff = tester.widget<ProofreadDiffText>(
+          find.byKey(const Key('proofread_diff')),
+        );
+        expect(diff.style?.fontSize, input.style?.fontSize);
       });
 
       testWidgets('keeps the result visible while re-proofreading', (

@@ -9,7 +9,6 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mozhi/app/router.dart';
 import 'package:mozhi/app/shared_files.dart';
-import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/app/translate_link.dart';
 import 'package:mozhi/quick_translate/quick_translate_host.dart';
 
@@ -217,11 +216,10 @@ void main() {
           web = jsonDecode(_read('web/manifest.json')) as Map<String, Object?>,
     );
 
-    String hex(int argb) =>
-        '#${(argb & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase()}';
-
-    test('uses the default accent and the light background', () {
-      expect(web['theme_color'], hex(kDefaultAccent.toARGB32()));
+    test('uses the light look for the title bar and the splash', () {
+      // The installed app's title bar matches the default app bar (the
+      // page colour), like the splash; index.html sets the dark one.
+      expect(web['theme_color'], '#FFFFFF');
       expect(web['background_color'], '#FFFFFF');
     });
 

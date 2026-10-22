@@ -17,6 +17,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
     required this.like,
     required this.success,
     required this.barBackground,
+    this.controlOutline = const Color(0xFF7B8A97),
   });
 
   /// The palette for [scheme].
@@ -28,11 +29,17 @@ class AppPalette extends ThemeExtension<AppPalette> {
       like: const Color(0xFFF91880),
       success: const Color(0xFF00BA7C),
       barBackground: scheme.surface.withValues(alpha: 0.85),
+      controlOutline: scheme.outline,
     );
   }
 
-  /// 1 px separators between rows and around flat cards.
+  /// 1 px separators between rows and around flat cards (decorative).
   final Color hairline;
+
+  /// Outlines of interactive controls (fields, outlined chips, pills and
+  /// buttons): at least 3:1 against the surfaces (WCAG 1.4.11), unlike
+  /// [hairline]. The default reaches 3:1 on white, Dim and black.
+  final Color controlOutline;
 
   /// Metadata, timestamps, handles: quieter than body text.
   final Color secondaryText;
@@ -62,12 +69,14 @@ class AppPalette extends ThemeExtension<AppPalette> {
     Color? like,
     Color? success,
     Color? barBackground,
+    Color? controlOutline,
   }) => AppPalette(
     hairline: hairline ?? this.hairline,
     secondaryText: secondaryText ?? this.secondaryText,
     like: like ?? this.like,
     success: success ?? this.success,
     barBackground: barBackground ?? this.barBackground,
+    controlOutline: controlOutline ?? this.controlOutline,
   );
 
   @override
@@ -79,6 +88,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
       like: Color.lerp(like, other.like, t)!,
       success: Color.lerp(success, other.success, t)!,
       barBackground: Color.lerp(barBackground, other.barBackground, t)!,
+      controlOutline: Color.lerp(controlOutline, other.controlOutline, t)!,
     );
   }
 }
@@ -312,39 +322,45 @@ class _XActionButtonState extends State<XActionButton>
     );
 
     final label = widget.label;
-    return Tooltip(
-      message: widget.tooltip,
-      child: Semantics(
-        button: true,
-        enabled: enabled,
-        toggled: widget.activeIcon != null ? active : null,
-        // No label: like IconButton, the tooltip names the button (a label
-        // as well would be announced twice, "Copy Copy").
-        onTap: widget.onPressed,
-        excludeSemantics: true,
-        child: InkResponse(
+    // Its own node (with the tooltip as its name): inside a group (a
+    // container) it would otherwise merge into the group and turn the
+    // whole group into this button.
+    return Semantics(
+      container: true,
+      child: Tooltip(
+        message: widget.tooltip,
+        child: Semantics(
+          button: true,
+          enabled: enabled,
+          toggled: widget.activeIcon != null ? active : null,
+          // No label: like IconButton, the tooltip names the button (a label
+          // as well would be announced twice, "Copy Copy").
           onTap: widget.onPressed,
-          radius: 22,
-          highlightColor: activeColor.withValues(alpha: 0.1),
-          splashColor: activeColor.withValues(alpha: 0.16),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                icon,
-                if (label != null) ...[
-                  const SizedBox(width: 6),
-                  Text(
-                    label,
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: color,
-                      fontWeight: FontWeight.w500,
+          excludeSemantics: true,
+          child: InkResponse(
+            onTap: widget.onPressed,
+            radius: 22,
+            highlightColor: activeColor.withValues(alpha: 0.1),
+            splashColor: activeColor.withValues(alpha: 0.16),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  icon,
+                  if (label != null) ...[
+                    const SizedBox(width: 6),
+                    Text(
+                      label,
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: color,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                  ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
@@ -361,6 +377,15 @@ class CountRing extends StatelessWidget {
 
   final int count;
   final int limit;
+
+  /// Share of the limit from which the ring is worth showing ([showsFor]):
+  /// below it an idle ring reads as a stalled spinner.
+  static const visibleFrom = 0.8;
+
+  /// Whether [count] is near enough to [limit] to show the ring (and the
+  /// count with its limit): from [visibleFrom] of the limit on.
+  static bool showsFor(int count, int limit) =>
+      limit > 0 && count >= limit * visibleFrom;
 
   @override
   Widget build(BuildContext context) {

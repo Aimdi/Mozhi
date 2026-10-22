@@ -1,6 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/view/app_shell.dart' show AppShell;
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
@@ -62,10 +65,35 @@ bool showsShortcutHints(TargetPlatform platform) =>
   );
 }
 
+/// A row of the cheat sheet from [keys] (joined with " + "; `{mod}` is
+/// Ctrl or ⌘ with [command], `{alt}` Alt or ⌥ Option) and [description].
+TranslateShortcutHelp _row(
+  List<String> keys,
+  String description, {
+  required bool command,
+}) {
+  String spell(String separator, {required bool spoken}) => keys
+      .join(separator)
+      .replaceAll(
+        '{mod}',
+        spoken ? (command ? 'Command' : 'Control') : (command ? '⌘' : 'Ctrl'),
+      )
+      .replaceAll(
+        '{alt}',
+        spoken ? (command ? 'Option' : 'Alt') : (command ? '⌥' : 'Alt'),
+      );
+  return (
+    keys: spell(' + ', spoken: false),
+    keysSemantics: spell(' ', spoken: true),
+    description: description,
+  );
+}
+
 /// The translate screen's shortcuts, as shown in the cheat sheet. With
 /// [command] (Apple platforms) the modifier is ⌘ and Alt is ⌥ (Option).
 /// In a browser ([web]) the pinned languages take Ctrl/⌘ as well (see
-/// [translatePinnedShortcut]).
+/// [translatePinnedShortcut]) and the language pickers are Alt+L and
+/// Alt+Shift+L (Ctrl/⌘+L focuses the browser's address bar).
 ///
 /// With [multilineInput] off ([AppSettings.multilineInput]) Enter in the
 /// input translates and Shift+Enter adds a new line, so both are listed
@@ -77,15 +105,11 @@ List<TranslateShortcutHelp> translateShortcutHelp(
   bool web = kIsWeb,
   bool multilineInput = true,
 }) {
-  final mod = command ? '⌘' : 'Ctrl';
-  final modSpoken = command ? 'Command' : 'Control';
   final pinModifiers = _pinnedModifiers(command: command, web: web);
-  TranslateShortcutHelp row(List<String> keys, String description) => (
-    keys: keys.join(' + ').replaceAll('{mod}', mod),
-    keysSemantics: keys.join(' ').replaceAll('{mod}', modSpoken),
-    description: description,
-  );
+  TranslateShortcutHelp row(List<String> keys, String description) =>
+      _row(keys, description, command: command);
   final help = row(['{mod}', '/'], l10n.translateShortcutHelp);
+  final picker = web ? '{alt}' : '{mod}';
   const lastPin = '$translatePinnedShortcutCount';
   return [
     row(['{mod}', 'Enter'], l10n.translateShortcutTranslateNow),
@@ -95,8 +119,9 @@ List<TranslateShortcutHelp> translateShortcutHelp(
     ],
     row(['{mod}', 'Shift', 'S'], l10n.translateSwapLanguages),
     row(['{mod}', 'Shift', 'C'], l10n.translateShortcutCopyOutput),
-    row(['{mod}', 'L'], l10n.translateShortcutTargetPicker),
-    row(['{mod}', 'Shift', 'L'], l10n.translateShortcutSourcePicker),
+    row([picker, 'L'], l10n.translateShortcutTargetPicker),
+    row([picker, 'Shift', 'L'], l10n.translateShortcutSourcePicker),
+    row(['/'], l10n.translateShortcutFocusInput),
     row(['Esc'], l10n.translateShortcutClear),
     (
       keys: [...pinModifiers.keys, '1…$lastPin'].join(' + '),
@@ -116,17 +141,91 @@ List<TranslateShortcutHelp> translateShortcutHelp(
   ];
 }
 
+/// The keys of [activator] for the cheat sheet, shown and spoken (Ctrl
+/// is Control everywhere, as the shortcut asks for it; Alt is ⌥ Option
+/// with [command]).
+({List<String> keys, List<String> spoken}) _activatorKeys(
+  SingleActivator activator, {
+  required bool command,
+  String? trigger,
+}) {
+  final key = trigger ?? activator.trigger.keyLabel;
+  return (
+    keys: [
+      if (activator.control) 'Ctrl',
+      if (activator.meta) '⌘',
+      if (activator.alt && command) '⌥' else if (activator.alt) 'Alt',
+      if (activator.shift) 'Shift',
+      key,
+    ],
+    spoken: [
+      if (activator.control) 'Control',
+      if (activator.meta) 'Command',
+      if (activator.alt && command) 'Option' else if (activator.alt) 'Alt',
+      if (activator.shift) 'Shift',
+      key,
+    ],
+  );
+}
+
+/// The shortcuts that work on every tab, as the app shell binds them
+/// ([AppShell.tabShortcuts]: Ctrl+Shift+1 … 4 switch to a tab;
+/// [AppShell.historyShortcut]: Ctrl+Shift+H opens History), for the cheat
+/// sheet. With [command] (Apple platforms) Alt reads ⌥.
+List<TranslateShortcutHelp> appShortcutHelp(
+  AppLocalizations l10n, {
+  required bool command,
+}) {
+  const tabs = AppShell.tabShortcuts;
+  final last = '${tabs.length}';
+  final range = _activatorKeys(
+    tabs.first,
+    command: command,
+    trigger: '1…$last',
+  );
+  final spokenRange = _activatorKeys(
+    tabs.first,
+    command: command,
+    trigger: l10n.translateShortcutKeyRange('1', last),
+  );
+  final history = _activatorKeys(AppShell.historyShortcut, command: command);
+  return [
+    (
+      keys: range.keys.join(' + '),
+      keysSemantics: spokenRange.spoken.join(' '),
+      description: l10n.translateShortcutTabs,
+    ),
+    (
+      keys: history.keys.join(' + '),
+      keysSemantics: history.spoken.join(' '),
+      description: l10n.translateShortcutHistory,
+    ),
+  ];
+}
+
 /// Opens the keyboard shortcut cheat sheet.
 Future<void> showTranslateShortcuts(BuildContext context) => showDialog<void>(
   context: context,
   builder: (_) => const TranslateShortcutsDialog(),
 );
 
-/// Dialog listing [translateShortcutHelp], for the user's Enter key
-/// setting ([AppSettings.multilineInput], read from the [SettingsCubit];
-/// the default without one).
+/// Dialog listing [translateShortcutHelp] (for the user's Enter key
+/// setting, [AppSettings.multilineInput], read from the [SettingsCubit];
+/// the default without one) and then [appShortcutHelp], each under a
+/// heading.
+///
+/// Each list is a two-column table: the keys, then what they do (a long
+/// description wraps in its own column, never under the keys). Where the
+/// two columns do not fit side by side (a narrow window, large text) each
+/// description goes under its keys instead.
 class TranslateShortcutsDialog extends StatelessWidget {
   const new({super.key});
+
+  /// The narrowest description column of the table layout, at 100 % text.
+  static const double minDescriptionWidth = 140;
+
+  /// Space between the two columns.
+  static const double columnGap = 16;
 
   static bool _multilineInput(BuildContext context) {
     try {
@@ -136,14 +235,61 @@ class TranslateShortcutsDialog extends StatelessWidget {
     }
   }
 
+  static TextStyle? _keysStyle(ThemeData theme) =>
+      theme.textTheme.labelLarge?.copyWith(fontFamily: 'monospace');
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    final rows = translateShortcutHelp(
+    final command = shortcutUsesCommandKey(theme.platform);
+    final translate = translateShortcutHelp(
       l10n,
-      command: shortcutUsesCommandKey(theme.platform),
+      command: command,
       multilineInput: _multilineInput(context),
+    );
+    final app = appShortcutHelp(l10n, command: command);
+    // The keys column: as wide as the widest keys (with their outline).
+    final scaler = MediaQuery.textScalerOf(context);
+    final direction = Directionality.of(context);
+    var keysWidth = 0.0;
+    for (final row in [...translate, ...app]) {
+      final painter = TextPainter(
+        text: TextSpan(text: row.keys, style: _keysStyle(theme)),
+        textDirection: direction,
+        textScaler: scaler,
+        maxLines: 1,
+      )..layout();
+      keysWidth = math.max(keysWidth, painter.width + _KeysChip.chrome);
+      painter.dispose();
+    }
+    // The dialog's content width: the window less the dialog's insets
+    // (40 dp each side) and padding (24 dp each side), at most 560 dp.
+    final content = math.min(MediaQuery.sizeOf(context).width - 80, 560) - 48.0;
+    final table =
+        content - keysWidth - columnGap >= scaler.scale(minDescriptionWidth);
+    Widget section(String title, List<TranslateShortcutHelp> rows) => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 8, bottom: 4),
+          child: Semantics(
+            header: true,
+            child: Text(
+              title,
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
+            ),
+          ),
+        ),
+        for (final row in rows)
+          _ShortcutRow(
+            row: row,
+            keysWidth: table ? keysWidth : null,
+            keysStyle: _keysStyle(theme),
+          ),
+      ],
     );
     return AlertDialog(
       key: const Key('translate_shortcuts_dialog'),
@@ -156,39 +302,9 @@ class TranslateShortcutsDialog extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (final row in rows)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: MergeSemantics(
-                child: Wrap(
-                  spacing: 16,
-                  runSpacing: 4,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        border: Border.all(color: theme.colorScheme.outline),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
-                        child: Text(
-                          row.keys,
-                          semanticsLabel: row.keysSemantics,
-                          style: theme.textTheme.labelLarge?.copyWith(
-                            fontFamily: 'monospace',
-                          ),
-                        ),
-                      ),
-                    ),
-                    Text(row.description, style: theme.textTheme.bodyMedium),
-                  ],
-                ),
-              ),
-            ),
+          section(l10n.translateTitle, translate),
+          const SizedBox(height: 12),
+          section(l10n.translateShortcutSectionApp, app),
         ],
       ),
       actions: [
@@ -197,6 +313,94 @@ class TranslateShortcutsDialog extends StatelessWidget {
           child: Text(l10n.commonClose),
         ),
       ],
+    );
+  }
+}
+
+/// A row of the [TranslateShortcutsDialog]: the keys in a [keysWidth]
+/// column and the description beside them, or (without a [keysWidth]) the
+/// description under the keys. Read as one ("Control Enter, Translate
+/// now").
+class _ShortcutRow extends StatelessWidget {
+  const new({required this.row, required this.keysStyle, this.keysWidth});
+
+  final TranslateShortcutHelp row;
+  final TextStyle? keysStyle;
+  final double? keysWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final keysWidth = this.keysWidth;
+    // Stacked (a narrow window), long keys may wrap.
+    final keys = _KeysChip(row: row, style: keysStyle, wrap: keysWidth == null);
+    final description = Text(
+      row.description,
+      style: theme.textTheme.bodyMedium,
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: MergeSemantics(
+        child: keysWidth == null
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 4,
+                children: [keys, description],
+              )
+            : Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: keysWidth,
+                    child: Align(
+                      alignment: AlignmentDirectional.topStart,
+                      child: keys,
+                    ),
+                  ),
+                  const SizedBox(width: TranslateShortcutsDialog.columnGap),
+                  Expanded(
+                    child: Padding(
+                      // Lines the first line up with the keys' text.
+                      padding: const EdgeInsets.only(top: 3),
+                      child: description,
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+}
+
+/// The keys of a shortcut, outlined like keyboard keys; on one line
+/// unless they may [wrap].
+class _KeysChip extends StatelessWidget {
+  const new({required this.row, required this.style, this.wrap = false});
+
+  /// Width around the text: the padding and the outline.
+  static const double chrome = 2 * 8 + 2;
+
+  final TranslateShortcutHelp row;
+  final TextStyle? style;
+  final bool wrap;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: Theme.of(context).colorScheme.outline),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        child: Text(
+          row.keys,
+          semanticsLabel: row.keysSemantics,
+          maxLines: wrap ? null : 1,
+          softWrap: wrap,
+          style: style,
+        ),
+      ),
     );
   }
 }

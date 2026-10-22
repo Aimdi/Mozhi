@@ -25,8 +25,11 @@ import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// The first-run flow (route: [onboardingLocation]): welcome, privacy mode,
-/// default languages with their offline downloads and an optional online
-/// service. Needs a [TranslationRepository] and a [SettingsCubit] above it.
+/// default languages with their offline downloads and the online service.
+/// Where the device can't translate on its own (the web) it is three
+/// steps: the privacy mode is a switch on the online service step (see
+/// [OnboardingCubit]). Needs a [TranslationRepository] and a
+/// [SettingsCubit] above it.
 ///
 /// The languages step downloads with [translator] and remembers "Wi-Fi
 /// only" in [store] when given, otherwise with the [OfflineTranslator] and
@@ -125,8 +128,12 @@ class OnboardingView extends StatefulWidget {
 
 class _OnboardingViewState extends State<OnboardingView> {
   late final PageController _controller = PageController(
-    initialPage: context.read<OnboardingCubit>().state.step.index,
+    initialPage: _pageOf(context.read<OnboardingCubit>().state),
   );
+
+  /// The page of [state]'s step among its steps.
+  static int _pageOf(OnboardingState state) =>
+      state.steps.indexOf(state.step).clamp(0, state.steps.length - 1);
 
   @override
   void dispose() {
@@ -143,14 +150,15 @@ class _OnboardingViewState extends State<OnboardingView> {
     if (above != null) unawaited(router.push<void>(above));
   }
 
-  void _showStep(OnboardingStep step) {
+  void _showStep(OnboardingState state) {
     FocusManager.instance.primaryFocus?.unfocus();
     if (!_controller.hasClients) return;
+    final page = _pageOf(state);
     if (MediaQuery.disableAnimationsOf(context)) {
-      _controller.jumpToPage(step.index);
+      _controller.jumpToPage(page);
     } else {
       _controller.animateToPage(
-        step.index,
+        page,
         duration: const Duration(milliseconds: 400),
         curve: Curves.easeInOutCubicEmphasized,
       );
@@ -164,12 +172,15 @@ class _OnboardingViewState extends State<OnboardingView> {
     final step = context.select<OnboardingCubit, OnboardingStep>(
       (c) => c.state.step,
     );
-    final isLast = step == OnboardingStep.values.last;
+    final steps = context.select<OnboardingCubit, List<OnboardingStep>>(
+      (c) => c.state.steps,
+    );
+    final isLast = step == steps.last;
     return BlocListener<OnboardingCubit, OnboardingState>(
       listenWhen: (previous, current) => previous.step != current.step,
-      listener: (context, state) => _showStep(state.step),
+      listener: (context, state) => _showStep(state),
       child: PopScope(
-        canPop: step.index == 0,
+        canPop: step == steps.first,
         onPopInvokedWithResult: (didPop, _) {
           if (!didPop) cubit.back();
         },
@@ -199,19 +210,25 @@ class _OnboardingViewState extends State<OnboardingView> {
               // horizontal gestures inside them never fight with paging.
               physics: const NeverScrollableScrollPhysics(),
               children: [
-                const WelcomeStep(),
-                const PrivacyStep(),
-                const OnboardingKeepAlive(child: LanguagesStep()),
-                OnboardingKeepAlive(
-                  child: ServiceStep(
-                    onOpenAiSettings: () => _finish(AppRoutes.providers),
-                  ),
-                ),
+                for (final page in steps)
+                  switch (page) {
+                    OnboardingStep.welcome => const WelcomeStep(),
+                    OnboardingStep.privacy => const PrivacyStep(),
+                    OnboardingStep.languages => const OnboardingKeepAlive(
+                      child: LanguagesStep(),
+                    ),
+                    OnboardingStep.service => OnboardingKeepAlive(
+                      child: ServiceStep(
+                        onOpenAiSettings: () => _finish(AppRoutes.providers),
+                      ),
+                    ),
+                  },
               ],
             ),
           ),
           bottomNavigationBar: OnboardingNavBar(
             step: step,
+            steps: steps,
             onBack: cubit.back,
             onNext: cubit.next,
             onFinish: _finish,

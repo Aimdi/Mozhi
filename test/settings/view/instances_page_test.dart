@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/core/network/network.dart';
-import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/instances_page.dart';
@@ -362,7 +361,7 @@ void main() {
       expect(find.byType(StatusBadge), findsNothing);
     });
 
-    testWidgets('draws flat hairline cards and outlines the preferred one', (
+    testWidgets('draws flat outlined cards and outlines the preferred one', (
       tester,
     ) async {
       await pump(tester);
@@ -377,11 +376,10 @@ void main() {
       final side = (preferred.shape! as RoundedRectangleBorder).side;
       expect(side.color, colors.primary);
       expect(side.width, 2);
+      // The control outline (3:1), not a separator hairline.
       expect(
         (other.shape! as RoundedRectangleBorder).side,
-        BorderSide(
-          color: AppPalette.of(tester.element(find.text('Fast'))).hairline,
-        ),
+        BorderSide(color: colors.outline),
       );
     });
 

@@ -22,6 +22,40 @@ void main() {
       return calls;
     }
 
+    testWidgets('counts the steps of the flow it is given', (tester) async {
+      final handle = tester.ensureSemantics();
+      const steps = [
+        OnboardingStep.welcome,
+        OnboardingStep.languages,
+        OnboardingStep.service,
+      ];
+      await tester.pumpOnboarding(
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: OnboardingNavBar(
+            step: OnboardingStep.languages,
+            steps: steps,
+            onBack: () {},
+            onNext: () {},
+            onFinish: () {},
+          ),
+        ),
+      );
+      expect(find.bySemanticsLabel('Step 2 of 3'), findsOneWidget);
+      expect(find.text('Back'), findsOneWidget);
+      expect(find.text('Next'), findsOneWidget);
+      handle.dispose();
+    });
+
+    test('onboardingContentPadding matches the content column', () {
+      expect(onboardingContentPadding(360), 24);
+      expect(onboardingContentPadding(600), 32);
+      expect(
+        onboardingContentPadding(1280),
+        (1280 - onboardingMaxContentWidth) / 2,
+      );
+    });
+
     testWidgets('first step has no Back', (tester) async {
       final calls = await pump(tester, OnboardingStep.welcome);
       expect(find.text('Back'), findsNothing);

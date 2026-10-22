@@ -14,6 +14,7 @@ class DictionaryState extends Equatable {
     this.entry,
     this.lookedUp = '',
     this.error,
+    this.entryLanguage,
   });
 
   /// What the user is about to look up (the search field).
@@ -41,6 +42,11 @@ class DictionaryState extends Equatable {
 
   /// Why the latest look-up failed.
   final Object? error;
+
+  /// Code of the language of the shown [entry] (e.g. for reading it
+  /// aloud): the chosen [source], else the language identified on the
+  /// device once the entry arrived; null while unknown.
+  final String? entryLanguage;
 
   bool get hasEngine => engine != null;
 
@@ -71,6 +77,7 @@ class DictionaryState extends Equatable {
     DictionaryEntry? Function()? entry,
     String? lookedUp,
     Object? Function()? error,
+    String? Function()? entryLanguage,
   }) => DictionaryState(
     word: word ?? this.word,
     source: source ?? this.source,
@@ -81,6 +88,7 @@ class DictionaryState extends Equatable {
     entry: entry != null ? entry() : this.entry,
     lookedUp: lookedUp ?? this.lookedUp,
     error: error != null ? error() : this.error,
+    entryLanguage: entryLanguage != null ? entryLanguage() : this.entryLanguage,
   );
 
   @override
@@ -94,5 +102,6 @@ class DictionaryState extends Equatable {
     entry,
     lookedUp,
     error,
+    entryLanguage,
   ];
 }

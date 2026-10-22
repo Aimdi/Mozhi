@@ -16,7 +16,8 @@ const TRANSLATION = `[AI→French (Français)] ${TEXT}`;
 test('an earlier translation is offered and can be used', async ({
   page,
 }) => {
-  // "Instant translate with AI" off, so the offer stays up until used.
+  // Instant translate without AI ("Online engines"), so the offer stays up
+  // until used.
   await seedSettings(page, 'settings-ai-manual');
   const requests = recordAiRequests(page);
   await openApp(page, '/translate');

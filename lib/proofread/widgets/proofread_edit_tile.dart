@@ -8,8 +8,10 @@ import 'package:mozhi/proofread/widgets/proofread_result_section.dart'
 import 'package:translation_repository/translation_repository.dart';
 
 /// One suggested edit as a flat row: category pill, original ->
-/// replacement, explanation and an accept/reject checkbox, with a hairline
-/// below unless it is the last one ([divider]).
+/// replacement and explanation, with a check mark (keep the change) and a
+/// cross (leave the original) at its end, the one that applies selected;
+/// pressing the other one switches ([onToggle]). A hairline separates it
+/// from the next row unless it is the last one ([divider]).
 class ProofreadEditTile extends StatelessWidget {
   const new({
     required this.edit,
@@ -34,48 +36,110 @@ class ProofreadEditTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final palette = AppPalette.of(context);
     final explanation = edit.explanation.trim();
     final subtitleStyle = theme.textTheme.bodyMedium?.copyWith(
-      color: AppPalette.of(context).secondaryText,
+      color: palette.secondaryText,
     );
+
+    Widget choice({
+      required bool keep,
+      required IconData icon,
+      required String tooltip,
+    }) {
+      final selected = accepted == keep;
+      return IconButton(
+        key: Key(keep ? 'proofread_edit_accept' : 'proofread_edit_reject'),
+        tooltip: tooltip,
+        isSelected: selected,
+        style: ButtonStyle(
+          foregroundColor: WidgetStatePropertyAll(
+            selected
+                ? (keep ? scheme.onPrimaryContainer : scheme.onSurface)
+                : palette.secondaryText,
+          ),
+          backgroundColor: WidgetStatePropertyAll(
+            selected
+                ? (keep
+                      ? scheme.primaryContainer
+                      : scheme.surfaceContainerHighest)
+                : Colors.transparent,
+          ),
+          side: WidgetStatePropertyAll(
+            selected ? BorderSide.none : BorderSide(color: scheme.outline),
+          ),
+        ),
+        icon: Icon(icon),
+        // The chosen one stays chosen.
+        onPressed: selected ? () {} : onToggle,
+      );
+    }
 
     final tile = Semantics(
       container: true,
-      child: CheckboxListTile(
-        value: accepted,
-        onChanged: (_) => onToggle(),
-        controlAffinity: ListTileControlAffinity.leading,
-        contentPadding: const EdgeInsetsDirectional.only(end: 4),
-        title: Column(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 8,
           children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 8, bottom: 6),
-              child: ProofreadCategoryChip(category: edit.category),
-            ),
-            ProofreadEditChange(edit: edit),
-          ],
-        ),
-        subtitle: explanation.isEmpty && located
-            ? null
-            : Padding(
-                padding: const EdgeInsets.only(top: 4, bottom: 8),
+            Expanded(
+              child: Opacity(
+                // A rejected change reads as set aside.
+                opacity: accepted ? 1 : 0.6,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  spacing: 4,
                   children: [
-                    if (explanation.isNotEmpty)
-                      Text(explanation, style: subtitleStyle),
-                    if (!located)
-                      Text(
-                        l10n.proofreadEditNotFound,
-                        style: subtitleStyle?.copyWith(
-                          fontStyle: FontStyle.italic,
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: ProofreadCategoryChip(category: edit.category),
+                    ),
+                    ProofreadEditChange(
+                      edit: edit,
+                      style: theme.textTheme.bodyLarge,
+                    ),
+                    if (explanation.isNotEmpty || !located)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          spacing: 4,
+                          children: [
+                            if (explanation.isNotEmpty)
+                              Text(explanation, style: subtitleStyle),
+                            if (!located)
+                              Text(
+                                l10n.proofreadEditNotFound,
+                                style: subtitleStyle?.copyWith(
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                   ],
                 ),
               ),
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              spacing: 4,
+              children: [
+                choice(
+                  keep: true,
+                  icon: Icons.check_rounded,
+                  tooltip: l10n.proofreadEditAccept,
+                ),
+                choice(
+                  keep: false,
+                  icon: Icons.close_rounded,
+                  tooltip: l10n.proofreadEditReject,
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
     if (!divider) return tile;

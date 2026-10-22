@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
@@ -16,14 +18,21 @@ import 'package:translation_repository/translation_repository.dart';
 /// * **Meaning**: centred, the part of speech, the headword (very large),
 ///   its IPA, the synonyms as accent words that look that word up, the
 ///   first definition with its usage and translations, and a large listen
-///   button; "Did you mean …?" above them for a misspelled word.
-/// * **More** (when there is more): the other senses, the related words
+///   button (with [actions] beside it, e.g. the favorite heart); "Did you
+///   mean …?" above them for a misspelled word.
+/// * **Usage** (when there is more): the other senses, the related words
 ///   (chips that look the word up), the etymology and the notes.
 /// * **Examples** (when there are some): the example sentences with their
 ///   translations.
 ///
-/// The tab bar is left out when there is only the meaning. [onWordTap]
-/// looks a synonym, related word or suggested spelling up.
+/// The tabs are `titleSmall` text tabs; every page starts at the top. The
+/// tab bar is left out when there is only the meaning. [onWordTap] looks a
+/// synonym, related word or suggested spelling up.
+///
+/// Listen reads the headword in [sourceLanguage], else in [speechLanguage]
+/// (the detected language of the entry, see
+/// `DictionaryState.entryLanguage`); it is disabled, saying why, while
+/// neither is known.
 class DictionaryEntryTabs extends StatelessWidget {
   const new({
     required this.entry,
@@ -31,10 +40,19 @@ class DictionaryEntryTabs extends StatelessWidget {
     this.sourceLanguage,
     this.targetLanguage,
     this.query,
+    this.speechLanguage,
+    this.actions = const [],
     super.key,
   });
 
   final DictionaryEntry entry;
+
+  /// Code of the entry's language when [sourceLanguage] is not set (it
+  /// was detected), for Listen; null while unknown.
+  final String? speechLanguage;
+
+  /// Shown beside Listen on the meaning page (e.g. the favorite heart).
+  final List<Widget> actions;
 
   /// Language of the word and the example sentences (null: detected).
   final Language? sourceLanguage;
@@ -47,7 +65,7 @@ class DictionaryEntryTabs extends StatelessWidget {
 
   final ValueChanged<String> onWordTap;
 
-  /// Whether [entry] has anything for the "More" tab.
+  /// Whether [entry] has anything for the "Usage" tab.
   static bool hasMore(DictionaryEntry entry) =>
       entry.senses.length > 1 ||
       _related(entry).isNotEmpty ||
@@ -66,11 +84,13 @@ class DictionaryEntryTabs extends StatelessWidget {
           targetLanguage: targetLanguage,
           query: query,
           onWordTap: onWordTap,
+          speechLanguage: speechLanguage,
+          actions: actions,
         ),
       ),
       if (hasMore(entry))
         (
-          l10n.dictionaryTabMore,
+          l10n.dictionaryTabUsage,
           _MorePage(
             entry: entry,
             sourceLanguage: sourceLanguage,
@@ -115,9 +135,9 @@ List<String> _related(DictionaryEntry entry) => [
     if (word.trim().isNotEmpty) word.trim(),
 ];
 
-/// Big bold text tabs in the accent colour (the others quieter), with a
-/// short accent underline under the selected one so it is not told by
-/// colour alone.
+/// Text tabs at `titleSmall` in the accent colour (the others quieter),
+/// with a short accent underline under the selected one so it is not told
+/// by colour alone.
 class _EntryTabBar extends StatelessWidget {
   const new({required this.labels});
 
@@ -127,13 +147,18 @@ class _EntryTabBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final style = theme.textTheme.headlineSmall?.copyWith(
-      fontWeight: FontWeight.w800,
+    final style = theme.textTheme.titleSmall?.copyWith(
+      fontWeight: FontWeight.w700,
     );
-    // Tall enough for the large labels at any text size.
-    final height =
-        MediaQuery.textScalerOf(context).scale((style?.fontSize ?? 24) * 1.3) +
-        16;
+    // A 48 dp target, taller with large text.
+    final height = math
+        .max(
+          48,
+          MediaQuery.textScalerOf(context)
+                  .scale((style?.fontSize ?? 14) * 1.4) +
+              16,
+        )
+        .toDouble();
     return TabBar(
       key: const Key('dictionary_tabs'),
       isScrollable: true,
@@ -165,35 +190,18 @@ SpeechService? _speechServiceOf(BuildContext context) {
   }
 }
 
-/// Scrolls [child]; a short one is centred in the page (the meaning, like
-/// Kagi's), a long one starts at the top.
+/// Scrolls [child], from the top of the page (no blank space above a
+/// short entry).
 class _Page extends StatelessWidget {
-  const new({required this.child, this.centred = false});
+  const new({required this.child});
 
   final Widget child;
-  final bool centred;
 
   static const EdgeInsets padding = EdgeInsets.fromLTRB(24, 16, 24, 24);
 
   @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        padding: padding,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            minHeight: centred && constraints.hasBoundedHeight
-                ? (constraints.maxHeight - padding.vertical).clamp(
-                    0,
-                    double.infinity,
-                  )
-                : 0,
-          ),
-          child: centred ? Center(child: child) : child,
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      SingleChildScrollView(padding: padding, child: child);
 }
 
 /// The "Meaning" tab of [DictionaryEntryTabs].
@@ -204,6 +212,8 @@ class _MeaningPage extends StatelessWidget {
     this.sourceLanguage,
     this.targetLanguage,
     this.query,
+    this.speechLanguage,
+    this.actions = const [],
   });
 
   final DictionaryEntry entry;
@@ -211,6 +221,8 @@ class _MeaningPage extends StatelessWidget {
   final Language? targetLanguage;
   final String? query;
   final ValueChanged<String> onWordTap;
+  final String? speechLanguage;
+  final List<Widget> actions;
 
   /// The headword's style: the theme's display sizes, smaller for long
   /// words and phrases.
@@ -261,9 +273,8 @@ class _MeaningPage extends StatelessWidget {
     final speech = _speechServiceOf(context);
     final speakCode = source != null && !source.isAuto && !source.isCustom
         ? source.code
-        : null;
+        : speechLanguage;
     return _Page(
-      centred: true,
       child: SelectionArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -399,28 +410,36 @@ class _MeaningPage extends StatelessWidget {
                 ),
               ],
             ],
-            if (speech != null) ...[
+            if (speech != null || actions.isNotEmpty) ...[
               const SizedBox(height: 20),
               SelectionContainer.disabled(
-                child: IconButtonTheme(
-                  data: IconButtonThemeData(
-                    style: IconButton.styleFrom(
-                      iconSize: 40,
-                      minimumSize: const Size.square(72),
-                      foregroundColor: scheme.primary,
-                    ),
-                  ),
-                  child: ListenButton(
-                    key: const Key('dictionary_listen'),
-                    id: 'dictionary_word',
-                    text: entry.word,
-                    languageCode: speakCode,
-                    // Without the word's language there is no voice to
-                    // pick: say how to get one.
-                    tooltip: speakCode != null
-                        ? null
-                        : l10n.dictionaryListenNeedsLanguage,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  spacing: 12,
+                  children: [
+                    if (speech != null)
+                      IconButtonTheme(
+                        data: IconButtonThemeData(
+                          style: IconButton.styleFrom(
+                            iconSize: 32,
+                            minimumSize: const Size.square(56),
+                            foregroundColor: scheme.primary,
+                          ),
+                        ),
+                        child: ListenButton(
+                          key: const Key('dictionary_listen'),
+                          id: 'dictionary_word',
+                          text: entry.word,
+                          languageCode: speakCode,
+                          // Without the word's language there is no voice
+                          // to pick: say how to get one.
+                          tooltip: speakCode != null
+                              ? null
+                              : l10n.dictionaryListenNeedsLanguage,
+                        ),
+                      ),
+                    ...actions,
+                  ],
                 ),
               ),
             ],
@@ -445,7 +464,7 @@ class _MeaningPage extends StatelessWidget {
   }
 }
 
-/// A bold heading of the "More" tab.
+/// A bold heading of the "Usage" tab.
 class _Heading extends StatelessWidget {
   const new(this.text);
 
@@ -461,7 +480,7 @@ class _Heading extends StatelessWidget {
   );
 }
 
-/// The "More" tab of [DictionaryEntryTabs]: the other senses, related
+/// The "Usage" tab of [DictionaryEntryTabs]: the other senses, related
 /// words, etymology and notes.
 class _MorePage extends StatelessWidget {
   const new({

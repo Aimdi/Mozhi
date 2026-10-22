@@ -2706,6 +2706,31 @@ class TranslationRepository {
     return romanized;
   }
 
+  /// The sentences of [translation] (of [source]) the on-device [engine] is
+  /// unsure about (`OfflineSentence.isLowConfidence`), as the sentence in
+  /// [source] and its range in [translation], in order.
+  ///
+  /// The text is translated again on the device with details (instant:
+  /// the engine caches its sentences); nothing leaves the device and
+  /// nothing is counted. Empty when the translator cannot tell (it is not a
+  /// [DetailedOfflineTranslator]), for blank texts and identical
+  /// languages. Only for the on-device engine ([ArgumentError] for other
+  /// engines); language errors are those of its translations.
+  Future<List<AlignedSpan>> lowConfidenceSentences(
+    TranslationEngine engine, {
+    required String source,
+    required String translation,
+    required Language sourceLanguage,
+    required Language targetLanguage,
+  }) async => await lowConfidenceOffline(
+    _offlineFor(engine),
+    engine,
+    source: source,
+    translation: translation,
+    sourceLanguage: sourceLanguage,
+    targetLanguage: targetLanguage,
+  );
+
   /// Which phrases of [source] and its [translation] correspond, as
   /// character ranges in both texts (for highlighting a phrase and its
   /// counterpart). The model lists the corresponding phrases; they are

@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Launch screen (drawable/launch_background.xml): white by day,
-         black at night (values-night/colors.xml). -->
+    <!-- Launch screen and system bars until the app draws
+         (drawable/launch_background.xml, styles.xml): white by day like the
+         app's light look (lib/app/theme.dart AppTones.light), black at night
+         (values-night/colors.xml). -->
     <color name="launch_background">#FFFFFFFF</color>
     <color name="launch_image">#FF000000</color>
 

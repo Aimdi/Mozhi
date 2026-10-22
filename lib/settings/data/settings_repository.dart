@@ -36,6 +36,9 @@ import 'package:translation_repository/translation_repository.dart';
 /// would turn a passing storage error into a lost API key); removing its
 /// provider or instance still deletes it.
 ///
+/// [save] throws a [SecretStorageException] when [secrets] refuses to
+/// store a secret; the settings JSON is then not written either.
+///
 /// [prefs] defaults to [PreferencesStore] and [secrets] to [SecureStore].
 /// Saves are serialised, so the last [save] call always wins.
 class SettingsRepository {
@@ -219,7 +222,8 @@ class SettingsRepository {
   /// Stores [value] under [key] in [secrets], or deletes it when [value]
   /// is null or empty; does nothing when [secrets] already holds that
   /// ([_storedSecrets]), or when there is nothing to store for a key that
-  /// [load] could not read.
+  /// [load] could not read. A failed write throws a
+  /// [SecretStorageException].
   Future<void> _writeSecret(String key, String? value) async {
     final next = (value == null || value.isEmpty) ? null : value;
     if (next == null) {
@@ -227,7 +231,11 @@ class SettingsRepository {
       return;
     }
     if (_storedSecrets.containsKey(key) && _storedSecrets[key] == next) return;
-    await secrets.write(key, next);
+    try {
+      await secrets.write(key, next);
+    } on Object catch (error, stackTrace) {
+      Error.throwWithStackTrace(SecretStorageException(error), stackTrace);
+    }
     _storedSecrets[key] = next;
     _unreadableSecrets.remove(key);
   }
@@ -316,4 +324,22 @@ class SettingsUnavailableException implements Exception {
   String toString() =>
       'SettingsUnavailableException: the stored settings could not be '
       'loaded, so they are not overwritten';
+}
+
+/// Thrown by [SettingsRepository.save] when its secure storage
+/// ([SettingsRepository.secrets]) refuses to store a secret: an API key,
+/// custom provider headers or an instance's user name and password (e.g.
+/// the Keystore failing after a working start). Nothing of that save is
+/// written to the plain settings, and the secret is never stored anywhere
+/// else; the next save tries again.
+class SecretStorageException implements Exception {
+  const new(this.cause);
+
+  /// What the secure storage threw.
+  final Object cause;
+
+  // The cause is left out: platform messages may quote what was stored.
+  @override
+  String toString() =>
+      'SecretStorageException: a secret could not be stored securely';
 }

@@ -26,21 +26,102 @@ void main() {
     return cubit;
   }
 
+  /// Opens the list of instances behind "Change".
+  Future<void> openList(WidgetTester tester) async {
+    await tester.tap(find.byKey(const Key('onboarding_server_change')));
+    await tester.pump();
+  }
+
   group('ServiceStep', () {
-    testWidgets('lists the instances in preference order', (tester) async {
+    testWidgets('shows the server in use, the list behind "Change"', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
       await pump(tester);
 
       expect(find.text('Online translation'), findsOneWidget);
       expect(find.text('Optional'), findsOneWidget);
-      expect(find.textContaining('don’t use Cloudflare'), findsOneWidget);
-      expect(find.text('Alpha'), findsOneWidget);
+      expect(find.textContaining('Cloudflare'), findsNothing);
+      expect(
+        find.textContaining('For languages that aren’t on this device'),
+        findsOneWidget,
+      );
+      expect(find.text('Using Alpha'), findsOneWidget);
       expect(find.text('a.example'), findsOneWidget);
+      expect(find.byType(RadioListTile<String>), findsNothing);
+      expect(find.text('Change'), findsOneWidget);
+      expect(
+        tester.getSemantics(find.byKey(const Key('onboarding_server_change'))),
+        isSemantics(isButton: true, hasExpandedState: true, isExpanded: false),
+      );
+
+      await openList(tester);
+      expect(find.text('Done'), findsOneWidget);
       expect(find.text('b.example'), findsOneWidget);
       expect(find.text('Charlie'), findsOneWidget);
       final radios = tester
           .widgetList<RadioListTile<String>>(find.byType(RadioListTile<String>))
           .map((tile) => tile.value);
       expect(radios, [instanceA.url, instanceB.url, instanceC.url]);
+
+      await tester.tap(find.text('Done'));
+      await tester.pump();
+      expect(find.byType(RadioListTile<String>), findsNothing);
+      semantics.dispose();
+    });
+
+    testWidgets('never measures the servers by itself', (tester) async {
+      final cubit = await pump(tester);
+      await tester.pumpAndSettle();
+      verifyNever(cubit.findFastestInstance);
+    });
+
+    testWidgets('without an on-device engine', (tester) async {
+      final cubit = await pump(tester, const OnboardingState(onDevice: false));
+
+      // Not optional there: it is how Mozhi translates.
+      expect(find.text('Optional'), findsNothing);
+      expect(
+        find.textContaining('Mozhi translates with a Mozhi server'),
+        findsOneWidget,
+      );
+      final ask = find.byKey(const Key('onboarding_ask_before_sending'));
+      expect(ask, findsOneWidget);
+      expect(find.text('Ask before sending text'), findsOneWidget);
+      // Offline first (the default) asks.
+      expect(tester.widget<SwitchListTile>(ask).value, isTrue);
+      await tester.tap(ask);
+      verify(() => cubit.setAskBeforeSending(ask: false)).called(1);
+    });
+
+    testWidgets('the switch is off in Online mode', (tester) async {
+      await pump(
+        tester,
+        const OnboardingState(onDevice: false),
+        const AppSettings(
+          instances: testInstances,
+          privacyMode: PrivacyMode.online,
+        ),
+      );
+
+      expect(
+        tester
+            .widget<SwitchListTile>(
+              find.byKey(const Key('onboarding_ask_before_sending')),
+            )
+            .value,
+        isFalse,
+      );
+    });
+
+    testWidgets('keeps the privacy switch to devices without an engine', (
+      tester,
+    ) async {
+      await pump(tester);
+      expect(
+        find.byKey(const Key('onboarding_ask_before_sending')),
+        findsNothing,
+      );
     });
 
     testWidgets('says that Offline only never contacts the servers', (
@@ -84,9 +165,18 @@ void main() {
       );
     });
 
-    testWidgets('find fastest starts pinging', (tester) async {
+    testWidgets('find fastest starts pinging, saying it contacts them', (
+      tester,
+    ) async {
       final cubit = await pump(tester);
-      await tester.tap(find.text('Find the fastest public instance'));
+      expect(
+        find.text(
+          'Contacts every listed server once to measure its speed, then '
+          'tries the fastest first.',
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Find the fastest server'));
       verify(cubit.findFastestInstance).called(1);
     });
 
@@ -106,18 +196,18 @@ void main() {
       );
 
       expect(find.text('Testing instances…'), findsOneWidget);
-      final button = tester.widget<ButtonStyleButton>(
-        find.ancestor(
-          of: find.text('Testing instances…'),
-          matching: find.byWidgetPredicate((w) => w is ButtonStyleButton),
-        ),
+      final tile = tester.widget<ListTile>(
+        find.byKey(const Key('onboarding_find_fastest')),
       );
-      expect(button.onPressed, isNull);
+      expect(tile.onTap, isNull);
       final progress = tester.widget<LinearProgressIndicator>(
         find.byType(LinearProgressIndicator),
       );
       expect(progress.value, closeTo(1 / 3, 0.001));
-      expect(find.byType(CircularProgressIndicator), findsNWidgets(2));
+      // The server in use is still pending.
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      await openList(tester);
+      expect(find.byType(CircularProgressIndicator), findsNWidgets(3));
       expect(find.text('120 ms'), findsOneWidget);
       expect(find.text('Fastest'), findsNothing);
     });
@@ -138,8 +228,11 @@ void main() {
       );
 
       expect(find.text('Test again'), findsOneWidget);
+      // On the row of the server in use.
       expect(find.text('90 ms'), findsOneWidget);
       expect(find.text('Fastest'), findsOneWidget);
+      await openList(tester);
+      expect(find.text('90 ms'), findsNWidgets(2));
       expect(find.text('Unreachable'), findsOneWidget);
       expect(find.text('Timed out'), findsOneWidget);
       expect(find.byTooltip('boom'), findsOneWidget);
@@ -159,8 +252,9 @@ void main() {
           },
         ),
       );
+      await openList(tester);
       Color colorOf(String text) =>
-          tester.widget<Text>(find.text(text)).style!.color!;
+          tester.widget<Text>(find.text(text).last).style!.color!;
       final colors = {
         colorOf('100 ms'),
         colorOf('1000 ms'),
@@ -189,6 +283,7 @@ void main() {
         onboarding: cubit,
         settings: createSettings(),
       );
+      await openList(tester);
 
       final tiles = tester.widgetList<RadioListTile<String>>(
         find.byType(RadioListTile<String>),
@@ -197,7 +292,8 @@ void main() {
       final title = tester.getRect(find.text('b.example'));
       final badge = tester.getRect(find.text('40 ms'));
       expect(badge.top, greaterThan(title.bottom));
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      // Alpha's pending ping, on its row and in the list.
+      expect(find.byType(CircularProgressIndicator), findsNWidgets(2));
     });
 
     testWidgets('warns when no instance answered', (tester) async {
@@ -221,14 +317,9 @@ void main() {
       expect(find.byType(RadioListTile<String>), findsNothing);
     });
 
-    testWidgets('sort by speed switch', (tester) async {
-      final cubit = await pump(tester);
-      await tester.tap(find.text('Sort by speed'));
-      verify(() => cubit.setSortBySpeed(enabled: false)).called(1);
-    });
-
     testWidgets('tapping an instance prefers it', (tester) async {
       final cubit = await pump(tester);
+      await openList(tester);
       await tester.tap(find.text('Charlie'));
       verify(() => cubit.selectInstance(instanceC.url)).called(1);
     });

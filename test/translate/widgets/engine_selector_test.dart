@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/offline.dart' show OfflineEngineBadge;
 import 'package:mozhi/translate/translate.dart';
@@ -45,15 +46,52 @@ const _offline = TranslationEngine(
 );
 
 void main() {
-  setUpAll(registerTranslateFallbacks);
+  setUpAll(() {
+    registerTranslateFallbacks();
+    registerFallbackValue(QualityMode.off);
+  });
 
   group('EngineSelectorButton', () {
-    testWidgets('shows the current engine', (tester) async {
+    testWidgets('shows the current engine, without its details', (
+      tester,
+    ) async {
       final harness = TranslateHarness();
       await harness.pump(tester, child: const EngineSelectorButton());
       expect(find.text('DeepL'), findsOneWidget);
-      expect(find.text('mozhi.example.org'), findsOneWidget);
+      // A model id or host stays in the sheet.
+      expect(find.text('mozhi.example.org'), findsNothing);
       expect(find.byTooltip('Choose translation engine'), findsOneWidget);
+      // An interactive outline: the 3:1 control outline, not a hairline.
+      final button = tester.widget<TextButton>(
+        find.byKey(const Key('translate_engine_selector')),
+      );
+      final shape = button.style!.shape!.resolve({})! as StadiumBorder;
+      expect(
+        shape.side.color,
+        Theme.of(tester.element(find.byType(TextButton))).colorScheme.outline,
+      );
+    });
+
+    testWidgets('is quieter, secondary text once Fast and Best are set up', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(
+        state: readyState(engine: google).copyWith(
+          qualityMode: QualityMode.fast,
+          fastEngine: () => google,
+          bestEngine: () => claude,
+        ),
+      );
+      await harness.pump(tester, child: const EngineSelectorButton());
+      final name = tester.widget<Text>(
+        find.byKey(const Key('translate_engine_selector_name')),
+      );
+      expect(name.data, 'Google');
+      final context = tester.element(
+        find.byKey(const Key('translate_engine_selector_name')),
+      );
+      expect(name.style?.color, AppPalette.of(context).secondaryText);
+      expect(name.style?.fontWeight, FontWeight.w500);
     });
 
     testWidgets('follows engine changes', (tester) async {
@@ -67,7 +105,7 @@ void main() {
       states.add(readyState(engine: _deeplApi));
       await tester.pump();
       expect(find.text('DeepL API'), findsOneWidget);
-      expect(find.text('api-free.deepl.com'), findsOneWidget);
+      expect(find.text('api-free.deepl.com'), findsNothing);
       expect(find.byIcon(Icons.translate), findsOneWidget);
 
       // Only the list changes (e.g. a provider was removed).
@@ -118,10 +156,24 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('AI models'), findsOneWidget);
-      expect(find.text('Public server'), findsNWidgets(2));
+      // The instance's badge once, in its header.
+      expect(find.text('Public server'), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('Public server')).dy,
+        lessThan(tester.getTopLeft(find.text('Google')).dy),
+      );
+      // AI models go to different places: a badge on each.
       expect(find.text('Cloud'), findsOneWidget);
       expect(find.text('Self-hosted'), findsOneWidget);
-      expect(find.text('claude-opus-5-5'), findsOneWidget);
+      // The model id stays in the sheet, after what the engine is for.
+      expect(
+        find.text(
+          'Follows tone, context and your other options · claude-opus-5-5',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Good for European languages'), findsOneWidget);
+      expect(find.text('Covers the most languages'), findsOneWidget);
       expect(find.byIcon(Icons.check), findsOneWidget);
     });
 
@@ -164,14 +216,26 @@ void main() {
       // A cloud service: Cloud badge, translate icon, its host.
       expect(inTile('DeepL API', find.text('Cloud')), findsOneWidget);
       expect(inTile('DeepL API', find.byIcon(Icons.translate)), findsOne);
-      expect(inTile('DeepL API', find.text('api-free.deepl.com')), findsOne);
+      expect(
+        inTile(
+          'DeepL API',
+          find.text('Good for European languages · api-free.deepl.com'),
+        ),
+        findsOne,
+      );
       expect(inTile('DeepL API', find.text('Self-hosted')), findsNothing);
 
       // A server on the LAN is self-hosted, not Offline.
       expect(inTile('LibreTranslate', find.text('Self-hosted')), findsOne);
       expect(inTile('LibreTranslate', find.byType(PrivacyBadge)), findsOne);
       expect(inTile('LibreTranslate', find.byIcon(Icons.translate)), findsOne);
-      expect(inTile('LibreTranslate', find.text('192.168.1.20')), findsOne);
+      expect(
+        inTile(
+          'LibreTranslate',
+          find.text('Open-source machine translation · 192.168.1.20'),
+        ),
+        findsOne,
+      );
     });
 
     test('the machine translation header is translated in every locale', () {
@@ -195,9 +259,11 @@ void main() {
 
       expect(find.text('On this device'), findsOneWidget);
       expect(find.text('Machine translation'), findsOneWidget);
+      // The section's badge, in its header.
+      expect(find.byType(OfflineEngineBadge), findsOneWidget);
       expect(
-        inTile('Offline (on-device)', find.byType(OfflineEngineBadge)),
-        findsOneWidget,
+        tester.getTopLeft(find.byType(OfflineEngineBadge)).dy,
+        lessThan(tester.getTopLeft(find.text('Offline (on-device)')).dy),
       );
       expect(
         inTile('Offline (on-device)', find.byType(PrivacyBadge)),
@@ -206,6 +272,13 @@ void main() {
       expect(
         inTile('Offline (on-device)', find.byIcon(OfflineEngineBadge.icon)),
         findsWidgets,
+      );
+      expect(
+        inTile(
+          'Offline (on-device)',
+          find.text('Private: your text stays on this device'),
+        ),
+        findsOne,
       );
       expect(
         top(tester, find.text('On this device')),
@@ -241,7 +314,11 @@ void main() {
 
     testWidgets('quality modes link to their settings', (tester) async {
       final harness = TranslateHarness(
-        state: readyState().copyWith(fastEngine: () => google),
+        state: readyState(engine: google).copyWith(
+          qualityMode: QualityMode.fast,
+          fastEngine: () => google,
+          bestEngine: () => claude,
+        ),
       );
       await harness.pump(
         tester,
@@ -256,6 +333,95 @@ void main() {
       await tester.pumpAndSettle();
       verify(() => harness.router.push<void>(translateQualityLocation))
           .called(1);
+    });
+
+    group('with Fast and Best set up', () {
+      Future<TranslateHarness> openModes(WidgetTester tester) async {
+        final harness = TranslateHarness(
+          state: readyState(engine: google).copyWith(
+            qualityMode: QualityMode.fast,
+            fastEngine: () => google,
+            bestEngine: () => claude,
+          ),
+        );
+        when(() => harness.translate.setQualityMode(any()))
+            .thenAnswer((_) async {});
+        await harness.pump(
+          tester,
+          child: const EngineSelectorButton(),
+          size: const Size(800, 1200),
+        );
+        await tester.tap(find.byKey(const Key('translate_engine_selector')));
+        await tester.pumpAndSettle();
+        return harness;
+      }
+
+      Finder mode(String name) =>
+          find.byKey(ValueKey('translate_engine_mode_$name'));
+
+      testWidgets('starts with the modes and their engines', (tester) async {
+        await openModes(tester);
+        expect(find.text('Quality mode'), findsOneWidget);
+        final fast = tester.widget<ListTile>(mode('fast'));
+        expect(fast.selected, isTrue);
+        expect(
+          find.descendant(
+            of: mode('fast'),
+            matching: find.text('Google · Covers the most languages'),
+          ),
+          findsOneWidget,
+        );
+        expect(tester.widget<ListTile>(mode('best')).selected, isFalse);
+        // The engine list waits behind "Custom engine…".
+        expect(find.text('Custom engine…'), findsOneWidget);
+        expect(find.text('Choose the engine Fast translates with'), findsOne);
+        expect(find.text('AI models'), findsNothing);
+      });
+
+      testWidgets('choosing a mode calls setQualityMode', (tester) async {
+        final harness = await openModes(tester);
+        await tester.tap(mode('best'));
+        await tester.pumpAndSettle();
+        verify(() => harness.translate.setQualityMode(QualityMode.best))
+            .called(1);
+      });
+
+      testWidgets('choosing the active mode just closes', (tester) async {
+        final harness = await openModes(tester);
+        await tester.tap(mode('fast'));
+        await tester.pumpAndSettle();
+        verifyNever(() => harness.translate.setQualityMode(any()));
+      });
+
+      testWidgets('"Custom engine…" picks the engine of the mode', (
+        tester,
+      ) async {
+        final harness = await openModes(tester);
+        await tester.tap(find.byKey(const Key('translate_engine_custom')));
+        await tester.pumpAndSettle();
+        expect(find.text('AI models'), findsOneWidget);
+        await tester.tap(find.text('DeepL'));
+        await tester.pumpAndSettle();
+        verify(() => harness.translate.selectEngine(deepl)).called(1);
+      });
+
+      testWidgets('names the Best mode while it is on', (tester) async {
+        final harness = TranslateHarness(
+          state: readyState(engine: claude).copyWith(
+            qualityMode: QualityMode.best,
+            fastEngine: () => google,
+            bestEngine: () => claude,
+          ),
+        );
+        await harness.pump(
+          tester,
+          child: const EngineSelectorButton(),
+          size: const Size(800, 1200),
+        );
+        await tester.tap(find.byKey(const Key('translate_engine_selector')));
+        await tester.pumpAndSettle();
+        expect(find.text('Choose the engine Best translates with'), findsOne);
+      });
     });
 
     testWidgets('leaves out empty sections', (tester) async {
@@ -307,6 +473,47 @@ void main() {
       await tester.tap(find.text('Manage instances'));
       await tester.pumpAndSettle();
       verify(() => harness.router.push<void>('/settings/instances')).called(1);
+    });
+  });
+
+  group('translateEngineDescriptor', () {
+    test('says modestly what each engine is good for', () {
+      final l10n = lookupAppLocalizations(const Locale('en'));
+      String? about(TranslationEngine engine) =>
+          translateEngineDescriptor(l10n, engine);
+      TranslationEngine mozhi(String name) =>
+          TranslationEngine.mozhi(name, name);
+      expect(about(google), 'Covers the most languages');
+      expect(about(deepl), 'Good for European languages');
+      expect(about(_deeplApi), 'Good for European languages');
+      expect(
+        about(mozhi('duckduckgo')),
+        'Microsoft Translator, via DuckDuckGo',
+      );
+      expect(about(mozhi('bing')), 'Microsoft Translator, via DuckDuckGo');
+      expect(about(mozhi('mymemory')), contains('short phrases'));
+      expect(about(mozhi('reverso')), contains('idioms'));
+      expect(about(mozhi('yandex')), contains('Russian'));
+      expect(about(mozhi('libre')), 'Open-source machine translation');
+      expect(about(_libre), 'Open-source machine translation');
+      expect(about(mozhi('unknown')), isNull);
+      expect(about(_offline), contains('this device'));
+      expect(about(claude), contains('tone'));
+      const gemma = TranslationEngine(
+        id: 'ai:gemma',
+        kind: EngineKind.ai,
+        name: 'Gemma',
+        providerId: 'gemma',
+        promptProfile: PromptProfile.translateGemma,
+      );
+      expect(about(gemma), contains('no options'));
+      const llm = TranslationEngine(
+        id: 'mt:llm',
+        kind: EngineKind.mt,
+        name: 'LLM',
+        mtService: MtService.llm,
+      );
+      expect(about(llm), isNull);
     });
   });
 

@@ -18,7 +18,7 @@ import 'package:translation_repository/translation_repository.dart';
 /// The dictionary's composer, docked under the greeting like the
 /// translate tab's: the search field ([DictionarySearchField]) with Clear
 /// (once there is a word) and the microphone (when voice input is
-/// available) at its top end, and the bar [options | go | languages]
+/// available) at its top end, and the bar [options | languages | go]
 /// ([DictionaryComposerBar]).
 class DictionaryComposer extends StatelessWidget {
   const new({this.focusNode, this.autofocus = false, super.key});
@@ -53,9 +53,10 @@ class DictionaryComposer extends StatelessWidget {
   }
 }
 
-/// The bar of the [DictionaryComposer], like Kagi's: the options button
-/// ([DictionaryOptionsButton]), the go button ([DictionaryGoButton]) and
-/// the languages ([DictionaryLanguagePair]).
+/// The bar of the [DictionaryComposer], in the order of every composer
+/// (Translate, Proofread): the options button
+/// ([DictionaryOptionsButton]), the languages ([DictionaryLanguagePair])
+/// and the go button ([DictionaryGoButton]) at the trailing end.
 class DictionaryComposerBar extends StatelessWidget {
   const new({super.key});
 
@@ -65,8 +66,8 @@ class DictionaryComposerBar extends StatelessWidget {
       key: Key('dictionary_bar'),
       children: [
         DictionaryOptionsButton(key: Key('dictionary_options_button')),
-        DictionaryGoButton(),
         Expanded(child: DictionaryLanguagePair()),
+        DictionaryGoButton(),
       ],
     );
   }
@@ -98,7 +99,7 @@ class DictionaryClearButton extends StatelessWidget {
   }
 }
 
-/// "Look up" (the rocket): looks the typed word up
+/// "Look up" (the go arrow): looks the typed word up
 /// ([lookUpDictionaryWord]); disabled without a word or an AI engine.
 class DictionaryGoButton extends StatelessWidget {
   const new({super.key});

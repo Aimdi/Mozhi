@@ -35,9 +35,13 @@ typedef _Languages = ({List<Language> sources, List<Language> targets});
 /// * Reads initial engine/languages/options from `settings` and writes
 ///   selection changes back (`setEngine`, `setLanguages`,
 ///   `addRecentLanguage`, `setOptions`).
-/// * Typing ([setInput]) debounces and auto-translates when
-///   `instantTranslate` (Mozhi) / `instantTranslateAi` (AI) is on; any new
-///   translation cancels the in-flight one (stream subscription cancel).
+/// * Typing ([setInput]) auto-translates when `instantTranslate` (machine
+///   translation) / `instantTranslateAi` (AI) is on, after a pause that
+///   suits the edit ([instantDelay]: none after a paste or the end of a
+///   sentence, short after a word, longer within one), during which
+///   [TranslateState.queued] is set; the previous result stays meanwhile.
+///   Any new translation cancels the in-flight one (stream subscription
+///   cancel).
 /// * Text from outside the app ([setExternalInput]) is length-capped and
 ///   only auto-translated when that costs nothing (see there).
 /// * Completed translations are added to `history` when `saveHistory` (and
@@ -65,7 +69,11 @@ typedef _Languages = ({List<Language> sources, List<Language> targets});
 /// * Successful translations are recorded as recent language pairs
 ///   (`SettingsCubit.recordPair`); [applyLanguagePair] picks one again.
 /// * Quality modes ([setQualityMode]) translate with the engines chosen as
-///   "Fast" / "Best" in settings without changing the normal engine.
+///   "Fast" / "Best" in settings without changing the normal engine (a
+///   mode without an engine of its own uses the normal one). Once both are
+///   set up ([TranslateState.hasQualityModes]) one of them is always on:
+///   a saved "usual engine" moves to a mode, and picking an engine makes
+///   it the active mode's engine.
 /// * [checkMeaning] checks, on demand, whether the output means the same as
 ///   the input (an AI check, or a back-translation with the main engine).
 /// * Extra targets ([setExtraTargets], "Also translate into…") are
@@ -113,20 +121,33 @@ class TranslateCubit extends Cubit<TranslateState> {
     this.debounce = const Duration(milliseconds: 600),
     this.aiDebounce = const Duration(milliseconds: 1200),
     Duration? offlineDebounce,
+    Duration? boundaryDebounce,
+    Duration? aiBoundaryDebounce,
+    Duration? aiSentenceDebounce,
     DateTime Function()? clock,
     List<String> Function()? deviceLanguages,
     this._usageTracker,
     TranslationMemory? memory,
   }) : _settings = settings,
-       offlineDebounce =
-           offlineDebounce ??
-           (debounce < defaultOfflineDebounce
-               ? debounce
-               : defaultOfflineDebounce),
+       offlineDebounce = _atMost(
+         offlineDebounce ?? defaultOfflineDebounce,
+         debounce,
+       ),
+       boundaryDebounce = _atMost(
+         boundaryDebounce ?? defaultBoundaryDebounce,
+         debounce,
+       ),
+       aiBoundaryDebounce = _atMost(
+         aiBoundaryDebounce ?? defaultAiBoundaryDebounce,
+         aiDebounce,
+       ),
+       aiSentenceDebounce = _atMost(
+         aiSentenceDebounce ?? defaultAiSentenceDebounce,
+         _atMost(aiBoundaryDebounce ?? defaultAiBoundaryDebounce, aiDebounce),
+       ),
        _memory = memory ?? TranslationMemory(),
        _clock = clock ?? DateTime.now,
        _deviceLanguages = deviceLanguages ?? _platformLanguages,
-       _qualityIds = (settings.state.fastEngineId, settings.state.bestEngineId),
        _seenExtraTargets = settings.state.extraTargets,
        super(
          TranslateState(
@@ -148,6 +169,22 @@ class TranslateCubit extends Cubit<TranslateState> {
   /// Default [offlineDebounce] (never longer than [debounce]): the
   /// on-device engine costs nothing and answers quickly.
   static const defaultOfflineDebounce = Duration(milliseconds: 250);
+
+  /// Default [boundaryDebounce] (never longer than [debounce]).
+  static const defaultBoundaryDebounce = Duration(milliseconds: 350);
+
+  /// Default [aiBoundaryDebounce] (never longer than [aiDebounce]).
+  static const defaultAiBoundaryDebounce = Duration(milliseconds: 600);
+
+  /// Default [aiSentenceDebounce] (never longer than [aiBoundaryDebounce]).
+  static const defaultAiSentenceDebounce = Duration(milliseconds: 300);
+
+  /// Fewest characters a single edit inserts to count as a paste (see
+  /// [instantDelay]); an edit that inserts several words counts too.
+  static const pasteMinLength = 16;
+
+  static Duration _atMost(Duration value, Duration limit) =>
+      value < limit ? value : limit;
 
   /// Most engines tried after a suspect result (see the class
   /// documentation).
@@ -221,12 +258,13 @@ class TranslateCubit extends Cubit<TranslateState> {
   /// languages (a history change doesn't bring it back).
   bool _memoryDismissed = false;
 
-  /// Instant-translate delay for Mozhi engines.
+  /// Instant-translate delay for machine translation engines (Mozhi, DeepL
+  /// API, LibreTranslate) while a word is being typed.
   // Immutable configuration passed to the constructor, not state.
   // ignore: avoid_public_fields
   final Duration debounce;
 
-  /// Instant-translate delay for AI engines.
+  /// Instant-translate delay for AI engines while a word is being typed.
   // Immutable configuration passed to the constructor, not state.
   // ignore: avoid_public_fields
   final Duration aiDebounce;
@@ -236,6 +274,25 @@ class TranslateCubit extends Cubit<TranslateState> {
   // Immutable configuration passed to the constructor, not state.
   // ignore: avoid_public_fields
   final Duration offlineDebounce;
+
+  /// Instant-translate delay for machine translation engines after a word
+  /// ([defaultBoundaryDebounce] unless [debounce] is shorter).
+  // Immutable configuration passed to the constructor, not state.
+  // ignore: avoid_public_fields
+  final Duration boundaryDebounce;
+
+  /// Instant-translate delay for AI engines after a word
+  /// ([defaultAiBoundaryDebounce] unless [aiDebounce] is shorter).
+  // Immutable configuration passed to the constructor, not state.
+  // ignore: avoid_public_fields
+  final Duration aiBoundaryDebounce;
+
+  /// Instant-translate delay for AI engines after the end of a sentence or
+  /// a new line ([defaultAiSentenceDebounce] unless [aiBoundaryDebounce] is
+  /// shorter): long enough that a sentence typed on is not sent twice.
+  // Immutable configuration passed to the constructor, not state.
+  // ignore: avoid_public_fields
+  final Duration aiSentenceDebounce;
 
   /// The personal data shield last pushed to the repository (null before
   /// the first [loadEngines]).
@@ -263,6 +320,13 @@ class TranslateCubit extends Cubit<TranslateState> {
   StreamSubscription<TranslationResult>? _translation;
   Completer<void>? _translationDone;
   int _translationRequest = 0;
+
+  /// The text of the last main translation started (see [_coveredText]).
+  String? _requestText;
+
+  /// The languages of the last finished main translation (or compare
+  /// result used), see [_currentResultForCompare].
+  ({Language source, Language target})? _resultLanguages;
 
   /// Translation requests stopped for consent ([TranslateState.consent]).
   int _consentRequests = 0;
@@ -313,9 +377,6 @@ class TranslateCubit extends Cubit<TranslateState> {
   /// [loadEngines] on (null for repository test doubles without it).
   StreamSubscription<void>? _metadataSubscription;
   bool _metadataListened = false;
-
-  /// The quality mode engine ids last seen in settings.
-  (String?, String?) _qualityIds;
 
   /// Id of the engine in use when a quality mode was turned on: what
   /// [QualityMode.off] goes back to when `AppSettings.engineId` names no
@@ -421,14 +482,13 @@ class TranslateCubit extends Cubit<TranslateState> {
     }
 
     // An engine the user picked while the list was loading wins; then the
-    // engine of the saved quality mode.
+    // engine of the saved quality mode (once Fast and Best are set up, a
+    // user still on the usual engine moves to a mode, see
+    // _savedQualityMode).
     final picked = _switches != switches ? state.engine : null;
-    final modeEngine = _engineIn(
-      engines,
-      _qualityEngineId(_settings.state.qualityMode),
-    );
-    final fast = _engineIn(engines, _settings.state.fastEngineId);
-    final best = _engineIn(engines, _settings.state.bestEngineId);
+    final (:fast, :best) = _resolveQuality(engines);
+    final wanted = _savedQualityMode(engines, fast, best);
+    final modeEngine = _qualityEngineOf(wanted, fast, best);
     final candidates = _engineCandidates(
       engines,
       preferred: picked ?? modeEngine,
@@ -479,7 +539,7 @@ class TranslateCubit extends Cubit<TranslateState> {
     }
 
     final engine = loaded.engine;
-    final mode = _modeOf(engine);
+    final mode = _modeOf(engine, wanted, fast, best);
     final changed = engine.id != state.engine?.id;
     if (changed) {
       _cancelTranslation();
@@ -540,9 +600,28 @@ class TranslateCubit extends Cubit<TranslateState> {
   /// Keeps current languages when possible via `LanguageMatcher`. The
   /// choice is saved once the engine's languages loaded.
   ///
-  /// Choosing an engine turns quality mode off (also when [engine] is the
-  /// quality mode's engine: it becomes the normal engine).
+  /// Without Fast and Best set up ([TranslateState.hasQualityModes]),
+  /// choosing an engine turns quality mode off (also when [engine] is the
+  /// quality mode's engine: it becomes the normal engine). Once they are
+  /// set up one of them is always on: [engine] becomes the engine of the
+  /// active mode (the engine sheet's "Custom engine…"), or that other mode
+  /// is selected when [engine] is its engine (see [_assignToMode]).
   Future<void> selectEngine(TranslationEngine engine) async {
+    if (_assignToMode(engine)) {
+      if (engine.id == state.engine?.id &&
+          state.enginesStatus == EnginesStatus.ready) {
+        return;
+      }
+      final switched = await _switchEngine(
+        engine,
+        keepResult: false,
+        persist: false,
+      );
+      if (switched && state.input.trim().isNotEmpty && !state.compareMode) {
+        await _translate();
+      }
+      return;
+    }
     final leftQualityMode = _leaveQualityMode();
     if (engine.id == state.engine?.id &&
         state.enginesStatus == EnginesStatus.ready) {
@@ -621,27 +700,33 @@ class TranslateCubit extends Cubit<TranslateState> {
   /// without changing the normal engine.
   ///
   /// * [QualityMode.fast] / [QualityMode.best] select
-  ///   `AppSettings.fastEngineId` / `bestEngineId` when that engine is
-  ///   configured and in [TranslateState.engines]; otherwise nothing
+  ///   [TranslateState.fastEngine] / [TranslateState.bestEngine] (see
+  ///   [_resolveQuality]) when that engine is available; otherwise nothing
   ///   changes (see [TranslateState.availableQualityModes]).
   ///   Turning a mode on from [QualityMode.off] remembers the engine in use
   ///   (and saves it as the normal engine when settings name none).
   /// * [QualityMode.off] returns to the normal engine: `AppSettings.engineId`
   ///   when available, else the engine in use before the mode was turned
-  ///   on, else the default (or first) engine other than the mode's.
+  ///   on, else the default (or first) engine other than the mode's. Once
+  ///   Fast and Best are set up ([TranslateState.hasQualityModes]) one of
+  ///   them is always on, and [QualityMode.off] (a link's "standard") means
+  ///   [QualityMode.fast].
   ///
   /// The mode is saved (`SettingsCubit.setQualityMode`) unless [persist]
   /// is false (a mode a link asked for: it lasts until the app restarts or
   /// the user picks a mode or an engine). After an engine switch the input
   /// is translated again like after [selectEngine] (never in compare mode).
-  /// [selectEngine] turns the mode off.
+  /// [selectEngine] turns the mode off while Fast and Best are not set up.
   Future<void> setQualityMode(QualityMode mode, {bool persist = true}) async {
+    final wanted = mode == QualityMode.off && state.hasQualityModes
+        ? QualityMode.fast
+        : mode;
     final TranslationEngine? engine;
-    if (mode == QualityMode.off) {
+    if (wanted == QualityMode.off) {
       // Already on the normal engine: only the saved mode may differ.
       engine = state.qualityMode == QualityMode.off ? null : _normalEngine();
     } else {
-      engine = _engineIn(state.engines, _qualityEngineId(mode));
+      engine = state.qualityEngine(wanted);
       if (engine == null) return;
       final current = state.engine;
       if (state.qualityMode == QualityMode.off && current != null) {
@@ -651,11 +736,11 @@ class TranslateCubit extends Cubit<TranslateState> {
         if (_settings.state.engineId == null) _settings.setEngine(current.id);
       }
     }
-    if (mode == QualityMode.off) _engineBeforeQuality = null;
-    if (persist && _settings.state.qualityMode != mode) {
-      _settings.setQualityMode(mode);
+    if (wanted == QualityMode.off) _engineBeforeQuality = null;
+    if (persist && _settings.state.qualityMode != wanted) {
+      _settings.setQualityMode(wanted);
     }
-    if (state.qualityMode != mode) emit(state.copyWith(qualityMode: mode));
+    if (state.qualityMode != wanted) emit(state.copyWith(qualityMode: wanted));
     if (engine == null ||
         (engine.id == state.engine?.id &&
             state.enginesStatus == EnginesStatus.ready)) {
@@ -683,6 +768,47 @@ class TranslateCubit extends Cubit<TranslateState> {
     return wasOn;
   }
 
+  /// While Fast and Best are set up and a mode is on, makes [engine] the
+  /// engine of that mode and returns true (false otherwise: the caller
+  /// handles the pick as a normal engine).
+  ///
+  /// [engine] is the other mode's engine: that mode is selected. Otherwise
+  /// it is saved as the active mode's engine (`SettingsCubit
+  /// .setQualityEngines`), or as the usual engine (`SettingsCubit
+  /// .setEngine`) when the mode has no engine of its own and uses the
+  /// usual one. The mode is saved. The caller switches to [engine].
+  bool _assignToMode(TranslationEngine engine) {
+    final active = state.qualityMode;
+    if (!state.hasQualityModes || active == QualityMode.off) return false;
+    final other = active == QualityMode.fast
+        ? QualityMode.best
+        : QualityMode.fast;
+    final mode = state.qualityEngine(other)?.id == engine.id ? other : active;
+    if (mode == active && state.qualityEngine(active)?.id != engine.id) {
+      final settings = _settings.state;
+      final own = active == QualityMode.fast
+          ? settings.fastEngineId
+          : settings.bestEngineId;
+      if (own == null) {
+        _settings.setEngine(engine.id);
+      } else {
+        _settings.setQualityEngines(
+          fast: active == QualityMode.fast ? engine.id : settings.fastEngineId,
+          best: active == QualityMode.best ? engine.id : settings.bestEngineId,
+        );
+      }
+    }
+    if (_settings.state.qualityMode != mode) _settings.setQualityMode(mode);
+    emit(
+      state.copyWith(
+        qualityMode: mode,
+        fastEngine: mode == QualityMode.fast ? () => engine : null,
+        bestEngine: mode == QualityMode.best ? () => engine : null,
+      ),
+    );
+    return true;
+  }
+
   /// The engine [QualityMode.off] switches to: the saved normal engine
   /// (`AppSettings.engineId`), else the one in use before the quality mode
   /// was turned on, else the on-device engine, the default engine or the
@@ -707,20 +833,101 @@ class TranslateCubit extends Cubit<TranslateState> {
     return null;
   }
 
-  /// The saved engine id of [mode] (null for [QualityMode.off]).
-  String? _qualityEngineId(QualityMode mode) => switch (mode) {
+  /// The usual engine among [engines]: the saved normal engine
+  /// (`AppSettings.engineId`), else the one in use before a quality mode
+  /// was turned on, else the engine the app picks by itself (the on-device
+  /// engine unless the privacy mode is online, the default engine, the
+  /// first engine that is not a cloud provider).
+  TranslationEngine? _usualEngineIn(List<TranslationEngine> engines) {
+    final settings = _settings.state;
+    final online = settings.privacyMode == PrivacyMode.online;
+    for (final engine in [
+      _engineIn(engines, settings.engineId),
+      _engineIn(engines, _engineBeforeQuality),
+      if (!online) engines.where((e) => e.isOffline).firstOrNull,
+      _engineIn(engines, _defaultEngineId),
+      engines.where((e) => !_isCloudEngine(e)).firstOrNull,
+    ]) {
+      if (engine != null) return engine;
+    }
+    return null;
+  }
+
+  /// The Fast and Best engines among [engines]: a mode's own engine
+  /// (`AppSettings.fastEngineId` / `bestEngineId`) when it is available. A
+  /// mode without an engine of its own uses the usual engine
+  /// ([_usualEngineIn]) as long as the other mode has one, so that picking
+  /// only a Best engine gives "Fast = the usual engine | Best". When that
+  /// makes both modes the same engine, only their own engines are kept (the
+  /// modes are not set up, see [TranslateState.hasQualityModes]).
+  ({TranslationEngine? fast, TranslationEngine? best}) _resolveQuality(
+    List<TranslationEngine> engines,
+  ) {
+    final settings = _settings.state;
+    final fast = _engineIn(engines, settings.fastEngineId);
+    final best = _engineIn(engines, settings.bestEngineId);
+    if (fast == null && best == null) return (fast: null, best: null);
+    final usual = _usualEngineIn(engines);
+    final resolvedFast = fast ?? (settings.fastEngineId == null ? usual : null);
+    final resolvedBest = best ?? (settings.bestEngineId == null ? usual : null);
+    if (resolvedFast?.id == resolvedBest?.id) return (fast: fast, best: best);
+    return (fast: resolvedFast, best: resolvedBest);
+  }
+
+  /// The saved quality mode (`AppSettings.qualityMode`). Once Fast and Best
+  /// are set up ([fast] and [best], two different engines) one of them is
+  /// always on: a saved [QualityMode.off] (the usual engine, from before)
+  /// becomes the mode whose engine the usual engine is, else Fast, and that
+  /// is saved.
+  QualityMode _savedQualityMode(
+    List<TranslationEngine> engines,
+    TranslationEngine? fast,
+    TranslationEngine? best,
+  ) {
+    final saved = _settings.state.qualityMode;
+    if (saved != QualityMode.off || !_isSetUp(fast, best)) return saved;
+    final usual = _usualEngineIn(engines)?.id;
+    final mode = usual == best!.id && usual != fast!.id
+        ? QualityMode.best
+        : QualityMode.fast;
+    _settings.setQualityMode(mode);
+    return mode;
+  }
+
+  /// Whether [fast] and [best] set the quality modes up (two different
+  /// engines, see [TranslateState.hasQualityModes]).
+  static bool _isSetUp(TranslationEngine? fast, TranslationEngine? best) =>
+      fast != null && best != null && fast.id != best.id;
+
+  /// [fast] or [best] for [mode] (null for [QualityMode.off]).
+  static TranslationEngine? _qualityEngineOf(
+    QualityMode mode,
+    TranslationEngine? fast,
+    TranslationEngine? best,
+  ) => switch (mode) {
     QualityMode.off => null,
-    QualityMode.fast => _settings.state.fastEngineId,
-    QualityMode.best => _settings.state.bestEngineId,
+    QualityMode.fast => fast,
+    QualityMode.best => best,
   };
 
-  /// The saved quality mode when [engine] is its engine, else
-  /// [QualityMode.off].
-  QualityMode _modeOf(TranslationEngine engine) {
-    final mode = _settings.state.qualityMode;
-    return mode != QualityMode.off && _qualityEngineId(mode) == engine.id
-        ? mode
-        : QualityMode.off;
+  /// The mode [engine] translates in: [wanted] when [engine] is its engine;
+  /// while Fast and Best are set up, the mode whose engine [engine] is;
+  /// else [QualityMode.off].
+  static QualityMode _modeOf(
+    TranslationEngine engine,
+    QualityMode wanted,
+    TranslationEngine? fast,
+    TranslationEngine? best,
+  ) {
+    if (wanted != QualityMode.off &&
+        _qualityEngineOf(wanted, fast, best)?.id == engine.id) {
+      return wanted;
+    }
+    if (_isSetUp(fast, best)) {
+      if (engine.id == fast!.id) return QualityMode.fast;
+      if (engine.id == best!.id) return QualityMode.best;
+    }
+    return QualityMode.off;
   }
 
   static TranslationEngine? _engineIn(
@@ -735,9 +942,11 @@ class TranslateCubit extends Cubit<TranslateState> {
   }
 
   /// Keeps [TranslateState.fastEngine] / [TranslateState.bestEngine] in
-  /// sync with the settings. When the engine of the active mode changes it
-  /// is switched to (keeping the output); when it is removed the mode is
-  /// turned off and the normal engine comes back.
+  /// sync with the settings ([_resolveQuality]). When the engine of the
+  /// active mode changes it is switched to (keeping the output); when it is
+  /// removed the mode is turned off and the normal engine comes back. When
+  /// Fast and Best become set up while no mode is on, a mode is turned on
+  /// ([_savedQualityMode]).
   ///
   /// Extra targets saved by someone else are applied too
   /// ([_syncExtraTargets]).
@@ -747,20 +956,24 @@ class TranslateCubit extends Cubit<TranslateState> {
     if (!settings.saveHistory && state.memoryMatch != null && !isClosed) {
       emit(state.copyWith(memoryMatch: () => null));
     }
-    final ids = (settings.fastEngineId, settings.bestEngineId);
-    if (ids == _qualityIds || isClosed) return;
-    _qualityIds = ids;
-    final fast = _engineIn(state.engines, settings.fastEngineId);
-    final best = _engineIn(state.engines, settings.bestEngineId);
-    emit(state.copyWith(fastEngine: () => fast, bestEngine: () => best));
-    final mode = state.qualityMode;
+    if (isClosed || state.engines.isEmpty) return;
+    final (:fast, :best) = _resolveQuality(state.engines);
+    final changed = fast != state.fastEngine || best != state.bestEngine;
+    if (changed) {
+      emit(state.copyWith(fastEngine: () => fast, bestEngine: () => best));
+    }
     // An engine list load applies the mode itself.
-    if (mode == QualityMode.off ||
-        _listPending ||
-        state.enginesStatus != EnginesStatus.ready) {
+    if (_listPending || state.enginesStatus != EnginesStatus.ready) return;
+    var mode = state.qualityMode;
+    if (mode == QualityMode.off) {
+      if (!_isSetUp(fast, best)) return;
+      mode = _savedQualityMode(state.engines, fast, best);
+      if (mode == QualityMode.off) mode = QualityMode.fast;
+      emit(state.copyWith(qualityMode: mode));
+    } else if (!changed) {
       return;
     }
-    var engine = mode == QualityMode.fast ? fast : best;
+    var engine = _qualityEngineOf(mode, fast, best);
     if (engine == null) {
       engine = _normalEngine();
       _engineBeforeQuality = null;
@@ -999,9 +1212,20 @@ class TranslateCubit extends Cubit<TranslateState> {
   // ---------------------------------------------------------------------
 
   /// The user typed or pasted [text] (cut to [maxInputLength]).
-  void setInput(String text) {
+  ///
+  /// With instant translation on, the text is translated after the pause
+  /// [instantDelay] picks for the edit: [pasted] marks a paste (the paste
+  /// button, the field's Paste), [dictated] text from voice input (never
+  /// taken for a paste, however much arrives at once).
+  void setInput(String text, {bool pasted = false, bool dictated = false}) {
     _externalPending = false;
-    _applyInput(text, maxLength: maxInputLength, instant: true);
+    _applyInput(
+      text,
+      maxLength: maxInputLength,
+      instant: true,
+      pasted: pasted,
+      dictated: dictated,
+    );
   }
 
   /// Replaces input and translates immediately (history, user actions).
@@ -1013,6 +1237,61 @@ class TranslateCubit extends Cubit<TranslateState> {
     _typingEntryIds.clear();
     setInput(text);
     unawaited(translate());
+  }
+
+  /// Shows the translation [entry] of the on-device history again (the
+  /// empty screen's "Continue"): its languages (saved like a pick), its
+  /// text as the input and its translation as the output, marked as coming
+  /// from the history ([TranslateState.resultFromMemory]). Nothing is sent
+  /// to an engine, counted or recorded again; Translate makes a fresh
+  /// translation.
+  ///
+  /// Returns false (and changes nothing) for a dictionary look-up, without
+  /// an engine, in compare mode, or when the engine does not offer one of
+  /// the entry's languages.
+  bool restoreHistoryEntry(HistoryEntry entry) {
+    if (entry.isDictionary ||
+        entry.text.trim().isEmpty ||
+        state.engine == null ||
+        state.compareMode) {
+      return false;
+    }
+    final source = _usableSource(entry.source);
+    final target = _usableTarget(entry.target);
+    if (source == null || target == null) return false;
+    _debounceTimer?.cancel();
+    _cancelTranslation();
+    _cancelCompare();
+    _externalPending = false;
+    _typingEntryIds.clear();
+    _applySource(source);
+    _applyTarget(target);
+    final input = entry.text.length > maxInputLength
+        ? _truncate(entry.text, maxInputLength)
+        : entry.text;
+    emit(
+      _clearedExtras(_withoutExtraTranslations(state)).copyWith(
+        source: source,
+        target: target,
+        input: input,
+        inputTruncated: input.length != entry.text.length,
+        result: () => TranslationResult(
+          engineId: entry.engineId,
+          engineName: entry.engineName,
+          text: entry.translation,
+          detectedSource: entry.detectedSource,
+          fromCache: true,
+        ),
+        resultInput: () => input,
+        resultFromMemory: true,
+        // Not asked of an engine: paid extras are not started on their own.
+        instantResult: true,
+        status: TranslateStatus.success,
+        error: () => null,
+      ),
+    );
+    _autoRomanize();
+    return true;
   }
 
   /// Puts text that came from outside the app into the input.
@@ -1070,10 +1349,17 @@ class TranslateCubit extends Cubit<TranslateState> {
     return !engine.isAi;
   }
 
+  /// Puts [raw] (cut to [maxLength]) into the input. With [instant] (typed
+  /// or pasted text) and instant translation on for the engine, schedules
+  /// its translation after [instantDelay] ([TranslateState.queued] until
+  /// it starts); not when only white space at the end changed and the
+  /// result (or the translation in flight) is of the same text otherwise.
   void _applyInput(
     String raw, {
     required int maxLength,
     required bool instant,
+    bool pasted = false,
+    bool dictated = false,
   }) {
     final truncated = raw.length > maxLength;
     final text = truncated ? _truncate(raw, maxLength) : raw;
@@ -1096,37 +1382,168 @@ class TranslateCubit extends Cubit<TranslateState> {
           error: () => null,
           compareEntries: const [],
           comparing: false,
+          compareBaseline: () => null,
         ),
       );
       return;
     }
     final previous = state;
+    // Only white space at the end changed: what the result (or the
+    // translation in flight) was made for still is the text.
+    final covered = _coveredText(previous);
+    final same = covered != null && covered.trimRight() == text.trimRight();
+    final engine = state.engine;
+    if (instant &&
+        !same &&
+        engine != null &&
+        !state.compareMode &&
+        (engine.isAi
+            ? _settings.state.instantTranslateAi
+            : _settings.state.instantTranslate)) {
+      // Scheduled before the input is emitted, so that it is queued.
+      _debounceTimer = Timer(
+        instantDelay(
+          engine,
+          previous.input,
+          text,
+          pasted: pasted,
+          dictated: dictated,
+        ),
+        _translateInstantly,
+      );
+    }
     emit(
       _clearedExtras(state).copyWith(
         input: text,
         inputTruncated: truncated,
         compareEntries: const [],
         comparing: false,
-        // The kept result belongs to the previous text.
-        resultInput: previous.result != null && previous.resultInput == null
+        compareBaseline: () => null,
+        resultInput: same && previous.status != TranslateStatus.translating
+            ? () => text
+            // The kept result belongs to the previous text.
+            : previous.result != null && previous.resultInput == null
             ? () => previous.input
             : null,
       ),
     );
-    final engine = state.engine;
-    if (!instant || engine == null || state.compareMode) return;
-    final enabled = engine.isAi
-        ? _settings.state.instantTranslateAi
-        : _settings.state.instantTranslate;
-    if (!enabled) return;
-    _debounceTimer = Timer(
-      engine.isAi
-          ? aiDebounce
-          : engine.isOffline
-          ? offlineDebounce
-          : debounce,
-      () => unawaited(_translate(auto: true)),
-    );
+  }
+
+  /// The text the shown result was made for when it is finished, or that
+  /// of the main translation in flight; else null.
+  String? _coveredText(TranslateState state) {
+    if (state.status == TranslateStatus.translating) return _requestText;
+    final result = state.result;
+    if (result == null || !result.isComplete) return null;
+    return state.resultInput ?? state.input;
+  }
+
+  /// The instant translation [_applyInput] scheduled is due.
+  void _translateInstantly() {
+    final translation = _translate(auto: true);
+    // Nothing started (no engine any more): nothing is queued either.
+    if (state.queued) emit(state);
+    unawaited(translation);
+  }
+
+  /// How long an instant translation of [next] (the input after
+  /// [previous]) waits with [engine]:
+  ///
+  /// * a paste ([pasted], or [isPasteLike] unless [dictated]): no wait;
+  /// * the end of a sentence just typed ([endsSentence]) or a new line
+  ///   (Enter): no wait for machine translation and the on-device engine;
+  ///   [aiSentenceDebounce] for AI engines, so that a sentence typed on
+  ///   right away is not sent twice;
+  /// * after a word (white space or punctuation at the end):
+  ///   [boundaryDebounce], [aiBoundaryDebounce] for AI engines and the
+  ///   DeepL API (billed by the character, and every request sends the
+  ///   whole text);
+  /// * within a word: [debounce], [aiDebounce] for AI engines.
+  ///
+  /// The on-device engine waits [offlineDebounce] at most. Typing at a
+  /// normal pace never sends more requests to AI engines than one after
+  /// the last key: [aiBoundaryDebounce] is longer than the pause between
+  /// two words. The DeepL API waits as long as before the shorter waits
+  /// after a word came in, except after a paste or at a sentence end.
+  Duration instantDelay(
+    TranslationEngine engine,
+    String previous,
+    String next, {
+    bool pasted = false,
+    bool dictated = false,
+  }) {
+    if (!dictated && (pasted || isPasteLike(previous, next))) {
+      return Duration.zero;
+    }
+    final ai = engine.isAi;
+    final metered = ai || engine.mtService == MtService.deepl;
+    final inserted = _insertion(previous, next);
+    if ((endsSentence(next) && !endsSentence(previous)) || inserted == '\n') {
+      return metered ? aiSentenceDebounce : Duration.zero;
+    }
+    final Duration delay;
+    if (_wordEnd.hasMatch(next)) {
+      delay = metered ? aiBoundaryDebounce : boundaryDebounce;
+    } else {
+      delay = ai ? aiDebounce : debounce;
+    }
+    return engine.isOffline ? _atMost(delay, offlineDebounce) : delay;
+  }
+
+  static final _sentenceEnd = RegExp(
+    '[.?!…。？！؟۔।॥]'
+    '["\'”’»)\\]」』]*\$',
+  );
+
+  static final _wordEnd = RegExp(r'[\s\p{P}]$', unicode: true);
+
+  /// Whether [text] ends a sentence: `. ? ! …`, the CJK full stop and
+  /// marks (`。？！`), the Arabic question mark and Urdu full stop
+  /// (`؟ ۔`) or the Devanagari danda (`। ॥`), maybe followed by closing
+  /// quotes or brackets.
+  static bool endsSentence(String text) => _sentenceEnd.hasMatch(text);
+
+  /// Whether going from [previous] to [next] looks like a paste rather than
+  /// typing: one edit inserts at least [pasteMinLength] characters or
+  /// several words (a keyboard's word suggestion or swipe inserts one).
+  static bool isPasteLike(String previous, String next) {
+    final inserted =
+        (_insertion(previous, next) ?? _replacement(previous, next)).trim();
+    return inserted.length >= pasteMinLength ||
+        inserted.contains(RegExp(r'\s'));
+  }
+
+  /// What one edit from [previous] to [next] inserted, or null when it also
+  /// removed text.
+  static String? _insertion(String previous, String next) {
+    final (start, end) = _changedRange(previous, next);
+    if (start + end < previous.length) return null;
+    return next.substring(start, next.length - end);
+  }
+
+  /// What one edit from [previous] to [next] put in place of the text it
+  /// removed (or inserted).
+  static String _replacement(String previous, String next) {
+    final (start, end) = _changedRange(previous, next);
+    return next.substring(start, next.length - end);
+  }
+
+  /// Lengths of the common prefix and (not overlapping it) suffix of
+  /// [previous] and [next].
+  static (int, int) _changedRange(String previous, String next) {
+    final shorter = math.min(previous.length, next.length);
+    var start = 0;
+    while (start < shorter &&
+        previous.codeUnitAt(start) == next.codeUnitAt(start)) {
+      start++;
+    }
+    var end = 0;
+    while (end < shorter - start &&
+        previous.codeUnitAt(previous.length - 1 - end) ==
+            next.codeUnitAt(next.length - 1 - end)) {
+      end++;
+    }
+    return (start, end);
   }
 
   /// [text] cut to [length] UTF-16 units without splitting a surrogate pair.
@@ -1278,6 +1695,7 @@ class TranslateCubit extends Cubit<TranslateState> {
         error: () => null,
         compareEntries: const [],
         comparing: false,
+        compareBaseline: () => null,
       ),
     );
     unawaited(_translateAgain());
@@ -1329,6 +1747,7 @@ class TranslateCubit extends Cubit<TranslateState> {
         error: () => null,
         compareEntries: const [],
         comparing: false,
+        compareBaseline: () => null,
       ),
     );
   }
@@ -1377,6 +1796,8 @@ class TranslateCubit extends Cubit<TranslateState> {
       _cancelTranslation();
       emit(state.copyWith(status: TranslateStatus.idle));
     }
+    // Only an instant translation was queued.
+    if (state.queued) emit(state);
   }
 
   /// [translate] for a translation the user did not ask for as such (a
@@ -1507,6 +1928,8 @@ class TranslateCubit extends Cubit<TranslateState> {
     final input = text ?? state.input;
     if (selected == null || input.trim().isEmpty) return Future.value();
     _cancelTranslation();
+    // A translation of the input is on its way: no instant one of it.
+    if (input == state.input) _debounceTimer?.cancel();
     _externalPending = false;
     final id = _translationRequest;
     final done = _translationDone = Completer<void>();
@@ -1517,6 +1940,7 @@ class TranslateCubit extends Cubit<TranslateState> {
       options: options ?? state.options,
       recentSourceLanguages: _recentSourceCodes(),
     );
+    _requestText = input;
     emit(
       _clearedExtras(state)
           .copyWith(status: TranslateStatus.translating, error: () => null),
@@ -1546,7 +1970,7 @@ class TranslateCubit extends Cubit<TranslateState> {
             partial != null &&
             !partial.isComplete &&
             partial.text.trim().isNotEmpty &&
-            state.resultInput == request.text;
+            state.resultInput?.trimRight() == request.text.trimRight();
         emit(
           state.copyWith(
             status: TranslateStatus.failure,
@@ -1634,11 +2058,15 @@ class TranslateCubit extends Cubit<TranslateState> {
     required bool external,
     TranslationFallback? fallback,
   }) {
+    // White space typed at the end meanwhile does not make it stale.
+    final made = request.text.trimRight() == state.input.trimRight()
+        ? state.input
+        : request.text;
     if (!result.isComplete) {
       emit(
         state.copyWith(
           result: () => result,
-          resultInput: () => request.text,
+          resultInput: () => made,
           instantResult: auto || external,
         ),
       );
@@ -1649,10 +2077,11 @@ class TranslateCubit extends Cubit<TranslateState> {
       _smartSwap(engine, request, swapTo, auto: auto, external: external);
       return;
     }
+    _resultLanguages = (source: request.source, target: request.target);
     emit(
       state.copyWith(
         result: () => result,
-        resultInput: () => request.text,
+        resultInput: () => made,
         instantResult: auto || external,
         status: TranslateStatus.success,
         fallback: () => fallback,
@@ -1673,6 +2102,7 @@ class TranslateCubit extends Cubit<TranslateState> {
       request.target,
     );
     _autoRomanize();
+    unawaited(loadUncertainty());
   }
 
   /// [results], [selected]'s translation of [request], with the fallback of
@@ -2579,8 +3009,13 @@ class TranslateCubit extends Cubit<TranslateState> {
   // Compare
   // ---------------------------------------------------------------------
 
-  /// Toggles compare mode. A pending instant translation is dropped so that
-  /// it cannot start a compare run nobody asked for.
+  /// Turns compare mode on or off. A pending instant translation is
+  /// dropped so that it cannot start a compare run nobody asked for.
+  ///
+  /// Turning it on compares at once when there is input ([runCompare]):
+  /// choosing Compare asks for it, and every engine still goes through the
+  /// privacy settings (an engine that needs consent reports it on its card
+  /// and gets nothing). Turning it off keeps the translation.
   void setCompareMode({required bool enabled}) {
     if (enabled == state.compareMode) return;
     _debounceTimer?.cancel();
@@ -2590,25 +3025,34 @@ class TranslateCubit extends Cubit<TranslateState> {
         compareMode: enabled,
         compareEntries: const [],
         comparing: false,
+        compareBaseline: () => null,
       ),
     );
+    if (enabled && state.input.trim().isNotEmpty) unawaited(runCompare());
   }
 
-  /// Runs the configured compare engines (all when none configured; AI
-  /// only for custom languages) and collects their results progressively.
+  /// Runs the compare engines ([TranslateState.compareEnginesFor] the
+  /// configured `AppSettings.compareEngineIds`: all when none is
+  /// configured; AI only for custom languages) and collects their results
+  /// as they arrive, ordered like the engines (not by arrival).
+  ///
+  /// The finished, current translation of the input (into the same
+  /// languages, from an engine rather than the history) is the first
+  /// result ([TranslateState.compareBaseline]): its engine is not asked
+  /// again.
   Future<void> runCompare() {
     _debounceTimer?.cancel();
     final text = state.input;
-    if (text.trim().isEmpty) return Future.value();
-    final ids = _settings.state.compareEngineIds;
-    var engines = ids.isEmpty
-        ? state.engines
-        : state.engines.where((e) => ids.contains(e.id)).toList();
-    if (engines.isEmpty) engines = state.engines;
-    if (state.target.isCustom || state.source.isCustom) {
-      engines = engines.where((e) => e.supportsCustomLanguages).toList();
+    final engines = state.compareEnginesFor(_settings.state.compareEngineIds);
+    if (text.trim().isEmpty || engines.isEmpty) {
+      if (state.queued) emit(state);
+      return Future.value();
     }
-    if (engines.isEmpty) return Future.value();
+    final baseline = _currentResultForCompare();
+    final asked = [
+      for (final engine in engines)
+        if (engine.id != baseline?.engineId) engine,
+    ];
 
     _cancelCompare();
     _externalPending = false;
@@ -2621,13 +3065,28 @@ class TranslateCubit extends Cubit<TranslateState> {
       options: state.options,
       recentSourceLanguages: _recentSourceCodes(),
     );
+    // Cards follow the engines: the current translation first.
+    final order = [
+      ?baseline?.engineId,
+      for (final engine in engines) engine.id,
+    ];
+    int rank(CompareEntry entry) {
+      final index = order.indexOf(entry.id);
+      return index < 0 ? order.length : index;
+    }
+
     emit(
       state.copyWith(
-        compareEntries: const [],
-        comparing: true,
+        compareEntries: [if (baseline != null) CompareEntry.success(baseline)],
+        compareBaseline: () => baseline,
+        comparing: asked.isNotEmpty,
         error: () => null,
       ),
     );
+    if (asked.isEmpty) {
+      _complete(done);
+      return done.future;
+    }
 
     void finish({Object? error}) {
       _compare = null;
@@ -2642,7 +3101,7 @@ class TranslateCubit extends Cubit<TranslateState> {
 
     final Stream<CompareEntry> stream;
     try {
-      stream = _repository.compare(engines, request);
+      stream = _repository.compare(asked, request);
     } on Object catch (error) {
       finish(error: error);
       return done.future;
@@ -2652,14 +3111,28 @@ class TranslateCubit extends Cubit<TranslateState> {
         if (!_isCurrentCompare(id)) return;
         final result = entry.result;
         if (result != null && result.isComplete && !result.fromCache) {
-          for (final engine in engines) {
+          for (final engine in asked) {
             if (engine.id == entry.id) {
               _recordUsage(engine, input: text, output: result.text);
               break;
             }
           }
         }
-        emit(state.copyWith(compareEntries: [...state.compareEntries, entry]));
+        final entries = [...state.compareEntries, entry];
+        // A stable sort: two results of one engine keep their order.
+        final ranked =
+            [for (final (index, entry) in entries.indexed) (index, entry)]
+              ..sort((a, b) {
+                final byRank = rank(a.$2).compareTo(rank(b.$2));
+                return byRank != 0 ? byRank : a.$1.compareTo(b.$1);
+              });
+        emit(
+          state.copyWith(
+            compareEntries: List.unmodifiable([
+              for (final (_, entry) in ranked) entry,
+            ]),
+          ),
+        );
       },
       onError: (Object error) {
         if (_isCurrentCompare(id)) finish(error: error);
@@ -2672,11 +3145,38 @@ class TranslateCubit extends Cubit<TranslateState> {
     return done.future;
   }
 
-  /// Selects [entry] as the main result (and its engine; choosing another
-  /// engine turns quality mode off, like [selectEngine]).
+  /// The result a compare run starts from (see [runCompare]): the shown
+  /// translation when it is finished, not empty, of the current input and
+  /// languages, and from an engine (not the history); else null.
+  TranslationResult? _currentResultForCompare() {
+    final result = state.result;
+    final languages = _resultLanguages;
+    if (result == null ||
+        !result.isComplete ||
+        result.text.trim().isEmpty ||
+        state.isResultStale ||
+        state.resultFromMemory ||
+        state.status == TranslateStatus.translating ||
+        languages == null ||
+        languages.source != state.source ||
+        languages.target != state.target) {
+      return null;
+    }
+    return result;
+  }
+
+  /// Selects [entry] as the main result (and its engine: choosing another
+  /// engine turns quality mode off, like [selectEngine], or, once Fast and
+  /// Best are set up, makes it the active mode's engine). The current
+  /// translation's own entry ([TranslateState.compareBaseline]) just
+  /// leaves compare mode.
   void useCompareEntry(CompareEntry entry) {
     final result = entry.result;
     if (result == null) return;
+    if (result == state.compareBaseline) {
+      setCompareMode(enabled: false);
+      return;
+    }
     TranslationEngine? engine;
     for (final candidate in state.engines) {
       if (candidate.id == entry.id) engine = candidate;
@@ -2685,11 +3185,13 @@ class TranslateCubit extends Cubit<TranslateState> {
     _debounceTimer?.cancel();
     _cancelCompare();
     _cancelTranslation();
+    _resultLanguages = (source: state.source, target: state.target);
     emit(
       _clearedExtras(state).copyWith(
         compareMode: false,
         compareEntries: const [],
         comparing: false,
+        compareBaseline: () => null,
         result: () => result,
         instantResult: false,
         resultInput: () => state.input,
@@ -2700,8 +3202,12 @@ class TranslateCubit extends Cubit<TranslateState> {
     _recordCurrent();
     if (engine.id != state.engine?.id) {
       // Picking another engine's result chooses that engine.
-      _leaveQualityMode();
-      unawaited(_switchEngine(engine, keepResult: true));
+      if (_assignToMode(engine)) {
+        unawaited(_switchEngine(engine, keepResult: true, persist: false));
+      } else {
+        _leaveQualityMode();
+        unawaited(_switchEngine(engine, keepResult: true));
+      }
     }
     _autoRomanize();
   }
@@ -4009,10 +4515,15 @@ class TranslateCubit extends Cubit<TranslateState> {
 
   /// Looks the input up in the history ([TranslateState.memoryMatch])
   /// whenever the input or the languages change, in the same emission.
+  ///
+  /// [TranslateState.queued] always says whether an instant translation is
+  /// scheduled at the time of the emission.
   @override
   void emit(TranslateState state) {
     final previous = this.state;
     var next = state;
+    final queued = _debounceTimer?.isActive ?? false;
+    if (next.queued != queued) next = next.copyWith(queued: queued);
     if (next.input.trim().isEmpty) _typingEntryIds.clear();
     if (next.input != previous.input ||
         next.source != previous.source ||
@@ -4115,5 +4626,83 @@ class TranslateCubit extends Cubit<TranslateState> {
     unawaited(_historySubscription.cancel());
     unawaited(_metadataSubscription?.cancel());
     return super.close();
+  }
+
+  // ---------------------------------------------------------------------
+  // Result area (Wave 2)
+  // ---------------------------------------------------------------------
+
+  /// Low-confidence look-ups started ([loadUncertainty]); a newer one wins.
+  int _uncertaintyRequests = 0;
+
+  /// Finds the sentences of the shown translation the on-device engine is
+  /// unsure about ([TranslateState.lowConfidenceSentences]), with
+  /// `TranslationRepository.lowConfidenceSentences`: the input is
+  /// translated again on the device with details (instant, from the
+  /// engine's sentence cache). Called when an on-device translation
+  /// finished.
+  ///
+  /// Only for a finished, current result of the on-device engine (also one
+  /// it produced as a fallback); never for other engines, so it never
+  /// sends anything, and nothing is counted as usage. Does nothing when the
+  /// sentences of this result are known already. Errors are ignored (the
+  /// hint is optional); nothing is emitted when no sentence is unsure.
+  Future<void> loadUncertainty() async {
+    final result = state.result;
+    if (result == null ||
+        !result.isComplete ||
+        state.isResultStale ||
+        state.status != TranslateStatus.success ||
+        state.uncertainResult == result) {
+      return;
+    }
+    TranslationEngine? engine;
+    for (final candidate in state.engines) {
+      if (candidate.isOffline && candidate.id == result.engineId) {
+        engine = candidate;
+      }
+    }
+    if (engine == null) return;
+    final source = state.resultInput ?? state.input;
+    final token = ++_uncertaintyRequests;
+    try {
+      final spans = await _repository.lowConfidenceSentences(
+        engine,
+        source: source,
+        translation: result.text,
+        sourceLanguage: _effectiveSource(),
+        targetLanguage: state.target,
+      );
+      if (isClosed ||
+          token != _uncertaintyRequests ||
+          state.result != result ||
+          spans.isEmpty) {
+        return;
+      }
+      emit(
+        state.copyWith(
+          uncertainSentences: List<AlignedSpan>.unmodifiable(spans),
+          uncertainResult: () => result,
+        ),
+      );
+    } on Object {
+      // No hint then.
+    }
+  }
+
+  /// Uses [text] as the whole translation (another translation the engine
+  /// returned for a short input, `TranslationResult.targetSynonyms`), like
+  /// [useAlternative] for the whole output, also after alternatives for a
+  /// part of it were used.
+  void useOtherTranslation(String text) {
+    if (state.alternativesSpan != null) {
+      emit(
+        state.copyWith(
+          alternativesSpan: () => null,
+          alternativesSpanStart: () => null,
+        ),
+      );
+    }
+    useAlternative(text);
   }
 }

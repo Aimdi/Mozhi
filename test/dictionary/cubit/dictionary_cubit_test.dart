@@ -152,6 +152,7 @@ void main() {
           status: DictionaryStatus.success,
           lookedUp: 'gato',
           entry: gatoEntry,
+          entryLanguage: 'es',
         ),
       ],
       verify: (_) => verifyLookUp('gato', source: spanish),
@@ -697,6 +698,173 @@ void main() {
       );
     });
 
+    group('entry language', () {
+      DictionaryCubit identifying(
+        Future<String?> Function(String text) identify, {
+        Language source = Language.auto,
+      }) => DictionaryCubit(
+        repository: repository,
+        engine: claudeEngine,
+        word: 'gato',
+        source: source,
+        identifyLanguage: identify,
+      );
+
+      test('is the chosen source language', () async {
+        final cubit = identifying((_) async => 'it', source: spanish);
+        await cubit.lookUp();
+        expect(cubit.state.entryLanguage, 'es');
+        await cubit.close();
+      });
+
+      test("is identified on the device from the entry's own words", () async {
+        String? asked;
+        final cubit = identifying((text) async {
+          asked = text;
+          return 'es';
+        });
+        await cubit.lookUp();
+        await pumpEventQueue();
+        expect(cubit.state.entryLanguage, 'es');
+        // The headword, the examples and the synonyms, one per line.
+        expect(asked, contains('gato'));
+        for (final example in gatoEntry.examples) {
+          expect(asked, contains(example.source));
+        }
+        await cubit.close();
+      });
+
+      test('stays unknown for an unknown code, a failure or none', () async {
+        for (final identify in <Future<String?> Function(String)>[
+          (_) async => 'zz-not-a-language',
+          (_) async => throw StateError('no'),
+          (_) async => null,
+          (_) async => '  ',
+        ]) {
+          final cubit = identifying(identify);
+          await cubit.lookUp();
+          await pumpEventQueue();
+          expect(cubit.state.entryLanguage, isNull);
+          await cubit.close();
+        }
+        // Without an identifier.
+        final cubit = build(word: 'gato');
+        await cubit.lookUp();
+        await pumpEventQueue();
+        expect(cubit.state.entryLanguage, isNull);
+        await cubit.close();
+      });
+
+      test('takes a script only one language uses', () async {
+        stubLookUp(repository, () async => const DictionaryEntry(word: 'ねこ'));
+        var asked = false;
+        final cubit = identifying((_) async {
+          asked = true;
+          return 'zh';
+        });
+        await cubit.lookUp();
+        await pumpEventQueue();
+        expect(cubit.state.entryLanguage, 'ja');
+        expect(asked, isFalse);
+        await cubit.close();
+      });
+
+      test('ignores the answer for an older look-up', () async {
+        final answer = Completer<String?>();
+        final cubit = identifying((_) => answer.future);
+        await cubit.lookUp();
+        cubit.closeEntry();
+        answer.complete('es');
+        await pumpEventQueue();
+        expect(cubit.state.entryLanguage, isNull);
+        await cubit.close();
+      });
+
+      test('is cleared by a new look-up and by clear', () async {
+        final cubit = identifying((_) async => 'es', source: spanish);
+        await cubit.lookUp();
+        expect(cubit.state.entryLanguage, 'es');
+        cubit.clear();
+        expect(cubit.state.entryLanguage, isNull);
+        await cubit.close();
+      });
+
+      test('dictionaryScriptLanguage knows scripts of one language', () {
+        expect(dictionaryScriptLanguage('고양이'), 'ko');
+        expect(dictionaryScriptLanguage('カタカナ'), 'ja');
+        expect(dictionaryScriptLanguage('แมว'), 'th');
+        expect(dictionaryScriptLanguage('γάτα'), 'el');
+        expect(dictionaryScriptLanguage('კატა'), 'ka');
+        expect(dictionaryScriptLanguage('կատու'), 'hy');
+        expect(dictionaryScriptLanguage('பூனை'), 'ta');
+        expect(dictionaryScriptLanguage('cat'), isNull);
+        expect(dictionaryScriptLanguage('кот'), isNull);
+        expect(dictionaryScriptLanguage('猫'), isNull);
+      });
+    });
+
+    group('engine choice', () {
+      test(
+        'pickEngine uses the picked engine and looks the word up again',
+        () async {
+          final cubit = build(word: 'gato', source: spanish);
+          await cubit.lookUp();
+          cubit.pickEngine(ollamaEngine);
+          expect(cubit.state.engine, ollamaEngine);
+          await pumpEventQueue();
+          verify(
+            () => repository.lookUp(
+              ollamaEngine,
+              'gato',
+              source: spanish,
+              target: english,
+              uiLanguage: 'German',
+            ),
+          ).called(1);
+          await cubit.close();
+        },
+      );
+
+      test('pickEngine ignores engines without AI extras', () {
+        final cubit = build()..pickEngine(googleEngine);
+        expect(cubit.state.engine, claudeEngine);
+      });
+
+      test('pickEngine of the engine in use looks nothing up', () async {
+        final cubit = build(word: 'gato')..pickEngine(claudeEngine);
+        expect(cubit.state.engine, claudeEngine);
+        verifyNoLookUp();
+        await cubit.close();
+      });
+
+      test('updateEngines keeps the picked engine while it is there', () {
+        final cubit = build()
+          ..pickEngine(ollamaEngine)
+          ..updateEngines(const [
+            claudeEngine,
+            ollamaEngine,
+          ], preferred: claudeEngine);
+        expect(cubit.state.engine, ollamaEngine);
+        // Gone: back to the app's engine.
+        cubit.updateEngines(const [claudeEngine], preferred: claudeEngine);
+        expect(cubit.state.engine, claudeEngine);
+        // And it is no longer kept.
+        cubit.updateEngines(const [
+          claudeEngine,
+          ollamaEngine,
+        ], preferred: claudeEngine);
+        expect(cubit.state.engine, claudeEngine);
+      });
+
+      test('updateEngines follows the app without a pick', () {
+        final cubit = build()
+          ..updateEngines(const [ollamaEngine], preferred: ollamaEngine);
+        expect(cubit.state.engine, ollamaEngine);
+        cubit.updateEngines(const []);
+        expect(cubit.state.engine, isNull);
+      });
+    });
+
     group('lookUpWord', () {
       blocTest<DictionaryCubit, DictionaryState>(
         'puts the word in the search field and looks it up',
@@ -718,6 +886,7 @@ void main() {
             status: DictionaryStatus.success,
             lookedUp: 'gato',
             entry: gatoEntry,
+            entryLanguage: 'es',
           ),
         ],
         verify: (_) => verifyLookUp('gato', source: spanish),

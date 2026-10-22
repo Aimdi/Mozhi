@@ -200,6 +200,8 @@ class TranslateState extends Equatable {
     this.compareMode = false,
     this.compareEntries = const [],
     this.comparing = false,
+    this.compareBaseline,
+    this.queued = false,
     this.alternativesStatus = ExtraStatus.idle,
     this.alternatives,
     this.alternativesSpan,
@@ -240,6 +242,8 @@ class TranslateState extends Equatable {
     this.resultFromMemory = false,
     this.consent,
     this.fallback,
+    this.uncertainSentences = const [],
+    this.uncertainResult,
   });
 
   final EnginesStatus enginesStatus;
@@ -293,8 +297,29 @@ class TranslateState extends Equatable {
 
   /// Compare mode: run all (or the configured) engines side by side.
   final bool compareMode;
+
+  /// The results of the compare run, ordered like the engines it uses
+  /// ([compareEnginesFor]), [compareBaseline]'s entry first when there is
+  /// one; not in the order they arrived.
   final List<CompareEntry> compareEntries;
   final bool comparing;
+
+  /// The translation shown when the compare run started (the finished,
+  /// current output; null when there was none): it is the first of
+  /// [compareEntries] and its engine is not asked again. The other results
+  /// are compared with it.
+  final TranslationResult? compareBaseline;
+
+  /// An instant translation of the input is scheduled: the typing pause
+  /// (`TranslateCubit.instantDelay`) has not passed yet. The output can
+  /// show its loading state at once ([isPending]); a new edit, a cleared
+  /// input or any translation that starts ends it.
+  final bool queued;
+
+  /// Whether a translation of the input is on its way: [queued] or
+  /// translating. The previous [result] stays meanwhile (dim it while
+  /// [isResultStale]).
+  bool get isPending => queued || status == TranslateStatus.translating;
 
   final ExtraStatus alternativesStatus;
   final AlternativeTranslations? alternatives;
@@ -455,6 +480,25 @@ class TranslateState extends Equatable {
   /// Set when [result] comes from a fallback engine (see
   /// [TranslationFallback]); cleared with every other result.
   final TranslationFallback? fallback;
+
+  // Low-confidence sentences (result area) ----------------------------------
+
+  /// The sentences of [uncertainResult] the on-device engine is unsure
+  /// about (`TranslateCubit.loadUncertainty`): each sentence of the input
+  /// and its range in the output. Read them with [lowConfidenceSentences].
+  final List<AlignedSpan> uncertainSentences;
+
+  /// The on-device result [uncertainSentences] were found in.
+  final TranslationResult? uncertainResult;
+
+  /// [uncertainSentences] while they belong to the shown [result] and the
+  /// result is current (not [isResultStale]); empty otherwise, so a new
+  /// result, a refinement or an edit drops them without a reset.
+  List<AlignedSpan> get lowConfidenceSentences {
+    final found = uncertainResult;
+    if (found == null || found != result || isResultStale) return const [];
+    return uncertainSentences;
+  }
 
   /// [memoryMatch] when it is worth showing: not in compare mode, and its
   /// translation is not what the output shows already (as the current
@@ -675,17 +719,47 @@ class TranslateState extends Equatable {
 
   // Quality modes -----------------------------------------------------------
 
-  /// Whether at least one quality mode engine is available (show the
-  /// quality toggle).
-  bool get hasQualityModes => fastEngine != null || bestEngine != null;
+  /// Whether the quality modes are set up: a Fast and a Best engine, two
+  /// different ones, are available (`TranslateCubit` resolves a mode
+  /// without an engine of its own to the usual engine). The Fast | Best
+  /// toggle is then the engine control, with one mode always selected.
+  bool get hasQualityModes =>
+      fastEngine != null &&
+      bestEngine != null &&
+      fastEngine!.id != bestEngine!.id;
 
-  /// The modes that can be selected: [QualityMode.off] always, fast/best
-  /// when their engine is configured and available.
-  List<QualityMode> get availableQualityModes => [
-    QualityMode.off,
-    if (fastEngine != null) QualityMode.fast,
-    if (bestEngine != null) QualityMode.best,
-  ];
+  /// The modes that can be selected: Fast and Best once they are set up
+  /// ([hasQualityModes]); otherwise [QualityMode.off] (the usual engine)
+  /// and a mode whose engine is configured and available (a link can still
+  /// ask for it).
+  List<QualityMode> get availableQualityModes => hasQualityModes
+      ? const [QualityMode.fast, QualityMode.best]
+      : [
+          QualityMode.off,
+          if (fastEngine != null) QualityMode.fast,
+          if (bestEngine != null) QualityMode.best,
+        ];
+
+  /// The engines a compare run uses with the configured [compareIds]
+  /// (`AppSettings.compareEngineIds`), in the order of [engines]: the
+  /// configured ones (all when none is configured or available), only
+  /// engines that take custom languages when the source or target is one.
+  List<TranslationEngine> compareEnginesFor(List<String> compareIds) {
+    var picked = compareIds.isEmpty
+        ? engines
+        : [
+            for (final engine in engines)
+              if (compareIds.contains(engine.id)) engine,
+          ];
+    if (picked.isEmpty) picked = engines;
+    if (source.isCustom || target.isCustom) {
+      picked = [
+        for (final engine in picked)
+          if (engine.supportsCustomLanguages) engine,
+      ];
+    }
+    return picked;
+  }
 
   /// The engine [mode] translates with ([fastEngine] / [bestEngine]); null
   /// for [QualityMode.off] (the normal selection) or an unavailable mode.
@@ -817,6 +891,8 @@ class TranslateState extends Equatable {
     bool? compareMode,
     List<CompareEntry>? compareEntries,
     bool? comparing,
+    TranslationResult? Function()? compareBaseline,
+    bool? queued,
     ExtraStatus? alternativesStatus,
     AlternativeTranslations? Function()? alternatives,
     String? Function()? alternativesSpan,
@@ -857,6 +933,8 @@ class TranslateState extends Equatable {
     bool? resultFromMemory,
     ConsentRequest? Function()? consent,
     TranslationFallback? Function()? fallback,
+    List<AlignedSpan>? uncertainSentences,
+    TranslationResult? Function()? uncertainResult,
   }) {
     final nextResult = result != null ? result() : this.result;
     return TranslateState(
@@ -885,6 +963,10 @@ class TranslateState extends Equatable {
       compareMode: compareMode ?? this.compareMode,
       compareEntries: compareEntries ?? this.compareEntries,
       comparing: comparing ?? this.comparing,
+      compareBaseline: compareBaseline != null
+          ? compareBaseline()
+          : this.compareBaseline,
+      queued: queued ?? this.queued,
       alternativesStatus: alternativesStatus ?? this.alternativesStatus,
       alternatives: alternatives != null ? alternatives() : this.alternatives,
       alternativesSpan: alternativesSpan != null
@@ -952,6 +1034,10 @@ class TranslateState extends Equatable {
           : result == null
           ? this.fallback
           : null,
+      uncertainSentences: uncertainSentences ?? this.uncertainSentences,
+      uncertainResult: uncertainResult != null
+          ? uncertainResult()
+          : this.uncertainResult,
     );
   }
 
@@ -976,6 +1062,8 @@ class TranslateState extends Equatable {
     compareMode,
     compareEntries,
     comparing,
+    compareBaseline,
+    queued,
     alternativesStatus,
     alternatives,
     alternativesSpan,
@@ -1016,5 +1104,7 @@ class TranslateState extends Equatable {
     resultFromMemory,
     consent,
     fallback,
+    uncertainSentences,
+    uncertainResult,
   ];
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -103,6 +105,12 @@ void main() {
           .widget
           .focusNode
           .hasFocus;
+
+      /// The screen's Back handling.
+      PopScope<Object?> popScope(WidgetTester tester) =>
+          tester.widget<PopScope<Object?>>(
+            find.byWidgetPredicate((widget) => widget is PopScope<Object?>),
+          );
 
       /// Whether the input thread's avatar shows.
       bool avatarShown(WidgetTester tester) => tester
@@ -220,13 +228,45 @@ void main() {
         await harness.pump(tester, size: const Size(400, 800));
         await tester.tap(field());
         await tester.pumpAndSettle();
-        await tester.tap(find.byKey(const Key('translate_options_button')));
+        // The language picker takes the focus (its shortcut: a tap on a
+        // button outside the empty field would take the focus itself).
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.keyL);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
         await tester.pumpAndSettle();
-        expect(find.byType(TranslationOptionsSheet), findsOneWidget);
+        expect(find.byType(LanguagePickerSheet), findsOneWidget);
         expect(hero(), findsNothing);
-        await tester.tap(find.byKey(const Key('translate_options_done')));
+        await tester.tap(find.byTooltip('Close'));
         await tester.pumpAndSettle();
         expect(hero(), findsNothing);
+      });
+
+      testWidgets('Back first takes the focus from the empty field', (
+        tester,
+      ) async {
+        final harness = TranslateHarness();
+        await harness.pump(tester, size: const Size(400, 800));
+        await tester.tap(field());
+        await tester.pumpAndSettle();
+        expect(hero(), findsNothing);
+        expect(popScope(tester).canPop, isFalse);
+        final handled = await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+        expect(handled, isTrue);
+        expect(fieldFocused(tester), isFalse);
+        expect(hero(), findsOneWidget);
+        // Now Back leaves the screen.
+        expect(popScope(tester).canPop, isTrue);
+      });
+
+      testWidgets('Back leaves the screen with text in the field', (
+        tester,
+      ) async {
+        final harness = TranslateHarness(state: readyState(input: 'Hi'));
+        await harness.pump(tester, size: const Size(400, 800));
+        await tester.tap(field());
+        await tester.pumpAndSettle();
+        expect(popScope(tester).canPop, isTrue);
       });
 
       testWidgets('is not shown with input, in compare mode or for errors', (
@@ -254,22 +294,227 @@ void main() {
         expect(tester.takeException(), isNull);
       });
 
-      testWidgets('centres the composer under the greeting on large screens', (
-        tester,
-      ) async {
-        final harness = TranslateHarness();
-        await harness.pump(tester, size: const Size(1280, 800));
-        expect(hero(), findsOneWidget);
-        final card = tester.getRect(composer());
-        expect(card.center.dx, closeTo(640, 1));
-        // At most 760 dp, plus its 24 dp margins.
-        expect(card.width, lessThanOrEqualTo(760 + 48));
-        expect(tester.getRect(hero()).bottom, lessThanOrEqualTo(card.top));
-        // The output pane opens once the field has the focus.
-        expect(find.byKey(const Key('translate_output_pane')), findsNothing);
-        await tester.tap(field());
-        await tester.pumpAndSettle();
-        expect(find.byKey(const Key('translate_output_pane')), findsOneWidget);
+      group('large screens', () {
+        Finder inputPane() => find.byKey(const Key('translate_input_pane'));
+        Finder outputPane() => find.byKey(const Key('translate_output_pane'));
+        Finder header() => find.byKey(const Key('translate_language_header'));
+        Finder placeholder() =>
+            find.byKey(const Key('translate_output_placeholder'));
+
+        /// Where the panes, the languages and the field are.
+        List<Rect> layout(WidgetTester tester) => [
+          tester.getRect(inputPane()),
+          tester.getRect(outputPane()),
+          tester.getRect(header()),
+          tester.getRect(find.byKey(const Key('translate_source_button'))),
+          tester.getRect(find.byKey(const Key('translate_target_button'))),
+          tester.getRect(field()),
+        ];
+
+        testWidgets('show two panes with the languages above them from the '
+            'first frame', (tester) async {
+          final harness = TranslateHarness();
+          await harness.pump(tester, size: const Size(1280, 800));
+          expect(
+            find.byKey(const Key('translate_wide_layout')),
+            findsOneWidget,
+          );
+          final input = tester.getRect(inputPane());
+          final output = tester.getRect(outputPane());
+          expect(output.left, greaterThan(input.right));
+          expect(output.top, input.top);
+          expect(input.width, closeTo(output.width, 1));
+          // The source above the input pane, the target above the output
+          // pane, the swap button over the line between them.
+          final languages = tester.getRect(header());
+          expect(languages.bottom, lessThanOrEqualTo(input.top));
+          final source = tester.getRect(
+            find.byKey(const Key('translate_source_button')),
+          );
+          final target = tester.getRect(
+            find.byKey(const Key('translate_target_button')),
+          );
+          expect(source.left, closeTo(input.left, 1));
+          expect(target.left, greaterThanOrEqualTo(output.left - 1));
+          expect(target.left, lessThan(output.left + 24));
+          final swap = tester.getCenter(
+            find.byKey(const Key('translate_swap_button')),
+          );
+          expect(swap.dx, closeTo((input.right + output.left) / 2, 2));
+          // No bottom bar: the options and go buttons are under the input
+          // pane.
+          expect(find.byType(LanguageBar), findsNothing);
+          final footer = tester.getRect(
+            find.byKey(const Key('translate_pane_footer')),
+          );
+          expect(footer.top, greaterThanOrEqualTo(input.bottom));
+          for (final key in [
+            'translate_options_button',
+            'translate_translate_button',
+          ]) {
+            final button = tester.getRect(find.byKey(Key(key)));
+            expect(footer.contains(button.center), isTrue, reason: key);
+          }
+          // The greeting is the empty input pane's placeholder, without
+          // an avatar; the output pane says where the translation goes.
+          expect(hero(), findsOneWidget);
+          final greeting = tester.getRect(hero());
+          expect(greeting.left, greaterThanOrEqualTo(input.left));
+          expect(greeting.right, lessThanOrEqualTo(input.right));
+          expect(greeting.top, greaterThan(tester.getRect(field()).top));
+          expect(avatarShown(tester), isFalse);
+          expect(link(), findsOneWidget);
+          expect(placeholder(), findsOneWidget);
+          expect(find.text('Translation'), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        });
+
+        testWidgets('focusing the field moves nothing', (tester) async {
+          final harness = TranslateHarness();
+          await harness.pump(tester, size: const Size(1280, 800));
+          final before = layout(tester);
+          await tester.tap(field());
+          await tester.pumpAndSettle();
+          expect(fieldFocused(tester), isTrue);
+          expect(layout(tester), before);
+          // The greeting stays until there is text.
+          expect(hero(), findsOneWidget);
+          expect(avatarShown(tester), isFalse);
+        });
+
+        testWidgets('show the input and the translation without avatars', (
+          tester,
+        ) async {
+          final harness = TranslateHarness(state: translatedState());
+          await harness.pump(tester, size: const Size(1280, 800));
+          expect(hero(), findsNothing);
+          expect(placeholder(), findsNothing);
+          expect(avatarShown(tester), isFalse);
+          expect(
+            find.byKey(const Key('translate_output_thread')),
+            findsNothing,
+          );
+          expect(find.text('Bonjour le monde'), findsOneWidget);
+          final output = tester.getRect(find.byType(OutputCard));
+          expect(output.left, greaterThan(tester.getRect(inputPane()).right));
+        });
+
+        testWidgets('keep the quality toggle in the app bar', (tester) async {
+          final harness = TranslateHarness(
+            state: readyState(engine: google).copyWith(
+              qualityMode: QualityMode.fast,
+              fastEngine: () => google,
+              bestEngine: () => claude,
+            ),
+          );
+          await harness.pump(tester, size: const Size(1280, 800));
+          // From the first frame on.
+          expect(
+            find.descendant(
+              of: find.byType(AppBar),
+              matching: find.byKey(const Key('translate_quality_toggle')),
+            ),
+            findsOneWidget,
+          );
+          await tester.pumpAndSettle();
+          expect(find.byKey(const Key('translate_quality_chip')), findsNothing);
+          expect(hero(), findsOneWidget);
+          // Fast | Best first, then the engine selector.
+          expect(
+            tester
+                .getRect(find.byKey(const Key('translate_quality_toggle')))
+                .right,
+            lessThanOrEqualTo(
+              tester
+                  .getRect(find.byKey(const Key('translate_engine_selector')))
+                  .left,
+            ),
+          );
+        });
+
+        testWidgets('fit a low window', (tester) async {
+          final harness = TranslateHarness();
+          await harness.pump(tester, size: const Size(900, 420));
+          expect(tester.takeException(), isNull);
+          expect(
+            find.byKey(const Key('translate_wide_layout')),
+            findsOneWidget,
+          );
+        });
+
+        testWidgets('show compare mode in the output pane', (tester) async {
+          final harness = TranslateHarness(
+            state: translatedState().copyWith(compareMode: true),
+          );
+          await harness.pump(tester, size: const Size(1280, 800));
+          expect(
+            find.descendant(
+              of: outputPane(),
+              matching: find.byType(ComparePanel),
+            ),
+            findsOneWidget,
+          );
+          expect(placeholder(), findsNothing);
+        });
+
+        testWidgets('the picker drops down under the target button', (
+          tester,
+        ) async {
+          final harness = TranslateHarness();
+          await harness.pump(tester, size: const Size(1280, 800));
+          final target = tester.getRect(
+            find.byKey(const Key('translate_target_button')),
+          );
+          await tester.tap(find.byKey(const Key('translate_target_button')));
+          await tester.pumpAndSettle();
+          final dropdown = find.byKey(const Key('translate_language_dropdown'));
+          expect(dropdown, findsOneWidget);
+          final panel = tester.getRect(dropdown);
+          expect(panel.top, closeTo(target.bottom + 4, 1));
+          // Languages in columns, the search field ready to type.
+          expect(find.byType(SliverGrid), findsWidgets);
+          final search = tester.widget<EditableText>(
+            find.descendant(
+              of: find.byKey(const Key('translate_language_search')),
+              matching: find.byType(EditableText),
+            ),
+          );
+          expect(search.focusNode.hasFocus, isTrue);
+          await tester.tap(
+            find.descendant(of: dropdown, matching: find.text('German')),
+          );
+          await tester.pumpAndSettle();
+          verify(() => harness.translate.setTarget(german)).called(1);
+          expect(dropdown, findsNothing);
+        });
+
+        testWidgets('the shortcut drops the source picker down under its '
+            'button', (tester) async {
+          final harness = TranslateHarness();
+          await harness.pump(tester, size: const Size(1280, 800));
+          final source = tester.getRect(
+            find.byKey(const Key('translate_source_button')),
+          );
+          await tester.tap(field());
+          await tester.pump();
+          await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+          await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+          await tester.sendKeyEvent(LogicalKeyboardKey.keyL);
+          await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+          await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+          await tester.pumpAndSettle();
+          final panel = tester.getRect(
+            find.byKey(const Key('translate_language_dropdown')),
+          );
+          expect(panel.left, closeTo(source.left, 1));
+          expect(panel.top, closeTo(source.bottom + 4, 1));
+          expect(find.text('Translate from'), findsOneWidget);
+          // Esc closes it.
+          await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+          await tester.pumpAndSettle();
+          expect(find.text('Translate from'), findsNothing);
+          verifyNever(() => harness.translate.setSource(any()));
+        });
       });
 
       testWidgets('moves without motion with reduced motion', (tester) async {
@@ -288,7 +533,13 @@ void main() {
         await harness.pump(tester, size: const Size(400, 800));
         await tester.tap(link());
         await tester.pump();
-        verify(() => harness.translate.setInput('Guten Tag')).called(1);
+        verify(
+          () => harness.translate.setInput(
+            'Guten Tag',
+            pasted: any(named: 'pasted'),
+            dictated: any(named: 'dictated'),
+          ),
+        ).called(1);
         // A tap pastes without opening the keyboard.
         expect(fieldFocused(tester), isFalse);
       });
@@ -305,7 +556,13 @@ void main() {
         // On "Type", at the start of the first line.
         await tester.tapAt(hint.topLeft + const Offset(8, 26));
         await tester.pumpAndSettle();
-        verifyNever(() => harness.translate.setInput(any()));
+        verifyNever(
+          () => harness.translate.setInput(
+            any(),
+            pasted: any(named: 'pasted'),
+            dictated: any(named: 'dictated'),
+          ),
+        );
         expect(hero(), findsNothing);
         expect(fieldFocused(tester), isTrue);
       });
@@ -384,7 +641,7 @@ void main() {
           tester,
         ) async {
           final harness = qualityHarness();
-          await harness.pump(tester, size: const Size(891, 411));
+          await harness.pump(tester, size: const Size(700, 411));
           await tester.pumpAndSettle();
           expect(hero(), findsNothing);
           expect(chip(), findsNothing);
@@ -439,6 +696,76 @@ void main() {
           expect(hero(), findsOneWidget);
         });
       });
+    });
+
+    group('swapping', () {
+      /// The lowest opacity the input is drawn with.
+      double inputOpacity(WidgetTester tester) => tester
+          .widgetList<FadeTransition>(
+            find.ancestor(
+              of: find.byType(InputCard),
+              matching: find.byType(FadeTransition),
+            ),
+          )
+          .map((fade) => fade.opacity.value)
+          .fold(1, (lowest, value) => value < lowest ? value : lowest);
+
+      Future<void> swap(WidgetTester tester, {bool reduced = false}) async {
+        final states = StreamController<TranslateState>();
+        addTearDown(states.close);
+        final initial = readyState(
+          source: english,
+          target: german,
+          input: 'Hello',
+        );
+        final harness = TranslateHarness(state: initial);
+        whenListen(harness.translate, states.stream, initialState: initial);
+        await harness.pump(
+          tester,
+          size: const Size(400, 800),
+          disableAnimations: reduced,
+        );
+        expect(inputOpacity(tester), 1);
+        states.add(readyState(source: german, target: english, input: 'Hallo'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
+      testWidgets('fades the texts in again', (tester) async {
+        await swap(tester);
+        expect(inputOpacity(tester), lessThan(1));
+        await tester.pumpAndSettle();
+        expect(inputOpacity(tester), 1);
+      });
+
+      testWidgets('without motion with reduced motion', (tester) async {
+        await swap(tester, reduced: true);
+        expect(inputOpacity(tester), 1);
+      });
+    });
+
+    test('a queued translation joins the thread', () {
+      expect(outputJoinsThread(readyState(input: 'Hi')), isFalse);
+      expect(
+        outputJoinsThread(readyState(input: 'Hi').copyWith(queued: true)),
+        isTrue,
+      );
+    });
+
+    testWidgets('the output placeholder gives way to a queued translation', (
+      tester,
+    ) async {
+      final states = StreamController<TranslateState>();
+      addTearDown(states.close);
+      final initial = readyState(input: 'Hi');
+      final harness = TranslateHarness(state: initial);
+      whenListen(harness.translate, states.stream, initialState: initial);
+      await harness.pump(tester, size: const Size(1280, 800));
+      final placeholder = find.byKey(const Key('translate_output_placeholder'));
+      expect(placeholder, findsOneWidget);
+      states.add(initial.copyWith(queued: true));
+      await tester.pump();
+      expect(placeholder, findsNothing);
     });
 
     test('translateComposerFill is the shared composer fill', () {
@@ -513,31 +840,22 @@ void main() {
       // Not in the app bar: one task per screen.
       expect(find.byKey(const Key('translate_compare_toggle')), findsNothing);
       await openMore(tester);
-      await tester.tap(find.byKey(const Key('translate_compare_toggle')));
+      final toggle = find.byKey(const Key('translate_compare_toggle'));
+      await tester.ensureVisible(toggle);
+      await tester.pumpAndSettle();
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
       verify(() => harness.translate.setCompareMode(enabled: true)).called(1);
     });
 
-    testWidgets('the More tools menu turns compare mode on before a '
-        'translation', (tester) async {
+    testWidgets('the More tools menu has no compare entry (it is under the '
+        'translation)', (tester) async {
       final harness = TranslateHarness(state: readyState(input: 'Hello'));
       await harness.pump(tester);
       await tester.tap(find.byKey(const Key('translate_more_tools')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Compare engines'));
-      await tester.pumpAndSettle();
-      verify(() => harness.translate.setCompareMode(enabled: true)).called(1);
-    });
-
-    testWidgets('the More tools menu leaves compare mode', (tester) async {
-      final harness = TranslateHarness(
-        state: translatedState().copyWith(compareMode: true),
-      );
-      await harness.pump(tester);
-      await tester.tap(find.byKey(const Key('translate_more_tools')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Exit compare mode'));
-      await tester.pumpAndSettle();
-      verify(() => harness.translate.setCompareMode(enabled: false)).called(1);
+      expect(find.text('Compare engines'), findsNothing);
+      expect(find.text('Exit compare mode'), findsNothing);
     });
 
     testWidgets('compare is not offered with a single engine', (tester) async {
@@ -595,29 +913,6 @@ void main() {
       await harness.pump(tester);
       await tester.tap(find.byKey(const Key('translate_translate_button')));
       verify(harness.translate.translate).called(1);
-    });
-
-    testWidgets('the language bar spans both panes on wide screens', (
-      tester,
-    ) async {
-      final harness = TranslateHarness(state: translatedState());
-      await harness.pump(tester, size: const Size(1200, 800));
-      final bar = tester.getRect(
-        find.byKey(const Key('translate_language_bar')),
-      );
-      final input = tester.getRect(
-        find.byKey(const Key('translate_input_pane')),
-      );
-      final output = tester.getRect(
-        find.byKey(const Key('translate_output_pane')),
-      );
-      expect(bar.left, closeTo(input.left, 1));
-      expect(bar.right, closeTo(output.right, 1));
-      // The swap button sits over the line between the panes.
-      final swap = tester.getCenter(
-        find.byKey(const Key('translate_swap_button')),
-      );
-      expect(swap.dx, closeTo((input.right + output.left) / 2, 2));
     });
 
     testWidgets('options button is shown for AI engines', (tester) async {

@@ -3,11 +3,12 @@ import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
 
-/// Whether the translate screen's "More" area is open: the tools under the
-/// translation (check meaning, insights, romanization, matching phrases,
-/// compare), "Refine & learn", the definitions and "Also translate
-/// into…". Collapsed by default, so the screen shows one task: languages,
-/// input, translation.
+/// Whether the translate screen's "Tools" area is open: the analysis tools
+/// under the translation (check meaning, insights, romanization, matching
+/// phrases, compare), "Learn" (alternatives, explain), the definitions and
+/// "Also translate into…". Collapsed by default, so the screen shows one
+/// task: languages, input, translation (and, for AI engines, the
+/// refinement chips, which are always in view).
 ///
 /// [toggleFocus] is the focus node of the [TranslateMoreToggle] (where the
 /// focus goes back to when a panel opened from the area closes while the
@@ -101,9 +102,10 @@ class _TranslateMoreHostState extends State<TranslateMoreHost> {
       TranslateMoreScope(controller: _controller!, child: widget.child);
 }
 
-/// The quiet "More" disclosure under the translation's actions: a 48 dp
+/// The quiet "Tools" disclosure under the translation's actions: a 48 dp
 /// text button whose chevron turns while the area is open; screen readers
-/// hear "More" and whether it is expanded.
+/// hear "Tools" and whether it is expanded. No tooltip: the label says it
+/// (a tooltip would cover the first tool under it).
 class TranslateMoreToggle extends StatelessWidget {
   const new({required this.controller, super.key});
 
@@ -121,42 +123,38 @@ class TranslateMoreToggle extends StatelessWidget {
         final color = expanded
             ? theme.colorScheme.primary
             : palette.secondaryText;
-        return Tooltip(
-          message: expanded ? l10n.translateMoreHide : l10n.translateMoreShow,
-          excludeFromSemantics: true,
-          // One node: the button, its label and whether it is expanded.
-          child: MergeSemantics(
-            child: Semantics(
-              expanded: expanded,
-              child: TextButton(
-                key: const Key('translate_more_toggle'),
-                focusNode: controller.toggleFocus,
-                style: TextButton.styleFrom(
-                  minimumSize: const Size(48, 48),
-                  padding: const EdgeInsetsDirectional.only(start: 12, end: 8),
-                  foregroundColor: color,
-                  shape: const StadiumBorder(),
-                ),
-                onPressed: controller.toggle,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      l10n.translateMore,
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        color: color,
-                        fontWeight: FontWeight.w700,
-                      ),
+        // One node: the button, its label and whether it is expanded.
+        return MergeSemantics(
+          child: Semantics(
+            expanded: expanded,
+            child: TextButton(
+              key: const Key('translate_more_toggle'),
+              focusNode: controller.toggleFocus,
+              style: TextButton.styleFrom(
+                minimumSize: const Size(48, 48),
+                padding: const EdgeInsetsDirectional.only(start: 12, end: 8),
+                foregroundColor: color,
+                shape: const StadiumBorder(),
+              ),
+              onPressed: controller.toggle,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    l10n.translateTools,
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: color,
+                      fontWeight: FontWeight.w700,
                     ),
-                    const SizedBox(width: 2),
-                    AnimatedRotation(
-                      turns: expanded ? 0.5 : 0,
-                      duration: TranslateLayout.motion(context),
-                      curve: Curves.easeOutCubic,
-                      child: Icon(Icons.expand_more, size: 20, color: color),
-                    ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 2),
+                  AnimatedRotation(
+                    turns: expanded ? 0.5 : 0,
+                    duration: TranslateLayout.motion(context),
+                    curve: Curves.easeOutCubic,
+                    child: Icon(Icons.expand_more, size: 20, color: color),
+                  ),
+                ],
               ),
             ),
           ),

@@ -126,7 +126,17 @@ void main() {
       );
       await tester.pump();
       expect(clipboard.copied, 'Bonjour tout le monde');
-      expect(find.text('Copied to clipboard'), findsOneWidget);
+      // Confirmed in place (a check mark), like the output's copy button.
+      expect(find.byType(SnackBar), findsNothing);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('translate_memory_copy')),
+          matching: find.byIcon(Icons.check),
+        ),
+        findsOneWidget,
+      );
+      await tester.pump(CopyActionButton.confirmFor);
     });
 
     testWidgets('shows similar text with the differences marked', (

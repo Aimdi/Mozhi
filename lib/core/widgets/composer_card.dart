@@ -2,7 +2,10 @@ import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/theme.dart';
+import 'package:mozhi/core/widgets/focus_ring.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
+import 'package:mozhi/l10n/l10n.dart';
+import 'package:translation_repository/translation_repository.dart';
 
 /// The fill of a [ComposerCard] on [scheme]'s page: a shade off the page
 /// (`surfaceContainerLow`) while quiet text ([secondaryText]) keeps its
@@ -104,7 +107,8 @@ class ComposerCard extends StatelessWidget {
         // No border at all once flat (a transparent one would still take
         // a pixel).
         border: Border.fromBorderSide(
-          outlined ? BorderSide(color: scheme.outlineVariant) : BorderSide.none,
+          // A control's outline (3:1, WCAG 1.4.11), not a hairline.
+          outlined ? BorderSide(color: scheme.outline) : BorderSide.none,
         ),
         borderRadius: const BorderRadius.all(Radius.circular(radius)),
       ),
@@ -162,12 +166,21 @@ class ComposerCard extends StatelessWidget {
       behavior: HitTestBehavior.translucent,
       excludeFromSemantics: true,
       onTap: onTap,
-      child: card,
+      // Keyboard focus in the field: an accent ring around the card (the
+      // field itself draws no border).
+      child: FocusRing.field(
+        enabled: outlined,
+        margin: margin,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(radius)),
+        ),
+        child: card,
+      ),
     );
   }
 }
 
-/// A hairline-outlined pill holding the controls of a composer, like the
+/// An outlined pill holding the controls of a composer, like the
 /// translate screen's language bar: [children] in a row with thin
 /// vertical dividers ([ComposerBarDivider]) between them. Wrap one child
 /// in an [Expanded] to give it the rest of the width (e.g. the language
@@ -179,10 +192,11 @@ class ComposerBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hairline = AppPalette.of(context).hairline;
+    // A control's outline (3:1, WCAG 1.4.11), not a separator hairline.
+    final outline = Theme.of(context).colorScheme.outline;
     return DecoratedBox(
       decoration: ShapeDecoration(
-        shape: StadiumBorder(side: BorderSide(color: hairline)),
+        shape: StadiumBorder(side: BorderSide(color: outline)),
       ),
       child: Padding(
         // Inside the outline.
@@ -250,8 +264,11 @@ class ComposerOptionsButton extends StatelessWidget {
   }
 }
 
-/// The go button of a [ComposerBar] (the translate screen's rocket): a
-/// filled accent circle, greyed out while disabled ([onPressed] null).
+/// The go button of a [ComposerBar], at its trailing end on every screen
+/// (Translate, Dictionary, Proofread): an accent circle of [visualSize]
+/// with a forward arrow (mirrored right to left) inside a [targetSize]
+/// touch target, so it always fits the bar. While disabled ([onPressed]
+/// null) only a faint arrow is left (no grey disc).
 ///
 /// Its accessible name is [label] ("Look up", "Proofread"); the tooltip
 /// shows [tooltip] (e.g. with the keyboard shortcut), else [label]. While
@@ -263,9 +280,39 @@ class ComposerGoButton extends StatelessWidget {
     required this.onPressed,
     this.tooltip,
     this.busy = false,
-    this.icon = Icons.rocket_launch,
+    this.icon = defaultIcon,
     super.key,
   });
+
+  /// The go arrow of every composer.
+  static const IconData defaultIcon = Icons.arrow_forward_rounded;
+
+  /// Diameter of the visible circle.
+  static const double visualSize = 40;
+
+  /// Side of the touch target around it (and of the button's layout).
+  static const double targetSize = 48;
+
+  /// Diameter of the progress ring while [busy].
+  static const double ringSize = 44;
+
+  /// The style of a go button on [scheme]: filled with the accent, or
+  /// [tonal] (a stop button); disabled, only a faint icon. A
+  /// [visualSize] circle in a [targetSize] target at any density.
+  static ButtonStyle styleOf(ColorScheme scheme, {bool tonal = false}) =>
+      IconButton.styleFrom(
+        fixedSize: const Size.square(visualSize),
+        minimumSize: const Size.square(visualSize),
+        maximumSize: const Size.square(visualSize),
+        padding: EdgeInsets.zero,
+        iconSize: 22,
+        tapTargetSize: MaterialTapTargetSize.padded,
+        visualDensity: VisualDensity.standard,
+        backgroundColor: tonal ? scheme.secondaryContainer : scheme.primary,
+        foregroundColor: tonal ? scheme.onSecondaryContainer : scheme.onPrimary,
+        disabledBackgroundColor: Colors.transparent,
+        disabledForegroundColor: scheme.onSurface.withValues(alpha: 0.38),
+      );
 
   final String label;
   final String? tooltip;
@@ -276,43 +323,219 @@ class ComposerGoButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        // Its own node, so the button keeps exactly [label] as its name.
-        Semantics(
-          container: true,
-          child: Tooltip(
-            message: tooltip ?? label,
-            excludeFromSemantics: true,
-            child: IconButton(
-              style: IconButton.styleFrom(
-                backgroundColor: scheme.primary,
-                foregroundColor: scheme.onPrimary,
-                disabledBackgroundColor: scheme.onSurface.withValues(
-                  alpha: 0.12,
-                ),
-                disabledForegroundColor: scheme.onSurface.withValues(
-                  alpha: 0.38,
+    return SizedBox.square(
+      dimension: targetSize,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Its own node, so the button keeps exactly [label] as its name.
+          Semantics(
+            container: true,
+            child: Tooltip(
+              message: tooltip ?? label,
+              excludeFromSemantics: true,
+              child: IconButton(
+                style: styleOf(scheme),
+                onPressed: onPressed,
+                icon: Icon(icon, semanticLabel: label),
+              ),
+            ),
+          ),
+          if (busy)
+            const IgnorePointer(
+              child: ExcludeSemantics(
+                child: SizedBox.square(
+                  dimension: ringSize,
+                  child: CircularProgressIndicator(
+                    key: Key('composer_go_progress'),
+                    strokeWidth: 2.5,
+                  ),
                 ),
               ),
-              onPressed: onPressed,
-              icon: Icon(icon, semanticLabel: label),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The AI model a composer screen uses (Dictionary, Proofread), as a
+/// small outlined pill for its app bar in the look of the translate
+/// screen's engine selector: an icon, the model's name and (while it fits,
+/// up to 130 % text) its subtitle, e.g. the model id.
+///
+/// Tapping it opens a menu of [engines] (the current one checked) that
+/// picks one with [onSelected], and, with [onManage], "AI providers" (the
+/// provider settings). Screen readers hear "AI model: Claude".
+class ComposerEngineChip extends StatelessWidget {
+  const new({
+    required this.engine,
+    this.engines = const [],
+    this.onSelected,
+    this.onManage,
+    super.key,
+  });
+
+  /// Above this text scale the subtitle is left out, so the chip still
+  /// fits the app bar.
+  static const double subtitleMaxTextScale = 1.3;
+
+  /// The model in use.
+  final TranslationEngine engine;
+
+  /// The models to choose from (the menu lists them when there are two or
+  /// more, or one that is not [engine]).
+  final List<TranslationEngine> engines;
+
+  final ValueChanged<TranslationEngine>? onSelected;
+
+  /// Opens the AI provider settings.
+  final VoidCallback? onManage;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final palette = AppPalette.of(context);
+    final largeText =
+        MediaQuery.textScalerOf(context).scale(1) > subtitleMaxTextScale;
+    final subtitle = largeText ? null : engine.subtitle?.trim();
+    final onSelected = this.onSelected;
+    final onManage = this.onManage;
+    final choices = onSelected == null ? const <TranslationEngine>[] : engines;
+    final showChoices =
+        choices.length > 1 || choices.any((e) => e.id != engine.id);
+    return MenuAnchor(
+      menuChildren: [
+        if (showChoices)
+          for (final option in choices)
+            MenuItemButton(
+              key: ValueKey('composer_engine:${option.id}'),
+              leadingIcon: Icon(
+                Icons.check,
+                color: option.id == engine.id ? null : Colors.transparent,
+              ),
+              onPressed: () => onSelected?.call(option),
+              // The check mark is decorative: expose the choice as state.
+              child: Semantics(
+                selected: option.id == engine.id,
+                inMutuallyExclusiveGroup: true,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(option.name),
+                    if (option.subtitle case final sub? when sub.isNotEmpty)
+                      Text(
+                        sub,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: palette.secondaryText,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+        if (showChoices && onManage != null) const Divider(height: 1),
+        if (onManage != null)
+          MenuItemButton(
+            key: const Key('composer_engine_manage'),
+            leadingIcon: const Icon(Icons.tune),
+            onPressed: onManage,
+            child: Text(l10n.translateProvidersAction),
+          ),
+      ],
+      builder: (context, controller, _) => Tooltip(
+        message: l10n.commonAiModelChipTooltip,
+        excludeFromSemantics: true,
+        child: TextButton(
+          key: const Key('composer_engine_chip'),
+          style: TextButton.styleFrom(
+            minimumSize: const Size(48, 48),
+            padding: const EdgeInsetsDirectional.only(start: 10, end: 6),
+            shape: StadiumBorder(
+              side: BorderSide(color: theme.colorScheme.outline),
+            ),
+            foregroundColor: theme.colorScheme.onSurface,
+          ),
+          onPressed: showChoices || onManage != null
+              ? () => controller.isOpen ? controller.close() : controller.open()
+              : null,
+          child: Semantics(
+            label: l10n.commonAiModelChip(engine.name),
+            excludeSemantics: true,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  engine.isLocal ? Icons.memory : Icons.auto_awesome_outlined,
+                  size: 18,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        engine.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      if (subtitle != null && subtitle.isNotEmpty)
+                        Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: palette.secondaryText,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 2),
+                Icon(Icons.expand_more, size: 18, color: palette.secondaryText),
+              ],
             ),
           ),
         ),
-        if (busy)
-          const IgnorePointer(
-            child: ExcludeSemantics(
-              child: SizedBox.square(
-                dimension: 46,
-                child: CircularProgressIndicator(
-                  key: Key('composer_go_progress'),
-                  strokeWidth: 2.5,
-                ),
-              ),
-            ),
-          ),
+      ),
+    );
+  }
+}
+
+/// A screen title with its [ComposerEngineChip] ([chip]): both side by
+/// side from [compactBreakpoint], only the chip on phones (the tab's name
+/// is on the navigation bar), like the translate and conversation
+/// screens. Without a [chip], just the [title].
+class ComposerAppBarTitle extends StatelessWidget {
+  const new({required this.title, this.chip, super.key});
+
+  /// Below this window width only the chip is shown.
+  static const double compactBreakpoint = 600;
+
+  final String title;
+  final Widget? chip;
+
+  @override
+  Widget build(BuildContext context) {
+    final chip = this.chip;
+    if (chip == null) return Text(title);
+    if (MediaQuery.sizeOf(context).width < compactBreakpoint) {
+      return Align(alignment: AlignmentDirectional.centerStart, child: chip);
+    }
+    return Row(
+      children: [
+        Flexible(
+          child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+        ),
+        const SizedBox(width: 16),
+        Flexible(child: chip),
       ],
     );
   }

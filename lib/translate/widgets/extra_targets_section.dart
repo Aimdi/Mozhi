@@ -7,12 +7,13 @@ import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/translate/widgets/copy_action_button.dart';
 import 'package:mozhi/translate/widgets/language_bar.dart'
     show pickTranslateLanguage;
 import 'package:mozhi/translate/widgets/language_text.dart';
 import 'package:mozhi/translate/widgets/listen_button.dart';
 import 'package:mozhi/translate/widgets/output_card.dart'
-    show copyToClipboard, staleOutputOpacity;
+    show staleOutputOpacity;
 import 'package:mozhi/translate/widgets/status_announcer.dart';
 import 'package:mozhi/translate/widgets/translate_error.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
@@ -292,12 +293,10 @@ class ExtraTargetCard extends StatelessWidget {
                         child: Wrap(
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
-                            IconButton(
+                            CopyActionButton(
                               key: const Key('translate_extra_target_copy'),
                               tooltip: l10n.translateExtraTargetCopy(name),
-                              icon: const Icon(Icons.copy_outlined),
-                              onPressed: () =>
-                                  unawaited(copyToClipboard(context, output)),
+                              text: output,
                             ),
                             ListenButton(
                               id: 'extra:${target.code}',

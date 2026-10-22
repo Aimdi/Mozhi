@@ -92,10 +92,12 @@ class InsightSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (type.isNotEmpty)
-            // An outlined hairline pill, like an X topic.
+            // An outlined pill, like an X topic (the controls' outline).
             DecoratedBox(
               decoration: ShapeDecoration(
-                shape: StadiumBorder(side: BorderSide(color: palette.hairline)),
+                shape: StadiumBorder(
+                  side: BorderSide(color: theme.colorScheme.outline),
+                ),
               ),
               child: Padding(
                 padding: const EdgeInsets.symmetric(

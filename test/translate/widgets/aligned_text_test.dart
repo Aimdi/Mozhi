@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/core/widgets/focus_ring.dart';
 import 'package:mozhi/translate/translate.dart';
 import 'package:mozhi/translate/widgets/widgets.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -349,28 +350,31 @@ void main() {
       FocusNode node(WidgetTester tester) =>
           Focus.of(tester.element(_alignedText));
 
-      BoxDecoration outline(WidgetTester tester) =>
-          tester
-                  .widget<DecoratedBox>(
-                    find.byKey(const Key('translate_aligned_text_focus')),
-                  )
-                  .decoration
-              as BoxDecoration;
-
       testWidgets('the text is a tab stop with a visible focus', (
         tester,
       ) async {
         final host = _Host();
         await TranslateHarness().pump(tester, child: host.build());
-        expect(outline(tester).border, isNull);
+        // The app's focus ring, not one of its own.
+        expect(
+          find.byKey(const Key('translate_aligned_text_focus')),
+          findsOneWidget,
+        );
+        expect(
+          tester
+              .widget<FocusRing>(
+                find.byKey(const Key('translate_aligned_text_focus')),
+              )
+              .shape,
+          const RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(4)),
+          ),
+        );
 
         await tester.sendKeyEvent(LogicalKeyboardKey.tab);
         await tester.pump();
         expect(node(tester).hasPrimaryFocus, isTrue);
-        final context = tester.element(_alignedText);
-        final border = outline(tester).border! as Border;
-        expect(border.top.color, Theme.of(context).colorScheme.primary);
-        expect(border.top.width, 2);
+        expect(FocusRing.claims(node(tester)), isTrue);
         // Focusing the text alone focuses no phrase.
         expect(host.calls, isEmpty);
       });
@@ -602,12 +606,12 @@ void main() {
       );
       stubOutputExtras(harness);
       await harness.pump(tester, child: const OutputCard(), more: true);
-      expect(find.byTooltip('Show matching phrases'), findsOneWidget);
+      expect(tester.widget<TranslateToolRow>(button()).selected, isFalse);
       await tester.tap(button());
       await tester.pump();
       verify(harness.translate.loadAlignment).called(1);
-      expect(find.byTooltip('Hide matching phrases'), findsOneWidget);
-      expect(tester.widget<TranslateToolChip>(button()).selected, isTrue);
+      expect(tester.widget<TranslateToolRow>(button()).selected, isTrue);
+      expect(tester.widget<TranslateToolRow>(button()).selected, isTrue);
     });
 
     testWidgets('is not offered without an AI engine', (tester) async {
@@ -622,7 +626,7 @@ void main() {
             .copyWith(input: 'Hello there', resultInput: () => 'Hello world'),
       );
       await harness.pump(tester, child: const OutputCard(), more: true);
-      expect(tester.widget<TranslateToolChip>(button()).onPressed, isNull);
+      expect(tester.widget<TranslateToolRow>(button()).onPressed, isNull);
     });
 
     testWidgets('shows progress while aligning', (tester) async {
@@ -765,7 +769,7 @@ void main() {
       verify(() => harness.translate.focusAlignment(null)).called(1);
       expect(_alignedText, findsNothing);
       expect(find.byKey(const Key('translate_insight_text')), findsOneWidget);
-      expect(tester.widget<TranslateToolChip>(button()).selected, isFalse);
+      expect(tester.widget<TranslateToolRow>(button()).selected, isFalse);
 
       await tester.tap(button());
       await tester.pump();
@@ -829,8 +833,8 @@ void main() {
       // The new result fades in.
       await tester.pump(const Duration(milliseconds: 300));
       verifyNever(harness.translate.loadAlignment);
-      expect(tester.widget<TranslateToolChip>(button()).selected, isFalse);
-      expect(find.byTooltip('Show matching phrases'), findsOneWidget);
+      expect(tester.widget<TranslateToolRow>(button()).selected, isFalse);
+      expect(tester.widget<TranslateToolRow>(button()).selected, isFalse);
 
       // The button loads it again.
       await tester.tap(button());

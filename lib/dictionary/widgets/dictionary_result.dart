@@ -3,9 +3,13 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/composer_card.dart';
+import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/dictionary/cubit/dictionary_cubit.dart';
+import 'package:mozhi/dictionary/widgets/dictionary_composer.dart';
 import 'package:mozhi/dictionary/widgets/dictionary_entry_tabs.dart';
 import 'package:mozhi/dictionary/widgets/dictionary_favorite_button.dart';
+import 'package:mozhi/dictionary/widgets/dictionary_search_field.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/view/widgets/empty_state_view.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -77,20 +81,20 @@ class DictionaryEngineMessage extends StatelessWidget {
 }
 
 /// The dictionary once a word is looked up (the status is not idle): the
-/// entry in tabs ([DictionaryEntryTabs]), or the look-up in progress, its
-/// error (with Retry, or the consent prompt) or "No entry found", above a
-/// filled "New look-up" button ([onNewLookUp]: clears the word and focuses
-/// the search) with the favourite heart before it
-/// ([DictionaryFavoriteButton]). Synonyms, related words and "Did you mean
-/// …?" look that word up ([DictionaryCubit.lookUpWord]).
+/// search bar stays on top ([DictionarySearchBar]: the word, its languages
+/// and Look up, so the next word is one edit away), above the entry in
+/// tabs ([DictionaryEntryTabs], with the favorite heart
+/// [DictionaryFavoriteButton] beside Listen), or the look-up in progress,
+/// its error (with Retry, or the consent prompt) or "No entry found", all
+/// from the top of the page. Synonyms, related words and "Did you mean
+/// …?" look that word up ([DictionaryCubit.lookUpWord]). Screen readers
+/// hear "Dictionary entry ready".
 ///
-/// The "New look-up" button takes the keyboard focus when the view
-/// appears (the search field it came from is gone), so Enter starts the
-/// next look-up. Screen readers hear "Dictionary entry ready".
+/// [focusNode] is the search field's.
 class DictionaryResultView extends StatelessWidget {
-  const new({required this.onNewLookUp, super.key});
+  const new({this.focusNode, super.key});
 
-  final VoidCallback onNewLookUp;
+  final FocusNode? focusNode;
 
   /// Max width of the entry on large screens.
   static const double maxWidth = 720;
@@ -105,21 +109,22 @@ class DictionaryResultView extends StatelessWidget {
           previous.error != current.error ||
           previous.lookedUp != current.lookedUp ||
           previous.source != current.source ||
-          previous.target != current.target,
+          previous.target != current.target ||
+          previous.entryLanguage != current.entryLanguage,
       builder: (context, state) {
         final cubit = context.read<DictionaryCubit>();
         final entry = state.entry;
         final body = switch (state.status) {
           DictionaryStatus.idle => const SizedBox.shrink(),
           DictionaryStatus.loading => _LoadingEntry(word: state.lookedUp),
-          DictionaryStatus.failure => _Centred(
+          DictionaryStatus.failure => _TopAligned(
             child: TranslateErrorView(
               error: state.error,
               onRetry: () => unawaited(cubit.lookUp()),
             ),
           ),
           DictionaryStatus.success when entry == null || state.isEmptyEntry =>
-            _Centred(
+            _TopAligned(
               child: DictionaryMessage(
                 key: const Key('dictionary_not_found'),
                 icon: Icons.search_off,
@@ -131,7 +136,9 @@ class DictionaryResultView extends StatelessWidget {
             sourceLanguage: state.source.isAuto ? null : state.source,
             targetLanguage: state.target,
             query: state.lookedUp,
+            speechLanguage: state.entryLanguage,
             onWordTap: (word) => unawaited(cubit.lookUpWord(word)),
+            actions: const [DictionaryFavoriteButton()],
           ),
         };
         return StatusAnnouncer(
@@ -142,34 +149,22 @@ class DictionaryResultView extends StatelessWidget {
           child: Column(
             key: const Key('dictionary_result'),
             children: [
-              Expanded(
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
                 child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: maxWidth),
+                    child: DictionarySearchBar(focusNode: focusNode),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.topCenter,
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: maxWidth),
                     child: SizedBox.expand(child: body),
                   ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const DictionaryFavoriteButton(),
-                    // Shrinks with large text on a narrow screen.
-                    Flexible(
-                      child: FilledButton.icon(
-                        key: const Key('dictionary_new_look_up'),
-                        autofocus: true,
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size(160, 52),
-                        ),
-                        onPressed: onNewLookUp,
-                        icon: const Icon(Icons.search),
-                        label: Text(l10n.dictionaryNewLookUp),
-                      ),
-                    ),
-                  ],
                 ),
               ),
             ],
@@ -180,18 +175,91 @@ class DictionaryResultView extends StatelessWidget {
   }
 }
 
-/// Scrolls [child], centred in the page while it fits.
-class _Centred extends StatelessWidget {
+/// The search bar above an entry: a hairline pill ([ComposerBar]) with the
+/// word ([DictionarySearchField], `dense`), Clear and the go button
+/// ([DictionaryGoButton]), and the languages ([DictionaryLanguagePair])
+/// inline on wide windows (from [inlineBreakpoint]) or just below the
+/// pill on narrow ones. Enter or the go button looks the edited word up.
+///
+/// For keyboard users (the focus highlight is on) the field takes the
+/// focus when the bar appears, so the next word can be typed right away;
+/// on touch screens it does not, so no keyboard covers the entry.
+class DictionarySearchBar extends StatelessWidget {
+  const new({this.focusNode, super.key});
+
+  /// Width from which the languages sit inside the pill.
+  static const double inlineBreakpoint = 560;
+
+  final FocusNode? focusNode;
+
+  @override
+  Widget build(BuildContext context) {
+    final field = Row(
+      children: [
+        Padding(
+          padding: const EdgeInsetsDirectional.only(start: 12, end: 4),
+          child: Icon(
+            Icons.search,
+            size: 20,
+            color: AppPalette.of(context).secondaryText,
+          ),
+        ),
+        Expanded(
+          child: DictionarySearchField(
+            focusNode: focusNode,
+            dense: true,
+            autofocus:
+                FocusManager.instance.highlightMode ==
+                FocusHighlightMode.traditional,
+          ),
+        ),
+        DictionaryClearButton(focusNode: focusNode),
+      ],
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth >= inlineBreakpoint) {
+          return ComposerBar(
+            key: const Key('dictionary_search_bar'),
+            children: [
+              Expanded(flex: 3, child: field),
+              const Expanded(flex: 2, child: DictionaryLanguagePair()),
+              const DictionaryGoButton(),
+            ],
+          );
+        }
+        return Column(
+          key: const Key('dictionary_search_bar'),
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ComposerBar(
+              children: [
+                Expanded(child: field),
+                const DictionaryGoButton(),
+              ],
+            ),
+            const SizedBox(height: 4),
+            const Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: SizedBox(width: 320, child: DictionaryLanguagePair()),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Scrolls [child] from the top of the page.
+class _TopAligned extends StatelessWidget {
   const new({required this.child});
 
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => Center(
-    child: SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      child: child,
-    ),
+  Widget build(BuildContext context) => SingleChildScrollView(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+    child: child,
   );
 }
 
@@ -204,7 +272,7 @@ class _LoadingEntry extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return _Centred(
+    return _TopAligned(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

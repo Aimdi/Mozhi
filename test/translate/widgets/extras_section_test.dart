@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
@@ -20,7 +23,9 @@ void main() {
   setUpAll(registerTranslateFallbacks);
 
   group('ExtrasSection', () {
-    testWidgets('groups the extras under "Refine & learn"', (tester) async {
+    testWidgets('groups the extras as rows under a small "Learn" heading', (
+      tester,
+    ) async {
       final harness = TranslateHarness(state: _aiState());
       final semantics = tester.ensureSemantics();
       await harness.pump(tester, child: const ExtrasSection());
@@ -29,13 +34,23 @@ void main() {
         findsOneWidget,
       );
       expect(
-        tester.getSemantics(find.text('Refine & learn')),
-        matchesSemantics(label: 'Refine & learn', isHeader: true),
+        tester.getSemantics(find.text('Learn')),
+        matchesSemantics(label: 'Learn', isHeader: true),
+      );
+      final context = tester.element(find.text('Learn'));
+      expect(
+        tester.widget<Text>(find.text('Learn')).style?.fontSize,
+        Theme.of(context).textTheme.titleSmall?.fontSize,
       );
       expect(
-        tester.getTopLeft(find.text('Refine & learn')).dy,
+        tester.getTopLeft(find.text('Learn')).dy,
         lessThan(tester.getTopLeft(find.text('Alternatives')).dy),
       );
+      expect(find.byType(TranslateToolRow), findsNWidgets(2));
+      // The refinement chips are with the translation's actions, the AI
+      // dictionary with the short-input panel.
+      expect(find.byKey(const Key('translate_refinement_chips')), findsNothing);
+      expect(find.byType(DictionaryCard), findsNothing);
       semantics.dispose();
     });
 
@@ -135,56 +150,56 @@ void main() {
       );
     });
 
-    testWidgets('refinement chips apply suggestions', (tester) async {
-      final harness = TranslateHarness(state: _aiState());
-      await harness.pump(tester, child: const ExtrasSection());
-      expect(
-        find.byKey(const Key('translate_refinement_chips')),
-        findsOneWidget,
-      );
-      await tester.tap(find.text('More formal'));
-      verify(
-        () => harness.translate.applySuggestion(
-          RefinementSuggestion.defaults.first,
-        ),
-      ).called(1);
-    });
-
-    testWidgets('"More suggestions" loads suggestions', (tester) async {
-      final harness = TranslateHarness(state: _aiState());
-      await harness.pump(tester, child: const ExtrasSection());
-      await tester.ensureVisible(
-        find.byKey(const Key('translate_more_suggestions')),
-      );
-      await tester.tap(find.byKey(const Key('translate_more_suggestions')));
-      verify(harness.translate.loadSuggestions).called(1);
-    });
-
-    testWidgets('"More suggestions" disappears once loaded', (tester) async {
-      final harness = TranslateHarness(
-        state: _aiState().copyWith(
-          suggestionsStatus: ExtraStatus.ready,
-          suggestions: const [
-            RefinementSuggestion(
-              label: 'Warmer',
-              instruction: 'Make it warmer.',
-              description: 'Friendlier tone',
-            ),
-          ],
-        ),
-      );
-      await harness.pump(tester, child: const ExtrasSection());
-      expect(find.text('Warmer'), findsOneWidget);
-      expect(find.byKey(const Key('translate_more_suggestions')), findsNothing);
-    });
-
-    testWidgets('chips are only shown for AI engines', (tester) async {
+    testWidgets('is offered with an AI assist engine', (tester) async {
       final harness = TranslateHarness(
         state: translatedState(assistEngine: claude),
       );
       await harness.pump(tester, child: const ExtrasSection());
-      expect(find.byKey(const Key('translate_refinement_chips')), findsNothing);
       expect(find.text('Alternatives'), findsOneWidget);
+    });
+
+    testWidgets('alternatives fold up when the translation changes', (
+      tester,
+    ) async {
+      final states = StreamController<TranslateState>();
+      addTearDown(states.close);
+      final initial = _aiState().copyWith(
+        alternativesStatus: ExtraStatus.loading,
+      );
+      final harness = TranslateHarness(state: initial);
+      whenListen(harness.translate, states.stream, initialState: initial);
+      await harness.pump(tester, child: const ExtrasSection());
+      await tester.tap(find.text('Alternatives'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(
+        find.byKey(const Key('translate_alternatives_progress')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<TranslateToolRow>(
+              find.byKey(const Key('translate_alternatives_button')),
+            )
+            .expanded,
+        isTrue,
+      );
+      states.add(
+        translatedState(
+          engine: claude,
+          result: const TranslationResult(
+            engineId: 'ai:claude',
+            engineName: 'Claude',
+            text: 'Salut le monde',
+          ),
+        ).copyWith(alternativesStatus: ExtraStatus.loading),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(
+        find.byKey(const Key('translate_alternatives_progress')),
+        findsNothing,
+      );
     });
 
     testWidgets('expanding alternatives loads them', (tester) async {
@@ -319,85 +334,13 @@ void main() {
           .called(1);
       expect(find.text('You asked: Why not "salut"?'), findsOneWidget);
     });
-
-    group('dictionary', () {
-      testWidgets('is offered for short inputs', (tester) async {
-        final harness = TranslateHarness(state: _aiState(input: 'hello'));
-        await harness.pump(tester, child: const ExtrasSection());
-        expect(find.text('Dictionary'), findsOneWidget);
-        expect(find.text('AI-generated'), findsOneWidget);
-        await tester.tap(find.text('Look up “hello”'));
-        verify(harness.translate.lookUp).called(1);
-      });
-
-      testWidgets('is not offered for long inputs', (tester) async {
-        final harness = TranslateHarness(
-          state: _aiState(input: 'this is a longer sentence'),
-        );
-        await harness.pump(tester, child: const ExtrasSection());
-        expect(find.text('Dictionary'), findsNothing);
-      });
-
-      testWidgets('renders an entry', (tester) async {
-        final harness = TranslateHarness(
-          state: _aiState(input: 'hello').copyWith(
-            dictionaryStatus: ExtraStatus.ready,
-            dictionary: () => const DictionaryEntry(
-              word: 'hello',
-              pronunciation: 'həˈloʊ',
-              partsOfSpeech: ['interjection', 'noun'],
-              senses: [
-                DictionarySense(
-                  definition: 'used as a greeting',
-                  partOfSpeech: 'interjection',
-                  translations: ['bonjour', 'salut'],
-                  usage: 'informal',
-                ),
-              ],
-              examples: [
-                DictionaryExample(
-                  source: 'Hello, how are you?',
-                  translation: 'Bonjour, comment ça va ?',
-                ),
-              ],
-              synonyms: ['hi', 'hey'],
-              etymology: 'From "hallo".',
-              notes: 'Very common.',
-            ),
-          ),
-        );
-        await harness.pump(tester, child: const ExtrasSection());
-        expect(find.text('/həˈloʊ/'), findsOneWidget);
-        expect(find.text('interjection · noun'), findsOneWidget);
-        expect(find.text('bonjour, salut'), findsOneWidget);
-        expect(find.text('Hello, how are you?'), findsOneWidget);
-        expect(find.text('hi, hey'), findsOneWidget);
-        expect(find.text('From "hallo".'), findsOneWidget);
-      });
-
-      testWidgets('shows errors with retry', (tester) async {
-        final harness = TranslateHarness(
-          state: _aiState(input: 'hello').copyWith(
-            dictionaryStatus: ExtraStatus.failure,
-            extraError: () => const LlmRefusalException('no'),
-          ),
-        );
-        await harness.pump(tester, child: const ExtrasSection());
-        expect(
-          find.text('The model declined to translate this text.'),
-          findsOneWidget,
-        );
-        await tester.tap(find.text('Retry'));
-        verify(harness.translate.lookUp).called(1);
-      });
-    });
   });
 
   group('WordChoicesPanel', () {
     testWidgets('lists Mozhi definitions and synonyms', (tester) async {
       final harness = TranslateHarness(
         state: translatedState(
-          input: 'bank',
+          input: 'take it to the bank',
           result: const TranslationResult(
             engineId: 'mozhi:google',
             engineName: 'Google',
@@ -424,6 +367,26 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('établissement'), findsOneWidget);
+    });
+
+    testWidgets('is left to the short-input panel for short inputs', (
+      tester,
+    ) async {
+      final harness = TranslateHarness(
+        state: translatedState(
+          input: 'bank',
+          result: const TranslationResult(
+            engineId: 'mozhi:google',
+            engineName: 'Google',
+            text: 'banque',
+            wordChoices: [
+              WordChoice(word: 'banque', definition: 'a financial place'),
+            ],
+          ),
+        ),
+      );
+      await harness.pump(tester, child: const WordChoicesPanel());
+      expect(find.text('Definitions'), findsNothing);
     });
 
     testWidgets('is hidden without word choices', (tester) async {

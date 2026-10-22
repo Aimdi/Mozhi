@@ -117,7 +117,7 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.byTooltip('Hide romanization'), findsOneWidget);
+      expect(tester.widget<TranslateToolRow>(_button).selected, isTrue);
     });
 
     testWidgets('stays left to right in right-to-left layouts', (tester) async {
@@ -157,8 +157,8 @@ void main() {
       stubOutputExtras(harness);
       await harness.pump(tester, child: const OutputCard(), more: true);
       expect(_line, findsNothing);
-      expect(find.byTooltip('Show romanization'), findsOneWidget);
-      expect(tester.widget<TranslateToolChip>(_button).selected, isFalse);
+      expect(tester.widget<TranslateToolRow>(_button).selected, isFalse);
+      expect(tester.widget<TranslateToolRow>(_button).selected, isFalse);
       await tester.tap(_button);
       await tester.pump();
       verify(harness.translate.loadRomanization).called(1);
@@ -184,7 +184,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.bySemanticsLabel('Romanizing…'), findsOneWidget);
-      expect(find.byTooltip('Hide romanization'), findsOneWidget);
+      expect(tester.widget<TranslateToolRow>(_button).selected, isTrue);
     });
 
     testWidgets('shows errors with retry', (tester) async {
@@ -231,12 +231,12 @@ void main() {
       stubOutputExtras(harness);
       await harness.pump(tester, child: const OutputCard(), more: true);
       expect(find.text("Kon'nichiwa"), findsOneWidget);
-      expect(tester.widget<TranslateToolChip>(_button).selected, isTrue);
+      expect(tester.widget<TranslateToolRow>(_button).selected, isTrue);
 
       await tester.tap(_button);
       await tester.pump();
       expect(find.text("Kon'nichiwa"), findsNothing);
-      expect(find.byTooltip('Show romanization'), findsOneWidget);
+      expect(tester.widget<TranslateToolRow>(_button).selected, isFalse);
 
       await tester.tap(_button);
       await tester.pump();
@@ -429,7 +429,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
       verifyNever(harness.translate.loadRomanization);
       // The button offers it again.
-      expect(find.byTooltip('Show romanization'), findsOneWidget);
+      expect(tester.widget<TranslateToolRow>(_button).selected, isFalse);
     });
 
     testWidgets('a reloaded romanization is not announced again', (

@@ -25,14 +25,12 @@ void main() {
       expect(find.byKey(const Key('translate_clear_button')), findsNothing);
     });
 
-    testWidgets('shows the count ring, the count and clear with text', (
-      tester,
-    ) async {
+    testWidgets('shows the count and clear with text, the ring only near '
+        'the limit', (tester) async {
       final harness = TranslateHarness(state: translatedState());
       await harness.pump(tester, child: const InputCard());
-      final ring = tester.widget<CountRing>(find.byType(CountRing));
-      expect(ring.count, 'Hello world'.length);
-      expect(ring.limit, TranslateCubit.maxInputLength);
+      // An idle ring would read as a stalled spinner.
+      expect(find.byType(CountRing), findsNothing);
       expect(find.text('11 characters'), findsOneWidget);
       expect(find.byKey(const Key('translate_clear_button')), findsOneWidget);
     });
@@ -104,7 +102,13 @@ void main() {
         find.byKey(const Key('translate_output_language')),
         findsOneWidget,
       );
-      expect(find.byKey(const Key('translate_output_footer')), findsNothing);
+      // The engine at once, the time once the translation is complete.
+      expect(
+        tester
+            .widget<Text>(find.byKey(const Key('translate_output_footer')))
+            .data,
+        'DeepL',
+      );
     });
 
     testWidgets('favourite is a heart', (tester) async {
@@ -153,37 +157,80 @@ void main() {
       expect(find.byIcon(Icons.favorite), findsOneWidget);
     });
 
-    testWidgets('copy shows a check mark briefly', (tester) async {
+    testWidgets('copy morphs into a check mark briefly', (tester) async {
       FakeClipboard(tester);
       final harness = TranslateHarness(state: translatedState());
       await harness.pump(tester, child: const OutputCard());
-      XActionButton copy() => tester.widget<XActionButton>(
-        find.byKey(const Key('translate_copy_button')),
+      Finder icon(IconData data) => find.descendant(
+        of: find.byKey(const Key('translate_copy_button')),
+        matching: find.byIcon(data),
       );
-      expect(copy().active, isFalse);
-      expect(copy().icon, Icons.copy_outlined);
+      expect(icon(Icons.copy_outlined), findsOneWidget);
 
       await tester.tap(find.byTooltip('Copy'));
       await tester.pump();
-      expect(copy().active, isTrue);
-      expect(copy().icon, Icons.check);
-      final context = tester.element(
-        find.byKey(const Key('translate_copy_button')),
+      await tester.pump(const Duration(milliseconds: 100));
+      // Mid-morph: both, cross-fading.
+      expect(icon(Icons.check), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 200));
+      final context = tester.element(icon(Icons.check));
+      expect(
+        tester.widget<Icon>(icon(Icons.check)).color,
+        AppPalette.of(context).success,
       );
-      expect(copy().activeColor, AppPalette.of(context).success);
+      expect(icon(Icons.copy_outlined), findsNothing);
 
       await tester.pump(const Duration(seconds: 3));
-      expect(copy().active, isFalse);
-      expect(copy().icon, Icons.copy_outlined);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(icon(Icons.copy_outlined), findsOneWidget);
+      expect(icon(Icons.check), findsNothing);
     });
 
-    testWidgets('spreads the actions evenly', (tester) async {
+    testWidgets('copy swaps at once with reduced motion', (tester) async {
+      FakeClipboard(tester);
+      final harness = TranslateHarness(state: translatedState());
+      await harness.pump(
+        tester,
+        child: const OutputCard(),
+        disableAnimations: true,
+      );
+      await tester.tap(find.byTooltip('Copy'));
+      await tester.pump();
+      await tester.pump();
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('translate_copy_button')),
+          matching: find.byIcon(Icons.copy_outlined),
+        ),
+        findsNothing,
+      );
+      await tester.pump(const Duration(seconds: 3));
+    });
+
+    testWidgets('clusters the actions at the start, 8 dp apart', (
+      tester,
+    ) async {
       final harness = TranslateHarness(state: translatedState());
       await harness.pump(tester, child: const OutputCard());
-      final row = tester.widget<Row>(
-        find.byKey(const Key('translate_output_actions')),
+      final actions = find.byKey(const Key('translate_output_actions'));
+      expect(tester.widget<Wrap>(actions).spacing, 8);
+      final copy = tester.getRect(
+        find.byKey(const Key('translate_copy_button')),
       );
-      expect(row.mainAxisAlignment, MainAxisAlignment.spaceBetween);
+      final favourite = tester.getRect(
+        find.byKey(const Key('translate_favorite_button')),
+      );
+      final show = tester.getRect(
+        find.byKey(const Key('translate_show_button')),
+      );
+      expect(copy.left, tester.getRect(actions).left);
+      expect(copy.height, greaterThanOrEqualTo(48));
+      expect(favourite.width, greaterThanOrEqualTo(48));
+      // All five in a row at the start, not spread over the width.
+      expect(
+        show.right - tester.getRect(actions).left,
+        lessThan(5 * 48 + 4 * 8 + 1),
+      );
     });
   });
 
@@ -288,16 +335,16 @@ void main() {
   });
 
   group('TranslatePills', () {
-    testWidgets('outlines chips with a hairline, accent when selected', (
+    testWidgets('outlines chips like controls, accent when selected', (
       tester,
     ) async {
       await tester.pumpWidget(_app(const TranslatePills(child: SizedBox())));
       final context = tester.element(find.byType(SizedBox).last);
       final chips = Theme.of(context).chipTheme;
       final side = chips.side! as WidgetStateBorderSide;
-      final palette = AppPalette.of(context);
       final scheme = Theme.of(context).colorScheme;
-      expect(side.resolve({})?.color, palette.hairline);
+      // The controls' outline (3:1), not a hairline.
+      expect(side.resolve({})?.color, scheme.outline);
       expect(side.resolve({WidgetState.selected})?.color, scheme.primary);
       expect(chips.color?.resolve({}), Colors.transparent);
       expect(chips.shape, const StadiumBorder());

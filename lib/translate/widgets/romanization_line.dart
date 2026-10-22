@@ -43,7 +43,7 @@ Locale? romanizationLocale(Language language) {
 /// loading and error states.
 ///
 /// Shows nothing when there is nothing to show; the "Show romanization"
-/// toggle lives with the output's actions (see [RomanizationButton]).
+/// toggle is in the output's "Tools" area (see [RomanizationButton]).
 class RomanizationLine extends StatelessWidget {
   const new({required this.state, this.announce = false, super.key});
 
@@ -131,8 +131,9 @@ class RomanizationLine extends StatelessWidget {
   }
 }
 
-/// Toggles the romanization of the output ("Show romanization" / "Hide
-/// romanization"): a "Romanization" tool chip, selected while it is shown.
+/// Toggles the romanization of the output: the "Romanization" row of the
+/// "Tools" area ([TranslateToolRow]), on (a check mark, "checked" for screen
+/// readers) while it is shown.
 class RomanizationButton extends StatelessWidget {
   const new({required this.shown, required this.onPressed, super.key});
 
@@ -144,14 +145,10 @@ class RomanizationButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    return TranslateToolChip(
+    return TranslateToolRow(
       key: const Key('translate_romanize_button'),
       icon: Icons.abc,
-      label: l10n.translateToolRomanization,
-      tooltip: shown
-          ? l10n.translateRomanizationHide
-          : l10n.translateRomanizationShow,
+      label: context.l10n.translateToolRomanization,
       selected: shown,
       onPressed: onPressed,
     );
