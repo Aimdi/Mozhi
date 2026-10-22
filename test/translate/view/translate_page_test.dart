@@ -829,31 +829,22 @@ void main() {
       // Not in the app bar: one task per screen.
       expect(find.byKey(const Key('translate_compare_toggle')), findsNothing);
       await openMore(tester);
-      await tester.tap(find.byKey(const Key('translate_compare_toggle')));
+      final toggle = find.byKey(const Key('translate_compare_toggle'));
+      await tester.ensureVisible(toggle);
+      await tester.pumpAndSettle();
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
       verify(() => harness.translate.setCompareMode(enabled: true)).called(1);
     });
 
-    testWidgets('the More tools menu turns compare mode on before a '
-        'translation', (tester) async {
+    testWidgets('the More tools menu has no compare entry (it is under the '
+        'translation)', (tester) async {
       final harness = TranslateHarness(state: readyState(input: 'Hello'));
       await harness.pump(tester);
       await tester.tap(find.byKey(const Key('translate_more_tools')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Compare engines'));
-      await tester.pumpAndSettle();
-      verify(() => harness.translate.setCompareMode(enabled: true)).called(1);
-    });
-
-    testWidgets('the More tools menu leaves compare mode', (tester) async {
-      final harness = TranslateHarness(
-        state: translatedState().copyWith(compareMode: true),
-      );
-      await harness.pump(tester);
-      await tester.tap(find.byKey(const Key('translate_more_tools')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Exit compare mode'));
-      await tester.pumpAndSettle();
-      verify(() => harness.translate.setCompareMode(enabled: false)).called(1);
+      expect(find.text('Compare engines'), findsNothing);
+      expect(find.text('Exit compare mode'), findsNothing);
     });
 
     testWidgets('compare is not offered with a single engine', (tester) async {
