@@ -9,19 +9,19 @@ anywhere, and there are no streaks to keep up.
 
 Open it from the translate screen's **More tools** menu (**Practice**,
 with the number of cards due for review), with **Practice** (the school
-cap) on a phrasebook collection to practise that collection alone, or from
+cap) on a phrasebook collection to practice that collection alone, or from
 the settings (search for "practice", "flashcards" or "Anki").
 
 ## Cards
 
-- Every phrase of the collections you practise becomes one card per
+- Every phrase of the collections you practice becomes one card per
   direction you pick:
   - **Recognize:** you see the phrase in the language you're learning and
     recall what it means;
   - **Produce:** you see your own language and say or type the phrase.
-- Under **Collections**, tick the ones to practise (all of them by
+- Under **Collections**, tick the ones to practice (all of them by
   default, Favorites included; collections you create later are included
-  too while all are ticked). Starter phrasebooks can be practised like
+  too while all are ticked). Starter phrasebooks can be practiced like
   any other collection.
 - **Which side is yours.** A phrase is saved as a text and its
   translation. Practice takes your language to be the app's language when
@@ -37,7 +37,7 @@ the settings (search for "practice", "flashcards" or "Anki").
   cards are kept; cards of a starter phrasebook you uninstalled are kept
   in case you install it again.
 - A card is only stored once you have reviewed it: phrases you never
-  practise cost nothing.
+  practice cost nothing.
 
 ## Sessions
 
@@ -164,7 +164,7 @@ download in the web app) or **Share file**.
 
   Fields with a tab, a line break or a double quote are quoted.
 - In Anki: **File > Import**, pick the file, and choose the note type
-  **Basic** (or **Basic (and reversed card)** to practise both ways) and a
+  **Basic** (or **Basic (and reversed card)** to practice both ways) and a
   deck. The progress you made in Mozhi is not exported (Anki starts the
   cards as new).
 - The file isn't encrypted, and it stays on the device unless you share

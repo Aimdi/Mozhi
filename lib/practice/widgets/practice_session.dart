@@ -98,66 +98,108 @@ class PracticeSession extends StatelessWidget {
           listener: (context, state) => context.read<PracticeCubit>().reveal(),
         ),
       ],
-      child: Focus(
-        autofocus: true,
-        onKeyEvent: (node, event) => _onKey(context, event),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: Semantics(
-                liveRegion: true,
-                child: Text(
-                  l10n.practiceCardsLeft(left),
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
-            ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: maxWidth),
-                    child: PracticeCardView(
-                      key: ValueKey('${item.id}/${item.card.reps}'),
-                      item: item,
+      child: _DropRecordingWhenHidden(
+        child: Focus(
+          autofocus: true,
+          onKeyEvent: (node, event) => _onKey(context, event),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    l10n.practiceCardsLeft(left),
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ),
               ),
-            ),
-            SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: maxWidth),
-                    child: revealed
-                        ? const _Rating()
-                        : SizedBox(
-                            width: double.infinity,
-                            child: FilledButton(
-                              key: const Key('practice_show_answer'),
-                              style: FilledButton.styleFrom(
-                                minimumSize: const Size(0, 56),
-                              ),
-                              onPressed: context.read<PracticeCubit>().reveal,
-                              child: Text(l10n.practiceShowAnswer),
-                            ),
-                          ),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: maxWidth),
+                      child: PracticeCardView(
+                        key: ValueKey('${item.id}/${item.card.reps}'),
+                        item: item,
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: maxWidth),
+                      child: revealed
+                          ? const _Rating()
+                          : SizedBox(
+                              width: double.infinity,
+                              child: FilledButton(
+                                key: const Key('practice_show_answer'),
+                                style: FilledButton.styleFrom(
+                                  minimumSize: const Size(0, 56),
+                                ),
+                                onPressed: context.read<PracticeCubit>().reveal,
+                                child: Text(l10n.practiceShowAnswer),
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
+}
+
+/// Drops a recording when the app goes to the background (the
+/// microphone is only used while the user looks at the card).
+class _DropRecordingWhenHidden extends StatefulWidget {
+  const new({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_DropRecordingWhenHidden> createState() =>
+      _DropRecordingWhenHiddenState();
+}
+
+class _DropRecordingWhenHiddenState extends State<_DropRecordingWhenHidden> {
+  late final AppLifecycleListener _lifecycle = AppLifecycleListener(
+    onHide: () {
+      final speech = context.read<PracticeSpeechCubit>();
+      final status = speech.state.status;
+      if (status == PracticeSpeechStatus.listening ||
+          status == PracticeSpeechStatus.transcribing) {
+        unawaited(speech.reset());
+      }
+    },
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _lifecycle;
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 class _Rating extends StatelessWidget {
