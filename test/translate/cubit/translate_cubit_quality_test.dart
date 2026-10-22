@@ -127,6 +127,28 @@ void main() {
       verifyNever(() => mocks.repository.translate(deeplApi, any()));
     });
 
+    test('never loads an on-device AI model as a fallback', () async {
+      const onDeviceAi = TranslationEngine(
+        id: 'ai:device-hy-mt2-1.8b-q4',
+        kind: EngineKind.ai,
+        name: 'Hy-MT2 1.8B',
+        providerId: 'device-hy-mt2-1.8b-q4',
+        isLocal: true,
+        onDevice: true,
+      );
+      when(() => mocks.repository.getEngines(refresh: any(named: 'refresh')))
+          .thenAnswer((_) async => [google, onDeviceAi]);
+      // On the device, so allowed without consent, yet never a fallback.
+      allowWithoutConsent({onDeviceAi.id});
+      answer(google, suspect(google));
+      final cubit = await ready();
+      cubit.setInput(sentence);
+      await cubit.translate();
+      verifyNever(() => mocks.repository.translate(onDeviceAi, any()));
+      expect(cubit.state.result?.isSuspect, isTrue);
+      expect(cubit.state.fallback, isNull);
+    });
+
     test('skips engines that need a new consent', () async {
       when(() => mocks.repository.getEngines(refresh: any(named: 'refresh')))
           .thenAnswer((_) async => [google, deepl]);

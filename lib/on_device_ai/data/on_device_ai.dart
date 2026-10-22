@@ -205,7 +205,8 @@ class OnDeviceAi {
   static AiProviderConfig providerFor(LlamaCatalogModel model) =>
       AiProviderConfig(
         id: '$providerIdPrefix${model.id}',
-        name: '${model.displayName} (on this device)',
+        // The engine picker and badges say "On this device" (localised).
+        name: model.displayName,
         provider: LlmProvider.onDevice,
         baseUrl: '',
         model: model.id,

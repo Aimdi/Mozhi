@@ -62,15 +62,20 @@ Two kinds of models, chosen separately on the On-device AI page:
   dictionary, explain, proofread, meaning check, romanization, matching
   phrases), and translation too if you choose it as the engine.
 
-| Model | Role | Publisher | Licence | Download (Q4_K_M GGUF, approximate) | Languages |
+| Model | Role | Publisher | Licence | Download (Q4_K_M GGUF) | Languages |
 | --- | --- | --- | --- | --- | --- |
-| **Hy-MT2 1.8B** | Translation | Tencent ([Hy-MT2](https://github.com/Tencent-Hunyuan/Hy-MT2)) | Apache-2.0 | about 1.1 GB | 33 languages and 5 variants ([list](#hy-mt2-languages)) |
-| **Gemma 4 E2B** | Assistant | Google (weights only, no Google code) | Apache-2.0 | about 2.6 GB | 140+ languages |
-| **Qwen3 1.7B** | Assistant (the small option) | Alibaba Qwen | Apache-2.0 | about 1.2 GB | 100+ languages |
+| **Hy-MT2 1.8B** | Translation | Tencent ([Hy-MT2](https://github.com/Tencent-Hunyuan/Hy-MT2)) | Apache-2.0 | 1.13 GB | 33 languages and 5 variants ([list](#hy-mt2-languages)) |
+| **Gemma 4 E2B** | Assistant | Google (weights only, no Google code) | Apache-2.0 | 3.11 GB | 140+ languages |
+| **Qwen3 1.7B** | Assistant (the small option) | Alibaba Qwen | Apache-2.0 | 1.28 GB | 100+ languages |
 
-The page shows each file's exact size before you download it; the sizes
-above are estimates. All three are 4-bit quantized (Q4_K_M): about a
-quarter of the original size, with a small loss of quality.
+The page shows each file's exact size before you download it. The files
+come from Hugging Face, pinned to one commit of each repository: Hy-MT2
+from Tencent's own repository, Qwen3 from ggml-org's (the llama.cpp
+project) and Gemma 4 E2B from Unsloth's, since Google doesn't publish a
+4-bit GGUF. Whichever server sends a file, the app checks its size and
+SHA-256 against the catalogue built into Mozhi before it is used. All
+three are 4-bit quantized (Q4_K_M): about a quarter of the original size,
+with a small loss of quality.
 
 Why these: Hy-MT2 is the strongest translation model with a clean
 open-source licence that fits a phone (Tencent reports that the 1.8B model
@@ -151,8 +156,9 @@ Tips:
   (Bergamot) is much faster; keep it for those and use on-device AI where
   quality or the extras matter. With [Quality modes](features.md#quality-modes-fast-and-best),
   make offline translation **Fast** and on-device AI **Best**.
-- Long text is split into parts the model can handle, as for local AI
-  servers.
+- Long text is split into parts of about 1,200 characters, which fit the
+  model's 4,096-token window even in Chinese or Japanese, and translated
+  part by part.
 
 ## Battery and heat
 

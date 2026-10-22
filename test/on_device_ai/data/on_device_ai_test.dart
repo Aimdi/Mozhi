@@ -34,7 +34,7 @@ void main() {
       expect(ai.providers, [
         const AiProviderConfig(
           id: 'device-hy-mt2',
-          name: 'Model hy-mt2 (on this device)',
+          name: 'Model hy-mt2',
           provider: LlmProvider.onDevice,
           baseUrl: '',
           model: 'hy-mt2',
@@ -42,7 +42,7 @@ void main() {
         ),
         const AiProviderConfig(
           id: 'device-gemma',
-          name: 'Model gemma (on this device)',
+          name: 'Model gemma',
           provider: LlmProvider.onDevice,
           baseUrl: '',
           model: 'gemma',

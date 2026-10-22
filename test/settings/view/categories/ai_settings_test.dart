@@ -70,9 +70,9 @@ void main() {
       await pump(tester);
       await openPicker(tester);
       expect(find.text('Claude'), findsOneWidget);
-      expect(find.text('Model gemma (on this device)'), findsOneWidget);
+      expect(find.text('Model gemma'), findsOneWidget);
       expect(find.text('On this device'), findsOneWidget);
-      expect(find.text('Model hy-mt2 (on this device)'), findsNothing);
+      expect(find.text('Model hy-mt2'), findsNothing);
       expect(
         find.text(
           'The on-device model when your text should stay on this device, '
@@ -80,7 +80,7 @@ void main() {
         ),
         findsOneWidget,
       );
-      await tester.tap(find.text('Model gemma (on this device)'));
+      await tester.tap(find.text('Model gemma'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
@@ -92,7 +92,7 @@ void main() {
         tester,
         state: const AppSettings(assistEngineId: 'ai:device-gemma'),
       );
-      expect(find.text('Model gemma (on this device)'), findsOneWidget);
+      expect(find.text('Model gemma'), findsOneWidget);
     });
 
     testWidgets('opens with only an on-device assistant', (tester) async {

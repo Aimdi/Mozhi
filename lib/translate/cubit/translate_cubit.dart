@@ -2300,6 +2300,9 @@ class TranslateCubit extends Cubit<TranslateState> {
         if (engine.isOffline && engine.id != from.id) engine,
       for (final engine in state.engines)
         if (!engine.isOffline &&
+            // On-device AI would load a 1-3 GB model unasked: only when
+            // chosen.
+            !(engine.isAi && engine.onDevice) &&
             engine.id != from.id &&
             !_isCloudEngine(engine) &&
             allowed(engine))
