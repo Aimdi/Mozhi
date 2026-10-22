@@ -270,7 +270,9 @@ void main() {
   });
 
   group('ComposerBar', () {
-    testWidgets('divides its parts with hairlines in a pill', (tester) async {
+    testWidgets('divides its parts with hairlines in an outlined pill', (
+      tester,
+    ) async {
       await tester.pumpApp(
         const Scaffold(
           body: SizedBox(
@@ -300,7 +302,12 @@ void main() {
             )
             .first,
       );
-      expect((shape.decoration as ShapeDecoration).shape, isA<StadiumBorder>());
+      final border = (shape.decoration as ShapeDecoration).shape;
+      expect(border, isA<StadiumBorder>());
+      // A control's outline (3:1), not a separator hairline.
+      final scheme = Theme.of(tester.element(find.byType(ComposerBar)))
+          .colorScheme;
+      expect((border as StadiumBorder).side.color, scheme.outline);
     });
 
     testWidgets('mirrors in right-to-left layouts', (tester) async {
