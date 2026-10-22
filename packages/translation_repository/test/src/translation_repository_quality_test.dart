@@ -992,6 +992,40 @@ void main() {
       expect(again.fromCache, isFalse);
     });
 
+    test('waits for a slow device answer, then decides', () async {
+      for (final (code, asked) in [('en', 0), ('de', 1)]) {
+        final device = _SlowIdentifier();
+        repository = newRepository(device: device);
+        stubHint();
+        final results = repository.translate(claude, short).toList();
+        await pumpEventQueue();
+        // The translation is done; the final result waits for the device.
+        expect(requests.where((r) => !r.jsonOutput), hasLength(1));
+        device.answer.complete(code);
+        final last = (await results).last;
+        expect(last.isComplete, isTrue);
+        expect(detections(), hasLength(asked), reason: code);
+      }
+    });
+
+    test('a slow device that is unsure asks the model', () async {
+      final device = _SlowIdentifier();
+      repository = newRepository(device: device);
+      stubHint(translation: const ['Cadeau']);
+      final results = repository.translate(claude, short).toList();
+      await pumpEventQueue();
+      device.answer.complete(null);
+      await results;
+      expect(detections(), hasLength(1));
+    });
+
+    test('an identifier error asks the model', () async {
+      repository = newRepository(device: _ThrowingIdentifier());
+      stubHint();
+      await repository.translate(claude, short).drain<void>();
+      expect(detections(), hasLength(1));
+    });
+
     test('masks personal data in the detection', () async {
       repository = newRepository(device: FakeOfflineTranslator());
       stubHint();
@@ -1092,9 +1126,19 @@ void main() {
         ),
         isTrue,
       );
+      // A local provider only needs the approved pair.
       expect(
         repository.needsConsent(
           aiEngine(ollamaConfig),
+          source: english,
+          target: german,
+        ),
+        isFalse,
+      );
+      // An engine whose provider is gone cannot be used.
+      expect(
+        repository.needsConsent(
+          aiEngine(ollamaConfig).withProvider('gone'),
           source: english,
           target: german,
         ),
@@ -1148,6 +1192,14 @@ extension on TranslationEngine {
     providerId: id.substring(3),
     mtService: mtService,
   );
+}
+
+/// An identifier that answers when [answer] completes.
+class _SlowIdentifier extends FakeOfflineTranslator {
+  final answer = Completer<String?>();
+
+  @override
+  Future<String?> identifyLanguage(String text) => answer.future;
 }
 
 /// An identifier that fails.

@@ -211,9 +211,8 @@ void main() {
     test('keeps pieces of whitespace as they are', () async {
       final text = 'A.\n\n${'\n' * 60}B.';
 
-      final result = await create(
-        chunk: 30,
-      ).translateDetailed(text, source: 'en', target: 'de');
+      final result = await create(chunk: 30)
+          .translateDetailed(text, source: 'en', target: 'de');
 
       expect(result.text, '<A.>\n\n${'\n' * 60}<B.>');
       expect(result.sentences.last.sourceIn(text), 'B.');

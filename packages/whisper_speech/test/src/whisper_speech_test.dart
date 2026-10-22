@@ -259,6 +259,7 @@ void main() {
     test('unload waits for a running transcription', () async {
       await import(tiny, tinyBytes);
       final heard = Completer<WhisperTranscription>();
+      final started = Completer<void>();
       when(
         () => engine.transcribe(
           any(),
@@ -266,10 +267,13 @@ void main() {
           language: any(named: 'language'),
           threads: any(named: 'threads'),
         ),
-      ).thenAnswer((_) => heard.future);
+      ).thenAnswer((_) {
+        started.complete();
+        return heard.future;
+      });
 
       final transcription = idle.transcribe(Float32List(1));
-      await pumpEventQueue();
+      await started.future;
       await idle.unload();
       verifyNever(() => engine.dispose());
 

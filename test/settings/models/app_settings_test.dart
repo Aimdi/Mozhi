@@ -68,6 +68,7 @@ const _custom = AppSettings(
   ],
   rememberQuality: false,
   multilineInput: false,
+  maskPersonalData: false,
 );
 
 void main() {
@@ -117,6 +118,8 @@ void main() {
       expect(settings.rememberQuality, isTrue);
       // Enter adds a new line, as before.
       expect(settings.multilineInput, isTrue);
+      // Personal data is kept on the device unless the user says otherwise.
+      expect(settings.maskPersonalData, isTrue);
     });
 
     test('supports value equality', () {
@@ -333,6 +336,7 @@ void main() {
           tabOrder: _custom.tabOrder,
           rememberQuality: _custom.rememberQuality,
           multilineInput: _custom.multilineInput,
+          maskPersonalData: _custom.maskPersonalData,
         );
 
         expect(copy, equals(_custom));
@@ -543,6 +547,7 @@ void main() {
           'tabOrder': 'translate',
           'rememberQuality': 0,
           'multilineInput': 'no',
+          'maskPersonalData': 'off',
         });
 
         expect(settings, equals(const AppSettings()));

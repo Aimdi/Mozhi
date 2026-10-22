@@ -687,6 +687,12 @@ void main() {
       );
 
       mutation(
+        'setMaskPersonalData stores the flag',
+        act: (cubit) => cubit.setMaskPersonalData(enabled: false),
+        expected: const AppSettings(maskPersonalData: false),
+      );
+
+      mutation(
         'setHttpProxy stores the trimmed proxy',
         act: (cubit) => cubit.setHttpProxy(' 127.0.0.1:8118 '),
         expected: const AppSettings(httpProxy: '127.0.0.1:8118'),

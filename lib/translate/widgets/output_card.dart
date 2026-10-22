@@ -711,6 +711,19 @@ class _OutputCardState extends State<OutputCard> {
         if (_showAlignment && state.hasExtras) _alignmentStatus(context, state),
         // The checks' findings: fallback, kept personal data, warnings.
         if (TranslationNotes.hasNotes(state)) TranslationNotes(state: state),
+        // The translation stopped part way: what arrived stays, with the
+        // error and Retry.
+        if (state.status == TranslateStatus.failure)
+          Padding(
+            padding: const EdgeInsetsDirectional.only(top: 8, end: 12),
+            child: TranslateErrorView(
+              key: const Key('translate_partial_error'),
+              error: state.error,
+              dense: true,
+              onRetry: () =>
+                  unawaited(context.read<TranslateCubit>().translate()),
+            ),
+          ),
         if (complete &&
             result != null &&
             ((detected != null && state.source.isAuto) ||

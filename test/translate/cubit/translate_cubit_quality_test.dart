@@ -272,6 +272,94 @@ void main() {
     });
   });
 
+  group('warm-up', () {
+    const localAi = TranslationEngine(
+      id: 'ai:local',
+      kind: EngineKind.ai,
+      name: 'Local',
+      providerId: 'local',
+      isLocal: true,
+    );
+
+    setUp(() {
+      when(() => mocks.repository.getEngines(refresh: any(named: 'refresh')))
+          .thenAnswer((_) async => [google, localAi, claude]);
+    });
+
+    test('warms a local AI engine up when it is selected', () async {
+      when(() => mocks.repository.warmUp(any())).thenAnswer((_) async => true);
+      final cubit = await ready();
+      verifyNever(() => mocks.repository.warmUp(google));
+      await cubit.selectEngine(localAi);
+      verify(() => mocks.repository.warmUp(localAi)).called(1);
+      await cubit.selectEngine(claude);
+      verifyNever(() => mocks.repository.warmUp(claude));
+    });
+
+    test('ignores warm-up failures and repositories without it', () async {
+      when(() => mocks.repository.warmUp(any()))
+          .thenAnswer((_) => Future.error(StateError('down')));
+      final cubit = await ready();
+      await expectLater(cubit.selectEngine(localAi), completes);
+      when(() => mocks.repository.warmUp(any())).thenThrow(StateError('no'));
+      await cubit.selectEngine(google);
+      await expectLater(cubit.selectEngine(localAi), completes);
+    });
+  });
+
+  group('errors after part of the translation', () {
+    test('keep the finished part as the result', () async {
+      Stream<TranslationResult> partThenError() async* {
+        yield resultOf('Der erste Teil.', isComplete: false);
+        throw const LlmApiException('overloaded');
+      }
+
+      when(() => mocks.repository.translate(google, any()))
+          .thenAnswer((_) => partThenError());
+      final cubit = await ready();
+      cubit.setInput(sentence);
+      await cubit.translate();
+      expect(cubit.state.status, TranslateStatus.failure);
+      expect(cubit.state.error, isA<LlmApiException>());
+      expect(cubit.state.result?.text, 'Der erste Teil.');
+      expect(cubit.state.result?.isComplete, isFalse);
+    });
+
+    test('without a part there is no result', () async {
+      answer(google, const LlmApiException('overloaded'));
+      final cubit = await ready();
+      cubit.setInput(sentence);
+      await cubit.translate();
+      expect(cubit.state.status, TranslateStatus.failure);
+      expect(cubit.state.result, isNull);
+    });
+  });
+
+  group('TranslateState.fallback', () {
+    const notice = TranslationFallback(
+      fromEngineName: 'Google',
+      reason: TranslationWarningKind.echo,
+      engineName: 'DeepL',
+      onDevice: false,
+    );
+
+    test('stays with its result and goes with any other', () {
+      final state = readyState(result: resultOf('x'))
+          .copyWith(fallback: () => notice);
+      expect(state.fallback, notice);
+      expect(state.copyWith(input: 'y').fallback, notice);
+      expect(state.copyWith(result: () => resultOf('z')).fallback, isNull);
+      expect(state.copyWith(fallback: () => null).fallback, isNull);
+      expect(state, isNot(state.copyWith(fallback: () => null)));
+      expect(notice.props, [
+        'Google',
+        TranslationWarningKind.echo,
+        'DeepL',
+        false,
+      ]);
+    });
+  });
+
   group('debounce', () {
     test('the on-device engine waits less', () {
       final settings = mocks.settings;

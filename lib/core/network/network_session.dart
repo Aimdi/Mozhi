@@ -101,11 +101,24 @@ class NetworkSession {
     (baseUrl, timeout) => mozhiClient(baseUrl, timeout: timeout),
   );
 
-  /// A Mozhi client for [baseUrl] on [client].
-  MozhiApiClient mozhiClient(
-    Uri baseUrl, {
-    Duration timeout = const Duration(seconds: 30),
-  }) => MozhiApiClient(baseUrl: baseUrl, httpClient: client, timeout: timeout);
+  /// How long a Mozhi request may take through a proxy: Tor adds seconds
+  /// to every hop.
+  static const proxyRequestTimeout = Duration(seconds: 45);
+
+  /// How long a Mozhi request may take in this session:
+  /// [MozhiApiClient.defaultTimeout], or [proxyRequestTimeout] with a
+  /// proxy.
+  Duration get mozhiRequestTimeout =>
+      hasProxy ? proxyRequestTimeout : MozhiApiClient.defaultTimeout;
+
+  /// A Mozhi client for [baseUrl] on [client], with [timeout] (default
+  /// [mozhiRequestTimeout]).
+  MozhiApiClient mozhiClient(Uri baseUrl, {Duration? timeout}) =>
+      MozhiApiClient(
+        baseUrl: baseUrl,
+        httpClient: client,
+        timeout: timeout ?? mozhiRequestTimeout,
+      );
 
   /// An LLM client for [endpoint] on [client].
   LlmClient llmClient(LlmEndpoint endpoint) =>

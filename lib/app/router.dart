@@ -23,9 +23,7 @@ import 'package:mozhi/documents/data/document_file_service.dart'
     deferred as document_files;
 import 'package:mozhi/documents/view/document_translate_page.dart'
     deferred as documents_page;
-import 'package:mozhi/history/view/history_page.dart' deferred as history_page;
-import 'package:mozhi/history/view/history_page.dart'
-    show HistoryPage, HistoryTab;
+import 'package:mozhi/history/view/history_page.dart';
 import 'package:mozhi/image_translate/models/picked_image.dart';
 import 'package:mozhi/image_translate/view/image_translate_page.dart'
     deferred as image_page;
@@ -224,7 +222,6 @@ abstract final class DeferredFeatures {
   static final presets = DeferredLibrary(presets_page.loadLibrary);
   static final glossaries = DeferredLibrary(glossaries_page.loadLibrary);
   static final usage = DeferredLibrary(usage_page.loadLibrary);
-  static final history = DeferredLibrary(history_page.loadLibrary);
   static final proofread = DeferredLibrary(proofread_page.loadLibrary);
 
   /// The settings and their pages (but the offline languages, presets,
@@ -255,7 +252,6 @@ abstract final class DeferredFeatures {
     presets,
     glossaries,
     usage,
-    history,
     proofread,
     settings,
   ];
@@ -457,11 +453,13 @@ GoRouter createAppRouter({
           autoLoad: false,
         );
       }),
-      deferredRoute(
-        AppRoutes.history,
-        DeferredFeatures.history,
-        (context, state) => TopLevelPageScope(
-          child: history_page.HistoryPage(
+      // Not deferred: in the VM, deferred libraries share one load, and a
+      // test that opens History before another deferred page would leave
+      // that load to a finished test's zone (test/app/view/app_test.dart).
+      GoRoute(
+        path: AppRoutes.history,
+        builder: (context, state) => TopLevelPageScope(
+          child: HistoryPage(
             initialTab: HistoryTab.tryParse(
               state.uri.queryParameters[HistoryPage.tabParameter],
             ),

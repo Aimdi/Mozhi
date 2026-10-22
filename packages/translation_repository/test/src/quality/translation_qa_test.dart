@@ -120,6 +120,10 @@ void main() {
           isEmpty,
         );
         expect(kinds('At 10.30 sharp', 'Um 10:30 Uhr'), isEmpty);
+        // Digits of a block without a known zero are compared as they are.
+        expect(kinds('Pay 25 now', 'Zahle \u{1D7D0}\u{1D7D3} jetzt'), [
+          TranslationWarningKind.numbers,
+        ]);
         expect(kinds('Version 1 of 3', 'Version eins'), isEmpty);
         expect(
           items(

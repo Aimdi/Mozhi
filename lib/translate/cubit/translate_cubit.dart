@@ -96,6 +96,11 @@ typedef _Languages = ({List<Language> sources, List<Language> targets});
 /// * The personal data shield (`AppSettings.maskPersonalData`) is pushed to
 ///   the repository (`TranslationRepository.maskPersonalData`) from the
 ///   first [loadEngines] on.
+/// * When a local AI engine becomes the selected one, its model is warmed
+///   up (`TranslationRepository.warmUp`).
+/// * A translation that fails after part of it arrived (the finished parts
+///   of a long text, the text streamed so far) keeps that part as the
+///   result, unfinished, next to the error.
 ///
 /// The constructor does no async work: call [loadEngines] once after
 /// construction (and whenever instances/providers change). It listens to
@@ -472,7 +477,10 @@ class TranslateCubit extends Cubit<TranslateState> {
     final engine = loaded.engine;
     final mode = _modeOf(engine);
     final changed = engine.id != state.engine?.id;
-    if (changed) _cancelTranslation();
+    if (changed) {
+      _cancelTranslation();
+      _warmUp(engine);
+    }
     final base = changed
         ? _clearedExtras(_withoutExtraTranslations(state))
               .copyWith(status: TranslateStatus.idle, result: () => null)
@@ -556,6 +564,7 @@ class TranslateCubit extends Cubit<TranslateState> {
   }) async {
     final request = ++_languagesRequest;
     _switches++;
+    _warmUp(engine);
     if (!keepResult) {
       _debounceTimer?.cancel();
       _cancelTranslation();
@@ -756,6 +765,20 @@ class TranslateCubit extends Cubit<TranslateState> {
     }
     if (engine != null && engine.id != state.engine?.id) {
       unawaited(_switchEngine(engine, keepResult: true, persist: false));
+    }
+  }
+
+  /// Loads the model of a local AI [engine] (Ollama, LM Studio, ...) in
+  /// the background (`TranslationRepository.warmUp`), so that the first
+  /// translation does not wait for it. Errors are ignored.
+  void _warmUp(TranslationEngine engine) {
+    if (!engine.isAi || !engine.isLocal) return;
+    try {
+      unawaited(
+        _repository.warmUp(engine).then((_) {}, onError: (Object _) {}),
+      );
+    } on Object {
+      // A repository test double without warm-up.
     }
   }
 
@@ -1485,10 +1508,18 @@ class TranslateCubit extends Cubit<TranslateState> {
           ),
         );
       } else {
+        // The parts of a long text that were finished (or the text streamed
+        // so far) stay, with the error and Retry.
+        final partial = state.result;
+        final keep =
+            partial != null &&
+            !partial.isComplete &&
+            partial.text.trim().isNotEmpty &&
+            state.resultInput == request.text;
         emit(
           state.copyWith(
             status: TranslateStatus.failure,
-            result: () => null,
+            result: () => keep ? partial : null,
             error: () => error,
           ),
         );

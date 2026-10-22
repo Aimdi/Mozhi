@@ -6,6 +6,9 @@
  *
  *   mozhi_bergamot_cli MODEL SHORTLIST VOCAB [TRG_VOCAB] < input.txt
  *   mozhi_bergamot_cli --pivot M1 S1 V1 M2 S2 V2 < input.txt
+ *   mozhi_bergamot_cli --details MODEL SHORTLIST VOCAB [TRG_VOCAB] < lines.txt
+ *       (every line in one mozhi_bergamot_translate_ex() batch, with
+ *       alignment and quality scores: the JSON on stdout)
  *   mozhi_bergamot_cli --detect < lines.txt   (language of each line, CLD2)
  *
  * Copyright (c) 2026 Mozhi contributors. MIT License.
@@ -98,15 +101,50 @@ static int detect_lines(void) {
   return 0;
 }
 
+/* Translates every line of stdin in one mozhi_bergamot_translate_ex()
+ * batch with alignment and quality scores and prints the JSON. */
+static int translate_details(char** model_args, int model_argc) {
+  char* input = read_all(stdin);
+  if (input == NULL) return 1;
+  MozhiBergamotModel* model =
+      load(model_args[0], model_args[1], model_args[2],
+           model_argc == 4 ? model_args[3] : NULL);
+  const char* lines[1024];
+  int32_t count = 0;
+  for (char* line = strtok(input, "\n"); line != NULL && count < 1024;
+       line = strtok(NULL, "\n")) {
+    lines[count++] = line;
+  }
+  double start = now_ms();
+  char* output = mozhi_bergamot_translate_ex(
+      model, NULL, lines, count,
+      MOZHI_BERGAMOT_TRANSLATE_ALIGNMENT | MOZHI_BERGAMOT_TRANSLATE_QUALITY);
+  if (output == NULL) {
+    fprintf(stderr, "translate failed: %s\n", mozhi_bergamot_last_error());
+    return 1;
+  }
+  fprintf(stderr, "translate_ex (%d lines): %.0f ms\n", (int)count,
+          now_ms() - start);
+  printf("%s\n", output);
+  mozhi_bergamot_free_string(output);
+  mozhi_bergamot_model_destroy(model);
+  free(input);
+  return 0;
+}
+
 int main(int argc, char** argv) {
   if (argc == 2 && strcmp(argv[1], "--detect") == 0) return detect_lines();
+  if ((argc == 5 || argc == 6) && strcmp(argv[1], "--details") == 0) {
+    return translate_details(argv + 2, argc - 2);
+  }
   int pivot = argc == 8 && strcmp(argv[1], "--pivot") == 0;
   if (!pivot && argc != 4 && argc != 5) {
     fprintf(stderr,
             "usage: %s MODEL SHORTLIST VOCAB [TRG_VOCAB] < input\n"
             "       %s --pivot M1 S1 V1 M2 S2 V2 < input\n"
+            "       %s --details MODEL SHORTLIST VOCAB [TRG_VOCAB] < lines\n"
             "       %s --detect < lines\n",
-            argv[0], argv[0], argv[0]);
+            argv[0], argv[0], argv[0], argv[0]);
     return 2;
   }
   fprintf(stderr, "%s (ABI %d)\n", mozhi_bergamot_version(),

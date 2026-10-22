@@ -223,6 +223,7 @@ class _AppState extends State<App> {
       mode: settings.privacyMode,
       approvedPairs: settings.networkPairs,
       consentedProviders: settings.consentedProviders,
+      maskPersonalData: settings.maskPersonalData,
     );
   }
 

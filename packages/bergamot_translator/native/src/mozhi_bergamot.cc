@@ -7,7 +7,6 @@
 #include "mozhi_bergamot.h"
 
 #include <algorithm>
-#include <charconv>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -280,20 +279,25 @@ void AppendJsonString(std::string& out, const std::string& value) {
   out += '"';
 }
 
-// A JSON number with 4 significant digits (locale-independent), or null.
+// A JSON number with 4 significant digits, or null. %g never writes a
+// comma, so one can only be a locale's decimal separator (bionic always
+// writes '.'; glibc follows LC_NUMERIC).
 void AppendNumber(std::string& out, float value) {
   if (!std::isfinite(value)) {
     out += "null";
     return;
   }
   char buffer[32];
-  const auto result = std::to_chars(buffer, buffer + sizeof(buffer), value,
-                                    std::chars_format::general, 4);
-  if (result.ec != std::errc()) {
+  const int length = std::snprintf(buffer, sizeof(buffer), "%.4g",
+                                   static_cast<double>(value));
+  if (length <= 0 || static_cast<size_t>(length) >= sizeof(buffer)) {
     out += "null";
     return;
   }
-  out.append(buffer, result.ptr);
+  for (int i = 0; i < length; ++i) {
+    if (buffer[i] == ',') buffer[i] = '.';
+  }
+  out.append(buffer, static_cast<size_t>(length));
 }
 
 void AppendRange(std::string& out, const std::vector<uint32_t>& utf16,

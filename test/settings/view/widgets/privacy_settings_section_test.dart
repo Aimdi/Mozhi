@@ -123,6 +123,24 @@ void main() {
       verify(() => settings.setSecureScreen(enabled: false)).called(1);
     });
 
+    testWidgets('toggles the personal data shield', (tester) async {
+      await pump(tester);
+      final tile = find.byKey(const Key('settings_mask_personal_data'));
+      expect(
+        tester.widget<SwitchListTile>(tile).value,
+        isTrue,
+        reason: 'on by default',
+      );
+      expect(find.text('Hide personal data from online engines'), findsOne);
+      expect(
+        find.textContaining('replaced before text leaves the device'),
+        findsOne,
+      );
+      await tester.ensureVisible(tile);
+      await tester.tap(tile);
+      verify(() => settings.setMaskPersonalData(enabled: false)).called(1);
+    });
+
     testWidgets('hides the screen protection elsewhere', (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.linux;
       await pump(tester);

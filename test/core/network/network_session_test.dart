@@ -8,6 +8,7 @@ import 'package:mozhi/core/network/http_client_factory_io.dart'
     show bypassesProxy;
 import 'package:mozhi/core/network/network.dart';
 import 'package:mozhi/core/privacy/egress/egress.dart';
+import 'package:mozhi_api/mozhi_api.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 class _RecordingClient extends http.BaseClient {
@@ -156,7 +157,24 @@ void main() {
       expect(health, isA<InstanceOnline>());
       expect(
         session.mozhiClient(Uri.parse('https://a.example')).timeout,
-        const Duration(seconds: 30),
+        MozhiApiClient.defaultTimeout,
+      );
+      expect(
+        session
+            .mozhiClient(
+              Uri.parse('https://a.example'),
+              timeout: const Duration(seconds: 3),
+            )
+            .timeout,
+        const Duration(seconds: 3),
+      );
+      // Tor adds seconds to every request.
+      expect(
+        NetworkSession(
+          proxy: '127.0.0.1:8118',
+          httpClient: platform,
+        ).mozhiClient(Uri.parse('https://a.example')).timeout,
+        NetworkSession.proxyRequestTimeout,
       );
     });
 

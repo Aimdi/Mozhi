@@ -8407,5 +8407,21 @@
   "settingsMaskPersonalDataSubtitle": "E-mail addresses, phone numbers, IBANs and card numbers are replaced before text leaves the device, then put back into the translation",
   "@settingsMaskPersonalDataSubtitle": {
     "description": "settingsMaskPersonalDataSubtitle"
+  },
+  "settingsProviderDeeplQualityModel": "Prefer the quality-optimised model",
+  "@settingsProviderDeeplQualityModel": {
+    "description": "settingsProviderDeeplQualityModel"
+  },
+  "settingsProviderDeeplQualityModelSubtitle": "Asks DeepL for its next-generation model where the language pair supports it. It can be a little slower.",
+  "@settingsProviderDeeplQualityModelSubtitle": {
+    "description": "settingsProviderDeeplQualityModelSubtitle"
+  },
+  "translateOptionsDeeplNeedAi": "{engine} applies formality, context, formatting and the glossary. Style, reading level and gender need an AI translator. Your choices are saved and apply when you use one.",
+  "@translateOptionsDeeplNeedAi": {
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      }
+    }
   }
 }

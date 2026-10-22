@@ -32,6 +32,30 @@ Other pairs pivot through English (`es` -> `de` needs Spanish and German).
 `translate` never downloads; missing models throw
 `OfflineModelMissingException`.
 
+`BergamotTranslator` is a `DetailedOfflineTranslator`:
+
+```dart
+// Warm up when the on-device engine is picked for an installed pair.
+await translator.preload(source: 'en', target: 'de');
+
+// Cancellable: once `abort` completes, waiting work is dropped and the
+// call throws OfflineTranslationCancelledException.
+final german = await translator.translate(text, source: 'en', target: 'de',
+    abort: cancelled.future);
+
+// Sentences, word alignment and confidence (offsets are UTF-16).
+final detailed = await translator.translateDetailed('Hello world.',
+    source: 'en', target: 'de');
+detailed.alignedSpans(); // Hallo <- Hello, Welt. <- world.
+detailed.lowConfidenceSentences; // mean log-prob below -0.4, 3+ words
+
+await translator.trimMemory(); // on memory pressure: keep the last pair only
+```
+
+Pieces of long text (2000 characters at most) go to the engine in one
+native call per 6000 characters (`maxBatchLength`), so typed text is one
+batch and a long document can be cancelled between batches.
+
 ```dart
 await translator.identifyLanguage('Guten Morgen'); // 'de' (CLD2, background isolate)
 await translator.identifyLanguage('OK'); // null: too little to tell
@@ -47,6 +71,13 @@ await translator.identifyLanguage('OK'); // null: too little to tell
 | `android/` | Gradle `externalNativeBuild` (NDK 28.2.13676358, arm64-v8a / armeabi-v7a / x86_64) |
 | `tool/fetch_native_deps.sh` | checks out the native sources (only what the engine needs) and applies the patches |
 | `tool/build_native_linux.sh` | builds `build/native/linux/libmozhi_bergamot.so` for desktop tests |
+
+The C API (ABI 2) adds `mozhi_bergamot_translate_ex` to ABI 1's calls: a
+batch of texts in one call, returning JSON with the sentences, each
+translated word's most likely source word (Marian's soft alignment) and
+quality scores (log-probabilities; the library decodes with
+`skip-cost: false` so that they are). See `native/src/mozhi_bergamot.h`.
+
 
 ## Building and testing
 
@@ -69,7 +100,9 @@ whenever it is built and are skipped otherwise. `BERGAMOT_LIBRARY_PATH`
 overrides the library path, `BERGAMOT_TEST_CACHE` the model cache (default
 `build/test_models`). For CLD2's raw answers, build the CLI (`cmake
 --build build/native/linux --target mozhi_bergamot_cli`) and run
-`build/native/linux/mozhi_bergamot_cli --detect < lines.txt`.
+`build/native/linux/mozhi_bergamot_cli --detect < lines.txt`;
+`mozhi_bergamot_cli --details MODEL SHORTLIST VOCAB < lines.txt` prints
+the alignment and quality JSON of a batch.
 
 Regenerate the catalog (streams every model once to compute checksums;
 cached afterwards):
