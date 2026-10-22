@@ -24,6 +24,7 @@ import 'package:mozhi/platform/secure_screen_listener.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
 import 'package:mozhi/platform/system_bars.dart';
 import 'package:mozhi/presets/view/presets_providers.dart';
+import 'package:mozhi/presets/widgets/saved_glossaries_binding.dart';
 import 'package:mozhi/quick_translate/quick_translate_host.dart';
 import 'package:mozhi/quick_translate/view/quick_translate_sheet.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
@@ -288,59 +289,61 @@ class _AppState extends State<App> {
         ],
         child: PresetsProviders(
           store: _deps.preferences,
-          child: SecureScreenListener(
-            child: HistoryRetentionListener(
-              child: MultiBlocListener(
-                listeners: [
-                  BlocListener<SettingsCubit, AppSettings>(
-                    listenWhen: privacyChanged,
-                    listener: (context, settings) =>
-                        _onPrivacyChanged(settings),
-                  ),
-                  BlocListener<SettingsCubit, AppSettings>(
-                    listenWhen: engineConfigurationChanged,
-                    listener: (context, settings) =>
-                        _applyEngineConfiguration(settings),
-                  ),
-                ],
-                child: BlocBuilder<SettingsCubit, AppSettings>(
-                  buildWhen: appearanceChanged,
-                  builder: (context, settings) => DynamicColorBuilder(
-                    builder: (lightDynamic, darkDynamic) {
-                      final themes = AppThemes.fromSettings(
-                        settings,
-                        lightDynamic: lightDynamic,
-                        darkDynamic: darkDynamic,
-                      );
-                      return MaterialApp.router(
-                        onGenerateTitle: (context) => context.l10n.appTitle,
-                        debugShowCheckedModeBanner: false,
-                        scaffoldMessengerKey: _messengerKey,
-                        theme: themes.light,
-                        darkTheme: themes.dark,
-                        themeMode: settings.themeMode,
-                        // Null follows the device ("System default").
-                        locale: AppLanguages.resolve(settings.appLocale),
-                        localeListResolutionCallback:
-                            AppLanguages.resolveDeviceLocales,
-                        localizationsDelegates: appLocalizationsDelegates,
-                        supportedLocales: AppLanguages.supported,
-                        routerConfig: _router,
-                        // Transparent system bars whose icons follow the
-                        // theme (edge to edge on Android).
-                        builder: (context, child) => SystemBarsStyle(
-                          child: SettingsSaveFailureListener(
-                            messengerKey: _messengerKey,
-                            child: UsageWarningListener(
-                              tracker: _deps.usageTracker,
+          child: SavedGlossariesBinding(
+            child: SecureScreenListener(
+              child: HistoryRetentionListener(
+                child: MultiBlocListener(
+                  listeners: [
+                    BlocListener<SettingsCubit, AppSettings>(
+                      listenWhen: privacyChanged,
+                      listener: (context, settings) =>
+                          _onPrivacyChanged(settings),
+                    ),
+                    BlocListener<SettingsCubit, AppSettings>(
+                      listenWhen: engineConfigurationChanged,
+                      listener: (context, settings) =>
+                          _applyEngineConfiguration(settings),
+                    ),
+                  ],
+                  child: BlocBuilder<SettingsCubit, AppSettings>(
+                    buildWhen: appearanceChanged,
+                    builder: (context, settings) => DynamicColorBuilder(
+                      builder: (lightDynamic, darkDynamic) {
+                        final themes = AppThemes.fromSettings(
+                          settings,
+                          lightDynamic: lightDynamic,
+                          darkDynamic: darkDynamic,
+                        );
+                        return MaterialApp.router(
+                          onGenerateTitle: (context) => context.l10n.appTitle,
+                          debugShowCheckedModeBanner: false,
+                          scaffoldMessengerKey: _messengerKey,
+                          theme: themes.light,
+                          darkTheme: themes.dark,
+                          themeMode: settings.themeMode,
+                          // Null follows the device ("System default").
+                          locale: AppLanguages.resolve(settings.appLocale),
+                          localeListResolutionCallback:
+                              AppLanguages.resolveDeviceLocales,
+                          localizationsDelegates: appLocalizationsDelegates,
+                          supportedLocales: AppLanguages.supported,
+                          routerConfig: _router,
+                          // Transparent system bars whose icons follow the
+                          // theme (edge to edge on Android).
+                          builder: (context, child) => SystemBarsStyle(
+                            child: SettingsSaveFailureListener(
                               messengerKey: _messengerKey,
-                              providerName: _providerName,
-                              child: child ?? const SizedBox.shrink(),
+                              child: UsageWarningListener(
+                                tracker: _deps.usageTracker,
+                                messengerKey: _messengerKey,
+                                providerName: _providerName,
+                                child: child ?? const SizedBox.shrink(),
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
                 ),
               ),

@@ -210,6 +210,26 @@ class TranslationRepository {
       'single valid JSON object in the requested schema: no prose, no '
       'Markdown, no code fences.';
 
+  /// The user's saved glossaries (Settings > AI > Glossaries) for a
+  /// language pair: their terms and the keys that are case-sensitive.
+  /// Every translation ([translate], [compare], [refine],
+  /// [translateImage]) applies them together with the request's own
+  /// `TranslationOptions.glossary`, whose terms win on the same source
+  /// term. Null (the default): only the request's glossary.
+  SavedGlossaryLookup? savedGlossaries;
+
+  /// [request] with the [savedGlossaries] of its language pair merged into
+  /// its options (see [mergeSavedGlossary]).
+  TranslationRequest _withSavedGlossaries(TranslationRequest request) {
+    final lookup = savedGlossaries;
+    if (lookup == null) return request;
+    final saved = lookup(request.source.code, request.target.code);
+    final options = mergeSavedGlossary(request.options, saved);
+    return identical(options, request.options)
+        ? request
+        : request.copyWith(options: options);
+  }
+
   void updateConfiguration({
     required List<MozhiInstance> instances,
     required List<AiProviderConfig> providers,
@@ -1183,8 +1203,9 @@ class TranslationRepository {
     required bool detectionHint,
   }) {
     if (request.text.trim().isEmpty) return const Stream.empty();
-    final safe = _sanitizeRequest(request);
-    if (safe == null) return Stream.error(_emptyCustomLanguage(request));
+    final sanitized = _sanitizeRequest(request);
+    if (sanitized == null) return Stream.error(_emptyCustomLanguage(request));
+    final safe = _withSavedGlossaries(sanitized);
     // Checked before the cache too: a network engine is not used (not even
     // its cached results) without the user's consent.
     final denied = _consentFor(
@@ -2789,8 +2810,9 @@ class TranslationRepository {
         'translate it again instead.',
       );
     }
-    final safe = _sanitizeRequest(request);
-    if (safe == null) throw _emptyCustomLanguage(request);
+    final sanitized = _sanitizeRequest(request);
+    if (sanitized == null) throw _emptyCustomLanguage(request);
+    final safe = _withSavedGlossaries(sanitized);
     _ensureAllowed(engine, source: safe.source.code, target: safe.target.code);
     final destination = _destinationFor(engine);
     // The text, its options, its translation and the instruction (which
@@ -3289,6 +3311,28 @@ class TranslationRepository {
     required Language source,
     required Language target,
     TranslationOptions options = const TranslationOptions(),
+  }) => _translateImage(
+    engine,
+    imageBytes,
+    mimeType: mimeType,
+    source: source,
+    target: target,
+    options: switch (savedGlossaries) {
+      final lookup? => mergeSavedGlossary(
+        options,
+        lookup(source.code, target.code),
+      ),
+      null => options,
+    },
+  );
+
+  Future<ImageTranslationResult> _translateImage(
+    TranslationEngine engine,
+    Uint8List imageBytes, {
+    required String mimeType,
+    required Language source,
+    required Language target,
+    required TranslationOptions options,
   }) async {
     if (engine.isAi) {
       final config = _extrasProviderFor(engine);

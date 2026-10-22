@@ -129,8 +129,9 @@ aren't detected.
 ### Glossaries with Mozhi and LibreTranslate
 
 Mozhi engines and LibreTranslate can't use a glossary, so the app applies
-it on the device: each glossary term in the text (inflected forms
-included, such as *Häuser* for *Haus*) goes to the engine as a placeholder
+it on the device: each glossary term in the text (as a whole word, in
+any case unless the term is case-sensitive or an acronym such as *IT*,
+and with a plain plural *s* or *es*) goes to the engine as a placeholder
 like `⟨1⟩`, which engines keep, and the app writes your translation of the
 term in its place. The engine never receives the glossary, and doesn't see
 the terms. When an engine damages a placeholder, the text is translated

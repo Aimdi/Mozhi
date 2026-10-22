@@ -301,6 +301,47 @@ void main() {
     expect(result.text, 'The building is big');
   });
 
+  group('saved glossaries', () {
+    test('apply to every translation of their pair', () async {
+      stubMozhi(toEnglish);
+      final pairs = <(String, String)>[];
+      repository.savedGlossaries = (source, target) {
+        pairs.add((source, target));
+        return (terms: const {'Haus': 'building'}, caseSensitive: const {});
+      };
+      final result = await repository
+          .translate(googleEngine, german('Das Haus ist groß', glossary: {}))
+          .single;
+      expect(pairs, [('de', 'en')]);
+      expect(sent.single, 'Das ⟨1⟩ ist groß');
+      expect(result.text, 'The building is big');
+    });
+
+    test("give way to the request's own terms", () async {
+      stubMozhi(toEnglish);
+      repository.savedGlossaries = (_, _) =>
+          (terms: const {'haus': 'house'}, caseSensitive: const {});
+      final result = await repository
+          .translate(googleEngine, german('Das Haus ist groß'))
+          .single;
+      expect(result.text, 'The building is big');
+    });
+
+    test('keep their case-sensitive terms exact', () async {
+      stubMozhi(toEnglish);
+      repository.savedGlossaries = (_, _) =>
+          (terms: const {'HAUS': 'HQ'}, caseSensitive: const {'HAUS'});
+      final result = await repository
+          .translate(
+            googleEngine,
+            german('Das Haus und die HAUS sind alt', glossary: {}),
+          )
+          .single;
+      expect(sent.single, 'Das Haus und die ⟨1⟩ sind alt');
+      expect(result.text, 'The Haus and the HQ are old');
+    });
+  });
+
   test('which engines apply glossaries', () {
     expect(googleEngine.supportsGlossary, isTrue);
     expect(mtEngine(libreConfig).supportsGlossary, isTrue);

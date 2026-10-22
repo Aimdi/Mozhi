@@ -369,8 +369,10 @@ options**.
 | Glossary | Term pairs that must always be translated the same way, e.g. product names |
 
 Mozhi engines and LibreTranslate apply only the glossary, on the device:
-its terms go to the engine as placeholders it keeps, are replaced by your
-renderings (matching inflections) and a term that couldn't be placed is
+its terms (whole words only, so *Bank* never matches *Bankett*; acronyms
+such as *IT* and case-sensitive terms in their exact case) go to the engine
+as placeholders it keeps, are replaced by your renderings and a term that
+couldn't be placed is
 flagged under the result. The DeepL API applies the tone, the context,
 formatting and the glossary; translation-only models (TranslateGemma,
 Hy-MT) and the on-device engine ignore them all. With such an engine the

@@ -257,8 +257,22 @@ class Glossary extends Equatable {
 /// language-pair glossaries beat one-sided ones, which beat any -> any
 /// glossaries; among equally specific glossaries the earlier one in the list
 /// wins, and within a glossary the first term wins. Keys and values are
-/// trimmed; notes and case flags are not part of the result.
+/// trimmed; notes and case flags are not part of the result (see
+/// [mergeActiveGlossaryTerms] for them).
 Map<String, String> mergeActiveGlossaries(
+  Iterable<Glossary> glossaries, {
+  required String sourceCode,
+  required String targetCode,
+}) => mergeActiveGlossaryTerms(
+  glossaries,
+  sourceCode: sourceCode,
+  targetCode: targetCode,
+).terms;
+
+/// [mergeActiveGlossaries] with the merged source terms that are
+/// case-sensitive ([GlossaryTerm.caseSensitive]), for
+/// `TranslationRepository.savedGlossaries`.
+SavedGlossary mergeActiveGlossaryTerms(
   Iterable<Glossary> glossaries, {
   required String sourceCode,
   required String targetCode,
@@ -296,5 +310,11 @@ Map<String, String> mergeActiveGlossaries(
       if (!term.caseSensitive) foldedInsensitive.add(folded);
     }
   }
-  return {for (final term in accepted) term.source: term.target};
+  return (
+    terms: {for (final term in accepted) term.source: term.target},
+    caseSensitive: {
+      for (final term in accepted)
+        if (term.caseSensitive) term.source,
+    },
+  );
 }

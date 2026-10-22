@@ -111,9 +111,10 @@ in `-rc.N`).
   `tool/mirror_models.py` fills a mirror, and the Caddy setup in `deploy/`
   serves it.
 - **Glossaries with Mozhi and LibreTranslate:** the terms are protected
-  on the device, translated your way and put back, matching inflections;
-  a term that couldn't be placed is flagged. Every engine but the
-  on-device one now applies glossaries.
+  on the device, translated your way and put back (whole words only, and
+  acronyms like *IT* or case-sensitive terms in their exact case); a term
+  that couldn't be placed is flagged. Every engine but the on-device one
+  and translation-only AI models now applies glossaries.
 - **Personal data stays hidden in the AI extras too:** alternatives,
   explanations, refining, meaning checks, dictionary look-ups, Proofread
   and image and document translation get placeholders instead of e-mail
@@ -258,6 +259,17 @@ in `-rc.N`).
   through a tunnel too, which Tor's HTTP tunnel port requires.
 - **Voice models** are checked against their SHA-256 fingerprint as well
   as their SHA-1 one.
+- **Saved glossaries apply.** The glossaries in Settings › AI ›
+  Glossaries weren't applied to translations; now every enabled glossary
+  applies to every translation of its language pair (also in
+  Documents, Conversation, Transcribe and photo translation), and the
+  terms you add in the options sheet win over them.
+- **Glossary terms no longer match other words:** *IT* no longer matches
+  "it", *Bank* no longer matches "Bankett", and a missing-term warning no
+  longer appears for words that only look like a term.
+- **Personal data:** e-mail addresses with accented letters
+  (`info@müller.de`) and IPv6 addresses are hidden from online engines
+  too.
 - **Redirects can't move your text or downloads elsewhere.** A Mozhi
   instance's redirect is only followed on the same server (or from http to
   https on it): a redirect to another server, which could have received
