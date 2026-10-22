@@ -29,7 +29,8 @@ class OverlayLabel {
   /// larger).
   final Rect fill;
 
-  /// Where the translation is laid out (centred vertically).
+  /// Where the translation is laid out (centred vertically): the
+  /// paragraph's box, a little larger, inside [fill].
   final Rect textArea;
   final Color background;
   final Color foreground;
@@ -38,15 +39,18 @@ class OverlayLabel {
   final double blur;
   final TextPainter painter;
 
-  /// Paints the label on [canvas], whose units are image pixels.
+  /// Paints the label on [canvas], whose units are image pixels: [fill]
+  /// with soft edges, and [textArea] (which covers the original text)
+  /// solid, so no edge of the original shows through the blur.
   void paint(Canvas canvas) {
-    final paint = Paint()..color = background;
-    if (blur > 0) paint.maskFilter = MaskFilter.blur(BlurStyle.normal, blur);
+    final soft = Paint()..color = background;
+    if (blur > 0) soft.maskFilter = MaskFilter.blur(BlurStyle.normal, blur);
     canvas
       ..drawRRect(
         RRect.fromRectAndRadius(fill, Radius.circular(blur * 2)),
-        paint,
+        soft,
       )
+      ..drawRect(textArea, Paint()..color = background)
       ..save()
       ..clipRect(fill);
     painter.paint(
