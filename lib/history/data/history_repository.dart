@@ -122,11 +122,11 @@ class HistoryImport extends Equatable {
 /// being kept as ordinary entries. An entry merged with an ordinary one is
 /// ordinary.
 ///
-/// Retention (history auto-delete): [load], [add] and [importJson] take an
-/// optional `maxAge` and then also drop non-favourite entries created more
-/// than `maxAge` ago; [prune] applies a (new) `maxAge` right away.
-/// Favourites are always kept. [load] writes the pruned history back when
-/// it dropped expired entries.
+/// Retention (history auto-delete): [load], [add], [importJson] and
+/// [mergeBackup] take an optional `maxAge` and then also drop non-favourite
+/// entries created more than `maxAge` ago; [prune] applies a (new) `maxAge`
+/// right away. Favourites are always kept. [load] writes the pruned history
+/// back when it dropped expired entries.
 ///
 /// [toggleFavorite], [delete], [clear], [restore] and [restoreFavorite]
 /// apply no caps (and no retention), so an un-starred or restored entry
@@ -530,13 +530,21 @@ class HistoryRepository {
   /// from when it was last changed or later; entries only on one side are
   /// kept otherwise. Two look-ups of the same word and languages
   /// ([HistoryEntry.isSameLookUp]) become one, the newest, a favourite if
-  /// either was; the other leaves a tombstone. The result is sorted newest
-  /// first and capped like [importJson], without retention (the next
-  /// [load] applies it); the tombstones of both sides are kept (bounded by
-  /// [tombstoneMaxAge] and [maxTombstones]).
+  /// either was; the other leaves a tombstone. The tombstones of both sides
+  /// are kept (bounded by [tombstoneMaxAge] and [maxTombstones]).
+  ///
+  /// The result is sorted newest first, and this device's limits apply to
+  /// it as they would right after the merge: with [maxAge] (this device's
+  /// "Delete history automatically"), non-favourites created more than
+  /// [maxAge] ago are left out, from either side, and it is capped like
+  /// [importJson] (every favourite and the newest non-favourites). What
+  /// the limits leave out leaves no tombstone, as when they evict entries
+  /// here: a merge never brings back what they removed, and the history
+  /// exported next (the next sync's upload) doesn't hold it either.
   Future<List<HistoryEntry>> mergeBackup(
     List<HistoryEntry> entries, {
     List<HistoryTombstone> tombstones = const [],
+    Duration? maxAge,
   }) => _synchronized(() async {
     final local = await _current();
     final deleted = {...await _currentTombstones()};
@@ -559,7 +567,7 @@ class HistoryRepository {
       null => false,
     };
     final alive = byId.values.where((entry) => !isDeleted(entry));
-    final next = _capped(_normalized(alive, deleted));
+    final next = _capped(_withoutExpired(_normalized(alive, deleted), maxAge));
     final written = _entries = await _write(next);
     _tombstones = deleted;
     await _updateTombstones(deleted: const [], present: written, force: true);

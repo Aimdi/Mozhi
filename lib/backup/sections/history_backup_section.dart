@@ -11,13 +11,19 @@ import 'package:mozhi/history/models/history_entry.dart';
 /// [HistoryRepository.replaceAll], [BackupRestoreMode.merge]
 /// [HistoryRepository.mergeBackup] (the newer copy of an entry wins,
 /// tombstones keep deleted entries deleted).
+///
+/// A merge applies this device's "Delete history automatically": `maxAge`
+/// tells how long it keeps non-favourites (null, or a null result: for
+/// ever; it is asked at every merge, and a failure counts as for ever), so
+/// that a merge never brings back entries the retention deleted here.
 class HistoryBackupSection implements BackupSection, BackupItemCounter {
-  const new(this._repository);
+  const new(this._repository, {this._maxAge});
 
   /// The section's [id].
   static const sectionId = 'history';
 
   final HistoryRepository _repository;
+  final Future<Duration?> Function()? _maxAge;
 
   @override
   String get id => sectionId;
@@ -47,7 +53,21 @@ class HistoryBackupSection implements BackupSection, BackupItemCounter {
       case BackupRestoreMode.replace:
         await _repository.replaceAll(entries, tombstones: tombstones);
       case BackupRestoreMode.merge:
-        await _repository.mergeBackup(entries, tombstones: tombstones);
+        await _repository.mergeBackup(
+          entries,
+          tombstones: tombstones,
+          maxAge: await _retention(),
+        );
+    }
+  }
+
+  /// This device's retention; null (for ever) when it can't be read: the
+  /// history then applies it at its next load.
+  Future<Duration?> _retention() async {
+    try {
+      return await _maxAge?.call();
+    } on Object {
+      return null;
     }
   }
 

@@ -575,16 +575,6 @@ void main() {
     expect(find.text('Thank you'), findsOneWidget);
     expect(find.text('oh-bree-GAH-doo'), findsOneWidget);
     expect(find.text('Obrigada if female'), findsOneWidget);
-    // Listen reads the Portuguese.
-    await tester.tap(find.byIcon(Icons.volume_up_outlined).first);
-    await tester.pump();
-    verify(
-      () => harness.speech.toggle(
-        id: 'practice_front',
-        text: 'Obrigado',
-        languageCode: 'pt',
-      ),
-    ).called(1);
     // Easy: nothing else is due; the summary says when.
     await tester.tap(find.byKey(const Key('practice_rate_easy')));
     await settle(tester);

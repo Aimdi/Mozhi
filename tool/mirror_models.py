@@ -21,15 +21,20 @@ It reads the catalogues the app ships (exactly the files it can ask for):
   dictionary lib/dictionary/data/dictionary_catalog_data.dart (the
              dictionary packs of a GitHub release; empty until the first
              one, see docs/dictionary-packs.md)
+  phrasebook lib/phrasebook/data/starter_catalog_data.dart (the starter
+             phrasebooks of a GitHub release; empty until the first one,
+             see docs/phrasebook.md)
 
 and writes the layout the app downloads from (`bergamotMirrorUrl`,
-`whisperMirrorUrl`, `tessdataMirrorUrl`, `dictionaryPackDownloadUrls` in
-the packages), each file as published under its original name:
+`whisperMirrorUrl`, `tessdataMirrorUrl`, `dictionaryPackDownloadUrls`,
+`starterPhrasebookUrls` in the packages and the app), each file as
+published under its original name:
 
   OUT/bergamot/<source>-<target>/<version>/<name>.gz
   OUT/whisper/<name>
   OUT/tesseract/<code>.traineddata
   OUT/dictionary/<id>.mzd
+  OUT/phrasebooks/<id>.json.gz
 
 Point the app at the directory's URL (Settings > Translation engines >
 Model source > Custom mirror, e.g. https://example.org/models/; the web
@@ -45,19 +50,21 @@ can serve several app versions.
 
 Filters (combined: a file is mirrored when its kind is selected and it
 matches the filters of its kind):
-  --only KINDS        bergamot,whisper,tesseract,dictionary (default: all)
+  --only KINDS        bergamot,whisper,tesseract,dictionary,phrasebook
+                      (default: all)
   --languages CODES   Bergamot: the directions to and from English of
                       these languages (Mozilla codes, e.g. de, zh_hant;
                       `en` alone selects nothing); Tesseract: the data
                       reading these app languages (de, zh-TW, sr-Latn; a
                       language matches its primary subtag too);
-                      dictionary: the packs of these app languages (by
-                      primary subtag: pt-BR selects pt)
+                      dictionary and phrasebook: the packs of these app
+                      languages (by primary subtag: pt-BR selects pt)
   --pairs PAIRS       Bergamot directions, e.g. en-de,de-en
   --whisper IDS       Whisper model ids (tiny, base, silero-vad); the
                       models are multilingual, so --languages keeps them
   --tesseract CODES   Tesseract codes (deu, chi_sim)
   --dictionaries IDS  dictionary pack ids (es, en)
+  --phrasebooks IDS   starter phrasebook ids (pt, pt-de)
 
 Modes: --list prints the selected files and their total size without
 downloading; --verify checks the files already in OUT (no network).
@@ -89,7 +96,8 @@ BERGAMOT = REPO_ROOT / "packages/bergamot_translator/assets/catalog.json"
 WHISPER = REPO_ROOT / "packages/whisper_speech/assets/models.json"
 TESSERACT = REPO_ROOT / "packages/tesseract_ocr/assets/catalog.json"
 DICTIONARY = REPO_ROOT / "lib/dictionary/data/dictionary_catalog_data.dart"
-KINDS = ("bergamot", "whisper", "tesseract", "dictionary")
+PHRASEBOOK = REPO_ROOT / "lib/phrasebook/data/starter_catalog_data.dart"
+KINDS = ("bergamot", "whisper", "tesseract", "dictionary", "phrasebook")
 USER_AGENT = "Mozhi model mirror (+https://github.com/Aimdi/Mozhi)"
 ATTEMPTS = 3
 RETRY_DELAY = 1.0
@@ -244,10 +252,35 @@ def dictionary_files(catalog: dict) -> list[MirrorFile]:
     return files
 
 
+def phrasebook_files(catalog: dict) -> list[MirrorFile]:
+    """The packs of the starter phrasebook catalogue (`starterPhrasebookUrls`
+    layout: `phrasebooks/<id>.json.gz`)."""
+    files = []
+    for pack in catalog.get("packs", []):
+        pack_id = pack.get("id")
+        if not isinstance(pack_id, str) or not _PACK_ID.match(pack_id):
+            raise CatalogError(f"invalid phrasebook id: {pack_id!r}")
+        name = f"{pack_id}.json.gz"
+        if _last_segment(pack.get("url", "")) != name:
+            raise CatalogError(f"the URL of phrasebook {pack_id} must name {name}")
+        files.append(
+            MirrorFile(
+                kind="phrasebook",
+                path=f"phrasebooks/{name}",
+                url=pack["url"],
+                size=_size(pack.get("size"), name),
+                sha256=_hex(pack.get("sha256"), 64, f"SHA-256 of {name}"),
+                label=pack_id,
+            )
+        )
+    return files
+
+
 def read_dictionary_catalog(path: Path) -> dict:
-    """The dictionary catalogue: `dictionary_catalog.json` itself, or the
-    Dart file the app bundles it in (`dictionaryCatalogJson = '''...'''`,
-    with `\\` and `\\$` escaped, written by tool/dictionary_packs.py)."""
+    """The dictionary (or starter phrasebook) catalogue: the JSON file
+    itself, or the Dart file the app bundles it in (`... = '''...'''`,
+    with `\\` and `\\$` escaped, written by tool/dictionary_packs.py and
+    tool/phrasebooks.py)."""
     text = path.read_text(encoding="utf-8")
     if path.suffix != ".dart":
         return json.loads(text)
@@ -321,6 +354,17 @@ def select(args: argparse.Namespace, catalogs: dict[str, dict]) -> list[MirrorFi
                 if not (by_id or primary in app):
                     continue
             selected += dictionary_files({"packs": [pack]})
+
+    if "phrasebook" in kinds:
+        phrasebooks = _codes(args.phrasebooks)
+        app = {_app_key(code).split("-")[0] for code in languages or ()}
+        for pack in catalogs["phrasebook"].get("packs", []):
+            if phrasebooks is not None or languages is not None:
+                by_id = phrasebooks is not None and pack.get("id") in phrasebooks
+                primary = _app_key(str(pack.get("language", ""))).split("-")[0]
+                if not (by_id or primary in app):
+                    continue
+            selected += phrasebook_files({"packs": [pack]})
 
     paths = [file.path for file in selected]
     if len(paths) != len(set(paths)):
@@ -444,12 +488,14 @@ def load_catalogs(args: argparse.Namespace) -> dict[str, dict]:
             catalogs[kind] = json.loads(Path(path).read_text(encoding="utf-8"))
         except (OSError, ValueError) as error:
             raise CatalogError(f"cannot read {path}: {error}") from error
-    try:
-        catalogs["dictionary"] = read_dictionary_catalog(Path(args.dictionary_catalog))
-    except (OSError, ValueError) as error:
-        raise CatalogError(
-            f"cannot read {args.dictionary_catalog}: {error}"
-        ) from error
+    for kind, path in (
+        ("dictionary", args.dictionary_catalog),
+        ("phrasebook", args.phrasebook_catalog),
+    ):
+        try:
+            catalogs[kind] = read_dictionary_catalog(Path(path))
+        except (OSError, ValueError) as error:
+            raise CatalogError(f"cannot read {path}: {error}") from error
     return catalogs
 
 
@@ -461,13 +507,14 @@ def parser() -> argparse.ArgumentParser:
     )
     result.add_argument("out", type=Path, help="the mirror directory")
     result.add_argument(
-        "--only", help="kinds: bergamot,whisper,tesseract,dictionary"
+        "--only", help="kinds: bergamot,whisper,tesseract,dictionary,phrasebook"
     )
     result.add_argument("--languages", help="language codes, e.g. de,fr,ja")
     result.add_argument("--pairs", help="Bergamot directions, e.g. en-de,de-en")
     result.add_argument("--whisper", help="Whisper ids, e.g. tiny,silero-vad")
     result.add_argument("--tesseract", help="Tesseract codes, e.g. deu,chi_sim")
     result.add_argument("--dictionaries", help="dictionary pack ids, e.g. es,en")
+    result.add_argument("--phrasebooks", help="phrasebook ids, e.g. pt,pt-de")
     mode = result.add_mutually_exclusive_group()
     mode.add_argument("--list", action="store_true", help="only list the files")
     mode.add_argument(
@@ -481,6 +528,11 @@ def parser() -> argparse.ArgumentParser:
         "--dictionary-catalog",
         default=str(DICTIONARY),
         help="dictionary_catalog.json or the app's Dart file",
+    )
+    result.add_argument(
+        "--phrasebook-catalog",
+        default=str(PHRASEBOOK),
+        help="phrasebook_catalog.json or the app's Dart file",
     )
     return result
 

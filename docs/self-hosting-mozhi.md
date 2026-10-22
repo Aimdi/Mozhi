@@ -275,12 +275,15 @@ models/
 ├── bergamot/<source>-<target>/<version>/<name>.gz   e.g. bergamot/en-de/retrain_hr_…/model.ende.intgemm.alphas.bin.gz
 ├── whisper/<name>                                   e.g. whisper/ggml-tiny.bin, whisper/ggml-silero-v6.2.0.bin
 ├── tesseract/<code>.traineddata                     e.g. tesseract/deu.traineddata
-└── dictionary/<id>.mzd                              e.g. dictionary/es.mzd (offline dictionaries; `--only dictionary`, `--dictionaries es`)
+├── dictionary/<id>.mzd                              e.g. dictionary/es.mzd (offline dictionaries; `--only dictionary`, `--dictionaries es`)
+└── phrasebooks/<id>.json.gz                         e.g. phrasebooks/pt.json.gz (starter phrasebooks; `--only phrasebook`, `--phrasebooks pt`)
 ```
 
-The app asks for `<mirror>/bergamot/…`, `<mirror>/whisper/…` and
-`<mirror>/tesseract/…` (plain `GET`, with `Range` to resume; no cookies,
-nothing else).
+The app asks for `<mirror>/bergamot/…`, `<mirror>/whisper/…`,
+`<mirror>/tesseract/…`, `<mirror>/dictionary/…` and
+`<mirror>/phrasebooks/…` (plain `GET`, with `Range` to resume; no cookies,
+nothing else). The web app needs the mirror for dictionaries and starter
+phrasebooks: GitHub release downloads send no CORS headers.
 
 ### Fill it
 

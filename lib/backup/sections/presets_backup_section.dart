@@ -2,14 +2,22 @@ import 'package:mozhi/backup/data/backup_registry.dart';
 import 'package:mozhi/presets/data/presets_repository.dart';
 import 'package:mozhi/presets/models/preset.dart';
 
-/// The translation presets ([PresetCollection]), section `presets`.
+/// The translation presets ([PresetCollection]) with their deletion
+/// tombstones ([Tombstone]), section `presets`.
 ///
-/// Data (version 1): the presets' storage document
-/// (`PresetCollection.toJson`). [BackupRestoreMode.replace] makes it the
-/// presets. [BackupRestoreMode.merge] keeps this device's presets (and its
-/// default) and adds the backup's presets with other ids after them:
-/// presets carry no timestamps, so this device's copy of a preset wins,
-/// and one deleted here comes back when the backup still has it.
+/// Data (version 2): the presets' storage document
+/// (`PresetCollection.toJson`: presets with their `updatedAt`, the default,
+/// and when the order and the default last changed) plus `"tombstones":
+/// [Tombstone.toJson()...]`. Version 1 (the storage document without
+/// change times or tombstones) is still restored.
+///
+/// [BackupRestoreMode.replace] makes the backup the presets
+/// ([PresetsRepository.replaceAll]). [BackupRestoreMode.merge]
+/// ([PresetsRepository.mergeBackup]) keeps the newer copy of each preset,
+/// lets tombstones delete older copies, and takes the order and the
+/// default from the copy where they changed last; presets without change
+/// times (version 1, or not changed since) lose to every change and
+/// deletion, and on a tie this device's copy stays.
 class PresetsBackupSection implements BackupSection, BackupItemCounter {
   const new(this._repository);
 
@@ -22,11 +30,16 @@ class PresetsBackupSection implements BackupSection, BackupItemCounter {
   String get id => sectionId;
 
   @override
-  int get version => 1;
+  int get version => 2;
 
   @override
-  Future<Object?> export({required bool includeSecrets}) async =>
-      (await _repository.load()).toJson();
+  Future<Object?> export({required bool includeSecrets}) async {
+    final (:collection, :tombstones) = await _repository.backupData();
+    return {
+      ...collection.toJson(),
+      'tombstones': [for (final tombstone in tombstones) tombstone.toJson()],
+    };
+  }
 
   @override
   Future<void> restore(
@@ -34,30 +47,19 @@ class PresetsBackupSection implements BackupSection, BackupItemCounter {
     required int version,
     required BackupRestoreMode mode,
   }) async {
-    final backup = _parse(data, version);
+    final (:collection, :tombstones) = _parse(data, version);
     switch (mode) {
       case BackupRestoreMode.replace:
-        await _repository.save(backup);
+        await _repository.replaceAll(collection, tombstones: tombstones);
       case BackupRestoreMode.merge:
-        final local = await _repository.load();
-        final ids = {for (final preset in local.presets) preset.id};
-        await _repository.save(
-          PresetCollection(
-            presets: List.unmodifiable([
-              ...local.presets,
-              for (final preset in backup.presets)
-                if (!ids.contains(preset.id)) preset,
-            ]),
-            defaultId: local.defaultId ?? backup.defaultId,
-          ),
-        );
+        await _repository.mergeBackup(collection, tombstones: tombstones);
     }
   }
 
   @override
   int? countItems(Object? data, {required int version}) {
     try {
-      return _parse(data, version).presets.length;
+      return _parse(data, version).collection.presets.length;
     } on FormatException {
       return null;
     }
@@ -67,11 +69,21 @@ class PresetsBackupSection implements BackupSection, BackupItemCounter {
   Future<int> countLocalItems() async =>
       (await _repository.load()).presets.length;
 
-  PresetCollection _parse(Object? data, int version) {
+  ({PresetCollection collection, List<Tombstone> tombstones}) _parse(
+    Object? data,
+    int version,
+  ) {
     if (version > this.version) {
       throw FormatException('Presets data version $version is newer');
     }
-    return PresetCollection.tryParse(data) ??
+    final collection =
+        PresetCollection.tryParse(data) ??
         (throw const FormatException('Invalid presets data'));
+    return (
+      collection: collection,
+      tombstones: data is Map
+          ? Tombstone.parseList(data['tombstones'])
+          : const <Tombstone>[],
+    );
   }
 }

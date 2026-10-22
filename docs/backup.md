@@ -27,7 +27,8 @@ Sync and phone-to-phone transfer use the same format and the same parts
 | **Glossaries** | Your saved glossaries and their terms |
 | **Settings** | Everything under Settings: engines and instances, AI providers (without their keys), languages, privacy choices, appearance |
 | **API keys and passwords** | Only when you turn on **Include API keys and passwords**: the API keys and custom headers of your AI and translation providers, and the user names and passwords of instance addresses (`https://user:password@host`). Off by default |
-| **Phrasebook**, **Practice progress** | Your phrasebook collections and flashcard progress, in versions that have them |
+| **Phrasebook** | Your phrasebook collections, their phrases and notes (notes on favorites too), and a record of what you deleted. Not the starter phrasebooks: they download again |
+| **Practice progress** | Your flashcard progress, in versions that have it |
 
 You choose which parts go into a backup, and later which parts to restore.
 
@@ -102,10 +103,14 @@ in the backup:
 - **Settings:** this device's settings stay, privacy choices included; the
   AI providers, Mozhi instances and pinned languages you don't have are
   added, and the backup's API keys fill in keys missing here.
+- **Phrasebook:** phrases, collections and notes are matched by id; of one
+  on both sides the newer copy stays, and one deleted on either side stays
+  deleted unless it changed after it was deleted. A collection keeps the
+  phrases of both copies.
 
 **Replace my data** makes each chosen part exactly what the backup holds:
-history and favorites (with their deletion records), presets, glossaries
-and settings. Two things are kept: setup stays finished, and a provider or
+history and favorites (with their deletion records), presets, glossaries,
+settings and the phrasebook. Two things are kept: setup stays finished, and a provider or
 instance keeps this device's key or password when the backup has none for
 it. Replacing your history leaves no deletion records for what was here
 before, so another device you sync with keeps its entries.
