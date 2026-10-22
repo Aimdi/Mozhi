@@ -264,6 +264,7 @@ test.describe('routes render', () => {
     const categories = [
       'General',
       'Privacy & data',
+      'Backup & sync',
       'Translation engines',
       'AI',
       'Appearance',

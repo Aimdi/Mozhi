@@ -189,9 +189,9 @@ class GlossaryRepository {
   /// fails.
   Future<({List<Glossary> glossaries, DateTime? orderUpdatedAt})>
   _readDocument() async {
+    const none = (glossaries: <Glossary>[], orderUpdatedAt: null);
     final raw = await store.read(storageKey);
-    if (raw == null)
-      return (glossaries: const <Glossary>[], orderUpdatedAt: null);
+    if (raw == null) return none;
     try {
       final json = jsonDecode(raw);
       return (
@@ -199,7 +199,7 @@ class GlossaryRepository {
         orderUpdatedAt: parseOrderUpdatedAt(json),
       );
     } on FormatException {
-      return (glossaries: const <Glossary>[], orderUpdatedAt: null);
+      return none;
     }
   }
 

@@ -1,7 +1,7 @@
 import 'package:mozhi/presets/models/tombstone.dart';
 
-/// What [mergeCopies] returns: the merged [items], in order, and the
-/// [tombstones] (id → deleted at) that remain.
+/// What [mergeCopies] returns: the merged `items`, in order, and the
+/// `tombstones` (id → deleted at) that remain.
 typedef MergedCopies<T> = ({List<T> items, Map<String, DateTime> tombstones});
 
 /// Merges two copies of an ordered list of items with ids (this device's
