@@ -198,13 +198,12 @@ alone.
   names the detected language (**Detected: Dutch**), and the source picker
   lists it under **Detected**; tap it to choose another source language.
 - **Uncertain detection.** Short texts are hard to detect: "Gift", "Bank" or
-  "Hallo" are words in several languages. For a single short word, or when
-  the engine says it isn't sure, the label reads **Detected: Dutch?**, and
-  chips for the other likely languages (for example German or Afrikaans)
-  appear under the translation's actions; tap one to translate from that
-  language instead. With a
-  cloud AI model, input of up to three words also gets a second, small
-  detection request, so that a doubtful guess is caught.
+  "Hallo" are words in several languages. For a single short word, or when the
+  engine says it isn't sure, the label reads **Detected: Dutch?**, and chips
+  for the other likely languages (for example German or Afrikaans) appear
+  under the translation's actions; tap one to translate from that language
+  instead. With a cloud AI model, input of up to three words also gets a
+  second, small detection request, so that a doubtful guess is caught.
 - **Your languages count** (AI): for short texts the model is told which
   languages you recently translated from (the sources of your recent
   language pairs) and prefers them when a word could be in several
@@ -380,7 +379,7 @@ with an engine that ignores them.
 ## Presets
 
 **AI.** Like Kagi Translate's presets: a preset is a named set of translation
-options (style, formality, reading level, genders, context and formatting)
+options (style, tone, reading level, genders, context and formatting)
 that you apply in one tap. A few examples to start from are included, such
 as *Email to colleague (formal)*, *Chat with friends (casual)* and *Simple (A2
 reading level)*; edit, rename or delete them, add your own, and choose one to
@@ -559,10 +558,10 @@ Screen readers hear the verdict and the number of differences (or
   the word on the Dictionary tab and looks it up there straight away.
 - **The Dictionary tab** (**Look up a word**: *Meanings, pronunciation and
   examples from your AI provider.*): type a word or phrase in the composer
-  at the bottom, which works like Translate's: options (detail level,
-  languages and AI model), the word's language (or **Detect language**) and
-  the language of the translations, and the go button (**Look up**, or
-  Enter) at the end. The app bar shows the AI model in use (**AI model:
+  at the bottom, which works like Translate's. Its bar holds the options
+  (detail level, languages and AI model), the two languages (the word's, or
+  **Detect language**, and the one of the translations) and, at the end,
+  the go button (**Look up**, or Enter). The app bar shows the AI model in use (**AI model:
   …**); tap it to choose another. The search field takes the focus by
   itself only when you use a keyboard, or when the tab was opened from a
   shortcut or a link, so no keyboard pops up over the greeting.
@@ -603,11 +602,11 @@ Translate's: the options, the language (it picks the regional variety) and
 the go button at the end; the app bar shows the AI model in use (**AI
 model: …**).
 
-- In the options, choose the **Style** (General, Academic, Business, Casual, Creative, Email),
-  the **Correction level** (*Light*: clear mistakes only; *Standard*: also
-  awkward or unclear phrasing; *Comprehensive*: a thorough polish of wording,
-  flow and tone), **Formality**, the **Model**, and optionally add
-  **Context** such as "cover letter for a job application".
+- In the options, choose the **Style** (General, Academic, Business, Casual,
+  Creative, Email), the **Correction level** (*Light*: clear mistakes only;
+  *Standard*: also awkward or unclear phrasing; *Comprehensive*: a thorough
+  polish of wording, flow and tone), **Formality**, the **Model**, and
+  optionally add **Context** such as "cover letter for a job application".
 - **Reading level**: **As written** keeps the author's level; a CEFR level
   from A1 to C2 rewords the text for readers at that level.
 - **Variety**: **As written** keeps the author's spelling and vocabulary; or
@@ -633,8 +632,8 @@ model: …**).
 ## Image translation
 
 Translate text in photos and screenshots: tap **Camera** on the start screen
-(or the camera button in the text box), take a picture or pick one from
-your gallery, then choose how to translate it. The methods are offered in this
+(or the camera button in the text box), take a picture or pick one from your
+gallery, then choose how to translate it. The methods are offered in this
 order:
 
 - **On-device text recognition** (Android, recommended and selected by
@@ -698,9 +697,9 @@ reported before anything is uploaded.
 
 ## Documents
 
-Translate whole files instead of copying them piece by piece: tap
-**Document** on the start screen (or **More tools > Documents** in the ⋮
-menu), open a file (or paste its content), translate it with any engine, then save or share the
+Translate whole files instead of copying them piece by piece: tap **Document**
+on the start screen (or **More tools > Documents** in the ⋮ menu), open a file
+(or paste its content), translate it with any engine, then save or share the
 result. Supported formats:
 
 | Format | Extensions | What is kept |
@@ -719,9 +718,9 @@ progress shown as they finish; failed parts are retried.
 **More tools > Web page** (in the ⋮ menu) translates an article or a blog
 post: enter its address and press **Translate page**. Mozhi downloads the
 page, keeps only the readable text and translates it part by part with the
-engine and languages you choose. Switch between **Translation**, **Original** and **Side
-by side**, **Copy all** of it, or **Open original page** in your browser.
-Very large pages are cut after their first part.
+engine and languages you choose. Switch between **Translation**, **Original**
+and **Side by side**, **Copy all** of it, or **Open original page** in your
+browser. Very large pages are cut after their first part.
 
 In the web app this only works for sites that allow cross-origin requests
 (CORS), and most don't; use the Android app for those.
@@ -731,24 +730,23 @@ In the web app this only works for sites that allow cross-origin requests
 On Android, Mozhi can translate without any network with Mozilla's
 **Bergamot** engine and the **Firefox Translations** models (MPL-2.0), the
 ones Firefox uses for its built-in translation: about 55 languages, each to
-and from English, and between other languages through English. In
-**Settings > Translation engines > Offline languages** (or with the download
-button in the [language picker](#languages-and-detection)), download the
-languages you need once
-(about 50 MB to download and 73 MB on disk each; English is built in),
-update them when a newer model is out, and delete them when you no longer
-need them. With **Download over Wi-Fi only** on (the default), Mozhi asks
-before using mobile data or a metered network. Models come from Mozilla's
-storage (`storage.googleapis.com`) and are checked against bundled
-checksums before use; none of your text is sent. To keep the app from
-contacting that server at all (for example in **Offline only**), tap a
-language to copy the links of its files, download them on another device,
-copy them to the phone and use **Import from files**
+and from English, and between other languages through English. In **Settings >
+Translation engines > Offline languages** (or with the download button in the
+[language picker](#languages-and-detection)), download the languages you need
+once (about 50 MB to download and 73 MB on disk each; English is built in),
+update them when a newer model is out, and delete them when you no longer need
+them. With **Download over Wi-Fi only** on (the default), Mozhi asks before
+using mobile data or a metered network. Models come from Mozilla's storage
+(`storage.googleapis.com`) and are checked against bundled checksums before
+use; none of your text is sent. To keep the app from contacting that server at
+all (for example in **Offline only**), tap a language to copy the links of its
+files, download them on another device, copy them to the phone and use
+**Import from files**
 ([details](offline-engine.md#import-models-without-the-app-downloading-them)).
-After that, translation
-runs entirely on the phone, and results are marked **Offline**. Quality is
-below the best online engines, but it works on a plane and nothing leaves
-the device. Offline translation is not available on the web.
+After that, translation runs entirely on the phone, and results are marked
+**Offline**. Quality is below the best online engines, but it works on a plane
+and nothing leaves the device. Offline translation is not available on the
+web.
 
 ## History and favorites
 

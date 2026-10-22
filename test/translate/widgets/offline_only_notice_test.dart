@@ -33,10 +33,10 @@ const _noPacks =
     'offline.';
 const _web =
     'Offline translation isn’t available in the web app. Switch to Offline '
-    'first or Online in Settings › Privacy.';
+    'first or Online in Settings › Privacy & data.';
 const _device =
     'This device can’t run offline translation. Switch to Offline first or '
-    'Online in Settings › Privacy.';
+    'Online in Settings › Privacy & data.';
 const _needsNetwork = 'Offline only is on, and this engine needs the network.';
 
 /// Not the Android app (the web app: no on-device engine at all).

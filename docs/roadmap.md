@@ -41,74 +41,30 @@ gaps that matter:
   AI, dictionary data only from AI.
 - **Reach:** no image or file share target, quick translate opens the full
   app, no camera overlay, no continuous transcription.
-- **Continuity:** no encrypted backup or sync, favourites aren't a
+- **Continuity:** no encrypted backup or sync, favorites aren't a
   phrasebook, no learning tools.
 
-## Wave 1: trust, speed and transparency
+## Done: waves 1 and 2
 
-No new dependencies.
+Wave 1 (trust, speed and transparency) and wave 2 (feel like the best
+app) are built; the [changelog](../CHANGELOG.md) lists what changed
+(Unreleased).
 
-- **Translation QA:** placeholders, tags, URLs, numbers and glossary terms
-  are checked after every translation and protected for machine-translation
-  engines. AI engines regenerate once when the check fails.
-- **Echo, garbage and prompt-injection detection,** with automatic fallback
-  to an engine the privacy settings already allow, preferring on-device.
-- **PII shield:** e-mail addresses, phone numbers, IBANs and card numbers
-  are masked before any online request and restored afterwards.
-- **Network activity:** a local, text-free log of every request this
-  session, with destination, size and purpose.
-- **Faster failover:** short connect timeouts and long keep-alive. Startup
-  reads run in parallel. Secrets are written only when they change.
-- **Web build:** localisations are loaded on demand, and the fallback fonts
-  are self-hosted, so Google's font CDN no longer sees the user.
-- **Offline engine:** requests can be cancelled, models preload, pieces are
-  batched, debounce is shorter, alignment and confidence come from Bergamot,
-  "Translate on this device" is offered when the network fails, and a
-  memory budget unloads idle models.
-- **AI robustness:** transient errors retry before any output arrives.
-  Long texts keep finished parts, carry the previous translation and a
-  term map, and get per-chunk retries. Glossary matching understands word
-  boundaries and inflections. Ollama keeps its context size and warms up.
-- **Machine-translation engines:** long input is split for them too. DeepL
-  uses glossaries and the quality-optimised model. Short AI queries use
-  on-device language detection first.
-- **Android:** a share target for images and files, and quick translate in
-  a translucent sheet over the calling app.
+Carried over to later waves:
 
-## Wave 2: feel like the best app
-
-These items come from the UX review.
-
-- **Instant feel:** no debounce on paste or Enter, an immediate shimmer,
-  reserved row heights; the actions never jump.
-- **Desktop:** a stable two-pane editor with a language picker above each
-  pane.
-- **Short queries:** 1–3 word queries show alternatives, definitions and
-  synonyms inline.
-- **Refine and engines:** refine chips sit in view under the result, with
-  a visible "what changed" highlight. Fast/Best is the one engine control.
-- **History and Settings:** compact two-line History rows with highlighted
-  search matches; Settings in categories with search.
-- **Accessibility:** web semantics on, with the translation readable by
-  screen readers. A visible focus ring, controls with 3:1 outline contrast,
-  labelled navigation, logical tab order, shortcuts that don't fight the
-  browser.
-- **Consistency:** one composer pattern on Translate, Dictionary and
-  Proofread. Clearer error states with a one-tap alternative. Consistent
-  wording.
-- **First run:** onboarding fitted to the device (no "Offline first"
-  recommendation where there is no offline engine), with the fastest public
-  instance picked automatically.
-- **Delight:**
-  - a full-screen "Show" mode;
-  - word highlighting while Listen plays;
-  - tap a word for a mini dictionary;
-  - an animated swap;
-  - recent pairs on the empty screen;
-  - an "offline ✓" mark in the picker;
-  - a "Translate copied text?" chip on resume, never automatic.
+- **Delight:** word highlighting while Listen plays (it needs progress
+  events from the read-aloud engines) and a mini dictionary when you tap a
+  word in the translation.
 - **Store presence:** fresh screenshots, an accurate store text in all
   listing languages, F-Droid per-ABI builds and changelogs.
+- **Privacy follow-ups:** the personal data shield for the AI extras
+  (alternatives, insights, explain) and for read-aloud; on-device language
+  identification in the web app; glossary terms for Mozhi and
+  LibreTranslate engines; a connection timeout that also covers HTTPS
+  through a proxy.
+- **Not done on purpose:** measuring instance speed automatically during
+  setup. It contacts every listed volunteer server, so it stays a button
+  ("Find the fastest server").
 
 ## Wave 3: offline everywhere
 
@@ -132,7 +88,7 @@ These items come from the UX review.
 - **Encrypted backup** (Argon2id + AES-256-GCM, with no account), then
   end-to-end-encrypted sync to the user's own WebDAV/Nextcloud folder,
   then device-to-device pairing on the local network (QR code, X25519).
-- **Phrasebook:** collections built from favourites, history and the
+- **Phrasebook:** collections built from favorites, history and the
   dictionary; offline starter phrasebooks (Wikivoyage, CC BY-SA).
 - **Practice:** spaced-repetition flashcards (FSRS), CSV/Anki export, and
   pronunciation practice with on-device Whisper.

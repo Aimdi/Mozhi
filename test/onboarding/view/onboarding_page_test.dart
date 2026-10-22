@@ -422,7 +422,7 @@ void main() {
       expect(
         find.text(
           'AI translators are optional. You can add one later in '
-          'Settings › AI providers.',
+          'Settings › AI › AI providers.',
         ),
         findsOneWidget,
       );

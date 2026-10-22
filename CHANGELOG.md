@@ -107,8 +107,9 @@ in `-rc.N`).
   and the words it changed light up for a moment.
 - **Fast and Best:** once both are set up, one of them is always selected
   (the third state, your usual engine, is gone; you are moved to Fast or
-  Best). Picking an engine sets the engine of the selected mode. Every
-  engine has a short note on what it is good for.
+  Best). Picking an engine sets the engine of the selected mode. The engine
+  button names the engine only (an AI model's id is in the engine list),
+  and every engine there has a short note on what it is good for.
 - **Compare engines** starts at once, with the current translation as the
   first card. Engines with the same result share a card ("DeepL and Google
   agree"), words that differ are highlighted, and **Done** leaves.
@@ -118,7 +119,7 @@ in `-rc.N`).
   side sheet.
 - **The detected language** is shown in the language bar, no longer under
   the translation; an uncertain detection still offers the other likely
-  languages there.
+  languages under the translation.
 - **The character counter** appears from 80 % of the limit
   ("16,000 / 20,000").
 - **Wide screens** (840 dp and up) show two fixed panes from the start,
@@ -145,8 +146,9 @@ in `-rc.N`).
   are in Details; wide screens show the list beside the details.
 - **Settings:** Clear history and Delete all local data come last, in red,
   on Privacy & data; About has Run setup again and the licences.
-- **Dictionary and Proofread** use the same composer as Translate and show
-  the AI model in the app bar.
+- **Dictionary and Proofread** use the same composer as Translate, greet you
+  with "Look up a word" and "Check your writing", and show the AI model in
+  the app bar.
   - Dictionary: the search bar stays above the entry (no "New look-up"),
     the tabs are Meaning, Usage and Examples, the heart sits beside Listen,
     and Listen uses the entry's language.

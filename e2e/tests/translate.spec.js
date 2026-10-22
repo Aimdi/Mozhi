@@ -98,6 +98,12 @@ test('a refine chip refines the translation', async ({ page }) => {
   // Flutter web drops the chip's checkbox role, and when that happens is
   // timing dependent. Its checked state is covered by the widget tests.
   await expect(refine.getByLabel(/^Undo “More formal”/)).toBeVisible();
+  // The result's header names the refinement, with an × that undoes it.
+  await expect(
+    page
+      .getByRole('group', { name: /^French\b[\s\S]*Local AI \(mock\) · / })
+      .getByRole('button', { name: 'Undo “More formal”', exact: true }),
+  ).toBeVisible();
 });
 
 test('meaning check shows a verdict and its differences', async ({ page }) => {

@@ -33,8 +33,8 @@ goes anywhere else.
 ## Privacy modes
 
 **Settings > Privacy & data > Privacy mode** decides how willing the app is to
-send text over the network. The translation repository enforces it, not
-just the screens, and checks it before every request.
+send text over the network. The translation repository enforces it, not just
+the screens, and checks it before every request.
 
 | Mode | What happens |
 | --- | --- |
@@ -94,14 +94,14 @@ already allowed. A paid AI provider is never tried automatically.
 ### Personal data shield
 
 **Settings > Privacy & data > Hide personal data from online engines** (on by
-default) replaces e-mail addresses, phone numbers, IBANs (checked with
-their check digits), payment card numbers (checked with the Luhn
-algorithm) and IPv4 addresses with placeholders before the text goes to a
-Mozhi instance, an AI provider or a DeepL or LibreTranslate service, and
-puts them back into the translation on the device. The result says how
-many items stayed on the device. Language detection and back-translation
-for the meaning check are covered too. If an engine damages a placeholder,
-the text is **not** sent again unmasked: the result is marked instead.
+default) replaces e-mail addresses, phone numbers, IBANs (checked with their
+check digits), payment card numbers (checked with the Luhn algorithm) and IPv4
+addresses with placeholders before the text goes to a Mozhi instance, an AI
+provider or a DeepL or LibreTranslate service, and puts them back into the
+translation on the device. The result says how many items stayed on the
+device. Language detection and back-translation for the meaning check are
+covered too. If an engine damages a placeholder, the text is **not** sent
+again unmasked: the result is marked instead.
 
 It doesn't apply to the on-device engine, which never sends anything. Not
 yet covered: the AI extras (alternatives, word insights, explanations,
@@ -110,12 +110,12 @@ which receive the text as written. Names and addresses aren't detected.
 
 ### Network activity
 
-**Settings > Privacy & data > Network activity** lists every request the app made
-this session: when, to which host, why (translation, AI, speech, photo,
+**Settings > Privacy & data > Network activity** lists every request the app
+made this session: when, to which host, why (translation, AI, speech, photo,
 catalogue, model download, web page), how many bytes went each way, the
 answer's status, and whether it went through your proxy. It groups them by
-destination with a line on who can read what was sent, and has Clear and
-Copy summary actions.
+destination with a line on who can read what was sent, and has Clear and Copy
+summary actions.
 
 The log never records text, paths, query strings, request bodies or
 headers. It lives in memory only (the last 500 requests), is never saved
@@ -150,20 +150,20 @@ stores on the device and what the other party may keep.
 | **Check instances**, **Find the fastest server** (setup), **Test**, **Test connection**, **Browse models** | Each instance or provider, only when you ask | A version request, or a model list request with your key | The server's logs. |
 | Web app fonts | The server that hosts the web app: the release zip and the CI builds include the fonts for scripts the bundled font lacks (for example Chinese or Devanagari) and emoji. Only a web build made without `tool/web_fallback_fonts.py` ([building](building.md#web-build-self-hosted-fonts-and-deferred-languages)) fetches them from Google's `fonts.gstatic.com` | The font file name, so which scripts you read, and your IP address; not your text | The browser caches the font. |
 
-Text from other apps (text selection, the share sheet, the Quick Settings
-tile and widget) and links (`/translate?text=…`, `mozhi://…`) is treated
-like typed text and follows the same rules and prompts. Shared text and
-links never start a paid AI request on their own, even with **Instant
-translate** set to **Online engines and AI** (the quick-translate sheet of the selection menu translates
-right away, since you asked for it). Links to the dictionary, Proofread and
-the web page translator send nothing until you ask. In the web app, a
-translate link puts the text in the page address, which reaches the server
-that hosts the web app.
+Text from other apps (text selection, the share sheet, the Quick Settings tile
+and widget) and links (`/translate?text=…`, `mozhi://…`) is treated like typed
+text and follows the same rules and prompts. Shared text and links never start
+a paid AI request on their own, even with **Instant translate** set to
+**Online engines and AI** (the quick-translate sheet of the selection menu
+translates right away, since you asked for it). Links to the dictionary,
+Proofread and the web page translator send nothing until you ask. In the web
+app, a translate link puts the text in the page address, which reaches the
+server that hosts the web app.
 
-Nothing else: no update checks, no analytics, no remote configuration.
-Opening **Settings > Translation engines > Mozhi instances** contacts
-nothing; instances are checked only when you ask, and so are the servers
-behind **Find the fastest server** during setup.
+Nothing else: no update checks, no analytics, no remote configuration. Opening
+**Settings > Translation engines > Mozhi instances** contacts nothing;
+instances are checked only when you ask, and so are the servers behind **Find
+the fastest server** during setup.
 
 ## On your device
 
@@ -177,17 +177,16 @@ behind **Find the fastest server** during setup.
 | Offline language models | App storage (`<app files>/bergamot`) | About 50 MB to download and 73 MB on disk per language. Delete them under **Settings > Translation engines > Offline languages**. |
 | Text recognition data | App storage (`<app files>/tesseract`) | 0.4 to 12 MB per language (median 2.4 MB). Delete it under **Settings > Translation engines > Offline languages > Text recognition**. |
 
-**History encryption.** Each history value is encrypted with AES-256-GCM
-(a fresh nonce per write) under a 256-bit key generated on the device. On
-Android the key is kept in secure storage, wrapped by an Android Keystore
-key that never leaves the phone. In the **web app** the key has to be kept
-in the browser's storage next to the history (the web app's secure storage
-only lasts as long as the tab), so there the encryption protects little:
-anyone who can read the site's storage can read both. **Export history**
-writes plain, unencrypted JSON, and says so. **Export favorites** (on
-History's Favorites tab) writes a plain CSV file of your favorites; the
-app says that it isn't encrypted, and the file stays on the device unless
-you share it.
+**History encryption.** Each history value is encrypted with AES-256-GCM (a
+fresh nonce per write) under a 256-bit key generated on the device. On Android
+the key is kept in secure storage, wrapped by an Android Keystore key that
+never leaves the phone. In the **web app** the key has to be kept in the
+browser's storage next to the history (the web app's secure storage only lasts
+as long as the tab), so there the encryption protects little: anyone who can
+read the site's storage can read both. **Export history** writes plain,
+unencrypted JSON, and says so. **Export favorites** (on History's Favorites
+tab) writes a plain CSV file of your favorites; the app says that it isn't
+encrypted, and the file stays on the device unless you share it.
 
 **No backup, no device transfer.** The app opts out of cloud backup, and
 its backup rules exclude everything from Android 12+'s device-to-device
@@ -201,21 +200,21 @@ send it again. Memory also holds the last 20 read-aloud clips, the
 translations into extra target languages and the meaning check of the
 current translation. Closing the app clears them.
 
-**Delete all local data** (**Settings > Privacy & data**) deletes the history and
-its key, the settings with every key, header and password, presets,
+**Delete all local data** (**Settings > Privacy & data**) deletes the history
+and its key, the settings with every key, header and password, presets,
 glossaries, usage counters, speech settings, cached lists and the whole
-offline models folder (partial downloads included), clears what the app
-holds in memory, and starts setup again. Uninstalling the app removes all
-of it too. In the web app, clearing the site's data does the same.
+offline models folder (partial downloads included), clears what the app holds
+in memory, and starts setup again. Uninstalling the app removes all of it too.
+In the web app, clearing the site's data does the same.
 
 ## Screen, keyboard and clipboard
 
-- **Incognito** (**Settings > Privacy & data**): new translations and dictionary
-  look-ups are not saved to the history (one you heart is still saved),
-  and keyboards are asked not to learn what you type (Android's
+- **Incognito** (**Settings > Privacy & data**): new translations and
+  dictionary look-ups are not saved to the history (one you heart is still
+  saved), and keyboards are asked not to learn what you type (Android's
   `IME_FLAG_NO_PERSONALIZED_LEARNING`; keyboards may ignore it). API key
-  fields always ask that, whether incognito is on or not, and address and
-  key fields turn off autocorrect and suggestions.
+  fields always ask that, whether incognito is on or not, and address and key
+  fields turn off autocorrect and suggestions.
 - **Hide content in recents & block screenshots** (Android): sets
   `FLAG_SECURE` on the app's window, which also blocks screen recording and
   screen sharing of the app.
@@ -240,16 +239,14 @@ of it too. In the web app, clearing the site's data does the same.
   `http`. The Android app's platform networking (Java/Kotlin code and
   plugins) doesn't allow plain `http` at all.
 - **HTTP proxy** (**Settings > Privacy & data > Network > HTTP proxy**,
-  Android): every
-  request the app makes, including offline model downloads and the web
-  page translator, goes through the proxy you set (`host:port`), as a
+  Android): every request the app makes, including offline model downloads and
+  the web page translator, goes through the proxy you set (`host:port`), as a
   `CONNECT` tunnel, plain `http` included. For Tor, use Orbot's HTTP proxy,
-  `127.0.0.1:8118`. Requests to this device and your local network go
-  direct, since a proxy such as Tor couldn't reach them. A change applies
-  after restarting the app. Without a proxy, `.onion` and `.i2p` addresses
-  are refused before they are looked up, so their names don't leak to your
-  DNS resolver. SOCKS isn't supported. The web app uses the browser's
-  proxy.
+  `127.0.0.1:8118`. Requests to this device and your local network go direct,
+  since a proxy such as Tor couldn't reach them. A change applies after
+  restarting the app. Without a proxy, `.onion` and `.i2p` addresses are
+  refused before they are looked up, so their names don't leak to your DNS
+  resolver. SOCKS isn't supported. The web app uses the browser's proxy.
 - **Little to identify the app.** Requests send `User-Agent: Mozhi`
   (no version, no device details), no cookies (there is no cookie jar) and
   no `Referer`. The web page translator sends a desktop browser
@@ -259,29 +256,27 @@ of it too. In the web app, clearing the site's data does the same.
 
 ## Google code
 
-The default build, used for the GitHub releases, F-Droid and the Play
-bundle, contains no Google code: no ML Kit, Play services or Firebase
-(CI checks every APK). Offline translation uses Mozilla's **Bergamot**
-engine with the **Firefox Translations** models (MPL-2.0), the ones
-Firefox uses for its built-in translation; it runs entirely on the phone.
-**Translate offline** in Android's text selection menu uses only this
-engine, whatever the privacy mode, so the selected text never leaves the
-device.
-The models are downloaded from Mozilla's bucket on Google Cloud Storage
-(see the table above), only when you tap **Download** or **Update**, are
-checked against the SHA-256 checksums bundled with the app, and are never
-sent your text. With **Download over Wi-Fi only** on (the default), the app
-asks before using mobile data or a metered network. To keep the phone from
-contacting Google's servers at all, download the files on another computer
-and use **Import from files** on **Settings > Translation engines > Offline
-languages** instead
-([how](offline-engine.md#import-models-without-the-app-downloading-them)):
-an import contacts nothing, so it also works in **Offline only**.
+The default build, used for the GitHub releases, F-Droid and the Play bundle,
+contains no Google code: no ML Kit, Play services or Firebase (CI checks every
+APK). Offline translation uses Mozilla's **Bergamot** engine with the
+**Firefox Translations** models (MPL-2.0), the ones Firefox uses for its
+built-in translation; it runs entirely on the phone. **Translate offline** in
+Android's text selection menu uses only this engine, whatever the privacy
+mode, so the selected text never leaves the device. The models are downloaded
+from Mozilla's bucket on Google Cloud Storage (see the table above), only when
+you tap **Download** (on the offline languages page or in the language picker)
+or **Update**, are checked against the SHA-256 checksums bundled with the app,
+and are never sent your text. With **Download over Wi-Fi only** on (the
+default), the app asks before using mobile data or a metered network. To keep
+the phone from contacting Google's servers at all, download the files on
+another computer and use **Import from files** on **Settings > Translation
+engines > Offline languages** instead
+([how](offline-engine.md#import-models-without-the-app-downloading-them)): an
+import contacts nothing, so it also works in **Offline only**.
 
-Voice input can run without Google too: **Offline (Whisper)** in
-**Settings > Read aloud & voice > Voice input** recognises speech on the
-phone with OpenAI's
-Whisper models on whisper.cpp (MIT), downloaded from Hugging Face or
+Voice input can run without Google too: **Offline (Whisper)** in **Settings >
+Read aloud & voice > Voice input** recognises speech on the phone with
+OpenAI's Whisper models on whisper.cpp (MIT), downloaded from Hugging Face or
 imported from files ([voice input](voice-input.md)). The default **System
 speech recognition** is the phone's own recogniser, on most phones Google's,
 which is outside the app.
@@ -307,9 +302,9 @@ For translations that never leave hardware you control, use any of:
 - a local AI model ([guide](ai-providers.md#local-models)).
 
 Add **Incognito**, **Device voice only** (**Settings > Read aloud & voice >
-Read aloud**) and **Offline (Whisper)** voice input (**Settings > Read aloud
-& voice > Voice input**) to keep
-history, speech and dictation on the device too. See [Security](security.md) for how the app
-protects keys and handles text from other apps and links.
+Read aloud**) and **Offline (Whisper)** voice input (**Settings > Read aloud &
+voice > Voice input**) to keep history, speech and dictation on the device
+too. See [Security](security.md) for how the app protects keys and handles
+text from other apps and links.
 
 The app is open source (MIT); you can check all of the above in the code.

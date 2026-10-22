@@ -6491,7 +6491,7 @@
       }
     }
   },
-  "onboardingLanguagesOfflineAuto": "With Detect language, also download the languages you translate from. You can add them later in Settings › Offline languages.",
+  "onboardingLanguagesOfflineAuto": "With Detect language, also download the languages you translate from. You can add them later in Settings › Translation engines › Offline languages.",
   "@onboardingLanguagesOfflineAuto": {
     "description": "onboardingLanguagesOfflineAuto"
   },
@@ -6527,7 +6527,7 @@
   "@onboardingOnlineOfflineOnly": {
     "description": "onboardingOnlineOfflineOnly"
   },
-  "onboardingAiLaterSettings": "AI translators are optional. You can add one later in Settings › AI providers.",
+  "onboardingAiLaterSettings": "AI translators are optional. You can add one later in Settings › AI › AI providers.",
   "@onboardingAiLaterSettings": {
     "description": "onboardingAiLaterSettings"
   },
@@ -6856,7 +6856,7 @@
   "@offlineManualHint": {
     "description": "offlineManualHint"
   },
-  "voiceErrorOfflineModel": "Voice input needs the offline speech model. Download or import it in Settings › Voice input.",
+  "voiceErrorOfflineModel": "Voice input needs the offline speech model. Download or import it in Settings › Read aloud & voice › Voice input.",
   "@voiceErrorOfflineModel": {
     "description": "voiceErrorOfflineModel"
   },
@@ -7297,7 +7297,7 @@
   "@voiceInputCancelStart": {
     "description": "voiceInputCancelStart"
   },
-  "voiceErrorUnavailableOfflineModel": "There’s no speech recognition service on this device. Download the offline speech model in Settings › Voice input to use voice input.",
+  "voiceErrorUnavailableOfflineModel": "There’s no speech recognition service on this device. Download the offline speech model in Settings › Read aloud & voice › Voice input to use voice input.",
   "@voiceErrorUnavailableOfflineModel": {
     "description": "voiceErrorUnavailableOfflineModel"
   },
@@ -7800,11 +7800,11 @@
   "@translateOfflineOnlyNoLanguagePacks": {
     "description": "Privacy mode is Offline only and no offline language pack is downloaded (Android)"
   },
-  "translateOfflineOnlyWebUnavailable": "Offline translation isn’t available in the web app. Switch to Offline first or Online in Settings › Privacy.",
+  "translateOfflineOnlyWebUnavailable": "Offline translation isn’t available in the web app. Switch to Offline first or Online in Settings › Privacy & data.",
   "@translateOfflineOnlyWebUnavailable": {
     "description": "Privacy mode is Offline only in the web app, which has no on-device engine"
   },
-  "translateOfflineOnlyDeviceUnsupported": "This device can’t run offline translation. Switch to Offline first or Online in Settings › Privacy.",
+  "translateOfflineOnlyDeviceUnsupported": "This device can’t run offline translation. Switch to Offline first or Online in Settings › Privacy & data.",
   "@translateOfflineOnlyDeviceUnsupported": {
     "description": "Privacy mode is Offline only on an Android device whose processor cannot run the offline engine"
   },

@@ -234,7 +234,7 @@ the Settings, Quality modes, Usage, Dictionary and Documents routes
 with an AI provider, a refinement chip, the meaning check, translate
 links (`/translate?text=…&from=…&to=…` fills in the screen but sends no AI
 request on its own), proofreading (applying and reverting edits, the
-writing statistics), History (favourites, search, delete with Undo),
+writing statistics), History (favorites, search, delete with Undo),
 settings round trips (Save history off, the dark theme after a reload),
 swapping languages and the recent language pairs, translation memory
 ("From your history") and friendly errors when the servers are
@@ -276,10 +276,11 @@ Writing tests:
 - Import `test` from `./helpers`, not from `@playwright/test`: it fails a
   test whose page logs a Content Security Policy violation.
 
-- Flutter web renders to a canvas. The specs turn on its semantics tree
-  (`enableSemantics` in `e2e/tests/helpers.js`), then use role and label
-  selectors (`getByRole('button', { name: 'More tools' })`), i.e. the
-  widgets' semantic labels and localised (English) strings. Avoid
+- Flutter web renders to a canvas. The app turns on its semantics tree at
+  startup on the web (`ensureSemantics` in `lib/bootstrap.dart`); the specs
+  wait for it (`waitForSemantics` in `e2e/tests/helpers.js`), then use role
+  and label selectors (`getByRole('button', { name: 'More tools' })`), i.e.
+  the widgets' semantic labels and localised (English) strings. Avoid
   coordinates.
 - A read-only text, such as the translation, is not in the DOM: the
   `copiedTranslation` helper presses Copy and reads the clipboard. An

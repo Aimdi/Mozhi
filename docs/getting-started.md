@@ -258,7 +258,7 @@ downloaded yet, the sheet names it with its size, and its **Download**
 button opens **Settings > Translation engines > Offline languages**; select
 the text again once
 it's there. **Replace** works the same; **Open in app** continues in the
-full translator with your usual engine.
+full translator with your current engine.
 
 **Share sheet.** Use **Share** in any app and pick **Mozhi** to translate the
 shared text.
