@@ -147,7 +147,7 @@ void main() {
     testWidgets('options the engine applies carry no reason', (tester) async {
       await _open(tester);
       expect(find.text('AI engines only'), findsNothing);
-      expect(find.text('AI engines and DeepL only'), findsNothing);
+      expect(find.text('AI engines and the DeepL API only'), findsNothing);
     });
 
     testWidgets('reading level dropdown sets the level', (tester) async {
@@ -649,11 +649,11 @@ void main() {
       }
       // Each ignored option is greyed with the reason.
       expect(find.text('AI engines only'), findsNWidgets(4));
-      expect(find.text('AI engines and DeepL only'), findsNWidgets(3));
+      expect(find.text('AI engines and the DeepL API only'), findsNWidgets(3));
       expect(
         find.text(
           'Keep line breaks, Markdown, links and placeholders\n'
-          'AI engines and DeepL only',
+          'AI engines and the DeepL API only',
         ),
         findsOneWidget,
       );
@@ -686,7 +686,7 @@ void main() {
       );
       // Only what DeepL ignores is greyed.
       expect(find.text('AI engines only'), findsNWidgets(4));
-      expect(find.text('AI engines and DeepL only'), findsNothing);
+      expect(find.text('AI engines and the DeepL API only'), findsNothing);
       expect(
         find.byKey(const ValueKey('translate_options_ignored:Style')),
         findsOneWidget,

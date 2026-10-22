@@ -343,7 +343,8 @@ void main() {
         find.byKey(const Key('translate_engine_selector')),
       );
       final toggle = tester.getRect(_toggle);
-      expect(toggle.left, greaterThanOrEqualTo(selector.right));
+      // Fast | Best is the primary engine control: it comes first.
+      expect(toggle.right, lessThanOrEqualTo(selector.left));
     });
 
     testWidgets('uses the menu on narrow phones', (tester) async {

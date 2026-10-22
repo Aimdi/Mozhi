@@ -133,7 +133,11 @@ class ComparePanel extends StatelessWidget {
           comparing: state.comparing,
           baseline: baseline,
         );
-        final asked = entries.where((e) => e.result != baseline).toList();
+        // The engines asked: all but the current translation's, which is
+        // not translated again (a failure has no result).
+        final asked = entries
+            .where((e) => e.result == null || e.result != baseline)
+            .toList();
         final finished = !state.comparing && asked.isNotEmpty
             ? l10n.translateCompareFinished(
                 asked.where((e) => e.result != null).length,
@@ -167,17 +171,6 @@ class ComparePanel extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  if (idle) ...[
-                    FilledButton.icon(
-                      key: const Key('translate_compare_button'),
-                      onPressed: state.input.trim().isEmpty
-                          ? null
-                          : () => unawaited(cubit.runCompare()),
-                      icon: const Icon(Icons.compare_arrows),
-                      label: Text(l10n.translateCompareButton),
-                    ),
-                    const SizedBox(width: 4),
-                  ],
                   Tooltip(
                     message: l10n.translateCompareModeExit,
                     child: TextButton(
@@ -191,7 +184,7 @@ class ComparePanel extends StatelessWidget {
                   ),
                 ],
               ),
-              if (idle)
+              if (idle) ...[
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(
@@ -200,8 +193,24 @@ class ComparePanel extends StatelessWidget {
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
-                )
-              else if (differs)
+                ),
+                // Under the hint, not in the header: the header keeps room
+                // for the title and Done at large text sizes.
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: FilledButton.icon(
+                      key: const Key('translate_compare_button'),
+                      onPressed: state.input.trim().isEmpty
+                          ? null
+                          : () => unawaited(cubit.runCompare()),
+                      icon: const Icon(Icons.compare_arrows),
+                      label: Text(l10n.translateCompareButton),
+                    ),
+                  ),
+                ),
+              ] else if (differs)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(

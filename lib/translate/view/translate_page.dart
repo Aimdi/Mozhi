@@ -977,7 +977,12 @@ class _ComposerLayout extends StatelessWidget {
       margin: hero
           ? const EdgeInsets.fromLTRB(cardMargin, 8, cardMargin, cardMargin)
           : EdgeInsets.zero,
-      bar: _ordered(_FocusOrder.languages, const LanguageBar()),
+      // A tap on the language bar is not a tap outside the input (which
+      // would close the empty input and bring the greeting back first).
+      bar: TapRegion(
+        groupId: InputCard.tapGroup,
+        child: _ordered(_FocusOrder.languages, const LanguageBar()),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

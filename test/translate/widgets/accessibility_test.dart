@@ -564,6 +564,9 @@ void main() {
       await harness.pump(tester, child: const LanguageBar());
       await tester.tap(find.byKey(const Key('translate_target_button')));
       await tester.pumpAndSettle();
+      // The styles are behind the picker's Styles segment.
+      await tester.tap(find.text('Styles'));
+      await tester.pumpAndSettle();
       final chips = tester.widgetList<ChoiceChip>(find.byType(ChoiceChip));
       expect(chips, isNotEmpty);
       expect(chips.every((chip) => chip.showCheckmark ?? false), isTrue);
@@ -571,19 +574,19 @@ void main() {
   });
 
   group('B9 large text', () {
-    testWidgets('the engine selector drops its subtitle at 200 %', (
+    testWidgets('the engine selector shows only the engine at 200 %', (
       tester,
     ) async {
       final harness = TranslateHarness(state: translatedState());
-      await harness.pump(tester, child: const EngineSelectorButton());
-      expect(find.text('mozhi.example.org'), findsOneWidget);
       await harness.pump(
         tester,
         child: const EngineSelectorButton(),
         textScale: 2,
       );
+      // The instance and model details stay in the engine sheet.
       expect(find.text('mozhi.example.org'), findsNothing);
       expect(find.text('DeepL'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('sense numbers and list markers do not clip', (tester) async {
@@ -902,7 +905,7 @@ void main() {
         child: const SizedBox(height: 1600, child: TranslationOptionsSheet()),
         size: const Size(800, 2000),
       );
-      expect(find.bySemanticsLabel('Formality'), findsWidgets);
+      expect(find.bySemanticsLabel('Tone'), findsWidgets);
       expect(
         find.bySemanticsLabel(RegExp('^Reading level\nStandard')),
         findsOneWidget,

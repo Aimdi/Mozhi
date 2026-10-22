@@ -148,6 +148,12 @@ class InputCard extends StatefulWidget {
   /// Whether the tools row is left out (the empty screen's composer).
   final bool compact;
 
+  /// The tap region group of the field and its card ([TapRegion.groupId]):
+  /// the screen puts the composer around it (its language bar, options and
+  /// go button) in the same group, so a tap there is not a tap outside the
+  /// field.
+  static final Object tapGroup = Object();
+
   @override
   State<InputCard> createState() => _InputCardState();
 }
@@ -182,7 +188,7 @@ class _InputCardState extends State<InputCard> {
 
   /// The field and the rest of the card are one region for taps: a tap on
   /// the card's buttons is not a tap outside the field.
-  final Object _tapGroup = Object();
+  Object get _tapGroup => InputCard.tapGroup;
 
   late final Map<Type, Action<Intent>> _pasteActions = {
     PasteTextIntent: _MarkPasteAction(_markPaste),

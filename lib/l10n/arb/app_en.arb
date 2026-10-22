@@ -8776,7 +8776,7 @@
   "@translateOptionsAiOnly": {
     "description": "translateOptionsAiOnly"
   },
-  "translateOptionsAiOrDeeplOnly": "AI engines and DeepL only",
+  "translateOptionsAiOrDeeplOnly": "AI engines and the DeepL API only",
   "@translateOptionsAiOrDeeplOnly": {
     "description": "translateOptionsAiOrDeeplOnly"
   },
