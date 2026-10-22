@@ -332,6 +332,25 @@ void main() {
       );
     });
 
+    test('an oversized file from a mirror names the mirror', () async {
+      final mirror = Uri.parse('https://mirror.test/');
+      final client = MockClient(
+        (request) async => http.Response.bytes(List.filled(100000, 1), 200),
+      );
+      manager = OpfsModelManager(channel: worker, httpClient: client)
+        ..mirror = mirror;
+      await expectLater(
+        manager.install(ende.catalog),
+        throwsA(
+          isA<ModelChecksumException>().having(
+            (error) => error.message,
+            'message',
+            contains('from the mirror https://mirror.test/'),
+          ),
+        ),
+      );
+    });
+
     test('storage errors become FileSystemException', () async {
       worker.failNext['downloadWrite'] = const BergamotWorkerException(
         BergamotWorkerErrorKind.storage,
