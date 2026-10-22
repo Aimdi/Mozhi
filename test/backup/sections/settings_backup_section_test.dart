@@ -416,12 +416,19 @@ void main() {
         );
 
         final merged = await repository.load();
-        expect(merged.providers.map((p) => (p.id, p.apiKey, p.headers)), [
-          ('same', 'theirs-same', {'Authorization': 'Bearer theirs'}),
-          ('moved', null, <String, String>{}),
-          ('type', null, <String, String>{}),
-          ('service', null, <String, String>{}),
-          ('absent', null, <String, String>{}),
+        expect(merged.providers.map((p) => (p.id, p.apiKey)), [
+          ('same', 'theirs-same'),
+          ('moved', null),
+          ('type', null),
+          ('service', null),
+          ('absent', null),
+        ]);
+        expect(merged.providers.map((p) => p.headers).toList(), [
+          {'Authorization': 'Bearer theirs'},
+          isEmpty,
+          isEmpty,
+          isEmpty,
+          isEmpty,
         ]);
       });
 
@@ -656,7 +663,8 @@ void main() {
           'https://h.example/openai?api-version=1',
         ),
         ('https://h.example/v1#frag', 'https://h.example/v1'),
-        ('mailto:x', 'mailto:x'),
+        // Not a valid address: compared as written.
+        ('host.example:port', 'https://host.example:port'),
       ]) {
         expect(
           SettingsBackupSection.normalizedBaseUrl(url),

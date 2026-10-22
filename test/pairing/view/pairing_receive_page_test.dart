@@ -75,6 +75,9 @@ void main() {
     when(() => cubit.useAddress(any())).thenAnswer((_) async {});
     when(() => cubit.accept()).thenAnswer((_) async {});
     when(() => cubit.decline()).thenAnswer((_) async {});
+    when(
+      () => cubit.confirm(match: any(named: 'match')),
+    ).thenAnswer((_) async {});
   });
 
   Future<void> pump(WidgetTester tester, PairingReceiveState state) async {
@@ -212,9 +215,38 @@ void main() {
         find.text('Waiting for the other phone to choose what to send…'),
         findsOneWidget,
       );
+      // Asks whether the numbers match.
+      expect(
+        find.text('Does the other phone show the same number?'),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const Key('pairing_match')));
+      verify(() => cubit.confirm(match: true)).called(1);
+      await tester.tap(find.byKey(const Key('pairing_mismatch')));
+      verify(() => cubit.confirm(match: false)).called(1);
     });
 
-    testWidgets('shows the offer and takes the answer', (tester) async {
+    testWidgets('keeps the number up once it is confirmed', (tester) async {
+      await pump(
+        tester,
+        const PairingReceiveState(
+          step: PairingReceiveStep.connected,
+          sas: '042917',
+          numbersConfirmed: true,
+        ),
+      );
+      expect(find.text('042 917'), findsOneWidget);
+      expect(
+        find.text('Check that both phones show this number'),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('pairing_match')), findsNothing);
+      expect(find.byKey(const Key('pairing_mismatch')), findsNothing);
+    });
+
+    testWidgets('accepts only once the numbers are confirmed', (
+      tester,
+    ) async {
       await pump(
         tester,
         PairingReceiveState(
@@ -224,6 +256,38 @@ void main() {
           selected: const {PairingBackupItem.id, 'translation:de'},
         ),
       );
+      expect(
+        find.text('Does the other phone show the same number?'),
+        findsOneWidget,
+      );
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('pairing_accept')),
+        100,
+      );
+      final accept = tester.widget<FilledButton>(
+        find.byKey(const Key('pairing_accept')),
+      );
+      expect(accept.onPressed, isNull);
+      expect(find.byKey(const Key('pairing_accept_hint')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('pairing_accept')));
+      verifyNever(() => cubit.accept());
+      // Declining needs no numbers.
+      await tester.tap(find.byKey(const Key('pairing_decline')));
+      verify(() => cubit.decline()).called(1);
+    });
+
+    testWidgets('shows the offer and takes the answer', (tester) async {
+      await pump(
+        tester,
+        PairingReceiveState(
+          step: PairingReceiveStep.offer,
+          sas: '123456',
+          numbersConfirmed: true,
+          offered: offered,
+          selected: const {PairingBackupItem.id, 'translation:de'},
+        ),
+      );
+      expect(find.byKey(const Key('pairing_accept_hint')), findsNothing);
       expect(find.text('123 456'), findsOneWidget);
       expect(find.text('Your data'), findsOneWidget);
       expect(find.text('History and favorites, Settings'), findsOneWidget);
