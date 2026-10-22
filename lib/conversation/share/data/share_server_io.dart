@@ -753,7 +753,8 @@ class _ConnectionGate extends Stream<Socket> implements ServerSocket {
     try {
       address = socket.remoteAddress.address;
     } on Object {
-      // Closed already. coverage:ignore-start
+      // Closed already.
+      // coverage:ignore-start
       socket.destroy();
       return null;
       // coverage:ignore-end
@@ -852,7 +853,8 @@ class _CountedSocket extends Stream<Uint8List> implements Socket {
   bool setOption(SocketOption option, bool enabled) =>
       _socket.setOption(option, enabled);
 
-  // The HTTP server uses none of these. coverage:ignore-start
+  // The HTTP server uses none of these.
+  // coverage:ignore-start
   @override
   Future<void> close() {
     _close();
