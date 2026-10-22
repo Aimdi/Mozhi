@@ -91,6 +91,7 @@ class AppSettings extends Equatable {
     this.tabOrder = AppTab.values,
     this.rememberQuality = true,
     this.multilineInput = true,
+    this.maskPersonalData = true,
   });
 
   /// Tolerant counterpart of [toJson]: missing or invalid fields fall back to
@@ -170,6 +171,8 @@ class AppSettings extends Equatable {
       rememberQuality:
           _bool(json['rememberQuality']) ?? defaults.rememberQuality,
       multilineInput: _bool(json['multilineInput']) ?? defaults.multilineInput,
+      maskPersonalData:
+          _bool(json['maskPersonalData']) ?? defaults.maskPersonalData,
     );
   }
 
@@ -328,6 +331,14 @@ class AppSettings extends Equatable {
   /// new line).
   final bool multilineInput;
 
+  /// "Hide personal data from online engines": e-mail addresses, phone
+  /// numbers, IBANs, card numbers and IP addresses are replaced by
+  /// placeholders before a translation's text leaves the device, and put
+  /// back into the translation (`TranslationRepository.maskPersonalData`;
+  /// never for the offline engine). On by default: the data is restored
+  /// unchanged, and engines translate the text around it as well.
+  final bool maskPersonalData;
+
   /// The quality mode a start of the app begins in when [rememberQuality]
   /// is off: [QualityMode.fast] when a fast engine is chosen, else
   /// [QualityMode.off] (the usual engine).
@@ -381,6 +392,7 @@ class AppSettings extends Equatable {
     List<AppTab>? tabOrder,
     bool? rememberQuality,
     bool? multilineInput,
+    bool? maskPersonalData,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
@@ -421,6 +433,7 @@ class AppSettings extends Equatable {
       tabOrder: tabOrder ?? this.tabOrder,
       rememberQuality: rememberQuality ?? this.rememberQuality,
       multilineInput: multilineInput ?? this.multilineInput,
+      maskPersonalData: maskPersonalData ?? this.maskPersonalData,
     );
   }
 
@@ -481,6 +494,7 @@ class AppSettings extends Equatable {
       'tabOrder': [for (final tab in tabOrder) tab.name],
       'rememberQuality': rememberQuality,
       'multilineInput': multilineInput,
+      'maskPersonalData': maskPersonalData,
     };
   }
 
@@ -523,6 +537,7 @@ class AppSettings extends Equatable {
     tabOrder,
     rememberQuality,
     multilineInput,
+    maskPersonalData,
   ];
 }
 

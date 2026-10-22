@@ -5,13 +5,22 @@ import 'package:test/test.dart';
 
 import '../../helpers/fake_server.dart';
 
-OllamaClient _client(FakeServer server, {String? apiKey}) => OllamaClient(
+OllamaClient _client(
+  FakeServer server, {
+  String? apiKey,
+  String baseUrl = 'http://localhost:11434',
+  Duration? keepAlive,
+  OllamaContextSizes? contextSizes,
+}) => OllamaClient(
   LlmEndpoint(
     provider: LlmProvider.ollama,
-    baseUrl: Uri.parse('http://localhost:11434'),
+    baseUrl: Uri.parse(baseUrl),
     apiKey: apiKey,
   ),
   httpClient: server.client,
+  retryPolicy: LlmRetryPolicy.none,
+  keepAlive: keepAlive,
+  contextSizes: contextSizes ?? OllamaContextSizes(),
 );
 
 const _request = LlmRequest(
@@ -309,6 +318,245 @@ void main() {
                 .having((e) => e.message, 'message', contains('not found'))
                 .having((e) => e.isNotFound, 'isNotFound', isTrue),
           ),
+        );
+      });
+    });
+
+    group('sticky context size', () {
+      LlmRequest sized(int characters, {String model = 'qwen3:8b'}) =>
+          LlmRequest(
+            model: model,
+            messages: [LlmMessage.user('x' * characters)],
+          );
+
+      Future<List<Object?>> sentSizes(
+        OllamaClient client,
+        FakeServer server,
+        List<LlmRequest> requests,
+      ) async {
+        for (final request in requests) {
+          server.enqueue(FakeResponse.text(_ndjson([_line('', done: true)])));
+          await client.streamChat(request).drain<void>();
+        }
+        return [
+          for (final request in server.requests)
+            switch (request.json) {
+              {'options': {'num_ctx': final Object size}} => size,
+              _ => null,
+            },
+        ];
+      }
+
+      test('never shrinks for the same server and model', () async {
+        final server = FakeServer();
+        final sizes = OllamaContextSizes();
+        final client = _client(server, contextSizes: sizes);
+        expect(
+          await sentSizes(client, server, [
+            sized(10),
+            sized(20000),
+            sized(10),
+            sized(9000),
+          ]),
+          [8192, 32768, 32768, 32768],
+        );
+        expect(sizes.sizeOf(client.endpoint.baseUrl, 'qwen3:8b'), 32768);
+      });
+
+      test('is kept per model and server', () async {
+        final server = FakeServer();
+        final sizes = OllamaContextSizes();
+        final client = _client(server, contextSizes: sizes);
+        expect(
+          await sentSizes(client, server, [
+            sized(20000),
+            sized(10, model: 'gemma3:4b'),
+          ]),
+          [32768, 8192],
+        );
+        final other = FakeServer();
+        expect(
+          await sentSizes(
+            _client(
+              other,
+              baseUrl: 'http://192.168.1.5:11434',
+              contextSizes: sizes,
+            ),
+            other,
+            [sized(10)],
+          ),
+          [8192],
+        );
+      });
+
+      test('is shared by clients of the same server', () async {
+        final sizes = OllamaContextSizes();
+        final first = FakeServer();
+        await sentSizes(_client(first, contextSizes: sizes), first, [
+          sized(9000),
+        ]);
+        final second = FakeServer();
+        expect(
+          await sentSizes(
+            _client(
+              second,
+              baseUrl: 'http://localhost:11434/',
+              contextSizes: sizes,
+            ),
+            second,
+            [sized(10)],
+          ),
+          [16384],
+        );
+      });
+
+      test('a positive LlmRequest.contextWindow is sent as is and not '
+          'remembered', () async {
+        final server = FakeServer();
+        final sizes = OllamaContextSizes();
+        final client = _client(server, contextSizes: sizes);
+        expect(
+          await sentSizes(client, server, [
+            sized(10),
+            sized(10).copyWith(contextWindow: 65536),
+            sized(10).copyWith(contextWindow: 2048),
+            sized(10),
+          ]),
+          [8192, 65536, 2048, 8192],
+        );
+      });
+
+      test('clients share OllamaContextSizes.shared by default', () {
+        final client = OllamaClient(
+          LlmEndpoint(
+            provider: LlmProvider.ollama,
+            baseUrl: Uri.parse('http://localhost:11434'),
+          ),
+          httpClient: FakeServer().client,
+        );
+        expect(client.contextSizes, same(OllamaContextSizes.shared));
+        expect(client.keepAlive, isNull);
+      });
+    });
+
+    group('OllamaContextSizes', () {
+      test('raises, remembers and forgets sizes', () {
+        final sizes = OllamaContextSizes();
+        final base = Uri.parse('http://localhost:11434/');
+        expect(sizes.sizeOf(base, 'm'), isNull);
+        expect(sizes.raise(base, 'm', 8192), 8192);
+        expect(sizes.raise(base, ' m ', 4096), 8192);
+        expect(
+          sizes.raise(Uri.parse('http://localhost:11434'), 'm', 16384),
+          16384,
+        );
+        expect(sizes.sizeOf(base, 'm'), 16384);
+        sizes.clear();
+        expect(sizes.sizeOf(base, 'm'), isNull);
+      });
+    });
+
+    group('keepAlive', () {
+      Future<Object?> sentKeepAlive(Duration? keepAlive) async {
+        final server = FakeServer([
+          FakeResponse.text(_ndjson([_line('', done: true)])),
+        ]);
+        await _client(
+          server,
+          keepAlive: keepAlive,
+        ).streamChat(_request).drain<void>();
+        final json = server.lastRequest.json! as Map<String, Object?>;
+        return json.containsKey('keep_alive') ? json['keep_alive'] : 'absent';
+      }
+
+      test('is sent in whole seconds, -1 for forever', () async {
+        expect(await sentKeepAlive(null), 'absent');
+        expect(await sentKeepAlive(const Duration(minutes: 30)), 1800);
+        expect(await sentKeepAlive(const Duration(milliseconds: 1500)), 1);
+        expect(await sentKeepAlive(Duration.zero), 0);
+        expect(await sentKeepAlive(const Duration(seconds: -1)), -1);
+      });
+    });
+
+    group('warmUp', () {
+      test('loads the model with the size chat requests will use', () async {
+        final server = FakeServer([
+          FakeResponse.text(_ndjson([_line('', done: true)])),
+          FakeResponse.json({
+            'model': 'qwen3:8b',
+            'response': '',
+            'done': true,
+            'done_reason': 'load',
+          }),
+          FakeResponse.json({'model': 'gemma3:4b', 'done': true}),
+        ]);
+        final client = _client(
+          server,
+          apiKey: 'k',
+          keepAlive: const Duration(minutes: 10),
+        );
+        await client
+            .streamChat(
+              LlmRequest(
+                model: 'qwen3:8b',
+                messages: [LlmMessage.user('x' * 9000)],
+              ),
+            )
+            .drain<void>();
+
+        expect(await client.warmUp(' qwen3:8b '), isTrue);
+        final warm = server.requests[1];
+        expect(warm.method, 'POST');
+        expect(warm.url, Uri.parse('http://localhost:11434/api/generate'));
+        expect(warm.headers['authorization'], 'Bearer k');
+        expect(warm.headers['content-type'], 'application/json');
+        expect(warm.json, {
+          'model': 'qwen3:8b',
+          'stream': false,
+          'options': {'num_ctx': 16384},
+          'keep_alive': 600,
+        });
+        await expectLater(warm.abortTrigger, completes);
+
+        // A model not used yet gets the default size, which is remembered.
+        expect(await client.warmUp('gemma3:4b'), isTrue);
+        expect(
+          server.lastRequest.json,
+          containsPair('options', {'num_ctx': 8192}),
+        );
+        expect(
+          client.contextSizes.sizeOf(client.endpoint.baseUrl, 'gemma3:4b'),
+          8192,
+        );
+      });
+
+      test('answers false instead of throwing', () async {
+        final server = FakeServer([
+          FakeResponse.json({'error': 'model "x" not found'}, statusCode: 404),
+          FakeResponse.json({'error': 'still loading'}),
+          FakeResponse.text('not json'),
+        ]);
+        final client = _client(server);
+        expect(await client.warmUp('x'), isFalse);
+        expect(await client.warmUp('x'), isFalse);
+        expect(await client.warmUp('x'), isFalse);
+        // Nothing is sent without a model.
+        expect(await client.warmUp('  '), isFalse);
+        expect(server.requests, hasLength(3));
+        // Transport errors too (the fake server has no more answers).
+        expect(await client.warmUp('x'), isFalse);
+      });
+
+      test('omits keep_alive when none is set', () async {
+        final server = FakeServer([
+          FakeResponse.json({'done': true}),
+        ]);
+        expect(await _client(server).warmUp('m'), isTrue);
+        expect(
+          (server.lastRequest.json! as Map<String, Object?>).containsKey(
+            'keep_alive',
+          ),
+          isFalse,
         );
       });
     });

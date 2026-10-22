@@ -21,7 +21,7 @@ import 'package:llm_api/src/think_filter.dart';
 /// [LlmTruncatedException] and a body that ends without either raises
 /// [LlmInterruptedException].
 class OpenAiCompatibleClient extends HttpLlmClient {
-  new(super.endpoint, {super.httpClient, super.timeout});
+  new(super.endpoint, {super.httpClient, super.timeout, super.retryPolicy});
 
   @override
   Stream<String> streamChat(LlmRequest request) =>

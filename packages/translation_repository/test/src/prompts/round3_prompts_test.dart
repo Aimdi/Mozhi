@@ -582,7 +582,8 @@ void main() {
       expect(prompt, contains('- Tone notes: in the <formality_context> tags'));
       expect(prompt, isNot(contains('my buddy')));
       expect(prompt, contains('- Always translate "server" as "serveur"'));
-      expect(prompt, isNot(contains('nuage')));
+      // A small glossary is sent whole.
+      expect(prompt, contains('- Always translate "cloud" as "nuage"'));
       expect(
         prompt,
         contains(

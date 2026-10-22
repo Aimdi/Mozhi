@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 import 'package:mozhi/core/network/http_client_factory.dart';
@@ -15,15 +16,29 @@ http.Client createPlatformHttpClient({String? proxy}) {
   } on FormatException {
     return RefusingClient();
   }
+  return IOClient(createIoHttpClient(proxy: address));
+}
+
+/// The `dart:io` [HttpClient] under the client of `createHttpClient`, with
+/// [proxy] if any. [connectionTimeout] replaces [connectTimeout] or
+/// [proxyConnectTimeout] (tests).
+@visibleForTesting
+HttpClient createIoHttpClient({
+  ProxyAddress? proxy,
+  Duration? connectionTimeout,
+}) {
   final client = HttpClient()
     ..userAgent = appUserAgent
-    ..connectionTimeout = connectTimeout
+    ..connectionTimeout =
+        connectionTimeout ??
+        (proxy == null ? connectTimeout : proxyConnectTimeout)
+    ..idleTimeout = idleConnectionTimeout
     // Never the environment's or the system's proxy.
     ..findProxy = (_) => 'DIRECT';
-  if (address != null) {
-    routeThroughProxy(client, address, bypass: bypassesProxy);
+  if (proxy != null) {
+    routeThroughProxy(client, proxy, bypass: bypassesProxy);
   }
-  return IOClient(client);
+  return client;
 }
 
 /// Whether requests to [host] skip the proxy: this device and the private

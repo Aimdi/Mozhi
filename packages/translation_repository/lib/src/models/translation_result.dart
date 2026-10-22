@@ -1,6 +1,7 @@
 import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
 import 'package:translation_repository/src/models/data_destination.dart';
+import 'package:translation_repository/src/models/translation_warning.dart';
 
 const _list = ListEquality<Object?>();
 
@@ -56,6 +57,8 @@ class TranslationResult {
     this.detectionUncertain = false,
     this.detectedAlternatives = const [],
     this.destination,
+    this.warnings = const [],
+    this.maskedPersonalData = 0,
   });
 
   final String engineId;
@@ -97,23 +100,45 @@ class TranslationResult {
   /// destination it was produced with). Null for results built elsewhere.
   final DataDestination? destination;
 
+  /// What the checks after the translation found (`TranslationQa`: lost
+  /// placeholders, links or numbers, unused glossary terms, an echo of the
+  /// input, the wrong language, ...). Only final results are checked;
+  /// empty when nothing was found.
+  final List<TranslationWarning> warnings;
+
+  /// How many items of personal data (e-mail addresses, phone numbers,
+  /// IBANs, payment card numbers, IP addresses) were replaced by
+  /// placeholders before the text left the device, and put back into this
+  /// translation ("3 items kept on this device"). 0 when nothing was
+  /// masked.
+  final int maskedPersonalData;
+
+  /// Whether a warning makes this result suspect
+  /// ([TranslationWarningKind.isSuspect]): probably not a translation, so
+  /// another engine is worth a try.
+  bool get isSuspect => warnings.any((warning) => warning.isSuspect);
+
   TranslationResult copyWith({
     String? text,
     bool? isComplete,
     String? detectedSource,
+    String? sourceTransliteration,
+    String? targetTransliteration,
     Duration? elapsed,
     bool? fromCache,
     bool? detectionUncertain,
     List<String>? detectedAlternatives,
     DataDestination? destination,
+    List<TranslationWarning>? warnings,
+    int? maskedPersonalData,
   }) => TranslationResult(
     engineId: engineId,
     engineName: engineName,
     text: text ?? this.text,
     isComplete: isComplete ?? this.isComplete,
     detectedSource: detectedSource ?? this.detectedSource,
-    sourceTransliteration: sourceTransliteration,
-    targetTransliteration: targetTransliteration,
+    sourceTransliteration: sourceTransliteration ?? this.sourceTransliteration,
+    targetTransliteration: targetTransliteration ?? this.targetTransliteration,
     wordChoices: wordChoices,
     sourceSynonyms: sourceSynonyms,
     targetSynonyms: targetSynonyms,
@@ -122,6 +147,8 @@ class TranslationResult {
     detectionUncertain: detectionUncertain ?? this.detectionUncertain,
     detectedAlternatives: detectedAlternatives ?? this.detectedAlternatives,
     destination: destination ?? this.destination,
+    warnings: warnings ?? this.warnings,
+    maskedPersonalData: maskedPersonalData ?? this.maskedPersonalData,
   );
 
   @override
@@ -142,7 +169,9 @@ class TranslationResult {
           other.fromCache == fromCache &&
           other.detectionUncertain == detectionUncertain &&
           _list.equals(other.detectedAlternatives, detectedAlternatives) &&
-          other.destination == destination;
+          other.destination == destination &&
+          _list.equals(other.warnings, warnings) &&
+          other.maskedPersonalData == maskedPersonalData;
 
   @override
   int get hashCode => Object.hash(
@@ -161,7 +190,12 @@ class TranslationResult {
     detectionUncertain,
     _list.hash(detectedAlternatives),
     destination,
+    _list.hash(warnings),
+    maskedPersonalData,
   );
+
+  static String _kinds(List<TranslationWarning> warnings) =>
+      warnings.map((warning) => warning.kind.name).join('/');
 
   @override
   String toString() =>
@@ -169,7 +203,10 @@ class TranslationResult {
       'detected: $detectedSource'
       '${detectionUncertain ? ' (uncertain: $detectedAlternatives)' : ''}'
       '${fromCache ? ', cached' : ''}'
-      '${destination == null ? '' : ', to: $destination'}, text: $text)';
+      '${destination == null ? '' : ', to: $destination'}'
+      '${warnings.isEmpty ? '' : ', warnings: ${_kinds(warnings)}'}'
+      '${maskedPersonalData == 0 ? '' : ', masked: $maskedPersonalData'}'
+      ', text: $text)';
 }
 
 /// A result (or failure) from compare mode.

@@ -13,6 +13,7 @@ GeminiClient _client(FakeServer server, {String? apiKey = 'AIza-test'}) =>
         apiKey: apiKey,
       ),
       httpClient: server.client,
+      retryPolicy: LlmRetryPolicy.none,
     );
 
 const _request = LlmRequest(

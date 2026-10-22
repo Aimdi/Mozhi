@@ -65,7 +65,7 @@ class MozhiApiClient {
   new({
     required this.baseUrl,
     http.Client? httpClient,
-    this.timeout = const Duration(seconds: 30),
+    this.timeout = defaultTimeout,
   }) : _httpClient = httpClient ?? http.Client(),
        _ownsClient = httpClient == null,
        _authorization = _basicAuthorization(baseUrl.userInfo);
@@ -82,7 +82,16 @@ class MozhiApiClient {
   /// Upper bound for each request, from sending it until the whole response
   /// body has arrived, including any redirect hops. The request is aborted
   /// when it runs out, so it does not keep uploading or downloading.
+  ///
+  /// A request that runs out fails with `No response within N ms`: it may
+  /// have reached the server. A connection that cannot be made fails with
+  /// the [http.Client]'s own error instead (nothing was sent), so give the
+  /// client a connect timeout well below this one.
   final Duration timeout;
+
+  /// The default [timeout]: long enough for a slow engine, a long text or a
+  /// busy public instance.
+  static const defaultTimeout = Duration(seconds: 30);
   final http.Client _httpClient;
   final bool _ownsClient;
 

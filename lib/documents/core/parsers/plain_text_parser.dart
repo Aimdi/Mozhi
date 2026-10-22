@@ -1,8 +1,9 @@
 import 'package:mozhi/documents/core/document_builder.dart';
 import 'package:mozhi/documents/core/document_format.dart';
 import 'package:mozhi/documents/core/parsed_document.dart';
-import 'package:mozhi/documents/core/parsers/protected_patterns.dart';
 import 'package:mozhi/documents/core/source_line.dart';
+import 'package:translation_repository/translation_repository.dart'
+    show ProtectedPatterns;
 
 /// Plain text: every paragraph (run of non-blank lines) is one segment;
 /// blank lines, indentation and line endings are kept. URLs and e-mail

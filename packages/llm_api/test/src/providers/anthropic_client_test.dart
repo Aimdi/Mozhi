@@ -14,6 +14,7 @@ AnthropicClient _client(
     apiKey: apiKey,
   ),
   httpClient: server.client,
+  retryPolicy: LlmRetryPolicy.none,
 );
 
 LlmRequest _request([String model = 'claude-haiku-5-5']) => LlmRequest(

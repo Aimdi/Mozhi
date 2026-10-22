@@ -9,17 +9,34 @@ import 'package:mozhi/core/network/http_client_factory_io.dart'
 /// Browsers do not let the web app set it.
 const appUserAgent = 'Mozhi';
 
-/// How long connecting to a server (or to the proxy, including opening the
-/// tunnel through it) may take on native platforms.
-const connectTimeout = Duration(seconds: 30);
+/// How long connecting directly to a server (TCP and, for `https`, the TLS
+/// handshake) may take on native platforms.
+///
+/// Well below the Mozhi request timeout (`MozhiApiClient.defaultTimeout`),
+/// so that a server that drops packets fails as a connection error rather
+/// than a request timeout. Nothing was sent then, so the request fails over
+/// to the next Mozhi instance even when it carries the user's text, which a
+/// timeout never does (`MozhiPool.canFailOver`).
+const connectTimeout = Duration(seconds: 7);
+
+/// [connectTimeout] for a client with a proxy: connecting may include
+/// opening the tunnel through it (plain `http`), and Tor first has to build
+/// a circuit to the server.
+const proxyConnectTimeout = Duration(seconds: 20);
+
+/// How long a kept-alive connection may stay idle before it is closed on
+/// native platforms (`dart:io` defaults to 15 s): a pause in typing does
+/// not cost a new TCP and TLS handshake, which takes seconds through Tor.
+const idleConnectionTimeout = Duration(seconds: 90);
 
 /// Creates the HTTP client of the app. The one place where clients are
 /// made: every translation backend shares one (see `NetworkSession`).
 ///
 /// On Android (`dart:io`) it is a `dart:io` client that
 /// * keeps no cookies (it has no cookie jar) and sends no `Referer`,
-/// * sends `User-Agent:` [appUserAgent] and gives up connecting after
-///   [connectTimeout],
+/// * sends `User-Agent:` [appUserAgent], gives up connecting after
+///   [connectTimeout] ([proxyConnectTimeout] with a [proxy]) and keeps idle
+///   connections open for [idleConnectionTimeout],
 /// * ignores the `http_proxy` environment and the system proxy, and with
 ///   [proxy] (`host:port`, see [ProxyAddress.parse]) sends every request
 ///   through that HTTP proxy, except requests to this device and the

@@ -107,20 +107,46 @@ String offlineDownloadLabel(
 void openOfflineModels(BuildContext context) =>
     unawaited(GoRouter.of(context).push<void>(AppRoutes.offline));
 
-/// Next to a request the privacy settings stopped before it left the
-/// device ([consent]): the way to translate on the device instead, when
-/// the offline engine supports the language pair. "Download German
-/// (25 MB)" opens the offline languages while a model is missing; once
-/// they are all there, "Translate on this device" switches to the
-/// on-device engine. Shows nothing otherwise (no offline engine, e.g. on
-/// the web, or a pair it does not support).
+/// The way to translate on the device instead, when the offline engine
+/// supports the language pair: next to a request the privacy settings
+/// stopped before it left the device ([consent]), or one that failed on
+/// the network ([OfflinePairOffer.pair], see `TranslateErrorView`).
+/// "Download German (25 MB)" opens the offline languages while a model is
+/// missing; once they are all there, "Translate on this device" switches
+/// to the on-device engine. Shows nothing otherwise (no offline engine,
+/// e.g. on the web, or a pair it does not support).
 class OfflinePairOffer extends StatefulWidget {
-  const new({required this.consent, this.translator, super.key});
+  /// For the pair of [consent].
+  const new({
+    required ConsentRequiredException this.consent,
+    this.translator,
+    super.key,
+  }) : source = null,
+       target = null;
 
-  final ConsentRequiredException consent;
+  /// For [source] (`auto` or null: any) → [target] (language codes).
+  const new pair({
+    required this.source,
+    required String this.target,
+    this.translator,
+    super.key,
+  }) : consent = null;
+
+  /// The request the privacy settings stopped, if that is why.
+  final ConsentRequiredException? consent;
+
+  /// The pair when there is no [consent].
+  final String? source;
+  final String? target;
 
   /// The offline engine; defaults to the one provided above.
   final OfflineTranslator? translator;
+
+  /// The source of the pair (`auto` or null when undetected).
+  String? get pairSource => consent?.source ?? source;
+
+  /// The target of the pair.
+  String? get pairTarget => consent?.target ?? target;
 
   @override
   State<OfflinePairOffer> createState() => _OfflinePairOfferState();
@@ -141,15 +167,15 @@ class _OfflinePairOfferState extends State<OfflinePairOffer> {
   @override
   void didUpdateWidget(OfflinePairOffer oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.consent.source != widget.consent.source ||
-        oldWidget.consent.target != widget.consent.target) {
+    if (oldWidget.pairSource != widget.pairSource ||
+        oldWidget.pairTarget != widget.pairTarget) {
       unawaited(_load());
     }
   }
 
   Future<void> _load() async {
     final translator = _translator;
-    final target = widget.consent.target;
+    final target = widget.pairTarget;
     if (translator == null || !translator.isAvailable || target == null) {
       return;
     }
@@ -158,7 +184,7 @@ class _OfflinePairOfferState extends State<OfflinePairOffer> {
     setState(() {
       _downloads = offlineDownloadsFor(
         translator,
-        source: widget.consent.source,
+        source: widget.pairSource,
         target: target,
         ready: ready,
       );

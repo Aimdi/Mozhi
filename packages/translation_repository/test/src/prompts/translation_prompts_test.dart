@@ -632,28 +632,81 @@ void main() {
         'blank': ' ',
       };
 
-      test('lists the terms that occur in the text as bullets', () {
-        final prompt = system(
-          request(
-            text: 'The CLOUD server is down.',
-            options: const TranslationOptions(glossary: glossary),
-          ),
-        );
-        expect(prompt, contains('Glossary: always translate these terms'));
-        expect(prompt, contains('- server -> serveur'));
-        expect(prompt, contains('- Cloud -> nuage'));
-        expect(prompt, isNot(contains('database')));
-        expect(prompt, isNot(contains('empty')));
-      });
+      /// [glossary] plus enough filler entries to be filtered by the text.
+      final long = {
+        ...glossary,
+        for (var i = 0; i < TranslationPrompts.maxWholeGlossaryEntries; i++)
+          'filler$i': 'remplissage$i',
+      };
 
-      test('is omitted when no term occurs', () {
+      test('sends a small glossary whole, as bullets', () {
         final prompt = system(
           request(
             text: 'Hello',
             options: const TranslationOptions(glossary: glossary),
           ),
         );
+        expect(prompt, contains('Glossary: always translate these terms'));
+        expect(prompt, contains('- server -> serveur'));
+        expect(prompt, contains('- Cloud -> nuage'));
+        expect(prompt, contains('- database -> base de données'));
+        expect(prompt, isNot(contains('-> empty')));
+        expect(prompt, isNot(contains('- blank')));
+      });
+
+      test('sends up to maxWholeGlossaryEntries entries whole', () {
+        expect(TranslationPrompts.maxWholeGlossaryEntries, 40);
+        final forty = {
+          for (var i = 0; i < 40; i++) 'term$i': 'terme$i',
+          // Blank entries do not count.
+          '': 'empty',
+        };
+        final prompt = system(
+          request(
+            text: 'Hello',
+            options: TranslationOptions(glossary: forty),
+          ),
+        );
+        expect(prompt, contains('- term0 -> terme0'));
+        expect(prompt, contains('- term39 -> terme39'));
+      });
+
+      test('lists only the terms of a long glossary that occur', () {
+        final prompt = system(
+          request(
+            text: 'The CLOUD servers are down.',
+            options: TranslationOptions(glossary: long),
+          ),
+        );
+        expect(prompt, contains('Glossary: always translate these terms'));
+        expect(prompt, contains('- server -> serveur'));
+        expect(prompt, contains('- Cloud -> nuage'));
+        expect(prompt, isNot(contains('database')));
+        expect(prompt, isNot(contains('filler')));
+        expect(prompt, isNot(contains('empty')));
+      });
+
+      test('is omitted when no term of a long glossary occurs', () {
+        final prompt = system(
+          request(
+            text: 'Hello',
+            options: TranslationOptions(glossary: long),
+          ),
+        );
         expect(prompt, isNot(contains('Glossary')));
+      });
+
+      test('is sent whole for an image (no text to match)', () {
+        final prompt = systemOf(
+          TranslationPrompts.translateImage(
+            const [1, 2, 3],
+            mimeType: 'image/png',
+            source: Language.auto,
+            target: french,
+            options: TranslationOptions(glossary: long),
+          ),
+        );
+        expect(prompt, contains('- filler0 -> remplissage0'));
       });
     });
 
@@ -1008,8 +1061,33 @@ void main() {
       );
       expect(prompt, isNot(contains('Status page')));
       expect(prompt, contains('- Always translate "server" as "serveur"'));
-      expect(prompt, isNot(contains('nuage')));
+      // A small glossary is sent whole.
+      expect(prompt, contains('- Always translate "cloud" as "nuage"'));
     });
+
+    test(
+      'settings note: lists only the terms of a long glossary that occur',
+      () {
+        final prompt = systemOf(
+          TranslationPrompts.suggestions(
+            request(
+              text: 'The server is down',
+              options: TranslationOptions(
+                glossary: {
+                  'server': 'serveur',
+                  'cloud': 'nuage',
+                  for (var i = 0; i < 40; i++) 'filler$i': 'remplissage$i',
+                },
+              ),
+            ),
+            translation,
+          ),
+        );
+        expect(prompt, contains('- Always translate "server" as "serveur"'));
+        expect(prompt, isNot(contains('nuage')));
+        expect(prompt, isNot(contains('filler')));
+      },
+    );
 
     test('settings note: tone notes and context are tagged user data', () {
       List<LlmMessage> messages(TranslationOptions options) =>

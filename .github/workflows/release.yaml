@@ -297,6 +297,13 @@ jobs:
           flutter build web --release -t lib/main_production.dart \
             --base-href "$WEB_BASE_HREF" --no-web-resources-cdn
 
+      # The engine's fallback fonts (CJK, Indic, Arabic, emoji...) are
+      # served by the zip's own server, never by fonts.gstatic.com: about
+      # 22 MB, fetched by the browser only as a page needs them
+      # (docs/building.md). Downloaded fresh for every release.
+      - name: Self-host the fallback fonts
+        run: python3 tool/web_fallback_fonts.py build/web
+
       - name: Zip
         env:
           TAG: ${{ env.RELEASE_TAG }}

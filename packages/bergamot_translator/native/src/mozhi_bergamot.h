@@ -35,8 +35,9 @@
 extern "C" {
 #endif
 
-/* Bumped when a function signature changes (Dart checks it on load). */
-#define MOZHI_BERGAMOT_ABI_VERSION 1
+/* Bumped when a function signature changes or one is added that callers
+ * rely on (Dart checks it on load). 2: mozhi_bergamot_translate_ex(). */
+#define MOZHI_BERGAMOT_ABI_VERSION 2
 
 /* One loaded translation direction (model + shortlist + vocabularies). */
 typedef struct MozhiBergamotModel MozhiBergamotModel;
@@ -82,6 +83,41 @@ MOZHI_BERGAMOT_EXPORT char* mozhi_bergamot_translate(MozhiBergamotModel* model,
 MOZHI_BERGAMOT_EXPORT char* mozhi_bergamot_translate_pivot(
     MozhiBergamotModel* first, MozhiBergamotModel* second, const char* text,
     int32_t html);
+
+/* mozhi_bergamot_translate_ex() flags. */
+/* The texts are HTML (as html != 0 above). */
+#define MOZHI_BERGAMOT_TRANSLATE_HTML 1
+/* Report the sentences and, per translated word, the source word it most
+ * likely comes from (Marian's soft alignment). */
+#define MOZHI_BERGAMOT_TRANSLATE_ALIGNMENT 2
+/* Report the sentences and quality scores (the model's log-probabilities:
+ * per word the mean of its tokens', per sentence the mean of its words';
+ * at most 0, closer to 0 is surer). */
+#define MOZHI_BERGAMOT_TRANSLATE_QUALITY 4
+
+/* Translates `count` texts in one batch (Bergamot batches their sentences
+ * together): with `first` alone, or source -> pivot with `first` and pivot
+ * -> target with `second` (NULL for none). `flags` is a combination of
+ * MOZHI_BERGAMOT_TRANSLATE_*.
+ *
+ * Returns a malloc'd JSON array with one object per text, in order:
+ *
+ *   [{"text": "Hallo Welt.",
+ *     "sentences": [{"source": [0, 12], "target": [0, 11],
+ *                    "score": -0.21,
+ *                    "words": [{"target": [0, 5], "score": -0.05,
+ *                               "source": [0, 5], "p": 0.93}, ...]}]}]
+ *
+ * "sentences" only with ALIGNMENT or QUALITY; "score" (sentence and word)
+ * only with QUALITY, and null when the engine has none; a word's "source"
+ * (its most likely source word) and "p" (that word's share of the
+ * alignment, 0-1) only with ALIGNMENT. Ranges are [start, end) offsets in
+ * UTF-16 code units: "source" into the input text, "target" into "text";
+ * they never include surrounding whitespace. With HTML they refer to the
+ * texts with their markup. Returns NULL on failure. */
+MOZHI_BERGAMOT_EXPORT char* mozhi_bergamot_translate_ex(
+    MozhiBergamotModel* first, MozhiBergamotModel* second,
+    const char* const* texts, int32_t count, int32_t flags);
 
 /* Frees a string returned by this library (NULL is ignored). */
 MOZHI_BERGAMOT_EXPORT void mozhi_bergamot_free_string(char* text);

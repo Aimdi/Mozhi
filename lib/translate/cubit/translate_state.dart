@@ -57,6 +57,37 @@ class AppliedRefinement extends Equatable {
   List<Object?> get props => [suggestion, previous];
 }
 
+/// The shown translation comes from another engine because the selected
+/// one returned a suspect result (`TranslationResult.isSuspect`: the
+/// original text, the wrong language, garbage, a chat reply), e.g. "Google
+/// returned the original text. Translated on this device."
+/// (`TranslateCubit` falls back by itself, only to engines the privacy
+/// settings allow without asking).
+class TranslationFallback extends Equatable {
+  const new({
+    required this.fromEngineName,
+    required this.reason,
+    required this.engineName,
+    required this.onDevice,
+  });
+
+  /// The engine that returned the suspect result.
+  final String fromEngineName;
+
+  /// Why its result was suspect (a [TranslationWarningKind] whose
+  /// `isSuspect` is true).
+  final TranslationWarningKind reason;
+
+  /// The engine that translated instead.
+  final String engineName;
+
+  /// Whether that engine is the on-device one.
+  final bool onDevice;
+
+  @override
+  List<Object?> get props => [fromEngineName, reason, engineName, onDevice];
+}
+
 /// A one-shot notice that the target language was switched automatically
 /// because the detected source language was the target (smart swap).
 ///
@@ -208,6 +239,7 @@ class TranslateState extends Equatable {
     this.memoryMatch,
     this.resultFromMemory = false,
     this.consent,
+    this.fallback,
   });
 
   final EnginesStatus enginesStatus;
@@ -419,6 +451,10 @@ class TranslateState extends Equatable {
   /// The main translation waits for the user's consent (nothing was sent);
   /// see [ConsentRequest].
   final ConsentRequest? consent;
+
+  /// Set when [result] comes from a fallback engine (see
+  /// [TranslationFallback]); cleared with every other result.
+  final TranslationFallback? fallback;
 
   /// [memoryMatch] when it is worth showing: not in compare mode, and its
   /// translation is not what the output shows already (as the current
@@ -805,6 +841,7 @@ class TranslateState extends Equatable {
     MemoryMatch? Function()? memoryMatch,
     bool? resultFromMemory,
     ConsentRequest? Function()? consent,
+    TranslationFallback? Function()? fallback,
   }) {
     final nextResult = result != null ? result() : this.result;
     return TranslateState(
@@ -894,6 +931,12 @@ class TranslateState extends Equatable {
       resultFromMemory:
           resultFromMemory ?? (result == null && this.resultFromMemory),
       consent: consent != null ? consent() : this.consent,
+      // Any other result is not the fallback's.
+      fallback: fallback != null
+          ? fallback()
+          : result == null
+          ? this.fallback
+          : null,
     );
   }
 
@@ -957,5 +1000,6 @@ class TranslateState extends Equatable {
     memoryMatch,
     resultFromMemory,
     consent,
+    fallback,
   ];
 }

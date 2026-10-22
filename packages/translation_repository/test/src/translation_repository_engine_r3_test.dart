@@ -203,7 +203,10 @@ void main() {
       options: const TranslationOptions(context: 'A novel'),
     );
 
-    String upper(LlmRequest request) => sourceOf(request).toUpperCase();
+    /// A fake German translation of a part (not an echo of it).
+    String fakeGerman(String text) => 'DE ${text.toUpperCase()}';
+
+    String upper(LlmRequest request) => fakeGerman(sourceOf(request));
 
     test('is translated in parts and joined with the separators', () async {
       repository = newRepository(aiChunkThreshold: 40);
@@ -213,7 +216,7 @@ void main() {
       expect(results.where((r) => r.isComplete), hasLength(1));
       expect(
         results.last.text,
-        paragraphs.map((p) => p.toUpperCase()).join('\n\n'),
+        paragraphs.map(fakeGerman).join('\n\n'),
       );
       expect(results.last.engineId, 'ai:claude');
 
@@ -265,7 +268,7 @@ void main() {
     });
 
     test('is not split below the threshold', () async {
-      stubStream(llmOf(claudeConfig), ['Ganz']);
+      stubStream(llmOf(claudeConfig), ['Der ganze Text, auf Deutsch.']);
       await repository.translate(claude, longRequest).drain<void>();
       expect(streamed(llmOf(claudeConfig)).map(sourceOf), [longText]);
     });
@@ -325,7 +328,7 @@ void main() {
       expect(results.map((r) => r.detectedSource), everyElement('en'));
       expect(
         results.last.text,
-        paragraphs.map((p) => p.toUpperCase()).join('\n\n'),
+        paragraphs.map(fakeGerman).join('\n\n'),
       );
       final requests = streamed(llmOf(claudeConfig));
       final pinned = LanguageCatalog.byCode('en')!;
@@ -864,7 +867,15 @@ void main() {
       });
 
       test('ignores the recent source languages of long input', () async {
-        stubHint(llmOf(claudeConfig));
+        // A plausible translation (one word would be a suspect result,
+        // which is never cached).
+        stubHint(
+          llmOf(claudeConfig),
+          translation: const [
+            '[[lang:en]]\n',
+            'Cette phrase est bien trop longue pour un indice de langue.',
+          ],
+        );
         for (final text in [
           'This sentence is far too long to need any language hint.',
           // One word of more than 64 characters.

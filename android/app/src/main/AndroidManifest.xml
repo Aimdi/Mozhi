@@ -71,18 +71,9 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- Share sheet: "Share" text to Mozhi. -->
-            <intent-filter>
-                <action android:name="android.intent.action.SEND"/>
-                <category android:name="android.intent.category.DEFAULT"/>
-                <data android:mimeType="text/plain"/>
-            </intent-filter>
-            <!-- Text selection toolbar: "Translate with Mozhi". -->
-            <intent-filter android:label="@string/translate_with_mozhi">
-                <action android:name="android.intent.action.PROCESS_TEXT"/>
-                <category android:name="android.intent.category.DEFAULT"/>
-                <data android:mimeType="text/plain"/>
-            </intent-filter>
+            <!-- The share sheet goes to .ShareReceiverActivity and text
+                 selections to .QuickTranslateActivity, which hand them on
+                 to this activity (explicit intents need no filter here). -->
             <!-- Deep links: mozhi://<screen>[/<path>][?<query>] opens /<screen>…,
                  e.g. mozhi://translate?text=hola&from=es&to=en, mozhi://image,
                  mozhi://proofread?text=… or mozhi://dictionary?word=gato&from=es.
@@ -100,6 +91,59 @@
                 <data android:host="documents"/>
                 <data android:host="web"/>
                 <data android:host="dictionary"/>
+            </intent-filter>
+        </activity>
+        <!-- Text selection toolbar: "Translate with Mozhi". A translucent
+             window (QuickTranslateActivity.kt, a MainActivity) that shows
+             only the quick translate sheet above the calling app and closes
+             with it; Replace hands the translation back to the caller. In
+             the caller's task (started for a result), and left out of
+             recents should a caller start it as a task of its own. Its own
+             Flutter engine starts at the route /quick-translate; deep links
+             are not handled here. -->
+        <activity
+            android:name=".QuickTranslateActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/TransparentTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            <meta-data
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/TransparentTheme"
+                />
+            <meta-data
+                android:name="flutter_deeplinking_enabled"
+                android:value="false" />
+            <intent-filter android:label="@string/translate_with_mozhi">
+                <action android:name="android.intent.action.PROCESS_TEXT"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="text/plain"/>
+            </intent-filter>
+        </activity>
+        <!-- Share sheet: "Share" text, an image or a text document to Mozhi.
+             An invisible window (ShareReceiverActivity.kt) that copies a
+             shared file into the app's cache and opens MainActivity at the
+             image screen (image/*) or the document translator (subtitles,
+             text, Markdown, JSON; text/* includes text/vtt), or hands shared
+             text on as before. Only content:// files of other apps are
+             read. Nothing is translated or sent because of a share. -->
+        <activity
+            android:name=".ShareReceiverActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@style/TransparentTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="text/*"/>
+                <data android:mimeType="image/*"/>
+                <data android:mimeType="application/x-subrip"/>
+                <data android:mimeType="application/json"/>
             </intent-filter>
         </activity>
         <!-- "Translate clipboard" entry point (MainActivity action
@@ -127,25 +171,27 @@
         </activity-alias>
         <!-- Text selection toolbar: "Translate offline", a second
              PROCESS_TEXT entry that translates the selection with the
-             on-device engine only, whatever the privacy mode. MainActivity
-             adds action "translateOffline" to selections arriving through
-             this alias (isTranslateOffline). Exported, because other apps
-             start it from their selection toolbar; reaching it directly
-             can only make a request more private. Aliases don't inherit
-             the target's meta-data (see .TranslateClipboardActivity), so
-             the Flutter ones are repeated here. -->
+             on-device engine only, whatever the privacy mode, in the same
+             translucent window as "Translate with Mozhi" (whose theme an
+             alias takes). MainActivity adds action "translateOffline" to
+             selections arriving through this alias (isTranslateOffline).
+             Exported, because other apps start it from their selection
+             toolbar; reaching it directly can only make a request more
+             private. Aliases don't inherit the target's meta-data (see
+             .TranslateClipboardActivity), so the Flutter ones are repeated
+             here. -->
         <activity-alias
             android:name=".TranslateOfflineActivity"
-            android:targetActivity=".MainActivity"
+            android:targetActivity=".QuickTranslateActivity"
             android:exported="true"
             android:label="@string/translate_offline">
             <meta-data
                 android:name="io.flutter.embedding.android.NormalTheme"
-                android:resource="@style/NormalTheme"
+                android:resource="@style/TransparentTheme"
                 />
             <meta-data
                 android:name="flutter_deeplinking_enabled"
-                android:value="true" />
+                android:value="false" />
             <intent-filter android:label="@string/translate_offline">
                 <action android:name="android.intent.action.PROCESS_TEXT"/>
                 <category android:name="android.intent.category.DEFAULT"/>

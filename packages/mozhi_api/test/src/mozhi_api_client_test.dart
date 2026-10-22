@@ -184,6 +184,19 @@ void main() {
 
     setUp(() => requests = []);
 
+    test('waits 30 s for a response by default', () {
+      expect(MozhiApiClient.defaultTimeout, const Duration(seconds: 30));
+      expect(
+        MozhiApiClient(
+          baseUrl: _baseUrl,
+          httpClient: MockClient((_) async {
+            throw UnimplementedError();
+          }),
+        ).timeout,
+        MozhiApiClient.defaultTimeout,
+      );
+    });
+
     group('getEngines', () {
       test('GETs /api/engines without the all/some pseudo-engines, '
           'sorted by display name', () async {

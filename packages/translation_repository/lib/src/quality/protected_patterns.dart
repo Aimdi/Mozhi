@@ -1,4 +1,8 @@
 /// Regular expressions for spans that must never be translated.
+///
+/// Used by the Documents feature (per format) and, for the main translate
+/// screen, by `TextMasker` (spans masked before a machine translation
+/// engine sees them) and `TranslationQa` (spans that must come back).
 abstract final class ProtectedPatterns {
   /// `http(s)://…`, `ftp://…` and `www.…` URLs (trailing punctuation
   /// excluded).
@@ -19,10 +23,19 @@ abstract final class ProtectedPatterns {
   static const printf =
       r'%(?:\d+\$)?(?:\([A-Za-z_]\w*\))?[-+ 0#]*\d*(?:\.\d+)?[sdifuxXeEgGcp@]';
 
+  /// [printf] for free text: without the space flag and not followed by a
+  /// letter, so that "100% done" or "50%off" are not placeholders.
+  static const printfInText =
+      r'%(?:\d+\$)?(?:\([A-Za-z_]\w*\))?[-+0#]*\d*(?:\.\d+)?[sdifuxXeEgGcp@](?![A-Za-z])';
+
   /// Template placeholders: `{{name}}`, `${name}`, `$t(key)`,
   /// vue-i18n `@:key`.
   static const template =
       r'\{\{[^{}]*\}\}|\$\{[^{}]*\}|\$t\([^()]*\)|@(?:\.\w+)?:[\w.]+';
+
+  /// Single-brace placeholders: `{name}`, `{0}`, `{user.name}` (not ICU
+  /// messages such as `{count, plural, ...}`).
+  static const braces = r'\{(?:[A-Za-z_][\w.-]*|\d+)\}';
 
   /// A whole pattern from alternatives.
   static RegExp combine(List<String> alternatives) =>
@@ -68,5 +81,21 @@ abstract final class ProtectedPatterns {
     email,
     template,
     printf,
+  ]);
+
+  /// Placeholders of free text ([template], [braces], [printfInText]).
+  static final RegExp placeholders = combine([template, braces, printfInText]);
+
+  /// Everything a machine translation engine should get masked in free
+  /// text (the translate screen): tags, entities, URLs, e-mail addresses
+  /// and placeholders.
+  static final RegExp translation = combine([
+    htmlTag,
+    htmlEntity,
+    url,
+    email,
+    template,
+    braces,
+    printfInText,
   ]);
 }

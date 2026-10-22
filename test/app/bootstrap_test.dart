@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:bloc/bloc.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,6 +16,9 @@ import 'package:mozhi/bootstrap.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/network/network_session.dart';
 import 'package:mozhi/core/on_device_ml.dart';
+import 'package:mozhi/l10n/bundled_localizations_io.dart';
+import 'package:mozhi/l10n/gen/app_localizations_ja.dart';
+import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/data/unavailable_offline_translator.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
@@ -22,6 +27,19 @@ import 'package:mozhi/usage/data/usage_tracker.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 import 'mocks.dart';
+
+/// A [MemoryStore] whose reads wait for [gate].
+class _GatedStore extends MemoryStore {
+  final gate = Completer<void>();
+  int reads = 0;
+
+  @override
+  Future<String?> read(String key) async {
+    reads++;
+    await gate.future;
+    return await super.read(key);
+  }
+}
 
 class _Counter extends Cubit<int> {
   new() : super(0);
@@ -235,6 +253,82 @@ void main() {
         appSecureStorage.mOptions.toMap()['usesDataProtectionKeychain'],
         'false',
       );
+    });
+  });
+
+  group('createDependencies startup', () {
+    const secureStorage = MethodChannel(
+      'plugins.it_nomads.com/flutter_secure_storage',
+    );
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    late List<String> secureReads;
+
+    setUp(() {
+      secureReads = [];
+      messenger.setMockMethodCallHandler(secureStorage, (call) async {
+        if (call.method == 'read') {
+          secureReads.add((call.arguments as Map)['key'] as String);
+        }
+        return null;
+      });
+    });
+    tearDown(() => messenger.setMockMethodCallHandler(secureStorage, null));
+
+    test('starts the offline speech and the secure-storage probe while the '
+        'settings are read', () async {
+      final prefs = _GatedStore();
+      var speechStarted = false;
+
+      final loading = createDependencies(
+        prefs: prefs,
+        offlineTranslator: FakeOfflineTranslator(),
+        offlineSpeech: (_) async {
+          speechStarted = true;
+          return null;
+        },
+      );
+      await pumpEventQueue();
+
+      expect(prefs.reads, 1);
+      expect(speechStarted, isTrue);
+      expect(secureReads, [FallbackKeyValueStore.probeKey]);
+
+      prefs.gate.complete();
+      final dependencies = await loading;
+      expect(dependencies.secretsInMemory, isFalse);
+      expect(secureReads, contains(SettingsRepository.instanceCredentialsKey));
+    });
+
+    test('loads the texts of the app language (web)', () async {
+      bundledLocalizations = (_) => null;
+      resetLoadedAppLocalizations();
+      addTearDown(() {
+        bundledLocalizations = bundledAppLocalizations;
+        resetLoadedAppLocalizations();
+      });
+      final prefs = MemoryStore();
+      await SettingsRepository(
+        prefs: prefs,
+        secrets: MemoryStore(),
+      ).save(const AppSettings(appLocale: 'ja'));
+
+      await createDependencies(prefs: prefs, secrets: MemoryStore());
+
+      expect(
+        lookupAppLocalizations(const Locale('ja')),
+        isA<AppLocalizationsJa>(),
+      );
+    });
+
+    test('probes a given fallback store', () async {
+      final dependencies = await createDependencies(
+        prefs: MemoryStore(),
+        secrets: FallbackKeyValueStore(SecureStore(appSecureStorage)),
+      );
+
+      expect(secureReads.first, FallbackKeyValueStore.probeKey);
+      expect(dependencies.secretsInMemory, isFalse);
     });
   });
 

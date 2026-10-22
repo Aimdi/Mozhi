@@ -14,8 +14,9 @@ import 'package:translation_repository/src/models/models.dart';
 /// text and, when the source is auto, the request's
 /// `recentSourceLanguages` (they steer the detection of short text; pass a
 /// request without them where they cannot matter). Only complete,
-/// non-empty results are stored: partial streaming snapshots and failures
-/// never are.
+/// non-empty results that are not suspect (`TranslationResult.isSuspect`:
+/// an echo, the wrong language, ...; the engine is asked again next time)
+/// are stored: partial streaming snapshots and failures never are.
 ///
 /// Reads refresh an entry's recency (but not its age); once [maxEntries] is
 /// exceeded the least recently used entry is evicted. Entries older than
@@ -88,8 +89,8 @@ class TranslationCache {
   }
 
   /// Stores [result] for [request] on [engine] and returns whether it was
-  /// stored. Partial (`isComplete: false`) and blank results are ignored, as
-  /// is everything when [maxEntries] is 0.
+  /// stored. Partial (`isComplete: false`), blank and suspect results are
+  /// ignored, as is everything when [maxEntries] is 0.
   bool store(
     TranslationEngine engine,
     TranslationRequest request,
@@ -203,7 +204,7 @@ class TranslationCache {
   }
 
   static bool _isCacheable(TranslationResult result) =>
-      result.isComplete && result.text.trim().isNotEmpty;
+      result.isComplete && result.text.trim().isNotEmpty && !result.isSuspect;
 }
 
 @immutable

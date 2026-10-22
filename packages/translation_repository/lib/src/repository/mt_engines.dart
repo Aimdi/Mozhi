@@ -4,6 +4,7 @@ import 'package:mt_api/mt_api.dart';
 import 'package:translation_repository/src/language_catalog.dart';
 import 'package:translation_repository/src/language_matcher.dart';
 import 'package:translation_repository/src/models/models.dart';
+import 'package:translation_repository/src/repository/deepl_glossaries.dart';
 import 'package:translation_repository/src/repository/mappers.dart';
 
 /// Creates a DeepL client for a [MtService.deepl] provider.
@@ -45,6 +46,9 @@ class MtEngines {
   final DeeplClientBuilder _deeplBuilder;
   final LibreClientBuilder _libreBuilder;
   final Map<String, ({String key, Object client})> _clients = {};
+
+  /// The DeepL glossaries made from `TranslationOptions.glossary`.
+  final DeeplGlossaries glossaries = DeeplGlossaries();
 
   /// Raw language lists keyed by connection key (+ direction).
   final Map<String, Future<List<DeeplLanguage>>> _deeplLanguages = {};
@@ -117,6 +121,7 @@ class MtEngines {
     }
     _clients.clear();
     clearLanguages();
+    glossaries.clear();
   }
 
   // Languages.
@@ -260,15 +265,24 @@ class MtEngines {
   ///
   /// DeepL gets the formality (as `prefer_more` / `prefer_less`, which never
   /// fail for languages without formality support), the free-form context
-  /// and `preserve_formatting`. Codes are converted with the service's
-  /// language list when it can be loaded. An empty translation of a
-  /// non-blank text is reported as an [MtApiException]. Completing [abort]
-  /// cancels the HTTP request.
+  /// and `preserve_formatting`; with [xmlTags] `tag_handling=xml` (the text
+  /// is XML with `<x i="n"/>` masks, see `TextMasker`), with
+  /// [AiProviderConfig.preferQualityModel] the quality-optimised model
+  /// (`prefer_quality_optimized`), and a glossary of
+  /// `TranslationOptions.glossary` when one of its terms occurs in the text
+  /// (see [DeeplGlossaries]; DeepL needs the source language then, so an
+  /// auto source is identified with [identifySource] first, on the device,
+  /// and the text goes without a glossary when it cannot tell). Codes are
+  /// converted with the service's language list when it can be loaded. An
+  /// empty translation of a non-blank text is reported as an
+  /// [MtApiException]. Completing [abort] cancels the HTTP request.
   Future<TranslationResult> translate(
     TranslationEngine engine,
     AiProviderConfig config,
     TranslationRequest request, {
     Future<void>? abort,
+    bool xmlTags = false,
+    Future<String?> Function()? identifySource,
   }) async {
     if (request.source.isCustom || request.target.isCustom) {
       final custom = request.source.isCustom ? request.source : request.target;
@@ -280,7 +294,13 @@ class MtEngines {
     }
     final stopwatch = Stopwatch()..start();
     final (text, detected) = switch (config.service) {
-      MtService.deepl => await _translateDeepl(config, request, abort),
+      MtService.deepl => await _translateDeepl(
+        config,
+        request,
+        abort,
+        xmlTags: xmlTags,
+        identifySource: identifySource,
+      ),
       MtService.libreTranslate => await _translateLibre(config, request, abort),
       MtService.llm => throw _notMt(config),
     };
@@ -304,27 +324,75 @@ class MtEngines {
   Future<(String, String?)> _translateDeepl(
     AiProviderConfig config,
     TranslationRequest request,
-    Future<void>? abort,
-  ) async {
+    Future<void>? abort, {
+    required bool xmlTags,
+    Future<String?> Function()? identifySource,
+  }) async {
     final targets = await _codesOrNull(
       () => _deeplList(config, DeeplLanguageType.target),
       (language) => language.code,
     );
     final options = request.options;
     final context = options.context.trim();
-    final result = await _deepl(config).translateText(
+    final client = _deepl(config);
+    var source = request.source.isAuto ? null : request.source.code;
+    final glossaryId = await _glossaryFor(
+      client,
+      config,
+      request,
+      sourceCode: () async => source ??= await identifySource?.call(),
+    );
+    // An auto source is only sent (as identified) with a glossary.
+    final explicit = request.source.isAuto && glossaryId == null
+        ? null
+        : source;
+    final result = await client.translateText(
       text: request.text,
       targetLang: deeplTargetCode(request.target.code, supported: targets),
-      sourceLang: request.source.isAuto
-          ? null
-          : deeplSourceCode(request.source.code),
+      sourceLang: explicit == null ? null : deeplSourceCode(explicit),
       formality: deeplFormality(options.formality),
       context: context.isEmpty ? null : context,
+      glossaryId: glossaryId,
       preserveFormatting: options.preserveFormatting,
+      tagHandling: xmlTags ? DeeplTagHandling.xml : null,
+      modelType: config.preferQualityModel
+          ? DeeplModelType.preferQualityOptimized
+          : null,
       abortTrigger: abort,
     );
     final detected = result.detectedSourceLanguage.trim();
     return (result.text, detected.isEmpty ? null : appCodeFromDeepl(detected));
+  }
+
+  /// The id of the DeepL glossary for [request] (see [translate]), or null
+  /// when none of its glossary's terms occurs in the text, the source
+  /// language ([sourceCode]) is unknown or the glossary cannot be made.
+  Future<String?> _glossaryFor(
+    DeeplClient client,
+    AiProviderConfig config,
+    TranslationRequest request, {
+    required Future<String?> Function() sourceCode,
+  }) async {
+    final entries = DeeplGlossaries.validEntries(request.options.glossary);
+    if (entries.isEmpty) return null;
+    final text = request.text.toLowerCase();
+    if (!entries.keys.any((term) => text.contains(term.toLowerCase()))) {
+      return null;
+    }
+    final String? source;
+    try {
+      source = await sourceCode();
+    } on Object {
+      return null;
+    }
+    if (source == null) return null;
+    return await glossaries.idFor(
+      client,
+      connection: connectionKey(config),
+      sourceLanguage: source,
+      targetLanguage: request.target.code,
+      entries: entries,
+    );
   }
 
   Future<(String, String?)> _translateLibre(

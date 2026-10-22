@@ -1,6 +1,7 @@
 import 'package:bergamot_translator/src/engine/bergamot_engine.dart';
 import 'package:bergamot_translator/src/model_manager.dart';
 import 'package:bergamot_translator/src/native_language_identifier.dart';
+import 'package:translation_repository/translation_repository.dart';
 
 /// Whether the native engine can run here: never on the web.
 bool get bergamotPlatformSupported => false;
@@ -17,7 +18,7 @@ NativeLanguageIdentifier createNativeLanguageIdentifier({
 }) => const UnsupportedNativeLanguageIdentifier();
 
 /// The engine on platforms without `dart:ffi` (web): every call fails.
-final class UnsupportedBergamotEngine implements BergamotEngine {
+final class UnsupportedBergamotEngine implements BergamotBatchEngine {
   const new();
 
   @override
@@ -25,8 +26,25 @@ final class UnsupportedBergamotEngine implements BergamotEngine {
     List<ModelPaths> chain,
     String text, {
     bool html = false,
-  }) => Future.error(
-    UnsupportedError('Offline translation is not available on the web'),
+  }) => Future.error(_unsupported);
+
+  @override
+  Future<List<OfflineTranslation>> translateBatch(
+    List<ModelPaths> chain,
+    List<String> texts, {
+    bool html = false,
+    bool details = false,
+    Future<void>? abort,
+  }) => Future.error(_unsupported);
+
+  @override
+  Future<void> preload(List<ModelPaths> chain) async {}
+
+  @override
+  Future<void> trim() async {}
+
+  static final _unsupported = UnsupportedError(
+    'Offline translation is not available on the web',
   );
 
   @override

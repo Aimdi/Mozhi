@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -184,5 +185,111 @@ void main() {
       throwsA(isA<WhisperEngineException>()),
     );
     unavailable.models.close();
+  });
+
+  group('memory', () {
+    const idleTime = Duration(milliseconds: 300);
+    const pastIdle = Duration(milliseconds: 450);
+    late WhisperSpeech idle;
+
+    setUp(
+      () => idle = WhisperSpeech(
+        catalog: WhisperModelCatalog(models: [tiny]),
+        root: root,
+        engine: engine,
+        isAvailable: true,
+        idleUnloadAfter: idleTime,
+      ),
+    );
+    tearDown(() => idle.models.close());
+
+    test('keeps the model loaded without idleUnloadAfter', () async {
+      await import(tiny, tinyBytes);
+      await speech.transcribe(Float32List(1));
+      await Future<void>.delayed(pastIdle);
+
+      verifyNever(() => engine.dispose());
+    });
+
+    test('unloads the model once idle for idleUnloadAfter', () async {
+      await import(tiny, tinyBytes);
+      await idle.transcribe(Float32List(1));
+      verifyNever(() => engine.dispose());
+
+      // A new transcription restarts the wait.
+      await Future<void>.delayed(idleTime ~/ 3);
+      await idle.transcribe(Float32List(1));
+      await Future<void>.delayed(idleTime ~/ 3);
+      verifyNever(() => engine.dispose());
+
+      await Future<void>.delayed(pastIdle);
+      verify(() => engine.dispose()).called(1);
+    });
+
+    test('a failed transcription counts as use too', () async {
+      await import(tiny, tinyBytes);
+      when(
+        () => engine.transcribe(
+          any(),
+          any(),
+          language: any(named: 'language'),
+          threads: any(named: 'threads'),
+        ),
+      ).thenThrow(const WhisperCancelledException());
+
+      await expectLater(
+        idle.transcribe(Float32List(1)),
+        throwsA(isA<WhisperCancelledException>()),
+      );
+      await Future<void>.delayed(pastIdle);
+      verify(() => engine.dispose()).called(1);
+    });
+
+    test('unload stops the engine at once when nothing runs', () async {
+      await import(tiny, tinyBytes);
+      await idle.transcribe(Float32List(1));
+
+      await idle.unload();
+      verify(() => engine.dispose()).called(1);
+      // The idle timer is gone.
+      await Future<void>.delayed(pastIdle);
+      verifyNever(() => engine.dispose());
+    });
+
+    test('unload waits for a running transcription', () async {
+      await import(tiny, tinyBytes);
+      final heard = Completer<WhisperTranscription>();
+      when(
+        () => engine.transcribe(
+          any(),
+          any(),
+          language: any(named: 'language'),
+          threads: any(named: 'threads'),
+        ),
+      ).thenAnswer((_) => heard.future);
+
+      final transcription = idle.transcribe(Float32List(1));
+      await pumpEventQueue();
+      await idle.unload();
+      verifyNever(() => engine.dispose());
+
+      heard.complete(const WhisperTranscription('ok'));
+      expect((await transcription).text, 'ok');
+      await pumpEventQueue();
+      verify(() => engine.dispose()).called(1);
+      // Unloaded rather than waiting for the idle timeout.
+      await Future<void>.delayed(pastIdle);
+      verifyNever(() => engine.dispose());
+    });
+
+    test('dispose cancels the idle timer', () async {
+      await import(tiny, tinyBytes);
+      await idle.transcribe(Float32List(1));
+      await idle.dispose();
+      verify(() => engine.dispose()).called(1);
+
+      await Future<void>.delayed(pastIdle);
+      verifyNever(() => engine.dispose());
+    });
   });
 }

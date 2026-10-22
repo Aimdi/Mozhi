@@ -41,7 +41,7 @@ final class MeteredConnectionException implements Exception {
 ///
 /// [isAvailable] is true on Android (arm64-v8a, x86_64, armeabi-v7a with
 /// VFPv4) and false elsewhere (web, desktop) unless overridden.
-class BergamotTranslator implements OfflineTranslator {
+class BergamotTranslator implements DetailedOfflineTranslator {
   new({
     required this.catalog,
     required Directory root,
@@ -52,7 +52,9 @@ class BergamotTranslator implements OfflineTranslator {
     BergamotModelManager? models,
     this._isAvailable,
     this.maxChunkLength = 2000,
+    this.maxBatchLength = 6000,
   }) : assert(maxChunkLength > 0, 'maxChunkLength must be positive'),
+       assert(maxBatchLength > 0, 'maxBatchLength must be positive'),
        models =
            models ?? BergamotModelManager(root: root, httpClient: httpClient),
        engine = engine ?? createBergamotEngine(),
@@ -75,8 +77,27 @@ class BergamotTranslator implements OfflineTranslator {
   /// identification, and keeps long documents cheap.
   static const identificationSampleLength = 4096;
 
-  /// Longest piece of text sent to the engine at once.
+  /// Longest piece of text the engine translates as one unit.
   final int maxChunkLength;
+
+  /// Most characters of pieces sent to the engine in one native call (one
+  /// batch): about Bergamot's mini-batch (1024 words), so typed text goes
+  /// in one call, and a long document can still be cancelled between
+  /// batches.
+  final int maxBatchLength;
+
+  /// [OfflineSentence.score] (the mean log-probability of its words) below
+  /// which a sentence [OfflineSentence.isLowConfidence]. Fluent
+  /// translations score about -0.1 to -0.3; text in another language than
+  /// the source, garbled output and the like about -0.4 to -0.8. The
+  /// scores are relative to the vocabulary the shortlist allows for the
+  /// whole batch, so a bad sentence scores lower in a longer text than
+  /// alone (fluent ones barely change).
+  static const lowConfidenceScore = -0.4;
+
+  /// Words a sentence needs before it can be [OfflineSentence.isLowConfidence]:
+  /// the scores of one or two words ("You" -> "Du") say little.
+  static const lowConfidenceMinWords = 3;
 
   final Future<bool> Function() _isMeteredConnection;
   final bool? _isAvailable;
@@ -193,25 +214,104 @@ class BergamotTranslator implements OfflineTranslator {
   /// models, [OfflineModelMissingException] (listing the languages to
   /// download) when models are not installed, and
   /// [BergamotEngineException] when the engine fails.
+  ///
+  /// Once [abort] completes, it stops before the next batch of pieces and
+  /// throws [OfflineTranslationCancelledException]; a batch waiting for the
+  /// engine (e.g. behind another request) is dropped.
   @override
   Future<String> translate(
     String text, {
     required String source,
     required String target,
+    Future<void>? abort,
+  }) async => (await _translate(
+    text,
+    source: source,
+    target: target,
+    abort: _Abort(abort),
+    details: false,
+  )).text;
+
+  /// [translate] with the sentences of the result: their source and target
+  /// ranges, word alignment and quality scores, and
+  /// [OfflineSentence.isLowConfidence] for sentences of at least
+  /// [lowConfidenceMinWords] words whose score is below
+  /// [lowConfidenceScore]. Needs an engine with batches
+  /// ([BergamotBatchEngine], the default); with another one the result has
+  /// no sentences.
+  @override
+  Future<OfflineTranslation> translateDetailed(
+    String text, {
+    required String source,
+    required String target,
+    Future<void>? abort,
+  }) => _translate(
+    text,
+    source: source,
+    target: target,
+    abort: _Abort(abort),
+    details: true,
+  );
+
+  /// Loads the installed models of [source] -> [target] in the engine
+  /// isolate, so that the next translation starts at once (see
+  /// [DetailedOfflineTranslator.preload]). False for an `auto` source,
+  /// missing models, an unsupported pair or an engine without warm-up.
+  @override
+  Future<bool> preload({required String source, required String target}) async {
+    final engine = this.engine;
+    if (!isAvailable || _isAuto(source) || engine is! BergamotBatchEngine) {
+      return false;
+    }
+    try {
+      final chain = await _chainFor(source, target);
+      if (chain == null) return false;
+      await engine.preload(chain);
+      return true;
+    } on Object {
+      return false;
+    }
+  }
+
+  /// Unloads every model but those of the most recent translation (call on
+  /// memory pressure); they load again when needed. Does nothing for an
+  /// engine without [BergamotBatchEngine.trim].
+  Future<void> trimMemory() async {
+    final engine = this.engine;
+    if (engine is BergamotBatchEngine) await engine.trim();
+  }
+
+  Future<OfflineTranslation> _translate(
+    String text, {
+    required String source,
+    required String target,
+    required _Abort abort,
+    required bool details,
   }) async {
     _ensureAvailable();
     if (router.targetCode(target) == null) {
       throw OfflineLanguageUnsupportedException(target);
     }
-    if (text.trim().isEmpty) return text;
+    if (text.trim().isEmpty) return OfflineTranslation(text: text);
     final from = _isAuto(source)
         ? await identifyLanguage(text) ??
               (throw const OfflineLanguageUnsupportedException('auto'))
         : source;
+    abort.check();
+    final chain = await _chainFor(from, target);
+    if (chain == null) return OfflineTranslation(text: text);
+    return await _translatePieces(chain, text, abort: abort, details: details);
+  }
+
+  /// The installed models from [from] to [target] (one, or two through
+  /// English), or null when they are the same language. Throws
+  /// [OfflineLanguageUnsupportedException] or
+  /// [OfflineModelMissingException].
+  Future<List<ModelPaths>?> _chainFor(String from, String target) async {
     final route =
         router.route(from, target) ??
         (throw OfflineLanguageUnsupportedException(from));
-    if (route.isEmpty) return text;
+    if (route.isEmpty) return null;
 
     final chain = <ModelPaths>[];
     final missing = <String>[];
@@ -230,12 +330,110 @@ class BergamotTranslator implements OfflineTranslator {
       }
     }
     if (missing.isNotEmpty) throw OfflineModelMissingException(missing);
+    return chain;
+  }
+
+  /// Translates [text] in pieces of at most [maxChunkLength] characters,
+  /// sent to the engine in batches of up to [maxBatchLength] characters (one
+  /// native call each, so the engine batches their sentences), checking
+  /// [abort] before each batch. Every piece keeps its leading and trailing
+  /// whitespace exactly; sentence offsets are moved to the whole text.
+  Future<OfflineTranslation> _translatePieces(
+    List<ModelPaths> chain,
+    String text, {
+    required _Abort abort,
+    required bool details,
+  }) async {
+    final pieces = [
+      for (final piece in TextChunker.split(text, maxLength: maxChunkLength))
+        _Piece(piece),
+    ];
+    final engine = this.engine;
+    final translated = List<OfflineTranslation?>.filled(pieces.length, null);
+    if (engine is BergamotBatchEngine) {
+      for (final batch in _batches(pieces)) {
+        abort.check();
+        final results = await engine.translateBatch(
+          chain,
+          [for (final index in batch) pieces[index].core],
+          details: details,
+          abort: abort.future,
+        );
+        for (final (i, index) in batch.indexed) {
+          translated[index] = results[i];
+        }
+      }
+    } else {
+      for (final (index, piece) in pieces.indexed) {
+        if (piece.core.isEmpty) continue;
+        abort.check();
+        translated[index] = OfflineTranslation(
+          text: await engine.translate(chain, piece.core),
+        );
+      }
+    }
+    abort.check();
 
     final output = StringBuffer();
-    for (final piece in TextChunker.split(text, maxLength: maxChunkLength)) {
-      output.write(await _translatePiece(chain, piece));
+    final sentences = <OfflineSentence>[];
+    var sourceOffset = 0;
+    for (final (index, piece) in pieces.indexed) {
+      final result = translated[index];
+      if (result == null) {
+        output.write(piece.text);
+      } else {
+        final trimmed = result.text.trim();
+        final cut = result.text.length - result.text.trimLeft().length;
+        final targetOffset = output.length + piece.lead.length - cut;
+        output
+          ..write(piece.lead)
+          ..write(trimmed)
+          ..write(piece.trail);
+        for (final sentence in result.sentences) {
+          sentences.add(
+            _judged(
+              sentence.shift(
+                source: sourceOffset + piece.lead.length,
+                target: targetOffset,
+              ),
+            ),
+          );
+        }
+      }
+      sourceOffset += piece.text.length;
     }
-    return output.toString();
+    return OfflineTranslation(text: output.toString(), sentences: sentences);
+  }
+
+  /// The indexes of the [pieces] with text, grouped into batches of at
+  /// most [maxBatchLength] characters (a longer piece is a batch alone).
+  List<List<int>> _batches(List<_Piece> pieces) {
+    final batches = <List<int>>[];
+    var batch = <int>[];
+    var length = 0;
+    for (final (index, piece) in pieces.indexed) {
+      if (piece.core.isEmpty) continue;
+      if (batch.isNotEmpty && length + piece.core.length > maxBatchLength) {
+        batches.add(batch);
+        batch = [];
+        length = 0;
+      }
+      batch.add(index);
+      length += piece.core.length;
+    }
+    if (batch.isNotEmpty) batches.add(batch);
+    return batches;
+  }
+
+  /// [sentence] with [OfflineSentence.isLowConfidence] decided.
+  static OfflineSentence _judged(OfflineSentence sentence) {
+    final score = sentence.score;
+    return sentence.withLowConfidence(
+      value:
+          score != null &&
+          score < lowConfidenceScore &&
+          sentence.words.length >= lowConfidenceMinWords,
+    );
   }
 
   /// BCP-47 code of [text]'s language, or null when undetermined. The
@@ -281,16 +479,6 @@ class BergamotTranslator implements OfflineTranslator {
   @override
   Future<void> dispose() => engine.dispose();
 
-  /// Translates one piece, keeping its leading and trailing whitespace
-  /// exactly.
-  Future<String> _translatePiece(List<ModelPaths> chain, String piece) async {
-    final match = _padding.firstMatch(piece)!;
-    final core = match.group(2)!;
-    if (core.isEmpty) return piece;
-    final translated = await engine.translate(chain, core);
-    return '${match.group(1)}${translated.trim()}${match.group(3)}';
-  }
-
   void _ensureAvailable() {
     if (!isAvailable) {
       throw UnsupportedError(
@@ -313,6 +501,40 @@ class BergamotTranslator implements OfflineTranslator {
     final key = code.trim().toLowerCase();
     return key.isEmpty || key == 'auto';
   }
+}
+
+/// One piece of a text: its [core] without the whitespace around it.
+final class _Piece {
+  new(String text) : this._split(text, _padding.firstMatch(text)!);
+
+  new _split(this.text, RegExpMatch match)
+    : lead = match.group(1)!,
+      core = match.group(2)!,
+      trail = match.group(3)!;
+
+  final String text;
+  final String lead;
+  final String core;
+  final String trail;
 
   static final _padding = RegExp(r'^(\s*)([\s\S]*?)(\s*)$');
+}
+
+/// Whether a request's `abort` future has completed.
+final class _Abort {
+  new(this.future) {
+    if (future case final abort?) {
+      unawaited(
+        abort.then((_) => _done = true, onError: (Object _) => _done = true),
+      );
+    }
+  }
+
+  final Future<void>? future;
+  var _done = false;
+
+  /// Throws [OfflineTranslationCancelledException] once aborted.
+  void check() {
+    if (_done) throw const OfflineTranslationCancelledException();
+  }
 }

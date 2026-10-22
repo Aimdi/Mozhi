@@ -3,10 +3,19 @@
     "short_name": "Mozhi",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#FBF8FF",
-    "theme_color": "#3F51B5",
+    "background_color": "#FFFFFF",
+    "theme_color": "#1D9BF0",
     "description": "A fast, private translator: use your own Mozhi instance or AI model (OpenAI, Anthropic, Gemini, Ollama, ...) with Kagi-style alternatives, insights and proofreading.",
     "orientation": "any",
+    "share_target": {
+        "action": "./",
+        "method": "GET",
+        "params": {
+            "title": "title",
+            "text": "text",
+            "url": "url"
+        }
+    },
     "prefer_related_applications": false,
     "icons": [
         {

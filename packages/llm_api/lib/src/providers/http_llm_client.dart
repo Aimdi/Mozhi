@@ -6,11 +6,12 @@ import 'package:llm_api/src/llm_client.dart';
 import 'package:llm_api/src/llm_exception.dart';
 import 'package:llm_api/src/models.dart';
 import 'package:llm_api/src/providers/error_parsing.dart';
+import 'package:llm_api/src/retry_policy.dart';
 import 'package:llm_api/src/streaming/sse_decoder.dart';
 import 'package:meta/meta.dart';
 
 /// Transport shared by the provider clients: URL building, request sending
-/// with timeouts, cancellation and error mapping.
+/// with timeouts, cancellation, retries and error mapping.
 ///
 /// Subclasses implement [streamChat] with [abortableStream] and
 /// [listModels] with [getJson].
@@ -21,6 +22,7 @@ abstract class HttpLlmClient implements LlmClient {
     this.endpoint, {
     http.Client? httpClient,
     this.timeout = LlmClient.defaultTimeout,
+    this.retryPolicy = LlmRetryPolicy.standard,
   }) : _httpClient = httpClient ?? http.Client(),
        _ownsClient = httpClient == null;
 
@@ -29,6 +31,10 @@ abstract class HttpLlmClient implements LlmClient {
 
   @override
   final Duration timeout;
+
+  /// When [streamChat] sends a request again after a transient failure (see
+  /// [abortableStream]); [LlmRetryPolicy.none] turns retries off.
+  final LlmRetryPolicy retryPolicy;
 
   final http.Client _httpClient;
   final bool _ownsClient;
@@ -43,6 +49,10 @@ abstract class HttpLlmClient implements LlmClient {
 
   @override
   Future<String> chat(LlmRequest request) => streamChat(request).join();
+
+  /// Nothing to warm up: answers false. Overridden by local providers.
+  @override
+  Future<bool> warmUp(String model) async => false;
 
   @override
   void close() {
@@ -117,7 +127,12 @@ abstract class HttpLlmClient implements LlmClient {
     } on Object {
       body = '';
     }
-    throw httpError(status, body, response.reasonPhrase);
+    throw httpError(
+      status,
+      body,
+      response.reasonPhrase,
+      headers: response.headers,
+    );
   }
 
   /// The response body as text, decoded incrementally (multi-byte
@@ -167,61 +182,129 @@ abstract class HttpLlmClient implements LlmClient {
   ///
   /// [open] receives the abort trigger to pass to [send]. It is completed
   /// when the returned stream's subscription is cancelled, which aborts the
-  /// request whether it is still connecting or already streaming, and when
-  /// the stream ends (a no-op for finished requests). The first error ends
-  /// the stream and is delivered as [LlmApiException] (see
-  /// [toLlmException]).
+  /// request whether it is still connecting or already streaming, when the
+  /// request failed, and when the stream ends (a no-op for finished
+  /// requests). The first error ends the stream and is delivered as
+  /// [LlmApiException] (see [toLlmException]).
+  ///
+  /// A transient failure ([LlmApiException.isTransient]) that happens before
+  /// the first text delta was delivered calls [open] again after the wait
+  /// of [retryPolicy] (see [LlmRetryPolicy.delayBefore]), as often as it
+  /// allows. Once a delta has been delivered nothing is retried, so the
+  /// user never pays twice for output they saw. Cancelling during the wait
+  /// ends it at once, without another request.
   @protected
   Stream<String> abortableStream(
     Future<Stream<String>> Function(Future<void> abortTrigger) open,
   ) {
-    final abort = Completer<void>();
+    // Completed when the subscription is cancelled (or the stream ended).
+    final stopped = Completer<void>();
+    // The abort trigger of the current attempt.
+    var abort = Completer<void>();
     StreamSubscription<String>? subscription;
     late final StreamController<String> controller;
+    var delivered = false;
+    var retries = 0;
 
-    void fail(Object error, StackTrace stackTrace) {
-      if (abort.isCompleted || controller.isClosed) return;
-      controller.addError(toLlmException(error), stackTrace);
-      unawaited(controller.close());
+    void complete(Completer<void> completer) {
+      if (!completer.isCompleted) completer.complete();
     }
 
-    Future<void> start() async {
+    late final Future<void> Function() start;
+
+    Future<void> failOrRetry(Object error, StackTrace stackTrace) async {
+      complete(abort);
+      if (stopped.isCompleted || controller.isClosed) return;
+      final exception = toLlmException(error);
+      final wait = delivered
+          ? null
+          : retryPolicy.delayBefore(retries + 1, exception);
+      if (wait == null) {
+        controller.addError(exception, stackTrace);
+        unawaited(controller.close());
+        return;
+      }
+      retries++;
+      await _sleep(wait, stopped.future);
+      if (stopped.isCompleted) return;
+      abort = Completer<void>();
+      await start();
+    }
+
+    start = () async {
       final Stream<String> output;
       try {
         output = await open(abort.future);
       } on Object catch (error, stackTrace) {
-        fail(error, stackTrace);
+        await failOrRetry(error, stackTrace);
         return;
       }
-      if (abort.isCompleted) {
+      if (stopped.isCompleted) {
         // Cancelled while connecting: release the response right away
         // (clients that support aborting have already done so).
         unawaited(output.listen(null).cancel());
         return;
       }
       subscription = output.listen(
-        controller.add,
-        onError: fail,
+        (delta) {
+          delivered = true;
+          controller.add(delta);
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          subscription = null;
+          unawaited(failOrRetry(error, stackTrace));
+        },
         onDone: () => unawaited(controller.close()),
         cancelOnError: true,
       );
       if (controller.isPaused) subscription?.pause();
-    }
+    };
 
     controller = StreamController<String>(
       onListen: () => unawaited(start()),
       onPause: () => subscription?.pause(),
       onResume: () => subscription?.resume(),
       onCancel: () {
-        if (!abort.isCompleted) abort.complete();
+        complete(stopped);
+        complete(abort);
         return subscription?.cancel();
       },
     );
     return controller.stream;
   }
 
+  /// Completes after [duration], or as soon as [stop] completes.
+  static Future<void> _sleep(Duration duration, Future<void> stop) {
+    final done = Completer<void>();
+    void wake() {
+      if (!done.isCompleted) done.complete();
+    }
+
+    final timer = Timer(duration, wake);
+    unawaited(
+      stop.then((_) {
+        timer.cancel();
+        wake();
+      }),
+    );
+    return done.future;
+  }
+
+  /// Transport error messages (of `dart:io`, Cronet and the like) that mean
+  /// an established or half-open connection was lost, as opposed to one
+  /// that could not be made (refused, failed DNS lookup, TLS errors) or a
+  /// request the app's network policy refused.
+  static final _droppedConnection = RegExp(
+    'connection (?:closed|reset|abort|terminated)|reset by peer|broken pipe|'
+    'software caused connection abort|err_connection_(?:reset|closed|aborted)'
+    '|err_network_changed|err_empty_response|err_http2|err_quic|'
+    'stream (?:was )?reset|unexpected end of stream',
+    caseSensitive: false,
+  );
+
   /// Maps any failure to [LlmApiException] and makes sure the API key does
-  /// not appear in it.
+  /// not appear in it. A transport error that means the connection was lost
+  /// is marked [LlmApiException.connectionDropped].
   @protected
   LlmApiException toLlmException(Object error) {
     final exception = switch (error) {
@@ -231,6 +314,7 @@ abstract class HttpLlmClient implements LlmClient {
       ),
       http.ClientException(:final message) => LlmApiException(
         'Could not reach ${endpoint.baseUrl.host}: $message',
+        connectionDropped: _droppedConnection.hasMatch(message),
       ),
       FormatException(:final message, :final source) => LlmApiException(
         'The server sent malformed data: $message',
@@ -280,6 +364,8 @@ abstract class HttpLlmClient implements LlmClient {
         message,
         statusCode: exception.statusCode,
         body: exception.body?.replaceAll(key, redacted),
+        retryAfter: exception.retryAfter,
+        connectionDropped: exception.connectionDropped,
       ),
     };
   }

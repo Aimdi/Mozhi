@@ -1,8 +1,9 @@
 import 'package:mozhi/documents/core/document_builder.dart';
 import 'package:mozhi/documents/core/document_format.dart';
 import 'package:mozhi/documents/core/parsed_document.dart';
-import 'package:mozhi/documents/core/parsers/protected_patterns.dart';
 import 'package:mozhi/documents/core/source_line.dart';
+import 'package:translation_repository/translation_repository.dart'
+    show ProtectedPatterns;
 
 final _timing = RegExp(
   r'^\s*(?:\d+:)?\d{1,2}:\d{2}[,.]\d{1,3}\s*-->\s*(?:\d+:)?\d{1,2}:\d{2}'

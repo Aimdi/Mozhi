@@ -102,7 +102,7 @@ stores on the device and what the other party may keep.
 | Offline speech model download (**Settings > Voice input**) | `huggingface.co` (the [whisper.cpp models](https://huggingface.co/ggerganov/whisper.cpp)), which may redirect to its download servers | Plain file requests (HTTPS `GET`, `Range` to resume): Hugging Face sees your IP address, the time and which model (Fast or Better) you download. No voice, text, identifiers or cookies | Hugging Face's logs. The model stays on the device until you delete it; **Import from files** contacts nothing. |
 | Engine and language lists | The Mozhi instances in your list | Nothing about you except your IP address | The instance's logs. Stored on the device as a cache. |
 | **Check instances**, **Test**, **Test connection**, **Browse models** | Each instance or provider, only when you ask | A version request, or a model list request with your key | The server's logs. |
-| Web app fonts | `fonts.gstatic.com`, when a page needs a script the bundled font lacks (for example Chinese or Devanagari) | The font file name and your IP address, not your text | The browser caches the font. |
+| Web app fonts | The server that hosts the web app: the release zip and the CI builds include the fonts for scripts the bundled font lacks (for example Chinese or Devanagari) and emoji. Only a web build made without `tool/web_fallback_fonts.py` ([building](building.md#web-build-self-hosted-fonts-and-deferred-languages)) fetches them from Google's `fonts.gstatic.com` | The font file name, so which scripts you read, and your IP address; not your text | The browser caches the font. |
 
 Text from other apps (text selection, the share sheet, the Quick Settings
 tile and widget) and links (`/translate?text=…`, `mozhi://…`) is treated

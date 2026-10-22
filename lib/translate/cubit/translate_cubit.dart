@@ -82,6 +82,20 @@ typedef _Languages = ({List<Language> sources, List<Language> targets});
 ///   the engine translates. It only becomes the output when the user picks
 ///   it ([useMemoryMatch]); it never replaces an engine translation by
 ///   itself, and an engine translation started later replaces it.
+/// * Fallback: when the main translation's final result is suspect
+///   (`TranslationResult.isSuspect`: the engine returned the original text,
+///   the wrong language, garbage or a chat reply), up to
+///   [maxFallbackEngines] other engines are tried in turn: the on-device
+///   engine first, then engines that are not cloud providers and that the
+///   privacy settings allow without a new consent
+///   (`TranslationRepository.needsConsent`). The first result that is not
+///   suspect is shown with [TranslateState.fallback] ("Google returned the
+///   original text. Translated on this device."); when none is, the
+///   suspect result is shown with its warnings. The suspect result is
+///   shown (unfinished) while the fallback runs.
+/// * The personal data shield (`AppSettings.maskPersonalData`) is pushed to
+///   the repository (`TranslationRepository.maskPersonalData`) from the
+///   first [loadEngines] on.
 ///
 /// The constructor does no async work: call [loadEngines] once after
 /// construction (and whenever instances/providers change). It listens to
@@ -93,11 +107,17 @@ class TranslateCubit extends Cubit<TranslateState> {
     required this._history,
     this.debounce = const Duration(milliseconds: 600),
     this.aiDebounce = const Duration(milliseconds: 1200),
+    Duration? offlineDebounce,
     DateTime Function()? clock,
     List<String> Function()? deviceLanguages,
     this._usageTracker,
     TranslationMemory? memory,
   }) : _settings = settings,
+       offlineDebounce =
+           offlineDebounce ??
+           (debounce < defaultOfflineDebounce
+               ? debounce
+               : defaultOfflineDebounce),
        _memory = memory ?? TranslationMemory(),
        _clock = clock ?? DateTime.now,
        _deviceLanguages = deviceLanguages ?? _platformLanguages,
@@ -119,6 +139,14 @@ class TranslateCubit extends Cubit<TranslateState> {
 
   /// Most codes in [TranslationRequest.recentSourceLanguages].
   static const maxRecentSourceLanguages = 5;
+
+  /// Default [offlineDebounce] (never longer than [debounce]): the
+  /// on-device engine costs nothing and answers quickly.
+  static const defaultOfflineDebounce = Duration(milliseconds: 250);
+
+  /// Most engines tried after a suspect result (see the class
+  /// documentation).
+  static const maxFallbackEngines = 2;
 
   /// Longest word [lookUpWord] looks up; longer text is cut (followed words
   /// come from model output).
@@ -197,6 +225,16 @@ class TranslateCubit extends Cubit<TranslateState> {
   // Immutable configuration passed to the constructor, not state.
   // ignore: avoid_public_fields
   final Duration aiDebounce;
+
+  /// Instant-translate delay for the on-device engine
+  /// ([defaultOfflineDebounce] unless [debounce] is shorter).
+  // Immutable configuration passed to the constructor, not state.
+  // ignore: avoid_public_fields
+  final Duration offlineDebounce;
+
+  /// The personal data shield last pushed to the repository (null before
+  /// the first [loadEngines]).
+  bool? _shieldPushed;
 
   Timer? _debounceTimer;
 
@@ -331,6 +369,7 @@ class TranslateCubit extends Cubit<TranslateState> {
       _metadataListened = true;
       _metadataSubscription = _listenToMetadata();
     }
+    _pushShield(_settings.state);
     final request = ++_enginesRequest;
     final switches = _switches;
     _listPending = true;
@@ -691,6 +730,7 @@ class TranslateCubit extends Cubit<TranslateState> {
   /// ([_syncExtraTargets]).
   void _onSettings(AppSettings settings) {
     _syncExtraTargets();
+    if (_shieldPushed != null) _pushShield(settings);
     if (!settings.saveHistory && state.memoryMatch != null && !isClosed) {
       emit(state.copyWith(memoryMatch: () => null));
     }
@@ -716,6 +756,19 @@ class TranslateCubit extends Cubit<TranslateState> {
     }
     if (engine != null && engine.id != state.engine?.id) {
       unawaited(_switchEngine(engine, keepResult: true, persist: false));
+    }
+  }
+
+  /// Pushes `AppSettings.maskPersonalData` to the repository when it
+  /// changed.
+  void _pushShield(AppSettings settings) {
+    final mask = settings.maskPersonalData;
+    if (_shieldPushed == mask) return;
+    _shieldPushed = mask;
+    try {
+      _repository.maskPersonalData = mask;
+    } on Object {
+      // A repository test double without the shield.
     }
   }
 
@@ -1013,7 +1066,11 @@ class TranslateCubit extends Cubit<TranslateState> {
         : _settings.state.instantTranslate;
     if (!enabled) return;
     _debounceTimer = Timer(
-      engine.isAi ? aiDebounce : debounce,
+      engine.isAi
+          ? aiDebounce
+          : engine.isOffline
+          ? offlineDebounce
+          : debounce,
       () => unawaited(_translate(auto: true)),
     );
   }
@@ -1440,13 +1497,18 @@ class TranslateCubit extends Cubit<TranslateState> {
     }
 
     final Stream<TranslationResult> stream;
+    TranslationFallback? fallback;
     try {
-      stream = _repository.translate(selected, request);
+      stream = _withFallback(
+        selected,
+        request,
+        _repository.translate(selected, request),
+        onFallback: (value) => fallback = value,
+      );
     } on Object catch (error) {
       fail(error);
       return done.future;
     }
-    var counted = false;
     // Short input gets a second detection whose verdict only comes with the
     // final result: decide on that one.
     final swapEarly = smartSwap && !_isShortInput(request.text);
@@ -1468,14 +1530,6 @@ class TranslateCubit extends Cubit<TranslateState> {
             return;
           }
         }
-        if (result.isComplete && !counted) {
-          // The provider did the work even when a smart swap follows (but
-          // not for results served from the cache).
-          counted = true;
-          if (!result.fromCache) {
-            _recordUsage(selected, input: request.text, output: result.text);
-          }
-        }
         _onResult(
           selected,
           request,
@@ -1483,6 +1537,7 @@ class TranslateCubit extends Cubit<TranslateState> {
           smartSwap: smartSwap,
           auto: auto,
           external: external,
+          fallback: result.isComplete ? fallback : null,
         );
       },
       onError: (Object error) {
@@ -1507,6 +1562,7 @@ class TranslateCubit extends Cubit<TranslateState> {
     return done.future;
   }
 
+  /// [fallback] is set for the final result of a fallback engine.
   void _onResult(
     TranslationEngine engine,
     TranslationRequest request,
@@ -1514,6 +1570,7 @@ class TranslateCubit extends Cubit<TranslateState> {
     required bool smartSwap,
     required bool auto,
     required bool external,
+    TranslationFallback? fallback,
   }) {
     if (!result.isComplete) {
       emit(
@@ -1536,6 +1593,7 @@ class TranslateCubit extends Cubit<TranslateState> {
         resultInput: () => request.text,
         instantResult: auto || external,
         status: TranslateStatus.success,
+        fallback: () => fallback,
       ),
     );
     // An extra target in the detected language of the input is dropped
@@ -1544,8 +1602,8 @@ class TranslateCubit extends Cubit<TranslateState> {
     _record(
       request,
       result,
-      engineId: engine.id,
-      engineName: engine.name,
+      engineId: fallback == null ? engine.id : result.engineId,
+      engineName: fallback == null ? engine.name : result.engineName,
       auto: auto,
     );
     _settings.recordPair(
@@ -1553,6 +1611,145 @@ class TranslateCubit extends Cubit<TranslateState> {
       request.target,
     );
     _autoRomanize();
+  }
+
+  /// [results], [selected]'s translation of [request], with the fallback of
+  /// the class documentation: a final result that is suspect is forwarded
+  /// unfinished while the engines of [_fallbackEngines] are tried in turn
+  /// (their errors and suspect results move on to the next); the first
+  /// good result is forwarded (after [onFallback] got its notice), else the
+  /// suspect one. Usage is recorded for every final result that did not
+  /// come from the cache (once per engine). Cancelling cancels the request
+  /// in flight.
+  Stream<TranslationResult> _withFallback(
+    TranslationEngine selected,
+    TranslationRequest request,
+    Stream<TranslationResult> results, {
+    required void Function(TranslationFallback fallback) onFallback,
+  }) {
+    late final StreamController<TranslationResult> controller;
+    StreamSubscription<TranslationResult>? subscription;
+    TranslationResult? suspect;
+    var candidates = const <TranslationEngine>[];
+    var counted = false;
+
+    void count(TranslationEngine engine, TranslationResult result) {
+      if (!result.fromCache) {
+        _recordUsage(engine, input: request.text, output: result.text);
+      }
+    }
+
+    void close([TranslationResult? last]) {
+      if (controller.isClosed) return;
+      if (last != null) controller.add(last);
+      unawaited(controller.close());
+    }
+
+    late final void Function() tryNext;
+    tryNext = () {
+      if (controller.isClosed) return;
+      if (candidates.isEmpty) return close(suspect);
+      final engine = candidates.first;
+      candidates = candidates.sublist(1);
+      final Stream<TranslationResult> stream;
+      try {
+        stream = _repository.translate(engine, request);
+      } on Object {
+        return tryNext();
+      }
+      var done = false;
+      subscription = stream.listen(
+        (result) {
+          if (done || !result.isComplete) return;
+          done = true;
+          count(engine, result);
+          if (result.isSuspect) return;
+          final first = suspect!;
+          onFallback(
+            TranslationFallback(
+              fromEngineName: selected.name,
+              reason: first.warnings
+                  .firstWhere((warning) => warning.isSuspect)
+                  .kind,
+              engineName: engine.name,
+              onDevice: engine.isOffline,
+            ),
+          );
+          close(result);
+        },
+        onError: (Object _) => tryNext(),
+        onDone: () {
+          if (!controller.isClosed) tryNext();
+        },
+        cancelOnError: true,
+      );
+    };
+
+    controller = StreamController<TranslationResult>(
+      onListen: () {
+        subscription = results.listen(
+          (result) {
+            if (result.isComplete && !counted) {
+              // The provider did the work even when a smart swap or a
+              // fallback follows (but not for results served from the
+              // cache).
+              counted = true;
+              count(selected, result);
+            }
+            if (result.isComplete && result.isSuspect && suspect == null) {
+              final next = _fallbackEngines(selected, request);
+              if (next.isNotEmpty) {
+                suspect = result;
+                candidates = next;
+                controller.add(result.copyWith(isComplete: false));
+                return;
+              }
+            }
+            controller.add(result);
+          },
+          onError: controller.addError,
+          onDone: () {
+            if (suspect != null) return tryNext();
+            close();
+          },
+        );
+      },
+      onPause: () => subscription?.pause(),
+      onResume: () => subscription?.resume(),
+      onCancel: () => subscription?.cancel(),
+    );
+    return controller.stream;
+  }
+
+  /// The engines tried after a suspect result of [from] for [request] (see
+  /// the class documentation), at most [maxFallbackEngines].
+  List<TranslationEngine> _fallbackEngines(
+    TranslationEngine from,
+    TranslationRequest request,
+  ) {
+    bool allowed(TranslationEngine engine) {
+      try {
+        return !_repository.needsConsent(
+          engine,
+          source: request.source,
+          target: request.target,
+        );
+      } on Object {
+        // A repository test double without privacy settings.
+        return false;
+      }
+    }
+
+    return [
+      for (final engine in state.engines)
+        if (engine.isOffline && engine.id != from.id) engine,
+      for (final engine in state.engines)
+        if (!engine.isOffline &&
+            engine.id != from.id &&
+            !_isCloudEngine(engine) &&
+            allowed(engine))
+          engine,
+    ].take(maxFallbackEngines).toList();
   }
 
   /// Switches the target to [swapTo] (saved, recorded as recent), tells the

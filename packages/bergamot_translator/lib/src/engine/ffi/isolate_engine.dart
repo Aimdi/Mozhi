@@ -1,19 +1,24 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:isolate';
 
 import 'package:bergamot_translator/src/engine/bergamot_engine.dart';
 import 'package:bergamot_translator/src/engine/ffi/native_engine.dart';
 import 'package:bergamot_translator/src/model_manager.dart';
+import 'package:translation_repository/translation_repository.dart';
 
 /// [BergamotEngine] running the native engine in one long-lived background
 /// isolate, so model loading and translation never block the UI isolate.
 ///
 /// The isolate starts on first use, keeps up to [maxLoadedModels] models
 /// loaded (least recently used are unloaded first; a pivot needs two) and
-/// handles one request at a time, in order. [dispose] stops it; a later
-/// call starts a new one. If the isolate dies, pending requests fail with
-/// [BergamotEngineException] and the next call starts a new one.
-final class IsolateBergamotEngine implements BergamotEngine {
+/// handles one request at a time, in order. Requests wait on this side and
+/// are sent to the isolate one by one, so a request whose `abort` completes
+/// while it waits is dropped without reaching the engine. [dispose] stops
+/// the isolate; a later call starts a new one. If the isolate dies,
+/// pending requests fail with [BergamotEngineException] and the next call
+/// starts a new one.
+final class IsolateBergamotEngine implements BergamotBatchEngine {
   new({this.libraryPath, this.maxLoadedModels = 3})
     : assert(maxLoadedModels >= 2, 'A pivot needs two loaded models');
 
@@ -32,7 +37,38 @@ final class IsolateBergamotEngine implements BergamotEngine {
     bool html = false,
   }) async {
     final worker = await _start();
-    return (await worker.request(_Translate(chain, text, html: html)))!;
+    return (await worker.request(_Translate(chain, text, html: html)))!
+        as String;
+  }
+
+  @override
+  Future<List<OfflineTranslation>> translateBatch(
+    List<ModelPaths> chain,
+    List<String> texts, {
+    bool html = false,
+    bool details = false,
+    Future<void>? abort,
+  }) async {
+    final cancellation = _Cancellation(abort);
+    final worker = await _start();
+    final result = await worker.request(
+      _TranslateBatch(chain, texts, html: html, details: details),
+      cancellation: cancellation,
+    );
+    return (result! as List<Object?>).cast<OfflineTranslation>();
+  }
+
+  @override
+  Future<void> preload(List<ModelPaths> chain) async {
+    final worker = await _start();
+    await worker.request(_Preload(chain));
+  }
+
+  @override
+  Future<void> trim() async {
+    final worker = _worker;
+    if (worker == null) return;
+    await (await worker).request(const _Trim());
   }
 
   @override
@@ -69,6 +105,44 @@ final class IsolateBergamotEngine implements BergamotEngine {
     unawaited(started.then<void>((_) {}, onError: (Object _) => forget()));
     return started;
   }
+}
+
+/// Whether an `abort` future has completed (with a value or an error).
+final class _Cancellation {
+  new(Future<void>? abort) {
+    if (abort != null) {
+      unawaited(abort.then((_) => _cancel(), onError: (Object _) => _cancel()));
+    }
+  }
+
+  bool isCancelled = false;
+  void Function()? _onCancel;
+
+  /// Calls [callback] once cancelled (at once when it is already).
+  void whenCancelled(void Function() callback) {
+    if (isCancelled) {
+      callback();
+    } else {
+      _onCancel = callback;
+    }
+  }
+
+  void _cancel() {
+    if (isCancelled) return;
+    isCancelled = true;
+    final callback = _onCancel;
+    _onCancel = null;
+    callback?.call();
+  }
+}
+
+/// A request waiting for (or being handled by) the isolate.
+final class _Pending {
+  new(this.id, this.op);
+
+  final int id;
+  final _Op op;
+  final completer = Completer<Object?>();
 }
 
 final class _Worker {
@@ -125,20 +199,35 @@ final class _Worker {
   final Stream<Object?> _responses;
   final void Function() _onExit;
   late final StreamSubscription<Object?> _subscription;
-  final Map<int, Completer<String?>> _pending = {};
+
+  /// Requests not sent yet, oldest first.
+  final Queue<_Pending> _waiting = Queue();
+
+  /// The request the isolate is handling.
+  _Pending? _running;
   var _nextId = 0;
   var _closed = false;
 
-  Future<String?> request(_Op op) {
+  /// Queues [op]. Once [cancellation] is cancelled, the request fails with
+  /// [OfflineTranslationCancelledException]; it is never sent if it is
+  /// still waiting, and its answer is dropped if it is running.
+  Future<Object?> request(_Op op, {_Cancellation? cancellation}) {
     if (_closed) {
       return Future.error(
         const BergamotEngineException('The engine isolate has stopped'),
       );
     }
-    final id = _nextId++;
-    final completer = _pending[id] = Completer<String?>();
-    _requests.send(_Request(id, op));
-    return completer.future;
+    final pending = _Pending(_nextId++, op);
+    _waiting.add(pending);
+    cancellation?.whenCancelled(() {
+      if (pending.completer.isCompleted) return;
+      _waiting.remove(pending);
+      pending.completer.completeError(
+        const OfflineTranslationCancelledException(),
+      );
+    });
+    _sendNext();
+    return pending.completer.future;
   }
 
   Future<void> stop() async {
@@ -147,16 +236,27 @@ final class _Worker {
     _died();
   }
 
+  void _sendNext() {
+    if (_closed || _running != null || _waiting.isEmpty) return;
+    final next = _running = _waiting.removeFirst();
+    _requests.send(_Request(next.id, next.op));
+  }
+
   void _handle(Object? message) {
     if (message is! _Response) return;
-    final completer = _pending.remove(message.id);
-    if (completer == null) return;
-    final error = message.error;
-    if (error != null) {
-      completer.completeError(BergamotEngineException(error));
-    } else {
-      completer.complete(message.result);
+    final running = _running;
+    if (running == null || running.id != message.id) return;
+    _running = null;
+    final completer = running.completer;
+    if (!completer.isCompleted) {
+      final error = message.error;
+      if (error != null) {
+        completer.completeError(BergamotEngineException(error));
+      } else {
+        completer.complete(message.result);
+      }
     }
+    _sendNext();
   }
 
   void _died() {
@@ -164,12 +264,14 @@ final class _Worker {
     _closed = true;
     unawaited(_subscription.cancel());
     _isolate.kill(priority: Isolate.immediate);
-    for (final completer in _pending.values) {
-      completer.completeError(
+    for (final pending in [?_running, ..._waiting]) {
+      if (pending.completer.isCompleted) continue;
+      pending.completer.completeError(
         const BergamotEngineException('The engine isolate stopped'),
       );
     }
-    _pending.clear();
+    _running = null;
+    _waiting.clear();
     _onExit();
   }
 
@@ -192,6 +294,21 @@ final class _Worker {
         final result = switch (message.op) {
           _Translate(:final chain, :final text, :final html) =>
             engine.translate(chain, text, html: html),
+          _TranslateBatch(
+            :final chain,
+            :final texts,
+            :final html,
+            :final details,
+          ) =>
+            engine.translateBatch(chain, texts, html: html, details: details),
+          _Preload(:final chain) => () {
+            engine.preload(chain);
+            return null;
+          }(),
+          _Trim() => () {
+            engine.trim();
+            return null;
+          }(),
           _Release(:final key) => () {
             engine.release(key);
             return null;
@@ -234,7 +351,7 @@ final class _Response {
   const new(this.id, {this.result, this.error});
 
   final int id;
-  final String? result;
+  final Object? result;
   final String? error;
 }
 
@@ -248,6 +365,30 @@ final class _Translate extends _Op {
   final List<ModelPaths> chain;
   final String text;
   final bool html;
+}
+
+final class _TranslateBatch extends _Op {
+  const new(
+    this.chain,
+    this.texts, {
+    required this.html,
+    required this.details,
+  });
+
+  final List<ModelPaths> chain;
+  final List<String> texts;
+  final bool html;
+  final bool details;
+}
+
+final class _Preload extends _Op {
+  const new(this.chain);
+
+  final List<ModelPaths> chain;
+}
+
+final class _Trim extends _Op {
+  const new();
 }
 
 final class _Release extends _Op {

@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:http/io_client.dart';
 import 'package:mozhi_api/mozhi_api.dart';
 import 'package:test/test.dart';
 
@@ -166,6 +167,48 @@ void main() {
       );
       // Well before the client is closed in tearDown.
       await closedByClient.future.timeout(const Duration(seconds: 5));
+    });
+
+    test('reports a connection that cannot be made as a network error, '
+        'not a timeout', () async {
+      // Accepts the connection but never answers the TLS handshake.
+      final socketServer = await ServerSocket.bind(
+        InternetAddress.loopbackIPv4,
+        0,
+      );
+      addTearDown(socketServer.close);
+      final sockets = <Socket>[];
+      socketServer.listen((socket) {
+        sockets.add(socket);
+        socket.listen((_) {}, onError: (_) {});
+      });
+      addTearDown(() {
+        for (final socket in sockets) {
+          socket.destroy();
+        }
+      });
+      final client = MozhiApiClient(
+        baseUrl: Uri.parse('https://127.0.0.1:${socketServer.port}'),
+        httpClient: IOClient(
+          HttpClient()..connectionTimeout = const Duration(milliseconds: 100),
+        ),
+      );
+      clients.add(client);
+
+      await expectLater(
+        client.translate(engine: 'google', from: 'auto', to: 'en', text: 'x'),
+        throwsA(
+          isA<MozhiApiException>()
+              .having((e) => e.statusCode, 'statusCode', isNull)
+              .having((e) => e.message, 'message', contains('timed out'))
+              .having(
+                (e) => e.message,
+                'message',
+                isNot(startsWith('No response within')),
+              )
+              .having((e) => e.isRetryable, 'isRetryable', isTrue),
+        ),
+      );
     });
 
     test('sends percent-encoded credentials decoded', () async {

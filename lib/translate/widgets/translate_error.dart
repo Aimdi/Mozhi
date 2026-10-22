@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
@@ -9,6 +10,7 @@ import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/data/bergamot_model_details.dart'
     show offlineModelDetailsOf;
+import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/offline_offer.dart';
 import 'package:mozhi/translate/widgets/offline_only_notice.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -127,6 +129,26 @@ TranslateErrorInfo describeTranslateError(
 }
 
 String _languageName(String code) => LanguageCatalog.byCode(code)?.name ?? code;
+
+/// Whether [error] says the server could not be reached or failed: no
+/// answer (DNS, TLS, connection), a timeout or a 5xx status, from a Mozhi
+/// instance, an AI provider or a machine translation service. The
+/// on-device engine may still translate then. A cancelled request, a
+/// refusal or a truncated answer is not one.
+bool isNetworkFailure(Object? error) => switch (error) {
+  // isRetryable is false for a request the user cancelled.
+  MozhiApiException(statusCode: null, isRetryable: true) => true,
+  MozhiApiException(:final int statusCode) => statusCode >= 500,
+  LlmRefusalException() || LlmApiException(isTruncated: true) => false,
+  LlmApiException(statusCode: null) => true,
+  LlmApiException(:final int statusCode) => statusCode >= 500,
+  MtApiException(
+    kind: MtErrorKind.network || MtErrorKind.timeout || MtErrorKind.server,
+  ) =>
+    true,
+  TimeoutException() => true,
+  _ => false,
+};
 
 final _rateLimited = RegExp('rate.?limit', caseSensitive: false);
 final _engineUnavailable = RegExp(
@@ -262,6 +284,12 @@ String _redactUrl(String url) {
 /// size when the device's offline engine knows it), which opens the
 /// offline languages. A Mozhi instance error offers "Switch instance"
 /// instead of "Manage instances" when [onSwitchInstance] is given.
+///
+/// When the Translate screen's translation failed on the network
+/// ([isNetworkFailure]: no answer, a timeout, a 5xx) with an engine that
+/// is not the on-device one, an [OfflinePairOffer] for its language pair
+/// follows: "Translate on this device" when the models are installed,
+/// "Download German (25 MB)" when they can be downloaded (not [dense]).
 ///
 /// When the engine cannot detect the source language
 /// ([TranslateErrorInfo.chooseSourceLanguage]) and [onChooseSourceLanguage]
@@ -473,8 +501,31 @@ class TranslateErrorView extends StatelessWidget {
             ],
           ),
         ],
+        ?_offlineOffer(context),
         if (details != null) TranslateErrorDetails(details: details),
       ],
+    );
+  }
+
+  /// The [OfflinePairOffer] for a network failure of the translation of
+  /// the [TranslateCubit] above (its [TranslateState.error] is [error]),
+  /// or null: not a network failure, no Translate screen, the on-device
+  /// engine failed, or [dense].
+  Widget? _offlineOffer(BuildContext context) {
+    if (dense || !isNetworkFailure(error)) return null;
+    final TranslateState state;
+    try {
+      state = context.read<TranslateCubit>().state;
+    } on ProviderNotFoundException {
+      return null;
+    }
+    if (!identical(state.error, error) || (state.engine?.isOffline ?? false)) {
+      return null;
+    }
+    return OfflinePairOffer.pair(
+      key: const Key('translate_error_offline'),
+      source: state.source.code,
+      target: state.target.code,
     );
   }
 
