@@ -461,8 +461,9 @@ String _instanceList(List<MozhiInstance> instances) => [
 ].join(', ');
 
 /// What the restore did: per part restored, the item counts before and
-/// after (or "Restored"), and for the settings the AI providers and Mozhi
-/// instances it added (and, after Merge, the instances it left out); or
+/// after (or "Restored"), and for the settings the AI providers (apart:
+/// those Merge turned off) and Mozhi instances it added (and, after
+/// Merge, the instances it left out); or
 /// which part failed. (Parts this version doesn't know were named before,
 /// and never restored.)
 class _Result extends StatelessWidget {
@@ -524,9 +525,18 @@ class _Result extends StatelessWidget {
     final skipped = mode == BackupRestoreMode.merge && replace != null
         ? replace.instances
         : const <MozhiInstance>[];
+    // Merge turns off those that would get text without asking first.
+    bool turnedOff(AiProviderConfig provider) =>
+        mode == BackupRestoreMode.merge &&
+        !provider.enabled &&
+        !SettingsBackupSection.asksBeforeFirstUse(provider);
+    final on = [...added.providers.where((p) => !turnedOff(p))];
+    final off = [...added.providers.where(turnedOff)];
     return [
-      if (added.providers.isNotEmpty)
-        l10n.backupRestoreAddedProviders(_providerList(l10n, added.providers)),
+      if (on.isNotEmpty)
+        l10n.backupRestoreAddedProviders(_providerList(l10n, on)),
+      if (off.isNotEmpty)
+        l10n.backupRestoreAddedProvidersOff(_providerList(l10n, off)),
       if (added.instances.isNotEmpty)
         l10n.backupRestoreAddedInstances(_instanceList(added.instances)),
       if (skipped.isNotEmpty)
