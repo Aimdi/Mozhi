@@ -23,8 +23,9 @@ nothing is sent anywhere. The AI entry becomes an optional **More detail**.
   (on mobile data the app asks first). The Dictionary tab offers **Get
   dictionaries** when it has neither a pack nor an AI provider, or no pack
   for the word's language.
-- **Downloads** go to the model source of **Settings > Offline languages >
-  Model source**: the GitHub release by default, or
+- **Downloads** come from the model source (**Settings > Translation
+  engines > Model source**, also on **Offline languages**): the GitHub
+  release by default, or
   `<mirror>/dictionary/<id>.mzd` on a mirror (the same layout as
   `bergamot/`, `whisper/` and `tesseract/`; a self-hosted web app serves
   them from `models/dictionary/` next to the app). Every file is checked

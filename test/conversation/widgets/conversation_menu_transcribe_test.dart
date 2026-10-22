@@ -16,8 +16,10 @@ void main() {
   setUpAll(registerConversationFallbacks);
 
   late ConversationCubit cubit;
+  late AppLocalizations l10n;
 
-  setUp(() {
+  setUp(() async {
+    l10n = await AppLocalizations.delegate.load(const Locale('en'));
     final speech = MockSpeechService();
     stubSpeech(speech);
     cubit = ConversationCubit(
@@ -54,10 +56,10 @@ void main() {
     await pump(tester, router: router);
     await tester.tap(find.byKey(const Key('conversation_menu')));
     await tester.pumpAndSettle();
-    final l10n = await AppLocalizations.delegate.load(const Locale('en'));
     expect(find.text(l10n.conversationTranscribe), findsOneWidget);
     await tester.tap(find.byKey(const Key('conversation_menu_transcribe')));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
     verify(() => router.push<void>(AppRoutes.transcribe)).called(1);
   });
 

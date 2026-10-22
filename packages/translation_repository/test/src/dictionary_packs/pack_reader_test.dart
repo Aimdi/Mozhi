@@ -93,6 +93,16 @@ void main() {
       ]);
     });
 
+    test('folds the base letters of accented words too', () async {
+      final writer = DictionaryPackWriter(language: 'fr')..add(cafe);
+      final reader = await _open(writer.build());
+      for (final query in ['CAFE', 'Cafe', 'CAFÉ']) {
+        expect(await _hits(reader, query), [
+          ('café', 'noun', false),
+        ], reason: query);
+      }
+    });
+
     test('finds the lemmas of inflected forms', () async {
       final reader = await _open(pack);
       expect(await _hits(reader, 'houses'), [

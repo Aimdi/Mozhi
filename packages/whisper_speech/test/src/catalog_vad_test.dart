@@ -41,7 +41,7 @@ void main() {
       expect(parsed.model('silero-vad'), isNull);
     });
 
-    test('the checksums are those of whisper.cpp\'s copy', () {
+    test("the checksums are those of whisper.cpp's copy", () {
       final copy = File(
         'native/third_party/whisper.cpp/models/'
         'for-tests-silero-v6.2.0-ggml.bin',
@@ -84,7 +84,7 @@ void main() {
       ),
       ('no speech model', [entry('vad', kind: 'vad')]),
       (
-        'a VAD model with a speech model\'s id',
+        "a VAD model with a speech model's id",
         [entry('tiny'), entry('tiny', kind: 'vad')],
       ),
     ]) {

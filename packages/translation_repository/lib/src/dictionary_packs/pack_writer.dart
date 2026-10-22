@@ -209,9 +209,9 @@ final class DictionaryPackWriter {
         .takeBytes();
   }
 
-  /// The fold of every character the headwords and forms use, in either
-  /// case, plus the combining diacritics and curly apostrophes, where it
-  /// changes the character.
+  /// The fold of every character the headwords and forms use and of the
+  /// characters they fold to, in either case, plus the combining
+  /// diacritics and curly apostrophes, where it changes the character.
   Map<String, String> _foldTable() {
     final runes = <int>{
       for (var rune = 0x300; rune <= 0x36f; rune++) rune,
@@ -219,16 +219,21 @@ final class DictionaryPackWriter {
       0x2019,
       0x02bc,
     };
-    for (final (entry, forms) in _entries) {
-      for (final text in [entry.word, ...forms]) {
-        for (final rune in text.runes) {
-          final char = String.fromCharCode(rune);
-          runes
-            ..add(rune)
-            ..addAll(char.toUpperCase().runes)
-            ..addAll(char.toLowerCase().runes);
-        }
-      }
+    final seen = <int>{
+      for (final (entry, forms) in _entries)
+        for (final text in [entry.word, ...forms]) ...text.runes,
+    };
+    // The characters, what they fold to (an accented letter's base letter)
+    // and the other cases of both: `CAFE` must find `café`.
+    for (final rune in {
+      ...seen,
+      for (final rune in seen) ..._foldRune(rune).runes,
+    }) {
+      final char = String.fromCharCode(rune);
+      runes
+        ..add(rune)
+        ..addAll(char.toUpperCase().runes)
+        ..addAll(char.toLowerCase().runes);
     }
     final sorted = runes.toList()..sort();
     return {

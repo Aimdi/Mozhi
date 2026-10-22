@@ -1,6 +1,6 @@
 import 'dart:async';
+import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:mozhi/dictionary/data/dictionary_pack_storage.dart';
 import 'package:translation_repository/translation_repository.dart';

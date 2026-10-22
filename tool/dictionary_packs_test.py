@@ -67,6 +67,11 @@ class FoldTest(unittest.TestCase):
         self.assertEqual(packs.fold('  ice\u00a0\tcream  '), 'ice cream')
         self.assertEqual(packs.fold('cafe\u0301'), 'cafe')
 
+    def test_table_covers_the_base_letters(self):
+        table = packs.fold_table(['café'])
+        self.assertEqual(packs.fold('CAFE', table), 'cafe')
+        self.assertEqual(packs.fold('Cafe', table), 'cafe')
+
     def test_table_folds_like_the_builder(self):
         words = ['Café', 'naïve', 'Straße', 'Ärger', 'どう']
         table = packs.fold_table(words)

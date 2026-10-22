@@ -20,6 +20,7 @@ alone.
 - [Proofread](#proofread)
 - [Image translation](#image-translation)
 - [Voice](#voice)
+- [Transcribe](#transcribe)
 - [Documents](#documents)
 - [Web pages](#web-pages)
 - [Offline translation](#offline-translation)
@@ -702,7 +703,10 @@ reported before anything is uploaded.
   OpenAI's Whisper model (Fast, 75 MB, or Better, 142 MB, downloaded from
   Hugging Face or imported from a file) recognises 99 languages on the
   phone, so your voice never leaves it. **Offline only** always uses Whisper (see
-  [Voice input](voice-input.md)).
+  [Voice input](voice-input.md)). A small speech detector (Silero VAD,
+  0.9 MB, downloaded with the model) tells speech from noise, so Whisper
+  writes each phrase down as soon as you pause, while you go on speaking,
+  and a recording may last a minute.
 - **Conversation** (a tab of its own): two people, two languages. Each
   person speaks or types in turn and hears or reads the other's words in
   their own language. While the conversation is empty, a large microphone
@@ -710,11 +714,51 @@ reported before anything is uploaded.
   in one pill above the two input fields (tap a language to change it, the
   arrows to swap). **Face to face** (the two-people button) turns the screen
   into two halves, the far one upside down, and covers the tabs; back
-  returns to the tab.
+  returns to the tab. With Whisper and its speech detector, each phrase is
+  transcribed while the person goes on speaking, so the translation follows
+  sooner after they stop; Whisper still tells which of the two languages
+  was spoken. The menu's **Transcribe a talk** opens [Transcribe](#transcribe).
 - **Device voices**: besides your Mozhi instance's voices, the app can read
   text aloud with the device's built-in text-to-speech voices, with a speech
   rate and a voice per language of your choice (see
   [Text-to-speech](#text-to-speech)).
+
+## Transcribe
+
+For a lecture, a guided tour or a meeting: **Transcribe** (in the
+translate screen's **More tools** menu and the Conversation tab's menu)
+listens for as long as you like and writes down what it hears, one
+paragraph per phrase with its time (`1:05`), as a rolling transcript.
+
+- **Start**, **Pause** (resume continues the same transcript and its time
+  line, pauses left out) and **Stop**. The screen stays on while Mozhi
+  listens; it only listens while it is on screen, so switching apps or
+  turning the screen off pauses it.
+- **What hears**: on Android, offline Whisper (the speech model of
+  [Voice input](voice-input.md)), so the speech stays on the phone, also
+  when voice input is set to the system recogniser (it stops after every
+  pause and cannot transcribe a talk). Without a model, Transcribe says so
+  and opens the voice input settings to get one. With the speech detector
+  (0.9 MB, offered on the screen when it is missing) phrases end at real
+  pauses; without it, loudness decides, which noise can fool. When
+  transcription falls behind (the Better model on a slow phone), speech is
+  skipped rather than piling up, and the transcript says so. In the web
+  app, the browser's own speech recognition listens continuously where it
+  can; the screen says that it may send the audio to the browser's maker
+  (Chrome to Google), and in **Offline only** Transcribe is off there.
+- **Translation** is off until you turn on **Translate**: then each phrase
+  (and the transcript so far) is translated into the language you choose,
+  with the translate screen's engine and options, one phrase at a time.
+  The screen says where the phrases go ("Each phrase is sent to DeepL to be
+  translated", or translated on this device), and the usual privacy rules
+  apply: a phrase that needs your OK waits for it in the transcript; in
+  **Offline only** the on-device engine translates. From 840 dp the
+  translation sits beside each phrase.
+- **Copy**, **Share**, **Save as text (.txt)** and **Save as subtitles
+  (.srt)** (times from the transcript, the translation as a second line);
+  **Save to History** saves the transcript as one entry, only when you ask
+  (as a favourite while history is paused). Nothing is saved otherwise:
+  the transcript is gone when you leave the screen.
 
 ## Documents
 

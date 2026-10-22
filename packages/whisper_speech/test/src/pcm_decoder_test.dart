@@ -17,8 +17,9 @@ void main() {
     });
 
     test('reset drops a dangling byte', () {
-      final decoder = Pcm16Decoder()..convert([0x00]);
-      decoder.reset();
+      final decoder = Pcm16Decoder()
+        ..convert([0x00])
+        ..reset();
       expect(decoder.convert([0x00, 0x40]), [0.5]);
     });
   });

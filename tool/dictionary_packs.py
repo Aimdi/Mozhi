@@ -152,11 +152,15 @@ def fold_table(texts):
     """The fold of every character [texts] use, in each case, plus the
     combining diacritics and curly apostrophes, where it changes it."""
     chars = {chr(c) for c in range(0x300, 0x370)} | set('‘’ʼ')
+    seen = set()
     for text in texts:
-        for char in text:
-            chars.add(char)
-            for variant in (char.upper(), char.lower(), char.title()):
-                chars.update(variant)
+        seen.update(text)
+    # The characters, what they fold to (an accented letter's base letter)
+    # and the other cases of both: `CAFE` must find `café`.
+    for char in seen | {c for char in seen for c in fold_char(char)}:
+        chars.add(char)
+        for variant in (char.upper(), char.lower(), char.title()):
+            chars.update(variant)
     table = {}
     for char in sorted(chars):
         folded = fold_char(char)
