@@ -480,26 +480,17 @@ class DictionaryCubit extends Cubit<DictionaryState> {
         suggestions: const [],
       ),
     );
-    OfflineDictionaryAnswer? answer;
-    try {
-      answer = await offline.lookUp(
-        word,
-        language: source.isAuto ? null : source.code,
-        target: target.code,
-      );
-    } on Object catch (error, stackTrace) {
-      // An unreadable dictionary answers nothing.
-      addError(error, stackTrace);
-    }
+    final answer = await _offlineAnswer(offline, word, source, target);
     if (isClosed || request != _request) return;
     if (answer != null) {
       final engine = offlineEngine(answer.attribution);
+      final language = source.isAuto ? answer.language : source.code;
       _entryEngine = engine;
       emit(
         state.copyWith(
           status: DictionaryStatus.success,
-          entry: () => answer!.entry,
-          entryLanguage: () => source.isAuto ? answer!.language : source.code,
+          entry: () => answer.entry,
+          entryLanguage: () => language,
           offlineAnswer: () => answer,
         ),
       );
@@ -528,6 +519,28 @@ class DictionaryCubit extends Cubit<DictionaryState> {
         suggestions: suggestions,
       ),
     );
+  }
+
+  /// [offline]'s answer for [word], or null (also when it fails: an
+  /// unreadable dictionary answers nothing). A method of its own so that no
+  /// nullable local set in a `try` is read in a closure (dart2js got such
+  /// locals wrong).
+  Future<OfflineDictionaryAnswer?> _offlineAnswer(
+    OfflineDictionary offline,
+    String word,
+    Language source,
+    Language target,
+  ) async {
+    try {
+      return await offline.lookUp(
+        word,
+        language: source.isAuto ? null : source.code,
+        target: target.code,
+      );
+    } on Object catch (error, stackTrace) {
+      addError(error, stackTrace);
+      return null;
+    }
   }
 
   /// Words of the dictionaries that start like [word] (or, without any,
