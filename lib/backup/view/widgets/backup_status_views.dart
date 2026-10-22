@@ -83,13 +83,12 @@ class BackupOutcomeView extends StatelessWidget {
           const SizedBox(height: AppSpacing.lg),
           Icon(icon, size: 48, color: error ? colors.error : colors.primary),
           const SizedBox(height: AppSpacing.lg),
-          Semantics(
-            header: true,
-            child: Text(
-              title,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.titleLarge,
-            ),
+          // Announced with what follows (one live region); the dialog's
+          // title is the heading.
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.titleLarge,
           ),
           const SizedBox(height: AppSpacing.md),
           ...children,

@@ -6,7 +6,15 @@ import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/pairing/pairing_routes.dart';
 import 'package:mozhi/pairing/view/pairing_unavailable.dart';
+import 'package:mozhi/settings/view/widgets/settings_search.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
+
+/// Anchors ([SettingsAnchor.id]) of the phone-to-phone rows in Settings ›
+/// Backup & sync.
+abstract final class PairingAnchors {
+  static const receive = 'pairing_receive';
+  static const send = 'pairing_send';
+}
 
 /// The **Phone to phone** section of Settings › Backup & sync: an
 /// introduction, **Receive on this phone** and **Send to another phone**.
@@ -40,19 +48,25 @@ class PairingSettingsSection extends StatelessWidget {
             ),
           ),
         ),
-        ListTile(
-          key: const Key('pairing_receive'),
-          leading: const SettingsIcon(Icons.qr_code_2),
-          title: Text(l10n.pairingReceiveAction),
-          subtitle: Text(l10n.pairingReceiveSubtitle),
-          onTap: () => unawaited(context.push<void>(PairingRoutes.receive)),
+        SettingsAnchor(
+          id: PairingAnchors.receive,
+          child: ListTile(
+            key: const Key('pairing_receive'),
+            leading: const SettingsIcon(Icons.qr_code_2),
+            title: Text(l10n.pairingReceiveAction),
+            subtitle: Text(l10n.pairingReceiveSubtitle),
+            onTap: () => unawaited(context.push<void>(PairingRoutes.receive)),
+          ),
         ),
-        ListTile(
-          key: const Key('pairing_send'),
-          leading: const SettingsIcon(Icons.send_to_mobile_outlined),
-          title: Text(l10n.pairingSendAction),
-          subtitle: Text(l10n.pairingSendSubtitle),
-          onTap: () => unawaited(context.push<void>(PairingRoutes.send)),
+        SettingsAnchor(
+          id: PairingAnchors.send,
+          child: ListTile(
+            key: const Key('pairing_send'),
+            leading: const SettingsIcon(Icons.send_to_mobile_outlined),
+            title: Text(l10n.pairingSendAction),
+            subtitle: Text(l10n.pairingSendSubtitle),
+            onTap: () => unawaited(context.push<void>(PairingRoutes.send)),
+          ),
         ),
       ],
     );
