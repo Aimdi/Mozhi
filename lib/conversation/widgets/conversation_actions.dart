@@ -172,6 +172,8 @@ class ConversationMenuButton extends StatelessWidget {
             unawaited(_share(context, state));
           case _MenuAction.clear:
             unawaited(_clear(context));
+          case _MenuAction.transcribe:
+            unawaited(GoRouter.of(context).push<void>(AppRoutes.transcribe));
         }
       },
       itemBuilder: (context) => [

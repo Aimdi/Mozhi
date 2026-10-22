@@ -40,7 +40,8 @@ import 'package:translation_repository/translation_repository.dart';
 /// prompt, and imports from files (no network) with the files to download
 /// by hand per language. Links to the text recognition languages
 /// ([OcrLanguagesPage]) when the build's recognizer downloads data per
-/// language and runs here.
+/// language and runs here, and to the offline dictionaries
+/// (`DictionaryPacksPage`) when the app provides its `DictionaryPacks`.
 ///
 /// Uses [translator] and [store] when given, otherwise the
 /// [OfflineTranslator] and [KeyValueStore] provided above (falling back to
