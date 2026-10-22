@@ -277,9 +277,11 @@ class WhisperCatalogTest(unittest.TestCase):
                 "silero-vad",
             ],
         )
-        # The existing entries are untouched.
+        # The other entries are untouched; the resolved ones are replaced.
+        resolved = {source["id"] for source in catalog.SOURCES}
         for model in bundled["models"]:
-            self.assertIn(model, written["models"])
+            if model["id"] not in resolved:
+                self.assertIn(model, written["models"])
         self.assertEqual(written["schemaVersion"], 1)
         quantized = [
             line
@@ -288,10 +290,12 @@ class WhisperCatalogTest(unittest.TestCase):
         ]
         self.assertEqual(len(quantized), 1)
         self.assertIn(COMMIT, quantized[0])
-        self.assertEqual(
-            written["_provenance"][: len(bundled["_provenance"])],
-            bundled["_provenance"],
-        )
+        kept = [
+            line
+            for line in bundled["_provenance"]
+            if not line.startswith("Quantized models (")
+        ]
+        self.assertEqual(written["_provenance"][: len(kept)], kept)
 
         # Again: the same file (entries replaced, one provenance line).
         before = path.read_text(encoding="utf-8")
