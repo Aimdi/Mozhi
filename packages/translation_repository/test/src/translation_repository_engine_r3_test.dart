@@ -214,10 +214,7 @@ void main() {
       final results = await repository.translate(claude, longRequest).toList();
       expect(results.last.isComplete, isTrue);
       expect(results.where((r) => r.isComplete), hasLength(1));
-      expect(
-        results.last.text,
-        paragraphs.map(fakeGerman).join('\n\n'),
-      );
+      expect(results.last.text, paragraphs.map(fakeGerman).join('\n\n'));
       expect(results.last.engineId, 'ai:claude');
 
       final requests = streamed(llmOf(claudeConfig));
@@ -329,10 +326,7 @@ void main() {
       final auto = longRequest.copyWith(source: Language.auto);
       final results = await repository.translate(claude, auto).toList();
       expect(results.map((r) => r.detectedSource), everyElement('en'));
-      expect(
-        results.last.text,
-        paragraphs.map(fakeGerman).join('\n\n'),
-      );
+      expect(results.last.text, paragraphs.map(fakeGerman).join('\n\n'));
       final requests = streamed(llmOf(claudeConfig));
       final pinned = LanguageCatalog.byCode('en')!;
       expect(
