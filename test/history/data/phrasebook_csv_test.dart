@@ -80,4 +80,92 @@ void main() {
       expect(PhrasebookCsv.date(DateTime(987, 1, 2)), '0987-01-02');
     });
   });
+
+  group('PhrasebookCsv rows and parse', () {
+    test('encodeRows writes the header and quoted fields', () {
+      expect(
+        PhrasebookCsv.encodeRows([
+          ['a', 'b, c'],
+          ['#d', ' e', 'f "g"'],
+        ]),
+        '#separator:Comma\r\n#html:false\r\n'
+        'a,"b, c"\r\n"#d"," e","f ""g"""\r\n',
+      );
+      expect(PhrasebookCsv.textBytes('x'), [0xEF, 0xBB, 0xBF, 0x78]);
+    });
+
+    test('reads its own export back', () {
+      final csv = PhrasebookCsv.encode([
+        _entry('Hello, "friend"', 'Bonjour'),
+        _entry('#tag', 'line\nbreak'),
+      ]);
+      final table = PhrasebookCsv.parse('${PhrasebookCsv.byteOrderMark}$csv');
+      expect(table.separator, ',');
+      expect(table.rows, [
+        ['Hello, "friend"', 'Bonjour', 'English', 'French', '2026-03-07'],
+        ['#tag', 'line\nbreak', 'English', 'French', '2026-03-07'],
+      ]);
+      expect(table.columns, 5);
+    });
+
+    test("follows Anki's separator header", () {
+      for (final (name, separator) in [
+        ('Tab', '\t'),
+        ('Semicolon', ';'),
+        ('Pipe', '|'),
+        ('Space', ' '),
+        ('Colon', ':'),
+        ('comma', ','),
+        ('/', '/'),
+      ]) {
+        final table = PhrasebookCsv.parse(
+          '#separator:$name\n#html:true\na${separator}b\n',
+        );
+        expect(table.rows, [
+          ['a', 'b'],
+        ], reason: name);
+        expect(table.separator, separator);
+      }
+      // An unknown name: the separator is sniffed.
+      expect(PhrasebookCsv.parse('#separator:Odd\r\na;b\r\n').rows.single, [
+        'a',
+        'b',
+      ]);
+      // Only header lines.
+      expect(PhrasebookCsv.parse('#separator:Tab').rows, isEmpty);
+      expect(PhrasebookCsv.parse('#html:false\r').rows, isEmpty);
+    });
+
+    test('sniffs tabs and semicolons, ignoring quoted ones', () {
+      expect(PhrasebookCsv.parse('a\tb\nc\td').rows, [
+        ['a', 'b'],
+        ['c', 'd'],
+      ]);
+      expect(PhrasebookCsv.parse('"x;y",b;c\r').separator, ',');
+      expect(PhrasebookCsv.parse('a;b;c,d').separator, ';');
+      expect(PhrasebookCsv.parse('one\n').rows, [
+        ['one'],
+      ]);
+    });
+
+    test('handles CR line endings, empty lines and lenient quotes', () {
+      final table = PhrasebookCsv.parse('a,b\r\rc,"d"x\r"e""f",\n');
+      expect(table.rows, [
+        ['a', 'b'],
+        ['c', 'dx'],
+        ['e"f', ''],
+      ]);
+      expect(PhrasebookCsv.parse('a,"open quote\nnext').rows, [
+        ['a', 'open quote\nnext'],
+      ]);
+      expect(CsvTable.cell(['a'], 3), '');
+      expect(PhrasebookCsv.parse('').rows, isEmpty);
+      expect(PhrasebookCsv.parse('').columns, 0);
+    });
+
+    test('reads at most maxRows rows', () {
+      final text = List.filled(PhrasebookCsv.maxRows + 5, 'a,b').join('\n');
+      expect(PhrasebookCsv.parse(text).rows, hasLength(PhrasebookCsv.maxRows));
+    });
+  });
 }

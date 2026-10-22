@@ -108,6 +108,22 @@ void main() {
       );
     });
 
+    test('binds the associated data', () async {
+      final encrypted = await cipher.encrypt(text, key, aad: 'other');
+
+      expect(await cipher.decrypt(encrypted, key, aad: 'other'), text);
+      await expectLater(
+        cipher.decrypt(encrypted, key),
+        throwsA(isA<HistoryCipherException>()),
+      );
+      await expectLater(
+        cipher.decrypt(await cipher.encrypt(text, key), key, aad: 'other'),
+        throwsA(isA<HistoryCipherException>()),
+      );
+      const background = HistoryCipher(isolateThreshold: 1);
+      expect(await background.decrypt(encrypted, key, aad: 'other'), text);
+    });
+
     test('describes its exception', () {
       expect(
         const HistoryCipherException().toString(),

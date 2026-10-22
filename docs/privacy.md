@@ -20,6 +20,10 @@ goes anywhere else.
 - **Your history, settings and keys stay on your device.** The history is
   encrypted, secrets are in secure storage, and nothing is backed up or
   copied to a new phone.
+- **Sync stays yours.** If you want your devices in sync, they use a
+  WebDAV folder on your own server (Nextcloud, a NAS, rclone), end-to-end
+  encrypted with your passphrase: the server stores only what it can't
+  read, and there is no account ([Sync](sync.md)).
 - **Your text is sent only to the back end you choose** for that
   translation: a Mozhi instance, an AI provider, a DeepL or LibreTranslate
   service, or nowhere at all with the offline engine and local models.
@@ -164,7 +168,7 @@ read the placeholders aloud. Previews in the voice picker read a sample
 
 **Settings > Privacy & data > Network activity** lists every request the app
 made this session: when, to which host, why (translation, AI, speech, photo,
-catalogue, model download, web page), how many bytes went each way, the
+catalogue, model download, web page, encrypted sync), how many bytes went each way, the
 answer's status, and whether it went through your proxy. It groups them by
 destination with a line on who can read what was sent, and has Clear and Copy
 summary actions.
@@ -257,6 +261,7 @@ stores on the device and what the other party may keep.
 | Offline speech model download (**Settings > Read aloud & voice > Voice input**) | The [model source](#where-model-files-come-from); by default `huggingface.co` (the [whisper.cpp models](https://huggingface.co/ggerganov/whisper.cpp), and the 0.9 MB speech detector from [ggml-org/whisper-vad](https://huggingface.co/ggml-org/whisper-vad), downloaded with the first model), which may redirect to its download servers | Plain file requests (HTTPS `GET`, `Range` to resume): Hugging Face sees your IP address, the time and which model (Fast or Better, and the speech detector) you download. No voice, text, identifiers or cookies | Hugging Face's logs. The model stays on the device until you delete it; **Import from files** contacts nothing. |
 | Engine and language lists | The Mozhi instances in your list | Nothing about you except your IP address | The instance's logs. Stored on the device as a cache. |
 | **Check instances**, **Find the fastest server** (setup), **Test**, **Test connection**, **Browse models** | Each instance or provider, only when you ask | A version request, or a model list request with your key | The server's logs. |
+| Sync (**Settings > Backup & sync > Sync**, only once you set it up) | Your WebDAV server | The sync file, encrypted on the device (`GET`, `PUT`), folder checks (`PROPFIND`, `MKCOL`), your user name and app password (HTTP Basic over `https`; plain `http` only to this device, your local network or `.onion`), your IP address. Never in Offline only | The server keeps the file: it sees its name, size, when it changes and its readable header (app version, when it was written, the key derivation parameters), never its contents ([what the server sees](sync.md#what-the-server-sees)). **Turn off sync** can delete it. |
 | Web app fonts | The server that hosts the web app: the release zip and the CI builds include the fonts for scripts the bundled font lacks (for example Chinese or Devanagari) and emoji. Only a web build made without `tool/web_fallback_fonts.py` ([building](building.md#web-build-self-hosted-fonts-and-deferred-languages)) fetches them from Google's `fonts.gstatic.com` | The font file name, so which scripts you read, and your IP address; not your text | The browser caches the font. |
 
 Text from other apps (text selection, the share sheet, the Quick Settings tile
@@ -279,10 +284,11 @@ the fastest server** during setup.
 | Data | Where | Notes |
 | --- | --- | --- |
 | Settings (instances, provider settings, translation options, approved language pairs and providers, appearance, recent and pinned languages) | App preferences | No secrets: the parts below are kept apart. |
-| API keys, custom provider headers, user names and passwords in instance addresses (`https://user:password@host`) | Secure storage (Android Keystore; in the web app the browser's session storage) | Never in the settings, exports or history. Deleting a provider or an instance deletes its secrets. |
+| API keys, custom provider headers, user names and passwords in instance addresses (`https://user:password@host`) | Secure storage (Android Keystore; in the web app the browser's session storage) | Never in the settings, exports or history, and in an encrypted [backup](backup.md) only when you include them. Deleting a provider or an instance deletes its secrets. |
 | History and favorites | App preferences, **encrypted with AES-256-GCM**; the key is in secure storage (Android Keystore) | Translations (text, translation, languages, engine, time) and dictionary look-ups (word, languages, AI model, detail level, a one-line summary of the entry, time). Up to 1,000 entries plus favorites. **Settings > Privacy & data > Delete history automatically** removes entries older than 1, 7 or 30 days (favorites are kept). |
 | Presets, glossaries, read-aloud settings, usage counters | App preferences | Usage counters are numbers only (requests, characters, estimated tokens per provider and month, for 13 months). |
 | Cached engine and language lists | App preferences | Lists only, keyed by instance address without any password. |
+| Sync setup | App preferences (server address, user name, folder, what to sync, the last sync's time and result, the sync file's ETag and a fingerprint of the synced data); secure storage (the app password and the key derived from your passphrase) | Never the passphrase. In the web app the app password and the key last as long as the tab. **Turn off sync** and **Delete all local data** forget all of it. |
 | Offline language models | App storage (`<app files>/bergamot`); in the web app the browser's private storage for the site (the Origin Private File System, folder `bergamot`), which no other site and no page script outside the app can read | About 50 MB to download and 73 MB on disk per language. Delete them under **Settings > Translation engines > Offline languages**; in the web app clearing the site's data deletes them too. |
 | Text recognition data | App storage (`<app files>/tesseract`) | 0.4 to 12 MB per language (median 2.4 MB). Delete it under **Settings > Translation engines > Offline languages > Text recognition**. |
 
@@ -297,11 +303,63 @@ unencrypted JSON, and says so. **Export favorites** (on History's Favorites
 tab) writes a plain CSV file of your favorites; the app says that it isn't
 encrypted, and the file stays on the device unless you share it.
 
-**No backup, no device transfer.** The app opts out of cloud backup, and
-its backup rules exclude everything from Android 12+'s device-to-device
+**Phrasebook.** Your phrasebook collections ([details](phrasebook.md)):
+their phrases, your notes (also those on favorites) and a record of deleted
+phrases and collections (their ids and when, never their text, for 180
+days, so that merging a backup doesn't bring them back) are kept in the app
+preferences, encrypted with AES-256-GCM under a key of their own in secure
+storage, like the history (in the web app that key sits in the browser's
+storage, as the history's does). The Favorites collection is your history's
+favorites, not a copy. **Starter phrasebooks** are downloaded only when you
+tap **Download**, once, from your [model
+source](#where-model-files-come-from) (by default the project's GitHub
+release, which sees your IP address and which languages you download),
+checked against the SHA-256 pinned in the app and kept unencrypted (they are
+public Wikivoyage text); reading them sends nothing. **Export as CSV**
+writes a plain, unencrypted file, and says so; it stays on the device unless
+you share it. **Import CSV** reads the file on the device.
+
+**Practice.** Practice ([details](practice.md)) keeps the progress of each
+flashcard you reviewed (its FSRS scheduling state, review count and dates;
+the texts stay in the phrasebook and the history) and the practice settings
+in the app preferences, encrypted with AES-256-GCM under a key of its own in
+secure storage, like the history (in the web app that key sits in the
+browser's storage, as the history's does). Scheduling runs on the device.
+Speaking practice records only while you hold or tap the microphone; the
+audio stays in memory, is transcribed on the phone by Whisper and dropped,
+never stored or sent. **Export to Anki** writes a plain, unencrypted text
+file, and says so; it stays on the device unless you share it.
+
+**No cloud backup, no device transfer.** The app opts out of cloud backup,
+and its backup rules exclude everything from Android 12+'s device-to-device
 transfer too, so nothing is copied to your Google account or to a new
-phone: settings, history and keys have to be set up again. Use **Export
-history** to move the history yourself.
+phone by the system.
+
+**Encrypted backups, made by you.** **Settings > Backup & sync > Back up
+now** writes your history and favorites, presets, glossaries and settings
+into one `.mozhibackup` file encrypted with your passphrase (Argon2id and
+AES-256-GCM), which you save wherever you like; **Restore from a backup**
+reads it back, on Android or in the web app ([Backup](backup.md)). Nothing
+is sent anywhere: there is no account and no server. API keys and
+passwords are left out unless you turn on **Include API keys and
+passwords**. Only the date of your last backup is stored, never the
+passphrase or the key. Anyone who has the file sees only when it was made,
+by which app version and its size, and can only read it by guessing the
+passphrase, so pick a long one. To make merging copies work, the history
+keeps a record of deleted entries (their id and when, never their text) for
+180 days. **Export history** still writes plain JSON, and says so.
+
+**Sync with your own server.** **Settings > Backup & sync > Sync** keeps
+your devices in sync through a WebDAV folder you control ([Sync](sync.md)).
+The data goes there as one file encrypted like a backup (Argon2id and
+AES-256-GCM, with a key derived from your sync passphrase), so neither the
+server nor anyone who reads its disks can read it; it sees the file's size,
+when it changes and, like any server, your IP address. Settings are left
+out unless you choose them, and API keys and passwords only travel when you
+also turn on **Include API keys and passwords**. Sync runs only while the
+app is open (at start, a minute after a change, or on **Sync now**), never
+in Offline only, and on Android not over mobile data if you choose **Sync
+on Wi-Fi only**.
 
 **Memory only.** Recent translations are kept in memory for up to a day
 while the app is running, so that translating the same text again doesn't
@@ -309,8 +367,13 @@ send it again. Memory also holds the last 20 read-aloud clips, the
 translations into extra target languages and the meaning check of the
 current translation. Closing the app clears them.
 
-**Delete all local data** (**Settings > Privacy & data**) deletes the history
-and its key, the settings with every key, header and password, presets,
+**Delete all local data** (**Settings > Privacy & data**) first forgets the
+sync setup with its app password and key (without contacting the server,
+where the sync file stays), then deletes the history
+with its deletion records and its key, the date of the last backup (the
+backup files you saved are yours and stay where you put them), the
+phrasebook with its key and the starter phrasebooks, the
+settings with every key, header and password, presets,
 glossaries, usage counters, speech settings, cached lists and the whole
 offline models folder (partial downloads included), clears what the app holds
 in memory, and starts setup again. Uninstalling the app removes all of it too.
@@ -368,6 +431,61 @@ In the web app, clearing the site's data does the same.
   `User-Agent` instead, so that sites serve their full page. In the web
   app, the browser chooses the `User-Agent`, and the page's referrer policy
   (`no-referrer`) keeps it from sending a `Referer`.
+
+### Shared conversation
+
+**Share on this network** (the Conversation tab, Android) turns your phone
+into a small web server on your local network for as long as you share
+([how it works](features.md#shared-conversation)):
+
+- **What guests get:** the messages said after you started sharing, the
+  original and its translation into their language, and nothing else: not
+  the earlier conversation, your history, settings or anything about your
+  engines. The page loads nothing from the internet and sets no cookies;
+  the guest's browser keeps only a random guest id and key for that tab
+  (session storage), so a reload doesn't join twice.
+- **Translations for guests** follow your privacy settings: a guest's
+  language is translated by your engine only for a language pair your
+  settings already allow without asking. Otherwise the offline engine on
+  the phone translates it, or it waits for your OK on the sharing page;
+  in **Offline only** nothing leaves the phone. A guest can't make your
+  phone send text anywhere you haven't allowed, nor use up a "just this
+  once" you gave for something else.
+- **What guests type** becomes a message of your conversation and is
+  translated like yours. It isn't saved anywhere (the conversation isn't
+  in the history).
+- **Who can read along:** the page is plain `http` on the local network
+  (a phone has no certificate a browser would trust). It answers only
+  devices with a private network address and only at the link's random
+  128-bit address, with the PIN if you ask for one, but anyone on the same
+  network who captures its traffic can read the conversation and the
+  PIN. Your phone's hotspot is best; don't share sensitive talk on public
+  Wi-Fi.
+- **When it ends:** sharing stops when you tap **Stop sharing**, leave the
+  conversation, or the phone stays locked (the app in the background) for
+  2 minutes. Nothing about the guests is kept. These connections come in
+  to the phone, so [Network activity](#network-activity), which lists what
+  the app sends out, doesn't show them.
+
+### Phone to phone
+
+**Phone to phone** (Settings > Backup & sync, Android) moves your data or
+your offline languages between two phones directly
+([how it works](features.md#phone-to-phone)):
+
+- **Nothing leaves the local network:** the phones talk to each other over
+  the Wi-Fi or hotspot they share, end-to-end encrypted, with no server, no
+  account and no internet; no model host is contacted either.
+- **What the other phone gets:** only what you choose to send and it
+  accepts: the parts of your data you pick (API keys and passwords only if
+  you turn that on, and the receiving phone is told), and the offline files
+  you pick. It sees the list you offer, nothing else about your phone.
+- **What's kept:** files pass through the app's cache folder while they
+  are checked and are deleted after each transfer (what an interrupted one
+  left, at the next). Nothing about the other phone is remembered. These
+  connections are between your phones, so
+  [Network activity](#network-activity), which lists what the app sends
+  to servers, doesn't show them.
 
 ## Google code
 

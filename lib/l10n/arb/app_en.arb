@@ -1052,10 +1052,6 @@
   "@settingsExportHistory": {
     "description": "settingsExportHistory"
   },
-  "settingsExportHistorySubtitle": "Copy or share your history as JSON",
-  "@settingsExportHistorySubtitle": {
-    "description": "settingsExportHistorySubtitle"
-  },
   "settingsExportCopy": "Copy JSON to clipboard",
   "@settingsExportCopy": {
     "description": "settingsExportCopy"
@@ -5753,10 +5749,6 @@
       }
     }
   },
-  "settingsDeleteAllDataIrreversible": "This can't be undone. Export your history first if you want to keep it.",
-  "@settingsDeleteAllDataIrreversible": {
-    "description": "settingsDeleteAllDataIrreversible"
-  },
   "settingsDeleteAllDataAction": "Delete everything",
   "@settingsDeleteAllDataAction": {
     "description": "settingsDeleteAllDataAction"
@@ -9569,5 +9561,2368 @@
   "commonErrorRedirectRefused": "The server redirected to an address Mozhi doesn’t follow (plain http, your local network or another kind of address), so nothing was sent there.",
   "@commonErrorRedirectRefused": {
     "description": "commonErrorRedirectRefused"
+  },
+  "settingsNetworkPurposeSync": "Encrypted sync",
+  "@settingsNetworkPurposeSync": {
+    "description": "settingsNetworkPurposeSync"
+  },
+  "practiceTitle": "Practice",
+  "@practiceTitle": {
+    "description": "practiceTitle"
+  },
+  "practiceDueBadge": "{count, plural, =1{1 card to review} other{{count} cards to review}}",
+  "@practiceDueBadge": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "practiceOverviewDue": "{count, plural, =0{Nothing to review} =1{1 card to review} other{{count} cards to review}}",
+  "@practiceOverviewDue": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "practiceOverviewNew": "{count, plural, =0{No new cards today} =1{1 new card today} other{{count} new cards today}}",
+  "@practiceOverviewNew": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "practiceStart": "Start",
+  "@practiceStart": {
+    "description": "practiceStart"
+  },
+  "practiceCaughtUp": "You're all caught up",
+  "@practiceCaughtUp": {
+    "description": "practiceCaughtUp"
+  },
+  "practiceNextDue": "Next cards due in {interval}",
+  "@practiceNextDue": {
+    "placeholders": {
+      "interval": {
+        "type": "String"
+      }
+    }
+  },
+  "practiceEmptyTitle": "Nothing to practice yet",
+  "@practiceEmptyTitle": {
+    "description": "practiceEmptyTitle"
+  },
+  "practiceEmptyBody": "Save translations to your favorites or to a phrasebook collection, and they become flashcards here.",
+  "@practiceEmptyBody": {
+    "description": "practiceEmptyBody"
+  },
+  "practiceOpenPhrasebook": "Open phrasebook",
+  "@practiceOpenPhrasebook": {
+    "description": "practiceOpenPhrasebook"
+  },
+  "practiceCollectionsTitle": "Collections",
+  "@practiceCollectionsTitle": {
+    "description": "practiceCollectionsTitle"
+  },
+  "practiceCollectionPhrases": "{count, plural, =1{1 phrase} other{{count} phrases}}",
+  "@practiceCollectionPhrases": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "practiceDirectionsTitle": "Cards",
+  "@practiceDirectionsTitle": {
+    "description": "practiceDirectionsTitle"
+  },
+  "practiceDirectionRecognize": "Recognize",
+  "@practiceDirectionRecognize": {
+    "description": "practiceDirectionRecognize"
+  },
+  "practiceDirectionRecognizeSubtitle": "See the phrase, recall what it means",
+  "@practiceDirectionRecognizeSubtitle": {
+    "description": "practiceDirectionRecognizeSubtitle"
+  },
+  "practiceDirectionProduce": "Produce",
+  "@practiceDirectionProduce": {
+    "description": "practiceDirectionProduce"
+  },
+  "practiceDirectionProduceSubtitle": "See your language, say or type the phrase",
+  "@practiceDirectionProduceSubtitle": {
+    "description": "practiceDirectionProduceSubtitle"
+  },
+  "practiceNewPerDay": "New cards per day",
+  "@practiceNewPerDay": {
+    "description": "practiceNewPerDay"
+  },
+  "practiceRetention": "Desired retention",
+  "@practiceRetention": {
+    "description": "practiceRetention"
+  },
+  "practiceRetentionSubtitle": "How likely you are to remember a card when it's due. Higher means more reviews.",
+  "@practiceRetentionSubtitle": {
+    "description": "practiceRetentionSubtitle"
+  },
+  "practiceTypeAnswers": "Type answers",
+  "@practiceTypeAnswers": {
+    "description": "practiceTypeAnswers"
+  },
+  "practiceTypeAnswersSubtitle": "Produce cards get an answer field",
+  "@practiceTypeAnswersSubtitle": {
+    "description": "practiceTypeAnswersSubtitle"
+  },
+  "practiceSettingsTitle": "Practice settings",
+  "@practiceSettingsTitle": {
+    "description": "practiceSettingsTitle"
+  },
+  "practiceSpeakingTitle": "Speaking practice",
+  "@practiceSpeakingTitle": {
+    "description": "practiceSpeakingTitle"
+  },
+  "practiceSpeakingUnsupported": "Speaking practice works in the Android app, with an offline speech model. Your voice never leaves the phone.",
+  "@practiceSpeakingUnsupported": {
+    "description": "practiceSpeakingUnsupported"
+  },
+  "practiceSpeakingModelMissing": "Download an offline speech model to practice speaking. It runs on this phone; your voice never leaves it.",
+  "@practiceSpeakingModelMissing": {
+    "description": "practiceSpeakingModelMissing"
+  },
+  "practiceSpeakingReady": "On produce cards, hold the microphone and say the phrase. It's transcribed on this phone and never stored.",
+  "@practiceSpeakingReady": {
+    "description": "practiceSpeakingReady"
+  },
+  "practiceVoiceSettings": "Voice settings",
+  "@practiceVoiceSettings": {
+    "description": "practiceVoiceSettings"
+  },
+  "practiceExport": "Export to Anki",
+  "@practiceExport": {
+    "description": "practiceExport"
+  },
+  "practiceExportNote": "A text file that Anki imports (File > Import), with each phrase, its translation and tags for the collection and the languages. It isn't encrypted, and it stays on this device unless you share it.",
+  "@practiceExportNote": {
+    "description": "practiceExportNote"
+  },
+  "practiceExportAll": "All collections",
+  "@practiceExportAll": {
+    "description": "practiceExportAll"
+  },
+  "practiceExportSave": "Save file",
+  "@practiceExportSave": {
+    "description": "practiceExportSave"
+  },
+  "practiceExportShare": "Share file",
+  "@practiceExportShare": {
+    "description": "practiceExportShare"
+  },
+  "practiceExportSaved": "{count, plural, =1{Saved 1 card} other{Saved {count} cards}}",
+  "@practiceExportSaved": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "practiceExportFailed": "Couldn't export the cards",
+  "@practiceExportFailed": {
+    "description": "practiceExportFailed"
+  },
+  "practiceCardsLeft": "{count, plural, =1{1 card left} other{{count} cards left}}",
+  "@practiceCardsLeft": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "practiceShowAnswer": "Show answer",
+  "@practiceShowAnswer": {
+    "description": "practiceShowAnswer"
+  },
+  "practiceRecognizePrompt": "What does it mean?",
+  "@practiceRecognizePrompt": {
+    "description": "practiceRecognizePrompt"
+  },
+  "practiceProducePrompt": "How do you say it?",
+  "@practiceProducePrompt": {
+    "description": "practiceProducePrompt"
+  },
+  "practiceNewCard": "New",
+  "@practiceNewCard": {
+    "description": "practiceNewCard"
+  },
+  "practiceRatingAgain": "Again",
+  "@practiceRatingAgain": {
+    "description": "practiceRatingAgain"
+  },
+  "practiceRatingHard": "Hard",
+  "@practiceRatingHard": {
+    "description": "practiceRatingHard"
+  },
+  "practiceRatingGood": "Good",
+  "@practiceRatingGood": {
+    "description": "practiceRatingGood"
+  },
+  "practiceRatingEasy": "Easy",
+  "@practiceRatingEasy": {
+    "description": "practiceRatingEasy"
+  },
+  "practiceRatingSemantics": "{rating}, next in {interval}",
+  "@practiceRatingSemantics": {
+    "placeholders": {
+      "rating": {
+        "type": "String"
+      },
+      "interval": {
+        "type": "String"
+      }
+    }
+  },
+  "practiceRatingSuggested": "Suggested",
+  "@practiceRatingSuggested": {
+    "description": "practiceRatingSuggested"
+  },
+  "practiceUndoRating": "Undo last rating",
+  "@practiceUndoRating": {
+    "description": "practiceUndoRating"
+  },
+  "practiceEndSession": "End session",
+  "@practiceEndSession": {
+    "description": "practiceEndSession"
+  },
+  "practiceAnswerField": "Your answer",
+  "@practiceAnswerField": {
+    "description": "practiceAnswerField"
+  },
+  "practiceCheckAnswer": "Check",
+  "@practiceCheckAnswer": {
+    "description": "practiceCheckAnswer"
+  },
+  "practiceWordsRight": "{matched} of {total} words right",
+  "@practiceWordsRight": {
+    "placeholders": {
+      "matched": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "practiceWordMatched": "{word}, right",
+  "@practiceWordMatched": {
+    "placeholders": {
+      "word": {
+        "type": "String"
+      }
+    }
+  },
+  "practiceWordClose": "{word}, nearly",
+  "@practiceWordClose": {
+    "placeholders": {
+      "word": {
+        "type": "String"
+      }
+    }
+  },
+  "practiceWordMissed": "{word}, missed",
+  "@practiceWordMissed": {
+    "placeholders": {
+      "word": {
+        "type": "String"
+      }
+    }
+  },
+  "practiceExtraWords": "Also said: {words}",
+  "@practiceExtraWords": {
+    "placeholders": {
+      "words": {
+        "type": "String"
+      }
+    }
+  },
+  "practiceHeard": "Heard: {text}",
+  "@practiceHeard": {
+    "placeholders": {
+      "text": {
+        "type": "String"
+      }
+    }
+  },
+  "practiceTyped": "You typed: {text}",
+  "@practiceTyped": {
+    "placeholders": {
+      "text": {
+        "type": "String"
+      }
+    }
+  },
+  "practiceSpeak": "Hold to speak",
+  "@practiceSpeak": {
+    "description": "practiceSpeak"
+  },
+  "practiceSpeakHint": "Hold the microphone and say the phrase, or tap to start and tap again to stop",
+  "@practiceSpeakHint": {
+    "description": "practiceSpeakHint"
+  },
+  "practiceSpeakStop": "Stop and check",
+  "@practiceSpeakStop": {
+    "description": "practiceSpeakStop"
+  },
+  "practiceListening": "Listening…",
+  "@practiceListening": {
+    "description": "practiceListening"
+  },
+  "practiceTranscribing": "Transcribing on this phone…",
+  "@practiceTranscribing": {
+    "description": "practiceTranscribing"
+  },
+  "practiceHeardNothing": "Nothing was heard. Try again a little closer to the microphone.",
+  "@practiceHeardNothing": {
+    "description": "practiceHeardNothing"
+  },
+  "practiceSpeechPermission": "Allow the microphone to practice speaking.",
+  "@practiceSpeechPermission": {
+    "description": "practiceSpeechPermission"
+  },
+  "practiceSpeechFailed": "Couldn't hear that. Try again.",
+  "@practiceSpeechFailed": {
+    "description": "practiceSpeechFailed"
+  },
+  "practiceSaveFailed": "Couldn't save your progress on this device",
+  "@practiceSaveFailed": {
+    "description": "practiceSaveFailed"
+  },
+  "practiceSummaryTitle": "Session done",
+  "@practiceSummaryTitle": {
+    "description": "practiceSummaryTitle"
+  },
+  "practiceNothingDueTitle": "Nothing to review right now",
+  "@practiceNothingDueTitle": {
+    "description": "practiceNothingDueTitle"
+  },
+  "practiceSummaryReviewed": "{count, plural, =1{You reviewed 1 card} other{You reviewed {count} cards}}",
+  "@practiceSummaryReviewed": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "practiceSummaryRemembered": "{count, plural, =1{1 remembered} other{{count} remembered}}",
+  "@practiceSummaryRemembered": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "practiceSummaryNew": "{count, plural, =1{1 new card learned} other{{count} new cards learned}}",
+  "@practiceSummaryNew": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "practiceKeepGoing": "Keep going",
+  "@practiceKeepGoing": {
+    "description": "practiceKeepGoing"
+  },
+  "practiceDone": "Done",
+  "@practiceDone": {
+    "description": "practiceDone"
+  },
+  "practiceUnreadableTitle": "Your practice progress can't be read",
+  "@practiceUnreadableTitle": {
+    "description": "practiceUnreadableTitle"
+  },
+  "practiceUnreadableBody": "Its key is missing on this device, for example after the app's storage was reset. Start over to practice again; your phrases are not affected.",
+  "@practiceUnreadableBody": {
+    "description": "practiceUnreadableBody"
+  },
+  "practiceStartOver": "Start over",
+  "@practiceStartOver": {
+    "description": "practiceStartOver"
+  },
+  "practiceLoadFailed": "Couldn't load your phrases",
+  "@practiceLoadFailed": {
+    "description": "practiceLoadFailed"
+  },
+  "practiceIntervalMinutes": "{count} min",
+  "@practiceIntervalMinutes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "practiceIntervalHours": "{count} h",
+  "@practiceIntervalHours": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "practiceIntervalDays": "{count, plural, =1{1 day} other{{count} days}}",
+  "@practiceIntervalDays": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "practiceIntervalMonths": "{count, plural, =1{1 month} other{{count} months}}",
+  "@practiceIntervalMonths": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "practiceIntervalYears": "{count, plural, =1{1 year} other{{count} years}}",
+  "@practiceIntervalYears": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "practiceCollectionTooltip": "Practice this collection",
+  "@practiceCollectionTooltip": {
+    "description": "practiceCollectionTooltip"
+  },
+  "practiceKeyboardHint": "Space shows the answer, 1 to 4 rate it",
+  "@practiceKeyboardHint": {
+    "description": "practiceKeyboardHint"
+  },
+  "phrasebookTitle": "Phrasebook",
+  "@phrasebookTitle": {
+    "description": "phrasebookTitle"
+  },
+  "phrasebookFavorites": "Favorites",
+  "@phrasebookFavorites": {
+    "description": "phrasebookFavorites"
+  },
+  "phrasebookYourCollections": "Your collections",
+  "@phrasebookYourCollections": {
+    "description": "phrasebookYourCollections"
+  },
+  "phrasebookStarterSection": "Starter phrasebooks",
+  "@phrasebookStarterSection": {
+    "description": "phrasebookStarterSection"
+  },
+  "phrasebookNewCollection": "New collection",
+  "@phrasebookNewCollection": {
+    "description": "phrasebookNewCollection"
+  },
+  "phrasebookCollectionName": "Name",
+  "@phrasebookCollectionName": {
+    "description": "phrasebookCollectionName"
+  },
+  "phrasebookCollectionNameHint": "For example: Trip to Lisbon",
+  "@phrasebookCollectionNameHint": {
+    "description": "phrasebookCollectionNameHint"
+  },
+  "phrasebookCreate": "Create",
+  "@phrasebookCreate": {
+    "description": "phrasebookCreate"
+  },
+  "phrasebookRename": "Rename",
+  "@phrasebookRename": {
+    "description": "phrasebookRename"
+  },
+  "phrasebookRenameTitle": "Rename collection",
+  "@phrasebookRenameTitle": {
+    "description": "phrasebookRenameTitle"
+  },
+  "phrasebookDeleteCollection": "Delete collection",
+  "@phrasebookDeleteCollection": {
+    "description": "phrasebookDeleteCollection"
+  },
+  "phrasebookDeleteStarter": "Delete starter phrasebook",
+  "@phrasebookDeleteStarter": {
+    "description": "phrasebookDeleteStarter"
+  },
+  "phrasebookCollectionDeleted": "Deleted “{name}”",
+  "@phrasebookCollectionDeleted": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "phrasebookPhraseCount": "{count, plural, =0{No phrases} =1{1 phrase} other{{count} phrases}}",
+  "@phrasebookPhraseCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "phrasebookPairCount": "{count, plural, =1{1 language pair} other{{count} language pairs}}",
+  "@phrasebookPairCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "phrasebookCollectionSubtitle": "{languages} · {phrases}",
+  "@phrasebookCollectionSubtitle": {
+    "placeholders": {
+      "languages": {
+        "type": "String"
+      },
+      "phrases": {
+        "type": "String"
+      }
+    }
+  },
+  "phrasebookUnknownLanguage": "Unknown language",
+  "@phrasebookUnknownLanguage": {
+    "description": "phrasebookUnknownLanguage"
+  },
+  "phrasebookMoveUp": "Move up",
+  "@phrasebookMoveUp": {
+    "description": "phrasebookMoveUp"
+  },
+  "phrasebookMoveDown": "Move down",
+  "@phrasebookMoveDown": {
+    "description": "phrasebookMoveDown"
+  },
+  "phrasebookCollectionActions": "Collection actions",
+  "@phrasebookCollectionActions": {
+    "description": "phrasebookCollectionActions"
+  },
+  "phrasebookEmptyCollectionsTitle": "Make your own phrasebooks",
+  "@phrasebookEmptyCollectionsTitle": {
+    "description": "phrasebookEmptyCollectionsTitle"
+  },
+  "phrasebookEmptyCollectionsBody": "Collect phrases for a trip, a shop or work. Add them from a translation, your history or the dictionary.",
+  "@phrasebookEmptyCollectionsBody": {
+    "description": "phrasebookEmptyCollectionsBody"
+  },
+  "phrasebookGetStarter": "Get starter phrasebooks",
+  "@phrasebookGetStarter": {
+    "description": "phrasebookGetStarter"
+  },
+  "phrasebookGetStarterSubtitle": "Phrases for travellers from Wikivoyage, for use offline",
+  "@phrasebookGetStarterSubtitle": {
+    "description": "phrasebookGetStarterSubtitle"
+  },
+  "phrasebookStarterCredit": "From Wikivoyage · CC BY-SA 4.0",
+  "@phrasebookStarterCredit": {
+    "description": "phrasebookStarterCredit"
+  },
+  "phrasebookSelectHint": "Choose a collection to see its phrases.",
+  "@phrasebookSelectHint": {
+    "description": "phrasebookSelectHint"
+  },
+  "phrasebookSearchHint": "Search phrases",
+  "@phrasebookSearchHint": {
+    "description": "phrasebookSearchHint"
+  },
+  "phrasebookSort": "Sort",
+  "@phrasebookSort": {
+    "description": "phrasebookSort"
+  },
+  "phrasebookSortRecent": "Newest first",
+  "@phrasebookSortRecent": {
+    "description": "phrasebookSortRecent"
+  },
+  "phrasebookSortPageOrder": "Page order",
+  "@phrasebookSortPageOrder": {
+    "description": "phrasebookSortPageOrder"
+  },
+  "phrasebookSortAlphabetical": "A to Z",
+  "@phrasebookSortAlphabetical": {
+    "description": "phrasebookSortAlphabetical"
+  },
+  "phrasebookExportCsv": "Export as CSV",
+  "@phrasebookExportCsv": {
+    "description": "phrasebookExportCsv"
+  },
+  "phrasebookImportCsv": "Import CSV",
+  "@phrasebookImportCsv": {
+    "description": "phrasebookImportCsv"
+  },
+  "phrasebookEmptyTitle": "No phrases yet",
+  "@phrasebookEmptyTitle": {
+    "description": "phrasebookEmptyTitle"
+  },
+  "phrasebookEmptyBody": "Use “Add to phrasebook” under a translation, on a history entry or in the dictionary, or import a CSV file.",
+  "@phrasebookEmptyBody": {
+    "description": "phrasebookEmptyBody"
+  },
+  "phrasebookStartTranslating": "Translate something",
+  "@phrasebookStartTranslating": {
+    "description": "phrasebookStartTranslating"
+  },
+  "phrasebookListenPhrase": "Listen to the phrase",
+  "@phrasebookListenPhrase": {
+    "description": "phrasebookListenPhrase"
+  },
+  "phrasebookListenTranslation": "Listen to the translation",
+  "@phrasebookListenTranslation": {
+    "description": "phrasebookListenTranslation"
+  },
+  "phrasebookCopyTranslation": "Copy translation",
+  "@phrasebookCopyTranslation": {
+    "description": "phrasebookCopyTranslation"
+  },
+  "phrasebookCopyPhrase": "Copy phrase",
+  "@phrasebookCopyPhrase": {
+    "description": "phrasebookCopyPhrase"
+  },
+  "phrasebookEditNote": "Edit note",
+  "@phrasebookEditNote": {
+    "description": "phrasebookEditNote"
+  },
+  "phrasebookAddNote": "Add note",
+  "@phrasebookAddNote": {
+    "description": "phrasebookAddNote"
+  },
+  "phrasebookNote": "Note",
+  "@phrasebookNote": {
+    "description": "phrasebookNote"
+  },
+  "phrasebookNoteHint": "For example: polite, or when to say it",
+  "@phrasebookNoteHint": {
+    "description": "phrasebookNoteHint"
+  },
+  "phrasebookCopyTo": "Copy to collection…",
+  "@phrasebookCopyTo": {
+    "description": "phrasebookCopyTo"
+  },
+  "phrasebookMoveTo": "Move to collection…",
+  "@phrasebookMoveTo": {
+    "description": "phrasebookMoveTo"
+  },
+  "phrasebookRemove": "Remove from collection",
+  "@phrasebookRemove": {
+    "description": "phrasebookRemove"
+  },
+  "phrasebookPhraseRemoved": "Phrase removed",
+  "@phrasebookPhraseRemoved": {
+    "description": "phrasebookPhraseRemoved"
+  },
+  "phrasebookPhraseActions": "Phrase actions",
+  "@phrasebookPhraseActions": {
+    "description": "phrasebookPhraseActions"
+  },
+  "phrasebookCopiedTo": "Copied to {name}",
+  "@phrasebookCopiedTo": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "phrasebookMovedTo": "Moved to {name}",
+  "@phrasebookMovedTo": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "phrasebookPronunciation": "Pronunciation: {text}",
+  "@phrasebookPronunciation": {
+    "placeholders": {
+      "text": {
+        "type": "String"
+      }
+    }
+  },
+  "phrasebookAdd": "Add to phrasebook…",
+  "@phrasebookAdd": {
+    "description": "phrasebookAdd"
+  },
+  "phrasebookAddTitle": "Add to phrasebook",
+  "@phrasebookAddTitle": {
+    "description": "phrasebookAddTitle"
+  },
+  "phrasebookAddedTo": "Added to {name}",
+  "@phrasebookAddedTo": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "phrasebookAlreadyIn": "Already in {name}",
+  "@phrasebookAlreadyIn": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "phrasebookOpen": "Open",
+  "@phrasebookOpen": {
+    "description": "phrasebookOpen"
+  },
+  "phrasebookLastUsed": "Last used",
+  "@phrasebookLastUsed": {
+    "description": "phrasebookLastUsed"
+  },
+  "phrasebookHasPhrase": "Has this phrase",
+  "@phrasebookHasPhrase": {
+    "description": "phrasebookHasPhrase"
+  },
+  "phrasebookChooseCollection": "Choose a collection",
+  "@phrasebookChooseCollection": {
+    "description": "phrasebookChooseCollection"
+  },
+  "phrasebookNoOtherCollections": "No other collection yet.",
+  "@phrasebookNoOtherCollections": {
+    "description": "phrasebookNoOtherCollections"
+  },
+  "phrasebookSaveFailed": "Couldn't save your phrasebook",
+  "@phrasebookSaveFailed": {
+    "description": "phrasebookSaveFailed"
+  },
+  "phrasebookStarterTitle": "Starter phrasebooks",
+  "@phrasebookStarterTitle": {
+    "description": "phrasebookStarterTitle"
+  },
+  "phrasebookStarterIntro": "Everyday phrases for travellers, from Wikivoyage's phrasebooks. Download one once and it works offline; copy its phrases into your own collections.",
+  "@phrasebookStarterIntro": {
+    "description": "phrasebookStarterIntro"
+  },
+  "phrasebookStarterEmpty": "None are available in this version yet: they will come with an app update.",
+  "@phrasebookStarterEmpty": {
+    "description": "phrasebookStarterEmpty"
+  },
+  "phrasebookStarterDownload": "Download",
+  "@phrasebookStarterDownload": {
+    "description": "phrasebookStarterDownload"
+  },
+  "phrasebookStarterUpdate": "Update",
+  "@phrasebookStarterUpdate": {
+    "description": "phrasebookStarterUpdate"
+  },
+  "phrasebookStarterDelete": "Delete",
+  "@phrasebookStarterDelete": {
+    "description": "phrasebookStarterDelete"
+  },
+  "phrasebookStarterInstalled": "Downloaded",
+  "@phrasebookStarterInstalled": {
+    "description": "phrasebookStarterInstalled"
+  },
+  "phrasebookStarterDetails": "{count, plural, =1{1 phrase} other{{count} phrases}} · {size}",
+  "@phrasebookStarterDetails": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "phrasebookStarterDownloading": "Downloading…",
+  "@phrasebookStarterDownloading": {
+    "description": "phrasebookStarterDownloading"
+  },
+  "phrasebookStarterErrorDownload": "Couldn't download it. Check your connection and the model source.",
+  "@phrasebookStarterErrorDownload": {
+    "description": "phrasebookStarterErrorDownload"
+  },
+  "phrasebookStarterErrorChecksum": "The download didn't match its checksum and was discarded.",
+  "@phrasebookStarterErrorChecksum": {
+    "description": "phrasebookStarterErrorChecksum"
+  },
+  "phrasebookStarterErrorOther": "Couldn't save it on this device.",
+  "@phrasebookStarterErrorOther": {
+    "description": "phrasebookStarterErrorOther"
+  },
+  "phrasebookStarterSource": "Downloads come from your model source (Settings > Translation engines > Model source) and are checked against the checksum the app ships with. Nothing else is sent.",
+  "@phrasebookStarterSource": {
+    "description": "phrasebookStarterSource"
+  },
+  "phrasebookStarterReadOnly": "Starter phrasebooks can't be changed: copy phrases into your own collections.",
+  "@phrasebookStarterReadOnly": {
+    "description": "phrasebookStarterReadOnly"
+  },
+  "phrasebookStarterAbout": "About this phrasebook",
+  "@phrasebookStarterAbout": {
+    "description": "phrasebookStarterAbout"
+  },
+  "phrasebookStarterRevision": "Revision {revision}, read on {date}",
+  "@phrasebookStarterRevision": {
+    "placeholders": {
+      "revision": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "phrasebookStarterAuthors": "Authors",
+  "@phrasebookStarterAuthors": {
+    "description": "phrasebookStarterAuthors"
+  },
+  "phrasebookImportTitle": "Import CSV",
+  "@phrasebookImportTitle": {
+    "description": "phrasebookImportTitle"
+  },
+  "phrasebookImportFile": "{name} · {count, plural, =1{1 row} other{{count} rows}}",
+  "@phrasebookImportFile": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "phrasebookImportPhraseColumn": "Phrase column",
+  "@phrasebookImportPhraseColumn": {
+    "description": "phrasebookImportPhraseColumn"
+  },
+  "phrasebookImportTranslationColumn": "Translation column",
+  "@phrasebookImportTranslationColumn": {
+    "description": "phrasebookImportTranslationColumn"
+  },
+  "phrasebookImportColumn": "Column {number}: {sample}",
+  "@phrasebookImportColumn": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      },
+      "sample": {
+        "type": "String"
+      }
+    }
+  },
+  "phrasebookImportHeader": "The first row is a header",
+  "@phrasebookImportHeader": {
+    "description": "phrasebookImportHeader"
+  },
+  "phrasebookImportFrom": "Language of the phrases",
+  "@phrasebookImportFrom": {
+    "description": "phrasebookImportFrom"
+  },
+  "phrasebookImportTo": "Language of the translations",
+  "@phrasebookImportTo": {
+    "description": "phrasebookImportTo"
+  },
+  "phrasebookImportPreview": "Preview",
+  "@phrasebookImportPreview": {
+    "description": "phrasebookImportPreview"
+  },
+  "phrasebookImportAction": "{count, plural, =0{Nothing to import} =1{Import 1 phrase} other{Import {count} phrases}}",
+  "@phrasebookImportAction": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "phrasebookImportSameColumn": "Choose two different columns.",
+  "@phrasebookImportSameColumn": {
+    "description": "phrasebookImportSameColumn"
+  },
+  "phrasebookImportDone": "{count, plural, =0{Nothing new to import} =1{Imported 1 phrase} other{Imported {count} phrases}}",
+  "@phrasebookImportDone": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "phrasebookImportEmpty": "This file has no rows to import.",
+  "@phrasebookImportEmpty": {
+    "description": "phrasebookImportEmpty"
+  },
+  "phrasebookImportFailed": "Couldn't read this file.",
+  "@phrasebookImportFailed": {
+    "description": "phrasebookImportFailed"
+  },
+  "phrasebookImportNote": "The file is read on this device; nothing is uploaded.",
+  "@phrasebookImportNote": {
+    "description": "phrasebookImportNote"
+  },
+  "phrasebookExportTitle": "{count, plural, =1{Export 1 phrase} other{Export {count} phrases}}",
+  "@phrasebookExportTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "phrasebookExportNote": "A CSV file for Anki flashcards and spreadsheets, with each phrase, its translation, the languages, the date and your note. It isn't encrypted, and it stays on this device unless you share it.",
+  "@phrasebookExportNote": {
+    "description": "phrasebookExportNote"
+  },
+  "phrasebookExportSaved": "{count, plural, =1{Saved 1 phrase} other{Saved {count} phrases}}",
+  "@phrasebookExportSaved": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "phrasebookExportFailed": "Couldn't export this collection",
+  "@phrasebookExportFailed": {
+    "description": "phrasebookExportFailed"
+  },
+  "phrasebookUnreadableTitle": "Your phrasebook can't be read",
+  "@phrasebookUnreadableTitle": {
+    "description": "phrasebookUnreadableTitle"
+  },
+  "phrasebookUnreadableBody": "Its key is missing or doesn't fit, for example after the app's secure storage was reset. Nothing has been changed: try again, or set it aside and start a new phrasebook.",
+  "@phrasebookUnreadableBody": {
+    "description": "phrasebookUnreadableBody"
+  },
+  "phrasebookStartOver": "Start a new phrasebook",
+  "@phrasebookStartOver": {
+    "description": "phrasebookStartOver"
+  },
+  "phrasebookStartOverTitle": "Start a new phrasebook?",
+  "@phrasebookStartOverTitle": {
+    "description": "phrasebookStartOverTitle"
+  },
+  "phrasebookStartOverBody": "Your collections that can't be read are set aside on this device, and you start with an empty phrasebook. Your favorites stay in your history.",
+  "@phrasebookStartOverBody": {
+    "description": "phrasebookStartOverBody"
+  },
+  "phrasebookLoadFailed": "Couldn't open your phrasebook",
+  "@phrasebookLoadFailed": {
+    "description": "phrasebookLoadFailed"
+  },
+  "historyOpenPhrasebook": "Open phrasebook",
+  "@historyOpenPhrasebook": {
+    "description": "historyOpenPhrasebook"
+  },
+  "translateToolPhrasebook": "Phrasebook",
+  "@translateToolPhrasebook": {
+    "description": "translateToolPhrasebook"
+  },
+  "settingsPhrasebook": "Phrasebook",
+  "@settingsPhrasebook": {
+    "description": "settingsPhrasebook"
+  },
+  "settingsPhrasebookSubtitle": "Your collections of phrases, and starter phrasebooks for travellers",
+  "@settingsPhrasebookSubtitle": {
+    "description": "settingsPhrasebookSubtitle"
+  },
+  "settingsDeleteAllDataPhrasebook": "{count, plural, =1{1 phrasebook collection} other{{count} phrasebook collections}} and the starter phrasebooks",
+  "@settingsDeleteAllDataPhrasebook": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "conversationShareGuestTitle": "Mozhi conversation",
+  "@conversationShareGuestTitle": {
+    "description": "conversationShareGuestTitle"
+  },
+  "conversationShareGuestWelcome": "Follow the conversation in your language on this phone, and reply by typing.",
+  "@conversationShareGuestWelcome": {
+    "description": "conversationShareGuestWelcome"
+  },
+  "conversationShareGuestLanguage": "Your language",
+  "@conversationShareGuestLanguage": {
+    "description": "conversationShareGuestLanguage"
+  },
+  "conversationShareGuestPin": "PIN",
+  "@conversationShareGuestPin": {
+    "description": "conversationShareGuestPin"
+  },
+  "conversationShareGuestPinHint": "The 4 digits shown on the host's phone.",
+  "@conversationShareGuestPinHint": {
+    "description": "conversationShareGuestPinHint"
+  },
+  "conversationShareGuestJoin": "Join",
+  "@conversationShareGuestJoin": {
+    "description": "conversationShareGuestJoin"
+  },
+  "conversationShareGuestWrongPin": "Wrong PIN. Try again.",
+  "@conversationShareGuestWrongPin": {
+    "description": "conversationShareGuestWrongPin"
+  },
+  "conversationShareGuestFull": "This conversation is full.",
+  "@conversationShareGuestFull": {
+    "description": "conversationShareGuestFull"
+  },
+  "conversationShareGuestLocked": "Too many wrong PINs. Ask the host to share again.",
+  "@conversationShareGuestLocked": {
+    "description": "conversationShareGuestLocked"
+  },
+  "conversationShareGuestTooMany": "Too many tries. Wait a minute.",
+  "@conversationShareGuestTooMany": {
+    "description": "conversationShareGuestTooMany"
+  },
+  "conversationShareGuestConnecting": "Connecting…",
+  "@conversationShareGuestConnecting": {
+    "description": "conversationShareGuestConnecting"
+  },
+  "conversationShareGuestReconnecting": "Connection lost. Trying again…",
+  "@conversationShareGuestReconnecting": {
+    "description": "conversationShareGuestReconnecting"
+  },
+  "conversationShareGuestUnreachable": "Can't reach the host's phone. Still trying…",
+  "@conversationShareGuestUnreachable": {
+    "description": "conversationShareGuestUnreachable"
+  },
+  "conversationShareGuestEnded": "The conversation ended",
+  "@conversationShareGuestEnded": {
+    "description": "conversationShareGuestEnded"
+  },
+  "conversationShareGuestEndedBody": "The host stopped sharing. You can close this page.",
+  "@conversationShareGuestEndedBody": {
+    "description": "conversationShareGuestEndedBody"
+  },
+  "conversationShareGuestConversation": "Conversation",
+  "@conversationShareGuestConversation": {
+    "description": "conversationShareGuestConversation"
+  },
+  "conversationShareGuestEmpty": "Nothing said yet. Messages appear here in your language.",
+  "@conversationShareGuestEmpty": {
+    "description": "conversationShareGuestEmpty"
+  },
+  "conversationShareGuestReplyLabel": "Your reply",
+  "@conversationShareGuestReplyLabel": {
+    "description": "conversationShareGuestReplyLabel"
+  },
+  "conversationShareGuestSend": "Send",
+  "@conversationShareGuestSend": {
+    "description": "conversationShareGuestSend"
+  },
+  "conversationShareGuestTooFast": "Wait a moment before sending again.",
+  "@conversationShareGuestTooFast": {
+    "description": "conversationShareGuestTooFast"
+  },
+  "conversationShareGuestTooLong": "That's too long. Send a shorter message.",
+  "@conversationShareGuestTooLong": {
+    "description": "conversationShareGuestTooLong"
+  },
+  "conversationShareGuestRepliesOff": "The host turned replies off.",
+  "@conversationShareGuestRepliesOff": {
+    "description": "conversationShareGuestRepliesOff"
+  },
+  "conversationShareGuestTranslating": "Translating…",
+  "@conversationShareGuestTranslating": {
+    "description": "conversationShareGuestTranslating"
+  },
+  "conversationShareGuestNotTranslated": "Not translated into your language.",
+  "@conversationShareGuestNotTranslated": {
+    "description": "conversationShareGuestNotTranslated"
+  },
+  "conversationShareGuestOriginal": "In {language}:",
+  "@conversationShareGuestOriginal": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "conversationShareGuestHost": "Host",
+  "@conversationShareGuestHost": {
+    "description": "conversationShareGuestHost"
+  },
+  "conversationShareGuestPartner": "With the host",
+  "@conversationShareGuestPartner": {
+    "description": "conversationShareGuestPartner"
+  },
+  "conversationShareGuestNumber": "Guest {number}",
+  "@conversationShareGuestNumber": {
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
+  "conversationShareGuestYou": "You",
+  "@conversationShareGuestYou": {
+    "description": "conversationShareGuestYou"
+  },
+  "conversationShareGuestError": "Something went wrong. Try again.",
+  "@conversationShareGuestError": {
+    "description": "conversationShareGuestError"
+  },
+  "conversationShareGuestNoScript": "This page needs JavaScript.",
+  "@conversationShareGuestNoScript": {
+    "description": "conversationShareGuestNoScript"
+  },
+  "conversationShareGuestFootnote": "Shared from the host's phone over this network, without any server. Nothing is kept once you close this page.",
+  "@conversationShareGuestFootnote": {
+    "description": "conversationShareGuestFootnote"
+  },
+  "conversationShareMenu": "Share on this network",
+  "@conversationShareMenu": {
+    "description": "conversationShareMenu"
+  },
+  "conversationShareTitle": "Share on this network",
+  "@conversationShareTitle": {
+    "description": "conversationShareTitle"
+  },
+  "conversationShareStarting": "Starting…",
+  "@conversationShareStarting": {
+    "description": "conversationShareStarting"
+  },
+  "conversationShareScan": "People on the same Wi-Fi scan this code with their camera and follow along in their browser, each in their own language. No app needed.",
+  "@conversationShareScan": {
+    "description": "conversationShareScan"
+  },
+  "conversationShareQrLabel": "QR code of the link below",
+  "@conversationShareQrLabel": {
+    "description": "conversationShareQrLabel"
+  },
+  "conversationShareLink": "Link",
+  "@conversationShareLink": {
+    "description": "conversationShareLink"
+  },
+  "conversationShareCopyLink": "Copy link",
+  "@conversationShareCopyLink": {
+    "description": "conversationShareCopyLink"
+  },
+  "conversationSharePin": "PIN {pin}",
+  "@conversationSharePin": {
+    "placeholders": {
+      "pin": {
+        "type": "String"
+      }
+    }
+  },
+  "conversationSharePinSwitch": "Ask for a PIN",
+  "@conversationSharePinSwitch": {
+    "description": "conversationSharePinSwitch"
+  },
+  "conversationShareReplies": "Guests can reply",
+  "@conversationShareReplies": {
+    "description": "conversationShareReplies"
+  },
+  "conversationShareRepliesHint": "Replies are translated like your messages and read aloud when Read translations aloud is on.",
+  "@conversationShareRepliesHint": {
+    "description": "conversationShareRepliesHint"
+  },
+  "conversationShareGuests": "{count, plural, =0{No guests yet} =1{1 guest} other{{count} guests}}",
+  "@conversationShareGuests": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "conversationShareGuestLabel": "Guest {number}",
+  "@conversationShareGuestLabel": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "conversationShareGuestAway": "{guest}, reconnecting",
+  "@conversationShareGuestAway": {
+    "placeholders": {
+      "guest": {
+        "type": "String"
+      }
+    }
+  },
+  "conversationShareStop": "Stop sharing",
+  "@conversationShareStop": {
+    "description": "conversationShareStop"
+  },
+  "conversationShareFromNow": "Guests see what is said from now on. Sharing stops when you leave the conversation, lock the phone for a few minutes, or tap Stop sharing.",
+  "@conversationShareFromNow": {
+    "description": "conversationShareFromNow"
+  },
+  "conversationShareNoNetworkTitle": "Not on a local network",
+  "@conversationShareNoNetworkTitle": {
+    "description": "conversationShareNoNetworkTitle"
+  },
+  "conversationShareNoNetwork": "Connect to a Wi-Fi network or turn on your phone's hotspot, then try again.",
+  "@conversationShareNoNetwork": {
+    "description": "conversationShareNoNetwork"
+  },
+  "conversationShareFailed": "Couldn't start sharing on this network.",
+  "@conversationShareFailed": {
+    "description": "conversationShareFailed"
+  },
+  "conversationShareLocked": "Too many wrong PINs: nobody new can join. Turn the PIN off and on again for a new one.",
+  "@conversationShareLocked": {
+    "description": "conversationShareLocked"
+  },
+  "conversationShareLanguages": "Other languages",
+  "@conversationShareLanguages": {
+    "description": "conversationShareLanguages"
+  },
+  "conversationShareLanguagesHint": "Languages that are not one of the conversation's two are translated too, once per language, under your privacy settings.",
+  "@conversationShareLanguagesHint": {
+    "description": "conversationShareLanguagesHint"
+  },
+  "conversationShareLanguageEngine": "{language}: translated by {engine}",
+  "@conversationShareLanguageEngine": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      },
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "conversationShareLanguageOnDevice": "{language}: translated on this device",
+  "@conversationShareLanguageOnDevice": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "conversationShareLanguageUnavailable": "{language}: no engine can translate it; these guests read the original",
+  "@conversationShareLanguageUnavailable": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "conversationShareLanguageConsent": "{language}: nothing is sent until you allow it; these guests read the original meanwhile",
+  "@conversationShareLanguageConsent": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "conversationShareBanner": "Shared on this network",
+  "@conversationShareBanner": {
+    "description": "conversationShareBanner"
+  },
+  "conversationShareShowCode": "Show code",
+  "@conversationShareShowCode": {
+    "description": "conversationShareShowCode"
+  },
+  "settingsCategoryBackup": "Backup & sync",
+  "@settingsCategoryBackup": {
+    "description": "settingsCategoryBackup"
+  },
+  "settingsCategoryBackupSummary": "Encrypted backups of your history, settings and more",
+  "@settingsCategoryBackupSummary": {
+    "description": "settingsCategoryBackupSummary"
+  },
+  "settingsBackupSectionTitle": "Encrypted backup",
+  "@settingsBackupSectionTitle": {
+    "description": "settingsBackupSectionTitle"
+  },
+  "settingsBackupIntro": "A backup is one encrypted file that only your passphrase opens. There's no account and no server: you keep the file, on another device, a computer or a cloud folder of your choice.",
+  "@settingsBackupIntro": {
+    "description": "settingsBackupIntro"
+  },
+  "settingsBackupCreate": "Back up now",
+  "@settingsBackupCreate": {
+    "description": "settingsBackupCreate"
+  },
+  "settingsBackupCreateNever": "No backup yet",
+  "@settingsBackupCreateNever": {
+    "description": "settingsBackupCreateNever"
+  },
+  "settingsBackupCreateLast": "Last backup: {date}",
+  "@settingsBackupCreateLast": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsBackupRestore": "Restore from a backup",
+  "@settingsBackupRestore": {
+    "description": "settingsBackupRestore"
+  },
+  "settingsBackupRestoreSubtitle": "Replace or merge your data with a .mozhibackup file",
+  "@settingsBackupRestoreSubtitle": {
+    "description": "settingsBackupRestoreSubtitle"
+  },
+  "settingsBackupKeywords": "backup restore export import encrypted passphrase file",
+  "@settingsBackupKeywords": {
+    "description": "settingsBackupKeywords"
+  },
+  "settingsExportHistoryPlainSubtitle": "Unencrypted JSON. For an encrypted copy, use Backup & sync",
+  "@settingsExportHistoryPlainSubtitle": {
+    "description": "settingsExportHistoryPlainSubtitle"
+  },
+  "settingsExportUseBackup": "Make an encrypted backup instead",
+  "@settingsExportUseBackup": {
+    "description": "settingsExportUseBackup"
+  },
+  "settingsDeleteAllDataIrreversibleBackup": "This can't be undone. Make a backup first (Settings › Backup & sync) if you want to keep your data.",
+  "@settingsDeleteAllDataIrreversibleBackup": {
+    "description": "settingsDeleteAllDataIrreversibleBackup"
+  },
+  "backupSectionHistory": "History and favorites",
+  "@backupSectionHistory": {
+    "description": "backupSectionHistory"
+  },
+  "backupSectionPresets": "Presets",
+  "@backupSectionPresets": {
+    "description": "backupSectionPresets"
+  },
+  "backupSectionGlossaries": "Glossaries",
+  "@backupSectionGlossaries": {
+    "description": "backupSectionGlossaries"
+  },
+  "backupSectionSettings": "Settings",
+  "@backupSectionSettings": {
+    "description": "backupSectionSettings"
+  },
+  "backupSectionPhrasebook": "Phrasebook",
+  "@backupSectionPhrasebook": {
+    "description": "backupSectionPhrasebook"
+  },
+  "backupSectionPractice": "Practice progress",
+  "@backupSectionPractice": {
+    "description": "backupSectionPractice"
+  },
+  "backupCreateTitle": "Back up your data",
+  "@backupCreateTitle": {
+    "description": "backupCreateTitle"
+  },
+  "backupCreateInclude": "What to include",
+  "@backupCreateInclude": {
+    "description": "backupCreateInclude"
+  },
+  "backupIncludeSecrets": "Include API keys and passwords",
+  "@backupIncludeSecrets": {
+    "description": "backupIncludeSecrets"
+  },
+  "backupIncludeSecretsOff": "Without them, you enter your keys and server passwords again after restoring.",
+  "@backupIncludeSecretsOff": {
+    "description": "backupIncludeSecretsOff"
+  },
+  "backupIncludeSecretsWarning": "Anyone who has the file and finds out your passphrase can use your API keys, which may cost you money, and sign in to your servers. Use a strong passphrase and keep the file private.",
+  "@backupIncludeSecretsWarning": {
+    "description": "backupIncludeSecretsWarning"
+  },
+  "backupPassphrase": "Passphrase",
+  "@backupPassphrase": {
+    "description": "backupPassphrase"
+  },
+  "backupPassphraseRepeat": "Repeat the passphrase",
+  "@backupPassphraseRepeat": {
+    "description": "backupPassphraseRepeat"
+  },
+  "backupPassphraseHelp": "Nobody can recover it for you: without it, the backup can't be opened. Write it down somewhere safe.",
+  "@backupPassphraseHelp": {
+    "description": "backupPassphraseHelp"
+  },
+  "backupPassphraseMismatch": "The passphrases don't match",
+  "@backupPassphraseMismatch": {
+    "description": "backupPassphraseMismatch"
+  },
+  "backupPassphraseTooShort": "{count, plural, =1{Use at least 1 character} other{Use at least {count} characters}}",
+  "@backupPassphraseTooShort": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "backupPassphraseShow": "Show passphrase",
+  "@backupPassphraseShow": {
+    "description": "backupPassphraseShow"
+  },
+  "backupPassphraseHide": "Hide passphrase",
+  "@backupPassphraseHide": {
+    "description": "backupPassphraseHide"
+  },
+  "backupStrengthWeak": "Weak: easy to guess. Use 4 or more random words.",
+  "@backupStrengthWeak": {
+    "description": "backupStrengthWeak"
+  },
+  "backupStrengthFair": "Fair. 4 or more random words would be stronger.",
+  "@backupStrengthFair": {
+    "description": "backupStrengthFair"
+  },
+  "backupStrengthStrong": "Strong",
+  "@backupStrengthStrong": {
+    "description": "backupStrengthStrong"
+  },
+  "backupStrengthSemantics": "Passphrase strength: {strength}",
+  "@backupStrengthSemantics": {
+    "placeholders": {
+      "strength": {
+        "type": "String"
+      }
+    }
+  },
+  "backupCreateAction": "Create backup",
+  "@backupCreateAction": {
+    "description": "backupCreateAction"
+  },
+  "backupCreateWorking": "Encrypting your backup…",
+  "@backupCreateWorking": {
+    "description": "backupCreateWorking"
+  },
+  "backupWorkingHint": "This can take a few seconds.",
+  "@backupWorkingHint": {
+    "description": "backupWorkingHint"
+  },
+  "backupCreateSaved": "Backup saved",
+  "@backupCreateSaved": {
+    "description": "backupCreateSaved"
+  },
+  "backupCreateSavedBody": "Saved as {fileName}. Keep it somewhere safe, away from this device, and remember the passphrase.",
+  "@backupCreateSavedBody": {
+    "placeholders": {
+      "fileName": {
+        "type": "String"
+      }
+    }
+  },
+  "backupCreateFailedSection": "Couldn't read this part of your data: {section}. Leave it out or try again.",
+  "@backupCreateFailedSection": {
+    "placeholders": {
+      "section": {
+        "type": "String"
+      }
+    }
+  },
+  "backupCreateFailedSave": "Couldn't save the backup. Try again.",
+  "@backupCreateFailedSave": {
+    "description": "backupCreateFailedSave"
+  },
+  "backupDone": "Done",
+  "@backupDone": {
+    "description": "backupDone"
+  },
+  "backupBack": "Back",
+  "@backupBack": {
+    "description": "backupBack"
+  },
+  "backupRestoreTitle": "Restore from a backup",
+  "@backupRestoreTitle": {
+    "description": "backupRestoreTitle"
+  },
+  "backupRestorePickBody": "Choose a .mozhibackup file you saved earlier. It's opened on this device; nothing is sent anywhere.",
+  "@backupRestorePickBody": {
+    "description": "backupRestorePickBody"
+  },
+  "backupRestorePick": "Choose file",
+  "@backupRestorePick": {
+    "description": "backupRestorePick"
+  },
+  "backupRestoreFileInfo": "Made on {date} with Mozhi {version}",
+  "@backupRestoreFileInfo": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "backupRestoreUnlock": "Unlock",
+  "@backupRestoreUnlock": {
+    "description": "backupRestoreUnlock"
+  },
+  "backupRestoreUnlocking": "Unlocking the backup…",
+  "@backupRestoreUnlocking": {
+    "description": "backupRestoreUnlocking"
+  },
+  "backupRestoreWrongPassphrase": "Wrong passphrase, or the file is damaged.",
+  "@backupRestoreWrongPassphrase": {
+    "description": "backupRestoreWrongPassphrase"
+  },
+  "backupRestoreNotBackup": "This isn't a Mozhi backup.",
+  "@backupRestoreNotBackup": {
+    "description": "backupRestoreNotBackup"
+  },
+  "backupRestoreNewerVersion": "This backup was made by a newer version of Mozhi. Update the app to restore it.",
+  "@backupRestoreNewerVersion": {
+    "description": "backupRestoreNewerVersion"
+  },
+  "backupRestoreTooLarge": "This file is too large to be a Mozhi backup.",
+  "@backupRestoreTooLarge": {
+    "description": "backupRestoreTooLarge"
+  },
+  "backupRestoreUnreadable": "Couldn't read the file.",
+  "@backupRestoreUnreadable": {
+    "description": "backupRestoreUnreadable"
+  },
+  "backupRestoreHolds": "Choose what to restore",
+  "@backupRestoreHolds": {
+    "description": "backupRestoreHolds"
+  },
+  "backupRestoreItems": "{count, plural, =0{Empty} =1{1 item} other{{count} items}}",
+  "@backupRestoreItems": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "backupRestoreWithSecrets": "With API keys and passwords",
+  "@backupRestoreWithSecrets": {
+    "description": "backupRestoreWithSecrets"
+  },
+  "backupRestoreUnsupported": "Not supported by this version of Mozhi, left out: {sections}",
+  "@backupRestoreUnsupported": {
+    "placeholders": {
+      "sections": {
+        "type": "String"
+      }
+    }
+  },
+  "backupRestoreReplace": "Replace my data",
+  "@backupRestoreReplace": {
+    "description": "backupRestoreReplace"
+  },
+  "backupRestoreMerge": "Merge with my data",
+  "@backupRestoreMerge": {
+    "description": "backupRestoreMerge"
+  },
+  "backupRestoreModesBody": "Merge keeps what's on this device and adds what's only in the backup: of an entry in both, the newer copy stays, and entries you deleted stay deleted. Replace makes the chosen parts exactly what the backup holds.",
+  "@backupRestoreModesBody": {
+    "description": "backupRestoreModesBody"
+  },
+  "backupRestoreRestoring": "Restoring…",
+  "@backupRestoreRestoring": {
+    "description": "backupRestoreRestoring"
+  },
+  "backupRestoreDone": "Backup restored",
+  "@backupRestoreDone": {
+    "description": "backupRestoreDone"
+  },
+  "backupRestoreChange": "{after} now, {before} before",
+  "@backupRestoreChange": {
+    "placeholders": {
+      "after": {
+        "type": "int"
+      },
+      "before": {
+        "type": "int"
+      }
+    }
+  },
+  "backupRestoreRestored": "Restored",
+  "@backupRestoreRestored": {
+    "description": "backupRestoreRestored"
+  },
+  "backupRestoreFailedSection": "Couldn't restore this part: {section}. The other parts were restored.",
+  "@backupRestoreFailedSection": {
+    "placeholders": {
+      "section": {
+        "type": "String"
+      }
+    }
+  },
+  "backupRestoreChooseOther": "Choose another file",
+  "@backupRestoreChooseOther": {
+    "description": "backupRestoreChooseOther"
+  },
+  "conversationShareStopped": "Sharing stopped. Guests see that the conversation ended.",
+  "@conversationShareStopped": {
+    "description": "conversationShareStopped"
+  },
+  "conversationShareAgain": "Share again",
+  "@conversationShareAgain": {
+    "description": "conversationShareAgain"
+  },
+  "syncTitle": "Sync",
+  "@syncTitle": {
+    "description": "syncTitle"
+  },
+  "syncIntro": "Keep your data the same on your devices through a WebDAV folder you control: Nextcloud, ownCloud, a NAS or rclone. It's end-to-end encrypted with your sync passphrase, so the server only stores what it can't read. No account needed.",
+  "@syncIntro": {
+    "description": "syncIntro"
+  },
+  "syncSetUp": "Set up sync",
+  "@syncSetUp": {
+    "description": "syncSetUp"
+  },
+  "syncSetUpSubtitle": "Connect a folder on your WebDAV server",
+  "@syncSetUpSubtitle": {
+    "description": "syncSetUpSubtitle"
+  },
+  "syncOfflineOnlyNotice": "Sync doesn't run in Offline only. Choose another privacy mode to sync.",
+  "@syncOfflineOnlyNotice": {
+    "description": "syncOfflineOnlyNotice"
+  },
+  "syncStatusNever": "Not synced yet",
+  "@syncStatusNever": {
+    "description": "syncStatusNever"
+  },
+  "syncStatusRunning": "Syncing…",
+  "@syncStatusRunning": {
+    "description": "syncStatusRunning"
+  },
+  "syncStatusSynced": "Last synced {time}",
+  "@syncStatusSynced": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "syncStatusFailed": "Last sync failed: {reason}",
+  "@syncStatusFailed": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "syncLocation": "{folder} on {host}",
+  "@syncLocation": {
+    "placeholders": {
+      "folder": {
+        "type": "String"
+      },
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "syncNow": "Sync now",
+  "@syncNow": {
+    "description": "syncNow"
+  },
+  "syncResultUnchanged": "Everything is up to date",
+  "@syncResultUnchanged": {
+    "description": "syncResultUnchanged"
+  },
+  "syncResultReceived": "Updated with changes from your other devices",
+  "@syncResultReceived": {
+    "description": "syncResultReceived"
+  },
+  "syncResultSent": "Your changes were synced",
+  "@syncResultSent": {
+    "description": "syncResultSent"
+  },
+  "syncResultExchanged": "Changes synced both ways",
+  "@syncResultExchanged": {
+    "description": "syncResultExchanged"
+  },
+  "syncUnlock": "Unlock sync",
+  "@syncUnlock": {
+    "description": "syncUnlock"
+  },
+  "syncUnlockSubtitle": "Enter your app password and sync passphrase on this device",
+  "@syncUnlockSubtitle": {
+    "description": "syncUnlockSubtitle"
+  },
+  "syncUnlockBody": "Sync needs your app password and sync passphrase again on this device.",
+  "@syncUnlockBody": {
+    "description": "syncUnlockBody"
+  },
+  "syncUnlockWebNote": "The web app forgets them when you close its tab.",
+  "@syncUnlockWebNote": {
+    "description": "syncUnlockWebNote"
+  },
+  "syncNewPassphraseTitle": "Enter the new passphrase",
+  "@syncNewPassphraseTitle": {
+    "description": "syncNewPassphraseTitle"
+  },
+  "syncNewPassphraseBody": "The sync passphrase was changed on another device. Enter the new one to keep syncing.",
+  "@syncNewPassphraseBody": {
+    "description": "syncNewPassphraseBody"
+  },
+  "syncNewPasswordTitle": "Enter the app password",
+  "@syncNewPasswordTitle": {
+    "description": "syncNewPasswordTitle"
+  },
+  "syncNewPasswordBody": "The server no longer accepts the app password. Enter the current one.",
+  "@syncNewPasswordBody": {
+    "description": "syncNewPasswordBody"
+  },
+  "syncWhatToSync": "What to sync",
+  "@syncWhatToSync": {
+    "description": "syncWhatToSync"
+  },
+  "syncWhatToSyncBody": "Your devices can sync different things: what this device doesn't sync stays as it is on the server.",
+  "@syncWhatToSyncBody": {
+    "description": "syncWhatToSyncBody"
+  },
+  "syncSectionsNone": "Choose at least one",
+  "@syncSectionsNone": {
+    "description": "syncSectionsNone"
+  },
+  "syncSecretsInclude": "Include API keys and passwords",
+  "@syncSecretsInclude": {
+    "description": "syncSecretsInclude"
+  },
+  "syncSecretsWarning": "They're encrypted like everything else, but anyone who gets the sync file and your passphrase can use them. Only turn this on if you need the same keys on every device.",
+  "@syncSecretsWarning": {
+    "description": "syncSecretsWarning"
+  },
+  "syncSettingsNote": "Settings are left out unless you choose them: some only make sense on one device.",
+  "@syncSettingsNote": {
+    "description": "syncSettingsNote"
+  },
+  "syncWifiOnly": "Sync on Wi-Fi only",
+  "@syncWifiOnly": {
+    "description": "syncWifiOnly"
+  },
+  "syncWifiOnlySubtitle": "Automatic syncs wait for Wi-Fi. Sync now always runs.",
+  "@syncWifiOnlySubtitle": {
+    "description": "syncWifiOnlySubtitle"
+  },
+  "syncChangePassphrase": "Change sync passphrase",
+  "@syncChangePassphrase": {
+    "description": "syncChangePassphrase"
+  },
+  "syncChangePassphraseBody": "The sync file is encrypted again with the new passphrase. Your other devices ask for it on their next sync.",
+  "@syncChangePassphraseBody": {
+    "description": "syncChangePassphraseBody"
+  },
+  "syncChangePassphraseDone": "Sync passphrase changed",
+  "@syncChangePassphraseDone": {
+    "description": "syncChangePassphraseDone"
+  },
+  "syncTurnOff": "Turn off sync",
+  "@syncTurnOff": {
+    "description": "syncTurnOff"
+  },
+  "syncTurnOffBody": "This device forgets the server, the app password and the key. Your data stays on this device, and the sync file stays on the server for your other devices.",
+  "@syncTurnOffBody": {
+    "description": "syncTurnOffBody"
+  },
+  "syncTurnOffDeleteRemote": "Also delete the sync file from the server",
+  "@syncTurnOffDeleteRemote": {
+    "description": "syncTurnOffDeleteRemote"
+  },
+  "syncTurnOffDeleteRemoteSubtitle": "Do this on the last device that syncs. Other devices still syncing create it again.",
+  "@syncTurnOffDeleteRemoteSubtitle": {
+    "description": "syncTurnOffDeleteRemoteSubtitle"
+  },
+  "syncTurnOffDone": "Sync is off",
+  "@syncTurnOffDone": {
+    "description": "syncTurnOffDone"
+  },
+  "syncTurnedOn": "Sync is on",
+  "@syncTurnedOn": {
+    "description": "syncTurnedOn"
+  },
+  "syncSetupTitle": "Set up sync",
+  "@syncSetupTitle": {
+    "description": "syncSetupTitle"
+  },
+  "syncSetupIntro": "Use a folder on your own WebDAV server. Mozhi encrypts everything with your sync passphrase before it leaves this device; the server sees only the file's size and when it changes.",
+  "@syncSetupIntro": {
+    "description": "syncSetupIntro"
+  },
+  "syncServerLabel": "WebDAV address",
+  "@syncServerLabel": {
+    "description": "syncServerLabel"
+  },
+  "syncServerHint": "https://cloud.example.org/remote.php/dav/files/alice/",
+  "@syncServerHint": {
+    "description": "syncServerHint"
+  },
+  "syncServerHelper": "For Nextcloud or ownCloud, the server's address is enough. Elsewhere, the WebDAV address of your files.",
+  "@syncServerHelper": {
+    "description": "syncServerHelper"
+  },
+  "syncServerInvalid": "Enter an address that starts with https:// (http:// only for this device or your local network).",
+  "@syncServerInvalid": {
+    "description": "syncServerInvalid"
+  },
+  "syncUserLabel": "User name",
+  "@syncUserLabel": {
+    "description": "syncUserLabel"
+  },
+  "syncPasswordLabel": "App password",
+  "@syncPasswordLabel": {
+    "description": "syncPasswordLabel"
+  },
+  "syncPasswordHelper": "Create an app password for Mozhi on the server (Nextcloud: Settings › Security › Devices & sessions) instead of using your main password.",
+  "@syncPasswordHelper": {
+    "description": "syncPasswordHelper"
+  },
+  "syncShowPassword": "Show password",
+  "@syncShowPassword": {
+    "description": "syncShowPassword"
+  },
+  "syncHidePassword": "Hide password",
+  "@syncHidePassword": {
+    "description": "syncHidePassword"
+  },
+  "syncFolderLabel": "Folder",
+  "@syncFolderLabel": {
+    "description": "syncFolderLabel"
+  },
+  "syncFolderHelper": "Created if it doesn't exist. Use the same folder on every device.",
+  "@syncFolderHelper": {
+    "description": "syncFolderHelper"
+  },
+  "syncFieldRequired": "Required",
+  "@syncFieldRequired": {
+    "description": "syncFieldRequired"
+  },
+  "syncTest": "Test connection",
+  "@syncTest": {
+    "description": "syncTest"
+  },
+  "syncTesting": "Testing the connection…",
+  "@syncTesting": {
+    "description": "syncTesting"
+  },
+  "syncTestFoundFile": "Connected. Another device already syncs here: enter the sync passphrase you chose there.",
+  "@syncTestFoundFile": {
+    "description": "syncTestFoundFile"
+  },
+  "syncTestNoFile": "Connected. Nothing is synced here yet: choose a sync passphrase for all your devices.",
+  "@syncTestNoFile": {
+    "description": "syncTestNoFile"
+  },
+  "syncTestNoFolder": "Connected. The folder will be created. Choose a sync passphrase for all your devices.",
+  "@syncTestNoFolder": {
+    "description": "syncTestNoFolder"
+  },
+  "syncTestFirst": "Test the connection first.",
+  "@syncTestFirst": {
+    "description": "syncTestFirst"
+  },
+  "syncPassphraseJoinHelper": "The sync passphrase of your other devices.",
+  "@syncPassphraseJoinHelper": {
+    "description": "syncPassphraseJoinHelper"
+  },
+  "syncPassphraseNewHelper": "Every device needs it, and nobody can recover it: write it down. It's never stored, not even on this device.",
+  "@syncPassphraseNewHelper": {
+    "description": "syncPassphraseNewHelper"
+  },
+  "syncJoinNote": "Your data on this device is merged with the synced data: nothing is replaced.",
+  "@syncJoinNote": {
+    "description": "syncJoinNote"
+  },
+  "syncTurnOn": "Turn on sync",
+  "@syncTurnOn": {
+    "description": "syncTurnOn"
+  },
+  "syncTurningOn": "Turning on sync…",
+  "@syncTurningOn": {
+    "description": "syncTurningOn"
+  },
+  "syncWebCorsNote": "In the web app, the server must allow requests from this site (CORS). The sync guide shows how for Nextcloud, rclone and a reverse proxy.",
+  "@syncWebCorsNote": {
+    "description": "syncWebCorsNote"
+  },
+  "syncFailureAuth": "The server didn't accept the user name or app password.",
+  "@syncFailureAuth": {
+    "description": "syncFailureAuth"
+  },
+  "syncFailureForbidden": "This account may not use that folder.",
+  "@syncFailureForbidden": {
+    "description": "syncFailureForbidden"
+  },
+  "syncFailureNotFound": "Nothing was found at that address. Check the WebDAV address.",
+  "@syncFailureNotFound": {
+    "description": "syncFailureNotFound"
+  },
+  "syncFailureNotAFolder": "The folder's address is a file. Choose another folder.",
+  "@syncFailureNotAFolder": {
+    "description": "syncFailureNotAFolder"
+  },
+  "syncFailureNotWebDav": "That address doesn't answer as a WebDAV server. Check the address (Nextcloud: https://your-server/remote.php/dav/files/your-user/).",
+  "@syncFailureNotWebDav": {
+    "description": "syncFailureNotWebDav"
+  },
+  "syncFailureLocked": "The sync file is locked on the server. Try again later.",
+  "@syncFailureLocked": {
+    "description": "syncFailureLocked"
+  },
+  "syncFailureStorage": "Your storage on the server is full.",
+  "@syncFailureStorage": {
+    "description": "syncFailureStorage"
+  },
+  "syncFailureTooLarge": "The sync file is too large for the server.",
+  "@syncFailureTooLarge": {
+    "description": "syncFailureTooLarge"
+  },
+  "syncFailureTooManyRequests": "The server refuses requests for now, after too many attempts. Wait a few minutes.",
+  "@syncFailureTooManyRequests": {
+    "description": "syncFailureTooManyRequests"
+  },
+  "syncFailureRedirected": "The server sends the app to another address. Enter the full WebDAV address, with https://.",
+  "@syncFailureRedirected": {
+    "description": "syncFailureRedirected"
+  },
+  "syncFailureServer": "The server had a problem. Try again later.",
+  "@syncFailureServer": {
+    "description": "syncFailureServer"
+  },
+  "syncFailureOffline": "Couldn't reach the server. Check your connection and the address.",
+  "@syncFailureOffline": {
+    "description": "syncFailureOffline"
+  },
+  "syncFailureTimeout": "The server took too long to answer.",
+  "@syncFailureTimeout": {
+    "description": "syncFailureTimeout"
+  },
+  "syncFailureTls": "The secure connection to the server failed. Check its certificate.",
+  "@syncFailureTls": {
+    "description": "syncFailureTls"
+  },
+  "syncFailureBrowser": "The browser couldn't reach the server. If the address is right, the server has to allow requests from this web app (CORS): see the sync guide.",
+  "@syncFailureBrowser": {
+    "description": "syncFailureBrowser"
+  },
+  "syncFailureConflict": "Your devices synced at the same moment. Try again.",
+  "@syncFailureConflict": {
+    "description": "syncFailureConflict"
+  },
+  "syncFailureWrongPassphrase": "That passphrase doesn't open the synced data.",
+  "@syncFailureWrongPassphrase": {
+    "description": "syncFailureWrongPassphrase"
+  },
+  "syncFailurePassphraseChanged": "The sync passphrase was changed on another device. Enter the new one.",
+  "@syncFailurePassphraseChanged": {
+    "description": "syncFailurePassphraseChanged"
+  },
+  "syncFailureDamaged": "The sync file can't be decrypted: it was damaged or changed on the server. Nothing was changed on this device.",
+  "@syncFailureDamaged": {
+    "description": "syncFailureDamaged"
+  },
+  "syncFailureNotSyncFile": "The sync file in that folder isn't from Mozhi.",
+  "@syncFailureNotSyncFile": {
+    "description": "syncFailureNotSyncFile"
+  },
+  "syncFailureNewerVersion": "Another device synced with a newer version of Mozhi. Update the app to keep syncing.",
+  "@syncFailureNewerVersion": {
+    "description": "syncFailureNewerVersion"
+  },
+  "syncFailureLocalData": "This device's data couldn't be read or updated.",
+  "@syncFailureLocalData": {
+    "description": "syncFailureLocalData"
+  },
+  "syncFailureNeedsUnlock": "Enter your app password and sync passphrase to sync on this device.",
+  "@syncFailureNeedsUnlock": {
+    "description": "syncFailureNeedsUnlock"
+  },
+  "syncFailurePolicy": "The network settings don't allow this address.",
+  "@syncFailurePolicy": {
+    "description": "syncFailurePolicy"
+  },
+  "conversationShareGuestSemantics": "{guest}, {message}",
+  "@conversationShareGuestSemantics": {
+    "placeholders": {
+      "guest": {
+        "type": "String"
+      },
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "pairingSectionTitle": "Phone to phone",
+  "@pairingSectionTitle": {
+    "description": "pairingSectionTitle"
+  },
+  "pairingSectionIntro": "Move your data or your offline languages to another phone on the same Wi-Fi or hotspot. It's end-to-end encrypted and never goes over the internet.",
+  "@pairingSectionIntro": {
+    "description": "pairingSectionIntro"
+  },
+  "pairingReceiveAction": "Receive on this phone",
+  "@pairingReceiveAction": {
+    "description": "pairingReceiveAction"
+  },
+  "pairingReceiveSubtitle": "Show a code for the other phone to scan",
+  "@pairingReceiveSubtitle": {
+    "description": "pairingReceiveSubtitle"
+  },
+  "pairingSendAction": "Send to another phone",
+  "@pairingSendAction": {
+    "description": "pairingSendAction"
+  },
+  "pairingSendSubtitle": "Scan or type the other phone's code",
+  "@pairingSendSubtitle": {
+    "description": "pairingSendSubtitle"
+  },
+  "pairingSharePacksAction": "Share language packs",
+  "@pairingSharePacksAction": {
+    "description": "pairingSharePacksAction"
+  },
+  "pairingSharePacksSubtitle": "Send offline languages to a phone nearby, without the internet",
+  "@pairingSharePacksSubtitle": {
+    "description": "pairingSharePacksSubtitle"
+  },
+  "pairingUnavailable": "Phone to phone works in the Android app.",
+  "@pairingUnavailable": {
+    "description": "pairingUnavailable"
+  },
+  "pairingReceiveTitle": "Receive on this phone",
+  "@pairingReceiveTitle": {
+    "description": "pairingReceiveTitle"
+  },
+  "pairingReceiveScan": "Scan this code with the other phone",
+  "@pairingReceiveScan": {
+    "description": "pairingReceiveScan"
+  },
+  "pairingReceiveScanBody": "Open the camera app on the other phone and point it at the code, or open Send to another phone in Mozhi there. Both phones must be on the same Wi-Fi or hotspot.",
+  "@pairingReceiveScanBody": {
+    "description": "pairingReceiveScanBody"
+  },
+  "pairingReceiveOrType": "Or type this code on the other phone",
+  "@pairingReceiveOrType": {
+    "description": "pairingReceiveOrType"
+  },
+  "pairingQrLabel": "Pairing code for the other phone",
+  "@pairingQrLabel": {
+    "description": "pairingQrLabel"
+  },
+  "pairingCopyCode": "Copy code",
+  "@pairingCopyCode": {
+    "description": "pairingCopyCode"
+  },
+  "pairingExpiresIn": "Expires in {time}",
+  "@pairingExpiresIn": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "pairingOnNetwork": "On {address}",
+  "@pairingOnNetwork": {
+    "placeholders": {
+      "address": {
+        "type": "String"
+      }
+    }
+  },
+  "pairingChooseNetwork": "Network",
+  "@pairingChooseNetwork": {
+    "description": "pairingChooseNetwork"
+  },
+  "pairingNewCode": "New code",
+  "@pairingNewCode": {
+    "description": "pairingNewCode"
+  },
+  "pairingNoNetworkTitle": "Connect to Wi-Fi or turn on a hotspot",
+  "@pairingNoNetworkTitle": {
+    "description": "pairingNoNetworkTitle"
+  },
+  "pairingNoNetworkBody": "Both phones must be on the same Wi-Fi network, or one phone must use the other's hotspot.",
+  "@pairingNoNetworkBody": {
+    "description": "pairingNoNetworkBody"
+  },
+  "pairingExpiredTitle": "The code has expired",
+  "@pairingExpiredTitle": {
+    "description": "pairingExpiredTitle"
+  },
+  "pairingExpiredBody": "Make a new code and scan it with the other phone.",
+  "@pairingExpiredBody": {
+    "description": "pairingExpiredBody"
+  },
+  "pairingCheckNumber": "Check that both phones show this number",
+  "@pairingCheckNumber": {
+    "description": "pairingCheckNumber"
+  },
+  "pairingSasSemantics": "Number to compare: {digits}",
+  "@pairingSasSemantics": {
+    "placeholders": {
+      "digits": {
+        "type": "String"
+      }
+    }
+  },
+  "pairingWaitingForOffer": "Waiting for the other phone to choose what to send…",
+  "@pairingWaitingForOffer": {
+    "description": "pairingWaitingForOffer"
+  },
+  "pairingOfferTitle": "The other phone wants to send",
+  "@pairingOfferTitle": {
+    "description": "pairingOfferTitle"
+  },
+  "pairingItemData": "Your data",
+  "@pairingItemData": {
+    "description": "pairingItemData"
+  },
+  "pairingItemTranslation": "Translation: {language}",
+  "@pairingItemTranslation": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "pairingItemSpeech": "Speech recognition: {model}",
+  "@pairingItemSpeech": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "pairingItemSpeechDetector": "Speech detector",
+  "@pairingItemSpeechDetector": {
+    "description": "pairingItemSpeechDetector"
+  },
+  "pairingItemOcr": "Text recognition: {language}",
+  "@pairingItemOcr": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "pairingItemDictionary": "Dictionary: {language}",
+  "@pairingItemDictionary": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "pairingItemInstalled": "Already on this phone",
+  "@pairingItemInstalled": {
+    "description": "pairingItemInstalled"
+  },
+  "pairingItemIncompatible": "Not usable with this phone's version of Mozhi",
+  "@pairingItemIncompatible": {
+    "description": "pairingItemIncompatible"
+  },
+  "pairingItemSecrets": "Includes API keys and passwords",
+  "@pairingItemSecrets": {
+    "description": "pairingItemSecrets"
+  },
+  "pairingModeMerge": "Merge with my data",
+  "@pairingModeMerge": {
+    "description": "pairingModeMerge"
+  },
+  "pairingModeReplace": "Replace my data",
+  "@pairingModeReplace": {
+    "description": "pairingModeReplace"
+  },
+  "pairingModesBody": "Merge keeps what's on this phone and adds what's new: of an entry on both phones, the newer copy stays. Replace makes the parts you get exactly what the other phone sends.",
+  "@pairingModesBody": {
+    "description": "pairingModesBody"
+  },
+  "pairingAccept": "Accept",
+  "@pairingAccept": {
+    "description": "pairingAccept"
+  },
+  "pairingDecline": "Decline",
+  "@pairingDecline": {
+    "description": "pairingDecline"
+  },
+  "pairingReceiving": "Receiving {item}…",
+  "@pairingReceiving": {
+    "placeholders": {
+      "item": {
+        "type": "String"
+      }
+    }
+  },
+  "pairingSending": "Sending {item}…",
+  "@pairingSending": {
+    "placeholders": {
+      "item": {
+        "type": "String"
+      }
+    }
+  },
+  "pairingInstalling": "Installing {item} on the receiving phone…",
+  "@pairingInstalling": {
+    "placeholders": {
+      "item": {
+        "type": "String"
+      }
+    }
+  },
+  "pairingProgressBytes": "{done} of {total}",
+  "@pairingProgressBytes": {
+    "placeholders": {
+      "done": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "pairingKeepOpen": "Keep Mozhi open on both phones until it's done.",
+  "@pairingKeepOpen": {
+    "description": "pairingKeepOpen"
+  },
+  "pairingDoneTitle": "Done",
+  "@pairingDoneTitle": {
+    "description": "pairingDoneTitle"
+  },
+  "pairingResultInstalled": "Installed",
+  "@pairingResultInstalled": {
+    "description": "pairingResultInstalled"
+  },
+  "pairingResultRestored": "Restored",
+  "@pairingResultRestored": {
+    "description": "pairingResultRestored"
+  },
+  "pairingResultDamaged": "A file didn't check out, so nothing of it was installed",
+  "@pairingResultDamaged": {
+    "description": "pairingResultDamaged"
+  },
+  "pairingResultNoSpace": "Not enough storage space",
+  "@pairingResultNoSpace": {
+    "description": "pairingResultNoSpace"
+  },
+  "pairingResultFailed": "Couldn't install",
+  "@pairingResultFailed": {
+    "description": "pairingResultFailed"
+  },
+  "pairingDeclinedTitle": "Nothing was received",
+  "@pairingDeclinedTitle": {
+    "description": "pairingDeclinedTitle"
+  },
+  "pairingDeclinedBody": "You said no. The other phone sees that too.",
+  "@pairingDeclinedBody": {
+    "description": "pairingDeclinedBody"
+  },
+  "pairingSendTitle": "Send to another phone",
+  "@pairingSendTitle": {
+    "description": "pairingSendTitle"
+  },
+  "pairingSendBody": "On the other phone, open Mozhi's Settings › Backup & sync › Receive on this phone. Scan its code with this phone's camera app, or type the code here.",
+  "@pairingSendBody": {
+    "description": "pairingSendBody"
+  },
+  "pairingCodeField": "Pairing code",
+  "@pairingCodeField": {
+    "description": "pairingCodeField"
+  },
+  "pairingCodeInvalid": "That's not a pairing code. Check it for typos.",
+  "@pairingCodeInvalid": {
+    "description": "pairingCodeInvalid"
+  },
+  "pairingPaste": "Paste code",
+  "@pairingPaste": {
+    "description": "pairingPaste"
+  },
+  "pairingConnect": "Connect",
+  "@pairingConnect": {
+    "description": "pairingConnect"
+  },
+  "pairingConnecting": "Connecting…",
+  "@pairingConnecting": {
+    "description": "pairingConnecting"
+  },
+  "pairingConfirmTitle": "Does the other phone show the same number?",
+  "@pairingConfirmTitle": {
+    "description": "pairingConfirmTitle"
+  },
+  "pairingConfirmBody": "If the numbers differ, someone may be trying to listen in: stop and make a new code.",
+  "@pairingConfirmBody": {
+    "description": "pairingConfirmBody"
+  },
+  "pairingConfirmMatch": "Yes, it matches",
+  "@pairingConfirmMatch": {
+    "description": "pairingConfirmMatch"
+  },
+  "pairingConfirmMismatch": "No, stop",
+  "@pairingConfirmMismatch": {
+    "description": "pairingConfirmMismatch"
+  },
+  "pairingChooseTitle": "Choose what to send",
+  "@pairingChooseTitle": {
+    "description": "pairingChooseTitle"
+  },
+  "pairingChooseDataBody": "Settings, history and more. The other phone chooses whether to merge it with its own or replace it.",
+  "@pairingChooseDataBody": {
+    "description": "pairingChooseDataBody"
+  },
+  "pairingIncludeSecrets": "Include API keys and passwords",
+  "@pairingIncludeSecrets": {
+    "description": "pairingIncludeSecrets"
+  },
+  "pairingIncludeSecretsWarning": "The other phone can then use your paid AI providers and sign in to your servers. Only send them to a phone of your own.",
+  "@pairingIncludeSecretsWarning": {
+    "description": "pairingIncludeSecretsWarning"
+  },
+  "pairingChoosePacks": "Offline languages and models",
+  "@pairingChoosePacks": {
+    "description": "pairingChoosePacks"
+  },
+  "pairingNoPacks": "No offline languages or models on this phone yet.",
+  "@pairingNoPacks": {
+    "description": "pairingNoPacks"
+  },
+  "pairingSend": "Send",
+  "@pairingSend": {
+    "description": "pairingSend"
+  },
+  "pairingWaitingForAnswer": "Waiting for the other phone to accept…",
+  "@pairingWaitingForAnswer": {
+    "description": "pairingWaitingForAnswer"
+  },
+  "pairingSkipped": "{count, plural, =1{1 item was already on the other phone, or isn't usable there.} other{{count} items were already on the other phone, or aren't usable there.}}",
+  "@pairingSkipped": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "pairingFailedTitle": "Stopped",
+  "@pairingFailedTitle": {
+    "description": "pairingFailedTitle"
+  },
+  "pairingFailureInvalidCode": "That code isn't for a phone on your network.",
+  "@pairingFailureInvalidCode": {
+    "description": "pairingFailureInvalidCode"
+  },
+  "pairingFailureUnreachable": "Couldn't reach the other phone. Check that both phones are on the same Wi-Fi or hotspot and that the code is still on its screen.",
+  "@pairingFailureUnreachable": {
+    "description": "pairingFailureUnreachable"
+  },
+  "pairingFailureRefused": "The other phone didn't take the code. It may have expired: make a new one and try again.",
+  "@pairingFailureRefused": {
+    "description": "pairingFailureRefused"
+  },
+  "pairingFailureExpired": "The code has expired. Make a new one.",
+  "@pairingFailureExpired": {
+    "description": "pairingFailureExpired"
+  },
+  "pairingFailureTooManyAttempts": "Someone tried to connect with a wrong code, so this code was stopped. Make a new one.",
+  "@pairingFailureTooManyAttempts": {
+    "description": "pairingFailureTooManyAttempts"
+  },
+  "pairingFailureSasMismatch": "The numbers didn't match, so nothing was sent. Make a new code and try again.",
+  "@pairingFailureSasMismatch": {
+    "description": "pairingFailureSasMismatch"
+  },
+  "pairingFailureDeclined": "The other phone said no.",
+  "@pairingFailureDeclined": {
+    "description": "pairingFailureDeclined"
+  },
+  "pairingFailureCancelled": "The other phone stopped the transfer.",
+  "@pairingFailureCancelled": {
+    "description": "pairingFailureCancelled"
+  },
+  "pairingFailureConnectionLost": "The connection was lost. Keep both phones on the same network and try again.",
+  "@pairingFailureConnectionLost": {
+    "description": "pairingFailureConnectionLost"
+  },
+  "pairingFailureTimedOut": "The other phone stopped answering.",
+  "@pairingFailureTimedOut": {
+    "description": "pairingFailureTimedOut"
+  },
+  "pairingFailureProtocol": "The other phone sent something that didn't check out, so the transfer stopped.",
+  "@pairingFailureProtocol": {
+    "description": "pairingFailureProtocol"
+  },
+  "pairingFailureNoSpace": "This phone is out of storage space.",
+  "@pairingFailureNoSpace": {
+    "description": "pairingFailureNoSpace"
+  },
+  "pairingFailureUnknown": "Something went wrong. Try again.",
+  "@pairingFailureUnknown": {
+    "description": "pairingFailureUnknown"
+  },
+  "conversationSharePrivacyNote": "Only devices on this network can open it, and as it is plain http others on the same Wi-Fi could read along, so avoid public Wi-Fi for sensitive talk: your phone's hotspot is best.",
+  "@conversationSharePrivacyNote": {
+    "description": "conversationSharePrivacyNote"
   }
 }

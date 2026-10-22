@@ -11,6 +11,8 @@ import 'package:mozhi/app/view/shared_file_loader.dart';
 import 'package:mozhi/app/view/shared_image_picker.dart'
     deferred as shared_image;
 import 'package:mozhi/app/view/top_level_actions.dart';
+import 'package:mozhi/conversation/share/view/conversation_share_page.dart'
+    deferred as conversation_share;
 import 'package:mozhi/conversation/view/conversation_page.dart'
     deferred as conversation_page;
 import 'package:mozhi/conversation/widgets/conversation_voice_mic.dart'
@@ -34,6 +36,13 @@ import 'package:mozhi/offline/view/offline_models_page.dart'
 import 'package:mozhi/onboarding/onboarding_redirect.dart';
 import 'package:mozhi/onboarding/view/onboarding_page.dart'
     deferred as onboarding_page;
+import 'package:mozhi/pairing/pairing_routes.dart';
+import 'package:mozhi/pairing/view/pairing_pages.dart' deferred as pairing_page;
+import 'package:mozhi/phrasebook/view/phrasebook_page.dart'
+    deferred as phrasebook_page;
+import 'package:mozhi/practice/practice_routes.dart';
+import 'package:mozhi/practice/view/practice_page.dart'
+    deferred as practice_page;
 import 'package:mozhi/presets/view/glossaries_page.dart'
     deferred as glossaries_page;
 import 'package:mozhi/presets/view/presets_page.dart' deferred as presets_page;
@@ -82,6 +91,11 @@ abstract final class AppRoutes {
   static const dictionary = '/dictionary';
   static const proofread = '/proofread';
   static const conversation = '/conversation';
+
+  /// Sharing the conversation on the local network (Android), a page of
+  /// the Conversation tab. Only the conversation opens it (its cubits are
+  /// the navigation's `extra`); a link goes to the conversation.
+  static const conversationShare = '/conversation/share';
 
   /// The location of [tab].
   static String tab(AppTab tab) => switch (tab) {
@@ -132,6 +146,23 @@ abstract final class AppRoutes {
 
   /// Transcribe (a rolling transcript of a talk), above the tabs.
   static const transcribe = '/transcribe';
+
+  /// The phrasebook (collections of phrases), above the tabs;
+  /// `?collection=<id>` opens one.
+  static const phrasebook = '/phrasebook';
+
+  /// Practice (flashcards of the phrasebook), above the tabs;
+  /// `?collection=<id>` practises one collection
+  /// ([PracticeRoutes.locationFor]).
+  static const String practice = PracticeRoutes.location;
+
+  /// Phone to phone (Android): both directions explained, **Receive on
+  /// this phone** and **Send to another phone** (`?code=…` fills in the
+  /// code; `mozhi://pair?code=…` arrives as the alias
+  /// [PairingRoutes.link]). See [PairingRoutes].
+  static const String pairing = PairingRoutes.location;
+  static const String pairingReceive = PairingRoutes.receive;
+  static const String pairingSend = PairingRoutes.send;
 
   /// The only page of the translucent quick translate window on Android
   /// (see [QuickTranslateHost]); never shown in the main window.
@@ -194,6 +225,7 @@ abstract final class AppRoutes {
   static const Map<String, String> aliases = {
     ImageTranslatePage.location: image,
     WebTranslateRoute.path: web,
+    PairingRoutes.link: pairingSend,
   };
 
   static String _location(String path, Map<String, String> query) =>
@@ -218,10 +250,14 @@ abstract final class DeferredFeatures {
   );
   static final web = DeferredLibrary(web_page.loadLibrary);
   static final transcribe = DeferredLibrary(transcribe_page.loadLibrary);
+  static final phrasebook = DeferredLibrary(phrasebook_page.loadLibrary);
+  static final practice = DeferredLibrary(practice_page.loadLibrary);
+  static final pairing = DeferredLibrary(pairing_page.loadLibrary);
   static final conversation = DeferredLibrary(
     () => Future.wait<void>([
       conversation_page.loadLibrary(),
       conversation_mic.loadLibrary(),
+      conversation_share.loadLibrary(),
     ]),
   );
   static final dictionary = DeferredLibrary(dictionary_page.loadLibrary);
@@ -254,6 +290,9 @@ abstract final class DeferredFeatures {
     documents,
     web,
     transcribe,
+    phrasebook,
+    practice,
+    pairing,
     conversation,
     dictionary,
     offline,
@@ -466,6 +505,42 @@ GoRouter createAppRouter({
         DeferredFeatures.transcribe,
         (context, state) => transcribe_page.TranscribePage(),
       ),
+      fullScreenDeferred(
+        AppRoutes.phrasebook,
+        DeferredFeatures.phrasebook,
+        (context, state) => phrasebook_page.PhrasebookPage(
+          initialCollectionId: state.uri.queryParameters['collection'],
+        ),
+      ),
+      fullScreenDeferred(
+        AppRoutes.practice,
+        DeferredFeatures.practice,
+        (context, state) => practice_page.PracticePage(
+          // A new collection (another link while the page is open) starts
+          // afresh.
+          key: ValueKey(state.uri.query),
+          collectionId:
+              state.uri.queryParameters[PracticeRoutes.collectionParameter],
+        ),
+      ),
+      deferredRoute(
+        AppRoutes.pairing,
+        DeferredFeatures.pairing,
+        (context, state) => pairing_page.PairingPage(),
+        parentNavigatorKey: rootKey,
+        routes: [
+          deferredRoute(
+            'receive',
+            DeferredFeatures.pairing,
+            (context, state) => pairing_page.PairingReceivePage(),
+          ),
+          deferredRoute(
+            'send',
+            DeferredFeatures.pairing,
+            (context, state) => pairing_page.pairingSendPageFor(state.uri),
+          ),
+        ],
+      ),
       // Not deferred: in the VM, deferred libraries share one load, and a
       // test that opens History before another deferred page would leave
       // that load to a finished test's zone (test/app/view/app_test.dart).
@@ -634,6 +709,20 @@ GoRouter createAppRouter({
                       ? conversation_mic.conversationVoiceMicBuilder
                       : null,
                 ),
+                routes: [
+                  GoRoute(
+                    path: 'share',
+                    redirect: (context, state) =>
+                        state.extra == null ? AppRoutes.conversation : null,
+                    builder: (context, state) => DeferredPage(
+                      library: DeferredFeatures.conversation,
+                      builder: (context) =>
+                          conversation_share.ConversationSharePage.fromExtra(
+                            state.extra,
+                          ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

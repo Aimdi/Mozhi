@@ -156,7 +156,7 @@ class PrivacySettingsSection extends StatelessWidget {
                 key: const Key('settings_export_history'),
                 leading: const SettingsIcon(Icons.upload_outlined),
                 title: Text(l10n.settingsExportHistory),
-                subtitle: Text(l10n.settingsExportHistorySubtitle),
+                subtitle: Text(l10n.settingsExportHistoryPlainSubtitle),
                 onTap: () => showExportHistorySheet(context),
               ),
             ),

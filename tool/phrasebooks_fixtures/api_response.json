@@ -1,0 +1,26 @@
+{
+  "batchcomplete": true,
+  "query": {
+    "pages": [
+      {
+        "pageid": 12345,
+        "ns": 0,
+        "title": "Portuguese phrasebook",
+        "revisions": [
+          {
+            "revid": 4567890,
+            "parentid": 4567000,
+            "timestamp": "2026-10-01T12:00:00Z",
+            "slots": {
+              "main": {
+                "contentmodel": "wikitext",
+                "contentformat": "text/x-wiki",
+                "content": "==Phrase list==\n===Basics===\n; Hello. : Olá. (''oh-LAH'')\n; Thank you. : Obrigado. (''oh-bree-GAH-doo'')\n"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

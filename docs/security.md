@@ -19,6 +19,7 @@ problem.
 | **Your text**, translations and history | Servers you didn't choose, logs, cloud backup and device transfer, screenshots, keyboards and clipboard managers |
 | **Your bill** with paid providers | Other apps or web pages starting requests without you |
 | **Your local network** | Websites using the app to reach devices on your LAN |
+| A **shared conversation** (Android) | Other devices on the same Wi-Fi, people who see or guess the link, web pages in a guest's browser, guests flooding the phone |
 | **What the AI writes back** | Prompt injection through the text you translate, links and model output |
 
 Out of scope: a rooted device, malware that already controls
@@ -32,9 +33,10 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
   instance address (`https://user:password@host`) are stored only in
   secure storage (Android Keystore-backed encrypted preferences; in the web
   app, the browser's session storage, see below), never in the settings,
-  exports or history. Settings written by older versions that still held
-  headers or instance passwords are moved there on the next start, and the
-  plain copy is removed. The cached engine lists are stored under the
+  exports or history, and in an encrypted backup only when the user
+  includes them (see below). Settings written by older versions that
+  still held headers or instance passwords are moved there on the next
+  start, and the plain copy is removed. The cached engine lists are stored under the
   instance address without its password.
 - **Android:** cloud backup is off (`allowBackup="false"`), and the backup
   and device-transfer rules exclude every file of the app, so keys stay on
@@ -70,6 +72,43 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
   encryption protects little there. **Export history** is plain JSON.
 - **No backup or transfer:** nothing the app stores goes to cloud backup or
   to a new phone (see [Privacy](privacy.md#on-your-device)).
+- **Encrypted backups** (`.mozhibackup`, [Backup](backup.md)): the key is
+  Argon2id of the passphrase (64 MiB, 3 passes, 1 lane on Android; 19 MiB,
+  2 passes in the web app, where it runs as JavaScript) with a random
+  16-byte salt per file; the data is gzip'd JSON under AES-256-GCM with a
+  random 96-bit nonce, and the whole readable header (magic, format,
+  Argon2id parameters, salt, nonce, date, app version) is bound in as
+  associated data, so any change fails like a wrong passphrase (one error
+  for both, nothing restored). Neither the passphrase nor the key is ever
+  stored; only the date of the last backup is. API keys and passwords are
+  only included when the user turns that on, with a warning, and go back
+  to secure storage on restore. Reading is bounded (file 64 MiB, header
+  4 KiB, Argon2id at most 256 MiB, 16 passes and 8 lanes, decompressed
+  data 128 MiB) so a crafted file can't exhaust the device, and newer
+  formats or unknown parts are refused or left out. Threat: whoever gets
+  the file can guess passphrases offline; the strength hint (length and
+  word count, computed on the device) asks for four or more random words,
+  and at least 8 characters are required.
+- **Sync** ([Sync](sync.md)): the sync file on the user's WebDAV server is
+  a `.mozhibackup` (above) written with a key derived once from the sync
+  passphrase (Argon2id with the salt and parameters of the file's header,
+  so every device derives the same key) and kept in secure storage with
+  the app password; the passphrase itself is never stored. Each write has
+  a fresh nonce. A file encrypted with another key, one that fails the GCM
+  check, or one from a newer format or section version is never merged and
+  never overwritten; sections a device doesn't sync are written back
+  untouched. Writes are conditional (`If-Match` with the ETag read, or
+  `If-None-Match: *` for the first file), so two devices can't silently
+  overwrite each other on servers that honour them. Secrets travel only
+  with the settings and an explicit opt-in. Threat: the server's operator
+  (or whoever gets its disks or backups) can copy the file and guess
+  passphrases offline, and sees its size, its change times and the
+  readable header; **Delete all local data** forgets the setup and key
+  before anything else is deleted, so the deletion never syncs.
+- **Deletion records:** to merge copies of the history (backups, sync), a
+  deleted entry leaves its id and deletion time (never its text) for 180
+  days, at most 10,000, encrypted like the history (AES-256-GCM, its own
+  associated data) and removed by **Delete all local data**.
 - **Incognito** stops saving new translations to the history and asks
   keyboards not to learn what you type.
 - **Screenshots:** **Hide content in recents & block screenshots** sets
@@ -77,8 +116,8 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
 - **Clipboard:** on Android 13+ copies are marked sensitive
   (`EXTRA_IS_SENSITIVE`), so the system's preview and keyboard suggestions
   don't show them.
-- **Delete all local data** removes the history and its key, the settings
-  with their secrets, every other preference, the offline models folder and
+- **Delete all local data** removes the sync setup with its key first, then
+  the history and its key, the settings with their secrets, every other preference, the offline models folder and
   what the app holds in memory.
 
 ## Network
@@ -130,10 +169,101 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
   and the network policy checks every hop: never from `https` to `http`,
   and never from a public server to this device, your local network or a
   `.onion` or `.i2p` address (which would also go around the proxy).
+- **WebDAV sync** uses HTTP Basic authentication, so it follows the same
+  rule: `https`, or plain `http` only to this device, the local network
+  and `.onion`. It never follows a redirect (the `Authorization` header
+  would go along) and reads at most 64 MiB per answer. Its XML parser
+  expands no entities but the five predefined ones and fetches nothing.
+  Requests go through the session's client (proxy, network policy) and are
+  listed as **Encrypted sync** in the network activity.
 - **Timeouts and size limits** on every request. Mozhi failover does not
   resend your text to another instance after a timeout, when the first one
   may already have received it. A connection that can't be set up in time
   (also through the proxy) carried nothing yet, so it fails over.
+
+## Shared conversation
+
+**Share on this network** (Conversation tab, Android only;
+`lib/conversation/share/`) runs a `dart:io` HTTP server while you share.
+Threat model: the page travels as plain `http` over the local network, so
+**anyone on the same network who can capture traffic can read the
+conversation, the link and the PIN**, and could join; we don't try to hide
+that, the sharing page says so, and the hotspot (a network only your guests
+are on) is the recommended way. What we do protect against:
+
+- **Reach:** the server listens only on the phone's private IPv4 address
+  (10/8, 172.16/12, 192.168/16, Wi-Fi first; not mobile data, VPN or CGNAT
+  interfaces), on a random port, and refuses connections from any address
+  that isn't private. It runs only while the conversation (or its sharing
+  page) is on screen and stops 2 minutes after the app goes to the
+  background, or at **Stop sharing**.
+- **Guessing the link:** the path holds a 128-bit random token
+  (`Random.secure`); a wrong token is a plain 404, compared in constant
+  time. With the PIN (on by default), joining also needs 4 random digits:
+  5 wrong PINs a minute per address, and after 20 wrong PINs in all nobody
+  new can join until a new PIN is set. Each guest gets its own 128-bit key
+  for its requests.
+- **Web pages in a guest's browser** (CSRF, DNS rebinding): requests must
+  carry the server's own address in `Host` (a rebound name is refused), and
+  every change is a JSON `POST` with the guest's key in custom headers,
+  which a cross-site page can't send without a CORS preflight the server
+  never answers; an `Origin` other than the page's own is refused.
+- **The page itself:** one self-contained page (HTML, CSS and JS shipped
+  in the app), served with `Content-Security-Policy: default-src 'none';
+  script-src 'self'; style-src 'self'; connect-src 'self'` (no inline
+  script, nothing from other hosts, no framing), `nosniff`,
+  `no-referrer`, `no-store` and no cookies. It only ever sets
+  `textContent`, so nothing the host or a guest types becomes markup;
+  the configuration it embeds escapes `<`.
+- **Flooding:** at most 8 guests and one update stream per guest; 120
+  requests a minute per address; request bodies of 4 KiB; replies of 500
+  characters, one every 2 seconds and 12 a minute; guests whose page is
+  gone for 45 seconds are removed.
+- **Your privacy settings:** translations into the guests' languages only
+  use an engine your settings allow without asking (or the offline
+  engine); anything else waits for your OK on the sharing page (see
+  [Privacy](privacy.md#shared-conversation)).
+
+## Phone to phone
+
+**Phone to phone** (Settings > Backup & sync, Android only; `lib/pairing/`,
+[protocol](pairing.md#protocol)) sends your data or offline models from one
+phone to the other over the local network. Threat model: someone on the
+same network who can watch, change or redirect traffic; other devices
+probing the open port; and the other phone itself, which may be modified
+or malicious. What protects you:
+
+- **End-to-end encryption:** fresh X25519 keys for every connection,
+  HKDF-SHA256 with the code's 64-bit one-time secret mixed in, and
+  AES-256-GCM frames numbered per direction, so a changed, replayed,
+  dropped or reordered frame ends the transfer. Someone who didn't see the
+  code learns nothing and can't connect: the sending phone proves it knows
+  the secret in its first encrypted frame, before the receiver sends
+  anything but its public key, and three failed attempts burn the code.
+- **Someone in the middle** who did see the code (over your shoulder)
+  shows up in the six-digit number both phones display: the sender commits
+  to its key before it sees the receiver's, so they get one try in a
+  million to make the numbers match. Compare them; the app asks.
+- **A malicious sending phone** can't plant files: the receiver asks only
+  for files its own bundled catalogue lists, checks each file's size and
+  SHA-256 (and SHA-1 for speech models) while it arrives and installs only
+  through each manager's import path, which checks again; file names come
+  from the receiver's catalogue, never from the sender, and nothing is
+  run. A backup goes through the normal restore (64 MiB at most, newer
+  formats refused). You see the list first and accept or decline.
+- **A malicious receiving phone** gets only what you chose to send; the
+  sender reads only the files it offered, whatever is asked for.
+- **Reach and limits:** the receiver listens only on its private IPv4
+  address, for one connection and five minutes, and closes connections
+  from any other address; the sender only connects to private addresses
+  (a `mozhi://pair` link only fills in the code). Every frame's length is
+  checked before it is read (256 KiB at most), with timeouts for the key
+  agreement (10 seconds), between frames (30 seconds) and for the people
+  deciding (10 minutes).
+- **What it doesn't hide:** the phones' addresses and the port (they are in
+  the code), and the sizes and timing of what goes across. Someone with
+  the code and no interest in hiding can still try to connect first, which
+  only stops the pairing (make a new code).
 
 ## Web page translator
 
@@ -230,6 +360,10 @@ translations, for example with **Check meaning**.
 
 ## Known limitations
 
+- **Shared conversations are plain `http`** on the local network: anyone
+  on that network who captures traffic can read them, and the PIN with
+  them. Use the phone's hotspot for anything sensitive; there is no way to
+  give a phone's local server a certificate browsers trust.
 - **Online voices** are recognised by what the platform reports: the
   browser's `localService` flag in the web app, and Android's
   network-required flag and installed voice data. A speech engine that

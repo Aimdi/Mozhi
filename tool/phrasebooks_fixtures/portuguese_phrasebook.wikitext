@@ -1,0 +1,78 @@
+{{pagebanner|Portuguese phrasebook banner.jpg}}
+'''Portuguese''' (''português'') is a Romance language spoken by about 250 million people in [[Portugal]], [[Brazil]], [[Angola]] and other countries.<ref>A reference that the pack leaves out.</ref>
+
+This phrasebook uses European Portuguese; Brazilian differences are noted.
+
+==Pronunciation guide==
+===Vowels===
+; a : like 'a' in "father"
+; e : like 'e' in "bet"
+
+===Consonants===
+; ç : like 's' in "sun"
+; lh : like 'lli' in "million"
+
+==Phrase list==
+===Basics===
+{{Phrasebookguide}}
+<!-- The basic phrases. -->
+; Hello. : Olá. (''oh-LAH'')
+; Hello. ''(informal)'' : Oi. (''oy'')
+; How are you? : Como está? (''KOH-moo ish-TAH?'')
+; Fine, thank you. : Bem, obrigado (male) / obrigada (female). (''bayñ, oh-bree-GAH-doo / oh-bree-GAH-dah'')
+; What is your name?
+: Como se chama? (''KOH-moo seh SHAH-mah?'')
+; My name is ______ . : Chamo-me ______ . (''SHAH-moo meh _____ .'')
+; Please. : Por favor. (''poor fah-VOHR'')
+; Thank you. : Obrigado. (''oh-bree-GAH-doo'')
+; Yes. : Sim. (''seeng'')
+; No. : Não. (''nowng'')
+; Excuse me. (''getting attention'') : Com licença. (''kohng lee-SEHN-sah'')
+; I don't understand. : Não compreendo. (''nowng kohm-pree-EHN-doo'')
+; Where is the toilet? : Onde é a casa de banho? (''OHN-deh eh ah KAH-zah deh BAH-nyoo?'')
+; Hello. : Olá. (''oh-LAH'')
+
+====Problems====
+; Leave me alone. : Deixe-me em paz. (''DAY-sheh meh ayñ pahsh'')
+; Help! : Socorro! (''soo-KOH-hoo!'')
+; Call the [[police]]! : Chame a polícia! (''SHAH-meh ah poo-LEE-see-ah!'')
+; I'm lost. : Estou perdido. (''ish-TOH pehr-DEE-doo'')
+
+===Numbers===
+; 1 : um (''oong'')
+; 2 : dois (''doysh'')
+; 3 : três (''traysh'')
+; 10 : dez (''dehsh'')
+; 100 : cem (''sayñ'')
+
+===Time===
+; now : agora (''ah-GOH-rah'')
+; later : mais tarde (''mysh TAHR-deh'')
+; morning : manhã (''mah-NYAHN'')
+
+====Clock time====
+; one o'clock AM : uma da manhã (''OO-mah dah mah-NYAHN'')
+; It's 10:30. : São dez e meia. (''sowng dehsh ee MAY-ah'')
+
+===Transportation===
+====Directions====
+; How do I get to the train station? : Como chego à estação de comboios? (''KOH-moo SHEH-goo ah ish-tah-SOWNG deh kohm-BOY-oosh?'')
+; left : esquerda (''ish-KEHR-dah'')
+; right : direita (''dee-RAY-tah'')
+* straight ahead : em frente (''ayñ FREHN-teh'')
+{{phrasebook|north|norte|NOHR-teh}}
+
+===Eating===
+; A table for one person, please. : Uma mesa para uma pessoa, por favor. (''OO-mah MEH-zah PAH-rah OO-mah peh-SOH-ah, poor fah-VOHR'')
+; The check, please. : A conta, por favor. (''ah KOHN-tah, poor fah-VOHR'')
+; water : água (''AH-gwah'')
+; coffee : café (''kah-FEH'')
+; I'm a vegetarian. : Sou vegetariano/vegetariana. (''soh veh-zheh-tah-ree-AH-noo'')
+
+===Bars===
+; A beer, please. : Uma cerveja, por favor. (''OO-mah sehr-VAY-zhah, poor fah-VOHR'')
+; Cheers! : Saúde! (''sah-OO-deh'')
+
+==Learning more==
+* [https://example.org/course An online course] : free lessons
+; Grammar : see the grammar books

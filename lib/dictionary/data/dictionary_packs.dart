@@ -171,6 +171,44 @@ class DictionaryPacks implements OfflineDictionary {
     }
   }
 
+  /// The bytes of the installed pack [id], in chunks of at most
+  /// [chunkSize] (for sending it to another phone, `lib/pairing`). Throws
+  /// when it is not installed.
+  Stream<Uint8List> read(String id, {int chunkSize = 64 * 1024}) async* {
+    final source = await _storage.open(id);
+    try {
+      for (var offset = 0; offset < source.length; offset += chunkSize) {
+        final end = offset + chunkSize < source.length
+            ? offset + chunkSize
+            : source.length;
+        yield await source.read(offset, end - offset);
+      }
+    } finally {
+      await source.close();
+    }
+  }
+
+  /// Installs [pack] from [bytes] (a copy from another phone), with the
+  /// checks of a download and without any network request: the size and
+  /// SHA-256 must match the catalogue's, else it throws
+  /// [DictionaryPackChecksumException] and nothing is installed. Replaces
+  /// another version of the pack; [changes] fires. Throws
+  /// [DictionaryPackUnsupportedException] where packs cannot be stored,
+  /// and what reading [bytes] or the storage throws.
+  Future<void> installFrom(
+    DictionaryPackInfo pack,
+    Stream<List<int>> bytes, {
+    void Function(double fraction)? onProgress,
+  }) async {
+    if (!isSupported) throw DictionaryPackUnsupportedException(pack.id);
+    try {
+      await _store(pack, bytes, onProgress: onProgress);
+    } finally {
+      _installed = null;
+    }
+    _changes.add(null);
+  }
+
   @override
   Future<List<String>> installedLanguages() async => [
     for (final pack in await installed()) pack.language,
@@ -338,12 +376,36 @@ class DictionaryPacks implements OfflineDictionary {
         statusCode: response.statusCode,
       );
     }
+    await _store(
+      pack,
+      response.stream.timeout(requestTimeout),
+      url: url,
+      onProgress: onProgress,
+      wrap: (error) => DictionaryPackDownloadException(
+        pack.id,
+        '${pack.fileName}: $error',
+        url: url,
+      ),
+    );
+  }
+
+  /// Writes [bytes] as [pack] into the storage, checking them against the
+  /// catalogue's size and SHA-256 (a [DictionaryPackChecksumException]
+  /// naming [url] otherwise; nothing is installed). Other errors abort the
+  /// write and are rethrown, or replaced by what [wrap] makes of them.
+  Future<void> _store(
+    DictionaryPackInfo pack,
+    Stream<List<int>> bytes, {
+    Uri? url,
+    void Function(double fraction)? onProgress,
+    Exception Function(Object error)? wrap,
+  }) async {
     final sink = await _storage.create(pack.id);
     final hash = Sha256();
     var received = 0;
     onProgress?.call(0);
     try {
-      await for (final chunk in response.stream.timeout(requestTimeout)) {
+      await for (final chunk in bytes) {
         received += chunk.length;
         if (received > pack.size) {
           throw DictionaryPackChecksumException(
@@ -361,11 +423,8 @@ class DictionaryPacks implements OfflineDictionary {
       rethrow;
     } on Object catch (error) {
       await sink.abort();
-      throw DictionaryPackDownloadException(
-        pack.id,
-        '${pack.fileName}: $error',
-        url: url,
-      );
+      if (wrap == null) rethrow;
+      throw wrap(error);
     }
     final digest = hash.close();
     if (received != pack.size || digest != pack.sha256) {

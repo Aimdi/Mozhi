@@ -11,9 +11,9 @@ import 'package:mozhi/core/privacy/egress/egress_ledger.dart';
 /// ([classifier]; [purpose] when the caller knows it), whether it went
 /// through the proxy (`viaProxy`), the sizes and how it ended.
 ///
-/// The request and the answer pass through unchanged; only the answer's
-/// bytes are counted on their way. Bodies, paths, queries and headers are
-/// never recorded.
+/// The request and the answer pass through unchanged (except for the
+/// [purposeHeader], which is removed); only the answer's bytes are counted
+/// on their way. Bodies, paths, queries and headers are never recorded.
 class EgressRecordingClient extends http.BaseClient {
   new(
     this._inner, {
@@ -37,14 +37,22 @@ class EgressRecordingClient extends http.BaseClient {
 
   static bool _never(String host) => false;
 
+  /// A request header naming the [EgressPurpose] of that request (set by
+  /// an `EgressPurposeClient` above this client); it overrides [purpose]
+  /// and the guess, and is removed before the request is sent.
+  static const purposeHeader = 'x-mozhi-egress-purpose';
+
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     final url = request.url;
     final method = _methodOf(request.method);
+    // BaseRequest.headers ignores the case of names.
+    final tagged = EgressPurpose.values
+        .asNameMap()[request.headers.remove(purposeHeader)];
     final (destination, why) = classifier.classify(
       url,
       method: method,
-      purpose: purpose,
+      purpose: tagged ?? purpose,
     );
     var entry = ledger.begin(
       method: method,
@@ -181,6 +189,9 @@ class EgressRecordingClient extends http.BaseClient {
     'DELETE',
     'HEAD',
     'OPTIONS',
+    // WebDAV (sync).
+    'PROPFIND',
+    'MKCOL',
   };
 
   static String _methodOf(String method) {

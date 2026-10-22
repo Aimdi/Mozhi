@@ -40,6 +40,7 @@ class ConversationTurn extends Equatable {
     this.engineName,
     this.status = ConversationTurnStatus.translating,
     this.error,
+    this.guest,
   });
 
   /// Unique within a conversation; increases with every turn.
@@ -65,6 +66,11 @@ class ConversationTurn extends Equatable {
   /// [status] is [ConversationTurnStatus.failed].
   final Object? error;
 
+  /// The number of the guest who wrote this turn in a conversation shared
+  /// on the local network ("Guest 2", see `ConversationShareCubit`); null
+  /// for what was said or typed on this device.
+  final int? guest;
+
   bool get isTranslating => status == ConversationTurnStatus.translating;
   bool get isComplete => status == ConversationTurnStatus.complete;
   bool get isFailed => status == ConversationTurnStatus.failed;
@@ -87,6 +93,7 @@ class ConversationTurn extends Equatable {
     engineName: engineName != null ? engineName() : this.engineName,
     status: status ?? this.status,
     error: error != null ? error() : this.error,
+    guest: guest,
   );
 
   @override
@@ -102,5 +109,6 @@ class ConversationTurn extends Equatable {
     createdAt,
     status,
     error,
+    guest,
   ];
 }

@@ -28,6 +28,41 @@ void main() {
       expect(_entry, isNot(equals(_entry.copyWith(isFavorite: true))));
     });
 
+    group('updatedAt', () {
+      final updated = _entry.copyWith(updatedAt: DateTime.utc(2026, 10, 20, 8));
+
+      test('is null for a new entry and modifiedAt is createdAt', () {
+        expect(_entry.updatedAt, isNull);
+        expect(_entry.modifiedAt, _entry.createdAt);
+        expect(_entry.toJson(), isNot(contains('updatedAt')));
+      });
+
+      test('is written in UTC and read back in local time', () {
+        expect(updated.toJson()['updatedAt'], '2026-10-20T08:00:00.000Z');
+        final read = HistoryEntry.fromJson(
+          _json({'updatedAt': '2026-10-20T08:00:00.000Z'}),
+        );
+        expect(read.updatedAt, DateTime.utc(2026, 10, 20, 8).toLocal());
+        expect(read.updatedAt!.isUtc, isFalse);
+        expect(read.modifiedAt, read.updatedAt);
+      });
+
+      test('an invalid value is ignored', () {
+        for (final value in ['yesterday', 12]) {
+          expect(
+            HistoryEntry.fromJson(_json({'updatedAt': value})).updatedAt,
+            isNull,
+          );
+        }
+      });
+
+      test('is kept by copyWith and left out of equality', () {
+        expect(updated.copyWith(isFavorite: true).updatedAt, updated.updatedAt);
+        expect(updated, _entry);
+        expect(updated.hashCode, _entry.hashCode);
+      });
+    });
+
     test('copyWith replaces the favourite flag and translation', () {
       final copy = _entry.copyWith(isFavorite: true, translation: 'Salut');
 

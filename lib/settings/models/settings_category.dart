@@ -12,6 +12,9 @@ enum SettingsCategory {
   /// destructive "Clear history" and "Delete all local data".
   privacy('privacy'),
 
+  /// The encrypted backup (back up, restore), sync and phone to phone.
+  backup('backup'),
+
   /// Offline languages, Mozhi instances, translation services, quality
   /// modes and instant translation.
   engines('engines'),

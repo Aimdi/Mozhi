@@ -246,6 +246,12 @@ notices in sync.
   ([Dictionary packs](dictionary-packs.md#data-and-licence)). The pack
   reader, gzip decoder and SHA-256 are the app's own code (MIT), not new
   dependencies.
+- **Starter phrasebooks**: text from Wikivoyage's phrasebook articles (by
+  Wikivoyage contributors, **CC BY-SA 4.0**), shortened to their phrase
+  lists by `tool/phrasebooks.py`. Downloaded on request, never shipped,
+  verified against `lib/phrasebook/data/starter_catalog_data.dart`; every
+  pack carries its attribution (article, revision, authors, licence),
+  which the app shows ([Phrasebook](phrasebook.md#data-and-licence)).
 - **Web build**: the Flutter engine and CanvasKit (Skia, BSD-3-Clause) come
   with the Flutter SDK and are served from the build itself
   (`--no-web-resources-cdn`).

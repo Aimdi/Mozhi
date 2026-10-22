@@ -279,6 +279,7 @@ String egressPurposeLabel(AppLocalizations l10n, EgressPurpose purpose) =>
       EgressPurpose.catalog => l10n.settingsNetworkPurposeCatalog,
       EgressPurpose.modelDownload => l10n.settingsNetworkPurposeModel,
       EgressPurpose.webPage => l10n.settingsNetworkPurposeWebPage,
+      EgressPurpose.sync => l10n.settingsNetworkPurposeSync,
       EgressPurpose.other => l10n.settingsNetworkPurposeOther,
     };
 
@@ -290,6 +291,7 @@ IconData egressPurposeIcon(EgressPurpose purpose) => switch (purpose) {
   EgressPurpose.catalog => Icons.list_alt_outlined,
   EgressPurpose.modelDownload => Icons.download_outlined,
   EgressPurpose.webPage => Icons.language,
+  EgressPurpose.sync => Icons.cloud_sync_outlined,
   EgressPurpose.other => Icons.swap_vert,
 };
 

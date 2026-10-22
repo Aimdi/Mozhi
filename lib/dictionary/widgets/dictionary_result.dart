@@ -14,6 +14,9 @@ import 'package:mozhi/dictionary/widgets/dictionary_favorite_button.dart';
 import 'package:mozhi/dictionary/widgets/dictionary_offline.dart';
 import 'package:mozhi/dictionary/widgets/dictionary_search_field.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/phrasebook/widgets/dictionary_phrasebook_button.dart';
+import 'package:mozhi/phrasebook/widgets/phrasebook_labels.dart'
+    show maybePhrasebookRepository;
 import 'package:mozhi/settings/view/widgets/empty_state_view.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/status_announcer.dart';
@@ -173,7 +176,11 @@ class DictionaryResultView extends StatelessWidget {
             query: state.lookedUp,
             speechLanguage: state.entryLanguage,
             onWordTap: (word) => unawaited(cubit.lookUpWord(word)),
-            actions: const [DictionaryFavoriteButton()],
+            actions: [
+              const DictionaryFavoriteButton(),
+              if (maybePhrasebookRepository(context) != null)
+                const DictionaryPhrasebookButton(),
+            ],
             header: switch (state.offlineAnswer) {
               final answer? => DictionaryOfflineNotice(
                 answer: answer,

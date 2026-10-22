@@ -1,0 +1,294 @@
+{
+ "attribution": "From the Wikivoyage article “Portuguese phrasebook” (revision 4567890, read on 2026-10-22), by Wikivoyage contributors, under the Creative Commons Attribution-ShareAlike 4.0 licence; shortened to its phrase list (each phrase, its translation and pronunciation).",
+ "authorsUrl": "https://en.wikivoyage.org/w/index.php?title=Portuguese_phrasebook&action=history",
+ "baseLanguage": "en",
+ "format": "mozhi-phrasebook",
+ "formatVersion": 1,
+ "id": "pt",
+ "language": "pt",
+ "license": "CC BY-SA 4.0",
+ "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+ "name": "Portuguese",
+ "retrieved": "2026-10-22",
+ "revision": 4567890,
+ "revisionUrl": "https://en.wikivoyage.org/w/index.php?title=Portuguese_phrasebook&oldid=4567890",
+ "sections": [
+  {
+   "phrases": [
+    {
+     "id": "0214f0406ac8",
+     "pronunciation": "oh-LAH",
+     "text": "Hello.",
+     "translation": "Olá."
+    },
+    {
+     "id": "331abc36b1cd",
+     "pronunciation": "oy",
+     "text": "Hello. (informal)",
+     "translation": "Oi."
+    },
+    {
+     "id": "4d49588c45d5",
+     "pronunciation": "KOH-moo ish-TAH?",
+     "text": "How are you?",
+     "translation": "Como está?"
+    },
+    {
+     "id": "d920cfea6574",
+     "pronunciation": "bayñ, oh-bree-GAH-doo / oh-bree-GAH-dah",
+     "text": "Fine, thank you.",
+     "translation": "Bem, obrigado (male) / obrigada (female)."
+    },
+    {
+     "id": "1ad8498dd320",
+     "pronunciation": "KOH-moo seh SHAH-mah?",
+     "text": "What is your name?",
+     "translation": "Como se chama?"
+    },
+    {
+     "id": "2954cdb82576",
+     "pronunciation": "SHAH-moo meh _____ .",
+     "text": "My name is ______ .",
+     "translation": "Chamo-me ______ ."
+    },
+    {
+     "id": "77e98face5df",
+     "pronunciation": "poor fah-VOHR",
+     "text": "Please.",
+     "translation": "Por favor."
+    },
+    {
+     "id": "8efa16cb9ef7",
+     "pronunciation": "oh-bree-GAH-doo",
+     "text": "Thank you.",
+     "translation": "Obrigado."
+    },
+    {
+     "id": "60027daeaca5",
+     "pronunciation": "seeng",
+     "text": "Yes.",
+     "translation": "Sim."
+    },
+    {
+     "id": "bf0d2e506475",
+     "pronunciation": "nowng",
+     "text": "No.",
+     "translation": "Não."
+    },
+    {
+     "id": "e7f205d87196",
+     "pronunciation": "kohng lee-SEHN-sah",
+     "text": "Excuse me. (getting attention)",
+     "translation": "Com licença."
+    },
+    {
+     "id": "d59909bedeb7",
+     "pronunciation": "nowng kohm-pree-EHN-doo",
+     "text": "I don't understand.",
+     "translation": "Não compreendo."
+    },
+    {
+     "id": "01608c485317",
+     "pronunciation": "OHN-deh eh ah KAH-zah deh BAH-nyoo?",
+     "text": "Where is the toilet?",
+     "translation": "Onde é a casa de banho?"
+    }
+   ],
+   "title": "Basics"
+  },
+  {
+   "phrases": [
+    {
+     "id": "65e7001ef4cf",
+     "pronunciation": "DAY-sheh meh ayñ pahsh",
+     "text": "Leave me alone.",
+     "translation": "Deixe-me em paz."
+    },
+    {
+     "id": "0cf63d54135c",
+     "pronunciation": "soo-KOH-hoo!",
+     "text": "Help!",
+     "translation": "Socorro!"
+    },
+    {
+     "id": "e7a24be07bc5",
+     "pronunciation": "SHAH-meh ah poo-LEE-see-ah!",
+     "text": "Call the police!",
+     "translation": "Chame a polícia!"
+    },
+    {
+     "id": "9292ac7f0b18",
+     "pronunciation": "ish-TOH pehr-DEE-doo",
+     "text": "I'm lost.",
+     "translation": "Estou perdido."
+    }
+   ],
+   "title": "Problems"
+  },
+  {
+   "phrases": [
+    {
+     "id": "7d6c009d74ab",
+     "pronunciation": "oong",
+     "text": "1",
+     "translation": "um"
+    },
+    {
+     "id": "38dc34d9cde5",
+     "pronunciation": "doysh",
+     "text": "2",
+     "translation": "dois"
+    },
+    {
+     "id": "17d5cf75a418",
+     "pronunciation": "traysh",
+     "text": "3",
+     "translation": "três"
+    },
+    {
+     "id": "7f9089c1d739",
+     "pronunciation": "dehsh",
+     "text": "10",
+     "translation": "dez"
+    },
+    {
+     "id": "99d60348cfef",
+     "pronunciation": "sayñ",
+     "text": "100",
+     "translation": "cem"
+    }
+   ],
+   "title": "Numbers"
+  },
+  {
+   "phrases": [
+    {
+     "id": "5d4039ec897b",
+     "pronunciation": "ah-GOH-rah",
+     "text": "now",
+     "translation": "agora"
+    },
+    {
+     "id": "a1ad55653c30",
+     "pronunciation": "mysh TAHR-deh",
+     "text": "later",
+     "translation": "mais tarde"
+    },
+    {
+     "id": "7ba97a4fbea1",
+     "pronunciation": "mah-NYAHN",
+     "text": "morning",
+     "translation": "manhã"
+    }
+   ],
+   "title": "Time"
+  },
+  {
+   "phrases": [
+    {
+     "id": "cd5aab79ffe4",
+     "pronunciation": "OO-mah dah mah-NYAHN",
+     "text": "one o'clock AM",
+     "translation": "uma da manhã"
+    },
+    {
+     "id": "ba466912ff16",
+     "pronunciation": "sowng dehsh ee MAY-ah",
+     "text": "It's 10:30.",
+     "translation": "São dez e meia."
+    }
+   ],
+   "title": "Clock time"
+  },
+  {
+   "phrases": [
+    {
+     "id": "85a57eebcdb6",
+     "pronunciation": "KOH-moo SHEH-goo ah ish-tah-SOWNG deh kohm-BOY-oosh?",
+     "text": "How do I get to the train station?",
+     "translation": "Como chego à estação de comboios?"
+    },
+    {
+     "id": "dd38b3419a10",
+     "pronunciation": "ish-KEHR-dah",
+     "text": "left",
+     "translation": "esquerda"
+    },
+    {
+     "id": "ad7c0131dcda",
+     "pronunciation": "dee-RAY-tah",
+     "text": "right",
+     "translation": "direita"
+    },
+    {
+     "id": "e9845e476bf0",
+     "pronunciation": "ayñ FREHN-teh",
+     "text": "straight ahead",
+     "translation": "em frente"
+    },
+    {
+     "id": "f35a0e123751",
+     "pronunciation": "NOHR-teh",
+     "text": "north",
+     "translation": "norte"
+    }
+   ],
+   "title": "Directions"
+  },
+  {
+   "phrases": [
+    {
+     "id": "b4ad331e9ea7",
+     "pronunciation": "OO-mah MEH-zah PAH-rah OO-mah peh-SOH-ah, poor fah-VOHR",
+     "text": "A table for one person, please.",
+     "translation": "Uma mesa para uma pessoa, por favor."
+    },
+    {
+     "id": "d7834c69701d",
+     "pronunciation": "ah KOHN-tah, poor fah-VOHR",
+     "text": "The check, please.",
+     "translation": "A conta, por favor."
+    },
+    {
+     "id": "93b13034a924",
+     "pronunciation": "AH-gwah",
+     "text": "water",
+     "translation": "água"
+    },
+    {
+     "id": "b81d5c34bfd4",
+     "pronunciation": "kah-FEH",
+     "text": "coffee",
+     "translation": "café"
+    },
+    {
+     "id": "1c4a1a3fa49d",
+     "pronunciation": "soh veh-zheh-tah-ree-AH-noo",
+     "text": "I'm a vegetarian.",
+     "translation": "Sou vegetariano/vegetariana."
+    }
+   ],
+   "title": "Eating"
+  },
+  {
+   "phrases": [
+    {
+     "id": "074a92d834d8",
+     "pronunciation": "OO-mah sehr-VAY-zhah, poor fah-VOHR",
+     "text": "A beer, please.",
+     "translation": "Uma cerveja, por favor."
+    },
+    {
+     "id": "1e24505879b4",
+     "pronunciation": "sah-OO-deh",
+     "text": "Cheers!",
+     "translation": "Saúde!"
+    }
+   ],
+   "title": "Bars"
+  }
+ ],
+ "source": "Wikivoyage",
+ "sourceUrl": "https://en.wikivoyage.org/wiki/Portuguese_phrasebook",
+ "title": "Portuguese phrasebook"
+}

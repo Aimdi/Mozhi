@@ -1,0 +1,22 @@
+{{pagebanner|Japanese phrasebook banner.jpg}}
+'''Japanese''' (日本語 ''nihongo'') is spoken by about 125 million people.
+
+== Pronunciation guide ==
+; a : as in "father"
+
+== Phrase list ==
+=== Basics ===
+{{Phrasebookguide}}
+; Hello. : こんにちは。 (''kon-nichi-wa'')
+; Good morning. : おはようございます。 (''ohayō gozaimasu'')
+; Thank you. : ありがとう。 (arigatō)
+; Excuse me. : すみません。 (''sumimasen'')
+; Yes. : はい。 (''hai'')
+
+=== Numbers ===
+; 1 : 一 (いち) (''ichi'')
+; 2 : 二 (に) (''ni'')
+
+=== Eating ===
+; The menu, please. : メニューをください。 (menyū o kudasai)
+; Delicious! : おいしい！ (''oishii!'')

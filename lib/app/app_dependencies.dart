@@ -1,12 +1,15 @@
 import 'package:mozhi/app/fallback_key_value_store.dart';
+import 'package:mozhi/backup/data/backup_registry.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/network/network_session.dart';
 import 'package:mozhi/dictionary/data/dictionary_packs.dart';
 import 'package:mozhi/history/data/history_repository.dart';
+import 'package:mozhi/phrasebook/data/phrasebook_repository.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/speech/speech_service.dart';
+import 'package:mozhi/sync/data/sync_service.dart';
 import 'package:mozhi/usage/data/usage_tracker.dart';
 import 'package:mozhi/voice/offline/offline_speech.dart';
 import 'package:mozhi/voice/speech_input_service.dart';
@@ -29,6 +32,9 @@ class AppDependencies {
     required this.usageTracker,
     this.offlineSpeech,
     this.dictionaryPacks,
+    this.backupRegistry,
+    this.syncService,
+    this.phrasebookRepository,
     this._network,
   });
 
@@ -70,6 +76,19 @@ class AppDependencies {
 
   /// Per-provider AI usage counters and budgets.
   final UsageTracker usageTracker;
+
+  /// The kinds of data backups, sync and pairing carry
+  /// (`createAppBackupRegistry`); null in tests that don't need it.
+  final BackupRegistry? backupRegistry;
+
+  /// End-to-end-encrypted sync with the user's WebDAV folder (it holds the
+  /// [secrets] it needs itself); null in tests that don't need it.
+  final SyncService? syncService;
+
+  /// The phrasebook (`createPhrasebookRepository`); the app gives it the
+  /// history's favourites. Null in tests that don't need it (its entry
+  /// points are then hidden).
+  final PhrasebookRepository? phrasebookRepository;
 
   final NetworkSession? _network;
 

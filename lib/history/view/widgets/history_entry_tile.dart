@@ -15,7 +15,7 @@ import 'package:mozhi/translate/widgets/output_card.dart' show copyToClipboard;
 import 'package:share_plus/share_plus.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-enum _EntryAction { copy, share, details, favorite, delete }
+enum _EntryAction { copy, share, details, favorite, phrasebook, delete }
 
 /// Sharing, replaceable in tests.
 abstract final class HistoryShare {
@@ -129,6 +129,7 @@ class HistoryEntryTile extends StatefulWidget {
     this.query = '',
     this.selected = false,
     this.onShowDetails,
+    this.onAddToPhrasebook,
     super.key,
   });
 
@@ -151,6 +152,10 @@ class HistoryEntryTile extends StatefulWidget {
 
   /// Shows the entry's details ("Details" in the menu); none without it.
   final VoidCallback? onShowDetails;
+
+  /// Adds the entry to a phrasebook collection ("Add to phrasebook…" in
+  /// the menu and the screen reader's actions); none without it.
+  final VoidCallback? onAddToPhrasebook;
 
   /// How long the copy action shows its check mark.
   static const copiedDuration = Duration(seconds: 2);
@@ -181,6 +186,7 @@ class _HistoryEntryTileState extends State<HistoryEntryTile> {
     _EntryAction.share => unawaited(shareHistoryEntry(context, entry)),
     _EntryAction.details => widget.onShowDetails?.call(),
     _EntryAction.favorite => widget.onToggleFavorite(),
+    _EntryAction.phrasebook => widget.onAddToPhrasebook?.call(),
     _EntryAction.delete => widget.onDelete(),
   };
 
@@ -286,6 +292,12 @@ class _HistoryEntryTileState extends State<HistoryEntryTile> {
               : Icons.favorite_border_rounded,
           favoriteLabel,
         ),
+        if (widget.onAddToPhrasebook != null)
+          _menuItem(
+            _EntryAction.phrasebook,
+            Icons.bookmark_add_outlined,
+            l10n.phrasebookAdd,
+          ),
         _menuItem(_EntryAction.delete, Icons.delete_outline, l10n.commonDelete),
       ],
     );
@@ -425,6 +437,8 @@ class _HistoryEntryTileState extends State<HistoryEntryTile> {
                       CustomSemanticsAction(label: l10n.commonCopy): _copy,
                       CustomSemanticsAction(label: l10n.commonShare): () =>
                           unawaited(shareHistoryEntry(context, entry)),
+                      CustomSemanticsAction(label: l10n.phrasebookAdd):
+                          ?widget.onAddToPhrasebook,
                     },
                     child: InkWell(
                       onTap: widget.onTap,

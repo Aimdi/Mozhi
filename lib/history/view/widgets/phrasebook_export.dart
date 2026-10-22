@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/documents/data/document_file_service.dart';
 import 'package:mozhi/history/data/phrasebook_csv.dart';
@@ -21,7 +22,33 @@ enum _ExportChoice { save, share }
 Future<void> showPhrasebookExport(
   BuildContext context,
   List<HistoryEntry> entries,
-) async {
+) {
+  final l10n = context.l10n;
+  return showCsvExport(
+    context,
+    fileName: PhrasebookCsv.fileName,
+    bytes: () => PhrasebookCsv.bytes(entries),
+    title: l10n.historyExportTitle(entries.length),
+    note: l10n.historyExportNote,
+    saved: l10n.historyExportSaved(entries.length),
+    failed: l10n.historyExportFailed,
+  );
+}
+
+/// Exports a CSV file named [fileName] (its [bytes], made once chosen): a
+/// sheet with [title] and [note] (what the file holds, that it is not
+/// encrypted) offers Save (a download on the web; [saved] confirms it) and
+/// Share. [failed] says when neither worked. Also the phrasebook's export
+/// of a collection.
+Future<void> showCsvExport(
+  BuildContext context, {
+  required String fileName,
+  required Uint8List Function() bytes,
+  required String title,
+  required String note,
+  required String saved,
+  required String failed,
+}) async {
   final l10n = context.l10n;
   final messenger = ScaffoldMessenger.maybeOf(context);
   final files = PhrasebookExport.files;
@@ -33,26 +60,26 @@ Future<void> showPhrasebookExport(
     context: context,
     showDragHandle: true,
     builder: (context) =>
-        _ExportSheet(count: entries.length, canShare: files.canShareFiles),
+        _ExportSheet(title: title, note: note, canShare: files.canShareFiles),
   );
   if (choice == null) return;
-  final bytes = PhrasebookCsv.bytes(entries);
+  final data = bytes();
   void say(String message) => messenger
     ?..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(content: Text(message)));
   try {
     switch (choice) {
       case _ExportChoice.save:
-        final saved = await files.saveFile(
-          fileName: PhrasebookCsv.fileName,
-          bytes: bytes,
+        final done = await files.saveFile(
+          fileName: fileName,
+          bytes: data,
           mimeType: PhrasebookCsv.mimeType,
         );
-        if (saved) say(l10n.historyExportSaved(entries.length));
+        if (done) say(saved);
       case _ExportChoice.share:
         await files.shareFile(
-          fileName: PhrasebookCsv.fileName,
-          bytes: bytes,
+          fileName: fileName,
+          bytes: data,
           mimeType: PhrasebookCsv.mimeType,
           origin: origin,
         );
@@ -60,15 +87,16 @@ Future<void> showPhrasebookExport(
   } on ShareUnsupportedException {
     say(l10n.historyExportShareUnsupported);
   } on Object {
-    say(l10n.historyExportFailed);
+    say(failed);
   }
 }
 
 /// What the export makes, and Save / Share.
 class _ExportSheet extends StatelessWidget {
-  const new({required this.count, required this.canShare});
+  const new({required this.title, required this.note, required this.canShare});
 
-  final int count;
+  final String title;
+  final String note;
   final bool canShare;
 
   @override
@@ -86,7 +114,7 @@ class _ExportSheet extends StatelessWidget {
             child: Semantics(
               header: true,
               child: Text(
-                l10n.historyExportTitle(count),
+                title,
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w800,
                 ),
@@ -102,7 +130,7 @@ class _ExportSheet extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    l10n.historyExportNote,
+                    note,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: colors.onSurfaceVariant,
                     ),

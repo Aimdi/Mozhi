@@ -9,6 +9,7 @@ with background and troubleshooting, is
 | `docker-compose.yml` | Mozhi, plus optional Ollama, LibreTranslate and Caddy |
 | `.env.example` | Every setting, with defaults. Copy to `.env` to change them |
 | `Caddyfile` | HTTPS reverse proxy for Mozhi (and, optionally, Ollama), the model mirror at `/models/` and, optionally, the web app |
+| `webdav-cors.Caddyfile` | CORS (and HTTPS) in front of your WebDAV server, so the web app can [sync](../docs/sync.md#the-web-app-and-cors) with it |
 
 ## 1. Mozhi on your network
 

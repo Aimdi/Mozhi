@@ -131,7 +131,10 @@ class ConversationTurnBubble extends StatelessWidget {
         : turn.translation.trim().isEmpty
         ? l10n.conversationTranslating
         : turn.translation;
+    final guest = turn.guest;
     final details = [
+      // Written by a guest of the conversation shared on the network.
+      if (guest != null) l10n.conversationShareGuestLabel(guest),
       formatConversationTime(context, turn.createdAt),
       ?turn.engineName,
     ].join(' · ');
@@ -260,15 +263,21 @@ class ConversationTurnBubble extends StatelessWidget {
       ],
     );
 
+    final message = l10n.conversationMessageSemantics(
+      turn.source.name,
+      turn.original,
+      turn.target.name,
+      status,
+    );
     return LayoutBuilder(
       builder: (context, constraints) => Semantics(
         container: true,
-        label: l10n.conversationMessageSemantics(
-          turn.source.name,
-          turn.original,
-          turn.target.name,
-          status,
-        ),
+        label: guest == null
+            ? message
+            : l10n.conversationShareGuestSemantics(
+                l10n.conversationShareGuestLabel(guest),
+                message,
+              ),
         child: Row(
           mainAxisAlignment: alignEnd
               ? MainAxisAlignment.end
