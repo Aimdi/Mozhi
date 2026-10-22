@@ -99,7 +99,7 @@ final class BergamotWebSupport {
 /// not answer within [timeout] or fails.
 Future<BergamotWebSupport> probeBergamotWorker(
   BergamotWorkerChannel channel, {
-  Duration timeout = const Duration(seconds: 10),
+  Duration timeout = const Duration(seconds: 5),
 }) async {
   try {
     return BergamotWebSupport.fromProbe(

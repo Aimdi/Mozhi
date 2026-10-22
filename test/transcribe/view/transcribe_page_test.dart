@@ -470,14 +470,8 @@ void main() {
   testWidgets('leaving the page stops listening', (tester) async {
     await pump(tester);
     await startListening(tester);
-    final cubit = tester
-        .element(find.byType(TranscribeView))
-        .read<TranscribeCubit>();
     await tester.pumpWidget(const SizedBox());
-    for (var i = 0; i < 5; i++) {
-      await tester.pump(const Duration(milliseconds: 10));
-    }
-    printOnFailure('closed: ${cubit.isClosed} status: ${cubit.state.status}');
+    await tester.pump();
     expect(transcriber.cancels, 1);
     expect(awake.calls.last, isFalse);
   });

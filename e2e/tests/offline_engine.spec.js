@@ -16,6 +16,7 @@ const { expect } = require('@playwright/test');
 const {
   collectPageErrors,
   copiedTranslation,
+  fillField,
   openApp,
   seedSettings,
   test,
@@ -104,9 +105,10 @@ test.describe('on-device translation in the browser', () => {
 
     // The offline languages page offers the packs, with sizes.
     await openApp(page, '/settings/offline');
-    await page
-      .getByRole('searchbox', { name: 'Search languages' })
-      .fill('German');
+    await fillField(
+      page.getByRole('searchbox', { name: 'Search languages' }),
+      'German',
+    );
     const download = page.getByRole('group', { name: /^Download German/ });
     await expect(download).toHaveAccessibleName(/48\.8 MB download/);
     await download.getByRole('button', { name: 'Download' }).click();
@@ -135,6 +137,39 @@ test.describe('on-device translation in the browser', () => {
     await expect
       .poll(() => copiedTranslation(page), { timeout: 60_000 })
       .toBe('Das Wetter ist heute schön.');
+    expect(attempts).toEqual([]);
+    expect(errors).toEqual([]);
+  });
+  test('detects the language on the device (CLD2) for an automatic source', async ({
+    page,
+    context,
+  }) => {
+    await seedSettings(page, 'settings-ai', {
+      engineId: 'offline:mlkit',
+      source: { code: 'auto', name: 'Detect language' },
+      target: { code: 'en', name: 'English' },
+    });
+    const errors = collectPageErrors(page);
+    await serveModels(context);
+    await openApp(page, '/settings/offline');
+    await fillField(
+      page.getByRole('searchbox', { name: 'Search languages' }),
+      'German',
+    );
+    await page
+      .getByRole('group', { name: /^Download German/ })
+      .getByRole('button', { name: 'Download' })
+      .click();
+    await expect(
+      page.getByRole('group', { name: /^Delete German .*on this device/ }),
+    ).toBeVisible({ timeout: 120_000 });
+
+    const attempts = await cutModelHost(context);
+    await openApp(page, '/translate');
+    await typeSource(page, 'Guten Morgen, wie geht es dir?');
+    await expect
+      .poll(() => copiedTranslation(page), { timeout: 60_000 })
+      .toBe('Good morning, how are you?');
     expect(attempts).toEqual([]);
     expect(errors).toEqual([]);
   });

@@ -1,0 +1,213 @@
+name: dictionary packs
+
+# Builds the app's offline dictionary packs from Wiktionary data (wiktextract
+# JSONL from kaikki.org) and publishes them as a GitHub release named
+# dictionary-packs-<date>, with dictionary_catalog.json (sizes and SHA-256
+# of every pack). Owner-run only (Actions tab > dictionary packs > Run
+# workflow). Afterwards commit the catalogue into the app:
+#   python3 tool/dictionary_packs.py dart dictionary_catalog.json \
+#     > lib/dictionary/data/dictionary_catalog_data.dart
+# (the release also carries that file). See docs/dictionary-packs.md.
+on:
+  workflow_dispatch:
+    inputs:
+      languages:
+        description: App language codes to build, comma separated
+        required: true
+        type: string
+        default: "en,es,fr,de,it,pt,nl,pl,ru,uk,sv,fi,cs,tr,ja,zh,ko,ar,hi,el"
+      snapshot:
+        description: Date of the kaikki.org data (YYYY-MM-DD); empty for today
+        required: false
+        type: string
+      sources_sha256:
+        description: >-
+          Optional pins of the downloaded JSONL files, "es=<sha256>,de=<sha256>";
+          a language whose download differs fails
+        required: false
+        type: string
+      draft:
+        description: Publish the release as a draft
+        type: boolean
+        default: true
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      languages: ${{ steps.plan.outputs.languages }}
+      date: ${{ steps.plan.outputs.date }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Test the pack builder
+        run: python3 tool/dictionary_packs_test.py
+
+      - id: plan
+        name: Languages and date
+        env:
+          LANGUAGES: ${{ inputs.languages }}
+          SNAPSHOT: ${{ inputs.snapshot }}
+        run: |
+          date="${SNAPSHOT:-$(date -u +%F)}"
+          if ! printf '%s' "$date" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'; then
+            echo "::error::'$date' isn't a date like 2026-10-22."
+            exit 1
+          fi
+          languages=$(python3 - <<'EOF'
+          import json, os, re, sys
+          sys.path.insert(0, 'tool')
+          import dictionary_packs
+          codes = [c.strip() for c in os.environ['LANGUAGES'].split(',') if c.strip()]
+          for code in codes:
+              if not re.fullmatch(r'[a-z]{2,3}', code) or code not in dictionary_packs.KAIKKI_NAMES:
+                  sys.exit(f'::error::No kaikki.org name for {code!r} (tool/dictionary_packs.py KAIKKI_NAMES)')
+          print(json.dumps(sorted(set(codes))))
+          EOF
+          )
+          echo "languages=$languages" >> "$GITHUB_OUTPUT"
+          echo "date=$date" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.language }}
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        language: ${{ fromJSON(needs.plan.outputs.languages) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download the wiktextract data
+        env:
+          LANGUAGE: ${{ matrix.language }}
+          PINS: ${{ inputs.sources_sha256 }}
+        run: |
+          url=$(python3 tool/dictionary_packs.py kaikki-url "$LANGUAGE")
+          echo "Downloading $url"
+          curl --fail --location --retry 5 --retry-all-errors \
+            --output source.jsonl "$url"
+          sha=$(sha256sum source.jsonl | cut -d' ' -f1)
+          echo "$LANGUAGE $sha $url" > "source-$LANGUAGE.txt"
+          pin=$(printf '%s' "$PINS" | tr ',' '\n' | sed -n "s/^ *$LANGUAGE=//p" | tr -d ' ')
+          if [ -n "$pin" ] && [ "$pin" != "$sha" ]; then
+            echo "::error::$url has SHA-256 $sha, pinned $pin."
+            exit 1
+          fi
+          echo "SHA-256 $sha ($(du -h source.jsonl | cut -f1))"
+
+      - name: Build the pack
+        env:
+          LANGUAGE: ${{ matrix.language }}
+          SNAPSHOT: ${{ needs.plan.outputs.date }}
+        run: |
+          mkdir -p out
+          python3 tool/dictionary_packs.py build source.jsonl \
+            --language "$LANGUAGE" --lang-code "$LANGUAGE" \
+            --snapshot "$SNAPSHOT" \
+            --output "out/$LANGUAGE.mzd" --stats "out/$LANGUAGE.stats.json"
+          mv "source-$LANGUAGE.txt" out/
+          python3 tool/dictionary_packs.py dump "out/$LANGUAGE.mzd" > /dev/null
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pack-${{ matrix.language }}
+          path: out/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish the release
+    needs: [plan, build]
+    # Publish what was built, also when a language failed.
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    env:
+      TAG: dictionary-packs-${{ needs.plan.outputs.date }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download the packs
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: pack-*
+          path: dist
+          merge-multiple: true
+
+      - name: Catalogue and checksums
+        env:
+          REPOSITORY: ${{ github.repository }}
+          SERVER: ${{ github.server_url }}
+        run: |
+          shopt -s nullglob
+          packs=(dist/*.mzd)
+          if [ ${#packs[@]} -eq 0 ]; then
+            echo "::error::No pack was built."
+            exit 1
+          fi
+          python3 tool/dictionary_packs.py catalog "${packs[@]}" \
+            --release "$TAG" \
+            --base-url "$SERVER/$REPOSITORY/releases/download/$TAG" \
+            --source "$SERVER/$REPOSITORY/releases/tag/$TAG" \
+            > dist/dictionary_catalog.json
+          python3 tool/dictionary_packs.py dart dist/dictionary_catalog.json \
+            > dist/dictionary_catalog_data.dart
+          cat dist/source-*.txt > dist/sources.txt
+          (cd dist && sha256sum -- *.mzd dictionary_catalog.json > SHA256SUMS.txt)
+          {
+            echo "## Dictionary packs $TAG"
+            echo
+            echo "| Language | Entries | Keys | Size | SHA-256 |"
+            echo "| --- | ---: | ---: | ---: | --- |"
+            python3 - dist/*.stats.json <<'EOF'
+          import json, sys
+          for path in sys.argv[1:]:
+              with open(path) as f:
+                  s = json.load(f)
+              size = s['size'] / 1048576
+              print(f"| {s['language']} | {s['entries']:,} | {s['keys']:,} "
+                    f"| {size:.1f} MB | `{s['sha256'][:16]}` |")
+          EOF
+            echo
+            echo "Sources (kaikki.org, SHA-256):"
+            echo
+            sed 's/^/    /' dist/sources.txt
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish the GitHub release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          tag_name: ${{ env.TAG }}
+          target_commitish: ${{ github.sha }}
+          name: Dictionary packs ${{ needs.plan.outputs.date }}
+          draft: ${{ inputs.draft }}
+          prerelease: true
+          make_latest: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+          body: |
+            Offline dictionary packs for Mozhi, built by `.github/workflows/dictionary_packs.yaml` from Wiktionary data extracted by wiktextract (kaikki.org), data of ${{ needs.plan.outputs.date }}. Format and use: `docs/dictionary-packs.md`.
+
+            - **Licence**: the data is from Wiktionary, by Wiktionary contributors, under the Creative Commons Attribution-ShareAlike 4.0 licence (https://creativecommons.org/licenses/by-sa/4.0/) and the GNU FDL; shortened to definitions, pronunciation, examples, synonyms, related words, short etymologies and translations. Every pack carries this attribution.
+            - **App**: commit `dictionary_catalog_data.dart` as `lib/dictionary/data/dictionary_catalog_data.dart`; the app then offers these packs under Settings > Offline languages > Dictionaries and checks every download against its size and SHA-256.
+            - `sources.txt` lists the SHA-256 of each kaikki.org file the packs were built from; verify downloads against `SHA256SUMS.txt`.
+          files: |
+            dist/*.mzd
+            dist/dictionary_catalog.json
+            dist/dictionary_catalog_data.dart
+            dist/sources.txt
+            dist/SHA256SUMS.txt

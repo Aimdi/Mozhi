@@ -643,18 +643,25 @@ class TranscribeCubit extends Cubit<TranscribeState> {
 
   @override
   Future<void> close() async {
-    print('DBG close start'); // DBG
-    await _events?.cancel();
-    print('DBG events cancelled'); // DBG
+    // The microphone and the screen first: nothing may stay on.
+    final keepAwake = _keepAwake(enabled: false);
+    final transcriber = _transcriber;
+    final cancelled = transcriber?.cancel();
+    final events = _events?.cancel();
     _events = null;
     final recording = _recording;
     if (recording != null && !recording.isCompleted) recording.complete();
-    await _transcriber?.cancel();
-    if (_transcriber case final WhisperTranscriber whisper) {
+    final translation = _translation;
+    _translation = null;
+    await Future.wait<void>([
+      keepAwake,
+      ?cancelled,
+      ?events,
+      ?translation?.cancel(),
+    ]);
+    if (transcriber case final WhisperTranscriber whisper) {
       await whisper.dispose();
     }
-    await _translation?.cancel();
-    await _keepAwake(enabled: false);
     await super.close();
   }
 }
