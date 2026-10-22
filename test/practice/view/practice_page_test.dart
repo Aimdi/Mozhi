@@ -661,6 +661,21 @@ void main() {
     );
     await settle(tester);
     expect(find.text("Couldn't hear that. Try again."), findsOneWidget);
+
+    // Going to the background drops a recording.
+    await tester.tap(mic);
+    await tester.pump();
+    expect(find.text('Listening…'), findsOneWidget);
+    tester.binding
+      ..handleAppLifecycleStateChanged(AppLifecycleState.inactive)
+      ..handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    await settle(tester);
+    expect(recognizer.cancels, 1);
+    expect(find.text('Listening…'), findsNothing);
+    tester.binding
+      ..handleAppLifecycleStateChanged(AppLifecycleState.inactive)
+      ..handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await settle(tester);
   });
 
   testWidgets('a review that cannot be stored is said once', (tester) async {

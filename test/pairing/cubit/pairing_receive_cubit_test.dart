@@ -61,6 +61,7 @@ void main() {
   PairingReceiveCubit build({
     List<String> addresses = const ['127.0.0.1'],
     Duration codeValidity = const Duration(minutes: 1),
+    int maxFailures = 30,
     Exception? bindError,
   }) {
     final environment = TestPairingEnvironment(
@@ -68,6 +69,7 @@ void main() {
       library: PairingLibrary(backup: backup, packs: [receiverPacks]),
       addresses: addresses,
       codeValidity: codeValidity,
+      maxFailures: maxFailures,
       bindError: bindError,
     );
     environments.add(environment);
@@ -127,6 +129,7 @@ void main() {
         (s) => s.step == PairingReceiveStep.connected,
       );
       expect(connected.sas, channel.sas);
+      expect(connected.numbersConfirmed, isFalse);
 
       final sender = PairingSender(channel);
       final items = await offer();
@@ -149,6 +152,15 @@ void main() {
         ..toggle('translation:de')
         ..setMode(BackupRestoreMode.replace);
       expect(cubit.state.mode, BackupRestoreMode.replace);
+
+      // Nothing is accepted before the numbers are confirmed.
+      await cubit.accept();
+      expect(cubit.state.step, PairingReceiveStep.offer);
+      await cubit.confirm(match: true);
+      expect(cubit.state.numbersConfirmed, isTrue);
+      // Confirming twice changes nothing.
+      await cubit.confirm(match: false);
+      expect(cubit.state.step, PairingReceiveStep.offer);
 
       final accepted = cubit.accept();
       expect(cubit.state.step, PairingReceiveStep.transferring);
@@ -204,8 +216,72 @@ void main() {
       await until(cubit, (s) => s.step == PairingReceiveStep.expired);
     });
 
-    test('wrong codes burn the code', () async {
+    test('the numbers can be confirmed before the offer', () async {
       final cubit = build();
+      await cubit.start();
+      final channel = await connect(cubit.state.code!);
+      await until(cubit, (s) => s.step == PairingReceiveStep.connected);
+      await cubit.confirm(match: true);
+      expect(cubit.state.numbersConfirmed, isTrue);
+      final sender = PairingSender(channel);
+      final requested = sender.offer(await offer());
+      final offered = await until(
+        cubit,
+        (s) => s.step == PairingReceiveStep.offer,
+      );
+      expect(offered.numbersConfirmed, isTrue);
+      final accepted = cubit.accept();
+      await sender.send(await requested);
+      await accepted;
+      expect(cubit.state.step, PairingReceiveStep.done);
+      // A new code starts over.
+      await cubit.start();
+      expect(cubit.state.numbersConfirmed, isFalse);
+    });
+
+    test('numbers that differ stop the connection', () async {
+      final cubit = build();
+      await cubit.start();
+      final channel = await connect(cubit.state.code!);
+      final requested = PairingSender(channel).offer(await offer());
+      final stopped = expectLater(
+        requested,
+        throwsA(isA<PairingCancelledException>()),
+      );
+      await until(cubit, (s) => s.step == PairingReceiveStep.offer);
+      await cubit.confirm(match: false);
+      expect(cubit.state.step, PairingReceiveStep.failed);
+      expect(cubit.state.failure, PairingFailure.sasMismatch);
+      await stopped;
+      // Nothing to accept or confirm any more.
+      await cubit.accept();
+      await cubit.confirm(match: true);
+      expect(cubit.state.step, PairingReceiveStep.failed);
+      expect(receiverPacks.installs, isEmpty);
+    });
+
+    test('numbers that differ stop waiting for the offer', () async {
+      final cubit = build();
+      await cubit.start();
+      await connect(cubit.state.code!);
+      await until(cubit, (s) => s.step == PairingReceiveStep.connected);
+      await cubit.confirm(match: false);
+      expect(cubit.state.failure, PairingFailure.sasMismatch);
+      // The connection breaking afterwards does not change the reason.
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(cubit.state.failure, PairingFailure.sasMismatch);
+    });
+
+    test('numbers can only be compared once a phone connected', () async {
+      final cubit = build();
+      await cubit.start();
+      await cubit.confirm(match: true);
+      expect(cubit.state.numbersConfirmed, isFalse);
+      expect(cubit.state.step, PairingReceiveStep.waiting);
+    });
+
+    test('wrong codes burn the code', () async {
+      final cubit = build(maxFailures: 3);
       await cubit.start();
       final code = cubit.state.code!;
       final wrong = PairingCode(
@@ -270,6 +346,7 @@ void main() {
       final sender = PairingSender(channel);
       final requested = sender.offer(await offer());
       await until(cubit, (s) => s.step == PairingReceiveStep.offer);
+      await cubit.confirm(match: true);
       final accepted = cubit.accept();
       await requested;
       channel.destroy();
@@ -287,6 +364,7 @@ void main() {
       final sender = PairingSender(channel);
       final requested = sender.offer(await offer());
       await until(cubit, (s) => s.step == PairingReceiveStep.offer);
+      await cubit.confirm(match: true);
       final accepted = cubit.accept();
       final sent = sender.send(await requested);
       unawaited(sent.then((_) {}, onError: (Object _) {}));

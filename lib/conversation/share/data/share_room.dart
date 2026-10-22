@@ -65,6 +65,14 @@ enum ShareJoinError {
   /// There are [ShareRoom.maxGuests] guests already.
   full,
 
+  /// Too many guests joined in a short time
+  /// ([ShareRoom.maxRoomJoinsPerMinute]).
+  tooMany,
+
+  /// The language would be one more than [ShareRoom.maxExtraLanguages]
+  /// (see [ShareRoom.readableLanguages] for what may be read).
+  languageLimit,
+
   /// The language is not one the host offers.
   unknownLanguage,
 
@@ -106,14 +114,25 @@ typedef ShareReplyCallback = void Function(ShareGuest guest, String text);
 /// `share_server_io.dart`, is a thin layer over it):
 ///
 /// * Guests join with a language from [languages] (and the [pin], when
-///   there is one). At most [maxGuests] at a time; after
-///   [maxWrongPins] wrong PINs nobody new may join.
+///   there is one). At most [maxGuests] at a time and
+///   [maxRoomJoinsPerMinute] joins a minute; after [maxWrongPins] wrong
+///   PINs nobody new may join.
 /// * Each guest sees the shared turns ([update]: what was said since the
-///   sharing started) in their language ([snapshotFor]), translated once
-///   per language ([ShareTranslations]).
+///   sharing started; the last [maxTurns]) in their language
+///   ([snapshotFor]), translated once per language ([ShareTranslations]):
+///   only those turns, only for the languages guests read now. Besides
+///   the conversation's two languages, guests may read at most
+///   [maxExtraLanguages] others at a time; a language keeps its place
+///   (and its translations) for [languageKeep] after its last guest left
+///   it, so leaving and joining again, or switching back and forth,
+///   doesn't have the same turns translated again.
 /// * Guests may reply ([reply], unless [repliesAllowed] is off): at most
 ///   [maxReplyLength] characters, one every [replyInterval] and
-///   [maxRepliesPerMinute] a minute.
+///   [maxRepliesPerMinute] a minute per device (the `client` a guest
+///   joined from, so joining again does not reset it), and
+///   [maxRoomRepliesPerMinute] a minute from all guests together.
+///   Language changes likewise ([maxLanguageChangesPerMinute],
+///   [maxRoomLanguageChangesPerMinute]).
 /// * A guest whose page is gone ([disconnected]) for [absenceGrace] is
 ///   removed.
 /// * [end] ends it for everyone.
@@ -128,10 +147,13 @@ class ShareRoom {
     required this._onReply,
     this._pin,
     this.maxGuests = 8,
+    this.maxExtraLanguages = 4,
+    List<Language> Function()? conversationLanguages,
     ShareSecrets? secrets,
     DateTime Function()? clock,
     Timer Function(Duration, void Function())? timer,
-  }) : _secrets = secrets ?? ShareSecrets(),
+  }) : _ownLanguages = conversationLanguages ?? (() => const []),
+       _secrets = secrets ?? ShareSecrets(),
        _clock = clock ?? DateTime.now,
        _timer = timer ?? Timer.new,
        _replies = ShareRateLimiter(
@@ -141,7 +163,22 @@ class ShareRoom {
        ),
        _replyGap = ShareRateLimiter(max: 1, per: replyInterval, clock: clock),
        _languageChanges = ShareRateLimiter(
-         max: 10,
+         max: maxLanguageChangesPerMinute,
+         per: const Duration(minutes: 1),
+         clock: clock,
+       ),
+       _roomJoins = ShareRateLimiter(
+         max: maxRoomJoinsPerMinute,
+         per: const Duration(minutes: 1),
+         clock: clock,
+       ),
+       _roomReplies = ShareRateLimiter(
+         max: maxRoomRepliesPerMinute,
+         per: const Duration(minutes: 1),
+         clock: clock,
+       ),
+       _roomLanguageChanges = ShareRateLimiter(
+         max: maxRoomLanguageChangesPerMinute,
          per: const Duration(minutes: 1),
          clock: clock,
        ) {
@@ -154,8 +191,25 @@ class ShareRoom {
   /// The shortest time between two replies of a guest.
   static const replyInterval = Duration(seconds: 2);
 
-  /// Replies a guest may send per minute.
+  /// Replies a guest's device may send per minute.
   static const maxRepliesPerMinute = 12;
+
+  /// Replies per minute from all guests together.
+  static const maxRoomRepliesPerMinute = 20;
+
+  /// Language changes a guest's device may make per minute.
+  static const maxLanguageChangesPerMinute = 10;
+
+  /// Language changes per minute from all guests together.
+  static const maxRoomLanguageChangesPerMinute = 30;
+
+  /// Joins per minute in all, whoever asks (the server also limits them
+  /// per address).
+  static const maxRoomJoinsPerMinute = 20;
+
+  /// How long a language no guest reads any more keeps its translations
+  /// and its place among the [maxExtraLanguages].
+  static const languageKeep = Duration(minutes: 5);
 
   /// Wrong PINs (from anyone) after which nobody new may join.
   static const maxWrongPins = 20;
@@ -175,18 +229,31 @@ class ShareRoom {
 
   final ShareTranslations _translations;
   final ShareReplyCallback _onReply;
+  final List<Language> Function() _ownLanguages;
   final ShareSecrets _secrets;
   final DateTime Function() _clock;
   final Timer Function(Duration, void Function()) _timer;
   final ShareRateLimiter _replies;
   final ShareRateLimiter _replyGap;
   final ShareRateLimiter _languageChanges;
+  final ShareRateLimiter _roomJoins;
+  final ShareRateLimiter _roomReplies;
+  final ShareRateLimiter _roomLanguageChanges;
   late final StreamSubscription<void> _translationChanges;
+
+  /// The key of the room-wide limits.
+  static const _everyone = '';
 
   /// The most guests at a time.
   // Immutable configuration passed to the constructor, not state.
   // ignore: avoid_public_fields
   final int maxGuests;
+
+  /// The most languages guests may read at a time besides the
+  /// conversation's two (`conversationLanguages`), each translated by the
+  /// host's engine for every turn.
+  // ignore: avoid_public_fields
+  final int maxExtraLanguages;
 
   String? _pin;
   bool _repliesAllowed = true;
@@ -196,6 +263,13 @@ class ShareRoom {
   int _revision = 0;
   final Map<String, _Guest> _guests = {};
   List<ConversationTurn> _turns = const [];
+
+  /// The languages guests read at the last [_translate].
+  List<Language> _reading = const [];
+
+  /// Languages no guest reads any more whose translations are kept, until
+  /// when (see [languageKeep]); never one guests read.
+  final Map<String, (Language, DateTime)> _kept = {};
   final _changes = StreamController<void>.broadcast();
 
   /// Something a guest (or the host) sees may have changed.
@@ -252,11 +326,30 @@ class ShareRoom {
   Language? languageOf(String code) {
     final wanted = LanguageMatcher.normalize(code.trim()).toLowerCase();
     for (final language in languages) {
-      if (LanguageMatcher.normalize(language.code).toLowerCase() == wanted) {
-        return language;
-      }
+      if (_codeOf(language) == wanted) return language;
     }
     return null;
+  }
+
+  /// Whether a guest may read [language] now: one of the conversation's
+  /// two, one that guests read (or read until a moment ago, see
+  /// [languageKeep]), or another one while fewer than [maxExtraLanguages]
+  /// are.
+  bool canRead(Language language) {
+    if (_isOwn(language)) return true;
+    final inUse = _extraInUse();
+    return inUse.contains(_codeOf(language)) ||
+        inUse.length < maxExtraLanguages;
+  }
+
+  /// The languages of [languages] guests can read without one more
+  /// ([canRead]): the conversation's two and the others in use.
+  List<Language> get readableLanguages {
+    final inUse = _extraInUse();
+    return [
+      for (final language in languages)
+        if (_isOwn(language) || inUse.contains(_codeOf(language))) language,
+    ];
   }
 
   /// The conversation's turns to share (oldest first).
@@ -267,8 +360,15 @@ class ShareRoom {
     _changed();
   }
 
-  /// Adds a guest reading [languageCode], when [pin] is right.
-  ShareJoinResult join({required String languageCode, String? pin}) {
+  /// Adds a guest reading [languageCode], when [pin] is right. [client]
+  /// identifies the guest's device (the server passes its address): the
+  /// guest's limits are counted per device, so joining again doesn't
+  /// reset them.
+  ShareJoinResult join({
+    required String languageCode,
+    String? pin,
+    String? client,
+  }) {
     if (_ended) return const ShareJoinRefused(ShareJoinError.ended);
     if (locked) return const ShareJoinRefused(ShareJoinError.locked);
     final expected = _pin;
@@ -286,6 +386,13 @@ class ShareRoom {
     if (_guests.length >= maxGuests) {
       return const ShareJoinRefused(ShareJoinError.full);
     }
+    if (!_roomJoins.allows(_everyone)) {
+      return const ShareJoinRefused(ShareJoinError.tooMany);
+    }
+    if (!canRead(language)) {
+      return const ShareJoinRefused(ShareJoinError.languageLimit);
+    }
+    _roomJoins.allow(_everyone);
     final guest = ShareGuest(
       id: _secrets.id(),
       number: _nextNumber++,
@@ -293,7 +400,8 @@ class ShareRoom {
       joinedAt: _clock(),
     );
     final key = _secrets.token();
-    _guests[guest.id] = _Guest(guest, key)..absence = _absent(guest.id);
+    _guests[guest.id] = _Guest(guest, key, client ?? guest.id)
+      ..absence = _absent(guest.id);
     _translate();
     _changed();
     return ShareJoined(guest, key);
@@ -308,12 +416,20 @@ class ShareRoom {
   }
 
   /// [guest] reads [languageCode] from now on; false for a language the
-  /// host does not offer, or too many changes.
+  /// host does not offer or that would be one too many ([canRead]), or
+  /// too many changes.
   bool setLanguage(ShareGuest guest, String languageCode) {
     final entry = _guests[guest.id];
     final language = languageOf(languageCode);
-    if (entry == null || language == null) return false;
-    if (!_languageChanges.allow(guest.id)) return false;
+    if (entry == null || language == null || !canRead(language)) {
+      return false;
+    }
+    if (!_languageChanges.allows(entry.client) ||
+        !_roomLanguageChanges.allows(_everyone)) {
+      return false;
+    }
+    _languageChanges.allow(entry.client);
+    _roomLanguageChanges.allow(_everyone);
     entry.guest = entry.guest.copyWith(language: language);
     _translate();
     _changed();
@@ -330,11 +446,15 @@ class ShareRoom {
     if (trimmed.runes.length > maxReplyLength) {
       return ShareReplyResult.tooLong;
     }
-    if (!_replyGap.allows(guest.id) || !_replies.allows(guest.id)) {
+    final client = entry.client;
+    if (!_replyGap.allows(client) ||
+        !_replies.allows(client) ||
+        !_roomReplies.allows(_everyone)) {
       return ShareReplyResult.tooFast;
     }
-    _replyGap.allow(guest.id);
-    _replies.allow(guest.id);
+    _replyGap.allow(client);
+    _replies.allow(client);
+    _roomReplies.allow(_everyone);
     _onReply(entry.guest, trimmed);
     return ShareReplyResult.sent;
   }
@@ -378,6 +498,8 @@ class ShareRoom {
     final entry = _guests.remove(id);
     if (entry == null) return;
     entry.absence?.cancel();
+    // Nothing more is translated for a language nobody reads now.
+    _translate();
     _changed();
   }
 
@@ -389,9 +511,7 @@ class ShareRoom {
   /// is a [ShareTextStatus] name.
   Map<String, Object?> snapshotFor(ShareGuest guest) {
     final language = _guests[guest.id]?.guest.language ?? guest.language;
-    final turns = _turns.length > maxTurns
-        ? _turns.sublist(_turns.length - maxTurns)
-        : _turns;
+    final turns = _visible;
     return {
       'revision': _revision,
       'language': language.code,
@@ -431,8 +551,9 @@ class ShareRoom {
   ];
 
   /// Translates again the turns of [language] that waited for the host's
-  /// consent (see [ShareTranslations.retry]).
-  void retryLanguage(Language language) => _translations.retry(language);
+  /// [consent] (see [ShareTranslations.retry]).
+  void retryLanguage(Language language, {ConsentRequiredException? consent}) =>
+      _translations.retry(language, consent: consent);
 
   /// What the host sees about the guests' extra languages.
   List<ShareLanguageState> languageStates() =>
@@ -456,7 +577,51 @@ class ShareRoom {
       ? language.nativeName!
       : language.name;
 
-  void _translate() => _translations.ensure(_turns, guestLanguages);
+  static String _codeOf(Language language) =>
+      LanguageMatcher.normalize(language.code).toLowerCase();
+
+  bool _isOwn(Language language) => _ownLanguages().any(
+    (own) => ShareTranslations.sameLanguage(own, language),
+  );
+
+  /// The turns guests see: the last [maxTurns].
+  List<ConversationTurn> get _visible => _turns.length > maxTurns
+      ? _turns.sublist(_turns.length - maxTurns)
+      : _turns;
+
+  /// The codes of the languages besides the conversation's two that guests
+  /// read, or read until a moment ago.
+  Set<String> _extraInUse() {
+    _forgetKept(_clock());
+    return {
+      for (final language in guestLanguages)
+        if (!_isOwn(language)) _codeOf(language),
+      for (final (language, _) in _kept.values)
+        if (!_isOwn(language)) _codeOf(language),
+    };
+  }
+
+  void _forgetKept(DateTime now) =>
+      _kept.removeWhere((_, kept) => !kept.$2.isAfter(now));
+
+  /// Has what guests see translated, and nothing else.
+  void _translate() {
+    final now = _clock();
+    final reading = guestLanguages;
+    final read = {for (final language in reading) _codeOf(language)};
+    for (final language in _reading) {
+      final code = _codeOf(language);
+      if (!read.contains(code)) _kept[code] = (language, now.add(languageKeep));
+    }
+    read.forEach(_kept.remove);
+    _reading = reading;
+    _forgetKept(now);
+    _translations.ensure(
+      _visible,
+      reading,
+      keep: [for (final (language, _) in _kept.values) language],
+    );
+  }
 
   void _changed() {
     _revision++;
@@ -465,10 +630,13 @@ class ShareRoom {
 }
 
 class _Guest {
-  new(this.guest, this.key);
+  new(this.guest, this.key, this.client);
 
   ShareGuest guest;
   final String key;
+
+  /// The device the guest joined from (its limits are counted per device).
+  final String client;
   int connections = 0;
   Timer? absence;
 }

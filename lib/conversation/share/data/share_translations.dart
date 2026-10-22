@@ -132,8 +132,7 @@ class ShareTranslations {
 
   /// Whether [a] and [b] are the same language for the guests (variants
   /// of one language are not: `pt-BR` and `pt-PT` read differently).
-  static bool sameLanguage(Language a, Language b) =>
-      _codeOf(a) == _codeOf(b);
+  static bool sameLanguage(Language a, Language b) => _codeOf(a) == _codeOf(b);
 
   /// [turn] as guests reading [language] see it.
   ShareText textOf(ConversationTurn turn, Language language) {

@@ -175,21 +175,21 @@ class _DropRecordingWhenHidden extends StatefulWidget {
 }
 
 class _DropRecordingWhenHiddenState extends State<_DropRecordingWhenHidden> {
-  late final AppLifecycleListener _lifecycle = AppLifecycleListener(
-    onHide: () {
-      final speech = context.read<PracticeSpeechCubit>();
-      final status = speech.state.status;
-      if (status == PracticeSpeechStatus.listening ||
-          status == PracticeSpeechStatus.transcribing) {
-        unawaited(speech.reset());
-      }
-    },
-  );
+  late final AppLifecycleListener _lifecycle;
 
   @override
   void initState() {
     super.initState();
-    _lifecycle;
+    _lifecycle = AppLifecycleListener(onHide: _onHide);
+  }
+
+  void _onHide() {
+    final speech = context.read<PracticeSpeechCubit>();
+    final status = speech.state.status;
+    if (status == PracticeSpeechStatus.listening ||
+        status == PracticeSpeechStatus.transcribing) {
+      unawaited(speech.reset());
+    }
   }
 
   @override
